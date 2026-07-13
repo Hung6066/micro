@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namePrefix: his-hope-
+
+commonLabels:
+  app.kubernetes.io/part-of: his-hope
+  app.kubernetes.io/managed-by: kustomize
+  app.kubernetes.io/version: latest
+
+commonAnnotations:
+  linkerd.io/inject: enabled
+
+resources:
+  - namespace.yaml
+  - patient-service.yaml
+  - identity-service.yaml
+  - appointment-service.yaml
+  - clinical-service.yaml
+  - postgres.yaml
+  - rabbitmq.yaml
+  - redis.yaml
+  - ../linkerd/server.yaml
+  - ../linkerd/server-authorization.yaml
+  - ../linkerd/traffic-split.yaml
+  - ../linkerd/service-profiles.yaml
+  - ../linkerd/pod-monitor.yaml
+
+patches:
+  - target:
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/part-of=his-hope"
+    patch: |-
+      - op: add
+        path: /spec/template/metadata/annotations/linkerd.io~1inject
+        value: enabled

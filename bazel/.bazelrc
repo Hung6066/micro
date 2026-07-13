@@ -1,0 +1,21 @@
+# Build with .NET 8
+build --dotnet_sdk_version=8.0
+
+# Use remote cache for faster builds
+build --remote_cache=https://storage.googleapis.com/his-hope-bazel-cache
+
+# Test output
+test --test_output=errors
+
+# Resource limits
+build --local_ram_resources=8192
+build --local_cpu_resources=4
+
+# Build with optimization in release
+build:release --compilation_mode=opt
+
+# Static analysis
+build --aspects=@io_bazel_rules_dotnet//dotnet:defs.bzl%dotnet_analyzer
+
+# Docker layer caching
+build --sandbox_writable_path=/var/lib/docker

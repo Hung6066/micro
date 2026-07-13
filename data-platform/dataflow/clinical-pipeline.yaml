@@ -1,0 +1,51 @@
+name: clinical-data-pipeline
+runner: DataflowRunner
+options:
+  project: his-hope-analytics
+  region: us-east1
+  dataflow_service_account: dataflow-sa@his-hope-analytics.iam.gserviceaccount.com
+  enable_streaming_engine: true
+  
+pipeline:
+  - name: read-clinical-events
+    type: PubSubIO
+    config:
+      subscription: clinical-events-to-dataflow
+      with_attributes: true
+  
+  - name: deidentify-phi
+    type: ParDo
+    config:
+      fn: deidentify_phi
+      udf: |
+        def deidentify(element):
+          import json
+          data = json.loads(element)
+          # Remove direct PHI identifiers
+          phi_fields = ['ssn', 'medical_record_number', 'full_name', 'phone', 'email']
+          for field in phi_fields:
+            data.pop(field, None)
+          # Hash patient_id for join safety
+          import hashlib
+          data['patient_id_hash'] = hashlib.sha256(data['patient_id'].encode()).hexdigest()
+          return json.dumps(data)
+  
+  - name: write-to-bigquery
+    type: BigQueryIO
+    config:
+      table: his-hope-analytics.clinical_facts
+      write_disposition: WRITE_APPEND
+  
+  - name: write-features-to-feature-store
+    type: ParDo
+    config:
+      fn: write_to_feature_store
+      destination: vertex_ai_feature_store
+      entity_type: patient
+      features:
+        - total_encounters
+        - avg_systolic_bp
+        - avg_diastolic_bp
+        - avg_heart_rate
+        - has_diabetes
+        - has_hypertension

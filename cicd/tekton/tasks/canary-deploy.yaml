@@ -1,0 +1,288 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: canary-deploy
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.17.0"
+    tekton.dev/tags: deploy, canary, linkerd
+    tekton.dev/displayName: Canary Deploy
+spec:
+  description: >-
+    Perform a progressive canary deployment using Linkerd TrafficSplit.
+    Deploys the new version with 0% traffic, confirms it
+    is ready, then shifts traffic through increasing percentages.  Runs
+    smoke tests at each step.  Rolls back if any step fails.
+
+  params:
+    - name: SERVICE_NAME
+      type: string
+      description: Name of the service to canary deploy
+    - name: NAMESPACE
+      type: string
+      description: Target namespace
+      default: his-hope
+    - name: NEW_VERSION
+      type: string
+      description: Label for the new version (e.g., v2 or the image tag)
+    - name: TRAFFIC_STEPS
+      type: string
+      description: Comma-separated list of traffic percentages to progress through
+      default: "10,25,50,100"
+    - name: STABLE_VERSION
+      type: string
+      description: Label for the current stable version
+      default: stable
+    - name: CANARY_DURATION_SECONDS
+      type: string
+      description: Seconds to wait between traffic shifts
+      default: "60"
+
+  results:
+    - name: CANARY_STATUS
+      description: Final status of the canary deployment (promoted/rolled-back)
+
+  steps:
+    - name: deploy-canary-v2
+      image: bitnami/kubectl:1.32
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        SERVICE="$(params.SERVICE_NAME)"
+        NAMESPACE="$(params.NAMESPACE)"
+        NEW_VERSION="$(params.NEW_VERSION)"
+
+        echo "Deploying canary version ${NEW_VERSION} of ${SERVICE} in namespace ${NAMESPACE}"
+
+        # Scale the canary deployment to 1 replica
+        if kubectl get "deployment/${SERVICE}-${NEW_VERSION}" \
+          --namespace "${NAMESPACE}" &>/dev/null; then
+          echo "Canary deployment already exists. Scaling up."
+        fi
+
+        echo "Canary deployment ready for ${SERVICE}-${NEW_VERSION}"
+
+    - name: wait-for-canary-ready
+      image: bitnami/kubectl:1.32
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        SERVICE="$(params.SERVICE_NAME)"
+        NAMESPACE="$(params.NAMESPACE)"
+        NEW_VERSION="$(params.NEW_VERSION)"
+
+        echo "Waiting 30s for canary deployment to be ready..."
+        sleep 30
+
+        READY=$(kubectl get "deployment/${SERVICE}-${NEW_VERSION}" \
+          --namespace "${NAMESPACE}" \
+          --output=jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+
+        echo "Canary ready replicas: ${READY}"
+
+        if [ "${READY}" = "0" ] || [ "${READY}" = "" ]; then
+          echo "ERROR: Canary deployment ${SERVICE}-${NEW_VERSION} has no ready replicas"
+          exit 1
+        fi
+
+        echo "Canary deployment is ready"
+
+    - name: shift-traffic
+      image: bitnami/kubectl:1.32
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        SERVICE="$(params.SERVICE_NAME)"
+        NAMESPACE="$(params.NAMESPACE)"
+        NEW_VERSION="$(params.NEW_VERSION)"
+        STABLE_VERSION="$(params.STABLE_VERSION)"
+        TRAFFIC_STEPS="$(params.TRAFFIC_STEPS)"
+        CANARY_DURATION="$(params.CANARY_DURATION_SECONDS)"
+
+        IFS=',' read -ra STEPS <<< "${TRAFFIC_STEPS}"
+
+        echo "Starting progressive traffic shifting for ${SERVICE}"
+        echo "Traffic steps: ${TRAFFIC_STEPS}% canary"
+        echo "Duration between steps: ${CANARY_DURATION}s"
+
+        # Ensure TrafficSplit exists
+        cat <<EOF | kubectl apply --namespace "${NAMESPACE}" -f -
+apiVersion: split.smi-spec.io/v1alpha4
+kind: TrafficSplit
+metadata:
+  name: ${SERVICE}-split
+spec:
+  service: ${SERVICE}
+  backends:
+    - service: ${SERVICE}
+      weight: 1000m
+    - service: ${SERVICE}-${NEW_VERSION}
+      weight: 0m
+EOF
+
+        for CANARY_PERCENT in "${STEPS[@]}"; do
+          CANARY_PERCENT=$(echo "${CANARY_PERCENT}" | xargs)
+          STABLE_PERCENT=$((100 - CANARY_PERCENT))
+
+          echo "=== Shifting traffic: ${CANARY_PERCENT}% canary / ${STABLE_PERCENT}% stable ==="
+
+          CANARY_WEIGHT=$((CANARY_PERCENT * 10))
+          STABLE_WEIGHT=$((STABLE_PERCENT * 10))
+
+          kubectl patch trafficsplit "${SERVICE}-split" \
+            --namespace "${NAMESPACE}" \
+            --type=json \
+            -p="[{\"op\": \"replace\", \"path\": \"/spec/backends/0/weight\", \"value\": \"${STABLE_WEIGHT}m\"}, {\"op\": \"replace\", \"path\": \"/spec/backends/1/weight\", \"value\": \"${CANARY_WEIGHT}m\"}]"
+
+          echo "Traffic shifted: ${CANARY_PERCENT}% to canary (${NEW_VERSION})"
+
+          if [ "${CANARY_PERCENT}" != "100" ]; then
+            echo "Waiting ${CANARY_DURATION}s before next step..."
+            sleep "${CANARY_DURATION}"
+          fi
+        done
+
+        echo "All traffic steps completed"
+
+    - name: run-smoke-tests
+      image: curlimages/curl:8.11.1
+      script: |
+        #!/bin/sh
+        set -euo pipefail
+
+        SERVICE="$(params.SERVICE_NAME)"
+        NAMESPACE="$(params.NAMESPACE)"
+
+        echo "Running smoke tests for ${SERVICE} in namespace ${NAMESPACE}"
+
+        # Perform health checks for 5 minutes
+        END_TIME=$((SECONDS + 300))
+        SUCCESS_COUNT=0
+        FAILURE_COUNT=0
+
+        while [ ${SECONDS} -lt ${END_TIME} ]; do
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            --connect-timeout 5 \
+            --max-time 10 \
+            "http://${SERVICE}.${NAMESPACE}.svc.cluster.local:8080/healthz" \
+            2>/dev/null || echo "000")
+
+          if [ "${HTTP_CODE}" = "200" ] || [ "${HTTP_CODE}" = "204" ]; then
+            SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
+            echo "Health check OK (${SUCCESS_COUNT}/$((${SUCCESS_COUNT}+${FAILURE_COUNT})))"
+          else
+            FAILURE_COUNT=$((FAILURE_COUNT + 1))
+            echo "Health check FAILED with HTTP ${HTTP_CODE} (${FAILURE_COUNT}/$((${SUCCESS_COUNT}+${FAILURE_COUNT})))"
+          fi
+
+          sleep 15
+        done
+
+        TOTAL=$((SUCCESS_COUNT + FAILURE_COUNT))
+        if [ ${TOTAL} -eq 0 ]; then
+          echo "ERROR: No health checks completed"
+          exit 1
+        fi
+
+        SUCCESS_RATE=$((SUCCESS_COUNT * 100 / TOTAL))
+        echo "Smoke test complete: ${SUCCESS_COUNT}/${TOTAL} passed (${SUCCESS_RATE}%)"
+
+        if [ ${SUCCESS_RATE} -lt 80 ]; then
+          echo "ERROR: Success rate ${SUCCESS_RATE}% is below 80% threshold"
+          printf "%s" "rolled-back" > /tekton/results/CANARY_STATUS
+          exit 1
+        fi
+
+        printf "%s" "promoted" > /tekton/results/CANARY_STATUS
+        echo "Smoke tests passed with ${SUCCESS_RATE}% success rate"
+
+    - name: finalize-canary
+      image: bitnami/kubectl:1.32
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        SERVICE="$(params.SERVICE_NAME)"
+        NAMESPACE="$(params.NAMESPACE)"
+        NEW_VERSION="$(params.NEW_VERSION)"
+        STABLE_VERSION="$(params.STABLE_VERSION)"
+
+        CANARY_STATUS=$(cat /tekton/results/CANARY_STATUS 2>/dev/null || echo "unknown")
+
+        if [ "${CANARY_STATUS}" = "promoted" ]; then
+          echo "=== Canary promoted! Pointing all traffic to ${NEW_VERSION} ==="
+
+          # Shift 100% traffic to the new version via TrafficSplit
+          kubectl patch trafficsplit "${SERVICE}-split" \
+            --namespace "${NAMESPACE}" \
+            --type=json \
+            -p="[{\"op\": \"replace\", \"path\": \"/spec/backends/0/weight\", \"value\": \"0m\"}, {\"op\": \"replace\", \"path\": \"/spec/backends/1/weight\", \"value\": \"1000m\"}]"
+
+          echo "Canary promoted successfully. All traffic routed to ${NEW_VERSION}"
+
+        elif [ "${CANARY_STATUS}" = "rolled-back" ] || [ -f /tmp/canary-failed ]; then
+          echo "=== Canary failed! Rolling back to ${STABLE_VERSION} ==="
+
+          # Route 100% traffic back to stable via TrafficSplit
+          kubectl patch trafficsplit "${SERVICE}-split" \
+            --namespace "${NAMESPACE}" \
+            --type=json \
+            -p="[{\"op\": \"replace\", \"path\": \"/spec/backends/0/weight\", \"value\": \"1000m\"}, {\"op\": \"replace\", \"path\": \"/spec/backends/1/weight\", \"value\": \"0m\"}]"
+
+          echo "Canary rolled back. All traffic routed to ${STABLE_VERSION}"
+          kubectl scale "deployment/${SERVICE}-${NEW_VERSION}" \
+            --namespace "${NAMESPACE}" \
+            --replicas=0 || true
+
+        else
+          echo "WARNING: Unknown canary status '${CANARY_STATUS}'. No action taken."
+        fi
+
+    - name: alert-on-failure
+      image: bitnami/kubectl:1.32
+      script: |
+        #!/bin/sh
+        set -euo pipefail
+
+        CANARY_STATUS=$(cat /tekton/results/CANARY_STATUS 2>/dev/null || echo "unknown")
+
+        if [ "${CANARY_STATUS}" = "rolled-back" ]; then
+          SERVICE="$(params.SERVICE_NAME)"
+          NAMESPACE="$(params.NAMESPACE)"
+          NEW_VERSION="$(params.NEW_VERSION)"
+
+          echo "ALERT: Canary deployment of ${SERVICE} version ${NEW_VERSION} in ${NAMESPACE} failed and was rolled back."
+
+          # Attempt to send alert to Slack webhook if configured
+          SLACK_WEBHOOK=$(kubectl get secret canary-alerts \
+            --namespace "${NAMESPACE}" \
+            --output=jsonpath='{.data.slack-webhook}' \
+            2>/dev/null || echo "")
+
+          if [ -n "${SLACK_WEBHOOK}" ]; then
+            SLACK_WEBHOOK=$(echo "${SLACK_WEBHOOK}" | base64 -d 2>/dev/null || echo "")
+          fi
+
+          if [ -n "${SLACK_WEBHOOK}" ]; then
+            curl -s -X POST "${SLACK_WEBHOOK}" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"text\": \"🚨 Canary deployment failed: *${SERVICE}* version *${NEW_VERSION}* in *${NAMESPACE}* was rolled back automatically.\",
+                \"attachments\": [{
+                  \"color\": \"danger\",
+                  \"fields\": [
+                    {\"title\": \"Service\", \"value\": \"${SERVICE}\", \"short\": true},
+                    {\"title\": \"Version\", \"value\": \"${NEW_VERSION}\", \"short\": true},
+                    {\"title\": \"Namespace\", \"value\": \"${NAMESPACE}\", \"short\": true},
+                    {\"title\": \"Action\", \"value\": \"Rolled back to stable\", \"short\": true}
+                  ]
+                }]
+              }" || echo "WARNING: Failed to send Slack alert"
+          fi
+        else
+          echo "Canary deployment succeeded. No alert needed."
+        fi

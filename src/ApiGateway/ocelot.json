@@ -1,0 +1,48 @@
+{
+  "Routes": [
+    {
+      "DownstreamPathTemplate": "/api/v1/auth/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "identityservice", "Port": 5001 }],
+      "UpstreamPathTemplate": "/api/v1/auth/{everything}",
+      "UpstreamHttpMethod": [ "Post", "Get" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/v1/patients/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "patientservice", "Port": 5002 }],
+      "UpstreamPathTemplate": "/api/v1/patients/{everything}",
+      "UpstreamHttpMethod": [ "Get", "Post", "Put", "Patch" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer",
+        "AllowedScopes": []
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/v1/appointments/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "appointmentservice", "Port": 5003 }],
+      "UpstreamPathTemplate": "/api/v1/appointments/{everything}",
+      "UpstreamHttpMethod": [ "Get", "Post", "Put" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer",
+        "AllowedScopes": []
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/v1/encounters/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [{ "Host": "clinicalservice", "Port": 5004 }],
+      "UpstreamPathTemplate": "/api/v1/encounters/{everything}",
+      "UpstreamHttpMethod": [ "Get", "Post", "Put" ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer",
+        "AllowedScopes": []
+      }
+    }
+  ],
+  "GlobalConfiguration": {
+    "BaseUrl": "http://localhost:5000",
+    "RequestIdKey": "OcRequestId"
+  }
+}

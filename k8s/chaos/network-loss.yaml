@@ -1,0 +1,27 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  namespace: his-hope
+  name: network-loss-25pct
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    chaos-mesh/experiment-type: network-loss
+    chaos-mesh/schedule: routine
+  annotations:
+    description: "Drops 25% of packets across all his-hope pods every 8 hours to test retry logic and circuit breaker behavior"
+    maintainer: "his-hope-sre@hishop.com"
+    game-day-scope: "monthly-full-chaos"
+spec:
+  action: loss
+  mode: all
+  selector:
+    namespaces:
+      - his-hope
+    labelSelectors:
+      app.kubernetes.io/part-of: his-hope
+  loss:
+    loss: 25
+    correlation: 50
+  duration: 3m
+  scheduler:
+    cron: "@every 8h"

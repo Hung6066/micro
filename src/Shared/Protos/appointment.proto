@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package his.hope.appointment;
+
+option csharp_namespace = "His.Hope.AppointmentGrpc";
+
+service AppointmentGrpcService {
+  rpc GetAppointment (AppointmentRequest) returns (AppointmentResponse);
+  rpc GetPatientAppointments (PatientAppointmentsRequest) returns (AppointmentListResponse);
+  rpc CheckAppointmentExists (AppointmentExistsRequest) returns (AppointmentExistsResponse);
+}
+
+message AppointmentRequest {
+  string id = 1;
+}
+
+message AppointmentResponse {
+  string id = 1;
+  string patient_id = 2;
+  string provider_id = 3;
+  string scheduled_date = 4;
+  string start_time = 5;
+  string end_time = 6;
+  string status_code = 7;
+  string status_name = 8;
+  string type_code = 9;
+}
+
+message PatientAppointmentsRequest {
+  string patient_id = 1;
+}
+
+message AppointmentListResponse {
+  repeated AppointmentResponse appointments = 1;
+}
+
+message AppointmentExistsRequest {
+  string id = 1;
+}
+
+message AppointmentExistsResponse {
+  bool exists = 1;
+}

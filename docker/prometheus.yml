@@ -1,0 +1,43 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'apigateway'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['apigateway:5000']
+
+  - job_name: 'patientservice'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['patientservice:5002']
+
+  - job_name: 'appointmentservice'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['appointmentservice:5003']
+
+  - job_name: 'clinicalservice'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['clinicalservice:5004']
+
+  - job_name: 'identityservice'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['identityservice:5001']
+
+  - job_name: 'consul'
+    metrics_path: '/v1/agent/metrics'
+    static_configs:
+      - targets: ['consul:8500']
+
+  - job_name: 'rabbitmq'
+    metrics_path: '/api/metrics'
+    static_configs:
+      - targets: ['rabbitmq:15672']

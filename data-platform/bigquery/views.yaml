@@ -1,0 +1,55 @@
+views:
+  - name: patient_monthly_trend
+    dataset: his-hope-analytics
+    query: |
+      CREATE OR REPLACE VIEW `his-hope-analytics.reporting.patient_monthly_trend` AS
+      SELECT
+        DATE_TRUNC(registration_date, MONTH) as month,
+        gender,
+        age_group,
+        COUNT(DISTINCT patient_id) as new_patients,
+        COUNTIF(is_active = false) as deactivated_patients
+      FROM `his-hope-analytics.patient_facts.*`
+      GROUP BY month, gender, age_group
+      ORDER BY month DESC
+  
+  - name: no_show_analysis
+    dataset: his-hope-analytics
+    query: |
+      CREATE OR REPLACE VIEW `his-hope-analytics.reporting.no_show_analysis` AS
+      SELECT
+        DATE_TRUNC(scheduled_date, MONTH) as month,
+        provider_id,
+        COUNT(*) as total_appointments,
+        COUNTIF(is_no_show) as no_shows,
+        SAFE_DIVIDE(COUNTIF(is_no_show), COUNT(*)) * 100 as no_show_rate,
+        AVG(lead_time_days) as avg_lead_time_days
+      FROM `his-hope-analytics.appointment_facts.*`
+      GROUP BY month, provider_id
+  
+  - name: provider_efficiency
+    dataset: his-hope-analytics
+    query: |
+      CREATE OR REPLACE VIEW `his-hope-analytics.reporting.provider_efficiency` AS
+      SELECT
+        provider_id,
+        provider_name,
+        DATE_TRUNC(date, MONTH) as month,
+        AVG(avg_appointment_duration) as avg_duration,
+        AVG(avg_wait_time) as avg_wait_time,
+        AVG(patient_satisfaction_score) as avg_satisfaction
+      FROM `his-hope-analytics.provider_performance.*`
+      GROUP BY provider_id, provider_name, month
+
+  - name: diagnosis_summary
+    dataset: his-hope-analytics
+    query: |
+      CREATE OR REPLACE VIEW `his-hope-analytics.reporting.diagnosis_summary` AS
+      SELECT
+        icd10_code,
+        description,
+        SUM(diagnosis_count) as total_diagnoses,
+        COUNT(DISTINCT month) as months_active
+      FROM `his-hope-analytics.icd10_diagnosis_summary.*`
+      GROUP BY icd10_code, description
+      ORDER BY total_diagnoses DESC

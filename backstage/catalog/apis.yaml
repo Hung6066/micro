@@ -1,0 +1,120 @@
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: patient-api
+  description: REST API for Patient Management
+  tags:
+    - rest
+    - patient
+spec:
+  type: openapi
+  lifecycle: production
+  owner: team-clinical
+  definition:
+    $text: https://developer.hishop.com/api/patient/swagger/v1/swagger.json
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: patient-grpc
+  description: gRPC API for Patient Management - inter-service communication
+  tags:
+    - grpc
+    - patient
+spec:
+  type: grpc
+  lifecycle: production
+  owner: team-clinical
+  definition:
+    $text: https://github.com/hishop/his-hope/blob/main/src/Shared/Protos/patient.proto
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: identity-rest
+  description: REST API for Authentication & Authorization
+  tags:
+    - rest
+    - identity
+spec:
+  type: openapi
+  lifecycle: production
+  owner: team-platform
+  definition:
+    $text: https://developer.hishop.com/api/identity/swagger/v1/swagger.json
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: identity-grpc
+  description: gRPC API for Token Validation
+  tags:
+    - grpc
+    - identity
+spec:
+  type: grpc
+  lifecycle: production
+  owner: team-platform
+  definition:
+    $text: https://github.com/hishop/his-hope/blob/main/src/Shared/Protos/identity.proto
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: appointment-api
+  description: REST API for Appointment Scheduling
+  tags:
+    - rest
+    - appointment
+spec:
+  type: openapi
+  lifecycle: production
+  owner: team-clinical
+  definition:
+    $text: https://developer.hishop.com/api/appointment/swagger/v1/swagger.json
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: appointment-grpc
+  description: gRPC API for Appointment Validation
+  tags:
+    - grpc
+    - appointment
+spec:
+  type: grpc
+  lifecycle: production
+  owner: team-clinical
+  definition:
+    $text: https://github.com/hishop/his-hope/blob/main/src/Shared/Protos/appointment.proto
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: clinical-api
+  description: REST API for Clinical Encounters
+  tags:
+    - rest
+    - clinical
+    - phi
+spec:
+  type: openapi
+  lifecycle: production
+  owner: team-clinical
+  definition:
+    $text: https://developer.hishop.com/api/clinical/swagger/v1/swagger.json
+---
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: clinical-grpc
+  description: gRPC API for Encounter Operations
+  tags:
+    - grpc
+    - clinical
+spec:
+  type: grpc
+  lifecycle: production
+  owner: team-clinical
+  definition:
+    $text: https://github.com/hishop/his-hope/blob/main/src/Shared/Protos/clinical.proto

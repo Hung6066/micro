@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cockroach-backup-config
+  namespace: his-hope
+data:
+  backup.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    BACKUP_DATE=${BACKUP_DATE:-$(date +%Y-%m-%d)}
+    S3_BUCKET=${S3_BUCKET:-hishop-backups}
+    COCKROACH_HOST=${COCKROACH_HOST:-cockroachdb-public:26257}
+
+    echo "Starting backup for ${BACKUP_DATE}..."
+
+    databases=("patientdb" "identitydb" "appointmentdb" "clinicaldb")
+    for db in "${databases[@]}"; do
+      echo "Backing up ${db}..."
+      cockroach sql --host="${COCKROACH_HOST}" --insecure \
+        -e "BACKUP DATABASE ${db} TO 's3://${S3_BUCKET}/${db}/${BACKUP_DATE}/' WITH revision_history;"
+      echo "Backup of ${db} complete."
+    done
+
+    echo "All backups completed successfully."
+  schedule: "@daily"
+  retention: "30d"

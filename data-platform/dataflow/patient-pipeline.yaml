@@ -1,0 +1,58 @@
+# Apache Beam pipeline (Dataflow Runner)
+name: patient-data-pipeline
+runner: DataflowRunner
+options:
+  project: his-hope-analytics
+  region: us-east1
+  staging_location: gs://hishop-dataflow/staging
+  temp_location: gs://hishop-dataflow/temp
+  service_account: dataflow-sa@his-hope-analytics.iam.gserviceaccount.com
+  
+pipeline:
+  - name: read-patient-events
+    type: PubSubIO
+    config:
+      subscription: patient-events-to-dataflow
+  
+  - name: enrich-patient-data
+    type: ParDo
+    config:
+      fn: enrich_patient_data
+      udf: |
+        def enrich(element):
+          import json
+          data = json.loads(element)
+          # Enrich with age group
+          from datetime import datetime
+          if data.get('date_of_birth'):
+            age = (datetime.now() - datetime.fromisoformat(data['date_of_birth'])).days / 365
+            if age <= 18:
+              data['age_group'] = '0-18'
+            elif age <= 40:
+              data['age_group'] = '19-40'
+            elif age <= 65:
+              data['age_group'] = '41-65'
+            else:
+              data['age_group'] = '65+'
+          return json.dumps(data)
+  
+  - name: window-events
+    type: Window
+    config:
+      window_size: 1m
+      trigger: AfterWatermark
+  
+  - name: write-to-bigquery
+    type: BigQueryIO
+    config:
+      table: his-hope-analytics.patient_facts
+      write_disposition: WRITE_APPEND
+      create_disposition: CREATE_IF_NEEDED
+      schema: |-
+        [
+          {"name": "patient_id", "type": "STRING"},
+          {"name": "age_group", "type": "STRING"},
+          {"name": "gender", "type": "STRING"},
+          {"name": "is_active", "type": "BOOLEAN"},
+          {"name": "ingestion_timestamp", "type": "TIMESTAMP"}
+        ]

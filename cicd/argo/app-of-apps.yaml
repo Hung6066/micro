@@ -1,0 +1,240 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: his-hope-app-of-apps
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: his-hope-app-of-apps
+    app.kubernetes.io/component: app-of-apps
+    app.kubernetes.io/part-of: his-hope
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: >-
+    Root Application for the His.Hope hospital EMR system.  Uses the
+    App-of-Apps pattern to manage all child applications.
+
+  project: his-hope
+
+  source:
+    repoURL: https://github.com/hishop/his-hope
+    targetRevision: main
+    path: k8s/overlays/prod
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - Validate=true
+      - PruneLast=false
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: patient-service
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: patient-service
+    app.kubernetes.io/component: microservice
+    app.kubernetes.io/part-of: his-hope
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: his-hope
+  source:
+    repoURL: https://github.com/hishop/his-hope
+    targetRevision: main
+    path: helm/patient-service
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+      releaseName: patient-service
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: his-hope-patient
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - Validate=true
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
+        his-hope.io/managed-by: argocd
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: identity-service
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: identity-service
+    app.kubernetes.io/component: microservice
+    app.kubernetes.io/part-of: his-hope
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: his-hope
+  source:
+    repoURL: https://github.com/hishop/his-hope
+    targetRevision: main
+    path: helm/identity-service
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+      releaseName: identity-service
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: his-hope-identity
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - Validate=true
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
+        his-hope.io/managed-by: argocd
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: appointment-service
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: appointment-service
+    app.kubernetes.io/component: microservice
+    app.kubernetes.io/part-of: his-hope
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: his-hope
+  source:
+    repoURL: https://github.com/hishop/his-hope
+    targetRevision: main
+    path: helm/appointment-service
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+      releaseName: appointment-service
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: his-hope-appointment
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - Validate=true
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
+        his-hope.io/managed-by: argocd
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: clinical-service
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: clinical-service
+    app.kubernetes.io/component: microservice
+    app.kubernetes.io/part-of: his-hope
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: his-hope
+  source:
+    repoURL: https://github.com/hishop/his-hope
+    targetRevision: main
+    path: helm/clinical-service
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+      releaseName: clinical-service
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: his-hope-clinical
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - Validate=true
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
+        his-hope.io/managed-by: argocd
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: infrastructure
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: infrastructure
+    app.kubernetes.io/component: infrastructure
+    app.kubernetes.io/part-of: his-hope
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: his-hope
+  source:
+    repoURL: https://github.com/hishop/his-hope
+    targetRevision: main
+    path: helm/infrastructure
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+      releaseName: infrastructure
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: his-hope-infrastructure
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - Validate=true
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: baseline
+        his-hope.io/managed-by: argocd

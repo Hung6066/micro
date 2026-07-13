@@ -1,0 +1,88 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: his-hope
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: his-hope-project
+    app.kubernetes.io/component: project
+    app.kubernetes.io/part-of: his-hope
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: His.Hope Hospital EMR System - Multi-service ArgoCD Project
+
+  # Allow applications from the his-hope GitHub repository
+  sourceRepos:
+    - https://github.com/hishop/his-hope
+    - https://github.com/hishop/his-hope-infra
+    - ghcr.io/hishop/*
+
+  # Allow deployment to all namespaces in the cluster
+  destinations:
+    - namespace: "*"
+      server: https://kubernetes.default.svc
+    - namespace: "*"
+      server: https://kubernetes.cluster.local
+
+  # Allow all cluster-scoped resources
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  # Allow all namespaced resources
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  # Orphaned resources handling
+  orphanedResources:
+    warn: true
+
+  # Roles with RBAC permissions
+  roles:
+    - name: admin
+      description: Full administrative access to all His.Hope applications
+      policies:
+        - p, proj:his-hope:admin, applications, *, his-hope/*, allow
+        - p, proj:his-hope:admin, exec, *, his-hope/*, allow
+        - p, proj:his-hope:admin, logs, *, his-hope/*, allow
+      groups:
+        - his-hope-admins
+        - his-hope-platform-team
+
+    - name: developer
+      description: Read and sync access to specific service applications
+      policies:
+        - p, proj:his-hope:developer, applications, get, his-hope/*, allow
+        - p, proj:his-hope:developer, applications, sync, his-hope/*, allow
+        - p, proj:his-hope:developer, applications, override, his-hope/*, allow
+        - p, proj:his-hope:developer, logs, *, his-hope/*, allow
+      groups:
+        - his-hope-developers
+        - his-hope-sre
+
+    - name: viewer
+      description: Read-only access to view application state and health
+      policies:
+        - p, proj:his-hope:viewer, applications, get, his-hope/*, allow
+        - p, proj:his-hope:viewer, applications, list, his-hope/*, allow
+      groups:
+        - his-hope-viewers
+        - his-hope-auditors
+
+  # Signatures for verified commits
+  signatureKeys:
+    - keyID: his-hope-ci-bot
+      description: CI/CD pipeline signing key for container images
+
+  # Source namespaces for app-of-apps pattern
+  sourceNamespaces:
+    - argocd
+
+  # Permitted cluster resources (explicit whitelist)
+  clusterResourceBlacklist:
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole

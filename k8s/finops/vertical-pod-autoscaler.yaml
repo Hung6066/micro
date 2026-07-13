@@ -1,0 +1,91 @@
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: patient-service-vpa
+  namespace: his-hope
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: patient-service
+  updatePolicy:
+    updateMode: Auto
+  resourcePolicy:
+    containerPolicies:
+    - containerName: '*'
+      minAllowed:
+        cpu: 100m
+        memory: 256Mi
+      maxAllowed:
+        cpu: 4
+        memory: 8Gi
+      controlledResources: ["cpu", "memory"]
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: identity-service-vpa
+  namespace: his-hope
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: identity-service
+  updatePolicy:
+    updateMode: Auto
+  resourcePolicy:
+    containerPolicies:
+    - containerName: '*'
+      minAllowed:
+        cpu: 100m
+        memory: 256Mi
+      maxAllowed:
+        cpu: 4
+        memory: 8Gi
+      controlledResources: ["cpu", "memory"]
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: appointment-service-vpa
+  namespace: his-hope
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: appointment-service
+  updatePolicy:
+    updateMode: Auto
+  resourcePolicy:
+    containerPolicies:
+    - containerName: '*'
+      minAllowed:
+        cpu: 100m
+        memory: 256Mi
+      maxAllowed:
+        cpu: 4
+        memory: 8Gi
+      controlledResources: ["cpu", "memory"]
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: clinical-service-vpa
+  namespace: his-hope
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: clinical-service
+  updatePolicy:
+    updateMode: Auto
+  resourcePolicy:
+    containerPolicies:
+    - containerName: '*'
+      minAllowed:
+        cpu: 100m
+        memory: 256Mi
+      maxAllowed:
+        cpu: 4
+        memory: 8Gi
+      controlledResources: ["cpu", "memory"]

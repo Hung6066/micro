@@ -1,0 +1,141 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: dotnet-build
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.17.0"
+    tekton.dev/tags: build, dotnet
+    tekton.dev/displayName: .NET 8 Build
+spec:
+  description: >-
+    Build, test, and publish a .NET 8 project with code coverage collection.
+    Uses a persistent volume for NuGet package caching across pipeline runs.
+
+  params:
+    - name: PROJECT_NAME
+      type: string
+      description: The name of the project (e.g., patient-service)
+    - name: PROJECT_PATH
+      type: string
+      description: Relative path to the .csproj or solution file within the source workspace
+    - name: CONFIGURATION
+      type: string
+      description: Build configuration (Debug, Release)
+      default: Release
+
+  workspaces:
+    - name: source
+      description: Git repository containing the .NET source code
+      mountPath: /workspace/source
+    - name: output
+      description: Directory to store build outputs, test results, and publish artifacts
+      mountPath: /workspace/output
+    - name: sslcert
+      description: SSL certificate bundle for NuGet feed authentication
+      mountPath: /etc/ssl/certs
+      optional: true
+
+  steps:
+    - name: dotnet-restore
+      image: mcr.microsoft.com/dotnet/sdk:8.0
+      workingDir: /workspace/source
+      script: |
+        #!/usr/bin/env sh
+        set -euo pipefail
+
+        NUGET_CACHE=/workspace/output/nuget-cache
+        mkdir -p "$NUGET_CACHE"
+
+        export NUGET_HTTP_CACHE_PATH="$NUGET_CACHE/http-cache"
+        export NUGET_PACKAGES="$NUGET_CACHE/packages"
+
+        dotnet restore "$(params.PROJECT_PATH)" \
+          --verbosity minimal \
+          --configfile nuget.config 2>&1 || \
+        dotnet restore "$(params.PROJECT_PATH)" \
+          --verbosity minimal 2>&1
+      volumeMounts:
+        - name: nuget-cache
+          mountPath: /workspace/output/nuget-cache
+      env:
+        - name: DOTNET_CLI_TELEMETRY_OPTOUT
+          value: "1"
+
+    - name: dotnet-build
+      image: mcr.microsoft.com/dotnet/sdk:8.0
+      workingDir: /workspace/source
+      script: |
+        #!/usr/bin/env sh
+        set -euo pipefail
+
+        dotnet build "$(params.PROJECT_PATH)" \
+          --configuration "$(params.CONFIGURATION)" \
+          --no-restore \
+          --verbosity minimal \
+          /p:ContinuousIntegrationBuild=true \
+          /p:TreatWarningsAsErrors=true
+      env:
+        - name: DOTNET_CLI_TELEMETRY_OPTOUT
+          value: "1"
+
+    - name: dotnet-test
+      image: mcr.microsoft.com/dotnet/sdk:8.0
+      workingDir: /workspace/source
+      script: |
+        #!/usr/bin/env sh
+        set -euo pipefail
+
+        mkdir -p /workspace/output/test-results
+
+        TEST_PROJECTS=$(find . -name "*.Tests.csproj" -type f | head -20)
+
+        if [ -z "$TEST_PROJECTS" ]; then
+          echo "WARNING: No test projects found. Skipping test execution."
+          exit 0
+        fi
+
+        for test_project in $TEST_PROJECTS; do
+          echo "Running tests for $test_project"
+          dotnet test "$test_project" \
+            --configuration "$(params.CONFIGURATION)" \
+            --no-build \
+            --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --results-directory /workspace/output/test-results \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura \
+            DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.CoverageFileName="coverage-$(basename $(dirname $test_project)).xml"
+        done
+
+        echo "Test results and coverage reports saved to /workspace/output/test-results/"
+      env:
+        - name: DOTNET_CLI_TELEMETRY_OPTOUT
+          value: "1"
+
+    - name: dotnet-publish
+      image: mcr.microsoft.com/dotnet/sdk:8.0
+      workingDir: /workspace/source
+      script: |
+        #!/usr/bin/env sh
+        set -euo pipefail
+
+        PUBLISH_DIR="/workspace/output/publish/$(params.PROJECT_NAME)"
+        mkdir -p "$PUBLISH_DIR"
+
+        dotnet publish "$(params.PROJECT_PATH)" \
+          --configuration "$(params.CONFIGURATION)" \
+          --no-build \
+          --verbosity minimal \
+          --output "$PUBLISH_DIR" \
+          /p:VersionSuffix=$(date +%Y%m%d%H%M%S)
+
+        echo "Published artifacts to $PUBLISH_DIR"
+        ls -lh "$PUBLISH_DIR"
+      env:
+        - name: DOTNET_CLI_TELEMETRY_OPTOUT
+          value: "1"
+
+  volumes:
+    - name: nuget-cache
+      emptyDir: {}

@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cockroach-migration-scripts
+  namespace: his-hope
+data:
+  run-migrations.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    COCKROACH_HOST=${COCKROACH_HOST:-cockroachdb-public:26257}
+    COCKROACH_USER=${COCKROACH_USER:-root}
+    echo "=== CockroachDB Migration Runner ==="
+    echo "Host: ${COCKROACH_HOST}"
+    echo "===================================="
+    for migration in $(ls /migrations/*.sql 2>/dev/null | sort); do
+        filename=$(basename "${migration}")
+        echo ">>> Applying: ${filename} ..."
+        if cockroach sql --host="${COCKROACH_HOST}" --user="${COCKROACH_USER}" --insecure -f "${migration}"; then
+            echo "<<< Done: ${filename}"
+        else
+            echo "<<< FAILED: ${filename}"
+            exit 1
+        fi
+    done
+    echo "All migrations applied successfully."
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cockroach-migrations
+  namespace: his-hope
+  labels:
+    app: cockroachdb
+    component: migrations
+spec:
+  template:
+    metadata:
+      labels:
+        app: cockroachdb
+        component: migrations
+    spec:
+      initContainers:
+      - name: wait-for-cockroach
+        image: cockroachdb/cockroach:v24.1.2
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/bash
+        - -c
+        - |
+          echo "Waiting for CockroachDB to be ready..."
+          until cockroach sql --host=cockroachdb-public:26257 --insecure -e "SELECT 1" 2>/dev/null; do
+            echo "CockroachDB not ready yet..."
+            sleep 3
+          done
+          echo "CockroachDB is ready!"
+      containers:
+      - name: migrate
+        image: cockroachdb/cockroach:v24.1.2
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: COCKROACH_HOST
+          value: cockroachdb-public:26257
+        - name: COCKROACH_USER
+          value: root
+        command:
+        - /bin/bash
+        - /scripts/run-migrations.sh
+        volumeMounts:
+        - name: migrations
+          mountPath: /migrations
+          readOnly: true
+        - name: scripts
+          mountPath: /scripts
+          readOnly: true
+      volumes:
+      - name: migrations
+        configMap:
+          name: cockroach-migrations
+      - name: scripts
+        configMap:
+          name: cockroach-migration-scripts
+          defaultMode: 0755
+      restartPolicy: Never
+  backoffLimit: 3

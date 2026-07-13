@@ -1,0 +1,152 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  namespace: monitoring
+  name: his-hope-slo-rules
+spec:
+  groups:
+  - name: his-hope.slo.recording_rules
+    interval: 30s
+    rules:
+    - record: job:slo_availability_30d:ratio
+      expr: |
+        sum(rate(http_requests_total{code=~"2.."}[30d]))
+        /
+        sum(rate(http_requests_total[30d]))
+    - record: job:slo_availability_7d:ratio
+      expr: |
+        sum(rate(http_requests_total{code=~"2.."}[7d]))
+        /
+        sum(rate(http_requests_total[7d]))
+    - record: job:slo_availability_1h:ratio
+      expr: |
+        sum(rate(http_requests_total{code=~"2.."}[1h]))
+        /
+        sum(rate(http_requests_total[1h]))
+    - record: job:slo_latency_p99_30d:ratio
+      expr: |
+        sum(rate(http_request_duration_seconds_bucket{le="0.5"}[30d]))
+        /
+        sum(rate(http_request_duration_seconds_count[30d]))
+    - record: job:slo_latency_p99_7d:ratio
+      expr: |
+        sum(rate(http_request_duration_seconds_bucket{le="0.5"}[7d]))
+        /
+        sum(rate(http_request_duration_seconds_count[7d]))
+    - record: job:slo_latency_p99_1h:ratio
+      expr: |
+        sum(rate(http_request_duration_seconds_bucket{le="0.5"}[1h]))
+        /
+        sum(rate(http_request_duration_seconds_count[1h]))
+    - record: job:slo_error_budget_30d:ratio
+      expr: |
+        1 - job:slo_availability_30d:ratio
+    - record: job:slo_error_budget_remaining_30d:ratio
+      expr: |
+        0.001 - job:slo_error_budget_30d:ratio
+    - record: job:slo_burn_rate_1h:ratio
+      expr: |
+        (1 - job:slo_availability_1h:ratio)
+        /
+        0.001
+
+  - name: his-hope.slo.alerts
+    interval: 30s
+    rules:
+    - alert: SLOErrorBudgetBurnCritical
+      expr: |
+        (
+          (1 - (sum(rate(http_requests_total{code=~"2.."}[1h])) / sum(rate(http_requests_total[1h]))))
+          /
+          0.001
+        ) > 2
+        and on()
+        (
+          (1 - (sum(rate(http_requests_total{code=~"2.."}[5m])) / sum(rate(http_requests_total[5m]))))
+          /
+          0.001
+        ) > 2
+      for: 5m
+      labels:
+        severity: critical
+        team: sre
+      annotations:
+        summary: "High error budget burn rate (critical)"
+        description: "Error budget is being consumed at >2x rate. Remaining: {{ $value | humanizePercentage }}"
+
+    - alert: SLOErrorBudgetBurnWarning
+      expr: |
+        (
+          (1 - (sum(rate(http_requests_total{code=~"2.."}[6h])) / sum(rate(http_requests_total[6h]))))
+          /
+          0.001
+        ) > 1
+      for: 15m
+      labels:
+        severity: warning
+        team: sre
+      annotations:
+        summary: "Error budget burn rate elevated (warning)"
+        description: "Error budget being consumed at >1x rate over 6h"
+
+    - alert: HighLatencyP99
+      expr: |
+        histogram_quantile(0.99,
+          sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service)
+        ) > 0.5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High p99 latency for {{ $labels.service }}"
+        description: "p99 latency of {{ $value }}s exceeds 500ms threshold"
+
+    - alert: ServiceDown
+      expr: |
+        absent(up{job=~".+-service"}) == 1
+      for: 30s
+      labels:
+        severity: critical
+      annotations:
+        summary: "Service {{ $labels.job }} is down"
+
+    - alert: HighGrpcErrorRate
+      expr: |
+        sum(rate(grpc_server_handled_total{grpc_code!="OK"}[5m]))
+        /
+        sum(rate(grpc_server_handled_total[5m]))
+        > 0.05
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High gRPC error rate ({{ $value | humanizePercentage }})"
+
+    - alert: CircuitBreakerOpen
+      expr: |
+        circuit_breaker_state{state="open"} == 1
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Circuit breaker {{ $labels.name }} is OPEN"
+        description: "Circuit breaker for {{ $labels.service }} has tripped"
+
+    - alert: OutboxBacklogGrowing
+      expr: |
+        rate(outbox_messages_total{status="pending"}[15m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Outbox messages are accumulating"
+        description: "Pending outbox messages growing at {{ $value }}/s"
+
+    - alert: RabbitMQQueueDepth
+      expr: |
+        rabbitmq_queue_messages_ready > 1000
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "RabbitMQ queue {{ $labels.queue }} depth > 1000"

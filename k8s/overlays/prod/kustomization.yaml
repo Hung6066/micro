@@ -1,0 +1,102 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namePrefix: his-hope-
+
+commonLabels:
+  app.kubernetes.io/part-of: his-hope
+  app.kubernetes.io/managed-by: kustomize
+  app.kubernetes.io/version: latest
+
+commonAnnotations:
+  linkerd.io/inject: enabled
+
+resources:
+  - ../../base
+  - ../../vault/vault-statefulset.yaml
+  - ../../vault/vault-agent-injector.yaml
+  - ../../vault/vault-csi-provider.yaml
+
+patches:
+  - target:
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/part-of=his-hope"
+    patch: |
+      - op: add
+        path: /spec/template/metadata/annotations
+        value:
+          vault.hashicorp.com/agent-inject: "true"
+          vault.hashicorp.com/role: "default"
+          vault.hashicorp.com/agent-inject-status: "update"
+          vault.hashicorp.com/agent-pre-populate: "true"
+          vault.hashicorp.com/agent-pre-populate-only: "false"
+          linkerd.io/inject: enabled
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "${APP}-secrets"
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value:
+          name: secrets-store
+          mountPath: "/vault/secrets"
+          readOnly: true
+
+images:
+  - name: patient-service
+    newTag: 1.0.0
+  - name: identity-service
+    newTag: 1.0.0
+  - name: clinical-service
+    newTag: 1.0.0
+  - name: appointment-service
+    newTag: 1.0.0
+  - name: postgres
+    newTag: 16.2
+  - name: rabbitmq
+    newTag: 3.13
+  - name: redis
+    newTag: 7.2
+
+namespace: his-hope
+
+replicas:
+  - name: patient-service
+    count: 5
+  - name: identity-service
+    count: 3
+  - name: clinical-service
+    count: 5
+  - name: appointment-service
+    count: 3
+  - name: vault-agent-injector
+    count: 2
+
+configMapGenerator:
+  - name: vault-agent-config
+    namespace: his-hope
+    behavior: merge
+    literals:
+      - vault.skip-verify=false
+      - vault.address=https://vault-active.his-hope.svc.cluster.local:8200
+
+secretGenerator:
+  - name: vault-tls
+    namespace: his-hope
+    type: kubernetes.io/tls
+    files:
+      - tls.crt=secrets/vault-server.crt
+      - tls.key=secrets/vault-server.key
+      - ca.crt=secrets/vault-ca.crt
+  - name: vault-agent-injector-tls
+    namespace: his-hope
+    type: kubernetes.io/tls
+    files:
+      - tls.crt=secrets/injector-tls.crt
+      - tls.key=secrets/injector-tls.key
+      - ca.crt=secrets/vault-ca.crt

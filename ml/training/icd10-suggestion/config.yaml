@@ -1,0 +1,31 @@
+training:
+  project: his-hope-analytics
+  display_name: icd10-suggester-v1
+  model_type: bert_finetuned
+
+  dataset:
+    source: bigquery
+    query: |
+      SELECT
+        cn.content as clinical_note,
+        d.icd10_code,
+        d.description as diagnosis_description
+      FROM `his-hope-analytics.clinical_events.*` events
+      JOIN `clinicaldb.ClinicalNotes` cn ON cn.encounter_id = events.encounter_id
+      JOIN `clinicaldb.Diagnoses` d ON d.encounter_id = events.encounter_id
+      WHERE LENGTH(cn.content) > 50
+        AND LENGTH(cn.content) < 5000
+
+  model:
+    base_model: bert-base-uncased
+    max_sequence_length: 512
+    num_labels: 10000
+    batch_size: 16
+    epochs: 5
+
+  serving:
+    machine_type: n1-highmem-8
+    accelerator: NVIDIA_TESLA_T4
+    accelerator_count: 1
+    min_replicas: 1
+    max_replicas: 3

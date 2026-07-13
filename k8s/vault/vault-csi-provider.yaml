@@ -1,0 +1,388 @@
+---
+# Secrets Store CSI Driver + Vault Provider Configuration
+# Enables pods to mount Vault secrets as volumes
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: secrets-store-csi-driver
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: secrets-store-csi-driver
+    app.kubernetes.io/component: csi
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: secrets-store-csi-driver-cluster-role
+  labels:
+    app.kubernetes.io/name: secrets-store-csi-driver
+    app.kubernetes.io/component: csi
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch", "update"]
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["csidrivers"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["secrets-store.csi.x-k8s.io"]
+    resources: ["secretproviderclasses"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: secrets-store-csi-driver-binding
+  labels:
+    app.kubernetes.io/name: secrets-store-csi-driver
+    app.kubernetes.io/component: csi
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: secrets-store-csi-driver-cluster-role
+subjects:
+  - kind: ServiceAccount
+    name: secrets-store-csi-driver
+    namespace: his-hope
+
+---
+# SecretProviderClass for Patient Service
+# Mounts database credentials and mTLS certificates
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: patient-service-secrets
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: patient-service
+    app.kubernetes.io/component: secrets-provider
+spec:
+  provider: vault
+  parameters:
+    roleName: patient-service
+    vaultAddress: "https://vault-active.his-hope.svc.cluster.local:8200"
+    vaultSkipTLSVerify: "false"
+    vaultCACertPath: "/etc/tls/vault/ca.crt"
+    objects: |
+      - objectName: "db_host"
+        secretPath: "secret/data/his-hope/database/patientdb"
+        secretKey: "host"
+      - objectName: "db_port"
+        secretPath: "secret/data/his-hope/database/patientdb"
+        secretKey: "port"
+      - objectName: "db_name"
+        secretPath: "secret/data/his-hope/database/patientdb"
+        secretKey: "database"
+      - objectName: "db_user"
+        secretPath: "secret/data/his-hope/database/patientdb"
+        secretKey: "username"
+      - objectName: "db_password"
+        secretPath: "secret/data/his-hope/database/patientdb"
+        secretKey: "password"
+      - objectName: "db_sslmode"
+        secretPath: "secret/data/his-hope/database/patientdb"
+        secretKey: "sslmode"
+      - objectName: "mtls_cert"
+        secretPath: "secret/data/his-hope/patient-service/mtls"
+        secretKey: "cert"
+      - objectName: "mtls_key"
+        secretPath: "secret/data/his-hope/patient-service/mtls"
+        secretKey: "key"
+      - objectName: "mtls_ca"
+        secretPath: "secret/data/his-hope/patient-service/mtls"
+        secretKey: "ca_cert"
+      - objectName: "rabbitmq_host"
+        secretPath: "secret/data/his-hope/rabbitmq"
+        secretKey: "host"
+      - objectName: "rabbitmq_port"
+        secretPath: "secret/data/his-hope/rabbitmq"
+        secretKey: "port"
+      - objectName: "rabbitmq_user"
+        secretPath: "secret/data/his-hope/rabbitmq"
+        secretKey: "username"
+      - objectName: "rabbitmq_password"
+        secretPath: "secret/data/his-hope/rabbitmq"
+        secretKey: "password"
+      - objectName: "redis_host"
+        secretPath: "secret/data/his-hope/redis"
+        secretKey: "host"
+      - objectName: "redis_port"
+        secretPath: "secret/data/his-hope/redis"
+        secretKey: "port"
+      - objectName: "redis_password"
+        secretPath: "secret/data/his-hope/redis"
+        secretKey: "password"
+  secretObjects:
+    - data:
+        - objectName: "db_host"
+          key: "host"
+        - objectName: "db_port"
+          key: "port"
+        - objectName: "db_name"
+          key: "database"
+        - objectName: "db_user"
+          key: "username"
+        - objectName: "db_password"
+          key: "password"
+        - objectName: "db_sslmode"
+          key: "sslmode"
+      secretName: patient-service-db-creds
+      type: Opaque
+    - data:
+        - objectName: "mtls_cert"
+          key: "tls.crt"
+        - objectName: "mtls_key"
+          key: "tls.key"
+        - objectName: "mtls_ca"
+          key: "ca.crt"
+      secretName: patient-service-mtls
+      type: kubernetes.io/tls
+    - data:
+        - objectName: "rabbitmq_host"
+          key: "host"
+        - objectName: "rabbitmq_port"
+          key: "port"
+        - objectName: "rabbitmq_user"
+          key: "username"
+        - objectName: "rabbitmq_password"
+          key: "password"
+      secretName: patient-service-rabbitmq
+      type: Opaque
+    - data:
+        - objectName: "redis_host"
+          key: "host"
+        - objectName: "redis_port"
+          key: "port"
+        - objectName: "redis_password"
+          key: "password"
+      secretName: patient-service-redis
+      type: Opaque
+
+---
+# SecretProviderClass for Identity Service
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: identity-service-secrets
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: identity-service
+    app.kubernetes.io/component: secrets-provider
+spec:
+  provider: vault
+  parameters:
+    roleName: identity-service
+    vaultAddress: "https://vault-active.his-hope.svc.cluster.local:8200"
+    vaultSkipTLSVerify: "false"
+    vaultCACertPath: "/etc/tls/vault/ca.crt"
+    objects: |
+      - objectName: "db_host"
+        secretPath: "secret/data/his-hope/database/identitydb"
+        secretKey: "host"
+      - objectName: "db_port"
+        secretPath: "secret/data/his-hope/database/identitydb"
+        secretKey: "port"
+      - objectName: "db_name"
+        secretPath: "secret/data/his-hope/database/identitydb"
+        secretKey: "database"
+      - objectName: "db_user"
+        secretPath: "secret/data/his-hope/database/identitydb"
+        secretKey: "username"
+      - objectName: "db_password"
+        secretPath: "secret/data/his-hope/database/identitydb"
+        secretKey: "password"
+      - objectName: "jwt_private_key"
+        secretPath: "secret/data/his-hope/identity-service/jwt"
+        secretKey: "private_key"
+      - objectName: "jwt_public_key"
+        secretPath: "secret/data/his-hope/identity-service/jwt"
+        secretKey: "public_key"
+      - objectName: "jwt_key_id"
+        secretPath: "secret/data/his-hope/identity-service/jwt"
+        secretKey: "key_id"
+      - objectName: "jwt_issuer"
+        secretPath: "secret/data/his-hope/identity-service/jwt"
+        secretKey: "issuer"
+      - objectName: "mtls_cert"
+        secretPath: "secret/data/his-hope/identity-service/mtls"
+        secretKey: "cert"
+      - objectName: "mtls_key"
+        secretPath: "secret/data/his-hope/identity-service/mtls"
+        secretKey: "key"
+      - objectName: "mtls_ca"
+        secretPath: "secret/data/his-hope/identity-service/mtls"
+        secretKey: "ca_cert"
+  secretObjects:
+    - data:
+        - objectName: "db_host"
+          key: "host"
+        - objectName: "db_port"
+          key: "port"
+        - objectName: "db_name"
+          key: "database"
+        - objectName: "db_user"
+          key: "username"
+        - objectName: "db_password"
+          key: "password"
+      secretName: identity-service-db-creds
+      type: Opaque
+    - data:
+        - objectName: "jwt_private_key"
+          key: "private_key"
+        - objectName: "jwt_public_key"
+          key: "public_key"
+        - objectName: "jwt_key_id"
+          key: "key_id"
+        - objectName: "jwt_issuer"
+          key: "issuer"
+      secretName: identity-service-jwt
+      type: Opaque
+    - data:
+        - objectName: "mtls_cert"
+          key: "tls.crt"
+        - objectName: "mtls_key"
+          key: "tls.key"
+        - objectName: "mtls_ca"
+          key: "ca.crt"
+      secretName: identity-service-mtls
+      type: kubernetes.io/tls
+
+---
+# SecretProviderClass for Clinical Service
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: clinical-service-secrets
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: clinical-service
+    app.kubernetes.io/component: secrets-provider
+spec:
+  provider: vault
+  parameters:
+    roleName: clinical-service
+    vaultAddress: "https://vault-active.his-hope.svc.cluster.local:8200"
+    vaultSkipTLSVerify: "false"
+    vaultCACertPath: "/etc/tls/vault/ca.crt"
+    objects: |
+      - objectName: "db_host"
+        secretPath: "secret/data/his-hope/database/clinicaldb"
+        secretKey: "host"
+      - objectName: "db_port"
+        secretPath: "secret/data/his-hope/database/clinicaldb"
+        secretKey: "port"
+      - objectName: "db_name"
+        secretPath: "secret/data/his-hope/database/clinicaldb"
+        secretKey: "database"
+      - objectName: "db_user"
+        secretPath: "secret/data/his-hope/database/clinicaldb"
+        secretKey: "username"
+      - objectName: "db_password"
+        secretPath: "secret/data/his-hope/database/clinicaldb"
+        secretKey: "password"
+      - objectName: "mtls_cert"
+        secretPath: "secret/data/his-hope/clinical-service/mtls"
+        secretKey: "cert"
+      - objectName: "mtls_key"
+        secretPath: "secret/data/his-hope/clinical-service/mtls"
+        secretKey: "key"
+      - objectName: "mtls_ca"
+        secretPath: "secret/data/his-hope/clinical-service/mtls"
+        secretKey: "ca_cert"
+  secretObjects:
+    - data:
+        - objectName: "db_host"
+          key: "host"
+        - objectName: "db_port"
+          key: "port"
+        - objectName: "db_name"
+          key: "database"
+        - objectName: "db_user"
+          key: "username"
+        - objectName: "db_password"
+          key: "password"
+      secretName: clinical-service-db-creds
+      type: Opaque
+    - data:
+        - objectName: "mtls_cert"
+          key: "tls.crt"
+        - objectName: "mtls_key"
+          key: "tls.key"
+        - objectName: "mtls_ca"
+          key: "ca.crt"
+      secretName: clinical-service-mtls
+      type: kubernetes.io/tls
+
+---
+# SecretProviderClass for Appointment Service
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: appointment-service-secrets
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: appointment-service
+    app.kubernetes.io/component: secrets-provider
+spec:
+  provider: vault
+  parameters:
+    roleName: appointment-service
+    vaultAddress: "https://vault-active.his-hope.svc.cluster.local:8200"
+    vaultSkipTLSVerify: "false"
+    vaultCACertPath: "/etc/tls/vault/ca.crt"
+    objects: |
+      - objectName: "db_host"
+        secretPath: "secret/data/his-hope/database/appointmentdb"
+        secretKey: "host"
+      - objectName: "db_port"
+        secretPath: "secret/data/his-hope/database/appointmentdb"
+        secretKey: "port"
+      - objectName: "db_name"
+        secretPath: "secret/data/his-hope/database/appointmentdb"
+        secretKey: "database"
+      - objectName: "db_user"
+        secretPath: "secret/data/his-hope/database/appointmentdb"
+        secretKey: "username"
+      - objectName: "db_password"
+        secretPath: "secret/data/his-hope/database/appointmentdb"
+        secretKey: "password"
+      - objectName: "mtls_cert"
+        secretPath: "secret/data/his-hope/appointment-service/mtls"
+        secretKey: "cert"
+      - objectName: "mtls_key"
+        secretPath: "secret/data/his-hope/appointment-service/mtls"
+        secretKey: "key"
+      - objectName: "mtls_ca"
+        secretPath: "secret/data/his-hope/appointment-service/mtls"
+        secretKey: "ca_cert"
+  secretObjects:
+    - data:
+        - objectName: "db_host"
+          key: "host"
+        - objectName: "db_port"
+          key: "port"
+        - objectName: "db_name"
+          key: "database"
+        - objectName: "db_user"
+          key: "username"
+        - objectName: "db_password"
+          key: "password"
+      secretName: appointment-service-db-creds
+      type: Opaque
+    - data:
+        - objectName: "mtls_cert"
+          key: "tls.crt"
+        - objectName: "mtls_key"
+          key: "tls.key"
+        - objectName: "mtls_ca"
+          key: "ca.crt"
+      secretName: appointment-service-mtls
+      type: kubernetes.io/tls

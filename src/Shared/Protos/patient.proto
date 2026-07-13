@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package his.hope.patient;
+
+option csharp_namespace = "His.Hope.PatientGrpc";
+
+service PatientGrpcService {
+  rpc GetPatient (PatientRequest) returns (PatientResponse);
+  rpc SearchPatients (PatientSearchRequest) returns (PatientListResponse);
+  rpc CheckPatientExists (PatientExistsRequest) returns (PatientExistsResponse);
+}
+
+message PatientRequest {
+  string id = 1;
+}
+
+message PatientResponse {
+  string id = 1;
+  string full_name = 2;
+  string first_name = 3;
+  string last_name = 4;
+  string middle_name = 5;
+  string date_of_birth = 6;
+  string gender_code = 7;
+  string gender_name = 8;
+  string phone = 9;
+  string email = 10;
+  bool is_active = 11;
+}
+
+message PatientSearchRequest {
+  string search_term = 1;
+}
+
+message PatientListResponse {
+  repeated PatientResponse patients = 1;
+}
+
+message PatientExistsRequest {
+  string id = 1;
+}
+
+message PatientExistsResponse {
+  bool exists = 1;
+}

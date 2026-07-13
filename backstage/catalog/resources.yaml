@@ -1,0 +1,94 @@
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: patient-database
+  description: PostgreSQL/CockroachDB database for Patient Service
+  tags:
+    - database
+    - postgresql
+    - cockroachdb
+spec:
+  type: database
+  owner: team-clinical
+  system: his-hope-emr
+  dependsOn:
+    - Resource:cockroachdb-cluster
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: identity-database
+  description: PostgreSQL/CockroachDB database for Identity Service
+  tags:
+    - database
+    - postgresql
+spec:
+  type: database
+  owner: team-platform
+  system: his-hope-emr
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: appointment-database
+  description: PostgreSQL/CockroachDB database for Appointment Service
+  tags:
+    - database
+    - postgresql
+spec:
+  type: database
+  owner: team-clinical
+  system: his-hope-emr
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: clinical-database
+  description: PostgreSQL/CockroachDB database for Clinical Service (PHI)
+  tags:
+    - database
+    - postgresql
+    - phi
+spec:
+  type: database
+  owner: team-clinical
+  system: his-hope-emr
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: rabbitmq
+  description: RabbitMQ message broker for event-driven communication
+  tags:
+    - messaging
+    - event-bus
+spec:
+  type: messaging
+  owner: team-platform
+  system: his-hope-emr
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: redis-cluster
+  description: Redis cluster for distributed caching
+  tags:
+    - cache
+    - redis
+spec:
+  type: cache
+  owner: team-platform
+  system: his-hope-emr
+---
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: cockroachdb-cluster
+  description: CockroachDB global cluster for distributed SQL
+  tags:
+    - database
+    - distributed
+spec:
+  type: database
+  owner: team-platform
+  system: his-hope-emr

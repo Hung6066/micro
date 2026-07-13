@@ -1,0 +1,388 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-config
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: server
+data:
+  config.hcl: |
+    ui = true
+
+    api_addr = "https://$(POD_NAME).vault-internal.his-hope.svc.cluster.local:8200"
+    cluster_addr = "https://$(POD_NAME).vault-internal.his-hope.svc.cluster.local:8201"
+
+    storage "raft" {
+      path = "/vault/data"
+      node_id = "$(POD_NAME)"
+
+      retry_join {
+        leader_api_addr = "https://vault-0.vault-internal.his-hope.svc.cluster.local:8200"
+      }
+      retry_join {
+        leader_api_addr = "https://vault-1.vault-internal.his-hope.svc.cluster.local:8200"
+      }
+      retry_join {
+        leader_api_addr = "https://vault-2.vault-internal.his-hope.svc.cluster.local:8200"
+      }
+
+      autopilot {
+        cleanup_dead_servers = true
+        last_contact_threshold = "200ms"
+        max_trailing_logs = 100000
+        server_stabilization_time = "10s"
+        dead_server_last_contact_threshold = "24h"
+        min_quorum = 3
+      }
+    }
+
+    listener "tcp" {
+      address       = "0.0.0.0:8200"
+      cluster_address = "0.0.0.0:8201"
+      tls_disable   = false
+      tls_cert_file = "/vault/tls/server.crt"
+      tls_key_file  = "/vault/tls/server.key"
+      tls_client_ca_file = "/vault/tls/ca.crt"
+    }
+
+    telemetry {
+      prometheus_retention_time = "24h"
+      disable_hostname = false
+    }
+
+    service_registration "kubernetes" {}
+
+    disable_mlock = true
+
+    log_level = "info"
+
+    seal "shamir" {
+      secret_shreshold = 3
+      secret_shares    = 5
+    }
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-active
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: server
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: ""
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: "tcp"
+spec:
+  selector:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 8200
+      targetPort: 8200
+      protocol: TCP
+    - name: https-internal
+      port: 8201
+      targetPort: 8201
+      protocol: TCP
+  type: ClusterIP
+  sessionAffinity: None
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-standby
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: server
+spec:
+  selector:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 8200
+      targetPort: 8200
+      protocol: TCP
+    - name: https-internal
+      port: 8201
+      targetPort: 8201
+      protocol: TCP
+  type: ClusterIP
+  publishNotReadyAddresses: true
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-internal
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: server
+  annotations:
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+spec:
+  selector:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 8200
+      targetPort: 8200
+      protocol: TCP
+    - name: https-internal
+      port: 8201
+      targetPort: 8201
+      protocol: TCP
+  clusterIP: None
+  publishNotReadyAddresses: true
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vault
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: server
+spec:
+  serviceName: vault-internal
+  replicas: 3
+  podManagementPolicy: Parallel
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vault
+        app.kubernetes.io/component: server
+      annotations:
+        vault.hashicorp.com/agent-inject: "false"
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8201"
+        prometheus.io/path: "/v1/sys/metrics"
+    spec:
+      serviceAccountName: vault
+      terminationGracePeriodSeconds: 30
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app.kubernetes.io/name
+                    operator: In
+                    values:
+                      - vault
+              topologyKey: kubernetes.io/hostname
+      containers:
+        - name: vault
+          image: hashicorp/vault:1.16
+          imagePullPolicy: IfNotPresent
+          command:
+            - vault
+            - server
+            - -config=/vault/config/config.hcl
+          args: []
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: VAULT_K8S_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: VAULT_K8S_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: HOME
+              value: /vault
+            - name: VAULT_CLUSTER_INTERFACE
+              value: eth0
+            - name: SKIP_CHOWN
+              value: "true"
+            - name: VAULT_ADDR
+              value: "https://127.0.0.1:8200"
+            - name: VAULT_API_ADDR
+              value: "https://$(POD_NAME).vault-internal.his-hope.svc.cluster.local:8200"
+            - name: VAULT_CLUSTER_ADDR
+              value: "https://$(POD_NAME).vault-internal.his-hope.svc.cluster.local:8201"
+            - name: VAULT_SKIP_VERIFY
+              value: "true"
+            - name: VAULT_CACERT
+              value: "/vault/tls/ca.crt"
+          ports:
+            - containerPort: 8200
+              name: http
+              protocol: TCP
+            - containerPort: 8201
+              name: https-internal
+              protocol: TCP
+            - containerPort: 8202
+              name: http-alt
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /vault/config
+            - name: tls
+              mountPath: /vault/tls
+              readOnly: true
+            - name: raft-storage
+              mountPath: /vault/data
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    sleep 5
+                    vault operator step-down 2>/dev/null || true
+          startupProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  vault status -tls-skip-verify 2>/dev/null | grep -q 'Initialized.*true' && \
+                  vault status -tls-skip-verify 2>/dev/null | grep -q 'Sealed.*false'
+            failureThreshold: 12
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  vault read -tls-skip-verify sys/health 2>/dev/null | grep -q 'initialized.*true'
+            failureThreshold: 3
+            periodSeconds: 15
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  vault status -tls-skip-verify 2>/dev/null | grep -q 'Active.*true'
+            failureThreshold: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "1"
+          securityContext:
+            capabilities:
+              add:
+                - IPC_LOCK
+            runAsNonRoot: false
+            runAsUser: 0
+      volumes:
+        - name: config
+          configMap:
+            name: vault-config
+            defaultMode: 0444
+        - name: tls
+          secret:
+            secretName: vault-tls
+            defaultMode: 0444
+  volumeClaimTemplates:
+    - metadata:
+        name: raft-storage
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: standard
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: server
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vault-auth-binding
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: vault
+    namespace: his-hope
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vault-server-proxy
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: server
+rules:
+  - apiGroups: [""]
+    resources: ["serviceaccounts/token"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vault-server-proxy-binding
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/component: server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vault-server-proxy
+subjects:
+  - kind: ServiceAccount
+    name: vault
+    namespace: his-hope

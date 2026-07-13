@@ -1,0 +1,15 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.serviceName }}
+  description: ${{ values.description }}
+  annotations:
+    github.com/project-slug: hishop/${{ values.serviceName }}
+    backstage.io/kubernetes-namespace: his-hope
+    backstage.io/kubernetes-id: ${{ values.serviceName }}
+    linkerd.io/inject: enabled
+spec:
+  type: service
+  lifecycle: production
+  owner: ${{ values.team }}
+  system: his-hope-emr

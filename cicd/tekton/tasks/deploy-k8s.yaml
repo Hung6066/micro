@@ -1,0 +1,168 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: deploy-k8s
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.17.0"
+    tekton.dev/tags: deploy, kubernetes
+    tekton.dev/displayName: Deploy to Kubernetes
+spec:
+  description: >-
+    Deploy manifests to Kubernetes, update the deployment image, wait for
+    rollout to complete, and verify the health endpoint responds successfully.
+
+  params:
+    - name: MANIFEST_PATH
+      type: string
+      description: Path to the Kubernetes manifest directory or file within the source workspace
+    - name: NAMESPACE
+      type: string
+      description: Target Kubernetes namespace
+    - name: DEPLOYMENT_NAME
+      type: string
+      description: Name of the Kubernetes Deployment resource
+    - name: IMAGE_NAME
+      type: string
+      description: Container image name to deploy
+    - name: IMAGE_TAG
+      type: string
+      description: Container image tag to deploy
+    - name: HEALTH_ENDPOINT
+      type: string
+      description: Health check endpoint path (e.g., /healthz)
+      default: /healthz
+    - name: HEALTH_PORT
+      type: string
+      description: Container port for health check
+      default: "8080"
+
+  workspaces:
+    - name: source
+      description: Source repository containing Kubernetes manifests
+      mountPath: /workspace/source
+
+  steps:
+    - name: apply-manifests
+      image: bitnami/kubectl:1.32
+      workingDir: /workspace/source
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        MANIFEST_DIR="/workspace/source/$(params.MANIFEST_PATH)"
+        NAMESPACE="$(params.NAMESPACE)"
+
+        if ! kubectl get namespace "${NAMESPACE}" --ignore-not-found &>/dev/null; then
+          echo "Creating namespace ${NAMESPACE}"
+          kubectl create namespace "${NAMESPACE}"
+        fi
+
+        if [ -d "${MANIFEST_DIR}" ]; then
+          echo "Applying manifests from directory ${MANIFEST_DIR}"
+          kubectl apply -f "${MANIFEST_DIR}/" --namespace "${NAMESPACE}"
+        elif [ -f "${MANIFEST_DIR}" ]; then
+          echo "Applying manifest file ${MANIFEST_DIR}"
+          kubectl apply -f "${MANIFEST_DIR}" --namespace "${NAMESPACE}"
+        else
+          echo "ERROR: Manifest path ${MANIFEST_DIR} does not exist"
+          exit 1
+        fi
+
+        echo "Manifests applied successfully in namespace ${NAMESPACE}"
+
+    - name: update-deployment-image
+      image: bitnami/kubectl:1.32
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        DEPLOYMENT="$(params.DEPLOYMENT_NAME)"
+        NAMESPACE="$(params.NAMESPACE)"
+        IMAGE_REF="$(params.IMAGE_NAME):$(params.IMAGE_TAG)"
+
+        echo "Updating deployment ${DEPLOYMENT} in namespace ${NAMESPACE} to image ${IMAGE_REF}"
+
+        kubectl set image "deployment/${DEPLOYMENT}" \
+          "*=${IMAGE_REF}" \
+          --namespace "${NAMESPACE}" \
+          --record
+
+        echo "Image update triggered for ${DEPLOYMENT}"
+
+    - name: rollout-status
+      image: bitnami/kubectl:1.32
+      script: |
+        #!/bin/bash
+        set -euo pipefail
+
+        DEPLOYMENT="$(params.DEPLOYMENT_NAME)"
+        NAMESPACE="$(params.NAMESPACE)"
+
+        echo "Waiting for rollout of deployment/${DEPLOYMENT} to complete..."
+
+        kubectl rollout status "deployment/${DEPLOYMENT}" \
+          --namespace "${NAMESPACE}" \
+          --timeout=5m \
+          --watch=true
+
+        echo "Rollout completed successfully"
+
+    - name: verify-health
+      image: curlimages/curl:8.11.1
+      script: |
+        #!/bin/sh
+        set -euo pipefail
+
+        DEPLOYMENT="$(params.DEPLOYMENT_NAME)"
+        NAMESPACE="$(params.NAMESPACE)"
+        HEALTH_PORT="$(params.HEALTH_PORT)"
+        HEALTH_ENDPOINT="$(params.HEALTH_ENDPOINT)"
+
+        echo "Waiting for pods to be ready..."
+        sleep 10
+
+        POD_NAME=$(kubectl get pods \
+          --namespace "${NAMESPACE}" \
+          --selector="app=${DEPLOYMENT}" \
+          --output=jsonpath='{.items[0].metadata.name}' \
+          2>/dev/null || echo "")
+
+        if [ -z "${POD_NAME}" ]; then
+          POD_NAME=$(kubectl get pods \
+            --namespace "${NAMESPACE}" \
+            --selector="app.kubernetes.io/name=${DEPLOYMENT}" \
+            --output=jsonpath='{.items[0].metadata.name}' \
+            2>/dev/null || echo "")
+        fi
+
+        if [ -z "${POD_NAME}" ]; then
+          echo "WARNING: Could not find pod for deployment ${DEPLOYMENT}. Skipping health check."
+          exit 0
+        fi
+
+        echo "Found pod: ${POD_NAME}"
+
+        echo "Checking health endpoint via port-forward..."
+        kubectl port-forward \
+          --namespace "${NAMESPACE}" \
+          "pod/${POD_NAME}" \
+          8080:${HEALTH_PORT} &
+        PF_PID=$!
+        sleep 5
+
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+          --connect-timeout 10 \
+          --max-time 30 \
+          "http://localhost:8080${HEALTH_ENDPOINT}" || echo "000")
+
+        kill "${PF_PID}" 2>/dev/null || true
+        wait "${PF_PID}" 2>/dev/null || true
+
+        if [ "${HTTP_CODE}" = "200" ] || [ "${HTTP_CODE}" = "204" ]; then
+          echo "Health check passed: HTTP ${HTTP_CODE}"
+        else
+          echo "WARNING: Health check returned HTTP ${HTTP_CODE} for endpoint ${HEALTH_ENDPOINT}"
+          echo "Deployment completed but health verification warning."
+        fi

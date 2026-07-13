@@ -1,0 +1,58 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  namespace: his-hope
+  name: network-delay-50ms
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    chaos-mesh/experiment-type: network-delay
+    chaos-mesh/schedule: routine
+  annotations:
+    description: "Injects 50ms latency with 10ms jitter across all his-hope pods every 4 hours to simulate mild network degradation"
+    maintainer: "his-hope-sre@hishop.com"
+    game-day-scope: "weekly-chaos-wednesday"
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - his-hope
+    labelSelectors:
+      app.kubernetes.io/part-of: his-hope
+  delay:
+    latency: 50ms
+    jitter: 10ms
+    correlation: 50
+  duration: 5m
+  scheduler:
+    cron: "@every 4h"
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  namespace: his-hope
+  name: network-delay-heavy-game-day
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    chaos-mesh/experiment-type: network-delay
+    chaos-mesh/schedule: game-day
+  annotations:
+    description: "Game Day experiment: injects 2000ms latency with 500ms jitter to simulate severe network congestion or cross-region communication issues"
+    maintainer: "his-hope-sre@hishop.com"
+    game-day-scope: "monthly-full-chaos"
+    recovery-plan: "immediate rollback via rollback-script"
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - his-hope
+    labelSelectors:
+      app.kubernetes.io/part-of: his-hope
+  delay:
+    latency: 2000ms
+    jitter: 500ms
+    correlation: 25
+  duration: 10m
+  scheduler:
+    cron: "0 4 * * 0"    # Game Day: 2s latency, Sunday at 4 AM

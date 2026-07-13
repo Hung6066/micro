@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pixie-config
+  namespace: px-system
+data:
+  pixie.yaml: |
+    # Pixie eBPF-based observability
+    # Deploy: px deploy
+    # Access: px run px/namespace
+    cluster_name: his-hope
+    deploy_key: ${PIXIE_DEPLOY_KEY}
+    resources:
+      requests:
+        cpu: 500m
+        memory: 2Gi
+      limits:
+        cpu: 2
+        memory: 8Gi

@@ -1,0 +1,326 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: his-hope-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_MULTIPLE_DATABASES: his_hope_identity,his_hope_patient,his_hope_appointment,his_hope_clinical
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { memory: 1g }
+        reservations: { memory: 256m }
+
+  postgres-replica:
+    image: postgres:16-alpine
+    container_name: his-hope-postgres-replica
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_replica_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    depends_on:
+      - postgres
+    profiles: ["replica"]
+
+  redis:
+    image: redis:7-alpine
+    container_name: his-hope-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: his-hope-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin
+      RABBITMQ_VM_MEMORY_HIGH_WATERMARK: "0.8"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  elasticsearch:
+    image: elasticsearch:8.12.0
+    container_name: his-hope-elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: false
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+
+  kibana:
+    image: kibana:8.12.0
+    container_name: his-hope-kibana
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+
+  consul:
+    image: hashicorp/consul:1.18
+    container_name: his-hope-consul
+    ports:
+      - "8500:8500"
+      - "8600:8600/udp"
+    command: agent -server -bootstrap-expect=1 -ui -client=0.0.0.0 -bind=0.0.0.0
+    volumes:
+      - consul_data:/consul/data
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.55
+    container_name: his-hope-jaeger
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+      - "6831:6831/udp"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      SPAN_STORAGE_TYPE: "badger"
+      BADGER_EPHEMERAL: "false"
+      BADGER_DIRECTORY_KEY: "/badger/key"
+      BADGER_DIRECTORY_VALUE: "/badger/data"
+    volumes:
+      - jaeger_data:/badger
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: his-hope-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: his-hope-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # Application Services
+  identityservice:
+    build:
+      context: ..
+      dockerfile: src/Services/IdentityService/IdentityService.Api/Dockerfile
+    container_name: his-hope-identity
+    ports:
+      - "5001:5001"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: https://+:5001
+      ConnectionStrings__IdentityDb: Host=postgres;Database=his_hope_identity;Username=postgres;Password=postgres
+      Jwt__Key: "super-secret-key-his-hope-2024-at-least-32-chars!"
+      Jwt__Issuer: his-hope-identity
+      Jwt__Audience: his-hope-gateway
+      Jwt__Expiry: "08:00:00"
+      Certificates__Server__Path: /certs/server.pfx
+      Certificates__Server__Password: his-hope-dev
+      OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
+    volumes:
+      - certs_data:/certs:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      jaeger: { condition: service_started }
+    restart: unless-stopped
+
+  patientservice:
+    build:
+      context: ..
+      dockerfile: src/Services/PatientService/PatientService.Api/Dockerfile
+    container_name: his-hope-patient
+    ports:
+      - "5002:5002"
+      - "5006:5006"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: https://+:5002
+      ConnectionStrings__PatientDb: Host=postgres;Database=his_hope_patient;Username=postgres;Password=postgres
+      EventBus__HostName: rabbitmq
+      EventBus__UserName: admin
+      EventBus__Password: admin
+      Redis__ConnectionString: redis:6379
+      Certificates__Server__Path: /certs/server.pfx
+      Certificates__Server__Password: his-hope-dev
+      Certificates__Client__Path: /certs/client.pfx
+      Certificates__Client__Password: his-hope-dev
+      OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
+    volumes:
+      - certs_data:/certs:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_started }
+      redis: { condition: service_started }
+      jaeger: { condition: service_started }
+    restart: unless-stopped
+
+  appointmentservice:
+    build:
+      context: ..
+      dockerfile: src/Services/AppointmentService/AppointmentService.Api/Dockerfile
+    container_name: his-hope-appointment
+    ports:
+      - "5003:5003"
+      - "5007:5007"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: https://+:5003
+      GrpcServices__PatientService: https://patientservice:5006
+      EventBus__HostName: rabbitmq
+      EventBus__UserName: admin
+      EventBus__Password: admin
+      Redis__ConnectionString: redis:6379
+      Certificates__Server__Path: /certs/server.pfx
+      Certificates__Server__Password: his-hope-dev
+      Certificates__Client__Path: /certs/client.pfx
+      Certificates__Client__Password: his-hope-dev
+      OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
+    volumes:
+      - certs_data:/certs:ro
+    depends_on:
+      - patientservice
+      - rabbitmq
+      - redis
+      - jaeger
+    restart: unless-stopped
+
+  clinicalservice:
+    build:
+      context: ..
+      dockerfile: src/Services/ClinicalService/ClinicalService.Api/Dockerfile
+    container_name: his-hope-clinical
+    ports:
+      - "5004:5004"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: https://+:5004
+      GrpcServices__PatientService: https://patientservice:5006
+      GrpcServices__AppointmentService: https://appointmentservice:5007
+      EventBus__HostName: rabbitmq
+      EventBus__UserName: admin
+      EventBus__Password: admin
+      Redis__ConnectionString: redis:6379
+      Certificates__Server__Path: /certs/server.pfx
+      Certificates__Server__Password: his-hope-dev
+      Certificates__Client__Path: /certs/client.pfx
+      Certificates__Client__Password: his-hope-dev
+      OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
+    volumes:
+      - certs_data:/certs:ro
+    depends_on:
+      - patientservice
+      - appointmentservice
+      - rabbitmq
+      - redis
+      - jaeger
+    restart: unless-stopped
+
+  apigateway:
+    build:
+      context: ../src/ApiGateway
+    container_name: his-hope-gateway
+    ports:
+      - "5000:5000"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: https://+:5000
+      Certificates__Path: /certs/server.pfx
+      Certificates__Password: his-hope-dev
+    volumes:
+      - certs_data:/certs:ro
+    depends_on:
+      - identityservice
+      - patientservice
+      - appointmentservice
+      - clinicalservice
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../src/Frontend/his-hope-app
+    container_name: his-hope-frontend
+    ports:
+      - "4200:80"
+    depends_on:
+      - apigateway
+    restart: unless-stopped
+
+  # Certificate Generator (one-time)
+  certgen:
+    image: mcr.microsoft.com/dotnet/sdk:8.0
+    container_name: his-hope-certgen
+    volumes:
+      - certs_data:/certs
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        dotnet dev-certs https --export-path /certs/server.pfx --password "his-hope-dev" --format Pfx &&
+        dotnet dev-certs https --trust &&
+        echo "Certificates generated" &&
+        tail -f /dev/null
+
+volumes:
+  postgres_data:
+  postgres_replica_data:
+  redis_data:
+  rabbitmq_data:
+  es_data:
+  consul_data:
+  jaeger_data:
+  prometheus_data:
+  grafana_data:
+  certs_data:

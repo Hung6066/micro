@@ -1,0 +1,35 @@
+apiVersion: linkerd.io/v1alpha2
+kind: LinkerdViz
+metadata:
+  name: linkerd-viz
+  namespace: linkerd-viz
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    linkerd.io/extension: viz
+spec:
+  grafana:
+    adminPassword: admin
+    resources:
+      cpu:
+        limit: 200m
+        request: 100m
+      memory:
+        limit: 512Mi
+        request: 256Mi
+  prometheus:
+    resources:
+      cpu:
+        limit: 1
+        request: 500m
+      memory:
+        limit: 4Gi
+        request: 2Gi
+    retention: 72h
+  tap:
+    resources:
+      cpu:
+        limit: 200m
+        request: 100m
+      memory:
+        limit: 256Mi
+        request: 128Mi

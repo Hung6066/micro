@@ -1,0 +1,159 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+  labels:
+    app.kubernetes.io/name: rabbitmq
+data:
+  rabbitmq.conf: |
+    ## TLS Configuration
+    listeners.ssl.default = 5671
+    ssl.options.cacertfile = /etc/rabbitmq/ssl/ca.crt
+    ssl.options.certfile = /etc/rabbitmq/ssl/tls.crt
+    ssl.options.keyfile = /etc/rabbitmq/ssl/tls.key
+    ssl.options.verify = verify_peer
+    ssl.options.fail_if_no_peer_cert = false
+
+    ## Management plugin
+    management.listener.port = 15672
+    management.listener.ssl = false
+
+    ## Default AMQP listener
+    listeners.tcp.default = 5672
+
+    ## Cluster settings
+    cluster_formation.peer_discovery_backend = rabbit_peer_discovery_k8s
+    cluster_formation.k8s.host = kubernetes.default.svc.cluster.local
+    cluster_formation.k8s.address_type = hostname
+    cluster_formation.node_cleanup.interval = 30
+    cluster_formation.node_cleanup.only_log_warning = true
+    cluster_partition_handling = autoheal
+    queue_master_locator = min-masters
+
+    ## Monitoring
+    collect_statistics = all
+    collect_statistics_interval = 60000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  labels:
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/component: messaging
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+      protocol: TCP
+    - name: amqps
+      port: 5671
+      targetPort: 5671
+      protocol: TCP
+    - name: management
+      port: 15672
+      targetPort: 15672
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  labels:
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/component: messaging
+spec:
+  serviceName: rabbitmq
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: rabbitmq
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rabbitmq
+        app.kubernetes.io/component: messaging
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3.13-management
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: amqp
+              containerPort: 5672
+              protocol: TCP
+            - name: amqps
+              containerPort: 5671
+              protocol: TCP
+            - name: management
+              containerPort: 15672
+              protocol: TCP
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              value: "his_hope"
+            - name: RABBITMQ_DEFAULT_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: password
+            - name: RABBITMQ_ERLANG_COOKIE
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: erlang_cookie
+            - name: RABBITMQ_CONFIG_FILE
+              value: "/etc/rabbitmq/rabbitmq.conf"
+            - name: RABBITMQ_USE_LONGNAME
+              value: "true"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          livenessProbe:
+            exec:
+              command:
+                - rabbitmq-diagnostics
+                - ping
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 5
+          readinessProbe:
+            exec:
+              command:
+                - rabbitmq-diagnostics
+                - check_port_connectivity
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - name: rabbitmq-data
+              mountPath: /var/lib/rabbitmq
+              subPath: mnesia
+            - name: rabbitmq-config
+              mountPath: /etc/rabbitmq/rabbitmq.conf
+              subPath: rabbitmq.conf
+              readOnly: true
+      volumes:
+        - name: rabbitmq-config
+          configMap:
+            name: rabbitmq-config
+            defaultMode: 0644
+  volumeClaimTemplates:
+    - metadata:
+        name: rabbitmq-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+        storageClassName: standard

@@ -1,0 +1,287 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: linkerd-config
+  namespace: linkerd
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    linkerd.io/extension: control-plane
+data:
+  values.yaml: |
+    clusterDomain: cluster.local
+    identity:
+      issuer:
+        scheme: kubernetes.io/tls
+        clockSkewAllowance: 20s
+        issuanceLifetime: 24h
+    proxy:
+      resources:
+        cpu:
+          request: 100m
+          limit: 200m
+        memory:
+          request: 128Mi
+          limit: 256Mi
+      ports:
+        admin: 4191
+        control: 4190
+        inbound: 4143
+        outbound: 4140
+    proxyInit:
+      resources:
+        cpu:
+          request: 10m
+          limit: 100m
+        memory:
+          request: 10Mi
+          limit: 50Mi
+    installNamespace: true
+    omitWebhookSideEffects: false
+    tolerations:
+    - key: CriticalAddonsOnly
+      operator: Exists
+    webhookFailurePolicy: Fail
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: serviceprofiles.linkerd.io
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    linkerd.io/extension: control-plane
+spec:
+  group: linkerd.io
+  names:
+    kind: ServiceProfile
+    listKind: ServiceProfileList
+    plural: serviceprofiles
+    singular: serviceprofile
+    shortNames:
+    - sp
+  scope: Namespaced
+  versions:
+  - name: v1alpha2
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              routes:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    condition:
+                      type: object
+                      properties:
+                        method:
+                          type: string
+                        pathRegex:
+                          type: string
+                    isRetryable:
+                      type: boolean
+                    retries:
+                      type: object
+                      properties:
+                        budget:
+                          type: object
+                          properties:
+                            minRetriesPerSecond:
+                              type: integer
+                            retryRatio:
+                              type: number
+                    timeout:
+                      type: string
+    subresources:
+      status: {}
+  conversion:
+    strategy: None
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: trafficsplits.split.smi-spec.io
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    linkerd.io/extension: control-plane
+spec:
+  group: split.smi-spec.io
+  names:
+    kind: TrafficSplit
+    listKind: TrafficSplitList
+    plural: trafficsplits
+    singular: trafficsplit
+    shortNames:
+    - ts
+  scope: Namespaced
+  versions:
+  - name: v1alpha4
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              service:
+                type: string
+              backends:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    service:
+                      type: string
+                    weight:
+                      type: string
+    subresources:
+      status: {}
+  conversion:
+    strategy: None
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: servers.policy.linkerd.io
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    linkerd.io/extension: control-plane
+spec:
+  group: policy.linkerd.io
+  names:
+    kind: Server
+    listKind: ServerList
+    plural: servers
+    singular: server
+    shortNames:
+    - srv
+  scope: Namespaced
+  versions:
+  - name: v1beta1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              podSelector:
+                type: object
+                properties:
+                  matchLabels:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  matchExpressions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                        operator:
+                          type: string
+                        values:
+                          type: array
+                          items:
+                            type: string
+              port:
+                type: string
+              proxyProtocol:
+                type: string
+    subresources:
+      status: {}
+  conversion:
+    strategy: None
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: serverauthorizations.policy.linkerd.io
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    linkerd.io/extension: control-plane
+spec:
+  group: policy.linkerd.io
+  names:
+    kind: ServerAuthorization
+    listKind: ServerAuthorizationList
+    plural: serverauthorizations
+    singular: serverauthorization
+    shortNames:
+    - sauth
+  scope: Namespaced
+  versions:
+  - name: v1beta1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              server:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  selector:
+                    type: object
+                    properties:
+                      matchLabels:
+                        type: object
+                        additionalProperties:
+                          type: string
+                      matchExpressions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                            operator:
+                              type: string
+                            values:
+                              type: array
+                              items:
+                                type: string
+              client:
+                type: object
+                properties:
+                  meshTLS:
+                    type: object
+                    properties:
+                      unauthenticated:
+                        type: boolean
+                      identities:
+                        type: array
+                        items:
+                          type: string
+                  unauthenticated:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        networks:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              cidr:
+                                type: string
+    subresources:
+      status: {}
+  conversion:
+    strategy: None

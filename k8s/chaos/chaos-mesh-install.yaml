@@ -1,0 +1,243 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chaos-engineering
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    name: chaos-engineering
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: chaos-engineering
+  name: chaos-mesh-values
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: chaos-mesh
+data:
+  values.yaml: |
+    # Chaos Mesh Helm values
+    # Installed via: helm install chaos-mesh chaos-mesh/chaos-mesh -f values.yaml -n chaos-engineering
+    chaos-dashboard:
+      create: true
+      resources:
+        limits:
+          cpu: 200m
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      securityMode: true
+      gcpSecurityMode: false
+    chaos-daemon:
+      runtime: containerd
+      socketPath: /run/containerd/containerd.sock
+      resources:
+        limits:
+          cpu: 200m
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      privileged: true
+      enableProfiling: false
+      pprofPort: 9334
+      httpProxy: ""
+      httpsProxy: ""
+      noProxy: ""
+      grpcPort: 31767
+      grpcPortForNode: 31766
+      additionalArgs: []
+    controllerManager:
+      create: true
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 250m
+          memory: 256Mi
+      replicas: 1
+      enableFilterNamespace: false
+      enableLeaderElection: true
+      metricsPath: /metrics
+    chaos-dashboard:
+      create: true
+      resources:
+        limits:
+          cpu: 200m
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      securityMode: true
+    dnsServer:
+      create: true
+    bpm:
+      create: true
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: chaos-engineering
+  name: chaos-daemon
+  labels:
+    app.kubernetes.io/component: chaos-daemon
+    app.kubernetes.io/part-of: his-hope
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: chaos-daemon
+  labels:
+    app.kubernetes.io/component: chaos-daemon
+    app.kubernetes.io/part-of: his-hope
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec", "pods/log", "namespaces", "nodes", "nodes/proxy"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["services", "endpoints", "configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["chaos-mesh.org"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch"]
+  # Host network access required for network chaos experiments
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "patch"]
+    resourceNames: ["*"]
+  - apiGroups: [""]
+    resources: ["nodes/status"]
+    verbs: ["get", "list", "watch"]
+  # Allow chaos-daemon to run in privileged mode on host
+  - apiGroups: ["security.openshift.io"]
+    resources: ["securitycontextconstraints"]
+    verbs: ["use"]
+    resourceNames:
+      - privileged
+      - hostaccess
+      - hostnetwork
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: chaos-daemon
+  labels:
+    app.kubernetes.io/component: chaos-daemon
+    app.kubernetes.io/part-of: his-hope
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: chaos-daemon
+subjects:
+  - kind: ServiceAccount
+    namespace: chaos-engineering
+    name: chaos-daemon
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: chaos-dashboard
+  labels:
+    app.kubernetes.io/component: chaos-dashboard
+    app.kubernetes.io/part-of: his-hope
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec", "pods/log", "namespaces", "events"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["chaos-mesh.org"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["subjectaccessreviews"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: chaos-dashboard
+  labels:
+    app.kubernetes.io/component: chaos-dashboard
+    app.kubernetes.io/part-of: his-hope
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: chaos-dashboard
+subjects:
+  - kind: ServiceAccount
+    namespace: chaos-engineering
+    name: chaos-dashboard
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: chaos-engineering
+  name: chaos-dashboard
+  labels:
+    app.kubernetes.io/component: chaos-dashboard
+    app.kubernetes.io/part-of: his-hope
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  namespace: chaos-engineering
+  name: chaos-controller-manager
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/part-of: his-hope
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: chaos-controller-manager
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/part-of: his-hope
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/exec", "pods/log", "namespaces", "events", "configmaps", "services", "endpoints", "secrets", "nodes"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["chaos-mesh.org"]
+    resources: ["*"]
+    verbs: ["*"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: chaos-controller-manager
+  labels:
+    app.kubernetes.io/component: controller-manager
+    app.kubernetes.io/part-of: his-hope
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: chaos-controller-manager
+subjects:
+  - kind: ServiceAccount
+    namespace: chaos-engineering
+    name: chaos-controller-manager

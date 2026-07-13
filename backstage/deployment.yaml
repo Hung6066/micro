@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backstage
+  namespace: his-hope
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: backstage
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: enabled
+      labels:
+        app: backstage
+    spec:
+      serviceAccountName: backstage
+      containers:
+      - name: backstage
+        image: his-hope/backstage:latest
+        ports:
+        - containerPort: 7007
+        env:
+        - name: POSTGRES_HOST
+          value: postgres
+        - name: POSTGRES_USER
+          value: backstage
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: backstage-db
+              key: password
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: backstage-secrets
+              key: github-token
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 7007
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2
+            memory: 4Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backstage
+  namespace: his-hope
+spec:
+  ports:
+  - port: 7007
+    targetPort: 7007
+  selector:
+    app: backstage

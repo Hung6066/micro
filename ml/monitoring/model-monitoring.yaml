@@ -1,0 +1,46 @@
+monitoring:
+  project: his-hope-analytics
+
+  configs:
+    - name: no-show-monitor
+      model_name: no-show-predictor
+      endpoint_name: his-hope-ml-endpoint
+      monitoring_interval: hourly
+      features:
+        - age_group
+        - gender
+        - total_encounters
+        - chronic_conditions_count
+
+      thresholds:
+        prediction_drift: 0.15
+        feature_drift_skew: 0.2
+        feature_drift_kl: 0.2
+        accuracy: 0.75
+        precision: 0.7
+        recall: 0.6
+
+      notifications:
+        - type: email
+          recipients: [ml-team@hishop.com, sre-team@hishop.com]
+          on:
+            - drift_detected
+            - accuracy_drop
+        - type: slack
+          channel: '#ml-alerts'
+          on:
+            - drift_detected
+
+    - name: readmission-monitor
+      model_name: readmission-predictor
+      monitoring_interval: daily
+      thresholds:
+        prediction_drift: 0.2
+        feature_drift_skew: 0.25
+
+    - name: icd10-monitor
+      model_name: icd10-suggester
+      monitoring_interval: daily
+      thresholds:
+        prediction_drift: 0.1
+        feature_drift_skew: 0.15

@@ -1,0 +1,143 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: patient-service-ingress
+  namespace: his-hope
+spec:
+  endpointSelector:
+    matchLabels:
+      app: patient-service
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: api-gateway
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5002"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app: clinical-service
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5006"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app: appointment-service
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5006"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: clinical-service-ingress
+  namespace: his-hope
+spec:
+  endpointSelector:
+    matchLabels:
+      app: clinical-service
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: api-gateway
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5005"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app: identity-service
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5009"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: his-hope
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: his-hope
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-egress-postgres
+  namespace: his-hope
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: his-hope
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: postgres
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-egress-rabbitmq
+  namespace: his-hope
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: his-hope
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: rabbitmq
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5672"
+        protocol: TCP
+      - port: "5671"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-egress-redis
+  namespace: his-hope
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: his-hope
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: redis
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "6379"
+        protocol: TCP
+      - port: "6380"
+        protocol: TCP

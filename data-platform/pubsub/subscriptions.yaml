@@ -1,0 +1,35 @@
+subscriptions:
+  - name: patient-events-to-bigquery
+    topic: patient-events
+    ack_deadline_seconds: 60
+    retain_acked_messages: true
+    retention_duration: 7d
+    enable_exactly_once_delivery: true
+    filter: "attributes.event_type != 'patient.deactivated'"
+    bigquery_config:
+      table: his-hope-analytics.patient_events.events
+      write_metadata: true
+  
+  - name: clinical-events-to-bigquery
+    topic: clinical-events
+    ack_deadline_seconds: 60
+    bigquery_config:
+      table: his-hope-analytics.clinical_events.events
+  
+  - name: appointment-events-to-bigquery
+    topic: appointment-events
+    ack_deadline_seconds: 60
+    bigquery_config:
+      table: his-hope-analytics.appointment_events.events
+  
+  - name: audit-events-to-bigquery
+    topic: audit-events
+    ack_deadline_seconds: 120
+    bigquery_config:
+      table: his-hope-analytics.audit_logs.events
+  
+  - name: patient-events-to-dataflow
+    topic: patient-events
+    ack_deadline_seconds: 600
+    push_config:
+      endpoint: https://dataflow.hishop.com/pubsub/patient-events

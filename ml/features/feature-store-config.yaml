@@ -1,0 +1,82 @@
+featurestore:
+  name: his-hope
+  region: us-east1
+  online_serving_config:
+    fixed_node_count: 2
+    node_type: n1-standard-4
+  entity_types:
+    - name: patient
+      description: Patient demographic and clinical features
+      features:
+        - name: age
+          value_type: DOUBLE
+          description: Patient age in years
+        - name: age_group
+          value_type: STRING
+          description: Age bucket (0-18, 19-40, 41-65, 65+)
+        - name: gender_encoded
+          value_type: DOUBLE
+          description: Encoded gender (0=Male, 1=Female, 2=Other)
+        - name: is_active
+          value_type: BOOL
+        - name: encounter_frequency_30d
+          value_type: DOUBLE
+          description: Number of encounters in last 30 days
+        - name: encounter_frequency_90d
+          value_type: DOUBLE
+          description: Number of encounters in last 90 days
+        - name: chronic_condition_count
+          value_type: DOUBLE
+          description: Number of chronic conditions
+        - name: avg_systolic_bp
+          value_type: DOUBLE
+          description: Average systolic blood pressure
+        - name: avg_diastolic_bp
+          value_type: DOUBLE
+          description: Average diastolic blood pressure
+        - name: avg_heart_rate
+          value_type: DOUBLE
+        - name: avg_bmi
+          value_type: DOUBLE
+        - name: unique_diagnosis_count_90d
+          value_type: DOUBLE
+          description: Unique ICD-10 codes in last 90 days
+        - name: appointment_no_show_rate
+          value_type: DOUBLE
+          description: Historical no-show rate
+        - name: appointment_lead_time_avg
+          value_type: DOUBLE
+          description: Average days between scheduling and appointment
+        - name: days_since_last_encounter
+          value_type: DOUBLE
+        - name: medication_count_active
+          value_type: DOUBLE
+          description: Number of active prescriptions
+        - name: has_diabetes
+          value_type: BOOL
+        - name: has_hypertension
+          value_type: BOOL
+        - name: has_heart_disease
+          value_type: BOOL
+
+    - name: encounter
+      description: Clinical encounter features
+      features:
+        - name: encounter_duration
+          value_type: DOUBLE
+        - name: diagnosis_count
+          value_type: DOUBLE
+        - name: procedure_count
+          value_type: DOUBLE
+        - name: prescription_count
+          value_type: DOUBLE
+        - name: encounter_type
+          value_type: STRING
+        - name: provider_id
+          value_type: STRING
+        - name: facility_id
+          value_type: STRING
+        - name: is_weekend
+          value_type: BOOL
+        - name: hour_of_day
+          value_type: DOUBLE

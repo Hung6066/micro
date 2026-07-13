@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: his-hope
+  annotations:
+    linkerd.io/inject: enabled
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: linkerd
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: linkerd-viz
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: linkerd-multicluster
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: linkerd-jaeger
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chaos-engineering
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: data-platform
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vault

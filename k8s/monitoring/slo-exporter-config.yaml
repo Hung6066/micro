@@ -1,0 +1,68 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: monitoring
+  name: slo-exporter-config
+data:
+  slo.yaml: |
+    services:
+      - name: patient-service
+        description: "Patient Management Service"
+        sli:
+          availability: { good: "code=~'2..'", total: "code=~'.*'" }
+          latency: { good: "le='0.5'", total: "" }
+        slo:
+          availability: 99.9
+          latency_p99: 500ms
+        objectives:
+          - name: "availability"
+            target: 99.9
+            window: 30d
+          - name: "latency"
+            target: 0.5
+            window: 30d
+
+      - name: identity-service
+        description: "Identity & Authentication Service"
+        sli:
+          availability: { good: "code=~'2..'", total: "code=~'.*'" }
+          latency: { good: "le='0.3'", total: "" }
+        slo:
+          availability: 99.95
+          latency_p99: 300ms
+        objectives:
+          - name: "availability"
+            target: 99.95
+            window: 30d
+          - name: "latency"
+            target: 0.3
+            window: 30d
+
+      - name: appointment-service
+        description: "Appointment Scheduling Service"
+        sli:
+          availability: { good: "code=~'2..'", total: "code=~'.*'" }
+          latency: { good: "le='1'", total: "" }
+        slo:
+          availability: 99.9
+          latency_p99: 1s
+        objectives:
+          - name: "availability"
+            target: 99.9
+            window: 30d
+
+      - name: clinical-service
+        description: "Clinical Encounters & PHI Service"
+        sli:
+          availability: { good: "code=~'2..'", total: "code=~'.*'" }
+          latency: { good: "le='0.5'", total: "" }
+        slo:
+          availability: 99.99
+          latency_p99: 500ms
+        objectives:
+          - name: "availability"
+            target: 99.99
+            window: 30d
+          - name: "latency"
+            target: 0.5
+            window: 30d

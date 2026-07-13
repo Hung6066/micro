@@ -1,0 +1,68 @@
+apiVersion: multicluster.linkerd.io/v1alpha1
+kind: LinkerdMulticluster
+metadata:
+  name: linkerd-multicluster
+  namespace: linkerd-multicluster
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    linkerd.io/extension: multicluster
+spec:
+  gateway:
+    enabled: true
+    loadBalancerIP: ""
+    replicas: 3
+    resources:
+      cpu:
+        limit: 500m
+        request: 200m
+      memory:
+        limit: 256Mi
+        request: 128Mi
+  serviceMirror:
+    resources:
+      cpu:
+        limit: 200m
+        request: 100m
+      memory:
+        limit: 256Mi
+        request: 128Mi
+---
+apiVersion: multicluster.linkerd.io/v1alpha1
+kind: ServiceExport
+metadata:
+  namespace: his-hope
+  name: patient-service
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: patient-service
+spec: {}
+---
+apiVersion: multicluster.linkerd.io/v1alpha1
+kind: ServiceExport
+metadata:
+  namespace: his-hope
+  name: identity-service
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: identity-service
+spec: {}
+---
+apiVersion: multicluster.linkerd.io/v1alpha1
+kind: ServiceExport
+metadata:
+  namespace: his-hope
+  name: appointment-service
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: appointment-service
+spec: {}
+---
+apiVersion: multicluster.linkerd.io/v1alpha1
+kind: ServiceExport
+metadata:
+  namespace: his-hope
+  name: clinical-service
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: clinical-service
+spec: {}

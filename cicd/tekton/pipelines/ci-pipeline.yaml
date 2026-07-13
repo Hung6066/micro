@@ -1,0 +1,205 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: ci-pipeline
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.17.0"
+    tekton.dev/tags: ci
+    tekton.dev/displayName: CI Pipeline
+spec:
+  description: >-
+    Continuous Integration pipeline for building, testing, scanning, and
+    deploying .NET 8 services to a development environment, followed by
+    promotion to staging with manual approval.
+
+  params:
+    - name: SERVICE_NAME
+      type: string
+      description: Name of the service being built (e.g., patient-service)
+    - name: GIT_REVISION
+      type: string
+      description: Git commit SHA or tag to build
+    - name: PROJECT_PATH
+      type: string
+      description: Relative path to the .csproj within the repository
+    - name: DOCKERFILE
+      type: string
+      description: Path to the Dockerfile
+      default: Dockerfile
+    - name: BUILD_CONTEXT
+      type: string
+      description: Docker build context directory
+    - name: MANIFEST_PATH
+      type: string
+      description: Path to Kubernetes manifests for dev deployment
+      default: k8s/overlays/dev
+    - name: DEV_NAMESPACE
+      type: string
+      description: Development namespace
+      default: his-hope-dev
+    - name: REGISTRY_BASE
+      type: string
+      description: Container registry base URL
+      default: ghcr.io/hishop
+
+  workspaces:
+    - name: source
+      description: Git repository source code
+    - name: output
+      description: Build outputs, test results, and artifacts
+    - name: dockerconfig
+      description: Docker registry credentials
+      optional: false
+    - name: sslcert
+      description: SSL certificate for NuGet
+      optional: true
+
+  results:
+    - name: IMAGE_DIGEST
+      description: SHA256 digest of the built container image
+    - name: SONAR_SCORE
+      description: SonarQube quality gate result
+
+  tasks:
+    - name: dotnet-build
+      taskRef:
+        name: dotnet-build
+      params:
+        - name: PROJECT_NAME
+          value: $(params.SERVICE_NAME)
+        - name: PROJECT_PATH
+          value: $(params.PROJECT_PATH)
+        - name: CONFIGURATION
+          value: Release
+      workspaces:
+        - name: source
+          workspace: source
+        - name: output
+          workspace: output
+        - name: sslcert
+          workspace: sslcert
+
+    - name: sonarqube-scan
+      taskRef:
+        name: sonarqube-scanner
+        kind: ClusterTask
+      runAfter:
+        - dotnet-build
+      params:
+        - name: SONAR_HOST_URL
+          value: https://sonarqube.his-hope.internal
+        - name: SONAR_PROJECT_KEY
+          value: his-hope-$(params.SERVICE_NAME)
+        - name: SONAR_PROJECT_NAME
+          value: $(params.SERVICE_NAME)
+        - name: SONAR_PROJECT_VERSION
+          value: $(params.GIT_REVISION)
+        - name: SONAR_SOURCES
+          value: .
+      workspaces:
+        - name: source
+          workspace: source
+      when:
+        - input: "$(tasks.status)"
+          operator: in
+          values:
+            - Succeeded
+
+    - name: container-build
+      taskRef:
+        name: container-build
+      runAfter:
+        - sonarqube-scan
+      params:
+        - name: IMAGE_NAME
+          value: $(params.REGISTRY_BASE)/$(params.SERVICE_NAME)
+        - name: IMAGE_TAG
+          value: $(params.GIT_REVISION)
+        - name: DOCKERFILE
+          value: $(params.DOCKERFILE)
+        - name: CONTEXT
+          value: $(params.BUILD_CONTEXT)
+      workspaces:
+        - name: source
+          workspace: source
+        - name: dockerconfig
+          workspace: dockerconfig
+
+    - name: deploy-dev
+      taskRef:
+        name: deploy-k8s
+      runAfter:
+        - container-build
+      params:
+        - name: MANIFEST_PATH
+          value: $(params.MANIFEST_PATH)
+        - name: NAMESPACE
+          value: $(params.DEV_NAMESPACE)
+        - name: DEPLOYMENT_NAME
+          value: $(params.SERVICE_NAME)
+        - name: IMAGE_NAME
+          value: $(params.REGISTRY_BASE)/$(params.SERVICE_NAME)
+        - name: IMAGE_TAG
+          value: $(params.GIT_REVISION)
+      workspaces:
+        - name: source
+          workspace: source
+
+    - name: smoke-test-dev
+      taskRef:
+        name: smoke-test
+      runAfter:
+        - deploy-dev
+      params:
+        - name: SERVICE_URL
+          value: http://$(params.SERVICE_NAME).$(params.DEV_NAMESPACE).svc.cluster.local:8080
+      workspaces:
+        - name: source
+          workspace: source
+
+    - name: promote-staging
+      taskRef:
+        name: deploy-k8s
+      runAfter:
+        - smoke-test-dev
+      params:
+        - name: MANIFEST_PATH
+          value: k8s/overlays/staging
+        - name: NAMESPACE
+          value: his-hope-staging
+        - name: DEPLOYMENT_NAME
+          value: $(params.SERVICE_NAME)
+        - name: IMAGE_NAME
+          value: $(params.REGISTRY_BASE)/$(params.SERVICE_NAME)
+        - name: IMAGE_TAG
+          value: $(params.GIT_REVISION)
+      workspaces:
+        - name: source
+          workspace: source
+
+  finally:
+    - name: collect-results
+      taskRef:
+        name: collect-results
+        kind: ClusterTask
+      workspaces:
+        - name: output
+          workspace: output
+      params:
+        - name: IMAGE_NAME
+          value: $(params.REGISTRY_BASE)/$(params.SERVICE_NAME)
+        - name: IMAGE_TAG
+          value: $(params.GIT_REVISION)
+
+    - name: notify-ci-status
+      taskRef:
+        name: send-slack-message
+        kind: ClusterTask
+      params:
+        - name: MESSAGE
+          value: |
+            CI Pipeline completed for $(params.SERVICE_NAME)@$(params.GIT_REVISION)
+            Status: $(tasks.status)
+            PipelineRun: $(context.pipelineRun.name)

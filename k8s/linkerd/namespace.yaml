@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: linkerd
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    linkerd.io/extension: control-plane
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: linkerd-viz
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    linkerd.io/extension: viz
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: linkerd-multicluster
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    linkerd.io/extension: multicluster
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: linkerd-jaeger
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    linkerd.io/extension: jaeger

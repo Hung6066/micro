@@ -1,0 +1,25 @@
+# CDC from CockroachDB to BigQuery via Pub/Sub
+databases:
+  - name: patientdb
+    tables:
+      - name: Patients
+        publish_to: patient-events
+        transform: |
+          { 
+            "event_id": convert_to_uuid(old.id, new.id),
+            "event_type": op + ".patient",
+            "patient_id": new.id,
+            "full_name": new.full_name,
+            "timestamp": current_timestamp()
+          }
+      - name: OutboxMessages
+        publish_to: patient-events
+    
+  - name: clinicaldb
+    tables:
+      - name: Encounters
+        publish_to: clinical-events
+      - name: Diagnoses
+        publish_to: clinical-events
+      - name: VitalSigns
+        publish_to: clinical-events

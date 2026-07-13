@@ -1,0 +1,173 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: no-show-training-pipeline
+  namespace: ml
+data:
+  pipeline.py: |
+    from kfp import dsl, compiler
+    from kfp.dsl import component
+
+    @component(
+        base_image='python:3.11',
+        packages_to_install=['pandas', 'scikit-learn', 'google-cloud-bigquery', 'joblib', 'xgboost']
+    )
+    def extract_features(
+        project_id: str,
+        dataset_id: str,
+        output_path: str
+    ):
+        from google.cloud import bigquery
+        import pandas as pd
+
+        client = bigquery.Client(project=project_id)
+
+        query = f"""
+        SELECT
+          p.patient_id,
+          p.age_group,
+          p.gender,
+          p.total_encounters,
+          p.chronic_conditions_count,
+          p.allergies_count,
+          p.days_since_last_encounter,
+          a.lead_time_days,
+          a.day_of_week,
+          a.hour_of_day,
+          a.is_no_show as label
+        FROM `{dataset_id}.patient_facts.*` p
+        JOIN `{dataset_id}.appointment_facts.*` a
+          ON p.patient_id = a.patient_id
+        WHERE a.scheduled_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 YEAR)
+        """
+
+        df = client.query(query).to_dataframe()
+        df.to_parquet(f'{output_path}/features.parquet')
+        return f'{output_path}/features.parquet'
+
+    @component(
+        base_image='python:3.11',
+        packages_to_install=['pandas', 'scikit-learn', 'xgboost', 'joblib']
+    )
+    def train_model(
+        data_path: str,
+        model_output_path: str,
+        test_size: float = 0.2,
+        random_state: int = 42
+    ):
+        import pandas as pd
+        import joblib
+        from sklearn.model_selection import train_test_split
+        from sklearn.preprocessing import LabelEncoder, StandardScaler
+        from xgboost import XGBClassifier
+        from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score
+
+        df = pd.read_parquet(data_path)
+
+        categorical_cols = ['age_group', 'gender', 'day_of_week']
+        for col in categorical_cols:
+            df[col] = LabelEncoder().fit_transform(df[col].astype(str))
+
+        features = ['age_group', 'gender', 'total_encounters', 'chronic_conditions_count',
+                    'alergies_count', 'days_since_last_encounter', 'lead_time_days',
+                    'day_of_week', 'hour_of_day']
+
+        X = df[features]
+        y = df['label']
+
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+
+        X_train, X_test, y_train, y_test = train_test_split(
+            X_scaled, y, test_size=test_size, random_state=random_state, stratify=y
+        )
+
+        model = XGBClassifier(
+            n_estimators=200,
+            max_depth=6,
+            learning_rate=0.1,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            random_state=random_state,
+            scale_pos_weight=(y_train == 0).sum() / (y_train == 1).sum()
+        )
+        model.fit(X_train, y_train)
+
+        y_pred = model.predict(X_test)
+        metrics = {
+            'accuracy': accuracy_score(y_test, y_pred),
+            'precision': precision_score(y_test, y_pred),
+            'recall': recall_score(y_test, y_pred),
+            'f1': f1_score(y_test, y_pred),
+            'roc_auc': roc_auc_score(y_test, model.predict_proba(X_test)[:, 1])
+        }
+
+        print(f"Model metrics: {metrics}")
+
+        joblib.dump(model, f'{model_output_path}/model.joblib')
+        joblib.dump(scaler, f'{model_output_path}/scaler.joblib')
+        joblib.dump(features, f'{model_output_path}/features.joblib')
+        joblib.dump(metrics, f'{model_output_path}/metrics.joblib')
+
+        return model_output_path
+
+    @component(
+        base_image='python:3.11',
+        packages_to_install=['google-cloud-aiplatform']
+    )
+    def deploy_model(
+        model_path: str,
+        model_name: str,
+        project_id: str,
+        region: str
+    ):
+        from google.cloud import aiplatform
+
+        aiplatform.init(project=project_id, location=region)
+
+        model = aiplatform.Model.upload(
+            display_name=model_name,
+            artifact_uri=model_path,
+            serving_container_image_uri='us-docker.pkg.dev/vertex-ai/prediction/xgboost-cpu.1-5:latest'
+        )
+
+        endpoint = model.deploy(
+            machine_type='n1-standard-4',
+            min_replica_count=1,
+            max_replica_count=5,
+            accelerator_type=None,
+            sync=True
+        )
+
+        return endpoint.resource_name
+
+    @dsl.pipeline(
+        name='no-show-prediction-pipeline',
+        description='Train and deploy no-show prediction model'
+    )
+    def no_show_pipeline(
+        project_id: str = 'his-hope-analytics',
+        dataset_id: str = 'his-hope-analytics',
+        model_name: str = 'no-show-predictor',
+        region: str = 'us-east1'
+    ):
+        feature_task = extract_features(
+            project_id=project_id,
+            dataset_id=dataset_id,
+            output_path=f'gs://hishop-ml-artifacts/features/no-show/{dsl.RUN_ID_PLACEHOLDER}'
+        )
+
+        train_task = train_model(
+            data_path=feature_task.output,
+            model_output_path=f'gs://hishop-ml-artifacts/models/no-show/{dsl.RUN_ID_PLACEHOLDER}'
+        )
+
+        deploy_task = deploy_model(
+            model_path=train_task.output,
+            model_name=model_name,
+            project_id=project_id,
+            region=region
+        )
+
+    if __name__ == '__main__':
+        compiler.Compiler().compile(no_show_pipeline, 'no_show_pipeline.yaml')

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>His.Hope.AppointmentService.Api</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <Protobuf Include="..\..\..\..\Shared\Protos\patient.proto" GrpcServices="Client" Link="Protos\patient.proto" />
+    <Protobuf Include="..\..\..\..\Shared\Protos\appointment.proto" GrpcServices="Both" Link="Protos\appointment.proto" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.60.0" />
+    <PackageReference Include="Grpc.Net.ClientFactory" Version="2.60.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\Shared\EventBus\Src\His.Hope.EventBusRabbitMQ\His.Hope.EventBusRabbitMQ.csproj" />
+    <ProjectReference Include="..\..\..\Shared\EventBus\Src\His.Hope.IntegrationEvents\His.Hope.IntegrationEvents.csproj" />
+  </ItemGroup>
+</Project>

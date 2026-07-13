@@ -1,0 +1,176 @@
+# =============================================================================
+# Patient Service Authorizations
+# =============================================================================
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  namespace: his-hope
+  name: patient-service-grpc
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: patient-service
+spec:
+  server:
+    name: patient-service-grpc
+  client:
+    meshTLS:
+      unauthenticated: false
+      identities:
+        - identity-service.his-hope.serviceaccount.identity.cluster.local
+        - appointment-service.his-hope.serviceaccount.identity.cluster.local
+        - clinical-service.his-hope.serviceaccount.identity.cluster.local
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  namespace: his-hope
+  name: patient-service-http
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: patient-service
+spec:
+  server:
+    name: patient-service-http
+  client:
+    meshTLS:
+      unauthenticated: false
+      identities:
+        - identity-service.his-hope.serviceaccount.identity.cluster.local
+        - appointment-service.his-hope.serviceaccount.identity.cluster.local
+        - clinical-service.his-hope.serviceaccount.identity.cluster.local
+    unauthenticated:
+      - networks:
+        - cidr: 0.0.0.0/0
+---
+# =============================================================================
+# Identity Service Authorizations
+# =============================================================================
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  namespace: his-hope
+  name: identity-service-grpc
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: identity-service
+spec:
+  server:
+    name: identity-service-grpc
+  client:
+    meshTLS:
+      unauthenticated: false
+      identities:
+        - patient-service.his-hope.serviceaccount.identity.cluster.local
+        - appointment-service.his-hope.serviceaccount.identity.cluster.local
+        - clinical-service.his-hope.serviceaccount.identity.cluster.local
+        - identity-service.his-hope.serviceaccount.identity.cluster.local
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  namespace: his-hope
+  name: identity-service-http
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: identity-service
+spec:
+  server:
+    name: identity-service-http
+  client:
+    meshTLS:
+      unauthenticated: false
+      identities:
+        - patient-service.his-hope.serviceaccount.identity.cluster.local
+        - appointment-service.his-hope.serviceaccount.identity.cluster.local
+        - clinical-service.his-hope.serviceaccount.identity.cluster.local
+    unauthenticated:
+      - networks:
+        - cidr: 0.0.0.0/0
+---
+# =============================================================================
+# Appointment Service Authorizations
+# =============================================================================
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  namespace: his-hope
+  name: appointment-service-grpc
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: appointment-service
+spec:
+  server:
+    name: appointment-service-grpc
+  client:
+    meshTLS:
+      unauthenticated: false
+      identities:
+        - clinical-service.his-hope.serviceaccount.identity.cluster.local
+        - patient-service.his-hope.serviceaccount.identity.cluster.local
+        - identity-service.his-hope.serviceaccount.identity.cluster.local
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  namespace: his-hope
+  name: appointment-service-http
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: appointment-service
+spec:
+  server:
+    name: appointment-service-http
+  client:
+    meshTLS:
+      unauthenticated: false
+      identities:
+        - clinical-service.his-hope.serviceaccount.identity.cluster.local
+        - patient-service.his-hope.serviceaccount.identity.cluster.local
+        - identity-service.his-hope.serviceaccount.identity.cluster.local
+    unauthenticated:
+      - networks:
+        - cidr: 0.0.0.0/0
+---
+# =============================================================================
+# Clinical Service Authorizations (PHI - most restricted)
+# =============================================================================
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  namespace: his-hope
+  name: clinical-service-grpc
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: clinical-service
+spec:
+  server:
+    name: clinical-service-grpc
+  client:
+    meshTLS:
+      unauthenticated: false
+      identities:
+        - patient-service.his-hope.serviceaccount.identity.cluster.local
+        - appointment-service.his-hope.serviceaccount.identity.cluster.local
+        - identity-service.his-hope.serviceaccount.identity.cluster.local
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  namespace: his-hope
+  name: clinical-service-http
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: clinical-service
+spec:
+  server:
+    name: clinical-service-http
+  client:
+    meshTLS:
+      unauthenticated: false
+      identities:
+        - patient-service.his-hope.serviceaccount.identity.cluster.local
+        - appointment-service.his-hope.serviceaccount.identity.cluster.local
+        - identity-service.his-hope.serviceaccount.identity.cluster.local
+    unauthenticated:
+      - networks:
+        - cidr: 0.0.0.0/0

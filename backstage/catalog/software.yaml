@@ -1,0 +1,122 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: patient-service
+  description: Patient Management Service - manages patient demographics, allergies, medical conditions
+  annotations:
+    github.com/project-slug: hishop/his-hope
+    backstage.io/kubernetes-namespace: his-hope
+    backstage.io/kubernetes-id: patient-service
+    backstage.io/techdocs-ref: dir:.
+    linkerd.io/inject: enabled
+    circleci.com/project-slug: hishop/patient-service
+    sonarqube.org/project-key: his-hope-patient-service
+    snyk.io/org: hishop
+    grafana/dashboard-selector: patient-service
+spec:
+  type: service
+  lifecycle: production
+  owner: team-clinical
+  system: his-hope-emr
+  subcomponentOf: his-hope
+  providesApis:
+    - patient-api
+    - patient-grpc
+  consumesApis:
+    - identity-grpc
+    - notification-event
+  dependsOn:
+    - Resource:patient-database
+    - Resource:rabbitmq
+    - Component:identity-service
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: identity-service
+  description: Identity & Authentication Service - user management, JWT tokens, RBAC
+  annotations:
+    github.com/project-slug: hishop/his-hope
+    backstage.io/kubernetes-namespace: his-hope
+    backstage.io/kubernetes-id: identity-service
+    linkerd.io/inject: enabled
+spec:
+  type: service
+  lifecycle: production
+  owner: team-platform
+  system: his-hope-emr
+  providesApis:
+    - identity-rest
+    - identity-grpc
+  dependsOn:
+    - Resource:identity-database
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: appointment-service
+  description: Appointment Scheduling Service - manages appointments, check-in, check-out
+  annotations:
+    github.com/project-slug: hishop/his-hope
+    backstage.io/kubernetes-namespace: his-hope
+    backstage.io/kubernetes-id: appointment-service
+    linkerd.io/inject: enabled
+spec:
+  type: service
+  lifecycle: production
+  owner: team-clinical
+  system: his-hope-emr
+  providesApis:
+    - appointment-rest
+    - appointment-grpc
+  consumesApis:
+    - patient-grpc
+  dependsOn:
+    - Resource:appointment-database
+    - Component:patient-service
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: clinical-service
+  description: Clinical Encounters Service - encounters, vital signs, diagnoses, procedures, prescriptions
+  annotations:
+    github.com/project-slug: hishop/his-hope
+    backstage.io/kubernetes-namespace: his-hope
+    backstage.io/kubernetes-id: clinical-service
+    linkerd.io/inject: enabled
+spec:
+  type: service
+  lifecycle: production
+  owner: team-clinical
+  system: his-hope-emr
+  providesApis:
+    - clinical-rest
+    - clinical-grpc
+  consumesApis:
+    - patient-grpc
+    - appointment-grpc
+  dependsOn:
+    - Resource:clinical-database
+    - Component:patient-service
+    - Component:appointment-service
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: api-gateway
+  description: YARP API Gateway - routing, rate limiting, security headers
+  annotations:
+    github.com/project-slug: hishop/his-hope
+    backstage.io/kubernetes-namespace: his-hope
+    backstage.io/kubernetes-id: api-gateway
+spec:
+  type: service
+  lifecycle: production
+  owner: team-platform
+  system: his-hope-emr
+  dependsOn:
+    - Component:patient-service
+    - Component:identity-service
+    - Component:appointment-service
+    - Component:clinical-service

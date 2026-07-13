@@ -1,0 +1,63 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "His.Hope.SharedKernel", "src\Shared\SharedKernel\Src\His.Hope.SharedKernel\His.Hope.SharedKernel.csproj", "{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "His.Hope.EventBus", "src\Shared\EventBus\Src\His.Hope.EventBus\His.Hope.EventBus.csproj", "{B2C3D4E5-F6A7-8901-BCDE-F12345678901}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PatientService.Domain", "src\Services\PatientService\PatientService.Domain\PatientService.Domain.csproj", "{C3D4E5F6-A7B8-9012-CDEF-123456789012}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PatientService.Application", "src\Services\PatientService\PatientService.Application\PatientService.Application.csproj", "{D4E5F6A7-B8C9-0123-DEF1-234567890123}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PatientService.Infrastructure", "src\Services\PatientService\PatientService.Infrastructure\PatientService.Infrastructure.csproj", "{E5F6A7B8-C9D0-1234-EF12-345678901234}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PatientService.Api", "src\Services\PatientService\PatientService.Api\PatientService.Api.csproj", "{F6A7B8C9-D0E1-2345-F123-456789012345}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IdentityService.Domain", "src\Services\IdentityService\IdentityService.Domain\IdentityService.Domain.csproj", "{A7B8C9D0-E1F2-3456-1234-567890123456}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IdentityService.Application", "src\Services\IdentityService\IdentityService.Application\IdentityService.Application.csproj", "{B8C9D0E1-F2A3-4567-2345-678901234567}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IdentityService.Infrastructure", "src\Services\IdentityService\IdentityService.Infrastructure\IdentityService.Infrastructure.csproj", "{C9D0E1F2-A3B4-5678-3456-789012345678}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IdentityService.Api", "src\Services\IdentityService\IdentityService.Api\IdentityService.Api.csproj", "{D0E1F2A3-B4C5-6789-4567-890123456789}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppointmentService.Domain", "src\Services\AppointmentService\AppointmentService.Domain\AppointmentService.Domain.csproj", "{E1F2A3B4-C5D6-7890-5678-901234567890}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppointmentService.Application", "src\Services\AppointmentService\AppointmentService.Application\AppointmentService.Application.csproj", "{F2A3B4C5-D6E7-8901-6789-012345678901}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppointmentService.Infrastructure", "src\Services\AppointmentService\AppointmentService.Infrastructure\AppointmentService.Infrastructure.csproj", "{A3B4C5D6-E7F8-9012-7890-123456789012}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AppointmentService.Api", "src\Services\AppointmentService\AppointmentService.Api\AppointmentService.Api.csproj", "{B4C5D6E7-F8A9-0123-8901-234567890123}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClinicalService.Domain", "src\Services\ClinicalService\ClinicalService.Domain\ClinicalService.Domain.csproj", "{C5D6E7F8-A9B0-1234-9012-345678901234}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClinicalService.Application", "src\Services\ClinicalService\ClinicalService.Application\ClinicalService.Application.csproj", "{D6E7F8A9-B0C1-2345-0123-456789012345}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClinicalService.Infrastructure", "src\Services\ClinicalService\ClinicalService.Infrastructure\ClinicalService.Infrastructure.csproj", "{E7F8A9B0-C1D2-3456-1234-567890123456}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClinicalService.Api", "src\Services\ClinicalService\ClinicalService.Api\ClinicalService.Api.csproj", "{F8A9B0C1-D2E3-4567-2345-678901234567}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PharmacyService.Domain", "src\Services\PharmacyService\PharmacyService.Domain\PharmacyService.Domain.csproj", "{A9B0C1D2-E3F4-5678-3456-789012345678}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PharmacyService.Application", "src\Services\PharmacyService\PharmacyService.Application\PharmacyService.Application.csproj", "{B0C1D2E3-F4A5-6789-4567-890123456789}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PharmacyService.Infrastructure", "src\Services\PharmacyService\PharmacyService.Infrastructure\PharmacyService.Infrastructure.csproj", "{C1D2E3F4-A5B6-7890-5678-901234567890}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PharmacyService.Api", "src\Services\PharmacyService\PharmacyService.Api\PharmacyService.Api.csproj", "{D2E3F4A5-B6C7-8901-6789-012345678901}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LabService.Domain", "src\Services\LabService\LabService.Domain\LabService.Domain.csproj", "{E3F4A5B6-C7D8-9012-7890-123456789012}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LabService.Application", "src\Services\LabService\LabService.Application\LabService.Application.csproj", "{F4A5B6C7-D8E9-0123-8901-234567890123}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LabService.Infrastructure", "src\Services\LabService\LabService.Infrastructure\LabService.Infrastructure.csproj", "{A5B6C7D8-E9F0-1234-9012-345678901234}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LabService.Api", "src\Services\LabService\LabService.Api\LabService.Api.csproj", "{B6C7D8E9-F0A1-2345-0123-456789012345}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+EndGlobal

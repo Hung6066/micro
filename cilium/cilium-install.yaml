@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cilium-config
+  namespace: kube-system
+data:
+  values.yaml: |
+    cluster:
+      name: his-hope-us-east1
+      id: 1
+    ipam:
+      mode: kubernetes
+    k8s:
+      requireIPv4PodCIDR: true
+    ipv4:
+      enabled: true
+    ipv6:
+      enabled: false
+    routingMode: native
+    autoDirectNodeRoutes: true
+    endpointRoutes:
+      enabled: true
+    hubble:
+      enabled: true
+      relay:
+        enabled: true
+        replicas: 2
+      ui:
+        enabled: true
+        replicas: 1
+      metrics:
+        enabled:
+          - dns:query;ignoreAAAA
+          - drop
+          - tcp
+          - flow
+          - icmp
+          - http
+          - port-distribution
+    operator:
+      replicas: 2
+      rollOutPods: true
+    l2announcements:
+      enabled: true
+    k8sServiceHost: 127.0.0.1
+    k8sServicePort: 7445
+    bpf:
+      masquerade: true
+      tproxy: true
+    monitor:
+      enabled: true
+    encryption:
+      enabled: true
+      type: wireguard
+    bandwidth:
+      enabled: true
+      bbr: true
+    nodeinit:
+      enabled: true
+    prometheus:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+    dashboards:
+      enabled: true
+    ingressController:
+      enabled: true
+      loadbalancerMode: dedicated
+    gatewayAPI:
+      enabled: true
+    socketLB:
+      enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi

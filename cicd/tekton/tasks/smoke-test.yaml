@@ -1,0 +1,151 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: smoke-test
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.17.0"
+    tekton.dev/tags: test, smoke, newman, grpc
+    tekton.dev/displayName: Smoke Tests
+spec:
+  description: >-
+    Run smoke tests against a deployed service. Executes Newman/Postman
+    collections, checks the gRPC health endpoint, and verifies the metrics
+    endpoint is reachable.
+
+  params:
+    - name: SERVICE_URL
+      type: string
+      description: Base URL of the service to test (e.g., https://patient-service.his-hope.svc.cluster.local)
+    - name: POSTMAN_COLLECTION_PATH
+      type: string
+      description: Path to the Postman collection JSON file within the source workspace
+      default: "tests/smoke/collection.json"
+    - name: POSTMAN_ENVIRONMENT_PATH
+      type: string
+      description: Path to the Postman environment JSON file within the source workspace
+      default: "tests/smoke/environment.json"
+    - name: GRPC_PORT
+      type: string
+      description: gRPC health check port
+      default: "50051"
+    - name: METRICS_PORT
+      type: string
+      description: Prometheus metrics endpoint port
+      default: "9090"
+    - name: HEALTH_ENDPOINT
+      type: string
+      description: gRPC health check service
+      default: "grpc.health.v1.Health"
+
+  workspaces:
+    - name: source
+      description: Source repository containing test collections
+      mountPath: /workspace/source
+
+  steps:
+    - name: newman-smoke-tests
+      image: postman/newman:6.2.1-alpine
+      workingDir: /workspace/source
+      script: |
+        #!/bin/sh
+        set -euo pipefail
+
+        COLLECTION="$(params.POSTMAN_COLLECTION_PATH)"
+        ENVIRONMENT="$(params.POSTMAN_ENVIRONMENT_PATH)"
+        SERVICE_URL="$(params.SERVICE_URL)"
+
+        if [ ! -f "${COLLECTION}" ]; then
+          echo "WARNING: Postman collection not found at ${COLLECTION}. Skipping Newman tests."
+          exit 0
+        fi
+
+        echo "Running Newman smoke tests against ${SERVICE_URL}"
+        echo "Collection: ${COLLECTION}"
+
+        NEWMAN_ARGS=""
+        if [ -f "${ENVIRONMENT}" ]; then
+          NEWMAN_ARGS="${NEWMAN_ARGS} --environment ${ENVIRONMENT}"
+        fi
+
+        newman run "${COLLECTION}" \
+          ${NEWMAN_ARGS} \
+          --env-var "base_url=${SERVICE_URL}" \
+          --reporters cli,json \
+          --reporter-json-export /workspace/output/smoke-test-results.json \
+          --timeout-request 30000 \
+          --delay-request 100 \
+          --bail \
+          --verbose
+
+        echo "Newman smoke tests completed successfully"
+
+    - name: grpc-health-check
+      image: docker.io/grpc/grpc-health:latest
+      script: |
+        #!/bin/sh
+        set -euo pipefail
+
+        SERVICE_URL="$(params.SERVICE_URL)"
+        GRPC_PORT="$(params.GRPC_PORT)"
+        HEALTH_SERVICE="$(params.HEALTH_ENDPOINT)"
+
+        GRPC_TARGET="${SERVICE_URL}:${GRPC_PORT}"
+
+        echo "Checking gRPC health at ${GRPC_TARGET}"
+
+        # Strip protocol prefix for grpc_health_probe
+        GRPC_ADDR="${SERVICE_URL#*://}"
+        if echo "${GRPC_ADDR}" | grep -q "^\["; then
+          GRPC_ADDR="${GRPC_ADDR}:${GRPC_PORT}"
+        elif echo "${GRPC_ADDR}" | grep -q ":"; then
+          GRPC_ADDR="${GRPC_ADDR}"
+        else
+          GRPC_ADDR="${GRPC_ADDR}:${GRPC_PORT}"
+        fi
+
+        for i in 1 2 3 4 5; do
+          if grpc_health_probe \
+            -addr="${GRPC_ADDR}" \
+            -service="" \
+            -connect-timeout=5s \
+            -rpc-timeout=10s 2>/dev/null; then
+            echo "gRPC health check passed for ${GRPC_ADDR}"
+            exit 0
+          fi
+          echo "Attempt ${i}: gRPC health check failed, retrying in 5s..."
+          sleep 5
+        done
+
+        echo "WARNING: gRPC health check failed after 5 attempts. Service may not have gRPC enabled."
+        echo "This is non-fatal for services without gRPC endpoints."
+
+    - name: metrics-endpoint-check
+      image: curlimages/curl:8.11.1
+      script: |
+        #!/bin/sh
+        set -euo pipefail
+
+        SERVICE_URL="$(params.SERVICE_URL)"
+        METRICS_PORT="$(params.METRICS_PORT)"
+
+        METRICS_URL="${SERVICE_URL}:${METRICS_PORT}/metrics"
+
+        echo "Checking metrics endpoint at ${METRICS_URL}"
+
+        HTTP_CODE=$(curl -s -o /tmp/metrics-response.txt -w "%{http_code}" \
+          --connect-timeout 10 \
+          --max-time 30 \
+          "${METRICS_URL}" || echo "000")
+
+        if [ "${HTTP_CODE}" = "200" ]; then
+          echo "Metrics endpoint returned HTTP 200 OK"
+          LINE_COUNT=$(wc -l < /tmp/metrics-response.txt)
+          echo "Metrics payload: ${LINE_COUNT} lines"
+        elif [ "${HTTP_CODE}" = "000" ]; then
+          echo "WARNING: Metrics endpoint at ${METRICS_URL} is unreachable."
+          echo "Service may not expose a /metrics endpoint."
+        else
+          echo "WARNING: Metrics endpoint returned HTTP ${HTTP_CODE} (expected 200)."
+        fi

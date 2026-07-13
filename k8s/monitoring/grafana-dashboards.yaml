@@ -1,0 +1,112 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: monitoring
+  name: grafana-dashboard-slo
+  labels:
+    grafana_dashboard: "1"
+data:
+  slo-dashboard.json: |
+    {
+      "title": "His.Hope SLO Dashboard",
+      "version": 1,
+      "time": { "from": "now-30d", "to": "now" },
+      "panels": [
+        {
+          "title": "Availability SLO (30d rolling)",
+          "type": "stat",
+          "targets": [{
+            "expr": "job:slo_availability_30d:ratio * 100",
+            "legendFormat": "Availability"
+          }],
+          "thresholds": [
+            { "value": 99.9, "color": "red" },
+            { "value": 99.95, "color": "yellow" },
+            { "value": 99.99, "color": "green" }
+          ]
+        },
+        {
+          "title": "Error Budget Remaining",
+          "type": "gauge",
+          "targets": [{
+            "expr": "job:slo_error_budget_remaining_30d:ratio * 100",
+            "legendFormat": "Budget Remaining"
+          }],
+          "thresholds": [
+            { "value": 0, "color": "red" },
+            { "value": 50, "color": "yellow" },
+            { "value": 80, "color": "green" }
+          ]
+        },
+        {
+          "title": "Burn Rate (1h window)",
+          "type": "graph",
+          "targets": [{
+            "expr": "job:slo_burn_rate_1h:ratio",
+            "legendFormat": "Burn Rate"
+          }],
+          "thresholds": [
+            { "value": 1, "color": "yellow" },
+            { "value": 2, "color": "red" }
+          ]
+        },
+        {
+          "title": "Latency p99 by Service",
+          "type": "graph",
+          "targets": [
+            { "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service))", "legendFormat": "{{service}}" }
+          ]
+        },
+        {
+          "title": "Request Rate by Service",
+          "type": "graph",
+          "targets": [
+            { "expr": "sum(rate(http_requests_total[5m])) by (service)", "legendFormat": "{{service}}" }
+          ]
+        },
+        {
+          "title": "Error Rate by Service",
+          "type": "graph",
+          "targets": [
+            { "expr": "sum(rate(http_requests_total{code!~\"2..\"}[5m])) by (service)", "legendFormat": "{{service}}" }
+          ]
+        }
+      ]
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: monitoring
+  name: grafana-dashboard-services
+  labels:
+    grafana_dashboard: "1"
+data:
+  service-dashboard.json: |
+    {
+      "title": "His.Hope Service Overview",
+      "version": 1,
+      "panels": [
+        {
+          "title": "Up / Down",
+          "type": "stat",
+          "targets": [{
+            "expr": "count(up{job=~\".+-service\"} == 1)",
+            "legendFormat": "Healthy"
+          }, {
+            "expr": "count(up{job=~\".+-service\"} == 0)",
+            "legendFormat": "Unhealthy"
+          }]
+        },
+        {
+          "title": "Memory Usage by Service",
+          "type": "graph",
+          "targets": [{ "expr": "sum(container_memory_usage_bytes{container!=\"POD\",namespace=\"his-hope\"}) by (pod)", "legendFormat": "{{pod}}" }]
+        },
+        {
+          "title": "CPU Usage by Service",
+          "type": "graph",
+          "targets": [{ "expr": "sum(rate(container_cpu_usage_seconds_total{container!=\"POD\",namespace=\"his-hope\"}[5m])) by (pod)", "legendFormat": "{{pod}}" }]
+        }
+      ]
+    }

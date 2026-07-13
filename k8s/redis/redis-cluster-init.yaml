@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: redis-cluster-init
+  namespace: his-hope
+spec:
+  template:
+    spec:
+      containers:
+      - name: redis-cli
+        image: redis:7.2-alpine
+        command:
+        - sh
+        - -c
+        - |
+          sleep 10
+          echo "yes" | redis-cli --cluster create \
+            redis-cluster-0.redis-cluster-headless:6379 \
+            redis-cluster-1.redis-cluster-headless:6379 \
+            redis-cluster-2.redis-cluster-headless:6379 \
+            redis-cluster-3.redis-cluster-headless:6379 \
+            redis-cluster-4.redis-cluster-headless:6379 \
+            redis-cluster-5.redis-cluster-headless:6379 \
+            --cluster-replicas 1
+      restartPolicy: Never

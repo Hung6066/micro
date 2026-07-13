@@ -1,0 +1,195 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cockroach-config
+  namespace: his-hope
+data:
+  cockroach.yaml: |
+    storage:
+      max-sync-duration: 60s
+    server:
+      http-addr: 0.0.0.0:8080
+      advertise-addr: $(POD_NAME).cockroachdb.$(POD_NAMESPACE).svc.cluster.local
+    cluster:
+      max-replicas: 5
+    span-configs:
+      default:
+        num_voters: 5
+        num_replicas: 5
+    constraints:
+      - us-east1: 2
+      - europe-west1: 2
+      - asia-east1: 1
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cockroachdb
+  namespace: his-hope
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cockroachdb
+rules:
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cockroachdb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cockroachdb
+subjects:
+- kind: ServiceAccount
+  name: cockroachdb
+  namespace: his-hope
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cockroachdb
+  namespace: his-hope
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: cockroachdb
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cockroachdb
+  namespace: his-hope
+spec:
+  serviceName: cockroachdb
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: cockroachdb
+  template:
+    metadata:
+      labels:
+        app: cockroachdb
+    spec:
+      serviceAccountName: cockroachdb
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - cockroachdb
+              topologyKey: topology.kubernetes.io/zone
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: cockroachdb
+      initContainers:
+      - name: bootstrap
+        image: cockroachdb/cockroach:v24.1.2
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/sh
+        - -c
+        - |
+          if [ ! -f /cockroach/cockroach-data/.bootstrapped ]; then
+            echo "Bootstrapping config..."
+            touch /cockroach/cockroach-data/.bootstrapped
+          fi
+        volumeMounts:
+        - name: datadir
+          mountPath: /cockroach/cockroach-data
+      containers:
+      - name: cockroachdb
+        image: cockroachdb/cockroach:v24.1.2
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 26257
+          name: sql
+        - containerPort: 26258
+          name: inter-node
+        - containerPort: 8080
+          name: http
+        volumeMounts:
+        - name: datadir
+          mountPath: /cockroach/cockroach-data
+        - name: config
+          mountPath: /cockroach/cockroach-data/config
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: COCKROACH_CHANNEL
+          value: kubernetes-statefulset
+        command:
+        - /bin/bash
+        - -c
+        - |
+          exec cockroach start \
+            --logtostderr \
+            --certs-dir /cockroach/cockroach-data/certs \
+            --advertise-addr $(POD_NAME).cockroachdb.$(POD_NAMESPACE).svc.cluster.local \
+            --http-addr 0.0.0.0:8080 \
+            --join cockroachdb-0.cockroachdb.$(POD_NAMESPACE).svc.cluster.local:26257,cockroachdb-1.cockroachdb.$(POD_NAMESPACE).svc.cluster.local:26257,cockroachdb-2.cockroachdb.$(POD_NAMESPACE).svc.cluster.local:26257 \
+            --locality zone=$(POD_NAMESPACE) \
+            --cache 4GiB \
+            --max-sql-memory 4GiB
+        resources:
+          requests:
+            cpu: "2"
+            memory: "8Gi"
+          limits:
+            cpu: "4"
+            memory: "16Gi"
+        livenessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - cockroach sql --insecure -e "SELECT 1" --timeout 5s
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 5
+        readinessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - cockroach node status --insecure --timeout 5s
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: config
+        configMap:
+          name: cockroach-config
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 100Gi
+      storageClassName: premium-rwo

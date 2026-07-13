@@ -1,0 +1,570 @@
+---
+# His.Hope EMR - Global Load Balancer Configuration
+# Multi-region HTTPS load balancer with Cloud DNS geo-routing,
+# Cloud Armor WAF, and CDN for static content
+
+# ------------------------------------------------------------------
+# Cloud DNS Configuration - hishop.com
+# ------------------------------------------------------------------
+apiVersion: dns.cnrm.cloud.google.com/v1beta1
+kind: DNSManagedZone
+metadata:
+  name: hishop-com-zone
+  namespace: his-hope-infra
+spec:
+  dnsName: "hishop.com."
+  description: "His.Hope EMR production DNS zone"
+  visibility: public
+  dnssecConfig:
+    state: "on"
+
+---
+apiVersion: dns.cnrm.cloud.google.com/v1beta1
+kind: DNSRecordSet
+metadata:
+  name: hishop-com-root
+  namespace: his-hope-infra
+spec:
+  name: "hishop.com."
+  type: A
+  ttl: 300
+  managedZoneRef:
+    name: hishop-com-zone
+  rrdatas:
+    - "34.120.0.1"
+
+---
+# Geo-Routing DNS Records
+apiVersion: dns.cnrm.cloud.google.com/v1beta1
+kind: DNSRecordSet
+metadata:
+  name: hishop-com-geo-us-east1
+  namespace: his-hope-infra
+spec:
+  name: "api.hishop.com."
+  type: A
+  ttl: 60
+  managedZoneRef:
+    name: hishop-com-zone
+  routingPolicy:
+    geo:
+      - location: us-east1
+        rrdatas:
+          - "34.120.0.1"
+      - location: europe-west1
+        rrdatas:
+          - "34.140.0.1"
+      - location: asia-east1
+        rrdatas:
+          - "35.220.0.1"
+      - location: "*"
+        rrdatas:
+          - "34.120.0.1"
+
+---
+apiVersion: dns.cnrm.cloud.google.com/v1beta1
+kind: DNSRecordSet
+metadata:
+  name: hishop-com-wildcard
+  namespace: his-hope-infra
+spec:
+  name: "*.hishop.com."
+  type: CNAME
+  ttl: 300
+  managedZoneRef:
+    name: hishop-com-zone
+  rrdatas:
+    - "api.hishop.com."
+
+---
+# ------------------------------------------------------------------
+# Global HTTPS Load Balancer
+# ------------------------------------------------------------------
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeHealthCheck
+metadata:
+  name: his-hope-us-east1-health-check
+  namespace: his-hope-infra
+spec:
+  name: his-hope-us-east1-hc
+  description: "Health check for us-east1 backend"
+  checkIntervalSec: 15
+  timeoutSec: 5
+  healthyThreshold: 2
+  unhealthyThreshold: 3
+  httpHealthCheck:
+    port: 8080
+    requestPath: "/healthz"
+    proxyHeader: NONE
+
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeHealthCheck
+metadata:
+  name: his-hope-europe-west1-health-check
+  namespace: his-hope-infra
+spec:
+  name: his-hope-europe-west1-hc
+  description: "Health check for europe-west1 backend"
+  checkIntervalSec: 15
+  timeoutSec: 5
+  healthyThreshold: 2
+  unhealthyThreshold: 3
+  httpHealthCheck:
+    port: 8080
+    requestPath: "/healthz"
+    proxyHeader: NONE
+
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeHealthCheck
+metadata:
+  name: his-hope-asia-east1-health-check
+  namespace: his-hope-infra
+spec:
+  name: his-hope-asia-east1-hc
+  description: "Health check for asia-east1 backend"
+  checkIntervalSec: 15
+  timeoutSec: 5
+  healthyThreshold: 2
+  unhealthyThreshold: 3
+  httpHealthCheck:
+    port: 8080
+    requestPath: "/healthz"
+    proxyHeader: NONE
+
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeBackendService
+metadata:
+  name: his-hope-us-east1-backend
+  namespace: his-hope-infra
+spec:
+  name: his-hope-us-east1-backend
+  description: "Backend service for us-east1 primary cluster"
+  protocol: HTTPS
+  portName: https
+  timeoutSec: 60
+  connectionDrainingTimeoutSec: 300
+  enableCDN: false
+  sessionAffinity: CLIENT_IP
+  healthChecks:
+    - healthCheckRef:
+        name: his-hope-us-east1-health-check
+  customRequestHeaders:
+    - "X-Forwarded-For: {client_ip}"
+  securityPolicyRef:
+    name: his-hope-waf-policy
+  backend:
+    - group:
+        serverlessNeg: []
+      balancingMode: UTILIZATION
+      maxUtilization: 0.8
+      capacityScaler: 1.0
+
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeBackendService
+metadata:
+  name: his-hope-europe-west1-backend
+  namespace: his-hope-infra
+spec:
+  name: his-hope-europe-west1-backend
+  description: "Backend service for europe-west1 secondary cluster"
+  protocol: HTTPS
+  portName: https
+  timeoutSec: 60
+  connectionDrainingTimeoutSec: 300
+  enableCDN: false
+  sessionAffinity: CLIENT_IP
+  healthChecks:
+    - healthCheckRef:
+        name: his-hope-europe-west1-health-check
+  customRequestHeaders:
+    - "X-Forwarded-For: {client_ip}"
+  securityPolicyRef:
+    name: his-hope-waf-policy
+  backend:
+    - group:
+        serverlessNeg: []
+      balancingMode: UTILIZATION
+      maxUtilization: 0.8
+      capacityScaler: 0.5
+
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeBackendService
+metadata:
+  name: his-hope-asia-east1-backend
+  namespace: his-hope-infra
+spec:
+  name: his-hope-asia-east1-backend
+  description: "Backend service for asia-east1 tertiary cluster"
+  protocol: HTTPS
+  portName: https
+  timeoutSec: 60
+  connectionDrainingTimeoutSec: 300
+  enableCDN: false
+  sessionAffinity: CLIENT_IP
+  healthChecks:
+    - healthCheckRef:
+        name: his-hope-asia-east1-health-check
+  customRequestHeaders:
+    - "X-Forwarded-For: {client_ip}"
+  securityPolicyRef:
+    name: his-hope-waf-policy
+  backend:
+    - group:
+        serverlessNeg: []
+      balancingMode: UTILIZATION
+      maxUtilization: 0.8
+      capacityScaler: 0.3
+
+---
+# CDN-enabled backend for static assets
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeBackendService
+metadata:
+  name: his-hope-static-backend
+  namespace: his-hope-infra
+spec:
+  name: his-hope-static-backend
+  description: "CDN-enabled backend for static assets"
+  protocol: HTTPS
+  portName: https
+  timeoutSec: 30
+  enableCDN: true
+  cdnPolicy:
+    cacheMode: CACHE_ALL_STATIC
+    defaultTtl: 3600
+    maxTtl: 86400
+    clientTtl: 3600
+    negativeCaching: true
+    signedUrlCacheMaxAgeSec: 600
+  healthChecks:
+    - healthCheckRef:
+        name: his-hope-us-east1-health-check
+
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeURLMap
+metadata:
+  name: his-hope-url-map
+  namespace: his-hope-infra
+spec:
+  name: his-hope-url-map
+  description: "URL map for hishop.com global load balancer"
+  defaultServiceRef:
+    name: his-hope-us-east1-backend
+  hostRule:
+    - hosts:
+        - "api.hishop.com"
+        - "*.hishop.com"
+      pathMatcher: "api-matcher"
+  pathMatcher:
+    - name: "api-matcher"
+      defaultServiceRef:
+        name: his-hope-us-east1-backend
+      pathRule:
+        - paths:
+            - "/static/*"
+            - "/assets/*"
+            - "/images/*"
+            - "/fonts/*"
+            - "/favicon.ico"
+          serviceRef:
+            name: his-hope-static-backend
+        - paths:
+            - "/api/*"
+            - "/graphql"
+            - "/auth/*"
+            - "/patient/*"
+            - "/clinical/*"
+            - "/appointment/*"
+          serviceRef:
+            name: his-hope-us-east1-backend
+            backendFailover:
+              - backendServiceRef:
+                  name: his-hope-europe-west1-backend
+              - backendServiceRef:
+                  name: his-hope-asia-east1-backend
+
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeTargetHTTPSProxy
+metadata:
+  name: his-hope-https-proxy
+  namespace: his-hope-infra
+spec:
+  name: his-hope-https-proxy
+  description: "HTTPS proxy for hishop.com"
+  urlMapRef:
+    name: his-hope-url-map
+  sslCertificates:
+    - sslCertificateRef:
+        name: his-hope-wildcard-cert
+  quicOverride: ENABLE
+  sslPolicyRef:
+    name: his-hope-ssl-policy
+
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeSSLPolicy
+metadata:
+  name: his-hope-ssl-policy
+  namespace: his-hope-infra
+spec:
+  name: his-hope-ssl-policy
+  description: "TLS 1.3 minimum with modern ciphers"
+  profile: MODERN
+  minTlsVersion: TLS_1_3
+  customFeatures:
+    - TLS_AES_128_GCM_SHA256
+    - TLS_AES_256_GCM_SHA384
+    - TLS_CHACHA20_POLY1305_SHA256
+
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeGlobalForwardingRule
+metadata:
+  name: his-hope-https-forwarding-rule
+  namespace: his-hope-infra
+spec:
+  name: his-hope-https-forwarding-rule
+  description: "Global HTTPS forwarding rule for hishop.com"
+  target:
+    httpsProxyRef:
+      name: his-hope-https-proxy
+  portRange: "443"
+  ipAddress:
+    addressRef:
+      name: his-hope-global-ip
+
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeGlobalForwardingRule
+metadata:
+  name: his-hope-http-redirect-forwarding-rule
+  namespace: his-hope-infra
+spec:
+  name: his-hope-http-redirect
+  description: "HTTP to HTTPS redirect"
+  target:
+    httpProxyRef:
+      name: his-hope-http-redirect-proxy
+  portRange: "80"
+  ipAddress:
+    addressRef:
+      name: his-hope-global-ip
+
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeAddress
+metadata:
+  name: his-hope-global-ip
+  namespace: his-hope-infra
+spec:
+  name: his-hope-global-ip
+  description: "Global static IP for hishop.com"
+  addressType: EXTERNAL
+  ipVersion: IPV4
+  location: global
+
+---
+# HTTP to HTTPS redirect target
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeTargetHTTPProxy
+metadata:
+  name: his-hope-http-redirect-proxy
+  namespace: his-hope-infra
+spec:
+  name: his-hope-http-redirect-proxy
+  description: "HTTP to HTTPS redirect proxy"
+  urlMapRef:
+    name: his-hope-http-redirect-url-map
+
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeURLMap
+metadata:
+  name: his-hope-http-redirect-url-map
+  namespace: his-hope-infra
+spec:
+  name: his-hope-http-redirect-url-map
+  description: "HTTP to HTTPS redirect URL map"
+  defaultUrlRedirect:
+    redirectResponseCode: MOVED_PERMANENTLY_DEFAULT
+    httpsRedirect: true
+    stripQuery: false
+
+---
+# ------------------------------------------------------------------
+# SSL Certificate
+# ------------------------------------------------------------------
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeSSLCertificate
+metadata:
+  name: his-hope-wildcard-cert
+  namespace: his-hope-infra
+spec:
+  name: his-hope-wildcard-cert
+  description: "Wildcard SSL cert for *.hishop.com"
+  certificate:
+    valueFrom:
+      secretKeyRef:
+        name: his-hope-tls
+        key: tls.crt
+  privateKey:
+    valueFrom:
+      secretKeyRef:
+        name: his-hope-tls
+        key: tls.key
+
+---
+# ------------------------------------------------------------------
+# Cloud Armor WAF Policy
+# ------------------------------------------------------------------
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeSecurityPolicy
+metadata:
+  name: his-hope-waf-policy
+  namespace: his-hope-infra
+spec:
+  name: his-hope-waf-policy
+  description: "Cloud Armor WAF policy for His.Hope EMR"
+  type: CLOUD_ARMOR
+  adaptiveProtectionConfig:
+    autoDeployConfig:
+      confidenceThreshold: 0.8
+      impactBased: true
+      expirationSec: 3600
+  advancedOptionsConfig:
+    logLevel: VERBOSE
+  rule:
+    # Rate limiting - 1000 requests per client per minute
+    - action: "rate_based_ban"
+      priority: 1000
+      description: "Global rate limit per client IP"
+      match:
+        versionedExpr: SRC_IPS_V1
+        config:
+          srcIpRanges:
+            - "*"
+      rateLimitOptions:
+        rateLimitThreshold:
+          count: 1000
+          intervalSec: 60
+        conformAction: "allow"
+        exceedAction: "deny(429)"
+        enforceOnKey: "IP"
+        enforceOnKeyName: "client-ip"
+        banDurationSec: 300
+        banThreshold:
+          count: 2000
+          intervalSec: 60
+
+    # SQL Injection prevention
+    - action: "deny(403)"
+      priority: 2000
+      description: "SQL injection prevention"
+      match:
+        expr:
+          expression: |
+            evaluatePreconfiguredWaf('sqli-canary', {'sensitivity': 2})
+
+    # Cross-site scripting prevention
+    - action: "deny(403)"
+      priority: 3000
+      description: "XSS prevention"
+      match:
+        expr:
+          expression: |
+            evaluatePreconfiguredWaf('xss-canary', {'sensitivity': 2})
+
+    # Local file inclusion protection
+    - action: "deny(403)"
+      priority: 4000
+      description: "LFI prevention"
+      match:
+        expr:
+          expression: |
+            evaluatePreconfiguredWaf('lfi-canary', {'sensitivity': 2})
+
+    # Remote file inclusion protection
+    - action: "deny(403)"
+      priority: 5000
+      description: "RFI prevention"
+      match:
+        expr:
+          expression: |
+            evaluatePreconfiguredWaf('rfi-canary', {'sensitivity': 2})
+
+    # PHP injection protection
+    - action: "deny(403)"
+      priority: 6000
+      description: "PHP injection prevention"
+      match:
+        expr:
+          expression: |
+            evaluatePreconfiguredWaf('php-canary', {'sensitivity': 2})
+
+    # Session fixation protection
+    - action: "deny(403)"
+      priority: 7000
+      description: "Session fixation prevention"
+      match:
+        expr:
+          expression: |
+            evaluatePreconfiguredWaf('sessionfixation-canary', {'sensitivity': 2})
+
+    # Scanner detection
+    - action: "deny(403)"
+      priority: 8000
+      description: "Scanner detection"
+      match:
+        expr:
+          expression: |
+            evaluatePreconfiguredWaf('scannerdetection-canary', {'sensitivity': 1})
+
+    # Protocol attack protection
+    - action: "deny(403)"
+      priority: 9000
+      description: "Protocol attack prevention"
+      match:
+        expr:
+          expression: |
+            evaluatePreconfiguredWaf('protocolattack-canary', {'sensitivity': 2})
+
+    # Geo-IP filtering - allow only authorized regions
+    - action: "deny(403)"
+      priority: 10000
+      description: "Geo-IP filtering - deny high-risk regions"
+      match:
+        expr:
+          expression: |
+            origin.region_code not in ['US', 'CA', 'GB', 'DE', 'FR', 'NL', 'BE', 'CH', 'AT',
+                                       'SE', 'NO', 'DK', 'FI', 'IE', 'IT', 'ES', 'PT', 'AU',
+                                       'NZ', 'SG', 'JP', 'KR', 'TW', 'HK', 'IL', 'AE', 'SA',
+                                       'QA', 'KW', 'BH', 'OM', 'ZA', 'BR', 'MX', 'AR', 'CL',
+                                       'CO', 'PE', 'MY', 'TH', 'VN', 'PH', 'ID', 'IN', 'PL',
+                                       'CZ', 'HU', 'RO', 'GR', 'BG', 'HR', 'SK', 'SI', 'LT',
+                                       'LV', 'EE', 'LU', 'MT', 'CY', 'IS', 'LI', 'MC', 'SM']
+
+    # Block known bad IPs via threat intelligence
+    - action: "deny(403)"
+      priority: 11000
+      description: "Block known malicious IPs"
+      match:
+        expr:
+          expression: |
+            evaluatePreconfiguredWaf('rce-canary', {'sensitivity': 2})
+
+    # Allow all other traffic
+    - action: "allow"
+      priority: 2147483647
+      description: "Default allow"
+      match:
+        versionedExpr: SRC_IPS_V1
+        config:
+          srcIpRanges:
+            - "*"

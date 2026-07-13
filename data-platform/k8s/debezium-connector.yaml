@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: debezium-cockroachdb-connector
+  namespace: data-platform
+data:
+  connector.json: |
+    {
+      "name": "cockroachdb-connector",
+      "config": {
+        "connector.class": "io.debezium.connector.cockroachdb.CockroachDBConnector",
+        "database.hostname": "cockroachdb-public",
+        "database.port": "26257",
+        "database.user": "cdc_user",
+        "database.password": "${CDC_PASSWORD}",
+        "database.dbname": "patientdb",
+        "database.server.name": "patientdb",
+        "table.include.list": "public.Patients,public.OutboxMessages",
+        "plugin.name": "pgoutput",
+        "publication.name": "dbz_publication",
+        "slot.name": "dbz_slot",
+        "tombstones.on.delete": "false",
+        "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+        "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+        "key.converter.schemas.enable": "false",
+        "value.converter.schemas.enable": "false",
+        "transforms": "unwrap",
+        "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+        "transforms.unwrap.drop.tombstones": "true",
+        "topic.prefix": "cdc",
+        "poll.interval.ms": "100",
+        "max.batch.size": "1024",
+        "heartbeat.interval.ms": "5000"
+      }
+    }
