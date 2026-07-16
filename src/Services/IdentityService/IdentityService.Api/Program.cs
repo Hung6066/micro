@@ -1,13 +1,18 @@
-using System.Text;
+using His.Hope.IdentityService.Api.Endpoints;
+using His.Hope.IdentityService.Application;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using His.Hope.Infrastructure;
+using His.Hope.Infrastructure.Audit;
+using His.Hope.Infrastructure.Observability;
+using His.Hope.Infrastructure.Security;
+using His.Hope.Infrastructure.Security.Authorization;
+using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,40 +25,77 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<IdentityDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("IdentityDb")));
+builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<IdentityDbContext>());
 
-builder.Services.AddIdentity<User, Role>(options =>
+builder.Services.AddHisHopeEnterpriseInfrastructure(
+    builder.Configuration,
+    "identity-service",
+    builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379"));
+
+builder.Services.AddIdentityCore<User>(options =>
 {
     options.Password.RequireDigit = true;
     options.Password.RequiredLength = 8;
     options.Password.RequireNonAlphanumeric = true;
     options.User.RequireUniqueEmail = true;
 })
+.AddRoles<Role>()
 .AddEntityFrameworkStores<IdentityDbContext>()
 .AddDefaultTokenProviders();
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
-            ClockSkew = TimeSpan.Zero
-        };
-    });
+// SECURITY: JWT authentication with RSA public key validation
+builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
 
-builder.Services.AddAuthorization();
+// SECURITY: Token blacklist service for JWT revocation
+builder.Services.AddHisHopeTokenBlacklist();
+
+// SECURITY: Register permission-based authorization policies
+builder.Services.AddHisHopeAuthorization();
 builder.Services.AddScoped<JwtTokenGenerator>();
 builder.Services.AddScoped<IIdentityService, His.Hope.IdentityService.Infrastructure.Services.IdentityService>();
+
+// SECURITY: Redis-backed refresh token store (replaces in-memory ConcurrentDictionary)
+builder.Services.AddSingleton<RedisRefreshTokenStore>();
+
+builder.Services.AddIdentityApplication();
+
+// PHI Audit Service Configuration (HIPAA 164.312(b))
+var defaultAuditDescriptor = builder.Services.FirstOrDefault(
+    sd => sd.ServiceType == typeof(His.Hope.Infrastructure.Audit.IAuditService));
+if (defaultAuditDescriptor != null)
+    builder.Services.Remove(defaultAuditDescriptor);
+
+builder.Services.AddSingleton<DatabaseAuditService>();
+
+builder.Services.AddSingleton<His.Hope.Infrastructure.Audit.IAuditService>(sp =>
+{
+    var serilogAudit = new His.Hope.Infrastructure.Audit.AuditService();
+    var dbAudit = sp.GetRequiredService<DatabaseAuditService>();
+    return new CompositeAuditService(serilogAudit, dbAudit);
+});
+
 builder.Services.AddHealthChecks();
 
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenAnyIP(5001, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+        listenOptions.UseHttps();
+    });
+    options.ListenAnyIP(5012, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+    });
+});
+
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+    db.Database.EnsureCreated();
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -61,10 +103,16 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseSecurityHeaders();
+app.UseRateLimiting();
 app.UseSerilogRequestLogging();
+app.UseHisHopePrometheus();
+app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UsePhiAudit();
 
+// Auth endpoints
 var auth = app.MapGroup("/api/v1/auth");
 
 auth.MapPost("/login", async (LoginRequest request, IIdentityService identityService, CancellationToken ct) =>
@@ -119,12 +167,29 @@ auth.MapPost("/logout", async (RefreshTokenRequest request, IIdentityService ide
 
 auth.MapGet("/me", async (HttpContext httpContext, IIdentityService identityService, CancellationToken ct) =>
 {
-    var userId = Guid.Parse(httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+    var userIdClaim = httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)
+        ?? httpContext.User.FindFirst("sub");
+    if (userIdClaim is null) return Results.Unauthorized();
+    var userId = Guid.Parse(userIdClaim.Value);
     var user = await identityService.GetUserByIdAsync(userId, ct);
     return Results.Ok(user);
 })
 .RequireAuthorization()
 .WithOpenApi();
+
+// SECURITY: Token revocation endpoints
+auth.MapTokenRevocationEndpoints();
+
+// User management endpoints
+var secured = app.MapGroup("/api/v1/auth").RequireAuthorization();
+secured.MapUserEndpoints();
+secured.MapRoleEndpoints();
+
+var settings = app.MapGroup("/api/v1").RequireAuthorization();
+settings.MapSettingsEndpoints();
+
+var audit = app.MapGroup("/api/v1").RequireAuthorization();
+audit.MapAuditLogEndpoints();
 
 app.MapHealthChecks("/health");
 app.Run();

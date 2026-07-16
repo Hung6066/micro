@@ -2,7 +2,6 @@ import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
-import { JwtModule } from '@auth0/angular-jwt';
 import { StoreModule } from '@ngrx/store';
 import { EffectsModule } from '@ngrx/effects';
 import { StoreDevtoolsModule } from '@ngrx/store-devtools';
@@ -13,10 +12,13 @@ import { environment } from '@env/environment';
 import { AuthInterceptor } from '@core/interceptors/auth.interceptor';
 import { ErrorInterceptor } from '@core/interceptors/error.interceptor';
 import { SharedModule } from '@shared/shared.module';
+import { authReducer } from '@store/auth/auth.reducer';
+import { patientsReducer } from '@store/patients/patients.reducer';
+import { AuthEffects } from '@store/auth/auth.effects';
+import { PatientsEffects } from '@store/patients/patients.effects';
 
-export function tokenGetter() {
-  return localStorage.getItem('access_token');
-}
+/** Conditionally load mock providers when no backend is available */
+import { mockServiceProviders } from '@core/services/mock/mock-providers';
 
 @NgModule({
   declarations: [AppComponent],
@@ -26,20 +28,17 @@ export function tokenGetter() {
     HttpClientModule,
     AppRoutingModule,
     SharedModule,
-    JwtModule.forRoot({
-      config: {
-        tokenGetter,
-        allowedDomains: environment.tokenWhitelistedDomains,
-        disallowedRoutes: [`${environment.apiUrl}/auth/login`, `${environment.apiUrl}/auth/register`],
-      },
+    StoreModule.forRoot({
+      auth: authReducer,
+      patients: patientsReducer,
     }),
-    StoreModule.forRoot({}),
-    EffectsModule.forRoot([]),
+    EffectsModule.forRoot([AuthEffects, PatientsEffects]),
     !environment.production ? StoreDevtoolsModule.instrument() : [],
   ],
   providers: [
     { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
     { provide: HTTP_INTERCEPTORS, useClass: ErrorInterceptor, multi: true },
+    ...(environment.useMockServices ? mockServiceProviders : []),
   ],
   bootstrap: [AppComponent],
 })

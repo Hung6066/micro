@@ -69,6 +69,39 @@ vault kv put secret/his-hope/database/appointmentdb \
   max_connections=30 \
   connection_timeout=10
 
+echo "  Writing database/labdb..."
+vault kv put secret/his-hope/database/labdb \
+  host=postgres.his-hope.svc.cluster.local \
+  port=5432 \
+  database=labdb \
+  username=lab_user \
+  password=$(openssl rand -base64 32) \
+  sslmode=require \
+  max_connections=50 \
+  connection_timeout=10
+
+echo "  Writing database/billingdb..."
+vault kv put secret/his-hope/database/billingdb \
+  host=postgres.his-hope.svc.cluster.local \
+  port=5432 \
+  database=billingdb \
+  username=billing_user \
+  password=$(openssl rand -base64 32) \
+  sslmode=require \
+  max_connections=50 \
+  connection_timeout=10
+
+echo "  Writing database/pharmacydb..."
+vault kv put secret/his-hope/database/pharmacydb \
+  host=postgres.his-hope.svc.cluster.local \
+  port=5432 \
+  database=pharmacydb \
+  username=pharmacy_user \
+  password=$(openssl rand -base64 32) \
+  sslmode=require \
+  max_connections=50 \
+  connection_timeout=10
+
 # ------------------------------------------------------------------
 # RabbitMQ Secrets
 # ------------------------------------------------------------------
@@ -126,6 +159,11 @@ vault write -f transit/keys/jwt-signing \
   exportable=true \
   auto_rotate_period=720h
 
+# Export RSA public key for service validation
+vault read -field=public_key transit/keys/jwt-signing > /tmp/jwt-public-key.pem 2>/dev/null || true
+vault kv put secret/his-hope/jwt/public-key \
+  key_pem="$(cat /tmp/jwt-public-key.pem 2>/dev/null || echo '')"
+
 # ------------------------------------------------------------------
 # Service-Specific Secrets
 # ------------------------------------------------------------------
@@ -153,6 +191,56 @@ vault kv put secret/his-hope/identity-service/config \
   session_timeout=30m \
   max_login_attempts=5 \
   lockout_duration=15m
+
+echo "  Writing lab-service/config..."
+vault kv put secret/his-hope/lab-service/config \
+  log_level=info \
+  phi_audit_enabled=true \
+  result_retention_days=2555 \
+  auto_publish_results=true
+
+echo "  Writing billing-service/config..."
+vault kv put secret/his-hope/billing-service/config \
+  log_level=info \
+  phi_audit_enabled=true \
+  invoice_retention_days=2555 \
+  payment_gateway=stripe \
+  auto_invoice=true
+
+echo "  Writing pharmacy-service/config..."
+vault kv put secret/his-hope/pharmacy-service/config \
+  log_level=info \
+  phi_audit_enabled=true \
+  prescription_retention_days=2555 \
+  refill_reminder_enabled=true
+
+# ------------------------------------------------------------------
+# EventBus Secrets per service
+# ------------------------------------------------------------------
+echo "  Writing eventbus/patient..."
+vault kv put secret/his-hope/eventbus/patient \
+  exchange_name=his_hope_patient \
+  queue_prefix=patient
+
+echo "  Writing eventbus/clinical..."
+vault kv put secret/his-hope/eventbus/clinical \
+  exchange_name=his_hope_clinical \
+  queue_prefix=clinical
+
+echo "  Writing eventbus/billing..."
+vault kv put secret/his-hope/eventbus/billing \
+  exchange_name=his_hope_billing \
+  queue_prefix=billing
+
+echo "  Writing eventbus/lab..."
+vault kv put secret/his-hope/eventbus/lab \
+  exchange_name=his_hope_lab \
+  queue_prefix=lab
+
+echo "  Writing eventbus/pharmacy..."
+vault kv put secret/his-hope/eventbus/pharmacy \
+  exchange_name=his_hope_pharmacy \
+  queue_prefix=pharmacy
 
 # ------------------------------------------------------------------
 # mTLS Certificate Secrets
@@ -196,7 +284,8 @@ generate_mtls_cert() {
   rm -f "/tmp/${service_name}.key" "/tmp/${service_name}.csr" "/tmp/${service_name}.crt" "/tmp/${service_name}_signed.cert"
 }
 
-for svc in patient-service identity-service clinical-service appointment-service; do
+# Generate mTLS certs for all services
+for svc in patient-service identity-service clinical-service appointment-service lab-service billing-service pharmacy-service; do
   mkdir -p "/tmp/${svc}"
   echo "  Generating mTLS for ${svc}..."
   generate_mtls_cert "$svc"
@@ -214,12 +303,20 @@ echo "  secret/his-hope/database/patientdb"
 echo "  secret/his-hope/database/identitydb"
 echo "  secret/his-hope/database/clinicaldb"
 echo "  secret/his-hope/database/appointmentdb"
+echo "  secret/his-hope/database/labdb"
+echo "  secret/his-hope/database/billingdb"
+echo "  secret/his-hope/database/pharmacydb"
 echo "  secret/his-hope/rabbitmq"
 echo "  secret/his-hope/redis"
 echo "  secret/his-hope/identity-service/jwt"
+echo "  secret/his-hope/jwt/public-key"
 echo "  secret/his-hope/patient-service/config"
 echo "  secret/his-hope/clinical-service/config"
 echo "  secret/his-hope/identity-service/config"
+echo "  secret/his-hope/lab-service/config"
+echo "  secret/his-hope/billing-service/config"
+echo "  secret/his-hope/pharmacy-service/config"
+echo "  secret/his-hope/eventbus/{service}"
 echo "  secret/his-hope/{service}/mtls (for each service)"
 echo ""
 echo "Transit key configured: transit/keys/jwt-signing"

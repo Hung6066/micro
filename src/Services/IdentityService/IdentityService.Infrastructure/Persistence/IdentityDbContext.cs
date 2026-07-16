@@ -1,3 +1,4 @@
+using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -5,14 +6,23 @@ using Microsoft.EntityFrameworkCore;
 
 namespace His.Hope.IdentityService.Infrastructure.Persistence;
 
-public class IdentityDbContext : IdentityDbContext<User, Role, Guid>
+public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicationDbContext
 {
+    // Custom entity sets for the extended identity model
+    public DbSet<Permission> Permissions => Set<Permission>();
+    public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
     public IdentityDbContext(DbContextOptions<IdentityDbContext> options) : base(options) { }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
 
+        // ──────────────────────────────────────────────
+        // User configuration
+        // ──────────────────────────────────────────────
         builder.Entity<User>(entity =>
         {
             entity.Property(u => u.FirstName).HasMaxLength(100).IsRequired();
@@ -25,9 +35,97 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>
             entity.Property(u => u.LastLoginAt);
         });
 
+        // ──────────────────────────────────────────────
+        // Role configuration
+        // ──────────────────────────────────────────────
         builder.Entity<Role>(entity =>
         {
             entity.Property(r => r.Description).HasMaxLength(500);
+            entity.Property(r => r.IsSystem).IsRequired().HasDefaultValue(false);
+            entity.Property(r => r.CreatedAt).IsRequired();
+
+            entity.HasMany(r => r.RolePermissions)
+                  .WithOne(rp => rp.Role)
+                  .HasForeignKey(rp => rp.RoleId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ──────────────────────────────────────────────
+        // Permission configuration
+        // ──────────────────────────────────────────────
+        builder.Entity<Permission>(entity =>
+        {
+            entity.HasKey(p => p.Code);
+            entity.Property(p => p.Code).HasMaxLength(100).IsRequired();
+            entity.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            entity.Property(p => p.Group).HasMaxLength(100).IsRequired();
+            entity.Property(p => p.Description).HasMaxLength(500);
+            entity.Property(p => p.IsSystem).IsRequired().HasDefaultValue(true);
+            entity.Property(p => p.CreatedAt).IsRequired();
+
+            entity.HasMany(p => p.RolePermissions)
+                  .WithOne(rp => rp.Permission)
+                  .HasForeignKey(rp => rp.PermissionCode)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(p => p.Group);
+        });
+
+        // ──────────────────────────────────────────────
+        // RolePermission join entity configuration
+        // ──────────────────────────────────────────────
+        builder.Entity<RolePermission>(entity =>
+        {
+            entity.HasKey(rp => new { rp.RoleId, rp.PermissionCode });
+
+            entity.HasOne(rp => rp.Role)
+                  .WithMany(r => r.RolePermissions)
+                  .HasForeignKey(rp => rp.RoleId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(rp => rp.Permission)
+                  .WithMany(p => p.RolePermissions)
+                  .HasForeignKey(rp => rp.PermissionCode)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ──────────────────────────────────────────────
+        // SystemSetting configuration
+        // ──────────────────────────────────────────────
+        builder.Entity<SystemSetting>(entity =>
+        {
+            entity.HasKey(s => s.Key);
+            entity.Property(s => s.Key).HasMaxLength(200).IsRequired();
+            entity.Property(s => s.Value).HasMaxLength(2000).IsRequired();
+            entity.Property(s => s.Description).HasMaxLength(500);
+            entity.Property(s => s.Category).HasMaxLength(100);
+            entity.Property(s => s.UpdatedAt).IsRequired();
+            entity.Property(s => s.UpdatedBy).HasMaxLength(100);
+
+            entity.HasIndex(s => s.Category);
+        });
+
+        // ──────────────────────────────────────────────
+        // AuditLog configuration
+        // ──────────────────────────────────────────────
+        builder.Entity<AuditLog>(entity =>
+        {
+            entity.HasKey(al => al.Id);
+            entity.Property(al => al.Id).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(al => al.UserId).HasMaxLength(100).IsRequired();
+            entity.Property(al => al.UserName).HasMaxLength(200);
+            entity.Property(al => al.Action).HasMaxLength(50).IsRequired();
+            entity.Property(al => al.ResourceType).HasMaxLength(100).IsRequired();
+            entity.Property(al => al.ResourceId).HasMaxLength(100);
+            entity.Property(al => al.Details).HasMaxLength(2000);
+            entity.Property(al => al.IpAddress).HasMaxLength(50);
+            entity.Property(al => al.UserAgent).HasMaxLength(500);
+            entity.Property(al => al.Timestamp).IsRequired();
+
+            entity.HasIndex(al => al.UserId);
+            entity.HasIndex(al => al.ResourceType);
+            entity.HasIndex(al => al.Action);
+            entity.HasIndex(al => al.Timestamp);
         });
     }
 }

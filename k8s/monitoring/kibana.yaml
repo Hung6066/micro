@@ -1,0 +1,145 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kibana
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: kibana
+    app.kubernetes.io/component: logging
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kibana-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: kibana
+data:
+  kibana.yml: |
+    server.name: his-hope-kibana
+    server.host: "0.0.0.0"
+    server.port: 5601
+    elasticsearch.hosts: ["http://elasticsearch:9200"]
+    monitoring.ui.container.elasticsearch.enabled: true
+    logging:
+      appenders:
+        file:
+          type: file
+          fileName: /var/log/kibana/kibana.log
+          layout:
+            type: pattern
+            pattern: "[%date][%level][%logger] %message"
+      root:
+        appenders: [file]
+        level: warn
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kibana
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: kibana
+    app.kubernetes.io/component: logging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kibana
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kibana
+        app.kubernetes.io/component: logging
+    spec:
+      serviceAccountName: kibana
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: kibana
+          image: kibana:8.12.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: false
+          ports:
+            - name: http
+              containerPort: 5601
+              protocol: TCP
+          env:
+            - name: ELASTICSEARCH_HOSTS
+              value: http://elasticsearch:9200
+            - name: ELASTICSEARCH_USERNAME
+              value: ""
+            - name: ELASTICSEARCH_PASSWORD
+              value: ""
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /api/status
+              port: 5601
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /api/status
+              port: 5601
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: kibana-config
+              mountPath: /usr/share/kibana/config/kibana.yml
+              subPath: kibana.yml
+              readOnly: true
+      volumes:
+        - name: kibana-config
+          configMap:
+            name: kibana-config
+            defaultMode: 0644
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kibana
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: kibana
+    app.kubernetes.io/component: logging
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: kibana
+  ports:
+    - name: http
+      port: 5601
+      targetPort: 5601
+      protocol: TCP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: kibana-pdb
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: kibana
+spec:
+  minAvailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kibana

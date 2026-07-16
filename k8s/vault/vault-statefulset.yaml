@@ -167,6 +167,7 @@ spec:
       labels:
         app.kubernetes.io/name: vault
         app.kubernetes.io/component: server
+        app: vault
       annotations:
         vault.hashicorp.com/agent-inject: "false"
         prometheus.io/scrape: "true"

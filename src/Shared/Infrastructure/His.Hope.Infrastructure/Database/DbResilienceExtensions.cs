@@ -10,17 +10,6 @@ public static class DbResilienceExtensions
         int maxRetryCount = 5,
         int maxRetryDelaySeconds = 30)
     {
-        if (builder.Options.FindExtension<Microsoft.EntityFrameworkCore.Infrastructure.SqlServerOptionsExtension>() is not null)
-        {
-            builder.UseSqlServer(options =>
-            {
-                options.EnableRetryOnFailure(
-                    maxRetryCount: maxRetryCount,
-                    maxRetryDelay: TimeSpan.FromSeconds(maxRetryDelaySeconds),
-                    errorNumbersToAdd: null);
-            });
-        }
-
         return builder;
     }
 

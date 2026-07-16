@@ -45,10 +45,9 @@ public partial class RabbitMQEventBus : IEventBus, IAsyncDisposable
         if (!_connection.IsConnected)
             await _connection.GetConnectionAsync();
 
-        await _retryPolicy.ExecuteAsync(() =>
+        await _retryPolicy.ExecuteAsync(async () =>
         {
-            using var channel = _connection.GetConnectionAsync()
-                .GetAwaiter().GetResult()
+            using var channel = (await _connection.GetConnectionAsync())
                 .CreateModel();
 
             channel.ExchangeDeclare(_options.ExchangeName, _options.ExchangeType, durable: true);

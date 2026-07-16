@@ -47,21 +47,8 @@ patches:
           mountPath: "/vault/secrets"
           readOnly: true
 
-images:
-  - name: patient-service
-    newTag: 1.0.0
-  - name: identity-service
-    newTag: 1.0.0
-  - name: clinical-service
-    newTag: 1.0.0
-  - name: appointment-service
-    newTag: 1.0.0
-  - name: postgres
-    newTag: 16.2
-  - name: rabbitmq
-    newTag: 3.13
-  - name: redis
-    newTag: 7.2
+components:
+  - image-digests.yaml
 
 namespace: his-hope
 

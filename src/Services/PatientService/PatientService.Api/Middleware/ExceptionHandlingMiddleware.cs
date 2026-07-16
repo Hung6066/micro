@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using FluentValidation;
+using His.Hope.PatientService.Application.UseCases.Patients.Commands;
 using His.Hope.SharedKernel.Domain.Exceptions;
 
 namespace His.Hope.PatientService.Api.Middleware;
@@ -31,25 +32,31 @@ public class ExceptionHandlingMiddleware
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
         context.Response.ContentType = "application/json";
+        HttpStatusCode statusCode;
+        object response;
 
-        var (statusCode, response) = exception switch
+        switch (exception)
         {
-            ValidationException validationEx => (
-                HttpStatusCode.BadRequest,
-                new { error = "Validation failed", details = validationEx.Errors }),
+            case ValidationException validationEx:
+                statusCode = HttpStatusCode.BadRequest;
+                response = new { error = "Validation failed", details = validationEx.Errors };
+                break;
 
-            DomainException domainEx => (
-                HttpStatusCode.UnprocessableEntity,
-                new { error = domainEx.Message }),
+            case DomainException domainEx:
+                statusCode = HttpStatusCode.UnprocessableEntity;
+                response = new { error = domainEx.Message };
+                break;
 
-            NotFoundException notFoundEx => (
-                HttpStatusCode.NotFound,
-                new { error = notFoundEx.Message }),
+            case NotFoundException notFoundEx:
+                statusCode = HttpStatusCode.NotFound;
+                response = new { error = notFoundEx.Message };
+                break;
 
-            _ => (
-                HttpStatusCode.InternalServerError,
-                new { error = "An unexpected error occurred." })
-        };
+            default:
+                statusCode = HttpStatusCode.InternalServerError;
+                response = new { error = exception.Message, type = exception.GetType().Name, stackTrace = exception.StackTrace?.Substring(0, 500) };
+                break;
+        }
 
         _logger.LogError(exception, "Request failed with {StatusCode}", statusCode);
 

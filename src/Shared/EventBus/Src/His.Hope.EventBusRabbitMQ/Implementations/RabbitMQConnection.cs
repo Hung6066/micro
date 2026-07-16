@@ -77,7 +77,7 @@ public class RabbitMQConnection : IAsyncDisposable
                     ? new X509Certificate2(_options.ClientCertificatePath)
                     : new X509Certificate2(_options.ClientCertificatePath, _options.ClientCertificatePassword);
 
-                factory.Ssl.CertificateCollection = new X509CertificateCollection { cert };
+                factory.Ssl.Certs = new X509Certificate2Collection { cert };
                 factory.Ssl.CertificateValidationCallback = SslCertificateValidation;
             }
         }

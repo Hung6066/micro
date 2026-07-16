@@ -10,6 +10,10 @@ resources:
   - alertmanager-config.yaml
   - slo-exporter-config.yaml
   - incident-response.yaml
+  - jaeger.yaml
+  - elasticsearch.yaml
+  - kibana.yaml
+  - servicemonitors.yaml
 
 commonLabels:
   app.kubernetes.io/part-of: his-hope

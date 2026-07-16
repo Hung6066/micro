@@ -17,7 +17,13 @@ resources:
   - identity-service.yaml
   - appointment-service.yaml
   - clinical-service.yaml
+  - lab-service.yaml
+  - billing-service.yaml
+  - pharmacy-service.yaml
+  - api-gateway.yaml
+  - frontend.yaml
   - postgres.yaml
+  - postgres-secret.yaml
   - rabbitmq.yaml
   - redis.yaml
   - ../linkerd/server.yaml
@@ -25,6 +31,8 @@ resources:
   - ../linkerd/traffic-split.yaml
   - ../linkerd/service-profiles.yaml
   - ../linkerd/pod-monitor.yaml
+  - network-policies.yaml
+  - seccomp-profiles.yaml
 
 patches:
   - target:

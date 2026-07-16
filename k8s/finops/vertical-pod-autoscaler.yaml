@@ -9,7 +9,9 @@ spec:
     kind: Deployment
     name: patient-service
   updatePolicy:
-    updateMode: Auto
+    # VPA is recommendation-only mode since HPA is active for CPU/memory scaling.
+    # VPA recommendations are reviewed manually before adjusting resource requests.
+    updateMode: "Off"
   resourcePolicy:
     containerPolicies:
     - containerName: '*'
@@ -32,7 +34,8 @@ spec:
     kind: Deployment
     name: identity-service
   updatePolicy:
-    updateMode: Auto
+    # VPA is recommendation-only mode since HPA is active for CPU/memory scaling.
+    updateMode: "Off"
   resourcePolicy:
     containerPolicies:
     - containerName: '*'
@@ -55,7 +58,8 @@ spec:
     kind: Deployment
     name: appointment-service
   updatePolicy:
-    updateMode: Auto
+    # VPA is recommendation-only mode since HPA is active for CPU/memory scaling.
+    updateMode: "Off"
   resourcePolicy:
     containerPolicies:
     - containerName: '*'
@@ -78,7 +82,8 @@ spec:
     kind: Deployment
     name: clinical-service
   updatePolicy:
-    updateMode: Auto
+    # VPA is recommendation-only mode since HPA is active for CPU/memory scaling.
+    updateMode: "Off"
   resourcePolicy:
     containerPolicies:
     - containerName: '*'

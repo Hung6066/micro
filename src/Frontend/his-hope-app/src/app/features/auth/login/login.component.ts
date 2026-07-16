@@ -1,11 +1,13 @@
-import { Component } from '@angular/core';
+import { Component, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { FormBuilder, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { Subject, takeUntil } from 'rxjs';
 import { AuthService } from '@core/services/auth.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Component({
   selector: 'app-login',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="login-container">
       <mat-card class="login-card">
@@ -18,20 +20,22 @@ import { MatSnackBar } from '@angular/material/snack-bar';
         <mat-card-content>
           <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Username</mat-label>
-              <input matInput formControlName="username" placeholder="Enter username">
-              <mat-icon matPrefix>person</mat-icon>
+              <mat-label>Tên đăng nhập</mat-label>
+              <input matInput formControlName="username" placeholder="Nhập tên đăng nhập">
+              <mat-icon matPrefix aria-hidden="true">person</mat-icon>
             </mat-form-field>
 
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Password</mat-label>
-              <input matInput type="password" formControlName="password" placeholder="Enter password">
-              <mat-icon matPrefix>lock</mat-icon>
+              <mat-label>Mật khẩu</mat-label>
+              <input matInput type="password" formControlName="password" placeholder="Nhập mật khẩu">
+              <mat-icon matPrefix aria-hidden="true">lock</mat-icon>
             </mat-form-field>
 
             <button mat-raised-button color="primary" class="full-width" type="submit"
-                    [disabled]="loginForm.invalid || loading">
-              {{ loading ? 'Logging in...' : 'Login' }}
+                    [disabled]="loginForm.invalid || loading" aria-live="polite">
+              <mat-spinner diameter="20" *ngIf="loading" class="btn-spinner" aria-label="Đang đăng nhập"></mat-spinner>
+              <span *ngIf="!loading">Đăng nhập</span>
+              <span class="sr-only" *ngIf="loading">Đang xử lý đăng nhập...</span>
             </button>
           </form>
         </mat-card-content>
@@ -39,15 +43,18 @@ import { MatSnackBar } from '@angular/material/snack-bar';
     </div>
   `,
   styles: [`
-    .login-container { display: flex; justify-content: center; align-items: center; height: 100vh; background: #f5f5f5; }
-    .login-card { max-width: 420px; width: 100%; padding: 24px; }
-    .card-icon { font-size: 48px; width: 48px; height: 48px; color: #1a237e; margin: 0 auto 16px; }
+    .login-container { display: flex; justify-content: center; align-items: center; height: 100vh; background: var(--bg-warm, #F7F6F3); }
+    .login-card { max-width: 420px; width: 100%; }
+    .card-icon { font-size: 48px; width: 48px; height: 48px; color: var(--color-primary, #2F6B4A); margin: 0 auto 16px; }
     mat-card-header { flex-direction: column; align-items: center; text-align: center; margin-bottom: 24px; }
     .full-width { width: 100%; margin-bottom: 16px; }
     form { display: flex; flex-direction: column; }
+    .btn-spinner { display: inline-block; margin-right: 8px; }
   `],
 })
-export class LoginComponent {
+export class LoginComponent implements OnDestroy {
+  private destroy$ = new Subject<void>();
+
   loginForm = this.fb.group({
     username: ['', Validators.required],
     password: ['', Validators.required],
@@ -59,21 +66,31 @@ export class LoginComponent {
     private authService: AuthService,
     private router: Router,
     private snackBar: MatSnackBar,
+    private cdr: ChangeDetectorRef,
   ) {}
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
 
   onSubmit(): void {
     if (this.loginForm.invalid) return;
 
     this.loading = true;
-    this.authService.login(this.loginForm.value as any).subscribe({
-      next: () => {
-        this.snackBar.open('Login successful', 'Close', { duration: 3000 });
-        this.router.navigate(['/dashboard']);
-      },
-      error: (err) => {
-        this.loading = false;
-        this.snackBar.open(err.error?.error || 'Login failed', 'Close', { duration: 5000 });
-      },
-    });
+    this.authService.login(this.loginForm.value as any)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.snackBar.open('Login successful', 'Close', { duration: 3000 });
+          this.router.navigate(['/dashboard']);
+          this.cdr.markForCheck();
+        },
+        error: (err) => {
+          this.loading = false;
+          this.snackBar.open(err.error?.error || 'Login failed', 'Close', { duration: 5000 });
+          this.cdr.markForCheck();
+        },
+      });
   }
 }

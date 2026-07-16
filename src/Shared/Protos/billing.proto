@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package his.hope.billing;
+
+option csharp_namespace = "His.Hope.BillingGrpc";
+
+import "google/protobuf/timestamp.proto";
+
+service BillingGrpcService {
+  rpc GetInvoice (InvoiceRequest) returns (InvoiceResponse);
+  rpc GetInvoiceByNumber (InvoiceByNumberRequest) returns (InvoiceResponse);
+  rpc GetPatientInvoices (PatientInvoicesRequest) returns (InvoiceListResponse);
+  rpc CheckInvoiceExists (InvoiceExistsRequest) returns (InvoiceExistsResponse);
+  rpc SearchInvoices (InvoiceSearchRequest) returns (InvoiceListResponse);
+}
+
+message InvoiceRequest {
+  string id = 1;
+}
+
+message InvoiceByNumberRequest {
+  string invoice_number = 1;
+}
+
+message PatientInvoicesRequest {
+  string patient_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message InvoiceExistsRequest {
+  string id = 1;
+}
+
+message InvoiceExistsResponse {
+  bool exists = 1;
+}
+
+message InvoiceSearchRequest {
+  string search_term = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message InvoiceResponse {
+  string id = 1;
+  string patient_id = 2;
+  string encounter_id = 3;
+  string invoice_number = 4;
+  google.protobuf.Timestamp invoice_date = 5;
+  google.protobuf.Timestamp due_date = 6;
+  string status_code = 7;
+  string status_name = 8;
+  string notes = 9;
+  double sub_total = 10;
+  double tax_amount = 11;
+  double discount_amount = 12;
+  double total_amount = 13;
+  double paid_amount = 14;
+  double balance_due = 15;
+  google.protobuf.Timestamp created_at = 16;
+  google.protobuf.Timestamp updated_at = 17;
+  repeated InvoiceLineItemResponse line_items = 18;
+  repeated PaymentResponse payments = 19;
+}
+
+message InvoiceLineItemResponse {
+  string id = 1;
+  string description = 2;
+  int32 quantity = 3;
+  double unit_price = 4;
+  double amount = 5;
+  string item_code = 6;
+  string item_type_code = 7;
+  string item_type_name = 8;
+}
+
+message PaymentResponse {
+  string id = 1;
+  double amount = 2;
+  google.protobuf.Timestamp payment_date = 3;
+  string method_code = 4;
+  string method_name = 5;
+  string reference_number = 6;
+  string status_code = 7;
+  string status_name = 8;
+}
+
+message InvoiceListResponse {
+  repeated InvoiceResponse invoices = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}

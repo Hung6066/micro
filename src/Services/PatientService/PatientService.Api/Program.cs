@@ -10,6 +10,8 @@ using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.Infrastructure.Resilience;
 using His.Hope.Infrastructure.Security;
+using His.Hope.Infrastructure.Security.Authorization;
+using His.Hope.Infrastructure.Audit;
 using His.Hope.IntegrationEvents.Patient;
 using His.Hope.PatientService.Api.GrpcServices;
 using His.Hope.PatientService.Api.Middleware;
@@ -33,6 +35,13 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddPatientApplication();
 builder.Services.AddPatientInfrastructure(builder.Configuration);
+
+// SECURITY: Add JWT Bearer authentication with RSA public key validation
+// The private key is held only by IdentityService - this service only validates
+builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
+
+// SECURITY: Register permission-based authorization policies
+builder.Services.AddHisHopeAuthorization();
 
 // Enterprise Infrastructure
 builder.Services.AddHisHopeEnterpriseInfrastructure(
@@ -74,7 +83,7 @@ builder.Services.AddHealthChecks()
         builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!,
         name: "redis", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded);
 
-// mTLS + Kestrel Configuration
+// Kestrel Configuration
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenAnyIP(5002, listenOptions =>
@@ -83,10 +92,18 @@ builder.WebHost.ConfigureKestrel(options =>
         listenOptions.UseHttps(httpsOptions =>
         {
             httpsOptions.ServerCertificate = LoadServerCertificate(builder.Configuration);
-            httpsOptions.ClientCertificateMode = ClientCertificateMode.RequireCertificate;
-            httpsOptions.AllowAnyClientCertificate = !builder.Environment.IsProduction();
             httpsOptions.CheckCertificateRevocation = false;
         });
+    });
+
+    options.ListenAnyIP(5008, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+    });
+
+    options.ListenAnyIP(5013, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
     });
 
     options.ListenAnyIP(5006, listenOptions =>
@@ -95,14 +112,19 @@ builder.WebHost.ConfigureKestrel(options =>
         listenOptions.UseHttps(httpsOptions =>
         {
             httpsOptions.ServerCertificate = LoadServerCertificate(builder.Configuration);
-            httpsOptions.ClientCertificateMode = ClientCertificateMode.RequireCertificate;
-            httpsOptions.AllowAnyClientCertificate = !builder.Environment.IsProduction();
             httpsOptions.CheckCertificateRevocation = false;
         });
     });
 });
 
 var app = builder.Build();
+
+// Auto-create database on startup
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<His.Hope.PatientService.Infrastructure.Persistence.PatientDbContext>();
+    db.Database.EnsureCreated();
+}
 
 // Middleware Pipeline (order matters)
 app.UseSecurityHeaders();
@@ -118,8 +140,15 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-// API Endpoints
-var patients = app.MapGroup("/api/v1/patients");
+// SECURITY: Authentication & Authorization middleware
+app.UseAuthentication();
+app.UseAuthorization();
+
+
+app.UsePhiAudit();
+
+// Patient Endpoints (all require JWT authorization)
+var patients = app.MapGroup("/api/v1/patients").RequireAuthorization();
 
 patients.MapGet("/{id:guid}", async (
     Guid id,
@@ -132,7 +161,7 @@ patients.MapGet("/{id:guid}", async (
         async () => await mediator.Send(new GetPatientByIdQuery(id), ct),
         TimeSpan.FromMinutes(5), ct);
     return patient is null ? Results.NotFound() : Results.Ok(patient);
-}).WithOpenApi();
+}).RequireAuthorization("Permission:patients.view").WithOpenApi();
 
 patients.MapGet("/search", async (
     string q, int page, int pageSize,
@@ -146,7 +175,7 @@ patients.MapGet("/search", async (
         async () => await mediator.Send(new SearchPatientsQuery(q, page, pageSize), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
-}).WithOpenApi();
+}).RequireAuthorization("Permission:patients.view").WithOpenApi();
 
 patients.MapPost("/", async (
     CreatePatientRequest request,
@@ -167,7 +196,7 @@ patients.MapPost("/", async (
     await cache.RemoveByPrefixAsync("patients:search:", ct);
 
     return Results.Created($"/api/v1/patients/{patient.Id}", patient);
-}).WithOpenApi();
+}).RequireAuthorization("Permission:patients.create").WithOpenApi();
 
 patients.MapPut("/{id:guid}", async (
     Guid id,
@@ -189,7 +218,7 @@ patients.MapPut("/{id:guid}", async (
     await cache.RemoveByPrefixAsync("patients:search:", ct);
 
     return Results.Ok(patient);
-}).WithOpenApi();
+}).RequireAuthorization("Permission:patients.update").WithOpenApi();
 
 patients.MapPatch("/{id:guid}/deactivate", async (
     Guid id, IMediator mediator, ICacheService cache, CancellationToken ct) =>
@@ -197,7 +226,7 @@ patients.MapPatch("/{id:guid}/deactivate", async (
     await mediator.Send(new DeactivatePatientCommand(id), ct);
     await cache.RemoveAsync($"patient:{id}", ct);
     return Results.NoContent();
-}).WithOpenApi();
+}).RequireAuthorization("Permission:patients.delete").WithOpenApi();
 
 patients.MapPatch("/{id:guid}/reactivate", async (
     Guid id, IMediator mediator, ICacheService cache, CancellationToken ct) =>
@@ -205,7 +234,7 @@ patients.MapPatch("/{id:guid}/reactivate", async (
     await mediator.Send(new ReactivatePatientCommand(id), ct);
     await cache.RemoveAsync($"patient:{id}", ct);
     return Results.NoContent();
-}).WithOpenApi();
+}).RequireAuthorization("Permission:patients.update").WithOpenApi();
 
 // gRPC
 app.MapGrpcService<PatientGrpcServiceImpl>();
@@ -240,4 +269,30 @@ app.MapGet("/", () => Results.Redirect("/swagger"));
 
 app.Run();
 
-static X509Certificate2 LoadServerCertificate(IConfiguration config) { /* ... */ }
+static X509Certificate2 LoadServerCertificate(IConfiguration config)
+{
+    var certPath = config["Certificates:Server:Path"];
+    var certPassword = config["Certificates:Server:Password"];
+    if (!string.IsNullOrEmpty(certPath) && !string.IsNullOrEmpty(certPassword))
+        return new X509Certificate2(certPath, certPassword);
+    var pfxPath = Path.Combine(AppContext.BaseDirectory, "server.pfx");
+    if (File.Exists(pfxPath))
+        return new X509Certificate2(pfxPath, "his-hope-dev");
+    using var rsa = System.Security.Cryptography.RSA.Create(2048);
+    var req = new System.Security.Cryptography.X509Certificates.CertificateRequest(
+        "CN=his-hope-patient, O=His.Hope", rsa,
+        System.Security.Cryptography.HashAlgorithmName.SHA256,
+        System.Security.Cryptography.RSASignaturePadding.Pkcs1);
+    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension(false, false, 0, true));
+    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509KeyUsageExtension(
+        System.Security.Cryptography.X509Certificates.X509KeyUsageFlags.DigitalSignature |
+        System.Security.Cryptography.X509Certificates.X509KeyUsageFlags.KeyEncipherment, false));
+    req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension(
+        new System.Security.Cryptography.OidCollection { new("1.3.6.1.5.5.7.3.1") }, true));
+    var san = new System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder();
+    san.AddDnsName("localhost"); san.AddDnsName("patientservice");
+    req.CertificateExtensions.Add(san.Build());
+    var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(5));
+    return cert;
+}
+

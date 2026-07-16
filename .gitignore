@@ -1,0 +1,120 @@
+## .NET Build Artifacts
+bin/
+obj/
+*.csproj.user
+*.user
+*.suo
+*.cache
+*.vs/
+.vs/
+**/bin/
+**/obj/
+
+## NuGet
+packages/
+*.nupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+## Node / Angular
+node_modules/
+dist/
+.angular/
+*.js.map
+*.d.ts
+*.tgz
+
+## Angular Cache
+src/Frontend/his-hope-app/.angular/
+src/Frontend/his-hope-app/dist/
+src/Frontend/his-hope-app/node_modules/
+src/Frontend/his-hope-app/package-lock.json
+
+## Environment / Secrets
+appsettings.Development.json
+appsettings.*.Development.json
+*.Development.json
+.env
+.env.local
+.env.*.local
+*.secret
+secrets/
+**/appsettings.Development.json
+
+## IDE
+.idea/
+*.swp
+*.swo
+*~
+.vscode/
+.cretz/
+.vs/
+
+## OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*.bak
+
+## Logs
+*.log
+*.err
+logs/
+**/*.log
+**/*.err
+
+## Docker
+.docker/
+*.dockerfile~
+
+## Bazel
+bazel-*
+bazel-bin/
+bazel-out/
+bazel-test/
+bazel-genfiles/
+
+## Test Results
+TestResults/
+*.trx
+coverage/
+**/TestResults/
+**/*.trx
+
+## Project-specific agent/tooling files
+.agents/
+.claude/
+.opencode/
+opencode.json
+skills-lock.json
+
+## Certificates
+*.pfx
+*.p12
+*.cert
+*.key
+!docker/dev-certs/
+
+## Proto generated code
+**/Protos/Generated/
+**/Grpc/**/Generated/
+
+## Kafka / Event streaming data
+kafka-data/
+
+## Reports
+reports/
+test-results/
+
+## Migration scripts backup
+cockroach/migrations/run-seed.sh
+cockroach/migrations/run-pg-migrations.ps1
+
+## Scripts (local dev only, not for CI)
+Start-EMR.bat
+Start-EMR.ps1
+start-services-local.ps1
+test-grpc.csx

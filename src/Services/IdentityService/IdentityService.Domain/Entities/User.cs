@@ -22,4 +22,18 @@ public class User : IdentityUser<Guid>
 public class Role : IdentityRole<Guid>
 {
     public string? Description { get; set; }
+
+    /// <summary>
+    /// Indicates whether this is a system role that cannot be deleted.
+    /// System roles include Admin, Provider, Nurse, etc.
+    /// </summary>
+    public bool IsSystem { get; set; }
+
+    /// <summary>
+    /// When the role was created.
+    /// </summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Navigation
+    public ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
 }

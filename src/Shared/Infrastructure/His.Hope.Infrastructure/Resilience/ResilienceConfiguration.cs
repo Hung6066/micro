@@ -1,6 +1,5 @@
 using Polly;
 using Polly.CircuitBreaker;
-using Polly.Extensions;
 using Polly.Retry;
 using Polly.Timeout;
 
@@ -32,7 +31,7 @@ public class ResilienceConfiguration
             },
             OnRetry = args =>
             {
-                Console.WriteLine($"[{operationName}] Retry {args.AttemptNumber}/{RetryCount} after {args.Delay.TotalMilliseconds}ms");
+                Console.WriteLine($"[{operationName}] Retry {args.AttemptNumber}/{RetryCount}");
                 return default;
             },
         };
@@ -61,7 +60,7 @@ public class ResilienceConfiguration
             },
         };
 
-        var timeout = new TimeoutStrategyOptions<HttpResponseMessage>
+        var timeout = new TimeoutStrategyOptions
         {
             Timeout = TimeSpan.FromSeconds(TimeoutSeconds),
             OnTimeout = args =>

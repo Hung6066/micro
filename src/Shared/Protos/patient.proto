@@ -4,6 +4,8 @@ package his.hope.patient;
 
 option csharp_namespace = "His.Hope.PatientGrpc";
 
+import "google/protobuf/timestamp.proto";
+
 service PatientGrpcService {
   rpc GetPatient (PatientRequest) returns (PatientResponse);
   rpc SearchPatients (PatientSearchRequest) returns (PatientListResponse);
@@ -20,20 +22,27 @@ message PatientResponse {
   string first_name = 3;
   string last_name = 4;
   string middle_name = 5;
-  string date_of_birth = 6;
+  google.protobuf.Timestamp date_of_birth = 6;
   string gender_code = 7;
   string gender_name = 8;
   string phone = 9;
   string email = 10;
   bool is_active = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
 }
 
 message PatientSearchRequest {
   string search_term = 1;
+  int32 page = 2;
+  int32 page_size = 3;
 }
 
 message PatientListResponse {
   repeated PatientResponse patients = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
 }
 
 message PatientExistsRequest {

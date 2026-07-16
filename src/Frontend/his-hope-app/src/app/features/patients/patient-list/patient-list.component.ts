@@ -1,11 +1,13 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { Router } from '@angular/router';
 import { PatientService } from '@core/services/patient.service';
 import { Patient } from '@core/models/patient.model';
-import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
+import { FormControl } from '@angular/forms';
 
 @Component({
   selector: 'app-patient-list',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="patient-list">
       <div class="header">
@@ -50,10 +52,12 @@ import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
         <ng-container matColumnDef="actions">
           <mat-header-cell *matHeaderCellDef>Actions</mat-header-cell>
           <mat-cell *matCellDef="let p">
-            <button mat-icon-button color="primary" (click)="viewPatient(p.id)">
+            <button mat-icon-button color="primary" (click)="viewPatient(p.id)"
+                    attr.aria-label="Xem chi tiết bệnh nhân {{ p.fullName }}">
               <mat-icon>visibility</mat-icon>
             </button>
-            <button mat-icon-button color="accent" [routerLink]="['/patients', p.id, 'edit']">
+            <button mat-icon-button color="accent" [routerLink]="['/patients', p.id, 'edit']"
+                    attr.aria-label="Chỉnh sửa bệnh nhân {{ p.fullName }}">
               <mat-icon>edit</mat-icon>
             </button>
           </mat-cell>
@@ -76,37 +80,55 @@ import { Subject, debounceTime, distinctUntilChanged } from 'rxjs';
     mat-row:hover { background: #f5f5f5; }
   `],
 })
-export class PatientListComponent implements OnInit {
+export class PatientListComponent implements OnInit, OnDestroy {
+  private destroy$ = new Subject<void>();
+
   patients: Patient[] = [];
   totalCount = 0;
-  searchControl = new Subject<string>();
+  searchControl = new FormControl('');
   displayedColumns = ['fullName', 'genderName', 'dateOfBirth', 'age', 'phone', 'actions'];
   private searchTerm = '';
 
   constructor(
     private patientService: PatientService,
     private router: Router,
+    private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
-    this.searchControl.pipe(debounceTime(300), distinctUntilChanged()).subscribe((term) => {
-      this.searchTerm = term;
-      this.loadPatients();
-    });
+    this.searchControl.valueChanges
+      .pipe(
+        debounceTime(300),
+        distinctUntilChanged(),
+        takeUntil(this.destroy$),
+      )
+      .subscribe((term) => {
+        this.searchTerm = term ?? '';
+        this.loadPatients();
+        this.cdr.markForCheck();
+      });
     this.loadPatients();
   }
 
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
   loadPatients(page = 1): void {
-    this.patientService.search(this.searchTerm, page).subscribe({
-      next: (result) => {
-        this.patients = result.items;
-        this.totalCount = result.totalCount;
-      },
-    });
+    this.patientService.search(this.searchTerm, page)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (result) => {
+          this.patients = result.items;
+          this.totalCount = result.totalCount;
+          this.cdr.markForCheck();
+        },
+      });
   }
 
   viewPatient(id: string): void {
-    this.router.navigate(['/patients', id]);
+    this.router.navigate(['/patients', id, 'workspace']);
   }
 
   onPageChange(event: any): void {

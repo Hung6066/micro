@@ -1,7 +1,13 @@
 using System.Security.Cryptography.X509Certificates;
-using His.Hope.AppointmentGrpc;
-using His.Hope.ClinicalService.Domain.Aggregates;
+using His.Hope.ClinicalService.Api.GrpcServices;
+using His.Hope.ClinicalService.Api.Middleware;
+using His.Hope.ClinicalService.Application;
 using His.Hope.ClinicalService.Domain.ValueObjects;
+using Microsoft.EntityFrameworkCore;
+using His.Hope.ClinicalService.Application.UseCases.Encounters.Commands;
+using His.Hope.ClinicalService.Application.UseCases.Encounters.Queries;
+using His.Hope.ClinicalService.Infrastructure;
+using His.Hope.ClinicalService.Infrastructure.Persistence;
 using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
 using His.Hope.EventBusRabbitMQ.Implementations;
@@ -9,12 +15,17 @@ using His.Hope.Infrastructure;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.HealthChecks;
 using His.Hope.Infrastructure.Observability;
+using His.Hope.Infrastructure.Outbox;
 using His.Hope.Infrastructure.Resilience;
 using His.Hope.Infrastructure.Security;
+using His.Hope.Infrastructure.Security.Authorization;
+using His.Hope.Infrastructure.Audit;
 using His.Hope.IntegrationEvents.Clinical;
-using His.Hope.PatientGrpc;
+using MediatR;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Serilog;
+
+AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,37 +34,29 @@ builder.Host.UseSerilog((context, config) =>
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddClinicalApplication();
+builder.Services.AddClinicalInfrastructure(builder.Configuration);
 
+// SECURITY: Add JWT Bearer authentication with RSA public key validation
+builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
+
+// SECURITY: Register permission-based authorization policies
+builder.Services.AddHisHopeAuthorization();
+
+// Enterprise Infrastructure
 builder.Services.AddHisHopeEnterpriseInfrastructure(
-    builder.Configuration, "clinical-service",
+    builder.Configuration,
+    "clinical-service",
     builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!);
 
 builder.Services.AddResiliencePolicies();
+builder.Services.AddOutbox<ClinicalDbContext>();
 
-var resilienceConfig = new ResilienceConfiguration();
-var pipeline = resilienceConfig.BuildGenericPipeline("grpc");
-
-builder.Services.AddGrpcClient<PatientGrpcService.PatientGrpcServiceClient>(o =>
+builder.Services.AddGrpc(options =>
 {
-    o.Address = new Uri(builder.Configuration.GetValue("GrpcServices:PatientService", "https://patientservice:5006")!);
-})
-.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-{
-    ClientCertificates = { LoadClientCertificate(builder.Configuration) },
-    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
-})
-.AddPolicyHandler(pipeline.AsPolicy());
-
-builder.Services.AddGrpcClient<AppointmentGrpcService.AppointmentGrpcServiceClient>(o =>
-{
-    o.Address = new Uri(builder.Configuration.GetValue("GrpcServices:AppointmentService", "https://appointmentservice:5007")!);
-})
-.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-{
-    ClientCertificates = { LoadClientCertificate(builder.Configuration) },
-    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
-})
-.AddPolicyHandler(pipeline.AsPolicy());
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    options.Interceptors.Add<GrpcServerInterceptor>();
+});
 
 builder.Services.AddRabbitMQEventBus(options =>
 {
@@ -63,146 +66,327 @@ builder.Services.AddRabbitMQEventBus(options =>
     options.Password = builder.Configuration.GetValue("EventBus:Password", "admin")!;
     options.ExchangeName = "his_hope_clinical";
     options.UseSsl = builder.Configuration.GetValue("EventBus:UseSsl", false);
+    options.ClientCertificatePath = builder.Configuration["EventBus:ClientCertificatePath"];
+    options.ClientCertificatePassword = builder.Configuration["EventBus:ClientCertificatePassword"];
 });
 
+// Comprehensive Health Checks
 builder.Services.AddHealthChecks()
-    .AddRabbitMQCheck(builder.Configuration.GetValue("EventBus:HostName", "localhost")!,
+    .AddDbContextCheck<ClinicalDbContext>(name: "clinical-db", tags: ["database"])
+    .AddRabbitMQCheck(
+        builder.Configuration.GetValue("EventBus:HostName", "localhost")!,
         builder.Configuration.GetValue("EventBus:Port", 5672),
         builder.Configuration.GetValue("EventBus:UserName", "admin")!,
-        builder.Configuration.GetValue("EventBus:Password", "admin")!, name: "rabbitmq",
-        failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded)
-    .AddRedisCheck(builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!,
-        name: "redis", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded)
-    .AddGrpcServiceCheck("patient-service",
-        builder.Configuration.GetValue("GrpcServices:PatientService", "https://patientservice:5006")!,
-        failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded)
-    .AddGrpcServiceCheck("appointment-service",
-        builder.Configuration.GetValue("GrpcServices:AppointmentService", "https://appointmentservice:5007")!,
-        failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded);
+        builder.Configuration.GetValue("EventBus:Password", "admin")!,
+        name: "rabbitmq", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded)
+    .AddRedisCheck(
+        builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!,
+        name: "redis", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded);
 
+// Kestrel Configuration
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.ListenAnyIP(5004, l =>
+    options.ListenAnyIP(5004, listenOptions =>
     {
-        l.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-        l.UseHttps(LoadServerCertificate(builder.Configuration));
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+        listenOptions.UseHttps(httpsOptions =>
+        {
+            httpsOptions.ServerCertificate = LoadServerCertificate(builder.Configuration);
+            httpsOptions.CheckCertificateRevocation = false;
+        });
+    });
+
+    options.ListenAnyIP(5010, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+    });
+
+    options.ListenAnyIP(5016, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
+    });
+
+    options.ListenAnyIP(5015, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
+        listenOptions.UseHttps(httpsOptions =>
+        {
+            httpsOptions.ServerCertificate = LoadServerCertificate(builder.Configuration);
+            httpsOptions.CheckCertificateRevocation = false;
+        });
     });
 });
 
 var app = builder.Build();
 
+// Auto-create database on startup (delegated to Infrastructure layer)
+ClinicalDbInitializer.Initialize(app.Services);
+
+// Middleware Pipeline (order matters)
 app.UseSecurityHeaders();
 app.UseRateLimiting();
 app.UseSerilogRequestLogging();
 app.UseHisHopePrometheus();
 
-if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
-var encounters = new List<Encounter>();
-var grp = app.MapGroup("/api/v1/encounters");
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-grp.MapPost("/", async (
+// SECURITY: Authentication & Authorization middleware
+app.UseAuthentication();
+app.UseAuthorization();
+
+
+app.UsePhiAudit();
+
+// Encounter Endpoints (all require JWT authorization with specific permissions)
+var encounters = app.MapGroup("/api/v1/encounters").RequireAuthorization();
+
+encounters.MapGet("/", async (
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct) =>
+{
+    var result = await cache.GetOrSetAsync(
+        "encounters:all",
+        async () => await mediator.Send(new SearchEncountersQuery("", 1, 1000), ct),
+        TimeSpan.FromMinutes(5), ct);
+    return Results.Ok(result);
+}).RequireAuthorization("Permission:clinical.view").WithOpenApi();
+
+encounters.MapGet("/{id:guid}", async (
+    Guid id,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct) =>
+{
+    var encounterDto = await mediator.Send(new GetEncounterByIdQuery(id), ct);
+    if (encounterDto is null) return Results.NotFound();
+    var encounter = await cache.GetOrSetAsync(
+        $"encounter:{id}",
+        async () => encounterDto,
+        TimeSpan.FromMinutes(5), ct);
+    return Results.Ok(encounter);
+}).RequireAuthorization("Permission:clinical.view").WithOpenApi();
+
+encounters.MapGet("/search", async (
+    string? q, int page, int pageSize,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct) =>
+{
+    var cacheKey = $"encounters:search:{q}:{page}:{pageSize}";
+    var result = await cache.GetOrSetAsync(
+        cacheKey,
+        async () => await mediator.Send(new SearchEncountersQuery(q ?? "", page, pageSize), ct),
+        TimeSpan.FromMinutes(2), ct);
+    return Results.Ok(result);
+}).RequireAuthorization("Permission:clinical.view").WithOpenApi();
+
+encounters.MapPost("/", async (
     StartEncounterRequest request,
-    PatientGrpcService.PatientGrpcServiceClient patientClient,
-    AppointmentGrpcService.AppointmentGrpcServiceClient? appointmentClient,
+    IMediator mediator,
     IEventBus eventBus,
     ICacheService cache,
     CancellationToken ct) =>
 {
-    var patientResponse = await patientClient.GetPatientAsync(
-        new PatientRequest { Id = request.PatientId.ToString() }, cancellationToken: ct);
+    var command = new StartEncounterCommand(
+        request.PatientId, request.ProviderId, request.AppointmentId,
+        request.EncounterTypeCode, null, null);
 
-    if (request.AppointmentId.HasValue)
-    {
-        var aptResponse = await appointmentClient!.CheckAppointmentExistsAsync(
-            new AppointmentExistsRequest { Id = request.AppointmentId.Value.ToString() }, cancellationToken: ct);
-        if (!aptResponse.Exists) return Results.Problem("Appointment not found", statusCode: 404);
-    }
-
-    var type = EncounterType.FromCode(request.EncounterTypeCode);
-    var encounter = Encounter.Start(request.PatientId, request.ProviderId, type);
-    encounters.Add(encounter);
+    var encounter = await mediator.Send(command, ct);
 
     await eventBus.PublishAsync(new EncounterStartedIntegrationEvent(
-        Guid.Parse(encounter.Id.ToString()!), encounter.PatientId,
-        encounter.ProviderId, request.AppointmentId,
-        encounter.EncounterType.Code, encounter.EncounterDate), ct);
+        encounter.Id, encounter.PatientId, encounter.ProviderId,
+        request.AppointmentId, encounter.EncounterTypeCode, encounter.EncounterDate), ct);
 
     await cache.RemoveByPrefixAsync("encounters:", ct);
 
-    return Results.Created($"/api/v1/encounters/{encounter.Id}", new
-    {
-        id = encounter.Id.ToString(),
-        patientName = patientResponse.FullName,
-        patientId = encounter.PatientId, providerId = encounter.ProviderId,
-        encounterType = encounter.EncounterType.Code,
-        status = encounter.Status.Code, encounterDate = encounter.EncounterDate
-    });
-}).WithOpenApi();
+    return Results.Created($"/api/v1/encounters/{encounter.Id}", encounter);
+}).RequireAuthorization("Permission:clinical.create").WithOpenApi();
 
-grp.MapPost("/{id:guid}/vitals", (Guid id, RecordVitalsRequest request) =>
+encounters.MapPost("/{id:guid}/vitals", async (
+    Guid id,
+    RecordVitalsRequest request,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct) =>
 {
-    var e = encounters.FirstOrDefault(x => x.Id == EncounterId.From(id));
-    if (e is null) return Results.NotFound();
-    e.RecordVitals(request.Temperature, request.HeartRate, request.RespiratoryRate,
+    var command = new RecordVitalsCommand(
+        id, request.Temperature, request.HeartRate, request.RespiratoryRate,
         request.SystolicBP, request.DiastolicBP, request.OxygenSaturation,
         request.HeightCm, request.WeightKg, request.Bmi);
-    return Results.NoContent();
-}).WithOpenApi();
 
-grp.MapPost("/{id:guid}/diagnosis", (Guid id, AddDiagnosisRequest request) =>
+    var encounter = await mediator.Send(command, ct);
+
+    await cache.RemoveAsync($"encounter:{id}", ct);
+    await cache.RemoveByPrefixAsync("encounters:", ct);
+
+    return Results.Ok(encounter);
+}).RequireAuthorization("Permission:clinical.update").WithOpenApi();
+
+encounters.MapPost("/{id:guid}/diagnosis", async (
+    Guid id,
+    AddDiagnosisRequest request,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct) =>
 {
-    var e = encounters.FirstOrDefault(x => x.Id == EncounterId.From(id));
-    if (e is null) return Results.NotFound();
-    e.AddDiagnosis(new Diagnosis(request.ConditionName, request.Icd10Code, request.IsPrimary, request.Notes));
-    return Results.NoContent();
-}).WithOpenApi();
+    var command = new AddDiagnosisCommand(
+        id, request.ConditionName, request.Icd10Code, request.IsPrimary, request.Notes);
 
-grp.MapPut("/{id:guid}/complete", (Guid id) =>
+    var encounter = await mediator.Send(command, ct);
+
+    await cache.RemoveAsync($"encounter:{id}", ct);
+    await cache.RemoveByPrefixAsync("encounters:", ct);
+
+    return Results.Ok(encounter);
+}).RequireAuthorization("Permission:clinical.update").WithOpenApi();
+
+encounters.MapPut("/{id:guid}/complete", async (
+    Guid id,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct) =>
 {
-    var e = encounters.FirstOrDefault(x => x.Id == EncounterId.From(id));
-    if (e is null) return Results.NotFound();
-    e.Complete();
-    return Results.NoContent();
-}).WithOpenApi();
+    await mediator.Send(new CompleteEncounterCommand(id), ct);
 
+    await cache.RemoveAsync($"encounter:{id}", ct);
+    await cache.RemoveByPrefixAsync("encounters:", ct);
+
+    return Results.NoContent();
+}).RequireAuthorization("Permission:clinical.update").WithOpenApi();
+
+encounters.MapGet("/patient/{patientId:guid}", async (
+    Guid patientId,
+    int page,
+    int pageSize,
+    DateTime? fromDate,
+    DateTime? toDate,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct) =>
+{
+    var cacheKey = $"encounters:patient:{patientId}:{page}:{pageSize}:{fromDate}:{toDate}";
+    var result = await cache.GetOrSetAsync(
+        cacheKey,
+        async () => await mediator.Send(
+            new GetEncountersByPatientQuery(patientId, page, pageSize, fromDate, toDate), ct),
+        TimeSpan.FromMinutes(5), ct);
+    return Results.Ok(result);
+}).RequireAuthorization("Permission:clinical.view").WithOpenApi();
+
+// Dashboard Stats Endpoint - requires clinical.view permission
+var dashboard = app.MapGroup("/api/v1/dashboard").RequireAuthorization();
+
+dashboard.MapGet("/stats", async (
+    ClinicalDbContext db,
+    ICacheService cache,
+    CancellationToken ct) =>
+{
+    var result = await cache.GetOrSetAsync(
+        "dashboard:stats",
+        async () =>
+        {
+            var now = DateTime.UtcNow;
+            var today = now.Date;
+
+            var inProgressStatus = EncounterStatus.InProgress;
+
+            // Aggregate counts
+            var totalEncounters = await db.Encounters.CountAsync(ct);
+            var activeEncounters = await db.Encounters.CountAsync(e => e.Status == inProgressStatus, ct);
+            var todayEncounters = await db.Encounters.CountAsync(e => e.EncounterDate >= today, ct);
+
+            // Encounters by type - materialize grouped key with value converter, then map names client-side
+            var byTypeRaw = await db.Encounters
+                .GroupBy(e => e.EncounterType)
+                .Select(g => new { Type = g.Key, Count = g.Count() })
+                .ToListAsync(ct);
+            var encountersByType = byTypeRaw
+                .Select(x => new { type = x.Type.Name, code = x.Type.Code, count = x.Count })
+                .ToList();
+
+            // Recent encounters - materialize entities, then project client-side
+            var recentRaw = await db.Encounters
+                .OrderByDescending(e => e.CreatedAt)
+                .Take(10)
+                .ToListAsync(ct);
+            var recentEncounters = recentRaw
+                .Select(e => new
+                {
+                    e.Id,
+                    e.PatientId,
+                    encounterType = e.EncounterType.Name,
+                    status = e.Status.Name,
+                    e.EncounterDate,
+                    e.CreatedAt
+                })
+                .ToList();
+
+            return new
+            {
+                totalEncounters,
+                activeEncounters,
+                todayEncounters,
+                encountersByType,
+                recentEncounters
+            };
+        },
+        TimeSpan.FromMinutes(2), ct);
+
+    return Results.Ok(result);
+}).RequireAuthorization("Permission:reports.view").WithOpenApi();
+
+// gRPC
+app.MapGrpcService<ClinicalGrpcServiceImpl>();
 app.MapGrpcHealthChecksService();
+
+// Health checks
 app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = _ => true,
     ResponseWriter = async (ctx, report) =>
     {
         ctx.Response.ContentType = "application/json";
-        await System.Text.Json.JsonSerializer.SerializeAsync(ctx.Response.Body, new
+        var response = new
         {
-            status = report.Status.ToString(), duration = report.TotalDuration.TotalMilliseconds,
+            status = report.Status.ToString(),
+            duration = report.TotalDuration.TotalMilliseconds,
             checks = report.Entries.Select(e => new
             {
-                name = e.Key, status = e.Value.Status.ToString(),
-                description = e.Value.Description, error = e.Value.Exception?.Message,
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+                tags = e.Value.Tags,
+                error = e.Value.Exception?.Message,
                 duration = e.Value.Duration.TotalMilliseconds
             })
-        });
+        };
+        await System.Text.Json.JsonSerializer.SerializeAsync(ctx.Response.Body, response);
     }
 }).AllowAnonymous();
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
+
 app.Run();
 
-static X509Certificate2 LoadServerCertificate(IConfiguration c) =>
-    !string.IsNullOrEmpty(c["Certificates:Server:Path"])
-        ? new X509Certificate2(c["Certificates:Server:Path"]!, c["Certificates:Server:Password"]!)
-        : CreateDevCert("clinicalservice");
-static X509Certificate2 LoadClientCertificate(IConfiguration c) =>
-    !string.IsNullOrEmpty(c["Certificates:Client:Path"])
-        ? new X509Certificate2(c["Certificates:Client:Path"]!, c["Certificates:Client:Password"]!)
-        : CreateDevCert("his-hope-client");
-
-static X509Certificate2 CreateDevCert(string cn)
+static X509Certificate2 LoadServerCertificate(IConfiguration config)
 {
+    var certPath = config["Certificates:Server:Path"];
+    var certPassword = config["Certificates:Server:Password"];
+    if (!string.IsNullOrEmpty(certPath) && !string.IsNullOrEmpty(certPassword))
+        return new X509Certificate2(certPath, certPassword);
+    var pfxPath = Path.Combine(AppContext.BaseDirectory, "server.pfx");
+    if (File.Exists(pfxPath))
+        return new X509Certificate2(pfxPath, "his-hope-dev");
     using var rsa = System.Security.Cryptography.RSA.Create(2048);
     var req = new System.Security.Cryptography.X509Certificates.CertificateRequest(
-        $"CN={cn}, O=His.Hope", rsa,
+        "CN=his-hope-clinical, O=His.Hope", rsa,
         System.Security.Cryptography.HashAlgorithmName.SHA256,
         System.Security.Cryptography.RSASignaturePadding.Pkcs1);
     req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension(false, false, 0, true));
@@ -210,18 +394,17 @@ static X509Certificate2 CreateDevCert(string cn)
         System.Security.Cryptography.X509Certificates.X509KeyUsageFlags.DigitalSignature |
         System.Security.Cryptography.X509Certificates.X509KeyUsageFlags.KeyEncipherment, false));
     req.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension(
-        new System.Security.Cryptography.OidCollection { new("1.3.6.1.5.5.7.3.1"), new("1.3.6.1.5.5.7.3.2") }, true));
+        new System.Security.Cryptography.OidCollection { new("1.3.6.1.5.5.7.3.1") }, true));
     var san = new System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder();
-    san.AddDnsName("localhost"); san.AddDnsName(cn); san.AddDnsName("*.his-hope.internal");
+    san.AddDnsName("localhost"); san.AddDnsName("clinicalservice");
     req.CertificateExtensions.Add(san.Build());
     var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(5));
-    Directory.CreateDirectory(Path.Combine(AppContext.BaseDirectory, "Certificates"));
-    File.WriteAllBytes(Path.Combine(AppContext.BaseDirectory, "Certificates", "server.pfx"),
-        cert.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pfx, "his-hope-dev"));
     return cert;
 }
 
+// Request Records
 public record StartEncounterRequest(Guid PatientId, Guid ProviderId, Guid? AppointmentId, string EncounterTypeCode);
 public record RecordVitalsRequest(decimal? Temperature, int? HeartRate, int? RespiratoryRate,
     int? SystolicBP, int? DiastolicBP, decimal? OxygenSaturation, decimal? HeightCm, decimal? WeightKg, decimal? Bmi);
 public record AddDiagnosisRequest(string ConditionName, string Icd10Code, bool IsPrimary, string? Notes);
+

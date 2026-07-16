@@ -616,18 +616,22 @@ await saga.ExecuteAsync(data, ct);
 | Layer | Mechanism | Details |
 |-------|-----------|---------|
 | **Transport** | mTLS (Linkerd auto) | Mutual TLS, certificates rotated hourly |
-| **Authentication** | JWT Bearer | ASP.NET Identity + JWT (HMAC-SHA256) |
-| **Authorization** | RBAC | Roles: Admin, Provider, Nurse, Receptionist |
-| **gRPC Auth** | `[Authorize]` attribute | All gRPC methods require valid JWT |
+| **Authentication** | JWT Bearer | ASP.NET Identity + JWT (HMAC-SHA256), token includes "permissions" + "role" claims |
+| **Authorization** | Permission-Based RBAC | 49 granular permissions × 8 modules × 7 roles (see §8.5) |
+| **REST Auth** | `[HasPermission("code")]` | Permission attribute on all REST endpoints |
+| **gRPC Auth** | `[Authorize]` attribute + `PermissionHandler` | JWT "permissions" claim + role fallback |
 | **mTLS (gRPC)** | Client certificates | Self-signed via Vault PKI |
+| **Token Blacklisting** | Redis-backed JWT revocation | Blacklisted on logout/rotation, checked per-request |
+| **Refresh Tokens** | Redis persistence + family tracking | Durable token rotation with theft detection |
 | **Rate Limiting** | Fixed Window | 100 requests/minute per IP, queued up to 5 |
 | **Security Headers** | Middleware | HSTS, CSP, X-Frame-Options, X-XSS-Protection |
 | **Input Validation** | FluentValidation | Validate tất cả input đầu vào |
 | **SQL Injection** | EF Core | Parameterized queries (built-in) |
-| **Audit Trail** | Domain Events | Correlation ID, trace ID trên mỗi event |
-| **Secrets** | Vault 1.16 HA | 3-node Raft, auto-rotation, CSI injection |
+| **Audit Trail** | `audit_log` table + triggers | SQL-level audit on all PHI tables (see §9.4) |
+| **Secrets** | Vault 1.16 HA | 3-node Raft, auto-rotation, CSI injection, PKI (24h TTL + CRL + OCSP) |
+| **HIPAA Compliance** | Full mapping | See [HIPAA Compliance Matrix](security/hipaa-compliance.md) |
 | **CORS** | Configured | Restricted to frontend origin |
-| **Network Policies** | CiliumNetworkPolicy | Zero-trust per-service ingress/egress |
+| **Network Policies** | CiliumNetworkPolicy | Zero-trust per-service ingress/egress + K8s NetworkPolicies (defense-in-depth) |
 | **CSP** | Content Security Policy | Restricted script-src, style-src |
 
 #### Security Headers
@@ -649,7 +653,123 @@ X-RateLimit-Remaining: 87
 X-RateLimit-Reset: 1709301234
 ```
 
-### 8.5 Availability
+#### Vault Policies & PKI
+
+| Policy | Purpose |
+|--------|---------|
+| `patient-service` | Read static secrets + dynamic DB creds for `his_hope_patient` |
+| `identity-service` | Read static secrets + dynamic DB creds for `his_hope_identity` |
+| `clinical-service` | Read static secrets + dynamic DB creds for `his_hope_clinical` |
+| `appointment-service` | Read static secrets + dynamic DB creds for `his_hope_appointment` |
+| `lab-service` | Read static secrets + dynamic DB creds for `his_hope_lab` |
+| `billing-service` | Read static secrets + dynamic DB creds for `his_hope_billing` |
+| `pharmacy-service` | Read static secrets + dynamic DB creds for `his_hope_pharmacy` |
+| `admin` | Full access for vault operators |
+| `approle` | AppRole auth method configuration |
+| **`token-blacklist`** | Read/write Redis-backed JWT blacklist (NEW) |
+| **`readonly-monitoring`** | Read-only health/metrics for monitoring stack (NEW) |
+
+**PKI Enhancements:**
+- Certificate TTL: **24 hours** (was 30 days) — limits exposure window
+- **CRL** (Certificate Revocation List) endpoint enabled
+- **OCSP** (Online Certificate Status Protocol) responder active
+- CSI injection for auto-mounted mTLS certs at `/vault/secrets/tls.{crt,key}`
+
+### 8.5 Authorization & RBAC
+
+His.Hope implements a **permission-based authorization** system with 49 granular permissions across 8 modules:
+
+| Module | Key Permissions |
+|--------|----------------|
+| **Patients** | `patients.view`, `patients.create`, `patients.edit`, `patients.delete`, `patients.export` |
+| **Appointments** | `appointments.view`, `appointments.create`, `appointments.edit`, `appointments.cancel`, `appointments.checkin`, `appointments.checkout` |
+| **Clinical** | `clinical.view`, `clinical.create`, `clinical.edit`, `clinical.sign`, `clinical.diagnose`, `clinical.vitals` |
+| **Lab** | `lab.view`, `lab.order`, `lab.result`, `lab.verify`, `lab.cancel` |
+| **Billing** | `billing.view`, `billing.create`, `billing.edit`, `billing.approve`, `billing.void` |
+| **Pharmacy** | `pharmacy.view`, `pharmacy.dispense`, `pharmacy.verify`, `pharmacy.inventory` |
+| **Admin** | `admin.users`, `admin.roles`, `admin.audit`, `admin.settings`, `admin.security` |
+| **Reports** | `reports.view`, `reports.export`, `reports.schedule`, `reports.financial` |
+
+#### Role Hierarchy (7 Roles)
+
+| Role | Scope | Permission Count |
+|------|-------|-----------------|
+| **Admin** | Full system access | All 49 |
+| **Provider** | Clinical, patients, appointments, limited billing/lab | ~28 |
+| **Nurse** | Clinical view, vitals, patient view, appointments | ~14 |
+| **Receptionist** | Patient registration, appointment scheduling, check-in/out | ~12 |
+| **LabTechnician** | Lab orders, results, verification | ~8 |
+| **Pharmacist** | Pharmacy dispensing, verification, inventory | ~7 |
+| **BillingClerk** | Billing view, create, edit | ~6 |
+
+#### Architecture
+
+```
+[HasPermission("patients.view")]
+REST Controller / Minimal API
+        │
+        ▼
+AuthorizationPoliciesExtensions.cs    ← Registers named policies per permission
+        │
+        ▼
+PermissionHandler.cs                  ← ASP.NET Core AuthorizationHandler
+        │
+        ├── Extracts "permissions" claim from JWT (comma-separated codes)
+        ├── Checks exact permission code match
+        └── Falls back to "role" claim → role → mapped permissions
+```
+
+**JWT Token Claims:**
+```json
+{
+  "sub": "user-guid",
+  "role": "Provider",
+  "permissions": "patients.view,patients.create,appointments.view,clinical.view,...",
+  "exp": 1709301234,
+  "iss": "his-hope-identity-service"
+}
+```
+
+**Code Locations:**
+- `src/Shared/SharedKernel/HisHopePermissions.cs` — Permission constants (49 codes)
+- `src/Shared/Infrastructure/AuthorizationPoliciesExtensions.cs` — Maps permissions → ASP.NET policies
+- `src/Services/IdentityService/.../PermissionHandler.cs` — Runtime authorization handler
+
+#### Angular Frontend Guards
+
+| Guard | Purpose |
+|-------|---------|
+| **RoleGuard** | Route-level role check (`data.roles: ['Admin', 'Provider']`) |
+| **PermissionGuard** | Route-level permission check (`data.permissions: ['patients.view']`) |
+| **`*hasPermission`** | Structural directive — hides/shows elements based on permission |
+| **`*hasRole`** | Structural directive — hides/shows elements based on role |
+
+#### Database Schema
+
+```sql
+CREATE TABLE Roles (
+    Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    Name VARCHAR(50) NOT NULL UNIQUE,
+    Description TEXT
+);
+
+CREATE TABLE Permissions (
+    Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    Code VARCHAR(100) NOT NULL UNIQUE,
+    Module VARCHAR(50) NOT NULL,
+    Description TEXT
+);
+
+CREATE TABLE RolePermissions (
+    RoleId UUID NOT NULL REFERENCES Roles(Id),
+    PermissionId UUID NOT NULL REFERENCES Permissions(Id),
+    PRIMARY KEY (RoleId, PermissionId)
+);
+```
+
+All seed data (49 permissions, 7 roles, role-permission mappings) is applied in migration **013-identity-extensions**.
+
+### 8.6 Availability
 
 | Mechanism | Implementation |
 |-----------|---------------|
@@ -682,7 +802,7 @@ X-RateLimit-Reset: 1709301234
 }
 ```
 
-### 8.6 Observability
+### 8.7 Observability
 
 #### OpenTelemetry Pipeline
 
@@ -835,6 +955,111 @@ CREATE INDEX idx_outbox_status ON OutboxMessages (Status, OccurredOn)
     WHERE Status = 'Pending' AND (LockExpiresAt IS NULL OR LockExpiresAt < NOW());
 ```
 
+### 9.4 Database Security Architecture
+
+#### Per-Service Database Users (Least Privilege)
+
+7 dedicated CockroachDB users with column-level GRANT — one per service:
+
+| User | Database | Scope |
+|------|----------|-------|
+| `svc_identity` | `his_hope_identity` | Users, roles, permissions, refresh tokens |
+| `svc_patient` | `his_hope_patient` | Patients, allergies, conditions |
+| `svc_appointment` | `his_hope_appointment` | Appointments, scheduling |
+| `svc_clinical` | `his_hope_clinical` | Encounters, vitals, diagnoses, SOAP notes |
+| `svc_lab` | `his_hope_lab` | Lab orders, results, panels |
+| `svc_billing` | `his_hope_billing` | Invoices, payments, claims |
+| `svc_pharmacy` | `his_hope_pharmacy` | Medications, dispensing, inventory |
+
+Each user is granted `SELECT, INSERT, UPDATE, DELETE` only on its own tables — no `DROP`, no `ALTER`, no cross-database access. Defined in migration **010-database-roles**.
+
+#### Row-Level Security (Multi-Tenant Isolation)
+
+16 security views with `current_setting()` session variables enforce row-level isolation:
+
+```sql
+CREATE VIEW vw_tenanted_patients AS
+SELECT * FROM Patients
+WHERE tenant_id = current_setting('his_hope.tenant_id');
+
+CREATE VIEW vw_tenanted_appointments AS
+SELECT * FROM Appointments
+WHERE tenant_id = current_setting('his_hope.tenant_id');
+```
+
+All service queries go through security views — the `tenant_id` session variable is set at connection open by the backend. Defined in migration **011-row-level-security**.
+
+#### Audit Trail
+
+Every PHI table has an audit trigger via `sp_insert_audit_log`:
+
+```sql
+CREATE TABLE audit_log (
+    Id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    TableName     VARCHAR(200) NOT NULL,
+    RecordId      UUID NOT NULL,
+    Operation     VARCHAR(10) NOT NULL,   -- INSERT, UPDATE, DELETE
+    OldValues     JSONB,
+    NewValues     JSONB,
+    ChangedBy     VARCHAR(100),
+    ChangedAt     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CorrelationId VARCHAR(200)
+);
+
+CREATE PROCEDURE sp_insert_audit_log(
+    p_table_name VARCHAR(200),
+    p_record_id UUID,
+    p_operation VARCHAR(10),
+    p_old_values JSONB,
+    p_new_values JSONB,
+    p_changed_by VARCHAR(100)
+) AS $$ ... $$ LANGUAGE plpgsql;
+```
+
+Audit triggers are attached to all PHI tables in migration **012-audit-triggers**.
+
+#### Additional Identity Tables (Migration 013)
+
+| Table | Purpose |
+|-------|---------|
+| `RefreshTokenStore` | Durable token rotation with family tracking and theft detection |
+| `SystemSettings` | Centralized configuration (key-value with JSONB values) |
+| `Permissions`, `Roles`, `RolePermissions` | Full RBAC seed data (see §8.5) |
+
+```sql
+CREATE TABLE RefreshTokenStore (
+    Id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    UserId      VARCHAR(100) NOT NULL,
+    Token       VARCHAR(500) NOT NULL UNIQUE,
+    FamilyId    VARCHAR(100) NOT NULL,
+    IsRevoked   BOOLEAN NOT NULL DEFAULT FALSE,
+    RevokedReason VARCHAR(200),
+    CreatedAt   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ExpiresAt   TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX idx_refresh_token_family ON RefreshTokenStore (FamilyId);
+CREATE INDEX idx_refresh_token_user ON RefreshTokenStore (UserId);
+```
+
+#### Complete Migration Chain
+
+```
+001-create-databases.sql          ← 7 databases
+002-patient-service.sql           ← Patients, allergies, conditions
+003-identity-service.sql          ← Users, roles (original)
+004-appointment-service.sql       ← Appointments, scheduling
+005-clinical-service.sql          ← Encounters, vitals, diagnoses, SOAP
+006-lab-service.sql               ← Lab orders, panels, results
+007-billing-service.sql           ← Invoices, payments, claims
+008-pharmacy-service.sql          ← Medications, dispensing, inventory
+009-seed-data.sql                 ← Initial lookup data
+010-database-roles.sql            ← Per-service DB users + column GRANT
+011-row-level-security.sql        ← 16 RLS security views
+012-audit-triggers.sql            ← audit_log + triggers on all PHI tables
+013-identity-extensions.sql       ← RefreshTokenStore, SystemSettings, RBAC seed data
+```
+
 ---
 
 ## 10. API Design
@@ -964,6 +1189,129 @@ Region: us-east1 (Primary)      Region: europe-west1 (Secondary)   Region: asia-
 | **Jaeger** | 1 core | 2 GB | 20 GB | 2 |
 | **Prometheus** | 2 cores | 8 GB | 100 GB SSD | 2 (HA) |
 | **Grafana** | 1 core | 2 GB | — | 1 |
+
+### 11.4 K8s Security Hardening
+
+| Mechanism | Implementation | Details |
+|-----------|---------------|---------|
+| **NetworkPolicies** | K8s native + Cilium (defense-in-depth) | Default-deny per namespace + per-service allow rules |
+| **Label Alignment** | `app:` label | Both CiliumNetworkPolicy and K8s NetworkPolicy use `app:` selector |
+| **Seccomp** | `RuntimeDefault` on all containers | Custom `restricted`/`strict` profiles available for production |
+| **QoS Class** | `Guaranteed` | `resources.requests == resources.limits` on all services |
+| **Image Digest Pinning** | Kustomize component | Production overlays pin images by SHA256 digest |
+| **Service Account** | `automountServiceAccountToken: false` | All app pods block default token mount |
+
+#### K8s NetworkPolicy (defense-in-depth with Cilium)
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: patient-service-deny-all
+  namespace: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: patient-service
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: api-gateway
+    ports:
+    - port: 5002
+      protocol: TCP
+    - port: 5006
+      protocol: TCP
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: cockroachdb
+    ports:
+    - port: 26257
+      protocol: TCP
+```
+
+#### Pod Security Context
+
+```yaml
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1654
+  runAsGroup: 1654
+  fsGroup: 1654
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  readOnlyRootFilesystem: true
+  seccompProfile:
+    type: RuntimeDefault
+```
+
+#### Image Digest Pinning (Kustomize Component — Production Only)
+
+```yaml
+# k8s/overlays/prod/kustomization.yaml
+components:
+  - ../../components/image-digest
+
+images:
+  - name: patient-service
+    digest: sha256:abc123...
+  - name: identity-service
+    digest: sha256:def456...
+```
+
+### 11.5 Container Security Architecture
+
+#### Distroless Migration
+
+| Component | Old Image | New Image | Rationale |
+|-----------|-----------|-----------|-----------|
+| **All .NET services** | `mcr.microsoft.com/dotnet/aspnet:8.0-alpine` | `mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled` | Zero shell, zero package manager, FIPS-compliant |
+| **Health checks** | Built-in curl | `curlimages/curl` (multi-stage copy) | Chiseled images have no shell/curl |
+
+```dockerfile
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled AS final
+FROM curlimages/curl:latest AS curl
+FROM final
+COPY --from=curl /usr/bin/curl /usr/bin/curl
+USER app
+```
+
+#### Non-Root Execution
+
+All containers run as non-root user `app` (UID 1654):
+
+```yaml
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1654
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  readOnlyRootFilesystem: true
+```
+
+#### PodSecurityStandard
+
+Namespace-level `restricted` enforcement:
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: his-hope
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+```
 
 ---
 
@@ -1112,7 +1460,46 @@ spec:
 
 ### 13.5 Authorization (Server + ServerAuthorization)
 
+Every service now has a `Server` + `ServerAuthorization` pair, including **lab**, **billing**, and **pharmacy** services:
+
+| Service | Server | Authorization | Status |
+|---------|--------|---------------|--------|
+| **patient-service** | `patient-service` | `patient-service-grpc` | ✅ |
+| **identity-service** | `identity-service` | `identity-service-http` (fixed), `identity-service-grpc` | ✅ |
+| **appointment-service** | `appointment-service` | `appointment-service-grpc` | ✅ |
+| **clinical-service** | `clinical-service` | `clinical-service-grpc` | ✅ |
+| **lab-service** | `lab-service` | `lab-service-grpc` | ✅ |
+| **billing-service** | `billing-service` | `billing-service-grpc` | ✅ |
+| **pharmacy-service** | `pharmacy-service` | `pharmacy-service-grpc` | ✅ |
+
+> **Fixed:** The `identity-service-http` Server previously allowed unauthenticated access (`unauthenticated: true`) — this has been corrected to require meshTLS identities for all clients.
+
 ```yaml
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: identity-service
+  namespace: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: identity-service
+  port: 5003
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  name: identity-service-http
+  namespace: his-hope
+spec:
+  server:
+    name: identity-service
+  client:
+    meshTLS:
+      identities:
+        - "*.his-hope.serviceaccount.identity.cluster.local"
+---
 apiVersion: policy.linkerd.io/v1beta1
 kind: ServerAuthorization
 metadata:
@@ -1582,8 +1969,26 @@ bash vault/init.sh
 
 ### 21.4 Running Migrations
 
+CockroachDB migrations are applied sequentially via K8s Job. The full chain:
+
+```
+001-create-databases.sql          ← 7 databases (identity, patient, appointment, clinical, lab, billing, pharmacy)
+002-patient-service.sql           ← Patients, allergies, conditions
+003-identity-service.sql          ← Users, roles (ASP.NET Identity tables)
+004-appointment-service.sql       ← Appointments, scheduling
+005-clinical-service.sql          ← Encounters, vitals, diagnoses, SOAP notes
+006-lab-service.sql               ← Lab orders, panels, results
+007-billing-service.sql           ← Invoices, payments, claims
+008-pharmacy-service.sql          ← Medications, dispensing, inventory
+009-seed-data.sql                 ← Initial lookup data (genders, blood types, etc.)
+010-database-roles.sql            ← 7 per-service least-privilege CRDB users + column-level GRANT
+011-row-level-security.sql        ← 16 security views for multi-tenant row isolation
+012-audit-triggers.sql            ← audit_log table + sp_insert_audit_log + triggers on all PHI tables
+013-identity-extensions.sql       ← RefreshTokenStore, SystemSettings, RBAC tables + seed data (49 permissions, 7 roles)
+```
+
 ```bash
-# CockroachDB migrations (K8s Job)
+# CockroachDB migrations (K8s Job — applies all 13 migrations sequentially)
 kubectl apply -f cockroach/config/migration-job.yaml
 
 # EF Core migrations (development)
@@ -1609,7 +2014,11 @@ His.Hope/
 ├── docs/
 │   ├── architecture.md                                        # This document
 │   ├── enterprise-roadmap.md                                  # Google-scale roadmap
-│   └── linkerd-guide.md                                       # Linkerd setup guide
+│   ├── linkerd-guide.md                                       # Linkerd setup guide
+│   └── security/
+│       ├── hipaa-compliance.md                                # HIPAA control mapping (§164.3xx)
+│       ├── hardening-summary.md                               # Container + K8s hardening log
+│       └── cosign-image-signing.md                            # Cosign signing workflow
 │
 ├── k8s/
 │   ├── base/                                                  # Base K8s manifests
@@ -1617,11 +2026,16 @@ His.Hope/
 │   │   ├── identity-service.yaml
 │   │   ├── appointment-service.yaml
 │   │   ├── clinical-service.yaml
+│   │   ├── lab-service.yaml
+│   │   ├── billing-service.yaml
+│   │   ├── pharmacy-service.yaml
 │   │   ├── postgres.yaml                                      # PostgreSQL StatefulSet
 │   │   ├── rabbitmq.yaml                                      # RabbitMQ StatefulSet
 │   │   ├── redis.yaml                                         # Redis StatefulSet
 │   │   ├── namespace.yaml                                     # All namespaces
 │   │   └── kustomization.yaml
+│   ├── components/                                            # Reusable Kustomize components
+│   │   └── image-digest/                                      # Image SHA256 digest pinning
 │   ├── overlays/                                              # Environment overlays
 │   │   ├── dev/kustomization.yaml
 │   │   ├── staging/kustomization.yaml
@@ -1674,6 +2088,9 @@ His.Hope/
 │   ├── redis/                                                # Redis Cluster
 │   │   ├── redis-cluster.yaml
 │   │   └── redis-cluster-init.yaml
+│   ├── network-policies/                                      # K8s native NetworkPolicies
+│   │   ├── default-deny.yaml                                  # Default deny per namespace
+│   │   └── per-service.yaml                                   # Per-service allow rules
 │   ├── finops/                                               # Cost management
 │   │   ├── kubecost-install.yaml
 │   │   ├── resource-quotas.yaml
@@ -1724,6 +2141,14 @@ His.Hope/
 │       ├── 003-identity-service.sql
 │       ├── 004-appointment-service.sql
 │       ├── 005-clinical-service.sql
+│       ├── 006-lab-service.sql
+│       ├── 007-billing-service.sql
+│       ├── 008-pharmacy-service.sql
+│       ├── 009-seed-data.sql
+│       ├── 010-database-roles.sql
+│       ├── 011-row-level-security.sql
+│       ├── 012-audit-triggers.sql
+│       ├── 013-identity-extensions.sql
 │       └── run-migrations.sh
 │
 ├── vault/
@@ -1733,9 +2158,15 @@ His.Hope/
 │   └── policies/
 │       ├── patient-service.hcl
 │       ├── identity-service.hcl
+│       ├── appointment-service.hcl
 │       ├── clinical-service.hcl
+│       ├── lab-service.hcl
+│       ├── billing-service.hcl
+│       ├── pharmacy-service.hcl
 │       ├── admin.hcl
-│       └── approle.hcl
+│       ├── approle.hcl
+│       ├── token-blacklist.hcl
+│       └── readonly-monitoring.hcl
 │
 ├── backstage/
 │   ├── app-config.yaml
@@ -1798,7 +2229,7 @@ His.Hope/
 │   ├── ApiGateway/                                          # YARP Gateway
 │   ├── Shared/
 │   │   ├── Protos/                                          # gRPC contracts
-│   │   ├── SharedKernel/                                    # DDD foundation
+│   │   ├── SharedKernel/                                    # DDD foundation + HisHopePermissions.cs
 │   │   ├── EventBus/                                        # Messaging
 │   │   └── Infrastructure/                                  # Enterprise features
 │   └── Services/

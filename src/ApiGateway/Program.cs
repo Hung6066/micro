@@ -1,4 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
+using System.Threading.RateLimiting;
 using His.Hope.Infrastructure.Security;
 using Serilog;
 
@@ -7,13 +8,45 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration));
 
+// SECURITY: CORS configured with explicit allowed origins from configuration.
+// FIXED: Replaced AllowAnyOrigin() with specific origins - AllowAnyOrigin() is incompatible
+// with AllowCredentials() and is a security risk in healthcare applications.
+var allowedOrigins = builder.Configuration.GetValue<string>("CORS:AllowedOrigins", "")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        if (allowedOrigins.Length > 0)
+        {
+            // SECURITY: Only allow specific origins that are explicitly configured.
+            // This prevents arbitrary cross-origin requests to the API gateway.
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .WithExposedHeaders("Authorization")
+                  .AllowCredentials();  // Required for JWT bearer auth with cookies
+        }
+        else
+        {
+            // SECURITY: No origins configured - use permissive policy only in development
+            // This should NEVER happen in production
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .WithExposedHeaders("Authorization");
+        }
+    });
+});
+
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
 builder.Services.AddGrpc();
 builder.Services.AddHealthChecks();
 
-// Rate limiting per IP for the gateway
+// === Rate limiting per IP + per user for the gateway ===
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = 429;
@@ -30,21 +63,39 @@ builder.Services.AddRateLimiter(options =>
 
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.ListenAnyIP(5000, listenOptions =>
+    var env = builder.Environment;
+    if (env.IsDevelopment())
     {
-        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-        listenOptions.UseHttps(httpsOptions =>
+        // Development: HTTP only on port 5000
+        options.ListenAnyIP(5000, listenOptions =>
         {
-            httpsOptions.ServerCertificate = LoadCertificate(builder.Configuration);
-            httpsOptions.ClientCertificateMode = Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.NoCertificate;
-            httpsOptions.CheckCertificateRevocation = false;
+            listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
         });
-    });
+    }
+    else
+    {
+        // Production: HTTPS on 5000, HTTP on 5011
+        options.ListenAnyIP(5000, listenOptions =>
+        {
+            listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+            listenOptions.UseHttps(httpsOptions =>
+            {
+                httpsOptions.ServerCertificate = LoadCertificate(builder.Configuration);
+                httpsOptions.ClientCertificateMode = Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.NoCertificate;
+                httpsOptions.CheckCertificateRevocation = false;
+            });
+        });
+        options.ListenAnyIP(5011, listenOptions =>
+        {
+            listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+        });
+    }
 });
 
 var app = builder.Build();
 
 app.UseSecurityHeaders();
+app.UseCors();  // Must be after UseSecurityHeaders, before UseRateLimiter
 app.UseRateLimiter();
 app.UseSerilogRequestLogging();
 
@@ -55,7 +106,7 @@ app.MapGet("/", () => Results.Ok(new
     service = "His.Hope API Gateway",
     version = "1.0.0",
     status = "running",
-    endpoints = new[] { "/api/v1/auth", "/api/v1/patients", "/api/v1/appointments", "/api/v1/encounters" }
+    endpoints = new[] { "/api/v1/auth", "/api/v1/patients", "/api/v1/appointments", "/api/v1/encounters", "/api/v1/invoices", "/api/v1/lab-orders", "/api/v1/medications", "/api/v1/prescriptions" }
 }));
 
 app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions

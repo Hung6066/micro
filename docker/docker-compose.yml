@@ -1,18 +1,16 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
     container_name: his-hope-postgres
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_MULTIPLE_DATABASES: his_hope_identity,his_hope_patient,his_hope_appointment,his_hope_clinical
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_MULTIPLE_DATABASES: identitydb,patientdb,appointmentdb,clinicaldb,his_hope_lab,his_hope_billing,his_hope_pharmacy
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
     ports:
-      - "5432:5432"
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -29,11 +27,11 @@ services:
     container_name: his-hope-postgres-replica
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
       - postgres_replica_data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"
+      - "5434:5432"
     depends_on:
       - postgres
     profiles: ["replica"]
@@ -51,6 +49,7 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
+      retries: 5
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -59,9 +58,8 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: admin
-      RABBITMQ_VM_MEMORY_HIGH_WATERMARK: "0.8"
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-admin}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-admin}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     restart: unless-stopped
@@ -83,6 +81,11 @@ services:
     volumes:
       - es_data:/usr/share/elasticsearch/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   kibana:
     image: kibana:8.12.0
@@ -92,7 +95,7 @@ services:
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
     depends_on:
-      - elasticsearch
+      elasticsearch: { condition: service_healthy }
 
   consul:
     image: hashicorp/consul:1.18
@@ -104,6 +107,11 @@ services:
     volumes:
       - consul_data:/consul/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   jaeger:
     image: jaegertracing/all-in-one:1.55
@@ -122,6 +130,11 @@ services:
     volumes:
       - jaeger_data:/badger
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:16686/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   prometheus:
     image: prom/prometheus:v2.51.0
@@ -136,6 +149,11 @@ services:
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=30d'
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   grafana:
     image: grafana/grafana:10.4.0
@@ -143,13 +161,18 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
     volumes:
       - grafana_data:/var/lib/grafana
     depends_on:
-      - prometheus
+      prometheus: { condition: service_healthy }
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   # Application Services
   identityservice:
@@ -161,21 +184,22 @@ services:
       - "5001:5001"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      ASPNETCORE_URLS: https://+:5001
-      ConnectionStrings__IdentityDb: Host=postgres;Database=his_hope_identity;Username=postgres;Password=postgres
-      Jwt__Key: "super-secret-key-his-hope-2024-at-least-32-chars!"
+      ASPNETCORE_URLS: http://+:5001
+      ConnectionStrings__IdentityDb: Host=postgres;Database=identitydb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
       Jwt__Issuer: his-hope-identity
       Jwt__Audience: his-hope-gateway
       Jwt__Expiry: "08:00:00"
-      Certificates__Server__Path: /certs/server.pfx
-      Certificates__Server__Password: his-hope-dev
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
-    volumes:
-      - certs_data:/certs:ro
     depends_on:
       postgres: { condition: service_healthy }
-      jaeger: { condition: service_started }
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   patientservice:
     build:
@@ -187,25 +211,24 @@ services:
       - "5006:5006"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      ASPNETCORE_URLS: https://+:5002
-      ConnectionStrings__PatientDb: Host=postgres;Database=his_hope_patient;Username=postgres;Password=postgres
+      ASPNETCORE_URLS: http://+:5002
+      ConnectionStrings__PatientDb: Host=postgres;Database=patientdb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
       EventBus__HostName: rabbitmq
-      EventBus__UserName: admin
-      EventBus__Password: admin
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
-      Certificates__Server__Path: /certs/server.pfx
-      Certificates__Server__Password: his-hope-dev
-      Certificates__Client__Path: /certs/client.pfx
-      Certificates__Client__Password: his-hope-dev
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
-    volumes:
-      - certs_data:/certs:ro
     depends_on:
       postgres: { condition: service_healthy }
-      rabbitmq: { condition: service_started }
-      redis: { condition: service_started }
-      jaeger: { condition: service_started }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   appointmentservice:
     build:
@@ -217,25 +240,25 @@ services:
       - "5007:5007"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      ASPNETCORE_URLS: https://+:5003
-      GrpcServices__PatientService: https://patientservice:5006
+      ASPNETCORE_URLS: http://+:5003
+      ConnectionStrings__AppointmentDb: Host=postgres;Database=appointmentdb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      GrpcServices__PatientService: http://patientservice:5006
       EventBus__HostName: rabbitmq
-      EventBus__UserName: admin
-      EventBus__Password: admin
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
-      Certificates__Server__Path: /certs/server.pfx
-      Certificates__Server__Password: his-hope-dev
-      Certificates__Client__Path: /certs/client.pfx
-      Certificates__Client__Password: his-hope-dev
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
-    volumes:
-      - certs_data:/certs:ro
     depends_on:
-      - patientservice
-      - rabbitmq
-      - redis
-      - jaeger
+      patientservice: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   clinicalservice:
     build:
@@ -246,27 +269,119 @@ services:
       - "5004:5004"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      ASPNETCORE_URLS: https://+:5004
-      GrpcServices__PatientService: https://patientservice:5006
-      GrpcServices__AppointmentService: https://appointmentservice:5007
+      ASPNETCORE_URLS: http://+:5004
+      ConnectionStrings__ClinicalDb: Host=postgres;Database=clinicaldb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      GrpcServices__PatientService: http://patientservice:5006
+      GrpcServices__AppointmentService: http://appointmentservice:5007
       EventBus__HostName: rabbitmq
-      EventBus__UserName: admin
-      EventBus__Password: admin
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
-      Certificates__Server__Path: /certs/server.pfx
-      Certificates__Server__Password: his-hope-dev
-      Certificates__Client__Path: /certs/client.pfx
-      Certificates__Client__Password: his-hope-dev
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
-    volumes:
-      - certs_data:/certs:ro
     depends_on:
-      - patientservice
-      - appointmentservice
-      - rabbitmq
-      - redis
-      - jaeger
+      patientservice: { condition: service_healthy }
+      appointmentservice: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5004/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  labservice:
+    build:
+      context: ..
+      dockerfile: src/Services/LabService/LabService.Api/Dockerfile
+    container_name: his-hope-lab
+    ports:
+      - "5010:5010"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:5010
+      ConnectionStrings__LabDb: Host=postgres;Database=his_hope_lab;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      GrpcServices__PatientService: http://patientservice:5006
+      GrpcServices__ClinicalService: http://clinicalservice:5004
+      EventBus__HostName: rabbitmq
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Redis__ConnectionString: redis:6379
+      OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  billingservice:
+    build:
+      context: ..
+      dockerfile: src/Services/BillingService/BillingService.Api/Dockerfile
+    container_name: his-hope-billing
+    ports:
+      - "5020:5020"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:5020
+      ConnectionStrings__BillingDb: Host=postgres;Database=his_hope_billing;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      GrpcServices__PatientService: http://patientservice:5006
+      GrpcServices__AppointmentService: http://appointmentservice:5007
+      GrpcServices__LabService: http://labservice:5010
+      GrpcServices__PharmacyService: http://pharmacyservice:5030
+      EventBus__HostName: rabbitmq
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Redis__ConnectionString: redis:6379
+      OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5020/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  pharmacyservice:
+    build:
+      context: ..
+      dockerfile: src/Services/PharmacyService/PharmacyService.Api/Dockerfile
+    container_name: his-hope-pharmacy
+    ports:
+      - "5030:5030"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:5030
+      ConnectionStrings__PharmacyDb: Host=postgres;Database=his_hope_pharmacy;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      GrpcServices__PatientService: http://patientservice:5006
+      GrpcServices__ClinicalService: http://clinicalservice:5004
+      EventBus__HostName: rabbitmq
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      Redis__ConnectionString: redis:6379
+      OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5030/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   apigateway:
     build:
@@ -276,42 +391,51 @@ services:
       - "5000:5000"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      ASPNETCORE_URLS: https://+:5000
-      Certificates__Path: /certs/server.pfx
-      Certificates__Password: his-hope-dev
-    volumes:
-      - certs_data:/certs:ro
+      ASPNETCORE_URLS: http://+:5000
     depends_on:
-      - identityservice
-      - patientservice
-      - appointmentservice
-      - clinicalservice
+      identityservice: { condition: service_healthy }
+      patientservice: { condition: service_healthy }
+      appointmentservice: { condition: service_healthy }
+      clinicalservice: { condition: service_healthy }
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   frontend:
     build:
       context: ../src/Frontend/his-hope-app
     container_name: his-hope-frontend
     ports:
-      - "4200:80"
+      - "4200:8080"
     depends_on:
-      - apigateway
+      apigateway: { condition: service_healthy }
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
 
   # Certificate Generator (one-time)
   certgen:
     image: mcr.microsoft.com/dotnet/sdk:8.0
     container_name: his-hope-certgen
+    profiles: ["setup"]
     volumes:
       - certs_data:/certs
     entrypoint:
       - /bin/sh
       - -c
       - |
-        dotnet dev-certs https --export-path /certs/server.pfx --password "his-hope-dev" --format Pfx &&
+        dotnet dev-certs https --export-path /certs/server.pfx --password "${CERT_PASSWORD:-his-hope-dev}" --format Pfx &&
         dotnet dev-certs https --trust &&
-        echo "Certificates generated" &&
-        tail -f /dev/null
+        echo "Certificates generated"
+    restart: "no"
 
 volumes:
   postgres_data:

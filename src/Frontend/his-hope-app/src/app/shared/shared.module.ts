@@ -17,6 +17,8 @@ import { MatNativeDateModule, MatRippleModule } from '@angular/material/core';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatSortModule } from '@angular/material/sort';
 import { MatMenuModule } from '@angular/material/menu';
@@ -27,23 +29,45 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatRadioModule } from '@angular/material/radio';
 import { MatTabsModule } from '@angular/material/tabs';
 import { SidebarComponent } from './components/sidebar/sidebar.component';
+import { LoadingSpinnerComponent } from './components/loading-spinner/loading-spinner.component';
+import { EmptyStateComponent } from './components/empty-state/empty-state.component';
+import { ConfirmDialogComponent } from './components/confirm-dialog/confirm-dialog.component';
+import { HasPermissionDirective } from '@core/directives/has-permission.directive';
+import { HasRoleDirective } from '@core/directives/has-role.directive';
 
 const materialModules = [
   MatToolbarModule, MatSidenavModule, MatListModule, MatButtonModule,
   MatIconModule, MatCardModule, MatTableModule, MatFormFieldModule,
   MatInputModule, MatSelectModule, MatDatepickerModule, MatNativeDateModule,
   MatDialogModule, MatSnackBarModule, MatProgressSpinnerModule,
+  MatProgressBarModule, MatAutocompleteModule,
   MatPaginatorModule, MatSortModule, MatMenuModule, MatBadgeModule,
   MatChipsModule, MatTooltipModule, MatCheckboxModule, MatRadioModule,
   MatTabsModule, MatRippleModule,
 ];
 
 @NgModule({
-  declarations: [SidebarComponent],
-  imports: [CommonModule, RouterModule, ...materialModules],
+  declarations: [
+    SidebarComponent,
+    LoadingSpinnerComponent,
+    EmptyStateComponent,
+    ConfirmDialogComponent,
+  ],
+  imports: [
+    CommonModule, ReactiveFormsModule, FormsModule, RouterModule,
+    ...materialModules,
+    HasPermissionDirective,
+    HasRoleDirective,
+  ],
   exports: [
     CommonModule, ReactiveFormsModule, FormsModule,
-    ...materialModules, SidebarComponent,
+    ...materialModules,
+    SidebarComponent,
+    LoadingSpinnerComponent,
+    EmptyStateComponent,
+    ConfirmDialogComponent,
+    HasPermissionDirective,
+    HasRoleDirective,
   ],
 })
 export class SharedModule {}

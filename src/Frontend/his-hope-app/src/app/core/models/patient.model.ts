@@ -70,11 +70,4 @@ export interface CreatePatientRequest {
   nationalId?: string;
 }
 
-export interface PagedResult<T> {
-  items: T[];
-  totalCount: number;
-  page: number;
-  pageSize: number;
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
-}
+export { PagedResult } from './paged-result.model';

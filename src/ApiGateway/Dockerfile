@@ -4,8 +4,14 @@ COPY . .
 RUN dotnet restore "ApiGateway.csproj"
 RUN dotnet publish "ApiGateway.csproj" -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM curlimages/curl:8.12.1 AS curl
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled AS runtime
 WORKDIR /app
 EXPOSE 8080
 COPY --from=build /app/publish .
+COPY --from=curl /usr/bin/curl /usr/bin/curl
+# Chiseled images use 'app' user (UID 1654) — no shell, no package manager
+# No RUN adduser needed; user already exists with correct permissions
+USER app
 ENTRYPOINT ["dotnet", "ApiGateway.dll"]

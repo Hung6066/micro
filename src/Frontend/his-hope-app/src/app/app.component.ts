@@ -1,20 +1,64 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Subject, takeUntil } from 'rxjs';
+import { AuthService } from '@core/services/auth.service';
 
 @Component({
   selector: 'app-root',
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-sidebar *ngIf="isLoggedIn"></app-sidebar>
-    <div class="main-content" [class.with-sidebar]="isLoggedIn">
-      <router-outlet></router-outlet>
-    </div>
+    <mat-sidenav-container class="app-sidenav-container">
+      <mat-sidenav #sidenav mode="side" [opened]="isLoggedIn && sidenavOpened"
+                   *ngIf="isLoggedIn">
+        <app-sidebar [sidenavOpened]="sidenavOpened"
+                     (toggle)="toggleSidenav()"></app-sidebar>
+      </mat-sidenav>
+      <mat-sidenav-content>
+        <div class="main-content" id="main-content">
+          <router-outlet></router-outlet>
+        </div>
+      </mat-sidenav-content>
+    </mat-sidenav-container>
   `,
   styles: [`
-    .main-content { min-height: 100vh; }
-    .main-content.with-sidebar { margin-left: 260px; padding: 24px; }
+    .app-sidenav-container { height: 100vh; background: var(--bg-warm, #F7F6F3); }
+    .app-sidenav-container .mat-drawer-side { border-right: 1px solid var(--border-default, #EAEAEA); }
+    .main-content { min-height: 100vh; padding: 0; }
+    :host ::ng-deep .mat-drawer-inner-container { overflow-x: hidden; }
   `],
 })
-export class AppComponent {
-  get isLoggedIn(): boolean {
-    return !!localStorage.getItem('access_token');
+export class AppComponent implements OnInit, OnDestroy {
+  private destroy$ = new Subject<void>();
+  isLoggedIn = false;
+  sidenavOpened = true;
+
+  constructor(
+    private authService: AuthService,
+    private cdr: ChangeDetectorRef,
+  ) {}
+
+  toggleSidenav(): void {
+    this.sidenavOpened = !this.sidenavOpened;
+  }
+
+  ngOnInit(): void {
+    this.authService.isLoggedIn()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((loggedIn) => {
+        this.isLoggedIn = loggedIn;
+        this.cdr.markForCheck();
+      });
+
+    // Also reactively respond to auth state changes
+    this.authService.currentUser$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((user) => {
+        this.isLoggedIn = !!user;
+        this.cdr.markForCheck();
+      });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 }

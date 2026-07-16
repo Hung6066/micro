@@ -25,15 +25,18 @@ public class PatientConfiguration : IEntityTypeConfiguration<Patient>
             name.Property(n => n.FirstName).HasColumnName("FirstName").HasMaxLength(100).IsRequired();
             name.Property(n => n.LastName).HasColumnName("LastName").HasMaxLength(100).IsRequired();
             name.Property(n => n.MiddleName).HasColumnName("MiddleName").HasMaxLength(100);
+            name.HasIndex(n => new { n.LastName, n.FirstName });
         });
 
         builder.Property(p => p.DateOfBirth).IsRequired();
 
-        builder.OwnsOne(p => p.Gender, gender =>
-        {
-            gender.Property(g => g.Code).HasColumnName("Gender").HasMaxLength(10).IsRequired();
-            gender.Ignore(g => g.Name);
-        });
+        builder.Property(p => p.Gender)
+            .HasConversion(
+                g => g == null ? null : g.Code,
+                code => code == null ? null : His.Hope.PatientService.Domain.ValueObjects.Gender.FromCode(code))
+            .HasColumnName("Gender")
+            .HasMaxLength(10)
+            .IsRequired();
 
         builder.OwnsOne(p => p.ContactInfo, contact =>
         {
@@ -51,23 +54,31 @@ public class PatientConfiguration : IEntityTypeConfiguration<Patient>
             address.Property(a => a.Country).HasColumnName("Country").HasMaxLength(100).IsRequired();
         });
 
-        builder.OwnsOne(p => p.BloodType, bt =>
-        {
-            bt.Property(b => b.Code).HasColumnName("BloodType").HasMaxLength(10);
-            bt.Ignore(b => b.Name);
-        });
+        builder.Property(p => p.BloodType)
+            .HasConversion(
+                bt => bt == null ? null : bt.Code,
+                code => code == null ? null : His.Hope.PatientService.Domain.ValueObjects.BloodType.FromCode(code))
+            .HasColumnName("BloodType")
+            .HasMaxLength(10);
 
-        builder.OwnsOne(p => p.Race, race =>
-        {
-            race.Property(r => r.Code).HasColumnName("Race").HasMaxLength(20);
-            race.Ignore(r => r.Name);
-        });
+        // Simple enumeration types stored as code strings
+        var convertEnum = new ValueConverter<His.Hope.SharedKernel.Domain.Common.Enumeration<His.Hope.PatientService.Domain.ValueObjects.Race>, string>(
+            e => e.Code,
+            s => s == null ? null : His.Hope.PatientService.Domain.ValueObjects.Race.FromCode(s));
 
-        builder.OwnsOne(p => p.MaritalStatus, ms =>
-        {
-            ms.Property(m => m.Code).HasColumnName("MaritalStatus").HasMaxLength(10);
-            ms.Ignore(m => m.Name);
-        });
+        builder.Property(p => p.Race)
+            .HasConversion(
+                r => r == null ? null : r.Code,
+                code => code == null ? null : His.Hope.PatientService.Domain.ValueObjects.Race.FromCode(code))
+            .HasColumnName("Race")
+            .HasMaxLength(20);
+
+        builder.Property(p => p.MaritalStatus)
+            .HasConversion(
+                ms => ms == null ? null : ms.Code,
+                code => code == null ? null : His.Hope.PatientService.Domain.ValueObjects.MaritalStatus.FromCode(code))
+            .HasColumnName("MaritalStatus")
+            .HasMaxLength(10);
 
         builder.Property(p => p.InsuranceId).HasMaxLength(50);
         builder.Property(p => p.NationalId).HasMaxLength(50);
@@ -89,7 +100,9 @@ public class PatientConfiguration : IEntityTypeConfiguration<Patient>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(p => p.IsActive);
-        builder.HasIndex("ContactInfo_Phone").IsUnique().HasFilter("\"IsActive\" = true");
-        builder.HasIndex("Name_LastName", "Name_FirstName");
+        builder.OwnsOne(p => p.ContactInfo, contact =>
+        {
+            contact.HasIndex(c => c.Phone).IsUnique().HasFilter("\"IsActive\" = true");
+        });
     }
 }

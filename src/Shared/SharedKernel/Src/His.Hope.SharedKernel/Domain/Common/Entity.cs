@@ -1,6 +1,6 @@
 namespace His.Hope.SharedKernel.Domain.Common;
 
-public abstract class Entity<TId> : IEquatable<Entity<TId>>
+public abstract class Entity<TId> : IEquatable<Entity<TId>>, IHasDomainEvents
     where TId : notnull
 {
     public TId Id { get; protected set; }

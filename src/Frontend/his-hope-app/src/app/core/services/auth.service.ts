@@ -1,51 +1,161 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
-import { LoginRequest, RegisterRequest, TokenResponse, User } from '@core/models/auth.model';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
+import { catchError, map, retry, shareReplay, tap, distinctUntilChanged } from 'rxjs/operators';
+import { LoginRequest, RegisterRequest, User } from '@core/models/auth.model';
 import { environment } from '@env/environment';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly baseUrl = `${environment.apiUrl}/auth`;
 
+  private currentUserSubject = new BehaviorSubject<User | null>(null);
+  currentUser$ = this.currentUserSubject.asObservable();
+
   constructor(private http: HttpClient) {}
 
-  login(request: LoginRequest): Observable<TokenResponse> {
-    return this.http.post<TokenResponse>(`${this.baseUrl}/login`, request).pipe(
-      tap((res) => this.setSession(res)),
+  login(request: LoginRequest): Observable<User> {
+    return this.http.post<User>(`${this.baseUrl}/login`, request, { withCredentials: true }).pipe(
+      tap((user) => this.currentUserSubject.next(user)),
+      catchError(this.handleError),
     );
   }
 
-  register(request: RegisterRequest): Observable<TokenResponse> {
-    return this.http.post<TokenResponse>(`${this.baseUrl}/register`, request).pipe(
-      tap((res) => this.setSession(res)),
+  register(request: RegisterRequest): Observable<User> {
+    return this.http.post<User>(`${this.baseUrl}/register`, request, { withCredentials: true }).pipe(
+      tap((user) => this.currentUserSubject.next(user)),
+      catchError(this.handleError),
     );
   }
 
-  refreshToken(refreshToken: string): Observable<TokenResponse> {
-    const accessToken = localStorage.getItem('access_token')!;
+  refreshToken(): Observable<User> {
     return this.http
-      .post<TokenResponse>(`${this.baseUrl}/refresh`, { accessToken, refreshToken })
-      .pipe(tap((res) => this.setSession(res)));
+      .post<User>(`${this.baseUrl}/refresh`, {}, { withCredentials: true })
+      .pipe(
+        tap((user) => this.currentUserSubject.next(user)),
+        retry(1),
+        catchError(this.handleError),
+      );
   }
 
-  logout(): void {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+  logout(): Observable<void> {
+    return this.http.post<void>(`${this.baseUrl}/logout`, {}, { withCredentials: true }).pipe(
+      tap(() => {
+        this.currentUserSubject.next(null);
+        this.clearStoredAccessToken();
+      }),
+      retry(1),
+      catchError(this.handleError),
+    );
   }
 
-  getCurrentUser(): User | null {
-    const user = localStorage.getItem('current_user');
-    return user ? JSON.parse(user) : null;
+  getCurrentUser(): Observable<User> {
+    return this.http.get<User>(`${this.baseUrl}/me`, { withCredentials: true }).pipe(
+      tap((user) => this.currentUserSubject.next(user)),
+      shareReplay(1),
+      retry(1),
+      catchError(this.handleError),
+    );
   }
 
-  isLoggedIn(): boolean {
-    return !!localStorage.getItem('access_token');
+  isLoggedIn(): Observable<boolean> {
+    return this.http.get<{ authenticated: boolean }>(`${this.baseUrl}/verify`, { withCredentials: true }).pipe(
+      map((res) => res.authenticated),
+      retry(1),
+      catchError(() => of(false)),
+    );
   }
 
-  private setSession(res: TokenResponse): void {
-    localStorage.setItem('access_token', res.accessToken);
-    localStorage.setItem('refresh_token', res.refreshToken);
-    localStorage.setItem('current_user', JSON.stringify(res.user));
+  // ─── Role Methods ─────────────────────────────────────────────────
+
+  /** Extract roles from the current user object */
+  getUserRoles(): string[] {
+    const user = this.currentUserSubject.value;
+    return user?.roles ?? [];
+  }
+
+  /** Extract permissions from the current user object or JWT claims */
+  getUserPermissions(): string[] {
+    const user = this.currentUserSubject.value;
+    if (user?.permissions && user.permissions.length > 0) {
+      return user.permissions;
+    }
+    // Fallback: try to decode JWT from sessionStorage
+    const token = this.getStoredAccessToken();
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.permissions ?? payload.roles ?? [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  /** Check if user has a specific role */
+  hasRole(role: string | string[]): boolean {
+    const userRoles = this.getUserRoles();
+    if (typeof role === 'string') {
+      return userRoles.includes(role);
+    }
+    return role.some((r) => userRoles.includes(r));
+  }
+
+  /** Check if user has a specific permission */
+  hasPermission(permission: string | string[]): boolean {
+    const userPermissions = this.getUserPermissions();
+    if (typeof permission === 'string') {
+      return userPermissions.includes(permission);
+    }
+    return permission.every((p) => userPermissions.includes(p));
+  }
+
+  /** Observable of current user roles, emits on change */
+  getCurrentUserRoles(): Observable<string[]> {
+    return this.currentUser$.pipe(
+      map((user) => user?.roles ?? []),
+      distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    );
+  }
+
+  // ─── Token Storage ──────────────────────────────────────────────────
+
+  /** Store the JWT access token (for Bearer header usage) */
+  storeAccessToken(token: string): void {
+    try {
+      sessionStorage.setItem('hishope_access_token', token);
+    } catch {
+      // sessionStorage may be unavailable in some environments
+    }
+  }
+
+  /** Retrieve the stored JWT access token */
+  getStoredAccessToken(): string | null {
+    try {
+      return sessionStorage.getItem('hishope_access_token');
+    } catch {
+      return null;
+    }
+  }
+
+  /** Remove the stored JWT access token */
+  clearStoredAccessToken(): void {
+    try {
+      sessionStorage.removeItem('hishope_access_token');
+    } catch {
+      // noop
+    }
+  }
+
+  private handleError(error: HttpErrorResponse): Observable<never> {
+    let errorMessage = 'An unknown error occurred';
+    if (error.error instanceof ErrorEvent) {
+      errorMessage = `Client error: ${error.error.message}`;
+    } else {
+      errorMessage = `Server error: ${error.status} - ${error.message}`;
+    }
+    console.error('[AuthService]', errorMessage);
+    return throwError(() => error);
   }
 }

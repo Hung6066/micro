@@ -2,21 +2,34 @@ using System.Security.Cryptography.X509Certificates;
 using Grpc.Net.Client;
 using His.Hope.AppointmentGrpc;
 using His.Hope.AppointmentService.Api.GrpcServices;
+using His.Hope.AppointmentService.Application;
+using His.Hope.AppointmentService.Application.UseCases.Appointments.Commands;
+using His.Hope.AppointmentService.Application.UseCases.Appointments.Queries;
 using His.Hope.AppointmentService.Domain.Aggregates;
+using His.Hope.AppointmentService.Domain.Repositories;
 using His.Hope.AppointmentService.Domain.ValueObjects;
+using His.Hope.AppointmentService.Infrastructure;
+using His.Hope.AppointmentService.Infrastructure.Persistence;
+using MediatR;
 using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
 using His.Hope.EventBusRabbitMQ.Implementations;
 using His.Hope.Infrastructure;
 using His.Hope.Infrastructure.Caching;
+using His.Hope.Infrastructure.Outbox;
 using His.Hope.Infrastructure.HealthChecks;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Resilience;
 using His.Hope.Infrastructure.Security;
+using His.Hope.Infrastructure.Security.Authorization;
+using His.Hope.Infrastructure.Audit;
 using His.Hope.IntegrationEvents.Appointment;
 using His.Hope.PatientGrpc;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
+using Microsoft.Extensions.DependencyInjection;
 using Serilog;
+
+AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,24 +39,41 @@ builder.Host.UseSerilog((context, config) =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// SECURITY: Add JWT Bearer authentication with RSA public key validation
+builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
+
+// SECURITY: Register permission-based authorization policies
+builder.Services.AddHisHopeAuthorization();
+
+builder.Services.AddAppointmentApplication();
+builder.Services.AddAppointmentInfrastructure(builder.Configuration);
+
 builder.Services.AddHisHopeEnterpriseInfrastructure(
     builder.Configuration, "appointment-service",
     builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!);
 
 builder.Services.AddResiliencePolicies();
-builder.Services.AddGrpc(options => options.EnableDetailedErrors = builder.Environment.IsDevelopment());
+builder.Services.AddGrpc(options =>
+{
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    options.Interceptors.Add<GrpcServerInterceptor>();
+});
 
-var resilienceConfig = new ResilienceConfiguration();
-builder.Services.AddGrpcClient<PatientGrpcService.PatientGrpcServiceClient>(o =>
+builder.Services.AddSingleton(_ =>
 {
-    o.Address = new Uri(builder.Configuration.GetValue("GrpcServices:PatientService", "https://patientservice:5006")!);
-})
-.ConfigurePrimaryHttpMessageHandler(() =>
-{
-    var handler = new HttpClientHandler();
-    handler.ClientCertificates.Add(LoadClientCertificate(builder.Configuration));
-    handler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
-    return handler;
+    var handler = new SocketsHttpHandler
+    {
+        EnableMultipleHttp2Connections = true,
+        UseProxy = false,
+        AllowAutoRedirect = false,
+    };
+    var channel = GrpcChannel.ForAddress("http://localhost:5013", new GrpcChannelOptions
+    {
+        HttpHandler = handler,
+        DisposeHttpClient = true,
+        MaxRetryAttempts = 0,
+    });
+    return new PatientGrpcService.PatientGrpcServiceClient(channel);
 });
 
 builder.Services.AddRabbitMQEventBus(options =>
@@ -56,7 +86,10 @@ builder.Services.AddRabbitMQEventBus(options =>
     options.UseSsl = builder.Configuration.GetValue("EventBus:UseSsl", false);
 });
 
+builder.Services.AddOutbox<AppointmentDbContext>();
+
 builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppointmentDbContext>(name: "appointment-db", tags: ["database"])
     .AddRabbitMQCheck(
         builder.Configuration.GetValue("EventBus:HostName", "localhost")!,
         builder.Configuration.GetValue("EventBus:Port", 5672),
@@ -77,16 +110,22 @@ builder.WebHost.ConfigureKestrel(options =>
         l.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
         l.UseHttps(LoadServerCertificate(builder.Configuration));
     });
+    options.ListenAnyIP(5009, l =>
+    {
+        l.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+    });
     options.ListenAnyIP(5007, l =>
     {
         l.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
         l.UseHttps(h =>
         {
             h.ServerCertificate = LoadServerCertificate(builder.Configuration);
-            h.ClientCertificateMode = ClientCertificateMode.RequireCertificate;
-            h.AllowAnyClientCertificate = !builder.Environment.IsProduction();
             h.CheckCertificateRevocation = false;
         });
+    });
+    options.ListenAnyIP(5014, l =>
+    {
+        l.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
     });
 });
 
@@ -99,15 +138,61 @@ app.UseHisHopePrometheus();
 
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 
-var appointments = new List<Appointment>();
-var grp = app.MapGroup("/api/v1/appointments");
+// SECURITY: Authentication & Authorization middleware
+app.UseAuthentication();
+app.UseAuthorization();
+
+
+app.UsePhiAudit();
+
+// Appointment Endpoints (all require JWT authorization with specific permissions)
+var grp = app.MapGroup("/api/v1/appointments").RequireAuthorization();
+
+grp.MapGet("/", async (
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct) =>
+{
+    var result = await cache.GetOrSetAsync(
+        "appointments:all",
+        async () => await mediator.Send(new SearchAppointmentsQuery("", 1, 1000), ct),
+        TimeSpan.FromMinutes(5), ct);
+    return Results.Ok(result);
+}).RequireAuthorization("Permission:appointments.view").WithOpenApi();
+
+grp.MapGet("/{id:guid}", async (
+    Guid id,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct) =>
+{
+    var appointment = await cache.GetOrSetAsync(
+        $"appointment:{id}",
+        async () => await mediator.Send(new GetAppointmentByIdQuery(id), ct),
+        TimeSpan.FromMinutes(5), ct);
+    return appointment is null ? Results.NotFound() : Results.Ok(appointment);
+}).RequireAuthorization("Permission:appointments.view").WithOpenApi();
+
+grp.MapGet("/search", async (
+    string? q, int page, int pageSize,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct) =>
+{
+    var cacheKey = $"appointments:search:{q}:{page}:{pageSize}";
+    var result = await cache.GetOrSetAsync(
+        cacheKey,
+        async () => await mediator.Send(new SearchAppointmentsQuery(q ?? "", page, pageSize), ct),
+        TimeSpan.FromMinutes(2), ct);
+    return Results.Ok(result);
+}).RequireAuthorization("Permission:appointments.view").WithOpenApi();
 
 grp.MapPost("/", async (
     ScheduleAppointmentRequest request,
     PatientGrpcService.PatientGrpcServiceClient patientClient,
+    IMediator mediator,
     IEventBus eventBus,
     ICacheService cache,
-    ResilienceConfiguration resilience,
     CancellationToken ct) =>
 {
     var existsResponse = await patientClient.CheckPatientExistsAsync(
@@ -115,47 +200,78 @@ grp.MapPost("/", async (
     if (!existsResponse.Exists)
         return Results.Problem("Patient not found", statusCode: 404);
 
-    var type = AppointmentType.FromCode(request.TypeCode);
-    var appointment = Appointment.Schedule(request.PatientId, request.ProviderId,
-        request.ScheduledDate, request.StartTime, request.DurationMinutes, type,
+    var command = new CreateAppointmentCommand(
+        request.PatientId, request.ProviderId, request.ScheduledDate,
+        request.StartTime, request.DurationMinutes, request.TypeCode,
         request.Reason, request.Location);
-    appointments.Add(appointment);
+
+    var appointmentDto = await mediator.Send(command, ct);
 
     await eventBus.PublishAsync(new AppointmentScheduledIntegrationEvent(
-        Guid.Parse(appointment.Id.ToString()!), appointment.PatientId,
-        appointment.ProviderId, appointment.ScheduledDate,
-        appointment.StartTime, appointment.EndTime), ct);
+        appointmentDto.Id, appointmentDto.PatientId,
+        appointmentDto.ProviderId, appointmentDto.ScheduledDate,
+        appointmentDto.StartTime, appointmentDto.EndTime), ct);
 
     await cache.RemoveByPrefixAsync("appointments:", ct);
 
-    return Results.Created($"/api/v1/appointments/{appointment.Id}", new
-    {
-        id = appointment.Id.ToString(), patientId = appointment.PatientId,
-        providerId = appointment.ProviderId, status = appointment.Status.Code
-    });
-}).WithOpenApi();
+    return Results.Created($"/api/v1/appointments/{appointmentDto.Id}", appointmentDto);
+}).RequireAuthorization("Permission:appointments.create").WithOpenApi();
 
-grp.MapPut("/{id:guid}/cancel", (Guid id, CancelRequest request) =>
+grp.MapPut("/{id:guid}/cancel", async (
+    Guid id,
+    CancelRequest request,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct) =>
 {
-    var apt = appointments.FirstOrDefault(a => a.Id == AppointmentId.From(id));
-    return apt is null ? Results.NotFound() : Results.NoContent();
-}).WithOpenApi();
-
-grp.MapPut("/{id:guid}/checkin", (Guid id) =>
-{
-    var apt = appointments.FirstOrDefault(a => a.Id == AppointmentId.From(id));
-    if (apt is null) return Results.NotFound();
-    apt.CheckIn();
+    await mediator.Send(new CancelAppointmentCommand(id, request.Reason), ct);
+    await cache.RemoveAsync($"appointment:{id}", ct);
+    await cache.RemoveByPrefixAsync("appointments:", ct);
     return Results.NoContent();
-}).WithOpenApi();
+}).RequireAuthorization("Permission:appointments.cancel").WithOpenApi();
 
-grp.MapPut("/{id:guid}/checkout", (Guid id) =>
+grp.MapPut("/{id:guid}/checkin", async (
+    Guid id,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct) =>
 {
-    var apt = appointments.FirstOrDefault(a => a.Id == AppointmentId.From(id));
-    if (apt is null) return Results.NotFound();
-    apt.CheckOut();
+    await mediator.Send(new CheckInAppointmentCommand(id), ct);
+    await cache.RemoveAsync($"appointment:{id}", ct);
+    await cache.RemoveByPrefixAsync("appointments:", ct);
     return Results.NoContent();
-}).WithOpenApi();
+}).RequireAuthorization("Permission:appointments.check-in").WithOpenApi();
+
+grp.MapPut("/{id:guid}/checkout", async (
+    Guid id,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct) =>
+{
+    await mediator.Send(new CheckOutAppointmentCommand(id), ct);
+    await cache.RemoveAsync($"appointment:{id}", ct);
+    await cache.RemoveByPrefixAsync("appointments:", ct);
+    return Results.NoContent();
+}).RequireAuthorization("Permission:appointments.update").WithOpenApi();
+
+grp.MapGet("/patient/{patientId:guid}", async (
+    Guid patientId,
+    int page,
+    int pageSize,
+    DateTime? fromDate,
+    DateTime? toDate,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct) =>
+{
+    var cacheKey = $"appointments:patient:{patientId}:{page}:{pageSize}:{fromDate}:{toDate}";
+    var result = await cache.GetOrSetAsync(
+        cacheKey,
+        async () => await mediator.Send(
+            new GetAppointmentsByPatientQuery(patientId, page, pageSize, fromDate, toDate), ct),
+        TimeSpan.FromMinutes(5), ct);
+    return Results.Ok(result);
+}).RequireAuthorization("Permission:appointments.view").WithOpenApi();
 
 app.MapGrpcService<AppointmentGrpcServiceImpl>();
 app.MapGrpcHealthChecksService();
@@ -219,3 +335,4 @@ static X509Certificate2 CreateDevCert(string cn)
 public record ScheduleAppointmentRequest(Guid PatientId, Guid ProviderId, DateTime ScheduledDate,
     TimeSpan StartTime, int DurationMinutes, string TypeCode, string? Reason, string? Location);
 public record CancelRequest(string? Reason);
+

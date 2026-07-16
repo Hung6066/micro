@@ -1,4 +1,5 @@
 using AutoMapper;
+using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using His.Hope.PatientGrpc;
 using His.Hope.PatientService.Domain.Repositories;
@@ -35,10 +36,16 @@ public class PatientGrpcServiceImpl : PatientGrpcService.PatientGrpcServiceBase
     public override async Task<PatientListResponse> SearchPatients(
         PatientSearchRequest request, ServerCallContext context)
     {
-        var patients = await _patientRepository.SearchAsync(request.SearchTerm);
+        var page = request.Page > 0 ? request.Page : 1;
+        var pageSize = request.PageSize > 0 ? request.PageSize : 20;
+        var (items, totalCount) = await _patientRepository.SearchAsync(
+            request.SearchTerm, page, pageSize, context.CancellationToken);
 
         var response = new PatientListResponse();
-        response.Patients.AddRange(patients.Select(MapToResponse));
+        response.Patients.AddRange(items.Select(MapToResponse));
+        response.TotalCount = totalCount;
+        response.Page = page;
+        response.PageSize = pageSize;
         return response;
     }
 
@@ -59,11 +66,13 @@ public class PatientGrpcServiceImpl : PatientGrpcService.PatientGrpcServiceBase
             FirstName = patient.Name.FirstName,
             LastName = patient.Name.LastName,
             MiddleName = patient.Name.MiddleName ?? string.Empty,
-            DateOfBirth = patient.DateOfBirth.ToString("O"),
+            DateOfBirth = patient.DateOfBirth.ToTimestamp(),
             GenderCode = patient.Gender.Code,
             GenderName = patient.Gender.Name,
             Phone = patient.ContactInfo.Phone,
             Email = patient.ContactInfo.Email ?? string.Empty,
             IsActive = patient.IsActive,
+            CreatedAt = patient.CreatedAt.ToTimestamp(),
+            UpdatedAt = patient.UpdatedAt?.ToTimestamp()
         };
 }

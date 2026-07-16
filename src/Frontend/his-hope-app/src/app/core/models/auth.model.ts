@@ -32,4 +32,5 @@ export interface User {
   licenseNumber?: string;
   specialty?: string;
   roles: string[];
+  permissions?: string[];
 }

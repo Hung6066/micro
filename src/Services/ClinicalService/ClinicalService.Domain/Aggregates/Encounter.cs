@@ -1,3 +1,4 @@
+using His.Hope.ClinicalService.Domain.Events;
 using His.Hope.ClinicalService.Domain.ValueObjects;
 using His.Hope.SharedKernel.Domain.Common;
 
@@ -10,7 +11,7 @@ public class Encounter : AggregateRoot<EncounterId>
     public Guid? AppointmentId { get; private set; }
     public DateTime EncounterDate { get; private set; }
     public EncounterType EncounterType { get; private set; }
-    public string? ChiefComplaint { get; private set; }
+    public string? ChiefComplaint { get; internal set; }
     public HistoryPresentIllness? Hpi { get; private set; }
     public VitalSigns? VitalSigns { get; private set; }
     public string? Assessment { get; private set; }
@@ -38,8 +39,18 @@ public class Encounter : AggregateRoot<EncounterId>
         CreatedAt = DateTime.UtcNow;
     }
 
-    public static Encounter Start(Guid patientId, Guid providerId, EncounterType type) =>
-        new(EncounterId.New(), patientId, providerId, type);
+    public static Encounter Start(Guid patientId, Guid providerId, EncounterType type)
+    {
+        var encounter = new Encounter(EncounterId.New(), patientId, providerId, type);
+        encounter.AddDomainEvent(new EncounterStartedDomainEvent(
+            encounter.Id.Value,
+            patientId,
+            providerId,
+            encounter.AppointmentId,
+            type,
+            DateTime.UtcNow));
+        return encounter;
+    }
 
     public void RecordHpi(string? onset, string? location, string? duration,
         string? characteristics, string? aggravating, string? relieving,
@@ -57,12 +68,26 @@ public class Encounter : AggregateRoot<EncounterId>
         VitalSigns = new VitalSigns(temperature, heartRate, respiratoryRate,
             systolicBp, diastolicBp, oxygenSaturation, height, weight, bmi);
         UpdatedAt = DateTime.UtcNow;
+
+        AddDomainEvent(new VitalsRecordedDomainEvent(
+            Id.Value,
+            PatientId,
+            temperature, heartRate, respiratoryRate,
+            systolicBp, diastolicBp, oxygenSaturation,
+            DateTime.UtcNow));
     }
 
     public void AddDiagnosis(Diagnosis diagnosis)
     {
         _diagnoses.Add(diagnosis);
         UpdatedAt = DateTime.UtcNow;
+
+        AddDomainEvent(new DiagnosisAddedDomainEvent(
+            Id.Value,
+            diagnosis.ConditionName,
+            diagnosis.Icd10Code,
+            diagnosis.IsPrimary,
+            DateTime.UtcNow));
     }
 
     public void RecordAssessment(string assessment)
@@ -81,7 +106,13 @@ public class Encounter : AggregateRoot<EncounterId>
     {
         Status = EncounterStatus.Completed;
         UpdatedAt = DateTime.UtcNow;
+
+        AddDomainEvent(new EncounterCompletedDomainEvent(
+            Id.Value,
+            PatientId,
+            DateTime.UtcNow,
+            DateTime.UtcNow));
     }
 
-    private Encounter() { }
+    private Encounter() { EncounterType = null!; Status = null!; }
 }

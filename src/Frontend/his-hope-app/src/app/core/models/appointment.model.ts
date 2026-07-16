@@ -17,4 +17,18 @@ export interface Appointment {
   startTime: string;
   endTime: string;
   status: string;
+  statusName?: string;
+  type: string;
+  typeName?: string;
+  reason?: string;
+  notes?: string;
+  location?: string;
+  createdAt: string;
+  updatedAt?: string;
+  checkedInAt?: string;
+  checkedOutAt?: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
 }
+
+

@@ -6,16 +6,26 @@
     <RootNamespace>His.Hope.AppointmentService.Api</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Protobuf Include="..\..\..\..\Shared\Protos\patient.proto" GrpcServices="Client" Link="Protos\patient.proto" />
-    <Protobuf Include="..\..\..\..\Shared\Protos\appointment.proto" GrpcServices="Both" Link="Protos\appointment.proto" />
+    <Protobuf Include="..\..\..\Shared\Protos\patient.proto" GrpcServices="Client" Link="Protos\patient.proto" />
+    <Protobuf Include="..\..\..\Shared\Protos\appointment.proto" GrpcServices="Both" Link="Protos\appointment.proto" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.4" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.60.0" />
+    <PackageReference Include="Grpc.AspNetCore.HealthChecks" Version="2.60.0" />
     <PackageReference Include="Grpc.Net.ClientFactory" Version="2.60.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.60.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\AppointmentService.Domain\AppointmentService.Domain.csproj" />
+    <ProjectReference Include="..\AppointmentService.Application\AppointmentService.Application.csproj" />
+    <ProjectReference Include="..\AppointmentService.Infrastructure\AppointmentService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Infrastructure\His.Hope.Infrastructure\His.Hope.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\Shared\EventBus\Src\His.Hope.EventBusRabbitMQ\His.Hope.EventBusRabbitMQ.csproj" />
     <ProjectReference Include="..\..\..\Shared\EventBus\Src\His.Hope.IntegrationEvents\His.Hope.IntegrationEvents.csproj" />
   </ItemGroup>

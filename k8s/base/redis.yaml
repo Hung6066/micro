@@ -13,6 +13,14 @@ data:
     pidfile /var/run/redis_6379.pid
     loglevel notice
 
+    ## Cluster Mode
+    cluster-enabled yes
+    cluster-config-file nodes.conf
+    cluster-node-timeout 5000
+    cluster-require-full-coverage no
+    cluster-replica-validity-factor 10
+    cluster-migration-barrier 1
+
     ## AOF Persistence
     appendonly yes
     appendfsync everysec
@@ -77,7 +85,7 @@ metadata:
     app.kubernetes.io/component: cache
 spec:
   serviceName: redis
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app.kubernetes.io/name: redis
@@ -86,11 +94,25 @@ spec:
       labels:
         app.kubernetes.io/name: redis
         app.kubernetes.io/component: cache
+        app: redis
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: redis
           image: redis:7
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - SETGID
+                - SETUID
           command:
             - redis-server
             - /etc/redis/redis.conf

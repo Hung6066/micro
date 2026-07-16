@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using His.Hope.EventBus.Abstractions;
+using His.Hope.SharedKernel.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Newtonsoft.Json;

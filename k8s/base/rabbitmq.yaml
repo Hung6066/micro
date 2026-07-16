@@ -68,7 +68,7 @@ metadata:
     app.kubernetes.io/component: messaging
 spec:
   serviceName: rabbitmq
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app.kubernetes.io/name: rabbitmq
@@ -77,11 +77,26 @@ spec:
       labels:
         app.kubernetes.io/name: rabbitmq
         app.kubernetes.io/component: messaging
+        app: rabbitmq
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: rabbitmq
           image: rabbitmq:3.13-management
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - FOWNER
+                - SETGID
+                - SETUID
           ports:
             - name: amqp
               containerPort: 5672

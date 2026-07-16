@@ -1,0 +1,249 @@
+# His.Hope Quality Gates
+# =====================================================================
+# These gates are enforced by the Pipeline Orchestrator (@orchestrator)
+# before any code can be committed to GitHub via @git.
+#
+# Every gate must pass (GREEN) for the commit to proceed.
+# Contact: @architect for gate policy changes.
+
+gates:
+
+  # ── PHASE 0: PRE-FLIGHT ──────────────────────────────────────────
+  preflight:
+    - id: clean-working-tree
+      description: "No unexpected uncommitted changes from other features"
+      check: "git status --porcelain"
+      agent: orchestrator
+      severity: block
+
+    - id: branch-convention
+      description: "Branch name follows convention: feature|fix|release|hotfix/<scope>/<desc>"
+      check: "git branch --show-current | grep -E '^(feature|fix|release|hotfix)/'"
+      agent: orchestrator
+      severity: block
+
+  # ── PHASE 2: IMPLEMENTATION ─────────────────────────────────────
+  implementation:
+    - id: dotnet-build
+      description: "Backend builds cleanly with zero warnings"
+      check: "dotnet build src/His.Hope.sln -warnaserror"
+      agent: validate
+      timeout: 300s
+      severity: block
+
+    - id: angular-build
+      description: "Frontend builds cleanly with zero errors"
+      check: "npm run build"
+      workdir: "src/Frontend/his-hope-app"
+      agent: validate
+      timeout: 300s
+      severity: block
+
+    - id: proto-lint
+      description: "gRPC protos pass buf lint"
+      check: "buf lint src/Shared/Protos/"
+      agent: validate
+      severity: block
+
+    - id: proto-breaking
+      description: "No breaking changes in gRPC protos (unless architect-approved)"
+      check: "buf breaking --against '.git#branch=main' src/Shared/Protos/"
+      agent: validate
+      severity: block
+      allow_override: architect
+
+    - id: no-secrets-hardcoded
+      description: "No passwords, API keys, connection strings in source"
+      check: 'grep -rE "(password|secret|apiKey|connectionString|token)\\s*[:=]\\s*[''"]?[^''"]{8,}" src/ --include=''*.cs'' --include=''*.json'' --include=''*.ts'' --include=''*.yaml'' | grep -v appsettings.Development.json | grep -v ''vault:'''
+      agent: validate
+      severity: block
+
+  # ── PHASE 3: TESTING ────────────────────────────────────────────
+  testing:
+    - id: backend-unit-tests
+      description: "All .NET unit + integration tests pass"
+      check: "dotnet test src/ --filter 'FullyQualifiedName~Tests.Unit|FullyQualifiedName~Tests.Integration' --no-build -l 'console;verbosity=normal'"
+      agent: testing-backend
+      timeout: 600s
+      severity: block
+
+    - id: backend-coverage
+      description: "Backend code coverage >= 80% per service"
+      check: "dotnet test src/ --collect:'XPlat Code Coverage' && reportgenerator -reports:**/coverage.cobertura.xml -targetdir:coverage-report"
+      agent: testing-backend
+      threshold: 80
+      severity: block
+
+    - id: frontend-unit-tests
+      description: "All Angular unit tests pass"
+      check: "ng test --no-watch --browsers=ChromeHeadless --code-coverage"
+      workdir: "src/Frontend/his-hope-app"
+      agent: testing-frontend
+      timeout: 300s
+      severity: block
+
+    - id: contract-tests
+      description: "gRPC + REST contract tests pass (Pact)"
+      check: "dotnet test src/ --filter 'FullyQualifiedName~Contract' --no-build"
+      agent: qa
+      severity: block
+
+    - id: e2e-critical-path
+      description: "Critical user journey E2E tests pass"
+      check: "npx cypress run --spec 'cypress/e2e/critical/**/*.cy.ts'"
+      workdir: "src/Frontend/his-hope-app"
+      agent: qa
+      timeout: 600s
+      severity: block
+
+    - id: load-test-threshold
+      description: "k6 load test passes SLO thresholds"
+      check: "k6 run --summary-export=summary.json load-tests/"
+      agent: qa
+      severity: warn  # Warn only — load tests may be environment-dependent
+      condition: performance-sensitive-change
+
+  # ── PHASE 4: VALIDATION ─────────────────────────────────────────
+  validation:
+    - id: ui-anti-slop
+      description: "No anti-slop violations (shadows, gradients, AI-purple, hardcoded colors)"
+      check: "Check against anti-slop checklist in check-ui-agent.md"
+      agent: check-ui
+      severity: block
+
+    - id: wcag-accessibility
+      description: "WCAG 2.1 AA compliance — zero violations on changed components"
+      check: "axe-core audit on affected pages + color contrast >= 4.5:1"
+      agent: check-ui
+      severity: block
+
+    - id: design-system
+      description: "CSS variables used, no hardcoded hex, correct border-radius scale"
+      check: "Scan for ad-hoc hex colors, box-shadows, non-standard border-radius"
+      agent: check-ui
+      severity: block
+
+    - id: migration-backward-compat
+      description: "Database migrations are backward-compatible"
+      check: "Review migrations for DROP COLUMN, RENAME — must use add+backfill+drop pattern"
+      agent: validate
+      co-review: dba
+      severity: block
+      condition: migrations-changed
+
+    - id: vault-secrets
+      description: "All secrets reference Vault — none in config files"
+      check: "Verify appsettings, K8s ConfigMaps, Helm values reference Vault paths"
+      agent: security
+      severity: block
+
+    - id: rbac-network-policies
+      description: "Cilium network policies updated for any new inter-service calls"
+      check: "Review changed endpoints against k8s/base/network-policies.yaml"
+      agent: security
+      severity: block
+      condition: inter-service-calls-changed
+
+    - id: hipaa-compliance
+      description: "HIPAA Security Rule checks for PHI-related changes"
+      check: "Audit PHI access: encryption, audit logging, access control"
+      agent: security
+      severity: block
+      condition: phi-data-changed
+
+  # ── PHASE 4b: DOCUMENTATION ─────────────────────────────────────
+  documentation:
+    - id: doc-coverage
+      description: "Every changed service/API/migration has corresponding doc update"
+      check: "Verify all changed source files have matching documentation updates"
+      agent: docs
+      severity: block
+
+    - id: adr-freshness
+      description: "No ADR references deprecated decisions without a superseding ADR"
+      check: "Scan ADRs for deprecated references and verify superseding docs exist"
+      agent: docs
+      severity: block
+      condition: architecture-changed
+
+    - id: api-doc-accuracy
+      description: "Proto comments and generated API docs are consistent with actual proto files"
+      check: "buf generate --dry-run && diff generated docs against committed docs"
+      agent: docs
+      severity: block
+      condition: protos-changed
+
+    - id: link-validity
+      description: "No broken internal links in documentation"
+      check: "markdown-link-check docs/**/*.md"
+      agent: docs
+      severity: block
+
+    - id: readme-completeness
+      description: "Every service has a README with all required sections (purpose, deps, schema, endpoints, events, config, local-run)"
+      check: "Verify src/Services/*/README.md exists and contains all required sections"
+      agent: docs
+      severity: block
+      condition: new-service
+
+    - id: changelog-updated
+      description: "CHANGELOG.md reflects all notable changes in this feature/fix"
+      check: "Verify CHANGELOG.md has an entry for each changed service/feature scope"
+      agent: docs
+      severity: block
+
+    - id: markdown-lint
+      description: "All markdown files pass markdownlint with zero errors"
+      check: "markdownlint docs/ **/*.md --ignore node_modules"
+      agent: docs
+      severity: block
+
+    - id: proto-comments
+      description: "Every gRPC proto message, field, and RPC has a doc comment"
+      check: "buf lint --path src/Shared/Protos/ --error-format=json | grep -c 'COMMENT'"
+      agent: docs
+      severity: warn
+      condition: protos-changed
+
+  # ── PHASE 5: COMMIT ─────────────────────────────────────────────
+  commit:
+    - id: commit-message-convention
+      description: "Commit message follows Conventional Commits format"
+      check: "Validate against: <type>(<scope>): <description>"
+      regex: '^(feat|fix|docs|style|refactor|perf|test|chore|ci|security|db)(\([a-z-]+\))?: .{1,72}'
+      agent: git
+      severity: block
+
+    - id: no-secrets-in-commit
+      description: "No secrets staged for commit"
+      check: 'git diff --cached | grep -E "(password|secret|apiKey|token|connectionString)\\s*[:=]\\s*[''"]?[^''"]{8,}"'
+      agent: git
+      severity: block
+      expect: no-match
+
+    - id: no-binaries-staged
+      description: "No build artifacts or binaries staged"
+      check: 'git diff --cached --name-only | grep -E "\.(dll|exe|pdb|so|dylib)$|^bin/|^obj/|^node_modules/|^dist/"'
+      agent: git
+      severity: block
+      expect: no-match
+
+    - id: no-merge-conflicts
+      description: "No unresolved merge conflict markers"
+      check: "git diff --cached | grep -E '^(<<<<<<<|=======|>>>>>>>)'"
+      agent: git
+      severity: block
+      expect: no-match
+
+# ── GATE SEVERITY LEGEND ──────────────────────────────────────────
+# block  — Commit is BLOCKED. Must be fixed before proceeding.
+# warn   — Commit is ALLOWED but warning is logged for follow-up.
+#          Only applicable to non-critical gates (e.g., load tests
+#          that may be environment-dependent).
+
+# ── CONDITIONAL GATES ─────────────────────────────────────────────
+# Some gates only run when their condition is met:
+#   migrations-changed       — Triggered when files in cockroach/migrations/ are modified
+#   inter-service-calls-changed — Triggered when gRPC protos or service clients change
+#   phi-data-changed         — Triggered when clinical/patient data models change
+#   performance-sensitive-change — Triggered when hot-path code changes

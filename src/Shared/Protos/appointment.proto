@@ -4,6 +4,8 @@ package his.hope.appointment;
 
 option csharp_namespace = "His.Hope.AppointmentGrpc";
 
+import "google/protobuf/timestamp.proto";
+
 service AppointmentGrpcService {
   rpc GetAppointment (AppointmentRequest) returns (AppointmentResponse);
   rpc GetPatientAppointments (PatientAppointmentsRequest) returns (AppointmentListResponse);
@@ -18,20 +20,27 @@ message AppointmentResponse {
   string id = 1;
   string patient_id = 2;
   string provider_id = 3;
-  string scheduled_date = 4;
-  string start_time = 5;
-  string end_time = 6;
+  google.protobuf.Timestamp scheduled_date = 4;
+  google.protobuf.Timestamp start_time = 5;
+  google.protobuf.Timestamp end_time = 6;
   string status_code = 7;
   string status_name = 8;
   string type_code = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
 }
 
 message PatientAppointmentsRequest {
   string patient_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
 }
 
 message AppointmentListResponse {
   repeated AppointmentResponse appointments = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
 }
 
 message AppointmentExistsRequest {

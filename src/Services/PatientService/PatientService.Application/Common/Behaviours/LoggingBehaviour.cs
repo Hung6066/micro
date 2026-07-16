@@ -16,7 +16,7 @@ public class LoggingBehaviour<TRequest, TResponse> : IPipelineBehavior<TRequest,
         CancellationToken cancellationToken)
     {
         var requestName = typeof(TRequest).Name;
-        _logger.LogInformation("Processing request: {Name} {@Request}", requestName, request);
+        _logger.LogInformation("Processing request: {Name}", requestName);
 
         try
         {

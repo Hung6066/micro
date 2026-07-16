@@ -1,3 +1,4 @@
+using Grpc.Net.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using RabbitMQ.Client;
@@ -16,30 +17,11 @@ public static class HealthCheckExtensions
         string name = "rabbitmq",
         HealthStatus? failureStatus = null)
     {
-        return builder.AddCheck(name, () =>
-        {
-            try
-            {
-                var factory = new ConnectionFactory
-                {
-                    HostName = hostName,
-                    Port = port,
-                    UserName = userName ?? "guest",
-                    Password = password ?? "guest",
-                    RequestedHeartbeat = TimeSpan.FromSeconds(5),
-                };
-
-                using var connection = factory.CreateConnection();
-                using var channel = connection.CreateModel();
-
-                return HealthCheckResult.Healthy("RabbitMQ is reachable");
-            }
-            catch (Exception ex)
-            {
-                return HealthCheckResult.Unhealthy("RabbitMQ is not reachable", ex);
-            }
-        }, failureStatus ?? HealthStatus.Degraded,
-        ["messaging", "rabbitmq"]);
+        return builder.AddTypeActivatedCheck<RabbitMQHealthCheck>(
+            name,
+            failureStatus ?? HealthStatus.Degraded,
+            ["messaging", "rabbitmq"],
+            hostName, port, userName ?? "guest", password ?? "guest");
     }
 
     public static IHealthChecksBuilder AddRedisCheck(
@@ -48,23 +30,11 @@ public static class HealthCheckExtensions
         string name = "redis",
         HealthStatus? failureStatus = null)
     {
-        return builder.AddCheck(name, () =>
-        {
-            try
-            {
-                var multiplexer = ConnectionMultiplexer.Connect(connectionString);
-                var db = multiplexer.GetDatabase();
-                db.Ping();
-                multiplexer.Close();
-
-                return HealthCheckResult.Healthy("Redis is reachable");
-            }
-            catch (Exception ex)
-            {
-                return HealthCheckResult.Unhealthy("Redis is not reachable", ex);
-            }
-        }, failureStatus ?? HealthStatus.Degraded,
-        ["cache", "redis"]);
+        return builder.AddTypeActivatedCheck<RedisHealthCheck>(
+            name,
+            failureStatus ?? HealthStatus.Degraded,
+            ["cache", "redis"],
+            connectionString);
     }
 
     public static IHealthChecksBuilder AddGrpcServiceCheck(
@@ -73,26 +43,108 @@ public static class HealthCheckExtensions
         string endpoint,
         HealthStatus? failureStatus = null)
     {
-        return builder.AddCheck($"grpc-{serviceName}", () =>
+        return builder.AddTypeActivatedCheck<GrpcHealthCheck>(
+            name: $"grpc-{serviceName}",
+            failureStatus ?? HealthStatus.Degraded,
+            ["grpc", serviceName],
+            serviceName, endpoint);
+    }
+
+    private class RabbitMQHealthCheck : IHealthCheck
+    {
+        private readonly string _hostName;
+        private readonly int _port;
+        private readonly string _userName;
+        private readonly string _password;
+
+        public RabbitMQHealthCheck(string hostName, int port, string userName, string password)
+        {
+            _hostName = hostName;
+            _port = port;
+            _userName = userName;
+            _password = password;
+        }
+
+        public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
         {
             try
             {
-                using var channel = Grpc.Net.Client.GrpcChannel.ForAddress(endpoint);
-                var client = new Grpc.Health.V1.Health.HealthClient(channel);
-                var response = client.Check(new Grpc.Health.V1.HealthCheckRequest
+                var factory = new ConnectionFactory
                 {
-                    Service = serviceName
-                });
-
-                return response.Status == Grpc.Health.V1.HealthCheckResponse.Types.ServingStatus.Serving
-                    ? HealthCheckResult.Healthy($"gRPC {serviceName} is serving")
-                    : HealthCheckResult.Unhealthy($"gRPC {serviceName} is not serving");
+                    HostName = _hostName,
+                    Port = _port,
+                    UserName = _userName,
+                    Password = _password,
+                    RequestedHeartbeat = TimeSpan.FromSeconds(5),
+                };
+                using var connection = factory.CreateConnection();
+                using var channel = connection.CreateModel();
+                return Task.FromResult(HealthCheckResult.Healthy("RabbitMQ is reachable"));
             }
             catch (Exception ex)
             {
-                return HealthCheckResult.Unhealthy($"gRPC {serviceName} is not reachable", ex);
+                return Task.FromResult(HealthCheckResult.Unhealthy("RabbitMQ is not reachable", ex));
             }
-        }, failureStatus ?? HealthStatus.Degraded,
-        ["grpc", serviceName]);
+        }
+    }
+
+    private class RedisHealthCheck : IHealthCheck
+    {
+        private readonly string _connectionString;
+
+        public RedisHealthCheck(string connectionString)
+        {
+            _connectionString = connectionString;
+        }
+
+        public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var multiplexer = ConnectionMultiplexer.Connect(_connectionString);
+                var db = multiplexer.GetDatabase();
+                db.Ping();
+                multiplexer.Close();
+                return Task.FromResult(HealthCheckResult.Healthy("Redis is reachable"));
+            }
+            catch (Exception ex)
+            {
+                return Task.FromResult(HealthCheckResult.Unhealthy("Redis is not reachable", ex));
+            }
+        }
+    }
+
+    private class GrpcHealthCheck : IHealthCheck
+    {
+        private readonly string _serviceName;
+        private readonly string _endpoint;
+
+        public GrpcHealthCheck(string serviceName, string endpoint)
+        {
+            _serviceName = serviceName;
+            _endpoint = endpoint;
+        }
+
+        public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                using var channel = GrpcChannel.ForAddress(_endpoint);
+                var client = new Grpc.Health.V1.Health.HealthClient(channel);
+                var response = await client.CheckAsync(
+                    new Grpc.Health.V1.HealthCheckRequest { Service = _serviceName },
+                    deadline: DateTime.UtcNow.AddSeconds(5),
+                    cancellationToken: cancellationToken);
+
+                var status = response.Status;
+                return status == Grpc.Health.V1.HealthCheckResponse.Types.ServingStatus.Serving
+                    ? HealthCheckResult.Healthy($"gRPC service '{_serviceName}' is healthy")
+                    : HealthCheckResult.Unhealthy($"gRPC service '{_serviceName}' status: {status}");
+            }
+            catch (Exception ex)
+            {
+                return HealthCheckResult.Unhealthy($"gRPC service '{_serviceName}' is not reachable", ex);
+            }
+        }
     }
 }

@@ -54,7 +54,7 @@ metadata:
     app.kubernetes.io/component: database
 spec:
   serviceName: postgres
-  replicas: 1
+  replicas: 3
   selector:
     matchLabels:
       app.kubernetes.io/name: postgres
@@ -63,11 +63,26 @@ spec:
       labels:
         app.kubernetes.io/name: postgres
         app.kubernetes.io/component: database
+        app: postgres
     spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: postgres
           image: postgres:16
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - DAC_OVERRIDE
+                - SETGID
+                - SETUID
           ports:
             - containerPort: 5432
               protocol: TCP

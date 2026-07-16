@@ -34,7 +34,8 @@ public class CreatePatientCommandHandler : IRequestHandler<CreatePatientCommand,
         var gender = Gender.FromCode(request.GenderCode);
         var contactInfo = new ContactInfo(request.Phone, request.Email);
         var address = new Address(
-            request.Street, request.District ?? string.Empty,
+            request.Street,
+            string.IsNullOrWhiteSpace(request.District) ? "-" : request.District!,
             request.City, request.Province,
             request.PostalCode ?? string.Empty, request.Country);
 

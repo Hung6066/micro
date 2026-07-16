@@ -87,28 +87,115 @@ spec:
         #!/usr/bin/env sh
         set -euo pipefail
 
-        mkdir -p /workspace/output/test-results
+        TEST_RESULTS_DIR="/workspace/output/test-results"
+        mkdir -p "$TEST_RESULTS_DIR"
 
         TEST_PROJECTS=$(find . -name "*.Tests.csproj" -type f | head -20)
 
         if [ -z "$TEST_PROJECTS" ]; then
-          echo "WARNING: No test projects found. Skipping test execution."
-          exit 0
+          echo "ERROR: No test projects (*.Tests.csproj) found in the repository."
+          echo "Test execution is required — add at least one test project or update the search pattern."
+          exit 1
         fi
 
+        FAILED_COUNT=0
+        TOTAL_COUNT=0
+
         for test_project in $TEST_PROJECTS; do
-          echo "Running tests for $test_project"
-          dotnet test "$test_project" \
+          TOTAL_COUNT=$((TOTAL_COUNT + 1))
+          PROJECT_DIR=$(basename "$(dirname "$test_project")")
+          echo "[$TOTAL_COUNT] Running tests for $test_project"
+
+          if dotnet test "$test_project" \
             --configuration "$(params.CONFIGURATION)" \
             --no-build \
             --verbosity normal \
             --collect:"XPlat Code Coverage" \
-            --results-directory /workspace/output/test-results \
+            --results-directory "$TEST_RESULTS_DIR" \
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura \
-            DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.CoverageFileName="coverage-$(basename $(dirname $test_project)).xml"
+            DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.CoverageFileName="coverage-${PROJECT_DIR}.xml"; then
+            echo "[PASS] $test_project"
+          else
+            echo "[FAIL] $test_project"
+            FAILED_COUNT=$((FAILED_COUNT + 1))
+          fi
         done
 
-        echo "Test results and coverage reports saved to /workspace/output/test-results/"
+        echo ""
+        echo "========================================"
+        echo " Test Results Summary"
+        echo "========================================"
+        echo " Total:  $TOTAL_COUNT"
+        echo " Passed: $((TOTAL_COUNT - FAILED_COUNT))"
+        echo " Failed: $FAILED_COUNT"
+        echo "========================================"
+        echo ""
+
+        if [ "$FAILED_COUNT" -gt 0 ]; then
+          echo "ERROR: $FAILED_COUNT test project(s) failed. See logs above for details."
+          exit 1
+        fi
+
+        echo "All test projects passed successfully."
+      env:
+        - name: DOTNET_CLI_TELEMETRY_OPTOUT
+          value: "1"
+
+    - name: publish-test-results
+      image: mcr.microsoft.com/dotnet/sdk:8.0
+      workingDir: /workspace/source
+      script: |
+        #!/usr/bin/env sh
+        set -euo pipefail
+
+        TEST_RESULTS_DIR="/workspace/output/test-results"
+        PUBLISH_DIR="/workspace/output/publish/test-results"
+        mkdir -p "$PUBLISH_DIR"
+
+        echo "Publishing test results from $TEST_RESULTS_DIR to $PUBLISH_DIR"
+
+        # Copy all test result files (TRX, XML, coverage)
+        if [ -d "$TEST_RESULTS_DIR" ]; then
+          find "$TEST_RESULTS_DIR" -type f \( -name "*.trx" -o -name "*.xml" -o -name "*.cobertura" -o -name "*.json" \) \
+            -exec cp {} "$PUBLISH_DIR/" \; 2>/dev/null || true
+
+          # Generate a consolidated test report index
+          REPORT_FILE="$PUBLISH_DIR/test-report.txt"
+          {
+            echo "His.Hope EMR - Test Results Report"
+            echo "==================================="
+            echo "Generated: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+            echo "Pipeline: $(params.PROJECT_NAME)"
+            echo "Configuration: $(params.CONFIGURATION)"
+            echo ""
+
+            COVERAGE_FILES=$(find "$PUBLISH_DIR" -name "*.cobertura" -o -name "coverage-*.xml" | head -20)
+            if [ -n "$COVERAGE_FILES" ]; then
+              echo "Coverage Reports:"
+              for cov_file in $COVERAGE_FILES; do
+                COV_SIZE=$(wc -c < "$cov_file")
+                echo "  - $(basename "$cov_file") (${COV_SIZE} bytes)"
+              done
+            else
+              echo "No coverage reports found."
+            fi
+
+            TRX_FILES=$(find "$PUBLISH_DIR" -name "*.trx" | head -20)
+            if [ -n "$TRX_FILES" ]; then
+              echo ""
+              echo "Test Result Files (TRX):"
+              for trx in $TRX_FILES; do
+                TRX_SIZE=$(wc -c < "$trx")
+                echo "  - $(basename "$trx") (${TRX_SIZE} bytes)"
+              done
+            fi
+          } > "$REPORT_FILE"
+
+          echo "Published test results:"
+          ls -lh "$PUBLISH_DIR"
+        else
+          echo "WARNING: No test results directory found at $TEST_RESULTS_DIR"
+        fi
       env:
         - name: DOTNET_CLI_TELEMETRY_OPTOUT
           value: "1"

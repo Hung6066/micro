@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package his.hope.clinical;
+
+option csharp_namespace = "His.Hope.ClinicalGrpc";
+
+import "google/protobuf/timestamp.proto";
+
+service ClinicalGrpcService {
+  rpc GetEncounter (EncounterRequest) returns (EncounterResponse);
+  rpc GetPatientEncounters (PatientEncountersRequest) returns (EncounterListResponse);
+  rpc CheckEncounterExists (EncounterExistsRequest) returns (EncounterExistsResponse);
+  rpc SearchEncounters (EncounterSearchRequest) returns (EncounterListResponse);
+}
+
+message EncounterRequest {
+  string id = 1;
+}
+
+message EncounterResponse {
+  string id = 1;
+  string patient_id = 2;
+  string provider_id = 3;
+  string appointment_id = 4;
+  google.protobuf.Timestamp encounter_date = 5;
+  string encounter_type_code = 6;
+  string encounter_type_name = 7;
+  string status_code = 8;
+  string status_name = 9;
+  string chief_complaint = 10;
+  bool has_vitals = 11;
+  int32 diagnosis_count = 12;
+  google.protobuf.Timestamp created_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+}
+
+message PatientEncountersRequest {
+  string patient_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message EncounterSearchRequest {
+  string search_term = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message EncounterListResponse {
+  repeated EncounterResponse encounters = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message EncounterExistsRequest {
+  string id = 1;
+}
+
+message EncounterExistsResponse {
+  bool exists = 1;
+}

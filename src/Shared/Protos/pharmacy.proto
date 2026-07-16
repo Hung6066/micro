@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package his.hope.pharmacy;
+
+option csharp_namespace = "His.Hope.PharmacyGrpc";
+
+import "google/protobuf/timestamp.proto";
+
+service PharmacyGrpcService {
+  rpc GetMedication (MedicationRequest) returns (MedicationResponse);
+  rpc SearchMedications (MedicationSearchRequest) returns (MedicationListResponse);
+  rpc CheckMedicationExists (MedicationExistsRequest) returns (MedicationExistsResponse);
+  rpc GetPrescription (PrescriptionRequest) returns (PrescriptionResponse);
+  rpc SearchPrescriptions (PrescriptionSearchRequest) returns (PrescriptionListResponse);
+}
+
+message PrescriptionRequest {
+  string id = 1;
+}
+
+message PrescriptionSearchRequest {
+  string search_term = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message PrescriptionListResponse {
+  repeated PrescriptionResponse prescriptions = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message MedicationRequest {
+  string id = 1;
+}
+
+message MedicationResponse {
+  string id = 1;
+  string name = 2;
+  string generic_name = 3;
+  string brand_name = 4;
+  string dosage_form = 5;
+  string strength = 6;
+  string route = 7;
+  bool requires_prescription = 8;
+  bool is_active = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message PrescriptionResponse {
+  string id = 1;
+  string patient_id = 2;
+  string provider_id = 3;
+  string medication_id = 4;
+  string medication_name = 5;
+  string strength = 6;
+  string dosage_form = 7;
+  string dosage_instructions = 8;
+  string route = 9;
+  int32 quantity = 10;
+  int32 refills = 11;
+  string status_code = 12;
+  string status_name = 13;
+  google.protobuf.Timestamp prescribed_at = 14;
+  google.protobuf.Timestamp filled_at = 15;
+  google.protobuf.Timestamp created_at = 16;
+  google.protobuf.Timestamp updated_at = 17;
+}
+
+message MedicationSearchRequest {
+  string search_term = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message MedicationListResponse {
+  repeated MedicationResponse medications = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message MedicationExistsRequest {
+  string id = 1;
+}
+
+message MedicationExistsResponse {
+  bool exists = 1;
+}

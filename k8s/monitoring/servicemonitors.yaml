@@ -1,0 +1,139 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: clinical-service
+  labels:
+    app.kubernetes.io/name: clinical-service
+    app.kubernetes.io/component: service-monitor
+    app.kubernetes.io/part-of: his-hope
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: clinical-service
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    any: true
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: patient-service
+  labels:
+    app.kubernetes.io/name: patient-service
+    app.kubernetes.io/component: service-monitor
+    app.kubernetes.io/part-of: his-hope
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: patient-service
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    any: true
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: identity-service
+  labels:
+    app.kubernetes.io/name: identity-service
+    app.kubernetes.io/component: service-monitor
+    app.kubernetes.io/part-of: his-hope
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: identity-service
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    any: true
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: appointment-service
+  labels:
+    app.kubernetes.io/name: appointment-service
+    app.kubernetes.io/component: service-monitor
+    app.kubernetes.io/part-of: his-hope
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: appointment-service
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    any: true
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: lab-service
+  labels:
+    app.kubernetes.io/name: lab-service
+    app.kubernetes.io/component: service-monitor
+    app.kubernetes.io/part-of: his-hope
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lab-service
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    any: true
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: billing-service
+  labels:
+    app.kubernetes.io/name: billing-service
+    app.kubernetes.io/component: service-monitor
+    app.kubernetes.io/part-of: his-hope
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: billing-service
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    any: true
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: pharmacy-service
+  labels:
+    app.kubernetes.io/name: pharmacy-service
+    app.kubernetes.io/component: service-monitor
+    app.kubernetes.io/part-of: his-hope
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pharmacy-service
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    any: true

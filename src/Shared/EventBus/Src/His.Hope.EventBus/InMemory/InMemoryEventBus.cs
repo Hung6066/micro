@@ -41,8 +41,8 @@ public class InMemoryEventBus : IEventBus
 
         _handlers.AddOrUpdate(
             eventType,
-            static _ => [handlerType],
-            static (_, existing) =>
+            _ => [handlerType],
+            (_, existing) =>
             {
                 if (!existing.Contains(handlerType))
                     existing.Add(handlerType);

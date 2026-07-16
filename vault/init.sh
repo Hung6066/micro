@@ -16,7 +16,7 @@ OUTPUT_DIR="./vault-credentials"
 mkdir -p "$OUTPUT_DIR"
 
 echo "=== Step 1: Initializing Vault ==="
-if ! vault status -format=json 2>/dev/null | jq -e '.initialized == true' > /dev/null 2>&1; then
+if ! vault status -format=json 2>/dev/null | jq -e ".initialized == true" > /dev/null 2>&1; then
   vault operator init \
     -key-shares="$KEY_SHARES" \
     -key-threshold="$KEY_THRESHOLD" \
@@ -27,15 +27,15 @@ else
   echo "Vault is already initialized."
 fi
 
-jq -r '.root_token' "$OUTPUT_DIR/init.json" > "$OUTPUT_DIR/root_token.txt"
-jq -r '.unseal_keys_b64[]' "$OUTPUT_DIR/init.json" > "$OUTPUT_DIR/unseal_keys.txt"
+jq -r ".root_token" "$OUTPUT_DIR/init.json" > "$OUTPUT_DIR/root_token.txt"
+jq -r ".unseal_keys_b64[]" "$OUTPUT_DIR/init.json" > "$OUTPUT_DIR/unseal_keys.txt"
 
 ROOT_TOKEN=$(cat "$OUTPUT_DIR/root_token.txt")
 VAULT_TOKEN="$ROOT_TOKEN"
 export VAULT_TOKEN
 
 echo "=== Step 2: Unsealing Vault ==="
-UNSEAL_KEYS=($(jq -r '.unseal_keys_b64[]' "$OUTPUT_DIR/init.json"))
+UNSEAL_KEYS=($(jq -r ".unseal_keys_b64[]" "$OUTPUT_DIR/init.json"))
 for i in 0 1 2; do
   vault operator unseal "${UNSEAL_KEYS[$i]}"
 done
@@ -94,18 +94,26 @@ vault write pki_int/roles/internal-service \
   require_cn=false
 
 echo "=== Step 6: Creating Vault Policies ==="
+# SECURITY: Each service has a dedicated policy with least-privilege access
 vault policy write patient-service ./policies/patient-service.hcl
 vault policy write identity-service ./policies/identity-service.hcl
 vault policy write clinical-service ./policies/clinical-service.hcl
+vault policy write lab-service ./policies/lab-service-policy.hcl
+vault policy write billing-service ./policies/billing-service-policy.hcl
+vault policy write pharmacy-service ./policies/pharmacy-service-policy.hcl
 vault policy write admin ./policies/admin.hcl
 vault policy write approle ./policies/approle.hcl
 
 echo "=== Step 7: Configuring AppRole Roles ==="
+# SECURITY: Each microservice gets a unique AppRole with its own policy
 declare -A APP_ROLES
 APP_ROLES[patient-service]="patient-service"
 APP_ROLES[identity-service]="identity-service"
 APP_ROLES[clinical-service]="clinical-service"
 APP_ROLES[appointment-service]="appointment-service"
+APP_ROLES[lab-service]="lab-service"
+APP_ROLES[billing-service]="billing-service"
+APP_ROLES[pharmacy-service]="pharmacy-service"
 
 for ROLE in "${!APP_ROLES[@]}"; do
   POLICY="${APP_ROLES[$ROLE]}"
@@ -133,9 +141,9 @@ echo "=== Step 9: Seeding Initial Secrets ==="
 bash ./seeds.sh
 
 echo "=== Step 10: Configuring Kubernetes Auth ==="
-K8S_HOST=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')
-K8S_CA_CERT=$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode)
-K8S_SA_JWT=$(kubectl get secret vault-auth -n his-hope -o jsonpath='{.data.token}' | base64 --decode 2>/dev/null || echo "")
+K8S_HOST=$(kubectl config view --minify -o jsonpath="{.clusters[0].cluster.server}")
+K8S_CA_CERT=$(kubectl config view --minify -o jsonpath="{.clusters[0].cluster.certificate-authority-data}" | base64 --decode)
+K8S_SA_JWT=$(kubectl get secret vault-auth -n his-hope -o jsonpath="{.data.token}" | base64 --decode 2>/dev/null || echo "")
 
 if [ -n "$K8S_SA_JWT" ]; then
   vault write auth/kubernetes/config \

@@ -1,3 +1,4 @@
+using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Database;
 using His.Hope.Infrastructure.Observability;
@@ -19,6 +20,9 @@ public static class DependencyInjection
     {
         services.AddHisHopeOpenTelemetry(configuration, serviceName);
         services.AddHisHopeCaching(redisConnectionString);
+
+        // SECURITY: Register PHI audit service for HIPAA audit compliance
+        services.AddPhiAudit();
 
         return services;
     }

@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package his.hope.lab;
+
+option csharp_namespace = "His.Hope.LabGrpc";
+
+import "google/protobuf/timestamp.proto";
+
+service LabGrpcService {
+  rpc GetLabOrder (LabOrderRequest) returns (LabOrderResponse);
+  rpc GetPatientLabOrders (PatientLabOrdersRequest) returns (LabOrderListResponse);
+  rpc CheckLabOrderExists (LabOrderExistsRequest) returns (LabOrderExistsResponse);
+  rpc SearchLabOrders (LabOrderSearchRequest) returns (LabOrderListResponse);
+}
+
+message LabOrderRequest {
+  string id = 1;
+}
+
+message LabOrderResponse {
+  string id = 1;
+  string patient_id = 2;
+  string provider_id = 3;
+  string encounter_id = 4;
+  google.protobuf.Timestamp order_date = 5;
+  string status_code = 6;
+  string status_name = 7;
+  string priority_code = 8;
+  string priority_name = 9;
+  string notes = 10;
+  repeated LabTestResponse tests = 11;
+}
+
+message LabTestResponse {
+  string id = 1;
+  string test_code = 2;
+  string test_name = 3;
+  string specimen_type = 4;
+  string status_code = 5;
+  string status_name = 6;
+  google.protobuf.Timestamp ordered_at = 7;
+  google.protobuf.Timestamp collected_at = 8;
+  google.protobuf.Timestamp completed_at = 9;
+  LabResultResponse result = 10;
+}
+
+message LabResultResponse {
+  string lab_result_id = 1;
+  string value = 2;
+  string unit = 3;
+  string reference_range = 4;
+  string abnormal_flag_code = 5;
+  string abnormal_flag_name = 6;
+  string result_status_code = 7;
+  string result_status_name = 8;
+  google.protobuf.Timestamp resulted_at = 9;
+  string performed_by = 10;
+  string notes = 11;
+}
+
+message PatientLabOrdersRequest {
+  string patient_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message LabOrderListResponse {
+  repeated LabOrderResponse lab_orders = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message LabOrderExistsRequest {
+  string id = 1;
+}
+
+message LabOrderExistsResponse {
+  bool exists = 1;
+}
+
+message LabOrderSearchRequest {
+  string search_term = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}

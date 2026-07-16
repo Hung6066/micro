@@ -5,7 +5,7 @@ metadata:
   labels:
     app.kubernetes.io/name: identity-service
     app.kubernetes.io/component: backend
-automountServiceAccountToken: true
+automountServiceAccountToken: false
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -16,7 +16,7 @@ metadata:
 data:
   ASPNETCORE_ENVIRONMENT: Production
   ASPNETCORE_URLS: "http://0.0.0.0:5003;https://0.0.0.0:5004"
-  ConnectionStrings__IdentityDb: "Host=postgres;Port=5432;Database=identitydb;Username=his_hope;Password=${POSTGRES_PASSWORD}"
+  ConnectionStrings__IdentityDb: "Host=postgres;Port=5432;Database=identitydb;Username=his_hope;Password="
   RabbitMQ__Host: rabbitmq
   Redis__Connection: redis:6379
   Consul__Address: http://consul:8500
@@ -39,12 +39,31 @@ spec:
       labels:
         app.kubernetes.io/name: identity-service
         app.kubernetes.io/component: backend
+        app: identity-service
     spec:
       serviceAccountName: identity-service
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: identity-service
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            runAsUser: 1654
+            runAsGroup: 1654
           image: his-hope/identity-service:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 5003
@@ -55,12 +74,18 @@ spec:
           envFrom:
             - configMapRef:
                 name: identity-service-config
+          env:
+            - name: ConnectionStrings__IdentityDb
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: identity_connection_string
           resources:
             requests:
-              cpu: 256m
-              memory: 512Mi
+              cpu: 512m
+              memory: 1Gi
             limits:
-              cpu: "1"
+              cpu: 512m
               memory: 1Gi
           livenessProbe:
             httpGet:
@@ -84,8 +109,8 @@ spec:
               port: 5003
             initialDelaySeconds: 5
             periodSeconds: 5
-            timeoutSeconds: 3
-            failureThreshold: 30
+            timeoutSeconds: 5
+            failureThreshold: 40
 ---
 apiVersion: v1
 kind: Service
@@ -142,7 +167,7 @@ metadata:
   labels:
     app.kubernetes.io/name: identity-service
 spec:
-  minAvailable: 1
+  maxUnavailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: identity-service

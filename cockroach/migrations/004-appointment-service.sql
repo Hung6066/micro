@@ -24,9 +24,23 @@ CREATE TABLE appointmentdb.OutboxMessages (
     Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     Type STRING(500) NOT NULL,
     Content JSONB NOT NULL,
-    CreatedAt TIMESTAMPTZ NOT NULL DEFAULT now(),
-    ProcessedAt TIMESTAMPTZ,
-    Error STRING(2000),
+    CorrelationId STRING(200),
+    CausationId STRING(200),
+    OccurredOn TIMESTAMPTZ NOT NULL DEFAULT now(),
+    ProcessedOn TIMESTAMPTZ,
+    Status STRING(50) NOT NULL DEFAULT 'Pending',
+    Error STRING(1000),
     RetryCount INT DEFAULT 0,
-    INDEX idx_outbox_unprocessed (ProcessedAt) WHERE ProcessedAt IS NULL
+    LastRetryOn TIMESTAMPTZ,
+    LockExpiresAt TIMESTAMPTZ,
+    INDEX idx_outbox_status_occurred (Status, OccurredOn)
 );
+
+-- Backward-compatibility for existing deployments
+ALTER TABLE appointmentdb.OutboxMessages ADD COLUMN IF NOT EXISTS CorrelationId STRING(200);
+ALTER TABLE appointmentdb.OutboxMessages ADD COLUMN IF NOT EXISTS CausationId STRING(200);
+ALTER TABLE appointmentdb.OutboxMessages ADD COLUMN IF NOT EXISTS OccurredOn TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE appointmentdb.OutboxMessages ADD COLUMN IF NOT EXISTS ProcessedOn TIMESTAMPTZ;
+ALTER TABLE appointmentdb.OutboxMessages ADD COLUMN IF NOT EXISTS Status STRING(50) NOT NULL DEFAULT 'Pending';
+ALTER TABLE appointmentdb.OutboxMessages ADD COLUMN IF NOT EXISTS LastRetryOn TIMESTAMPTZ;
+ALTER TABLE appointmentdb.OutboxMessages ADD COLUMN IF NOT EXISTS LockExpiresAt TIMESTAMPTZ;

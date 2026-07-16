@@ -1,0 +1,135 @@
+# =============================================================================
+# His.Hope Production Image Digest Pinning Component
+#
+# This Kustomize component pins all container images to their content-addressable
+# digests (SHA256). This ensures immutable, verifiable deployments.
+#
+# USAGE:
+#   Include this component in the prod overlay:
+#     components:
+#       - image-digests.yaml
+#
+# WORKFLOW (Cosign-based signing & verification):
+#   1. After building an image, tag it and push:
+#      docker tag his-hope/api-gateway:1.0.0 registry.example.com/his-hope/api-gateway:1.0.0
+#      docker push registry.example.com/his-hope/api-gateway:1.0.0
+#
+#   2. Sign the image with Cosign (key-based):
+#      cosign sign --key cosign.key registry.example.com/his-hope/api-gateway@sha256:<digest>
+#
+#   3. Verify the signature before deployment:
+#      cosign verify --key cosign.pub registry.example.com/his-hope/api-gateway@sha256:<digest>
+#
+#   4. Update this file with the resolved digest:
+#      docker inspect --format='{{index .RepoDigests 0}}' his-hope/api-gateway:1.0.0
+#      # Output: registry.example.com/his-hope/api-gateway@sha256:abc123...
+#
+#   5. The ArgoCD PR will gate on Cosign verification via a pre-sync hook.
+#
+# COSIGN VERIFICATION GATE (ArgoCD Pre-Sync):
+#   Create an ArgoCD ResourceHook that runs cosign verify before applying:
+#   ---
+#   apiVersion: argoproj.io/v1alpha1
+#   kind: ArgoCD
+#   spec:
+#     resourceHooks:
+#       - name: cosign-verify
+#         events: ["Sync"]
+#         selector:
+#           apps: "true"
+#         commands:
+#           - args: ["cosign", "verify", "--key", "/etc/cosign/cosign.pub", 
+#                    "{{.metadata.annotations.cosign/image}}"]
+#           - args: ["cosign", "verify-attestation", "--key", "/etc/cosign/cosign.pub",
+#                    "{{.metadata.annotations.cosign/image}}"]
+#
+# =============================================================================
+
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+images:
+  #############################################################################
+  # His.Hope .NET Microservices
+  #############################################################################
+  # api-gateway
+  - name: his-hope/api-gateway
+    newTag: 1.0.0
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+  # patient-service
+  - name: his-hope/patient-service
+    newTag: 1.0.0
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+  # identity-service
+  - name: his-hope/identity-service
+    newTag: 1.0.0
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+  # appointment-service
+  - name: his-hope/appointment-service
+    newTag: 1.0.0
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+  # clinical-service
+  - name: his-hope/clinical-service
+    newTag: 1.0.0
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+  # lab-service
+  - name: his-hope/lab-service
+    newTag: 1.0.0
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+  # billing-service
+  - name: his-hope/billing-service
+    newTag: 1.0.0
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+  # pharmacy-service
+  - name: his-hope/pharmacy-service
+    newTag: 1.0.0
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+  # frontend
+  - name: his-hope/frontend
+    newTag: 1.0.0
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+  #############################################################################
+  # Infrastructure Images
+  #############################################################################
+  # postgres
+  - name: postgres
+    newTag: "16.2"
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+  # rabbitmq
+  - name: rabbitmq
+    newTag: "3.13"
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+  # redis
+  - name: redis
+    newTag: "7.2"
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+patches:
+  #############################################################################
+  # Set imagePullPolicy to IfNotPresent when using pinned digests
+  #############################################################################
+  - target:
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/part-of=his-hope"
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: StatefulSet
+      labelSelector: "app.kubernetes.io/part-of=his-hope"
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent

@@ -5,4 +5,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>His.Hope.SharedKernel</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MediatR" Version="12.2.0" />
+  </ItemGroup>
 </Project>

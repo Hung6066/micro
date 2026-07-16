@@ -1,6 +1,10 @@
 namespace His.Hope.IdentityService.Application.DTOs;
 
-public record LoginRequest(string Username, string Password);
+public record LoginRequest(
+    string Username,
+    string Password,
+    string? DeviceInfo = null,
+    string? IpAddress = null);
 
 public record RegisterRequest(
     string Username,
@@ -10,7 +14,9 @@ public record RegisterRequest(
     string LastName,
     string? MiddleName,
     string? LicenseNumber,
-    string? Specialty);
+    string? Specialty,
+    string? DeviceInfo = null,
+    string? IpAddress = null);
 
 public record TokenResponse(
     string AccessToken,
@@ -18,7 +24,11 @@ public record TokenResponse(
     DateTime ExpiresAt,
     UserDto User);
 
-public record RefreshTokenRequest(string AccessToken, string RefreshToken);
+public record RefreshTokenRequest(
+    string AccessToken,
+    string RefreshToken,
+    string? DeviceInfo = null,
+    string? IpAddress = null);
 
 public record UserDto(
     Guid Id,

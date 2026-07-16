@@ -1,58 +1,526 @@
-* {
+// His.Hope EMR - Global Styles
+// Warm clinical utilitarian minimalism — Angular Material 3 overrides
+// Palette: #F7F6F3 bone; #FFFFFF cards; #EAEAEA borders; 8px/6px/4px radii
+
+@use '@angular/material' as mat;
+@use 'theme' as his;
+
+// ═══════════════════════════════════════════
+// Base Layout
+// ═══════════════════════════════════════════
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  font-family: 'Roboto', 'Helvetica Neue', sans-serif;
-  background-color: #f5f7fa;
-  color: #333;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-warm, #F7F6F3);
+  color: var(--text-primary, #1A1A1A);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
 }
 
-h1 {
-  font-size: 28px;
-  font-weight: 500;
-  margin-bottom: 8px;
+// ═══════════════════════════════════════════
+// App Container — max-width constrained
+// ═══════════════════════════════════════════
+.main-content {
+  min-height: 100vh;
+  // padding handled by individual feature pages
+
+  @media (max-width: 599px) {
+    padding: 12px;
+  }
 }
 
-h2 {
-  font-size: 22px;
-  font-weight: 500;
+// Container utility
+.container {
+  max-width: var(--max-width-container, 1200px);
+  margin: 0 auto;
+  padding: 0 24px;
+  width: 100%;
+
+  @media (max-width: 599px) {
+    padding: 0 12px;
+  }
+}
+
+// Section spacing
+.section {
+  margin-bottom: 32px;
+}
+
+.section-lg {
+  margin-bottom: 48px;
+}
+
+.section-compact {
   margin-bottom: 16px;
 }
 
-a {
-  text-decoration: none;
-  color: inherit;
-}
-
+// ═══════════════════════════════════════════
+// Card overrides — flat, 1px border, 8px radius
+// ═══════════════════════════════════════════
 .mat-mdc-card {
-  border-radius: 12px !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  border-radius: var(--radius-card, 8px) !important;
+  border: 1px solid var(--border-default, #EAEAEA) !important;
+  box-shadow: none !important;
+  background: var(--surface-white, #FFFFFF);
 }
 
+.mat-mdc-card-header {
+  padding: 20px 20px 0;
+}
+
+.mat-mdc-card-content {
+  padding: 20px;
+}
+
+.mat-mdc-card-actions {
+  padding: 0 20px 12px;
+}
+
+// ═══════════════════════════════════════════
+// Button styles — 6px radius, no shadow, clean
+// ═══════════════════════════════════════════
+.mat-mdc-button,
+.mat-mdc-raised-button,
+.mat-mdc-stroked-button,
+.mat-mdc-outlined-button,
+.mat-mdc-unelevated-button {
+  border-radius: var(--radius-button, 6px) !important;
+  box-shadow: none !important;
+}
+
+.mat-mdc-raised-button:not(:disabled):active,
+.mat-mdc-unelevated-button:not(:disabled):active {
+  transform: scale(0.98);
+  transition: transform 50ms ease;
+}
+
+.mat-mdc-stroked-button {
+  border-width: 1px;
+}
+
+// Remove focus ring overrides — keep accessible
+.mat-mdc-button,
+.mat-mdc-raised-button,
+.mat-mdc-stroked-button {
+  --mdc-text-button-container-shape: 6px;
+  --mdc-filled-button-container-shape: 6px;
+  --mdc-outlined-button-container-shape: 6px;
+  --mdc-protected-button-container-shape: 6px;
+}
+
+// ═══════════════════════════════════════════
+// Elevation override — kill all Material elevation classes
+// ═══════════════════════════════════════════
+[class*="mat-elevation-z"] {
+  box-shadow: none !important;
+}
+
+// Keep elevation only for overlay elements (menus, dialogs)
+.cdk-overlay-pane [class*="mat-elevation-z"] {
+  box-shadow: var(--shadow-dropdown, 0 2px 8px rgba(0, 0, 0, 0.08)) !important;
+}
+
+// ═══════════════════════════════════════════
+// Table styling — border-bottom dividers, no shadow
+// ═══════════════════════════════════════════
 .mat-mdc-table {
-  border-radius: 12px;
+  border-radius: 0;
   overflow: hidden;
+  background: transparent;
 }
 
+.mat-mdc-header-row {
+  border-bottom: 1px solid var(--border-default, #EAEAEA);
+}
+
+.mat-mdc-row {
+  border-bottom: 1px solid var(--border-light, #F0F0EE);
+  transition: background-color 150ms ease;
+
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.mat-mdc-cell,
+.mat-mdc-header-cell {
+  border-bottom: none;
+}
+
+// ═══════════════════════════════════════════
+// Form fields — 4px radius inputs
+// ═══════════════════════════════════════════
 .mat-mdc-form-field {
-  width: 100%;
+  --mdc-outlined-text-field-container-shape: var(--radius-input, 4px);
+  --mdc-filled-text-field-container-shape: var(--radius-input, 4px);
 }
 
-button.mat-mdc-raised-button,
-button.mat-mdc-stroked-button {
-  border-radius: 8px !important;
+.mdc-text-field--outlined {
+  --mdc-outlined-text-field-outline-width: 1px;
+  --mdc-outlined-text-field-focus-outline-width: 2px;
 }
 
+// ═══════════════════════════════════════════
+// Tabs — clean underline, no background
+// ═══════════════════════════════════════════
+.mat-mdc-tab-group,
+.mat-mdc-tab-nav-bar {
+  --mdc-tab-indicator-active-indicator-height: 2px;
+  --mat-tab-header-active-label-text-color: var(--color-primary, #2F6B4A);
+  --mat-tab-header-active-ripple-color: rgba(47, 107, 74, 0.1);
+  --mat-tab-header-inactive-label-text-color: var(--text-secondary, #787774);
+  --mat-tab-header-inactive-ripple-color: rgba(0, 0, 0, 0.05);
+  --mat-tab-header-active-focus-label-text-color: var(--color-primary, #2F6B4A);
+  --mat-tab-header-active-hover-label-text-color: var(--color-primary, #2F6B4A);
+  --mat-tab-header-pagination-icon-color: var(--text-secondary, #787774);
+  --mat-tab-header-divider-color: var(--border-light, #F0F0EE);
+}
+
+.mat-mdc-tab-header {
+  --mat-tab-header-divider-height: 1px;
+}
+
+.mat-mdc-tab {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+// ═══════════════════════════════════════════
+// Status badges — pastel palette, 4px radius
+// ═══════════════════════════════════════════
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: var(--radius-badge, 4px);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+
+  // -- Status-specific overrides via CSS vars --
+  &.status-in_progress,
+  &.status-active,
+  &.status-ordered,
+  &.status-collected,
+  &.status-progress,
+  &.status-scheduled,
+  &.status-checked_in,
+  &.apt-status-scheduled,
+  &.rx-status-active,
+  &.lab-status-ordered,
+  &.lab-status-collected,
+  &.lab-status-in_progress {
+    background: var(--pastel-blue, #E1F3FE);
+    color: var(--pastel-blue-text, #1A6BB5);
+  }
+
+  &.status-completed,
+  &.status-filled,
+  &.status-paid,
+  &.apt-status-checked_in,
+  &.apt-status-completed,
+  &.lab-status-completed,
+  &.rx-status-filled,
+  &.inv-status-paid {
+    background: var(--pastel-green, #EDF3EC);
+    color: var(--pastel-green-text, #2F6B4A);
+  }
+
+  &.status-signed,
+  &.status-expired,
+  &.rx-status-expired,
+  &.inv-status-voided,
+  &.status-voided {
+    background: var(--pastel-purple, #F0ECFA);
+    color: var(--pastel-purple-text, #6B4FA0);
+  }
+
+  &.status-cancelled,
+  &.apt-status-cancelled,
+  &.lab-status-cancelled,
+  &.rx-status-cancelled,
+  &.inv-status-cancelled {
+    background: var(--pastel-red, #FDEBEC);
+    color: var(--pastel-red-text, #C25450);
+  }
+
+  &.status-pending,
+  &.status-draft,
+  &.status-partial,
+  &.status-issued,
+  &.status-partially_paid,
+  &.inv-status-draft,
+  &.inv-status-issued,
+  &.inv-status-partially_paid,
+  &.lab-status-pending {
+    background: var(--pastel-yellow, #FBF3DB);
+    color: var(--pastel-yellow-text, #8D6E2B);
+  }
+
+  &.status-overdue,
+  &.inv-status-overdue,
+  &.lab-status-abnormal,
+  &.status-abnormal {
+    background: var(--pastel-red, #FDEBEC);
+    color: var(--pastel-red-text, #C25450);
+    font-weight: 600;
+  }
+
+  &.status-inactive {
+    background: #F0F0EE;
+    color: #787774;
+  }
+}
+
+// Priority badges
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: var(--radius-badge, 4px);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: nowrap;
+  text-transform: uppercase;
+
+  &.priority-high,
+  &.priority-urgent {
+    background: var(--pastel-orange, #FEF0E0);
+    color: var(--pastel-orange-text, #B6581C);
+  }
+
+  &.priority-routine {
+    background: var(--pastel-green, #EDF3EC);
+    color: var(--pastel-green-text, #2F6B4A);
+  }
+}
+
+// ═══════════════════════════════════════════
+// Paginator
+// ═══════════════════════════════════════════
+.mat-mdc-paginator {
+  border-top: 1px solid var(--border-light, #F0F0EE);
+}
+
+// ═══════════════════════════════════════════
+// Dialog / Modal
+// ═══════════════════════════════════════════
+.mat-mdc-dialog-container {
+  --mdc-dialog-container-shape: var(--radius-card, 8px);
+}
+
+.mdc-dialog__surface {
+  box-shadow: var(--shadow-modal, 0 8px 24px rgba(0, 0, 0, 0.12)) !important;
+}
+
+// ═══════════════════════════════════════════
+// Snackbar
+// ═══════════════════════════════════════════
+.mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-shape: var(--radius-card, 8px);
+}
+
+// ═══════════════════════════════════════════
+// Chip
+// ═══════════════════════════════════════════
+.mat-mdc-chip {
+  border-radius: var(--radius-badge, 4px) !important;
+}
+
+// ═══════════════════════════════════════════
+// Progress bar
+// ═══════════════════════════════════════════
+.mat-mdc-progress-bar {
+  --mdc-linear-progress-track-height: 4px;
+  border-radius: 2px;
+}
+
+// ═══════════════════════════════════════════
+// Scroll-entry fade animation (CSS only)
+// ═══════════════════════════════════════════
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-enter {
+  animation: fadeInUp 400ms ease forwards;
+}
+
+// Staggered delays for grid children
+.fade-enter:nth-child(1) { animation-delay: 0ms; }
+.fade-enter:nth-child(2) { animation-delay: 60ms; }
+.fade-enter:nth-child(3) { animation-delay: 120ms; }
+.fade-enter:nth-child(4) { animation-delay: 180ms; }
+.fade-enter:nth-child(5) { animation-delay: 240ms; }
+.fade-enter:nth-child(6) { animation-delay: 300ms; }
+
+// ═══════════════════════════════════════════
+// Skip-to-content link (WCAG 2.1 AA)
+// ═══════════════════════════════════════════
+.skip-to-content {
+  position: absolute;
+  top: -100%;
+  left: 8px;
+  z-index: 10000;
+  padding: 8px 16px;
+  background: var(--surface-white, #FFFFFF);
+  color: var(--text-primary, #1A1A1A);
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid var(--border-default, #EAEAEA);
+  border-radius: 0 0 var(--radius-input, 4px) var(--radius-input, 4px);
+
+  &:focus {
+    top: 0;
+  }
+}
+
+// ═══════════════════════════════════════════
+// Scrollbar (material-compatible)
+// ═══════════════════════════════════════════
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 3px;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.2);
+  }
+}
+
+// ═══════════════════════════════════════════
+// Screen-reader-only utility (WCAG 2.1 AA)
+// ═══════════════════════════════════════════
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+// ═══════════════════════════════════════════
+// Responsive helpers
+// ═══════════════════════════════════════════
+@media (max-width: 599px) {
+  .hide-mobile { display: none !important; }
+}
+
+@media (min-width: 600px) and (max-width: 959px) {
+  .hide-tablet { display: none !important; }
+}
+
+@media (min-width: 960px) {
+  .hide-desktop { display: none !important; }
+}
+
+// ═══════════════════════════════════════════
+// Loading + empty states (consistent styling)
+// ═══════════════════════════════════════════
+.loading-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 48px;
+  color: var(--text-muted, #A1A09B);
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: var(--text-muted, #A1A09B);
+  text-align: center;
+
+  mat-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 16px;
+    opacity: 0.4;
+  }
+
+  p {
+    font-size: 14px;
+    line-height: 1.6;
+    max-width: 320px;
+  }
+}
+
+// ═══════════════════════════════════════════
+// Section headers
+// ═══════════════════════════════════════════
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.page-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary, #1A1A1A);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.page-subtitle {
+  color: var(--text-secondary, #787774);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+// ═══════════════════════════════════════════
+// Error message
+// ═══════════════════════════════════════════
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--pastel-red, #FDEBEC);
+  color: var(--pastel-red-text, #C25450);
+  border-radius: var(--radius-card, 8px);
+  margin-bottom: 16px;
+  font-size: 14px;
 }

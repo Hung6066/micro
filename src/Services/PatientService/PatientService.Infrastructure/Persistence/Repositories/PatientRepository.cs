@@ -36,22 +36,36 @@ public class PatientRepository : IPatientRepository
             .ThenBy(p => p.Name.FirstName)
             .ToListAsync(cancellationToken);
 
-    public async Task<IReadOnlyList<Patient>> SearchAsync(string searchTerm, CancellationToken cancellationToken = default)
+    public async Task<(IReadOnlyList<Patient> Items, int TotalCount)> SearchAsync(
+        string searchTerm, int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        var term = searchTerm.ToLowerInvariant();
-        return await _context.Patients
+        var query = _context.Patients
             .Include(p => p.Allergies)
             .Include(p => p.Conditions)
-            .Where(p => p.IsActive &&
-                (p.Name.FirstName.ToLower().Contains(term) ||
-                 p.Name.LastName.ToLower().Contains(term) ||
-                 (p.Name.MiddleName != null && p.Name.MiddleName.ToLower().Contains(term)) ||
-                 p.ContactInfo.Phone.Contains(term) ||
-                 (p.ContactInfo.Email != null && p.ContactInfo.Email.ToLower().Contains(term)) ||
-                 (p.NationalId != null && p.NationalId.Contains(term))))
+            .Where(p => p.IsActive);
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var pattern = $"%{searchTerm}%";
+            query = query.Where(p =>
+                EF.Functions.ILike(p.Name.FirstName, pattern) ||
+                EF.Functions.ILike(p.Name.LastName, pattern) ||
+                (p.Name.MiddleName != null && EF.Functions.ILike(p.Name.MiddleName, pattern)) ||
+                EF.Functions.ILike(p.ContactInfo.Phone, pattern) ||
+                (p.ContactInfo.Email != null && EF.Functions.ILike(p.ContactInfo.Email, pattern)) ||
+                (p.NationalId != null && EF.Functions.ILike(p.NationalId, pattern)));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
             .OrderBy(p => p.Name.LastName)
             .ThenBy(p => p.Name.FirstName)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
     }
 
     public async Task<Patient> AddAsync(Patient patient, CancellationToken cancellationToken = default)

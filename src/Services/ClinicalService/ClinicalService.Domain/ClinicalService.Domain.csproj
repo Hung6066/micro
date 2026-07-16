@@ -7,4 +7,12 @@
   <ItemGroup>
     <ProjectReference Include="..\..\..\Shared\SharedKernel\Src\His.Hope.SharedKernel\His.Hope.SharedKernel.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>ClinicalService.Application</_Parameter1>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>ClinicalService.Infrastructure</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>

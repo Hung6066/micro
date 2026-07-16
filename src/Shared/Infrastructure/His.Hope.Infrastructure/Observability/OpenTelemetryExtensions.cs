@@ -55,7 +55,7 @@ public static class OpenTelemetryExtensions
                 })
                 .AddEntityFrameworkCoreInstrumentation(options =>
                 {
-                    options.SetDbStatementForText = true;
+                    options.SetDbStatementForText = false;
                     options.SetDbStatementForStoredProcedure = true;
                 })
                 .AddJaegerExporter(options =>
@@ -63,7 +63,7 @@ public static class OpenTelemetryExtensions
                     options.AgentHost = configuration.GetValue("Otlp:Host", "localhost");
                     options.AgentPort = configuration.GetValue("Otlp:Port", 6831);
                 })
-                .SetSampler(new AlwaysOnSampler()))
+                .SetSampler(new ParentBasedSampler(new TraceIdRatioBasedSampler(0.1))))
             .WithMetrics(metrics => metrics
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
@@ -71,7 +71,6 @@ public static class OpenTelemetryExtensions
                 .AddProcessInstrumentation()
                 .AddPrometheusExporter(options =>
                 {
-                    options.DisableTotalNameSuffixForCounters = true;
                     options.ScrapeResponseCacheDurationMilliseconds = 1000;
                 }));
 

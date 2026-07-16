@@ -60,6 +60,167 @@ spec:
       - port: "5009"
         protocol: TCP
 ---
+# ---------------------------------------------------------------------------
+# identity-service: HTTP from api-gateway (port 5003)
+# No gRPC callers defined in current architecture
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: identity-service-ingress
+  namespace: his-hope
+spec:
+  endpointSelector:
+    matchLabels:
+      app: identity-service
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: api-gateway
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5003"
+        protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# appointment-service: HTTP from api-gateway (port 5004) +
+#   gRPC from billing-service (port 5008)
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: appointment-service-ingress
+  namespace: his-hope
+spec:
+  endpointSelector:
+    matchLabels:
+      app: appointment-service
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: api-gateway
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5004"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app: billing-service
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5008"
+        protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# lab-service: HTTP from api-gateway (port 5010) +
+#   gRPC from billing-service (port 5012)
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: lab-service-ingress
+  namespace: his-hope
+spec:
+  endpointSelector:
+    matchLabels:
+      app: lab-service
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: api-gateway
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5010"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app: billing-service
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5012"
+        protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# billing-service: HTTP from api-gateway (port 5020)
+# No gRPC callers defined in current architecture
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: billing-service-ingress
+  namespace: his-hope
+spec:
+  endpointSelector:
+    matchLabels:
+      app: billing-service
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: api-gateway
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5020"
+        protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# pharmacy-service: HTTP from api-gateway (port 5030) +
+#   gRPC from billing-service (port 5032)
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: pharmacy-service-ingress
+  namespace: his-hope
+spec:
+  endpointSelector:
+    matchLabels:
+      app: pharmacy-service
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: api-gateway
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5030"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app: billing-service
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5032"
+        protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# api-gateway: HTTP ingress from frontend (port 5000)
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: api-gateway-ingress
+  namespace: his-hope
+spec:
+  endpointSelector:
+    matchLabels:
+      app: api-gateway
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app: frontend
+        io.kubernetes.pod.namespace: his-hope
+    toPorts:
+    - ports:
+      - port: "5000"
+        protocol: TCP
+---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
