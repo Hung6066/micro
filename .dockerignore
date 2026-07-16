@@ -1,9 +1,84 @@
-**/bin
-**/obj
-**/node_modules
-**/dist
-**/.angular
-**/.git
-**/.vs
-**/*.user
-**/.DS_Store
+# ============================================================
+# Global .dockerignore for His.Hope monorepo
+# ============================================================
+
+# --- .NET build artifacts ---
+**/bin/
+**/obj/
+**/packages/
+**/.vs/
+**/.vscode/
+*.user
+*.suo
+*.cache
+*.vspscc
+
+# --- Node.js / Angular ---
+**/node_modules/
+**/dist/
+**/.angular/
+**/coverage/
+
+# --- Git ---
+**/.git/
+**/.gitignore
+**/.gitattributes
+
+# --- IDE & Editor ---
+**/.idea/
+**/.vs/
+**/.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- Documentation (large files) ---
+**/*.md
+!README.md
+
+# --- Test & Coverage ---
+**/TestResults/
+**/coverlet/
+**/coverage/
+*.trx
+*.testlog
+
+# --- Docker & Kubernetes ---
+**/docker-compose.override.yml
+**/.env
+!.env.example
+**/.env.*
+!**/*.env.example
+
+# --- Logs ---
+**/*.log
+**/logs/
+**/Logs/
+
+# --- Temp files ---
+**/tmp/
+**/temp/
+**/.tmp/
+
+# --- CI/CD pipeline artifacts ---
+**/.tekton/
+**/pipeline-runs/
+
+# --- Python (ML services) ---
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.venv/
+**/.pytest_cache/
+
+# --- Bazel ---
+**/bazel-*/
+**/.bazelrc.user
+
+# --- Archives ---
+*.zip
+*.tar.gz
+*.tgz
+*.7z
