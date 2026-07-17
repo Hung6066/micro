@@ -16,7 +16,7 @@ metadata:
 data:
   ASPNETCORE_ENVIRONMENT: Production
   ASPNETCORE_URLS: "http://0.0.0.0:5005;https://0.0.0.0:5006"
-  ConnectionStrings__ClinicalDb: "Host=postgres;Port=5432;Database=clinicaldb;Username=his_hope;Password="
+  ConnectionStrings__ClinicalDb: "Host=localhost;Port=6432;Database=clinicaldb;Username=his_hope;Password="
   RabbitMQ__Host: rabbitmq
   Redis__Connection: redis:6379
   Consul__Address: http://consul:8500
@@ -111,6 +111,68 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 5
             failureThreshold: 40
+        # ── PgBouncer Sidecar ──────────────────────────────────────────────
+        # Lightweight connection pooler for PostgreSQL/CockroachDB
+        - name: pgbouncer
+          image: eduburu/pgbouncer:1.22
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            runAsUser: 100
+            runAsGroup: 100
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: pgbouncer
+              containerPort: 6432
+              protocol: TCP
+          env:
+            - name: POSTGRESQL_HOST
+              value: "cockroachdb-public.his-hope.svc.cluster.local"
+            - name: POSTGRESQL_PORT
+              value: "26257"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            exec:
+              command:
+                - pgbouncer
+                - --version
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: 6432
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: pgbouncer-volume
+              mountPath: /etc/pgbouncer
+              readOnly: true
+      volumes:
+        - name: pgbouncer-volume
+          projected:
+            sources:
+              - configMap:
+                  name: pgbouncer-config
+                  items:
+                    - key: pgbouncer.ini
+                      path: pgbouncer.ini
+              - secret:
+                  name: pgbouncer-secret
+                  items:
+                    - key: userlist.txt
+                      path: userlist.txt
 ---
 apiVersion: v1
 kind: Service

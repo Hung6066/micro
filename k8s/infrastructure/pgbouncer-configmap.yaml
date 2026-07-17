@@ -1,0 +1,38 @@
+# =============================================================================
+# PgBouncer Configuration
+# Lightweight connection pooler for PostgreSQL/CockroachDB
+# Deployed as a sidecar container in each service that needs DB access
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pgbouncer-config
+  labels:
+    app.kubernetes.io/name: pgbouncer-sidecar
+    app.kubernetes.io/component: infrastructure
+    app.kubernetes.io/part-of: his-hope
+data:
+  pgbouncer.ini: |
+    [databases]
+    * = host=cockroachdb-public.his-hope.svc.cluster.local port=26257
+
+    [pgbouncer]
+    listen_addr = 0.0.0.0
+    listen_port = 6432
+    auth_type = md5
+    auth_file = /etc/pgbouncer/userlist.txt
+    pool_mode = transaction
+    default_pool_size = 20
+    reserve_pool_size = 5
+    max_client_conn = 100
+    max_db_connections = 25
+    server_idle_timeout = 600
+    log_connections = 1
+    log_disconnections = 1
+    # Health check query run periodically on server connections
+    server_check_query = SELECT 1
+    server_check_delay = 60
+    # Timeout for waiting for a connection to the database
+    query_timeout = 30
+    # Cancel idle connections after timeout
+    idle_transaction_timeout = 300
