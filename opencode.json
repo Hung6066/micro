@@ -20,12 +20,12 @@
   "agent": {
     "architect": {
       "description": "Lead system architect — coordinates the engineering team, delegates to specialized agents (@explore, @dotnet, @angular, @devops, @dba, @security, @ml-ai, @data-platform, @qa). Uses all MCP servers: db-* (7 databases), github, kubernetes, docker, rabbitmq, redis, prometheus, filesystem, playwright, sequential-thinking.",
-      "model": "opencode-go/deepseek-v4-flash",
+      "model": "opencode-go/deepseek-v4-pro",
       "permission": "allow"
     },
     "plan": {
       "description": "Plan agent — produces step-by-step plans before any code changes, never edits files, delegates exploration to @explore. Uses MCP: sequential-thinking for complex problem decomposition.",
-      "model": "opencode-go/deepseek-v4-flash",
+      "model": "opencode-go/deepseek-v4-pro",
       "permission": "allow"
     },
     "testing-backend": {
