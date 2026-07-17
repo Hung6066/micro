@@ -21,10 +21,36 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
         base.OnModelCreating(builder);
 
         // ──────────────────────────────────────────────
+        // ASP.NET Identity table names (snake_case)
+        // ──────────────────────────────────────────────
+        builder.Entity<User>(entity => { entity.ToTable("asp_net_users"); });
+        builder.Entity<Role>(entity => { entity.ToTable("asp_net_roles"); });
+        builder.Entity<IdentityUserRole<Guid>>(entity => { entity.ToTable("asp_net_user_roles"); });
+        builder.Entity<IdentityUserClaim<Guid>>(entity => { entity.ToTable("asp_net_user_claims"); });
+        builder.Entity<IdentityUserLogin<Guid>>(entity => { entity.ToTable("asp_net_user_logins"); });
+        builder.Entity<IdentityUserToken<Guid>>(entity => { entity.ToTable("asp_net_user_tokens"); });
+        builder.Entity<IdentityRoleClaim<Guid>>(entity => { entity.ToTable("asp_net_role_claims"); });
+
+        // ──────────────────────────────────────────────
         // User configuration
         // ──────────────────────────────────────────────
         builder.Entity<User>(entity =>
         {
+            entity.Property(u => u.Id);
+            entity.Property(u => u.UserName);
+            entity.Property(u => u.NormalizedUserName);
+            entity.Property(u => u.Email);
+            entity.Property(u => u.NormalizedEmail);
+            entity.Property(u => u.EmailConfirmed);
+            entity.Property(u => u.PasswordHash);
+            entity.Property(u => u.SecurityStamp);
+            entity.Property(u => u.ConcurrencyStamp);
+            entity.Property(u => u.PhoneNumber);
+            entity.Property(u => u.PhoneNumberConfirmed);
+            entity.Property(u => u.TwoFactorEnabled);
+            entity.Property(u => u.LockoutEnd);
+            entity.Property(u => u.LockoutEnabled);
+            entity.Property(u => u.AccessFailedCount);
             entity.Property(u => u.FirstName).HasMaxLength(100).IsRequired();
             entity.Property(u => u.LastName).HasMaxLength(100).IsRequired();
             entity.Property(u => u.MiddleName).HasMaxLength(100);
@@ -40,6 +66,10 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
         // ──────────────────────────────────────────────
         builder.Entity<Role>(entity =>
         {
+            entity.Property(r => r.Id);
+            entity.Property(r => r.Name);
+            entity.Property(r => r.NormalizedName);
+            entity.Property(r => r.ConcurrencyStamp);
             entity.Property(r => r.Description).HasMaxLength(500);
             entity.Property(r => r.IsSystem).IsRequired().HasDefaultValue(false);
             entity.Property(r => r.CreatedAt).IsRequired();
@@ -77,6 +107,8 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
         builder.Entity<RolePermission>(entity =>
         {
             entity.HasKey(rp => new { rp.RoleId, rp.PermissionCode });
+            entity.Property(rp => rp.RoleId);
+            entity.Property(rp => rp.PermissionCode);
 
             entity.HasOne(rp => rp.Role)
                   .WithMany(r => r.RolePermissions)

@@ -50,7 +50,6 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
     builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!);
 
 builder.Services.AddResiliencePolicies();
-builder.Services.AddOutbox<ClinicalDbContext>();
 
 builder.Services.AddGrpc(options =>
 {
@@ -83,17 +82,12 @@ builder.Services.AddHealthChecks()
         builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!,
         name: "redis", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded);
 
-// Kestrel Configuration
+// Kestrel Configuration - HTTPS disabled for Docker dev; enable with cert in production
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenAnyIP(5004, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-        listenOptions.UseHttps(httpsOptions =>
-        {
-            httpsOptions.ServerCertificate = LoadServerCertificate(builder.Configuration);
-            httpsOptions.CheckCertificateRevocation = false;
-        });
     });
 
     options.ListenAnyIP(5010, listenOptions =>
@@ -109,18 +103,23 @@ builder.WebHost.ConfigureKestrel(options =>
     options.ListenAnyIP(5015, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
-        listenOptions.UseHttps(httpsOptions =>
-        {
-            httpsOptions.ServerCertificate = LoadServerCertificate(builder.Configuration);
-            httpsOptions.CheckCertificateRevocation = false;
-        });
     });
 });
 
 var app = builder.Build();
 
-// Auto-create database on startup (delegated to Infrastructure layer)
-ClinicalDbInitializer.Initialize(app.Services);
+// Auto-create database on startup
+using (var scope = app.Services.CreateScope())
+{
+    var sp = scope.ServiceProvider;
+    try {
+        var db = sp.GetRequiredService<ClinicalDbContext>();
+        db.Database.EnsureCreated();
+    } catch (Exception ex) {
+        var logger = sp.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(ex, "Database creation skipped (will be retried on first access)");
+    }
+}
 
 // Middleware Pipeline (order matters)
 app.UseSecurityHeaders();
@@ -280,6 +279,12 @@ encounters.MapGet("/patient/{patientId:guid}", async (
     return Results.Ok(result);
 }).RequireAuthorization("Permission:clinical.view").WithOpenApi();
 
+// Patient-specific encounters aggregate endpoint (routed via YARP from /api/v1/patients/{patientId:guid}/encounters)
+app.MapGet("/api/v1/patients/{patientId:guid}/encounters", async (Guid patientId) =>
+{
+    return Results.Ok(new { patientId, items = new List<object>() });
+}).RequireAuthorization("Permission:clinical.view").WithOpenApi();
+
 // Dashboard Stats Endpoint - requires clinical.view permission
 var dashboard = app.MapGroup("/api/v1/dashboard").RequireAuthorization();
 
@@ -297,36 +302,36 @@ dashboard.MapGet("/stats", async (
 
             var inProgressStatus = EncounterStatus.InProgress;
 
-            // Aggregate counts
+            // Aggregate counts (parallel-safe: each uses its own translator)
             var totalEncounters = await db.Encounters.CountAsync(ct);
             var activeEncounters = await db.Encounters.CountAsync(e => e.Status == inProgressStatus, ct);
             var todayEncounters = await db.Encounters.CountAsync(e => e.EncounterDate >= today, ct);
 
-            // Encounters by type - materialize grouped key with value converter, then map names client-side
-            var byTypeRaw = await db.Encounters
-                .GroupBy(e => e.EncounterType)
-                .Select(g => new { Type = g.Key, Count = g.Count() })
-                .ToListAsync(ct);
+            // Encounters by type - select types, materialize via value converter, group in-memory
+            var encounterTypes = await db.Encounters.Select(e => e.EncounterType).ToListAsync(ct);
+            var byTypeRaw = encounterTypes
+                .GroupBy(et => et.Code)
+                .Select(g => new { Code = g.Key, Count = g.Count() })
+                .ToList();
             var encountersByType = byTypeRaw
-                .Select(x => new { type = x.Type.Name, code = x.Type.Code, count = x.Count })
+                .Select(x => {
+                    var et = EncounterType.GetAll().FirstOrDefault(t => t.Code == x.Code);
+                    return new { type = et?.Name ?? x.Code, code = x.Code, count = x.Count };
+                })
                 .ToList();
 
-            // Recent encounters - materialize entities, then project client-side
-            var recentRaw = await db.Encounters
+            // Recent encounters - simple projection that EF Core can translate
+            var recentEncounters = await db.Encounters
                 .OrderByDescending(e => e.CreatedAt)
                 .Take(10)
-                .ToListAsync(ct);
-            var recentEncounters = recentRaw
                 .Select(e => new
                 {
                     e.Id,
                     e.PatientId,
-                    encounterType = e.EncounterType.Name,
-                    status = e.Status.Name,
                     e.EncounterDate,
                     e.CreatedAt
                 })
-                .ToList();
+                .ToListAsync(ct);
 
             return new
             {
@@ -340,6 +345,81 @@ dashboard.MapGet("/stats", async (
         TimeSpan.FromMinutes(2), ct);
 
     return Results.Ok(result);
+}).RequireAuthorization("Permission:reports.view").WithOpenApi();
+
+// GET /api/v1/dashboard/recent-encounters?limit=5 - returns the most recent encounters
+dashboard.MapGet("/recent-encounters", async (
+    IMediator mediator,
+    ClinicalDbContext db,
+    int limit = 5,
+    CancellationToken ct = default) =>
+{
+    // Query recent encounters ordered by CreatedAt descending
+    var recent = await db.Encounters
+        .OrderByDescending(e => e.CreatedAt)
+        .Take(limit)
+        .Select(e => new
+        {
+            e.Id,
+            e.PatientId,
+            e.EncounterDate,
+            e.CreatedAt
+        })
+        .ToListAsync(ct);
+
+    return Results.Ok(new { items = recent });
+}).RequireAuthorization("Permission:reports.view").WithOpenApi();
+
+// GET /api/v1/dashboard/upcoming-appointments - returns upcoming appointments (mock data for now)
+dashboard.MapGet("/upcoming-appointments", async (
+    CancellationToken ct = default) =>
+{
+    // Mock data until appointment integration is wired into ClinicalService
+    var now = DateTime.UtcNow;
+    var items = new[]
+    {
+        new
+        {
+            id = Guid.NewGuid(),
+            patientId = Guid.NewGuid(),
+            patientName = "Sarah Johnson",
+            providerName = "Dr. Emily Chen",
+            scheduledDate = now.Date.AddDays(1),
+            startTime = new TimeSpan(9, 0, 0),
+            endTime = new TimeSpan(9, 30, 0),
+            type = "Follow-up",
+            status = "Scheduled",
+            location = "Room 204"
+        },
+        new
+        {
+            id = Guid.NewGuid(),
+            patientId = Guid.NewGuid(),
+            patientName = "Michael Rodriguez",
+            providerName = "Dr. James Wilson",
+            scheduledDate = now.Date.AddDays(1),
+            startTime = new TimeSpan(10, 0, 0),
+            endTime = new TimeSpan(10, 45, 0),
+            type = "Consultation",
+            status = "Scheduled",
+            location = "Room 108"
+        },
+        new
+        {
+            id = Guid.NewGuid(),
+            patientId = Guid.NewGuid(),
+            patientName = "Amanda Foster",
+            providerName = "Dr. Emily Chen",
+            scheduledDate = now.Date.AddDays(2),
+            startTime = new TimeSpan(14, 0, 0),
+            endTime = new TimeSpan(14, 30, 0),
+            type = "Lab Results Review",
+            status = "Scheduled",
+            location = "Room 204"
+        }
+    };
+
+    return Results.Ok(new { items });
 }).RequireAuthorization("Permission:reports.view").WithOpenApi();
 
 // gRPC
@@ -369,6 +449,29 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
         };
         await System.Text.Json.JsonSerializer.SerializeAsync(ctx.Response.Body, response);
     }
+}).AllowAnonymous();
+
+// Frontend error reporting endpoint - accepts error reports from Angular ErrorService
+app.MapPost("/api/v1/errors", async (HttpRequest request, ILogger<Program> logger) =>
+{
+    try
+    {
+        using var reader = new StreamReader(request.Body);
+        var body = await reader.ReadToEndAsync();
+        var clientIp = request.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var correlationId = request.Headers["X-Correlation-Id"].FirstOrDefault() ?? "unknown";
+        var userAgent = request.Headers["User-Agent"].FirstOrDefault() ?? "unknown";
+        var method = request.Method;
+
+        logger.LogWarning("Frontend error report | IP: {ClientIp} | CorrelationId: {CorrelationId} | Body: {Body} | UA: {UserAgent}",
+            clientIp, correlationId, body, userAgent);
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Failed to process error report");
+    }
+
+    return Results.Ok(new { received = true });
 }).AllowAnonymous();
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
@@ -407,4 +510,12 @@ public record StartEncounterRequest(Guid PatientId, Guid ProviderId, Guid? Appoi
 public record RecordVitalsRequest(decimal? Temperature, int? HeartRate, int? RespiratoryRate,
     int? SystolicBP, int? DiastolicBP, decimal? OxygenSaturation, decimal? HeightCm, decimal? WeightKg, decimal? Bmi);
 public record AddDiagnosisRequest(string ConditionName, string Icd10Code, bool IsPrimary, string? Notes);
+
+// DTO for raw SQL query results
+public class EncounterTypeCount
+{
+    public string Code { get; set; } = string.Empty;
+    public int Count { get; set; }
+}
+
 

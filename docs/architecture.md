@@ -661,9 +661,9 @@ X-RateLimit-Reset: 1709301234
 | `identity-service` | Read static secrets + dynamic DB creds for `his_hope_identity` |
 | `clinical-service` | Read static secrets + dynamic DB creds for `his_hope_clinical` |
 | `appointment-service` | Read static secrets + dynamic DB creds for `his_hope_appointment` |
-| `lab-service` | Read static secrets + dynamic DB creds for `his_hope_lab` |
-| `billing-service` | Read static secrets + dynamic DB creds for `his_hope_billing` |
-| `pharmacy-service` | Read static secrets + dynamic DB creds for `his_hope_pharmacy` |
+| `lab-service` | Read static secrets + dynamic DB creds for `labdb` |
+| `billing-service` | Read static secrets + dynamic DB creds for `billingdb` |
+| `pharmacy-service` | Read static secrets + dynamic DB creds for `pharmacydb` |
 | `admin` | Full access for vault operators |
 | `approle` | AppRole auth method configuration |
 | **`token-blacklist`** | Read/write Redis-backed JWT blacklist (NEW) |
@@ -967,9 +967,9 @@ CREATE INDEX idx_outbox_status ON OutboxMessages (Status, OccurredOn)
 | `svc_patient` | `his_hope_patient` | Patients, allergies, conditions |
 | `svc_appointment` | `his_hope_appointment` | Appointments, scheduling |
 | `svc_clinical` | `his_hope_clinical` | Encounters, vitals, diagnoses, SOAP notes |
-| `svc_lab` | `his_hope_lab` | Lab orders, results, panels |
-| `svc_billing` | `his_hope_billing` | Invoices, payments, claims |
-| `svc_pharmacy` | `his_hope_pharmacy` | Medications, dispensing, inventory |
+| `svc_lab` | `labdb` | Lab orders, results, panels |
+| `svc_billing` | `billingdb` | Invoices, payments, claims |
+| `svc_pharmacy` | `pharmacydb` | Medications, dispensing, inventory |
 
 Each user is granted `SELECT, INSERT, UPDATE, DELETE` only on its own tables — no `DROP`, no `ALTER`, no cross-database access. Defined in migration **010-database-roles**.
 
@@ -2244,3 +2244,4 @@ His.Hope/
 │
 └── src/Frontend/his-hope-app/                               # Angular 17 SPA
 ```
+

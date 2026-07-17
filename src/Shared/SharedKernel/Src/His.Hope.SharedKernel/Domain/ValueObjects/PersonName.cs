@@ -13,6 +13,9 @@ public class PersonName : ValueObject
             ? $"{LastName} {FirstName}"
             : $"{LastName} {MiddleName} {FirstName}";
 
+    public static PersonName Create(string firstName, string lastName, string? middleName = null) =>
+        new(firstName, lastName, middleName);
+
     public PersonName(string firstName, string lastName, string? middleName = null)
     {
         FirstName = Guard.Against.NullOrWhiteSpace(firstName, nameof(firstName));

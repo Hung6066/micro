@@ -92,11 +92,6 @@ builder.WebHost.ConfigureKestrel(options =>
     options.ListenAnyIP(5011, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-        listenOptions.UseHttps(httpsOptions =>
-        {
-            httpsOptions.ServerCertificate = LoadServerCertificate(builder.Configuration);
-            httpsOptions.CheckCertificateRevocation = false;
-        });
     });
 
     options.ListenAnyIP(5030, listenOptions =>
@@ -112,11 +107,6 @@ builder.WebHost.ConfigureKestrel(options =>
     options.ListenAnyIP(5015, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
-        listenOptions.UseHttps(httpsOptions =>
-        {
-            httpsOptions.ServerCertificate = LoadServerCertificate(builder.Configuration);
-            httpsOptions.CheckCertificateRevocation = false;
-        });
     });
 });
 
@@ -331,6 +321,12 @@ prescriptions.MapPut("/{id:guid}/cancel", async (
     return Results.NoContent();
 }).RequireAuthorization("Permission:pharmacy.cancel").WithOpenApi();
 
+// Patient-specific prescriptions aggregate endpoint (routed via YARP from /api/v1/patients/{patientId:guid}/prescriptions)
+app.MapGet("/api/v1/patients/{patientId:guid}/prescriptions", async (Guid patientId) =>
+{
+    return Results.Ok(new { patientId, items = new List<object>() });
+}).RequireAuthorization("Permission:pharmacy.view").WithOpenApi();
+
 // gRPC
 app.MapGrpcService<PharmacyGrpcServiceImpl>();
 app.MapGrpcHealthChecksService();
@@ -431,4 +427,5 @@ public record CreatePrescriptionRequest(
     string? Notes);
 
 public record CancelPrescriptionRequest(string Reason);
+
 

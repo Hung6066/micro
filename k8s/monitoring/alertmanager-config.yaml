@@ -21,6 +21,14 @@ data:
           severity: critical
         receiver: 'sre-team-critical'
         repeat_interval: 15m
+        continue: true
+      - match:
+          severity: critical
+        receiver: 'slack-critical'
+        continue: true
+      - match:
+          severity: critical
+        receiver: 'email-oncall'
       - match:
           severity: warning
         receiver: 'sre-team'
@@ -45,6 +53,25 @@ data:
       - channel: '#his-hope-critical'
         title: '🚨 {{ .GroupLabels.alertname }}'
         text: '{{ .CommonAnnotations.description }}'
+        send_resolved: true
+
+    - name: 'slack-critical'
+      slack_configs:
+      - api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'  # CONFIGURE: per-environment Slack webhook
+        channel: '#his-hope-alerts'
+        title: '{{ .GroupLabels.alertname }}'
+        text: |
+          *Severity:* {{ .CommonLabels.severity }}
+          *Alert:* {{ .CommonAnnotations.summary }}
+          *Runbook:* {{ .CommonAnnotations.runbook_url }}
+        send_resolved: true
+
+    - name: 'email-oncall'
+      email_configs:
+      - to: 'oncall@his-hope.com'  # CONFIGURE: per-environment email
+        from: 'alertmanager@his-hope.com'
+        smarthost: 'smtp.his-hope.com:587'  # CONFIGURE: per-environment SMTP
+        html: '{{ template "email.default.html" . }}'
         send_resolved: true
 
     inhibit_rules:

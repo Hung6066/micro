@@ -3,8 +3,8 @@ CREATE DATABASE IF NOT EXISTS patientdb;
 CREATE DATABASE IF NOT EXISTS identitydb;
 CREATE DATABASE IF NOT EXISTS appointmentdb;
 CREATE DATABASE IF NOT EXISTS clinicaldb;
-CREATE DATABASE IF NOT EXISTS his_hope_lab;
-CREATE DATABASE IF NOT EXISTS his_hope_billing;
+CREATE DATABASE IF NOT EXISTS labdb;
+CREATE DATABASE IF NOT EXISTS billingdb;
 
 -- Create users with passwords
 CREATE USER IF NOT EXISTS patient_user WITH PASSWORD '${PATIENT_DB_PASSWORD}';
@@ -26,3 +26,4 @@ ALTER DATABASE clinicaldb CONFIGURE ZONE USING constraints = '{"us-east1": 2, "e
 
 -- Global tables (replicated everywhere)
 ALTER TABLE system.users CONFIGURE ZONE USING num_replicas = 5, constraints = '{"+us-east1=2,+europe-west1=2,+asia-east1=1}';
+

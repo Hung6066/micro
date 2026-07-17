@@ -3,6 +3,7 @@ using System.Text.Json;
 using FluentValidation;
 using His.Hope.PatientService.Application.UseCases.Patients.Commands;
 using His.Hope.SharedKernel.Domain.Exceptions;
+using NotFoundException = His.Hope.SharedKernel.Domain.Exceptions.NotFoundException;
 
 namespace His.Hope.PatientService.Api.Middleware;
 

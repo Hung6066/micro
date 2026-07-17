@@ -1,0 +1,77 @@
+using FluentAssertions;
+using His.Hope.AppointmentService.Application.Common.Exceptions;
+using His.Hope.AppointmentService.Application.UseCases.Appointments.Commands;
+using His.Hope.AppointmentService.Domain.Aggregates;
+using His.Hope.AppointmentService.Domain.Repositories;
+using His.Hope.AppointmentService.Domain.ValueObjects;
+using His.Hope.SharedKernel.Domain.Common;
+using Moq;
+
+using NotFoundException = His.Hope.AppointmentService.Application.Common.Exceptions.NotFoundException;
+
+namespace His.Hope.AppointmentService.Application.Tests;
+
+public class CheckOutAppointmentCommandHandlerTests
+{
+    private readonly Mock<IAppointmentRepository> _mockRepository;
+    private readonly Mock<IUnitOfWork> _mockUnitOfWork;
+    private readonly CheckOutAppointmentCommandHandler _handler;
+
+    public CheckOutAppointmentCommandHandlerTests()
+    {
+        _mockRepository = new Mock<IAppointmentRepository>();
+        _mockUnitOfWork = new Mock<IUnitOfWork>();
+        _mockRepository.Setup(r => r.UnitOfWork).Returns(_mockUnitOfWork.Object);
+        _handler = new CheckOutAppointmentCommandHandler(_mockRepository.Object);
+    }
+
+    [Fact]
+    public async Task Handle_WithExistingAppointment_ShouldCheckOutAndSave()
+    {
+        var appointment = Appointment.Schedule(
+            Guid.NewGuid(), Guid.NewGuid(), DateTime.Today,
+            new TimeSpan(9, 0, 0), 30, AppointmentType.Checkup, null, "Clinic");
+
+        _mockRepository.Setup(r => r.GetByIdAsync(
+                It.IsAny<AppointmentId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(appointment);
+
+        var result = await _handler.Handle(new CheckOutAppointmentCommand(Guid.NewGuid()), CancellationToken.None);
+
+        result.Should().Be(Unit.Value);
+        appointment.Status.Should().Be(AppointmentStatus.Completed);
+        appointment.CheckedOutAt.Should().NotBeNull();
+        _mockRepository.Verify(r => r.UpdateAsync(appointment, It.IsAny<CancellationToken>()), Times.Once);
+        _mockUnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WithNonExistingAppointment_ShouldThrowNotFoundException()
+    {
+        _mockRepository.Setup(r => r.GetByIdAsync(
+                It.IsAny<AppointmentId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Appointment?)null);
+
+        var act = async () => await _handler.Handle(
+            new CheckOutAppointmentCommand(Guid.NewGuid()), CancellationToken.None);
+
+        await act.Should().ThrowAsync<NotFoundException>();
+        _mockUnitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldSetCompletedStatus()
+    {
+        var appointment = Appointment.Schedule(
+            Guid.NewGuid(), Guid.NewGuid(), DateTime.Today,
+            new TimeSpan(11, 0, 0), 30, AppointmentType.Consultation, null, null);
+
+        _mockRepository.Setup(r => r.GetByIdAsync(
+                It.IsAny<AppointmentId>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(appointment);
+
+        await _handler.Handle(new CheckOutAppointmentCommand(Guid.NewGuid()), CancellationToken.None);
+
+        appointment.Status.Should().Be(AppointmentStatus.Completed);
+    }
+}

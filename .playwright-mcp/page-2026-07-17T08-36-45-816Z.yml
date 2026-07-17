@@ -1,0 +1,35 @@
+- generic [active] [ref=f2e1]:
+  - link "Chuyển đến nội dung chính" [ref=f2e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f2e5]:
+    - generic [ref=f2e8]:
+      - img [ref=f2e9]: error_outline
+      - button [ref=f2e11] [cursor=pointer]:
+        - img [ref=f2e12]: close
+    - generic [ref=f2e17]:
+      - generic [ref=f2e18]:
+        - generic [ref=f2e19]:
+          - generic [ref=f2e20]: His.Hope
+          - generic [ref=f2e21]: Hệ thống Quản lý Bệnh viện
+        - img [ref=f2e22]: local_hospital
+      - generic [ref=f2e24]:
+        - generic [ref=f2e27]:
+          - generic [ref=f2e28]:
+            - text: Tên đăng nhập
+            - generic [ref=f2e29]: "*"
+          - img [ref=f2e31]: person
+          - textbox "Tên đăng nhập" [ref=f2e33]:
+            - /placeholder: Nhập tên đăng nhập
+            - text: testdoctor
+        - generic [ref=f2e37]:
+          - generic [ref=f2e38]:
+            - text: Mật khẩu
+            - generic [ref=f2e39]: "*"
+          - img [ref=f2e41]: lock
+          - textbox "Mật khẩu" [ref=f2e43]:
+            - /placeholder: Nhập mật khẩu
+            - text: Test@123
+        - button "Đang xử lý đăng nhập..." [disabled]:
+          - generic:
+            - progressbar "Đang đăng nhập"
+            - generic: Đang xử lý đăng nhập...

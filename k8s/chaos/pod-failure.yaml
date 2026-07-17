@@ -1,0 +1,16 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: test-stack-pod-failure
+  namespace: his-hope
+spec:
+  action: pod-failure
+  mode: one
+  selector:
+    namespaces:
+      - his-hope
+    labelSelectors:
+      "app.kubernetes.io/component": "api"
+  duration: "60s"
+  scheduler:
+    cron: "@every 12h"

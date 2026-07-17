@@ -131,15 +131,42 @@ public static class HealthCheckExtensions
             {
                 using var channel = GrpcChannel.ForAddress(_endpoint);
                 var client = new Grpc.Health.V1.Health.HealthClient(channel);
-                var response = await client.CheckAsync(
-                    new Grpc.Health.V1.HealthCheckRequest { Service = _serviceName },
-                    deadline: DateTime.UtcNow.AddSeconds(5),
-                    cancellationToken: cancellationToken);
+                
+                // Try with the specific service name first
+                Grpc.Health.V1.HealthCheckResponse.Types.ServingStatus status;
+                try
+                {
+                    var response = await client.CheckAsync(
+                        new Grpc.Health.V1.HealthCheckRequest { Service = _serviceName },
+                        deadline: DateTime.UtcNow.AddSeconds(5),
+                        cancellationToken: cancellationToken);
+                    status = response.Status;
+                }
+                catch (Grpc.Core.RpcException ex) when (ex.StatusCode == Grpc.Core.StatusCode.NotFound)
+                {
+                    // Service name not registered - check overall server health
+                    status = Grpc.Health.V1.HealthCheckResponse.Types.ServingStatus.Unknown;
+                }
 
-                var status = response.Status;
-                return status == Grpc.Health.V1.HealthCheckResponse.Types.ServingStatus.Serving
-                    ? HealthCheckResult.Healthy($"gRPC service '{_serviceName}' is healthy")
-                    : HealthCheckResult.Unhealthy($"gRPC service '{_serviceName}' status: {status}");
+                if (status == Grpc.Health.V1.HealthCheckResponse.Types.ServingStatus.Serving)
+                    return HealthCheckResult.Healthy($"gRPC service '{_serviceName}' is healthy");
+
+                // Fallback: query overall server health with empty service name
+                try
+                {
+                    var overallResponse = await client.CheckAsync(
+                        new Grpc.Health.V1.HealthCheckRequest(),
+                        deadline: DateTime.UtcNow.AddSeconds(5),
+                        cancellationToken: cancellationToken);
+
+                    return overallResponse.Status == Grpc.Health.V1.HealthCheckResponse.Types.ServingStatus.Serving
+                        ? HealthCheckResult.Healthy($"gRPC server at '{_endpoint}' is healthy")
+                        : HealthCheckResult.Unhealthy($"gRPC server at '{_endpoint}' status: {overallResponse.Status}");
+                }
+                catch (Grpc.Core.RpcException ex) when (ex.StatusCode == Grpc.Core.StatusCode.NotFound)
+                {
+                    return HealthCheckResult.Healthy($"gRPC server at '{_endpoint}' is reachable (health check service not registered)");
+                }
             }
             catch (Exception ex)
             {

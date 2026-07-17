@@ -223,8 +223,8 @@ export class ManageUsersComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     this.adminService.getUsers({
-      search: this.searchControl.value || undefined,
-      role: this.roleFilter.value || undefined,
+      search: this.searchControl.value || '',
+      role: this.roleFilter.value || '',
       page: this.currentPage,
       pageSize: this.pageSize,
     })

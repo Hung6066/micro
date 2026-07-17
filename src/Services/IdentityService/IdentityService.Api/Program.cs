@@ -7,6 +7,7 @@ using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.Infrastructure;
 using His.Hope.Infrastructure.Audit;
+using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Security.Authorization;
@@ -24,7 +25,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<IdentityDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("IdentityDb")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("IdentityDb"))
+        .UseSnakeCaseNamingConvention());
 builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<IdentityDbContext>());
 
 builder.Services.AddHisHopeEnterpriseInfrastructure(
@@ -81,7 +83,6 @@ builder.WebHost.ConfigureKestrel(options =>
     options.ListenAnyIP(5001, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-        listenOptions.UseHttps();
     });
     options.ListenAnyIP(5012, listenOptions =>
     {
@@ -91,11 +92,12 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-    db.Database.EnsureCreated();
-}
+app.UseCorrelationId();
+app.UseGlobalExceptionHandler();
+
+// SECURITY: Seed identity database with permissions, roles, and admin user
+His.Hope.IdentityService.Infrastructure.Persistence.IdentityDbInitializer.Initialize(
+    app.Services);
 
 if (app.Environment.IsDevelopment())
 {
@@ -127,7 +129,8 @@ auth.MapPost("/login", async (LoginRequest request, IIdentityService identitySer
         return Results.Problem(ex.Message, statusCode: 401);
     }
 })
-.WithOpenApi();
+.WithOpenApi()
+.AllowAnonymous();
 
 auth.MapPost("/register", async (RegisterRequest request, IIdentityService identityService, CancellationToken ct) =>
 {
@@ -141,7 +144,8 @@ auth.MapPost("/register", async (RegisterRequest request, IIdentityService ident
         return Results.Problem(ex.Message, statusCode: 400);
     }
 })
-.WithOpenApi();
+.WithOpenApi()
+.AllowAnonymous();
 
 auth.MapPost("/refresh", async (RefreshTokenRequest request, IIdentityService identityService, CancellationToken ct) =>
 {
@@ -155,7 +159,8 @@ auth.MapPost("/refresh", async (RefreshTokenRequest request, IIdentityService id
         return Results.Problem(ex.Message, statusCode: 401);
     }
 })
-.WithOpenApi();
+.WithOpenApi()
+.AllowAnonymous();
 
 auth.MapPost("/logout", async (RefreshTokenRequest request, IIdentityService identityService, CancellationToken ct) =>
 {
@@ -163,7 +168,17 @@ auth.MapPost("/logout", async (RefreshTokenRequest request, IIdentityService ide
     return Results.NoContent();
 })
 .RequireAuthorization()
-.WithOpenApi();
+.WithOpenApi()
+.AllowAnonymous();
+
+auth.MapGet("/verify", async (HttpContext httpContext) =>
+{
+    if (httpContext.User.Identity?.IsAuthenticated == true)
+        return Results.Ok(new { authenticated = true });
+    return Results.Ok(new { authenticated = false });
+})
+.WithOpenApi()
+.AllowAnonymous();
 
 auth.MapGet("/me", async (HttpContext httpContext, IIdentityService identityService, CancellationToken ct) =>
 {
@@ -185,11 +200,23 @@ var secured = app.MapGroup("/api/v1/auth").RequireAuthorization();
 secured.MapUserEndpoints();
 secured.MapRoleEndpoints();
 
+// Admin API endpoints (for frontend admin module)
+var admin = app.MapGroup("/api/v1/admin").RequireAuthorization();
+admin.MapUserEndpoints();
+admin.MapRoleEndpoints();
+admin.MapGet("/dashboard", async (IdentityDbContext db, CancellationToken ct) =>
+{
+    var totalUsers = await db.Users.CountAsync(ct);
+    var activeUsers = await db.Users.CountAsync(u => u.IsActive, ct);
+    var totalRoles = await db.Roles.CountAsync(ct);
+    return Results.Ok(new { totalUsers, activeUsers, totalRoles });
+}).RequireAuthorization("Permission:admin.users.read");
+
 var settings = app.MapGroup("/api/v1").RequireAuthorization();
 settings.MapSettingsEndpoints();
 
 var audit = app.MapGroup("/api/v1").RequireAuthorization();
 audit.MapAuditLogEndpoints();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health").AllowAnonymous();
 app.Run();

@@ -83,21 +83,21 @@ ALTER TABLE patientdb.Patients ADD COLUMN IF NOT EXISTS CreatedBy STRING(36);
 --      CreatedBy references the Admin user ID for seeded patients.
 INSERT INTO patientdb.Patients (PatientId, FirstName, LastName, MiddleName, DateOfBirth, Gender, Phone, Email, Street, District, City, Province, PostalCode, Country, BloodType, Race, MaritalStatus, InsuranceId, NationalId, Occupation, EmergencyContactName, EmergencyContactPhone, IsActive, FacilityId, CreatedBy, CreatedAt, UpdatedAt) VALUES
 -- P001: Nguyễn Văn A, 45t, male
-('00000000-0000-0000-0000-000000000001', 'A', 'Nguyễn', 'Văn', '1981-03-15', 'Male', '0901234567', 'nguyenvana@email.com', '123 Đường Lê Lợi', 'Quận 1', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700000', 'Việt Nam', 'A+', 'Kinh', 'Married', 'BHYT-12345-01', '079181001234', 'Kỹ sư xây dựng', 'Nguyễn Thị Hà', '0909234567', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL),
+('00000000-0000-0000-0000-000000000001', 'A', 'Nguyễn', 'Văn', '1981-03-15', 'Male', '0901234567', 'nguyenvana@email.com', '123 Đường Lê Lợi', 'Quận 1', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700000', 'Việt Nam', 'A+', 'ASIAN', 'Married', 'BHYT-12345-01', '079181001234', 'Kỹ sư xây dựng', 'Nguyễn Thị Hà', '0909234567', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL),
 -- P002: Trần Thị B, 32t, female
-('00000000-0000-0000-0000-000000000002', 'B', 'Trần', 'Thị', '1994-07-22', 'Female', '0912345678', 'tranthib@email.com', '456 Đường Nguyễn Huệ', 'Quận Bình Thạnh', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700001', 'Việt Nam', 'B+', 'Kinh', 'Single', 'BHYT-12345-02', '079182001234', 'Giáo viên', 'Trần Văn Hùng', '0919345678', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL),
+('00000000-0000-0000-0000-000000000002', 'B', 'Trần', 'Thị', '1994-07-22', 'Female', '0912345678', 'tranthib@email.com', '456 Đường Nguyễn Huệ', 'Quận Bình Thạnh', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700001', 'Việt Nam', 'B+', 'ASIAN', 'Single', 'BHYT-12345-02', '079182001234', 'Giáo viên', 'Trần Văn Hùng', '0919345678', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL),
 -- P003: Lê Văn C, 67t, male
-('00000000-0000-0000-0000-000000000003', 'C', 'Lê', 'Văn', '1959-01-10', 'Male', '0923456789', 'levanc@email.com', '789 Đường Võ Văn Tần', 'Quận 3', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700002', 'Việt Nam', 'O+', 'Kinh', 'Married', 'BHYT-12345-03', '079183001234', 'Hưu trí', 'Lê Văn Tuấn', '0929456789', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL),
+('00000000-0000-0000-0000-000000000003', 'C', 'Lê', 'Văn', '1959-01-10', 'Male', '0923456789', 'levanc@email.com', '789 Đường Võ Văn Tần', 'Quận 3', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700002', 'Việt Nam', 'O+', 'ASIAN', 'Married', 'BHYT-12345-03', '079183001234', 'Hưu trí', 'Lê Văn Tuấn', '0929456789', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL),
 -- P004: Phạm Thị D, 28t, female
-('00000000-0000-0000-0000-000000000004', 'D', 'Phạm', 'Thị', '1998-11-05', 'Female', '0934567890', 'phamthid@email.com', '321 Đường Trần Hưng Đạo', 'Quận 5', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700003', 'Việt Nam', 'A-', 'Kinh', 'Single', 'BHYT-12345-04', '079184001234', 'Nhân viên văn phòng', 'Phạm Văn Hải', '0939567890', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL),
+('00000000-0000-0000-0000-000000000004', 'D', 'Phạm', 'Thị', '1998-11-05', 'Female', '0934567890', 'phamthid@email.com', '321 Đường Trần Hưng Đạo', 'Quận 5', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700003', 'Việt Nam', 'A-', 'ASIAN', 'Single', 'BHYT-12345-04', '079184001234', 'Nhân viên văn phòng', 'Phạm Văn Hải', '0939567890', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL),
 -- P005: Hoàng Văn E, 5t, male (pediatric)
-('00000000-0000-0000-0000-000000000005', 'E', 'Hoàng', 'Văn', '2021-04-18', 'Male', '0945678901', NULL, '654 Đường Nguyễn Đình Chiểu', 'Quận 2', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700004', 'Việt Nam', NULL, 'Kinh', NULL, NULL, NULL, NULL, 'Hoàng Văn Hùng (Bố)', '0949678901', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL),
+('00000000-0000-0000-0000-000000000005', 'E', 'Hoàng', 'Văn', '2021-04-18', 'Male', '0945678901', NULL, '654 Đường Nguyễn Đình Chiểu', 'Quận 2', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700004', 'Việt Nam', NULL, 'ASIAN', NULL, NULL, NULL, NULL, 'Hoàng Văn Hùng (Bố)', '0949678901', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL),
 -- P006: Vũ Thị F, 52t, female
-('00000000-0000-0000-0000-000000000006', 'F', 'Vũ', 'Thị', '1974-08-30', 'Female', '0956789012', 'vuthif@email.com', '987 Đường Hai Bà Trưng', 'Quận Tân Bình', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700005', 'Việt Nam', 'AB+', 'Kinh', 'Married', 'BHYT-12345-06', '079186001234', 'Kế toán', 'Vũ Văn Bình', '0959789012', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL),
+('00000000-0000-0000-0000-000000000006', 'F', 'Vũ', 'Thị', '1974-08-30', 'Female', '0956789012', 'vuthif@email.com', '987 Đường Hai Bà Trưng', 'Quận Tân Bình', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700005', 'Việt Nam', 'AB+', 'ASIAN', 'Married', 'BHYT-12345-06', '079186001234', 'Kế toán', 'Vũ Văn Bình', '0959789012', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL),
 -- P007: Đặng Văn G, 38t, male
-('00000000-0000-0000-0000-000000000007', 'G', 'Đặng', 'Văn', '1988-02-14', 'Male', '0967890123', 'dangvang@email.com', '147 Đường Phạm Ngọc Thạch', 'Quận 10', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700006', 'Việt Nam', 'O-', 'Kinh', 'Married', 'BHYT-12345-07', '079187001234', 'Tài xế', 'Đặng Thị Mai', '0969890123', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL),
+('00000000-0000-0000-0000-000000000007', 'G', 'Đặng', 'Văn', '1988-02-14', 'Male', '0967890123', 'dangvang@email.com', '147 Đường Phạm Ngọc Thạch', 'Quận 10', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700006', 'Việt Nam', 'O-', 'ASIAN', 'Married', 'BHYT-12345-07', '079187001234', 'Tài xế', 'Đặng Thị Mai', '0969890123', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL),
 -- P008: Bùi Thị H, 72t, female
-('00000000-0000-0000-0000-000000000008', 'H', 'Bùi', 'Thị', '1954-06-25', 'Female', '0978901234', 'buithih@email.com', '258 Đường Trường Chinh', 'Quận 12', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700007', 'Việt Nam', 'B-', 'Kinh', 'Widowed', 'BHYT-12345-08', '079188001234', 'Hưu trí', 'Bùi Văn An', '0979901234', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL)
+('00000000-0000-0000-0000-000000000008', 'H', 'Bùi', 'Thị', '1954-06-25', 'Female', '0978901234', 'buithih@email.com', '258 Đường Trường Chinh', 'Quận 12', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700007', 'Việt Nam', 'B-', 'ASIAN', 'Widowed', 'BHYT-12345-08', '079188001234', 'Hưu trí', 'Bùi Văn An', '0979901234', true, '11111111-1111-1111-1111-111111111111', '00000000-0000-0000-0000-000000000101', '2026-07-01 08:00:00+00', NULL)
 ON CONFLICT (PatientId) DO NOTHING;
 
 -- 2c. Allergies
@@ -428,11 +428,11 @@ INSERT INTO clinicaldb.OutboxMessages (Id, Type, Content, CorrelationId, Occurre
 ON CONFLICT (Id) DO NOTHING;
 
 -- ============================================================================
--- SECTION 5: PHARMACY SERVICE (his_hope_pharmacy)
+-- SECTION 5: PHARMACY SERVICE (pharmacydb)
 -- ============================================================================
 
 -- 5a. Medications (12 items common in Vietnamese practice)
-INSERT INTO his_hope_pharmacy.Medications (Id, Name, GenericName, BrandName, DosageForm, Strength, Route, RequiresPrescription, IsActive, CreatedAt, UpdatedAt) VALUES
+INSERT INTO pharmacydb.Medications (Id, Name, GenericName, BrandName, DosageForm, Strength, Route, RequiresPrescription, IsActive, CreatedAt, UpdatedAt) VALUES
 ('00000000-0000-0000-0000-000000000601', 'Paracetamol 500mg', 'Paracetamol', 'Panadol', 'Viên nén', '500mg', 'Uống', false, true, '2026-01-01 08:00:00+00', NULL),
 ('00000000-0000-0000-0000-000000000602', 'Amoxicillin 250mg', 'Amoxicillin', 'Amoxil', 'Viên nang', '250mg', 'Uống', true, true, '2026-01-01 08:00:00+00', NULL),
 ('00000000-0000-0000-0000-000000000603', 'Omeprazole 20mg', 'Omeprazole', 'Losec', 'Viên nang', '20mg', 'Uống', true, true, '2026-01-01 08:00:00+00', NULL),
@@ -448,7 +448,7 @@ INSERT INTO his_hope_pharmacy.Medications (Id, Name, GenericName, BrandName, Dos
 ON CONFLICT (Id) DO NOTHING;
 
 -- 5b. Pharmacy Prescriptions (independent of clinical encounters)
-INSERT INTO his_hope_pharmacy.Prescriptions (Id, PatientId, ProviderId, MedicationId, MedicationName, Strength, DosageForm, DosageInstructions, Route, Quantity, Refills, Notes, Status, PrescribedDate, ExpiryDate, FilledDate, CreatedAt, UpdatedAt) VALUES
+INSERT INTO pharmacydb.Prescriptions (Id, PatientId, ProviderId, MedicationId, MedicationName, Strength, DosageForm, DosageInstructions, Route, Quantity, Refills, Notes, Status, PrescribedDate, ExpiryDate, FilledDate, CreatedAt, UpdatedAt) VALUES
 -- Rx001: Nguyễn Văn A - Amlodipine 5mg
 ('00000000-0000-0000-0000-000000000631', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000102', '00000000-0000-0000-0000-000000000605', 'Amlodipine 5mg', '5mg', 'Viên nén', 'Uống 1 viên mỗi sáng', 'Uống', 30, 2, 'Điều trị tăng huyết áp', 'ACTIVE', '2026-07-15 08:30:00+00', '2026-10-15 08:30:00+00', NULL, '2026-07-15 08:30:00+00', NULL),
 -- Rx002: Nguyễn Văn A - Losartan 50mg
@@ -460,7 +460,7 @@ INSERT INTO his_hope_pharmacy.Prescriptions (Id, PatientId, ProviderId, Medicati
 ON CONFLICT (Id) DO NOTHING;
 
 -- Pharmacy OutboxMessages
-INSERT INTO his_hope_pharmacy.OutboxMessages (Id, Type, Content, CorrelationId, OccurredOn, ProcessedOn, Status) VALUES
+INSERT INTO pharmacydb.OutboxMessages (Id, Type, Content, CorrelationId, OccurredOn, ProcessedOn, Status) VALUES
 ('00000000-0000-0000-0000-000000000641', 'PrescriptionCreated', '{"prescriptionId":"00000000-0000-0000-0000-000000000631","patientId":"00000000-0000-0000-0000-000000000001","medication":"Amlodipine 5mg"}', 'corr-rx-631', '2026-07-15 08:30:00+00', '2026-07-15 08:30:05+00', 'Processed'),
 ('00000000-0000-0000-0000-000000000642', 'PrescriptionCreated', '{"prescriptionId":"00000000-0000-0000-0000-000000000632","patientId":"00000000-0000-0000-0000-000000000001","medication":"Losartan 50mg"}', 'corr-rx-632', '2026-07-15 08:30:00+00', '2026-07-15 08:30:05+00', 'Processed'),
 ('00000000-0000-0000-0000-000000000643', 'PrescriptionCreated', '{"prescriptionId":"00000000-0000-0000-0000-000000000633","patientId":"00000000-0000-0000-0000-000000000003","medication":"Pantoprazole 40mg"}', 'corr-rx-633', '2026-07-15 10:30:00+00', '2026-07-15 10:30:05+00', 'Processed'),
@@ -468,11 +468,11 @@ INSERT INTO his_hope_pharmacy.OutboxMessages (Id, Type, Content, CorrelationId, 
 ON CONFLICT (Id) DO NOTHING;
 
 -- ============================================================================
--- SECTION 6: LAB SERVICE (his_hope_lab)
+-- SECTION 6: LAB SERVICE (labdb)
 -- ============================================================================
 
 -- 6a. Lab Orders (5 orders)
-INSERT INTO his_hope_lab.LabOrders (Id, PatientId, ProviderId, EncounterId, OrderDate, Status, Priority, Notes, CreatedAt, UpdatedAt) VALUES
+INSERT INTO labdb.LabOrders (Id, PatientId, ProviderId, EncounterId, OrderDate, Status, Priority, Notes, CreatedAt, UpdatedAt) VALUES
 -- L001: CBC - Nguyễn Văn A - Đã có kết quả
 ('00000000-0000-0000-0000-000000000401', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000102', '00000000-0000-0000-0000-000000000301', '2026-07-15 08:15:00+00', 'Completed', 'Routine', 'Công thức máu toàn phần - kiểm tra sức khỏe tổng quát', '2026-07-15 08:15:00+00', '2026-07-15 11:30:00+00'),
 -- L002: Lipid Panel - Đặng Văn G - Đã có kết quả
@@ -486,7 +486,7 @@ INSERT INTO his_hope_lab.LabOrders (Id, PatientId, ProviderId, EncounterId, Orde
 ON CONFLICT (Id) DO NOTHING;
 
 -- 6b. Lab Tests
-INSERT INTO his_hope_lab.LabTests (Id, LabOrderId, TestCode, TestName, SpecimenType, Status, OrderedAt, CollectedAt, CompletedAt, CreatedAt) VALUES
+INSERT INTO labdb.LabTests (Id, LabOrderId, TestCode, TestName, SpecimenType, Status, OrderedAt, CollectedAt, CompletedAt, CreatedAt) VALUES
 -- L001 - CBC tests
 ('00000000-0000-0000-0000-000000000411', '00000000-0000-0000-0000-000000000401', 'CBC-WBC', 'Bạch cầu (WBC)', 'Máu toàn phần', 'Resulted', '2026-07-15 08:15:00+00', '2026-07-15 08:30:00+00', '2026-07-15 11:00:00+00', '2026-07-15 08:15:00+00'),
 ('00000000-0000-0000-0000-000000000412', '00000000-0000-0000-0000-000000000401', 'CBC-RBC', 'Hồng cầu (RBC)', 'Máu toàn phần', 'Resulted', '2026-07-15 08:15:00+00', '2026-07-15 08:30:00+00', '2026-07-15 11:00:00+00', '2026-07-15 08:15:00+00'),
@@ -509,7 +509,7 @@ INSERT INTO his_hope_lab.LabTests (Id, LabOrderId, TestCode, TestName, SpecimenT
 ON CONFLICT (Id) DO NOTHING;
 
 -- 6c. Lab Results
-INSERT INTO his_hope_lab.LabResults (Id, LabTestId, Value, Unit, ReferenceRange, AbnormalFlag, ResultStatus, ResultedAt, PerformedBy, Notes, CreatedAt) VALUES
+INSERT INTO labdb.LabResults (Id, LabTestId, Value, Unit, ReferenceRange, AbnormalFlag, ResultStatus, ResultedAt, PerformedBy, Notes, CreatedAt) VALUES
 -- CBC Results (L001) - Normal
 ('00000000-0000-0000-0000-000000000461', '00000000-0000-0000-0000-000000000411', '7.2', '10^3/uL', '4.0 - 10.0', 'Normal', 'Final', '2026-07-15 11:00:00+00', '00000000-0000-0000-0000-000000000104', NULL, '2026-07-15 11:00:00+00'),
 ('00000000-0000-0000-0000-000000000462', '00000000-0000-0000-0000-000000000412', '5.1', '10^6/uL', '4.5 - 5.9', 'Normal', 'Final', '2026-07-15 11:00:00+00', '00000000-0000-0000-0000-000000000104', NULL, '2026-07-15 11:00:00+00'),
@@ -527,7 +527,7 @@ INSERT INTO his_hope_lab.LabResults (Id, LabTestId, Value, Unit, ReferenceRange,
 ON CONFLICT (Id) DO NOTHING;
 
 -- Lab OutboxMessages
-INSERT INTO his_hope_lab.OutboxMessages (Id, Type, Content, CorrelationId, OccurredOn, ProcessedOn, Status) VALUES
+INSERT INTO labdb.OutboxMessages (Id, Type, Content, CorrelationId, OccurredOn, ProcessedOn, Status) VALUES
 ('00000000-0000-0000-0000-000000000491', 'LabOrderCreated', '{"labOrderId":"00000000-0000-0000-0000-000000000401","patientId":"00000000-0000-0000-0000-000000000001","test":"CBC"}', 'corr-lab-401', '2026-07-15 08:15:00+00', '2026-07-15 08:15:05+00', 'Processed'),
 ('00000000-0000-0000-0000-000000000492', 'LabOrderCreated', '{"labOrderId":"00000000-0000-0000-0000-000000000402","patientId":"00000000-0000-0000-0000-000000000007","test":"LipidPanel"}', 'corr-lab-402', '2026-07-15 15:10:00+00', '2026-07-15 15:10:05+00', 'Processed'),
 ('00000000-0000-0000-0000-000000000493', 'LabOrderCreated', '{"labOrderId":"00000000-0000-0000-0000-000000000403","patientId":"00000000-0000-0000-0000-000000000006","test":"HbA1c"}', 'corr-lab-403', '2026-07-17 14:05:00+00', NULL, 'Pending'),
@@ -537,11 +537,11 @@ INSERT INTO his_hope_lab.OutboxMessages (Id, Type, Content, CorrelationId, Occur
 ON CONFLICT (Id) DO NOTHING;
 
 -- ============================================================================
--- SECTION 7: BILLING SERVICE (his_hope_billing)
+-- SECTION 7: BILLING SERVICE (billingdb)
 -- ============================================================================
 
 -- 7a. Invoices (4 invoices)
-INSERT INTO his_hope_billing.Invoices (Id, PatientId, EncounterId, InvoiceNumber, InvoiceDate, DueDate, Status, SubTotal, TaxAmount, DiscountAmount, TotalAmount, PaidAmount, BalanceDue, Notes, CreatedAt, UpdatedAt) VALUES
+INSERT INTO billingdb.Invoices (Id, PatientId, EncounterId, InvoiceNumber, InvoiceDate, DueDate, Status, SubTotal, TaxAmount, DiscountAmount, TotalAmount, PaidAmount, BalanceDue, Notes, CreatedAt, UpdatedAt) VALUES
 -- I001: Nguyễn Văn A - Đã thanh toán
 ('00000000-0000-0000-0000-000000000501', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000301', 'INV-2026-00001', '2026-07-15 08:30:00+00', '2026-07-29 08:30:00+00', 'Paid', 1200000.00, 120000.00, 200000.00, 1120000.00, 1120000.00, 0.00, 'Thanh toán khám tăng huyết áp + xét nghiệm máu', '2026-07-15 08:30:00+00', '2026-07-15 11:30:00+00'),
 -- I002: Lê Văn C - Thanh toán một phần
@@ -553,7 +553,7 @@ INSERT INTO his_hope_billing.Invoices (Id, PatientId, EncounterId, InvoiceNumber
 ON CONFLICT (Id) DO NOTHING;
 
 -- 7b. Invoice Line Items
-INSERT INTO his_hope_billing.InvoiceLineItems (Id, InvoiceId, Description, Quantity, UnitPrice, Amount, ItemCode, ItemType, CreatedAt) VALUES
+INSERT INTO billingdb.InvoiceLineItems (Id, InvoiceId, Description, Quantity, UnitPrice, Amount, ItemCode, ItemType, CreatedAt) VALUES
 -- I001 items: Nguyễn Văn A
 ('00000000-0000-0000-0000-000000000511', '00000000-0000-0000-0000-000000000501', 'Khám bệnh - Tăng huyết áp', 1, 200000.00, 200000.00, 'KB-001', 'Service', '2026-07-15 08:30:00+00'),
 ('00000000-0000-0000-0000-000000000512', '00000000-0000-0000-0000-000000000501', 'Công thức máu toàn phần (CBC)', 1, 350000.00, 350000.00, 'XN-101', 'Lab', '2026-07-15 08:30:00+00'),
@@ -571,13 +571,13 @@ INSERT INTO his_hope_billing.InvoiceLineItems (Id, InvoiceId, Description, Quant
 ON CONFLICT (Id) DO NOTHING;
 
 -- 7c. Payments
-INSERT INTO his_hope_billing.Payments (Id, InvoiceId, PatientId, Amount, PaymentDate, Method, ReferenceNumber, Status, Notes, CreatedAt) VALUES
+INSERT INTO billingdb.Payments (Id, InvoiceId, PatientId, Amount, PaymentDate, Method, ReferenceNumber, Status, Notes, CreatedAt) VALUES
 ('00000000-0000-0000-0000-000000000551', '00000000-0000-0000-0000-000000000501', '00000000-0000-0000-0000-000000000001', 1120000.00, '2026-07-15 11:30:00+00', 'Cash', 'CS-001-20260715', 'Completed', 'Thanh toán toàn bộ bằng tiền mặt', '2026-07-15 11:30:00+00'),
 ('00000000-0000-0000-0000-000000000552', '00000000-0000-0000-0000-000000000502', '00000000-0000-0000-0000-000000000003', 500000.00, '2026-07-15 10:45:00+00', 'Insurance', 'BH-002-20260715', 'Completed', 'Thanh toán tạm ứng qua bảo hiểm', '2026-07-15 10:45:00+00')
 ON CONFLICT (Id) DO NOTHING;
 
 -- Billing OutboxMessages
-INSERT INTO his_hope_billing.OutboxMessages (Id, Type, Content, CorrelationId, OccurredOn, ProcessedOn, Status) VALUES
+INSERT INTO billingdb.OutboxMessages (Id, Type, Content, CorrelationId, OccurredOn, ProcessedOn, Status) VALUES
 ('00000000-0000-0000-0000-000000000561', 'InvoiceCreated', '{"invoiceId":"00000000-0000-0000-0000-000000000501","patientId":"00000000-0000-0000-0000-000000000001","amount":1120000.00}', 'corr-inv-501', '2026-07-15 08:30:00+00', '2026-07-15 08:30:05+00', 'Processed'),
 ('00000000-0000-0000-0000-000000000562', 'PaymentReceived', '{"invoiceId":"00000000-0000-0000-0000-000000000501","amount":1120000.00,"method":"Cash"}', 'corr-pay-551', '2026-07-15 11:30:00+00', '2026-07-15 11:30:05+00', 'Processed'),
 ('00000000-0000-0000-0000-000000000563', 'InvoiceCreated', '{"invoiceId":"00000000-0000-0000-0000-000000000502","patientId":"00000000-0000-0000-0000-000000000003","amount":935000.00}', 'corr-inv-502', '2026-07-15 10:30:00+00', '2026-07-15 10:30:05+00', 'Processed'),
@@ -585,3 +585,4 @@ INSERT INTO his_hope_billing.OutboxMessages (Id, Type, Content, CorrelationId, O
 ('00000000-0000-0000-0000-000000000565', 'InvoiceCreated', '{"invoiceId":"00000000-0000-0000-0000-000000000503","patientId":"00000000-0000-0000-0000-000000000007","amount":715000.00}', 'corr-inv-503', '2026-07-15 15:40:00+00', NULL, 'Pending'),
 ('00000000-0000-0000-0000-000000000566', 'InvoiceCreated', '{"invoiceId":"00000000-0000-0000-0000-000000000504","patientId":"00000000-0000-0000-0000-000000000004","amount":605000.00}', 'corr-inv-504', '2026-07-16 08:30:00+00', NULL, 'Pending')
 ON CONFLICT (Id) DO NOTHING;
+

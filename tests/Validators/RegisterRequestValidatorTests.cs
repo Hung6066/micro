@@ -9,7 +9,7 @@ public class RegisterRequestValidatorTests
     private readonly RegisterRequestValidator _validator = new();
 
     private RegisterRequest ValidCommand => new(
-        Username: "john.doe",
+        Username: "john_doe",
         Email: "john@example.com",
         Password: "Password123!",
         FirstName: "John",

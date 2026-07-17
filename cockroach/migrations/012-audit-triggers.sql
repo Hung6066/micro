@@ -133,7 +133,7 @@ CREATE INDEX IF NOT EXISTS idx_clinical_audit_log_table_record ON clinicaldb.aud
 CREATE INDEX IF NOT EXISTS idx_clinical_audit_log_encounter ON clinicaldb.audit_log (encounter_id);
 CREATE INDEX IF NOT EXISTS idx_clinical_audit_log_changed_at ON clinicaldb.audit_log (changed_at);
 
-CREATE TABLE IF NOT EXISTS his_hope_lab.audit_log (
+CREATE TABLE IF NOT EXISTS labdb.audit_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     table_name STRING(100) NOT NULL,
     record_id UUID NOT NULL,
@@ -149,10 +149,10 @@ CREATE TABLE IF NOT EXISTS his_hope_lab.audit_log (
     CONSTRAINT chk_lab_audit_action CHECK (action IN ('INSERT', 'UPDATE', 'DELETE'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_lab_audit_log_table_record ON his_hope_lab.audit_log (table_name, record_id);
-CREATE INDEX IF NOT EXISTS idx_lab_audit_log_changed_by ON his_hope_lab.audit_log (changed_by);
+CREATE INDEX IF NOT EXISTS idx_lab_audit_log_table_record ON labdb.audit_log (table_name, record_id);
+CREATE INDEX IF NOT EXISTS idx_lab_audit_log_changed_by ON labdb.audit_log (changed_by);
 
-CREATE TABLE IF NOT EXISTS his_hope_billing.audit_log (
+CREATE TABLE IF NOT EXISTS billingdb.audit_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     table_name STRING(100) NOT NULL,
     record_id UUID NOT NULL,
@@ -168,10 +168,10 @@ CREATE TABLE IF NOT EXISTS his_hope_billing.audit_log (
     CONSTRAINT chk_billing_audit_action CHECK (action IN ('INSERT', 'UPDATE', 'DELETE'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_billing_audit_log_table_record ON his_hope_billing.audit_log (table_name, record_id);
-CREATE INDEX IF NOT EXISTS idx_billing_audit_log_changed_by ON his_hope_billing.audit_log (changed_by);
+CREATE INDEX IF NOT EXISTS idx_billing_audit_log_table_record ON billingdb.audit_log (table_name, record_id);
+CREATE INDEX IF NOT EXISTS idx_billing_audit_log_changed_by ON billingdb.audit_log (changed_by);
 
-CREATE TABLE IF NOT EXISTS his_hope_pharmacy.audit_log (
+CREATE TABLE IF NOT EXISTS pharmacydb.audit_log (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     table_name STRING(100) NOT NULL,
     record_id UUID NOT NULL,
@@ -187,7 +187,7 @@ CREATE TABLE IF NOT EXISTS his_hope_pharmacy.audit_log (
     CONSTRAINT chk_pharmacy_audit_action CHECK (action IN ('INSERT', 'UPDATE', 'DELETE'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_pharmacy_audit_log_table_record ON his_hope_pharmacy.audit_log (table_name, record_id);
+CREATE INDEX IF NOT EXISTS idx_pharmacy_audit_log_table_record ON pharmacydb.audit_log (table_name, record_id);
 
 -- ============================================================================
 -- SECTION 4: PHI table markers — which tables require audit logging
@@ -225,3 +225,4 @@ CREATE INDEX IF NOT EXISTS idx_pharmacy_audit_log_table_record ON his_hope_pharm
 --
 -- Consider partitioning by month for efficient archival.
 -- ============================================================================
+

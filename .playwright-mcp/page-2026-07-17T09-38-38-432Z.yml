@@ -1,0 +1,13 @@
+- generic [active] [ref=f28e1]:
+  - link "Chuyển đến nội dung chính" [ref=f28e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f28e5]:
+    - generic [ref=f28e8]:
+      - img [ref=f28e9]: error_outline
+      - button [ref=f28e11] [cursor=pointer]:
+        - img [ref=f28e12]: close
+    - generic [ref=f28e16]:
+      - img [ref=f28e17]: person_add
+      - heading "Register" [level=1] [ref=f28e18]
+      - paragraph [ref=f28e19]: User registration is coming soon.
+      - button "Back to Login" [ref=f28e20]

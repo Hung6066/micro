@@ -35,11 +35,11 @@ Tất cả Integration Event kế thừa từ `IntegrationEvent` base class:
 | PatientUpdated | `his_hope_patient` | `Patient.PatientUpdated` |
 | AppointmentScheduled | `his_hope_appointment` | `Appointment.AppointmentScheduled` |
 | EncounterStarted | `his_hope_clinical` | `Clinical.EncounterStarted` |
-| LabOrderCreated | `his_hope_lab` | `Lab.LabOrderCreated` |
-| LabOrderSubmitted | `his_hope_lab` | `Lab.LabOrderSubmitted` |
-| InvoiceCreated | `his_hope_billing` | `Billing.InvoiceCreated` |
-| InvoicePaid | `his_hope_billing` | `Billing.InvoicePaid` |
-| PrescriptionCreated | `his_hope_pharmacy` | `Pharmacy.PrescriptionCreated` |
+| LabOrderCreated | `labdb` | `Lab.LabOrderCreated` |
+| LabOrderSubmitted | `labdb` | `Lab.LabOrderSubmitted` |
+| InvoiceCreated | `billingdb` | `Billing.InvoiceCreated` |
+| InvoicePaid | `billingdb` | `Billing.InvoicePaid` |
+| PrescriptionCreated | `pharmacydb` | `Pharmacy.PrescriptionCreated` |
 
 > **Note**: Routing key format được suy diễn từ namespace + class name của Integration Event, theo convention của RabbitMQ Event Bus implementation.
 
@@ -531,7 +531,7 @@ new EncounterStartedIntegrationEvent(
 
 ### Lab Events
 
-**Exchange**: `his_hope_lab`
+**Exchange**: `labdb`
 
 #### LabOrderCreated
 
@@ -571,7 +571,7 @@ new EncounterStartedIntegrationEvent(
 
 ### Billing Events
 
-**Exchange**: `his_hope_billing`
+**Exchange**: `billingdb`
 
 #### InvoiceCreated
 
@@ -617,7 +617,7 @@ new EncounterStartedIntegrationEvent(
 
 ### Pharmacy Events
 
-**Exchange**: `his_hope_pharmacy`
+**Exchange**: `pharmacydb`
 
 #### PrescriptionCreated
 
@@ -730,3 +730,4 @@ His.Hope.EventBus.Abstractions.IntegrationEvent (base)
 └── His.Hope.IntegrationEvents.Pharmacy
     └── PrescriptionCreatedIntegrationEvent
 ```
+

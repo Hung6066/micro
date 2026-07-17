@@ -1,0 +1,41 @@
+{
+  "stryker-config": {
+    "project": "His.Hope.sln",
+    "mutate": [
+      "**/*.cs",
+      "!**/*.g.cs",
+      "!**/*Profile.cs",
+      "!**/*Dto.cs"
+    ],
+    "reporters": [
+      "html",
+      "progress",
+      "cleartext"
+    ],
+    "thresholds": {
+      "high": 80,
+      "low": 70,
+      "break": 60
+    },
+    "since": {
+      "enabled": false
+    },
+    "target-framework": "net8.0",
+    "test-projects": [
+      "tests/Services/PatientService/PatientService.Domain.Tests/PatientService.Domain.Tests.csproj",
+      "tests/Services/PatientService/PatientService.Application.Tests/PatientService.Application.Tests.csproj",
+      "tests/Services/BillingService/BillingService.Domain.Tests/BillingService.Domain.Tests.csproj",
+      "tests/Services/BillingService/BillingService.Application.Tests/BillingService.Application.Tests.csproj",
+      "tests/Services/LabService/LabService.Domain.Tests/LabService.Domain.Tests.csproj",
+      "tests/Services/LabService/LabService.Application.Tests/LabService.Application.Tests.csproj",
+      "tests/Services/PharmacyService/PharmacyService.Domain.Tests/PharmacyService.Domain.Tests.csproj",
+      "tests/Services/PharmacyService/PharmacyService.Application.Tests/PharmacyService.Application.Tests.csproj",
+      "tests/Services/IdentityService/IdentityService.Domain.Tests/IdentityService.Domain.Tests.csproj",
+      "tests/Services/ClinicalService/ClinicalService.Domain.Tests/ClinicalService.Domain.Tests.csproj",
+      "tests/Services/ClinicalService/ClinicalService.Application.Tests/ClinicalService.Application.Tests.csproj",
+      "tests/Services/AppointmentService/AppointmentService.Domain.Tests/AppointmentService.Domain.Tests.csproj",
+      "tests/Services/AppointmentService/AppointmentService.Application.Tests/AppointmentService.Application.Tests.csproj",
+      "tests/Services/IdentityService/IdentityService.Application.Tests/IdentityService.Application.Tests.csproj"
+    ]
+  }
+}

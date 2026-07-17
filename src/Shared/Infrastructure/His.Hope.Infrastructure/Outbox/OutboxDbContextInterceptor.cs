@@ -65,9 +65,3 @@ public class OutboxDomainEventInterceptor : SaveChangesInterceptor
         context.Set<OutboxMessage>().AddRange(outboxMessages);
     }
 }
-
-public interface IHasDomainEvents
-{
-    IReadOnlyCollection<IDomainEvent> DomainEvents { get; }
-    void ClearDomainEvents();
-}

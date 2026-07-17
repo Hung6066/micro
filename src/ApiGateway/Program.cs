@@ -78,12 +78,6 @@ builder.WebHost.ConfigureKestrel(options =>
         options.ListenAnyIP(5000, listenOptions =>
         {
             listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-            listenOptions.UseHttps(httpsOptions =>
-            {
-                httpsOptions.ServerCertificate = LoadCertificate(builder.Configuration);
-                httpsOptions.ClientCertificateMode = Microsoft.AspNetCore.Server.Kestrel.Https.ClientCertificateMode.NoCertificate;
-                httpsOptions.CheckCertificateRevocation = false;
-            });
         });
         options.ListenAnyIP(5011, listenOptions =>
         {
@@ -164,3 +158,4 @@ static X509Certificate2 CreateDevCertificate()
         cert.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pfx, "his-hope-dev"));
     return cert;
 }
+

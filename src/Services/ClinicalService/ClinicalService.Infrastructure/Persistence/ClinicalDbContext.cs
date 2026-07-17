@@ -11,7 +11,7 @@ namespace His.Hope.ClinicalService.Infrastructure.Persistence;
 
 public class ClinicalDbContext : DbContext, IUnitOfWork
 {
-    private readonly IMediator _mediator;
+    private readonly IMediator? _mediator;
 
     public DbSet<Encounter> Encounters => Set<Encounter>();
     public DbSet<ClinicalNote> ClinicalNotes => Set<ClinicalNote>();
@@ -19,7 +19,7 @@ public class ClinicalDbContext : DbContext, IUnitOfWork
 
     public ClinicalDbContext(
         DbContextOptions<ClinicalDbContext> options,
-        IMediator mediator)
+        IMediator? mediator = null)
         : base(options)
     {
         _mediator = mediator;
@@ -30,17 +30,21 @@ public class ClinicalDbContext : DbContext, IUnitOfWork
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
-            entity.ToTable("OutboxMessages");
+            entity.ToTable("outbox_messages");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id);
             entity.Property(e => e.Type).HasMaxLength(500).IsRequired();
             entity.Property(e => e.Content).IsRequired();
             entity.Property(e => e.CorrelationId).HasMaxLength(200);
             entity.Property(e => e.CausationId).HasMaxLength(200);
             entity.Property(e => e.OccurredOn).IsRequired();
+            entity.Property(e => e.ProcessedOn);
             entity.Property(e => e.Status).HasMaxLength(50).IsRequired();
             entity.Property(e => e.Error).HasMaxLength(1000);
+            entity.Property(e => e.RetryCount);
+            entity.Property(e => e.LastRetryOn);
             entity.Property(e => e.LockExpiresAt);
-            entity.HasIndex(e => new { e.Status, e.OccurredOn });
+            entity.HasIndex(e => new { e.Status, e.OccurredOn }).HasDatabaseName("ix_outboxmessages_status_occurredon");
         });
         base.OnModelCreating(modelBuilder);
     }
@@ -64,9 +68,12 @@ public class ClinicalDbContext : DbContext, IUnitOfWork
 
         var result = await base.SaveChangesAsync(cancellationToken);
 
-        foreach (var domainEvent in domainEvents)
+        if (_mediator is not null)
         {
-            await _mediator.Publish(domainEvent, cancellationToken);
+            foreach (var domainEvent in domainEvents)
+            {
+                await _mediator.Publish(domainEvent, cancellationToken);
+            }
         }
 
         return result;

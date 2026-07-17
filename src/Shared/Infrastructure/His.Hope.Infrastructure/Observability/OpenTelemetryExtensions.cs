@@ -38,6 +38,7 @@ public static class OpenTelemetryExtensions
                     {
                         activity.SetTag("http.method", request.Method);
                         activity.SetTag("http.url", request.Path);
+                        activity.SetTag("correlation.id", request.Headers["X-Correlation-Id"].FirstOrDefault() ?? "unknown");
                     };
                     options.EnrichWithHttpResponse = (activity, response) =>
                     {

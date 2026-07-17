@@ -23,6 +23,7 @@ public static class DependencyInjection
                     b.MigrationsAssembly(typeof(AppointmentDbContext).Assembly.FullName);
                     b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
                 })
+            .UseSnakeCaseNamingConvention()
             .AddInterceptors(new OutboxDomainEventInterceptor()));
 
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();

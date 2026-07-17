@@ -9,40 +9,35 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
 {
     public void Configure(EntityTypeBuilder<Appointment> builder)
     {
-        builder.ToTable("Appointments");
+        builder.ToTable("appointments");
 
         builder.HasKey(a => a.Id);
 
         builder.Property(a => a.Id)
+            .HasColumnName("appointment_id")
             .HasConversion(
                 id => id.Value,
                 value => AppointmentId.From(value));
 
         builder.Property(a => a.PatientId)
-            .HasColumnName("PatientId")
             .IsRequired();
 
         builder.Property(a => a.ProviderId)
-            .HasColumnName("ProviderId")
             .IsRequired();
 
         builder.Property(a => a.ScheduledDate)
-            .HasColumnName("ScheduledDate")
             .IsRequired();
 
         builder.Property(a => a.StartTime)
-            .HasColumnName("StartTime")
             .IsRequired();
 
         builder.Property(a => a.EndTime)
-            .HasColumnName("EndTime")
             .IsRequired();
 
         builder.Property(a => a.Status)
             .HasConversion(
                 s => s.Code,
                 code => AppointmentStatus.FromCode(code))
-            .HasColumnName("Status")
             .HasMaxLength(20)
             .IsRequired();
 
@@ -50,40 +45,34 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
             .HasConversion(
                 t => t.Code,
                 code => AppointmentType.FromCode(code))
-            .HasColumnName("Type")
             .HasMaxLength(10)
             .IsRequired();
 
         builder.Property(a => a.Reason)
-            .HasColumnName("Reason")
             .HasMaxLength(500);
 
         builder.Property(a => a.Notes)
-            .HasColumnName("Notes")
             .HasMaxLength(2000);
 
         builder.Property(a => a.Location)
-            .HasColumnName("Location")
             .HasMaxLength(200);
 
         builder.Property(a => a.CreatedAt)
-            .HasColumnName("CreatedAt")
             .IsRequired();
 
-        builder.Property(a => a.UpdatedAt)
-            .HasColumnName("UpdatedAt");
+        builder.Property(a => a.UpdatedAt);
 
         builder.Property(a => a.CheckedInAt)
-            .HasColumnName("CheckedInAt");
+            .HasColumnName("check_in_at");
 
         builder.Property(a => a.CheckedOutAt)
-            .HasColumnName("CheckedOutAt");
+            .HasColumnName("check_out_at");
 
         builder.Property(a => a.CancelledAt)
-            .HasColumnName("CancelledAt");
+            .HasColumnName("canceled_at");
 
         builder.Property(a => a.CancellationReason)
-            .HasColumnName("CancellationReason")
+            .HasColumnName("cancel_reason")
             .HasMaxLength(500);
 
         builder.HasIndex(a => a.PatientId)

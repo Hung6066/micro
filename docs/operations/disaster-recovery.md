@@ -183,9 +183,9 @@ kubectl exec -it cockroachdb-0 -n his-hope -- cockroach sql --insecure -e "
   DROP DATABASE IF EXISTS identitydb CASCADE;
   DROP DATABASE IF EXISTS clinicaldb CASCADE;
   DROP DATABASE IF EXISTS appointmentdb CASCADE;
-  DROP DATABASE IF EXISTS his_hope_lab CASCADE;
-  DROP DATABASE IF EXISTS his_hope_billing CASCADE;
-  DROP DATABASE IF EXISTS his_hope_pharmacy CASCADE;
+  DROP DATABASE IF EXISTS labdb CASCADE;
+  DROP DATABASE IF EXISTS billingdb CASCADE;
+  DROP DATABASE IF EXISTS pharmacydb CASCADE;
 "
 
 # Restore từng database từ full backup
@@ -579,3 +579,4 @@ kubectl exec -it cockroachdb-0 -n his-hope-staging -- cockroach sql --insecure -
 # Cleanup
 kubectl delete namespace his-hope-staging
 ```
+

@@ -28,10 +28,6 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <!-- Reference the proto file directly to test contract compliance -->
-    <Protobuf Include="..\..\..\src\Shared\Protos\clinical.proto" GrpcServices="Client" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\..\..\src\Services\ClinicalService\ClinicalService.Api\ClinicalService.Api.csproj" />
     <ProjectReference Include="..\..\..\src\Services\ClinicalService\ClinicalService.Application\ClinicalService.Application.csproj" />
     <ProjectReference Include="..\..\..\src\Services\ClinicalService\ClinicalService.Domain\ClinicalService.Domain.csproj" />

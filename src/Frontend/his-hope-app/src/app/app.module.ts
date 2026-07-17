@@ -1,4 +1,4 @@
-import { NgModule } from '@angular/core';
+import { NgModule, ErrorHandler } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
@@ -14,8 +14,10 @@ import { ErrorInterceptor } from '@core/interceptors/error.interceptor';
 import { SharedModule } from '@shared/shared.module';
 import { authReducer } from '@store/auth/auth.reducer';
 import { patientsReducer } from '@store/patients/patients.reducer';
+import { errorReducer } from '@store/error/error.reducer';
 import { AuthEffects } from '@store/auth/auth.effects';
 import { PatientsEffects } from '@store/patients/patients.effects';
+import { GlobalErrorHandler } from '@core/errors/global-error-handler';
 
 /** Conditionally load mock providers when no backend is available */
 import { mockServiceProviders } from '@core/services/mock/mock-providers';
@@ -31,11 +33,13 @@ import { mockServiceProviders } from '@core/services/mock/mock-providers';
     StoreModule.forRoot({
       auth: authReducer,
       patients: patientsReducer,
+      error: errorReducer,
     }),
     EffectsModule.forRoot([AuthEffects, PatientsEffects]),
     !environment.production ? StoreDevtoolsModule.instrument() : [],
   ],
   providers: [
+    { provide: ErrorHandler, useClass: GlobalErrorHandler },
     { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
     { provide: HTTP_INTERCEPTORS, useClass: ErrorInterceptor, multi: true },
     ...(environment.useMockServices ? mockServiceProviders : []),

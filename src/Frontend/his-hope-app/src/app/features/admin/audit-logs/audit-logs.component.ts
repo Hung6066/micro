@@ -111,7 +111,7 @@ const RESOURCE_OPTIONS = [
             <ng-container matColumnDef="action">
               <mat-header-cell *matHeaderCellDef>Hành động</mat-header-cell>
               <mat-cell *matCellDef="let log">
-                <span class="action-badge" [ngClass]="'action-' + log.action.toLowerCase()">
+                <span class="action-badge" [ngClass]="'action-' + (log.action?.toLowerCase() || '')">
                   {{ getActionLabel(log.action) }}
                 </span>
               </mat-cell>

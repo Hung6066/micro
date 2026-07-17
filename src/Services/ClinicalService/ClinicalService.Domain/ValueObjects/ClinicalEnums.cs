@@ -32,11 +32,11 @@ public class HistoryPresentIllness : ValueObject
     public string? PriorTreatments { get; }
 
     public HistoryPresentIllness(string? onset, string? location, string? duration,
-        string? characteristics, string? aggravating, string? relieving, string? treatments)
+        string? characteristics, string? aggravatingFactors, string? relievingFactors, string? priorTreatments)
     {
         Onset = onset; Location = location; Duration = duration;
-        Characteristics = characteristics; AggravatingFactors = aggravating;
-        RelievingFactors = relieving; PriorTreatments = treatments;
+        Characteristics = characteristics; AggravatingFactors = aggravatingFactors;
+        RelievingFactors = relievingFactors; PriorTreatments = priorTreatments;
     }
 
     protected override IEnumerable<object> GetEqualityComponents()
@@ -61,12 +61,12 @@ public class VitalSigns : ValueObject
     public decimal? Bmi { get; }
 
     public VitalSigns(decimal? temperature, int? heartRate, int? respiratoryRate,
-        int? systolicBp, int? diastolicBp, decimal? oxygenSaturation,
-        decimal? height, decimal? weight, decimal? bmi)
+        int? systolicBP, int? diastolicBP, decimal? oxygenSaturation, decimal? heightCm,
+        decimal? weightKg, decimal? bmi)
     {
         Temperature = temperature; HeartRate = heartRate; RespiratoryRate = respiratoryRate;
-        SystolicBP = systolicBp; DiastolicBP = diastolicBp; OxygenSaturation = oxygenSaturation;
-        HeightCm = height; WeightKg = weight; Bmi = bmi;
+        SystolicBP = systolicBP; DiastolicBP = diastolicBP; OxygenSaturation = oxygenSaturation;
+        HeightCm = heightCm; WeightKg = weightKg; Bmi = bmi;
     }
 
     protected override IEnumerable<object> GetEqualityComponents()

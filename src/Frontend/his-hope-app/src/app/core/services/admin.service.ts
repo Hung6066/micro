@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, retry } from 'rxjs/operators';
 import { environment } from '@env/environment';
@@ -15,7 +15,14 @@ export class AdminService {
   // ─── Users ──────────────────────────────────────────────────────────────────
 
   getUsers(params?: { search?: string; role?: string; page?: number; pageSize?: number }): Observable<PagedResult<AdminUser>> {
-    return this.http.get<PagedResult<AdminUser>>(`${this.baseUrl}/users`, { params: params as any }).pipe(
+    let httpParams = new HttpParams();
+    if (params) {
+      if (params.search) httpParams = httpParams.set('search', params.search);
+      if (params.role) httpParams = httpParams.set('role', params.role);
+      if (params.page != null) httpParams = httpParams.set('page', params.page);
+      if (params.pageSize != null) httpParams = httpParams.set('pageSize', params.pageSize);
+    }
+    return this.http.get<PagedResult<AdminUser>>(`${this.baseUrl}/users`, { params: httpParams }).pipe(
       retry(1),
       catchError(this.handleError),
     );
@@ -137,7 +144,17 @@ export class AdminService {
     page?: number;
     pageSize?: number;
   }): Observable<PagedResult<AuditLog>> {
-    return this.http.get<PagedResult<AuditLog>>(`${this.baseUrl}/audit-logs`, { params: params as any }).pipe(
+    let httpParams = new HttpParams();
+    if (params) {
+      if (params.userId) httpParams = httpParams.set('userId', params.userId);
+      if (params.action) httpParams = httpParams.set('action', params.action);
+      if (params.resourceType) httpParams = httpParams.set('resourceType', params.resourceType);
+      if (params.fromDate) httpParams = httpParams.set('fromDate', params.fromDate);
+      if (params.toDate) httpParams = httpParams.set('toDate', params.toDate);
+      if (params.page != null) httpParams = httpParams.set('page', params.page);
+      if (params.pageSize != null) httpParams = httpParams.set('pageSize', params.pageSize);
+    }
+    return this.http.get<PagedResult<AuditLog>>(`${this.baseUrl}/audit-logs`, { params: httpParams }).pipe(
       retry(1),
       catchError(this.handleError),
     );

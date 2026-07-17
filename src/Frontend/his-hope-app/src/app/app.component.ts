@@ -13,6 +13,7 @@ import { AuthService } from '@core/services/auth.service';
                      (toggle)="toggleSidenav()"></app-sidebar>
       </mat-sidenav>
       <mat-sidenav-content>
+        <app-error-bar></app-error-bar>
         <div class="main-content" id="main-content">
           <router-outlet></router-outlet>
         </div>

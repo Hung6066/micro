@@ -65,9 +65,9 @@ Hệ thống được xây dựng theo lộ trình 5 giai đoạn — từ Found
      │             │  his_hope_patient    (EMR, Allergies) │
      │             │  his_hope_appointment (Scheduling)   │
      │             │  his_hope_clinical   (SOAP, Vitals)  │
-     │             │  his_hope_lab        (Orders, Tests) │
-     │             │  his_hope_billing    (Claims, ICD)   │
-     │             │  his_hope_pharmacy   (Rx, Inventory) │
+     │             │  labdb        (Orders, Tests) │
+     │             │  billingdb    (Claims, ICD)   │
+     │             │  pharmacydb   (Rx, Inventory) │
      │             └────────────────┬────────────────────┘
      │                              │
      │             ┌────────────────▼────────────────────┐
@@ -401,9 +401,9 @@ His.Hope/
 | **patient-service** | 5002 | 5006 | `his_hope_patient` | Patient CRUD, allergies, chronic conditions, demographics, contact info, insurance |
 | **appointment-service** | 5004 | 5008 | `his_hope_appointment` | Appointment scheduling, check-in/check-out, rescheduling, cancellation, no-show tracking |
 | **clinical-service** | 5005 | 5009 | `his_hope_clinical` | Encounters, SOAP notes, vital signs, diagnosis (ICD-10), procedures (CPT), care plans |
-| **lab-service** | 5010 | — | `his_hope_lab` | Lab orders, specimen tracking, test results, reference ranges, critical value alerts |
-| **billing-service** | 5020 | — | `his_hope_billing` | Insurance claims, CPT codes, invoices, payment processing, account receivables |
-| **pharmacy-service** | 5030 | — | `his_hope_pharmacy` | Prescriptions (Rx), drug inventory, dispensing, drug interaction checks, refill management |
+| **lab-service** | 5010 | — | `labdb` | Lab orders, specimen tracking, test results, reference ranges, critical value alerts |
+| **billing-service** | 5020 | — | `billingdb` | Insurance claims, CPT codes, invoices, payment processing, account receivables |
+| **pharmacy-service** | 5030 | — | `pharmacydb` | Prescriptions (Rx), drug inventory, dispensing, drug interaction checks, refill management |
 
 > **Frontend** (Angular 17) chạy trên port `4200`. **Backstage Developer Portal** chạy trên port `7007`.
 
@@ -548,3 +548,4 @@ Xem thêm hướng dẫn chi tiết tại [`CONTRIBUTING.md`](CONTRIBUTING.md).
   <b>His.Hope</b> — Hệ thống quản lý bệnh viện điện tử cho thế hệ tiếp theo.<br>
   <i>Cloud-Native • Zero-Trust • AI-Powered • Global Scale</i>
 </p>
+

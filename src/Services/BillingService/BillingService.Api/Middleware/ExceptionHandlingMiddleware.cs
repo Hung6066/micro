@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text.Json;
 using FluentValidation;
-using His.Hope.BillingService.Application.Common.Exceptions;
 using His.Hope.SharedKernel.Domain.Exceptions;
 
 namespace His.Hope.BillingService.Api.Middleware;
@@ -47,7 +46,7 @@ public class ExceptionHandlingMiddleware
                 response = new { error = domainEx.Message };
                 break;
 
-            case NotFoundException notFoundEx:
+            case His.Hope.BillingService.Application.Common.Exceptions.NotFoundException notFoundEx:
                 statusCode = HttpStatusCode.NotFound;
                 response = new { error = notFoundEx.Message };
                 break;

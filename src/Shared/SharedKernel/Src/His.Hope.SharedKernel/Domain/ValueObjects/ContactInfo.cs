@@ -7,6 +7,9 @@ public class ContactInfo : ValueObject
     public string Phone { get; }
     public string? Email { get; }
 
+    public static ContactInfo Create(string phone, string? email = null) =>
+        new(phone, email);
+
     public ContactInfo(string phone, string? email = null)
     {
         Phone = Guard.Against.NullOrWhiteSpace(phone, nameof(phone));

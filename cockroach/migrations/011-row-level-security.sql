@@ -144,43 +144,43 @@ WHERE (
 );
 
 -- ============================================================================
--- SECTION 5: LAB SERVICE — lab isolation views (his_hope_lab)
+-- SECTION 5: LAB SERVICE — lab isolation views (labdb)
 -- ============================================================================
 
 -- View: lab_orders_visible
 -- Providers see orders they placed.
 -- Lab technicians see all orders (their scope).
 -- Admins see all.
-CREATE OR REPLACE VIEW his_hope_lab.lab_orders_visible AS
+CREATE OR REPLACE VIEW labdb.lab_orders_visible AS
 SELECT lo.*
-FROM his_hope_lab.LabOrders lo
+FROM labdb.LabOrders lo
 WHERE (
     COALESCE(current_setting('app.current_user_role', true), '') IN ('Admin', 'LabTechnician')
     OR lo.ProviderId = COALESCE(NULLIF(current_setting('app.current_user_id', true), ''), '__none__')::UUID
 );
 
 -- View: lab_tests_visible
-CREATE OR REPLACE VIEW his_hope_lab.lab_tests_visible AS
+CREATE OR REPLACE VIEW labdb.lab_tests_visible AS
 SELECT lt.*
-FROM his_hope_lab.LabTests lt
-JOIN his_hope_lab.lab_orders_visible lov ON lt.LabOrderId = lov.Id;
+FROM labdb.LabTests lt
+JOIN labdb.lab_orders_visible lov ON lt.LabOrderId = lov.Id;
 
 -- View: lab_results_visible
-CREATE OR REPLACE VIEW his_hope_lab.lab_results_visible AS
+CREATE OR REPLACE VIEW labdb.lab_results_visible AS
 SELECT lr.*
-FROM his_hope_lab.LabResults lr
-JOIN his_hope_lab.lab_tests_visible ltv ON lr.LabTestId = ltv.Id;
+FROM labdb.LabResults lr
+JOIN labdb.lab_tests_visible ltv ON lr.LabTestId = ltv.Id;
 
 -- ============================================================================
--- SECTION 6: BILLING SERVICE — billing isolation views (his_hope_billing)
+-- SECTION 6: BILLING SERVICE — billing isolation views (billingdb)
 -- ============================================================================
 
 -- View: invoices_visible
 -- Billing staff see all invoices in their facility.
 -- Providers see invoices for their patients/encounters.
-CREATE OR REPLACE VIEW his_hope_billing.invoices_visible AS
+CREATE OR REPLACE VIEW billingdb.invoices_visible AS
 SELECT i.*
-FROM his_hope_billing.Invoices i
+FROM billingdb.Invoices i
 WHERE (
     COALESCE(current_setting('app.current_user_role', true), '') IN ('Admin', 'BillingClerk')
     OR i.PatientId IN (
@@ -194,21 +194,21 @@ WHERE (
 );
 
 -- View: payments_visible
-CREATE OR REPLACE VIEW his_hope_billing.payments_visible AS
+CREATE OR REPLACE VIEW billingdb.payments_visible AS
 SELECT p.*
-FROM his_hope_billing.Payments p
-JOIN his_hope_billing.invoices_visible iv ON p.InvoiceId = iv.Id;
+FROM billingdb.Payments p
+JOIN billingdb.invoices_visible iv ON p.InvoiceId = iv.Id;
 
 -- ============================================================================
--- SECTION 7: PHARMACY SERVICE — prescription isolation views (his_hope_pharmacy)
+-- SECTION 7: PHARMACY SERVICE — prescription isolation views (pharmacydb)
 -- ============================================================================
 
 -- View: prescriptions_visible
 -- Pharmacists see all prescriptions.
 -- Providers see their own prescriptions.
-CREATE OR REPLACE VIEW his_hope_pharmacy.prescriptions_visible AS
+CREATE OR REPLACE VIEW pharmacydb.prescriptions_visible AS
 SELECT p.*
-FROM his_hope_pharmacy.Prescriptions p
+FROM pharmacydb.Prescriptions p
 WHERE (
     COALESCE(current_setting('app.current_user_role', true), '') IN ('Admin', 'Pharmacist')
     OR p.ProviderId = COALESCE(NULLIF(current_setting('app.current_user_id', true), ''), '__none__')::UUID
@@ -234,3 +234,4 @@ WHERE (
 -- To reconfigure an existing DbContext to use views:
 --   modelBuilder.Entity<Patient>().ToView("patients_visible");
 -- ============================================================================
+

@@ -1,0 +1,26 @@
+apiVersion: k6.io/v1alpha1
+kind: K6
+metadata:
+  name: his-hope-load-test
+  namespace: his-hope
+spec:
+  parallelism: 4
+  script:
+    configMap:
+      name: his-hope-load-test-script
+      file: test.js
+  arguments: "--vus 10 --duration 60s --tags phase=smoke"
+  runner:
+    image: grafana/k6:latest
+    env:
+      - name: BASE_URL
+        value: "http://his-hope-gateway:5000"
+      - name: K6_OUT
+        value: "experimental-prometheus-rw"
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi

@@ -1,0 +1,70 @@
+name: Coverage Report
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      
+      - name: Restore
+        run: dotnet restore
+      
+      - name: Backend Tests with Coverage
+        run: |
+          dotnet test tests/Services/PatientService/ --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/IdentityService/ --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/ClinicalService/ --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/AppointmentService/ --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/BillingService/ --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/LabService/ --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/PharmacyService/ --collect:'XPlat Code Coverage' --results-directory:coverage-results
+      
+      - name: Generate Coverage Report
+        uses: danielpalme/ReportGenerator-GitHub-Action@5.2.4
+        with:
+          reports: 'coverage-results/**/coverage.cobertura.xml'
+          targetdir: 'coverage-report'
+          reporttypes: 'Html;HtmlSummary;Cobertura;lcov'
+      
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage-report
+
+  frontend-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Dependencies
+        run: |
+          cd src/Frontend/his-hope-app
+          npm ci
+      
+      - name: Frontend Tests with Coverage
+        run: |
+          cd src/Frontend/his-hope-app
+          npx ng test --no-watch --browsers=ChromeHeadless --code-coverage
+      
+      - name: Upload Frontend Coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: src/Frontend/his-hope-app/coverage

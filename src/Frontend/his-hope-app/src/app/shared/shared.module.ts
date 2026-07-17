@@ -32,6 +32,7 @@ import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { LoadingSpinnerComponent } from './components/loading-spinner/loading-spinner.component';
 import { EmptyStateComponent } from './components/empty-state/empty-state.component';
 import { ConfirmDialogComponent } from './components/confirm-dialog/confirm-dialog.component';
+import { ErrorBarComponent } from './components/error-bar/error-bar.component';
 import { HasPermissionDirective } from '@core/directives/has-permission.directive';
 import { HasRoleDirective } from '@core/directives/has-role.directive';
 
@@ -52,6 +53,7 @@ const materialModules = [
     LoadingSpinnerComponent,
     EmptyStateComponent,
     ConfirmDialogComponent,
+    ErrorBarComponent,
   ],
   imports: [
     CommonModule, ReactiveFormsModule, FormsModule, RouterModule,
@@ -66,6 +68,7 @@ const materialModules = [
     LoadingSpinnerComponent,
     EmptyStateComponent,
     ConfirmDialogComponent,
+    ErrorBarComponent,
     HasPermissionDirective,
     HasRoleDirective,
   ],

@@ -1,4 +1,4 @@
-CREATE TABLE his_hope_billing.Invoices (
+CREATE TABLE billingdb.Invoices (
     Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     PatientId UUID NOT NULL,
     EncounterId UUID,
@@ -22,9 +22,9 @@ CREATE TABLE his_hope_billing.Invoices (
     INDEX idx_invoices_duedate (DueDate)
 );
 
-CREATE TABLE his_hope_billing.InvoiceLineItems (
+CREATE TABLE billingdb.InvoiceLineItems (
     Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    InvoiceId UUID NOT NULL REFERENCES his_hope_billing.Invoices(Id) ON DELETE CASCADE,
+    InvoiceId UUID NOT NULL REFERENCES billingdb.Invoices(Id) ON DELETE CASCADE,
     Description STRING(1000) NOT NULL,
     Quantity INT NOT NULL DEFAULT 1,
     UnitPrice DECIMAL(18,2) NOT NULL,
@@ -36,9 +36,9 @@ CREATE TABLE his_hope_billing.InvoiceLineItems (
     INDEX idx_invoicelineitems_invoice (InvoiceId)
 );
 
-CREATE TABLE his_hope_billing.Payments (
+CREATE TABLE billingdb.Payments (
     Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    InvoiceId UUID NOT NULL REFERENCES his_hope_billing.Invoices(Id) ON DELETE CASCADE,
+    InvoiceId UUID NOT NULL REFERENCES billingdb.Invoices(Id) ON DELETE CASCADE,
     PatientId UUID NOT NULL,
     Amount DECIMAL(18,2) NOT NULL,
     PaymentDate TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -54,7 +54,7 @@ CREATE TABLE his_hope_billing.Payments (
     INDEX idx_payments_paymentdate (PaymentDate)
 );
 
-CREATE TABLE his_hope_billing.OutboxMessages (
+CREATE TABLE billingdb.OutboxMessages (
     Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     Type STRING(500) NOT NULL,
     Content JSONB NOT NULL,
@@ -71,10 +71,11 @@ CREATE TABLE his_hope_billing.OutboxMessages (
 );
 
 -- Backward-compatibility for existing deployments
-ALTER TABLE his_hope_billing.OutboxMessages ADD COLUMN IF NOT EXISTS CorrelationId STRING(200);
-ALTER TABLE his_hope_billing.OutboxMessages ADD COLUMN IF NOT EXISTS CausationId STRING(200);
-ALTER TABLE his_hope_billing.OutboxMessages ADD COLUMN IF NOT EXISTS OccurredOn TIMESTAMPTZ NOT NULL DEFAULT now();
-ALTER TABLE his_hope_billing.OutboxMessages ADD COLUMN IF NOT EXISTS ProcessedOn TIMESTAMPTZ;
-ALTER TABLE his_hope_billing.OutboxMessages ADD COLUMN IF NOT EXISTS Status STRING(50) NOT NULL DEFAULT 'Pending';
-ALTER TABLE his_hope_billing.OutboxMessages ADD COLUMN IF NOT EXISTS LastRetryOn TIMESTAMPTZ;
-ALTER TABLE his_hope_billing.OutboxMessages ADD COLUMN IF NOT EXISTS LockExpiresAt TIMESTAMPTZ;
+ALTER TABLE billingdb.OutboxMessages ADD COLUMN IF NOT EXISTS CorrelationId STRING(200);
+ALTER TABLE billingdb.OutboxMessages ADD COLUMN IF NOT EXISTS CausationId STRING(200);
+ALTER TABLE billingdb.OutboxMessages ADD COLUMN IF NOT EXISTS OccurredOn TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE billingdb.OutboxMessages ADD COLUMN IF NOT EXISTS ProcessedOn TIMESTAMPTZ;
+ALTER TABLE billingdb.OutboxMessages ADD COLUMN IF NOT EXISTS Status STRING(50) NOT NULL DEFAULT 'Pending';
+ALTER TABLE billingdb.OutboxMessages ADD COLUMN IF NOT EXISTS LastRetryOn TIMESTAMPTZ;
+ALTER TABLE billingdb.OutboxMessages ADD COLUMN IF NOT EXISTS LockExpiresAt TIMESTAMPTZ;
+

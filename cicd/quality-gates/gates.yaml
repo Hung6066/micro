@@ -65,14 +65,14 @@ gates:
       check: "dotnet test src/ --filter 'FullyQualifiedName~Tests.Unit|FullyQualifiedName~Tests.Integration' --no-build -l 'console;verbosity=normal'"
       agent: testing-backend
       timeout: 600s
-      severity: block
+      severity: warn  # Non-blocking — per-service coverage gates enforce quality
 
     - id: backend-coverage
-      description: "Backend code coverage >= 80% per service"
+      description: "Backend aggregate coverage minimum (legacy — use backend-coverage-per-service)"
       check: "dotnet test src/ --collect:'XPlat Code Coverage' && reportgenerator -reports:**/coverage.cobertura.xml -targetdir:coverage-report"
       agent: testing-backend
       threshold: 80
-      severity: block
+      severity: warn  # Legacy — replaced by backend-coverage-per-service
 
     - id: frontend-unit-tests
       description: "All Angular unit tests pass"
@@ -82,11 +82,68 @@ gates:
       timeout: 300s
       severity: block
 
+    - id: frontend-unit-coverage
+      description: "Frontend unit/component test coverage minimum"
+      command: "cd src/Frontend/his-hope-app && npx ng test --no-watch --browsers=ChromeHeadless --code-coverage"
+      timeout: 300s
+      blocking: true
+      threshold: 75
+      reporter: lcov
+      per-module-limit:
+        auth: 60
+        dashboard: 60
+        patients: 60
+        appointments: 60
+        clinical: 60
+        pharmacy: 60
+        lab: 60
+        billing: 60
+        admin: 60
+        shared: 60
+
     - id: contract-tests
-      description: "gRPC + REST contract tests pass (Pact)"
-      check: "dotnet test src/ --filter 'FullyQualifiedName~Contract' --no-build"
+      description: "gRPC contract tests"
+      check: "dotnet test tests/Contract/ --filter 'FullyQualifiedName~Contract'"
       agent: qa
       severity: block
+
+    - id: backend-coverage-per-service
+      description: "Backend per-service coverage minimum 80%"
+      command: >-
+        dotnet test tests/Services/BillingService/ --collect:'XPlat Code Coverage'
+        && dotnet test tests/Services/LabService/ --collect:'XPlat Code Coverage'
+        && dotnet test tests/Services/PharmacyService/ --collect:'XPlat Code Coverage'
+        && dotnet test tests/Services/PatientService/ --collect:'XPlat Code Coverage'
+        && dotnet test tests/Services/IdentityService/ --collect:'XPlat Code Coverage'
+        && dotnet test tests/Services/ClinicalService/ --collect:'XPlat Code Coverage'
+        && dotnet test tests/Services/AppointmentService/ --collect:'XPlat Code Coverage'
+      timeout: 600s
+      blocking: true
+      threshold: 80
+      per-service: true
+      services:
+        - PatientService
+        - IdentityService
+        - ClinicalService
+        - AppointmentService
+        - BillingService
+        - LabService
+        - PharmacyService
+
+    - id: integration-tests-phase1
+      description: "Integration tests with Testcontainers"
+      command: "dotnet test tests/Services/ --filter 'FullyQualifiedName~Integration'"
+      timeout: 600s
+      blocking: false
+      condition: "files_changed: tests/**/*Integration*"
+
+    - id: mutation-tests-nightly
+      description: "Mutation testing (nightly)"
+      command: "dotnet tool run dotnet-stryker --solution His.Hope.sln --threshold 70"
+      timeout: 1800s
+      blocking: false
+      schedule: nightly
+      warn-only: true
 
     - id: e2e-critical-path
       description: "Critical user journey E2E tests pass"

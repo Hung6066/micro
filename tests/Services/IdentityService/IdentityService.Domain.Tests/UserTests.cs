@@ -208,8 +208,8 @@ public class UserTests
     {
         // Arrange
         var id = Guid.NewGuid();
-        var user1 = new User { Id = id.ToString() };
-        var user2 = new User { Id = id.ToString() };
+        var user1 = new User { Id = id };
+        var user2 = new User { Id = id };
 
         // Assert
         user1.Equals(user2).Should().BeTrue();
@@ -220,8 +220,8 @@ public class UserTests
     public void TwoUsers_WithDifferentIds_ShouldNotBeEqual()
     {
         // Arrange
-        var user1 = new User { Id = Guid.NewGuid().ToString() };
-        var user2 = new User { Id = Guid.NewGuid().ToString() };
+        var user1 = new User { Id = Guid.NewGuid() };
+        var user2 = new User { Id = Guid.NewGuid() };
 
         // Assert
         user1.Equals(user2).Should().BeFalse();
@@ -241,7 +241,7 @@ public class UserTests
         // Assert
         role.Name.Should().Be("Doctor");
         role.Description.Should().Be("Medical practitioner with prescribing authority");
-        role.Id.Should().NotBeNullOrEmpty();
+        role.Id.Should().NotBeEmpty();
     }
 
     [Fact]
@@ -291,6 +291,6 @@ public class UserTests
 
         // Assert
         // Should not throw - IdentityUser<T> overrides Equals
-        result.Should().Be(user.Id == other.Id ? (bool?)true : false);
+        result.Should().Be(user.Id == other.Id);
     }
 }

@@ -40,7 +40,7 @@ public class RegisterRequestValidatorTests
     {
         // Arrange
         var request = new RegisterRequest(
-            Username: "dr.smith",
+            Username: "dr_smith",
             Email: "dr.smith@hospital.org",
             Password: "C0mpl3x!Pass",
             FirstName: "Jane",

@@ -4,6 +4,12 @@ namespace His.Hope.IdentityService.Domain.Entities;
 
 public class User : IdentityUser<Guid>
 {
+    public User()
+    {
+        Id = Guid.NewGuid();
+        SecurityStamp = Guid.NewGuid().ToString();
+    }
+
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string? MiddleName { get; set; }
@@ -13,14 +19,35 @@ public class User : IdentityUser<Guid>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAt { get; set; }
 
-    public string FullName =>
-        string.IsNullOrWhiteSpace(MiddleName)
-            ? $"{LastName} {FirstName}"
-            : $"{LastName} {MiddleName} {FirstName}";
+    public string FullName
+    {
+        get
+        {
+            var parts = new[] { LastName, MiddleName, FirstName }
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .ToArray();
+            return parts.Length > 0 ? string.Join(" ", parts) : string.Empty;
+        }
+    }
+
+    public override bool Equals(object? obj) =>
+        obj is User other && Id == other.Id;
+
+    public override int GetHashCode() => Id.GetHashCode();
+
+    public static bool operator ==(User? left, User? right) =>
+        ReferenceEquals(left, right) || (left is not null && right is not null && left.Id == right.Id);
+
+    public static bool operator !=(User? left, User? right) => !(left == right);
 }
 
 public class Role : IdentityRole<Guid>
 {
+    public Role()
+    {
+        Id = Guid.NewGuid();
+    }
+
     public string? Description { get; set; }
 
     /// <summary>
@@ -36,4 +63,14 @@ public class Role : IdentityRole<Guid>
 
     // Navigation
     public ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
+
+    public override bool Equals(object? obj) =>
+        obj is Role other && Id == other.Id;
+
+    public override int GetHashCode() => Id.GetHashCode();
+
+    public static bool operator ==(Role? left, Role? right) =>
+        ReferenceEquals(left, right) || (left is not null && right is not null && left.Id == right.Id);
+
+    public static bool operator !=(Role? left, Role? right) => !(left == right);
 }

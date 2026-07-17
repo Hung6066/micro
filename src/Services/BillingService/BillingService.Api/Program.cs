@@ -87,14 +87,14 @@ builder.Services.AddHealthChecks()
 // Kestrel Configuration
 builder.WebHost.ConfigureKestrel(options =>
 {
+    options.ListenAnyIP(5020, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+    });
+
     options.ListenAnyIP(5021, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-        listenOptions.UseHttps(httpsOptions =>
-        {
-            httpsOptions.ServerCertificate = LoadServerCertificate(builder.Configuration);
-            httpsOptions.CheckCertificateRevocation = false;
-        });
     });
 
     options.ListenAnyIP(5022, listenOptions =>
@@ -110,11 +110,6 @@ builder.WebHost.ConfigureKestrel(options =>
     options.ListenAnyIP(5025, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
-        listenOptions.UseHttps(httpsOptions =>
-        {
-            httpsOptions.ServerCertificate = LoadServerCertificate(builder.Configuration);
-            httpsOptions.CheckCertificateRevocation = false;
-        });
     });
 });
 
@@ -152,16 +147,16 @@ app.UsePhiAudit();
 var invoices = app.MapGroup("/api/v1/invoices").RequireAuthorization();
 
 invoices.MapGet("/", async (
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct,
     int page = 1,
     int pageSize = 20,
     string? search = null,
     Guid? patientId = null,
     string? status = null,
     DateTime? dateFrom = null,
-    DateTime? dateTo = null,
-    IMediator mediator,
-    ICacheService cache,
-    CancellationToken ct) =>
+    DateTime? dateTo = null) =>
 {
     var cacheKey = $"invoices:search:{search}:{page}:{pageSize}:{patientId}:{status}:{dateFrom}:{dateTo}";
     var result = await cache.GetOrSetAsync(
@@ -267,6 +262,12 @@ invoices.MapPut("/{id:guid}/void", async (
     return Results.NoContent();
 }).RequireAuthorization("Permission:billing.void").WithOpenApi();
 
+// Patient-specific invoices aggregate endpoint (routed via YARP from /api/v1/patients/{patientId:guid}/invoices)
+app.MapGet("/api/v1/patients/{patientId:guid}/invoices", async (Guid patientId) =>
+{
+    return Results.Ok(new { patientId, items = new List<object>() });
+}).RequireAuthorization("Permission:billing.view").WithOpenApi();
+
 // gRPC
 app.MapGrpcService<BillingGrpcServiceImpl>();
 app.MapGrpcHealthChecksService();
@@ -359,4 +360,5 @@ public record VoidInvoiceRequest(string Reason);
 public record ApplyDiscountRequest(decimal Amount);
 
 public record ApplyTaxRequest(decimal Amount);
+
 

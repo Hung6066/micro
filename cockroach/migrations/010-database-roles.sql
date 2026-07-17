@@ -31,9 +31,9 @@ GRANT CONNECT ON DATABASE identitydb TO svc_identity;
 GRANT CONNECT ON DATABASE patientdb TO svc_patient;
 GRANT CONNECT ON DATABASE appointmentdb TO svc_appointment;
 GRANT CONNECT ON DATABASE clinicaldb TO svc_clinical;
-GRANT CONNECT ON DATABASE his_hope_lab TO svc_lab;
-GRANT CONNECT ON DATABASE his_hope_billing TO svc_billing;
-GRANT CONNECT ON DATABASE his_hope_pharmacy TO svc_pharmacy;
+GRANT CONNECT ON DATABASE labdb TO svc_lab;
+GRANT CONNECT ON DATABASE billingdb TO svc_billing;
+GRANT CONNECT ON DATABASE pharmacydb TO svc_pharmacy;
 
 -- Also grant CONNECT for read-only cross-service access
 GRANT CONNECT ON DATABASE patientdb TO svc_clinical;
@@ -135,9 +135,9 @@ ALTER DATABASE identitydb CONFIGURE ZONE USING constraints = '{"us-east1": 2, "e
 ALTER DATABASE patientdb CONFIGURE ZONE USING constraints = '{"us-east1": 2, "europe-west1": 1, "asia-east1": 1}';
 ALTER DATABASE appointmentdb CONFIGURE ZONE USING constraints = '{"us-east1": 2, "europe-west1": 1, "asia-east1": 1}';
 ALTER DATABASE clinicaldb CONFIGURE ZONE USING constraints = '{"us-east1": 2, "europe-west1": 1, "asia-east1": 1}';
-ALTER DATABASE his_hope_lab CONFIGURE ZONE USING constraints = '{"us-east1": 2, "europe-west1": 1, "asia-east1": 1}';
-ALTER DATABASE his_hope_billing CONFIGURE ZONE USING constraints = '{"us-east1": 2, "europe-west1": 1, "asia-east1": 1}';
-ALTER DATABASE his_hope_pharmacy CONFIGURE ZONE USING constraints = '{"us-east1": 2, "europe-west1": 1, "asia-east1": 1}';
+ALTER DATABASE labdb CONFIGURE ZONE USING constraints = '{"us-east1": 2, "europe-west1": 1, "asia-east1": 1}';
+ALTER DATABASE billingdb CONFIGURE ZONE USING constraints = '{"us-east1": 2, "europe-west1": 1, "asia-east1": 1}';
+ALTER DATABASE pharmacydb CONFIGURE ZONE USING constraints = '{"us-east1": 2, "europe-west1": 1, "asia-east1": 1}';
 
 -- ============================================================================
 -- SECTION 8: Nota bene — application connection setup
@@ -147,9 +147,9 @@ ALTER DATABASE his_hope_pharmacy CONFIGURE ZONE USING constraints = '{"us-east1"
 --   PatientService   → svc_patient  @ patientdb
 --   AppointmentService → svc_appointment @ appointmentdb
 --   ClinicalService  → svc_clinical @ clinicaldb
---   LabService       → svc_lab      @ his_hope_lab
---   BillingService   → svc_billing  @ his_hope_billing
---   PharmacyService  → svc_pharmacy @ his_hope_pharmacy
+--   LabService       → svc_lab      @ labdb
+--   BillingService   → svc_billing  @ billingdb
+--   PharmacyService  → svc_pharmacy @ pharmacydb
 --
 -- Cross-service queries use the granted SELECT privileges; no service should
 -- connect directly to another service's database for writes.
@@ -158,3 +158,4 @@ ALTER DATABASE his_hope_pharmacy CONFIGURE ZONE USING constraints = '{"us-east1"
 --   SET app.current_user_id = '<user-uuid>';
 -- This session variable is used by the security views defined in 011.
 -- ============================================================================
+

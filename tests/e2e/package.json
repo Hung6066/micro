@@ -4,7 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npx playwright test --config=playwright.config.js --project=chromium",
+    "test:headed": "npx playwright test --config=playwright.config.js --project=chromium --headed",
+    "test:firefox": "npx playwright test --config=playwright.config.js --project=firefox",
+    "test:debug": "npx playwright test --config=playwright.config.js --project=chromium --debug",
+    "report": "npx playwright show-report test-results/html-report"
   },
   "keywords": [],
   "author": "",

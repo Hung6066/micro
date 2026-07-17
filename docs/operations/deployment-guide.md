@@ -159,7 +159,7 @@ Các migration file trong `cockroach/migrations/` chạy tuần tự:
 
 | Migration | File | Nội dung |
 |-----------|------|----------|
-| 001 | `001-create-databases.sql` | Tạo 6 databases: patientdb, identitydb, appointmentdb, clinicaldb, his_hope_lab, his_hope_billing |
+| 001 | `001-create-databases.sql` | Tạo 6 databases: patientdb, identitydb, appointmentdb, clinicaldb, labdb, billingdb |
 | 002 | `002-patient-service.sql` | Schema Patients, Allergies, Conditions, OutboxMessages |
 | 003 | `003-identity-service.sql` | Schema Users, Roles, Permissions, RefreshTokens |
 | 004 | `004-appointment-service.sql` | Schema Appointments, AppointmentTypes, Status tracking |
@@ -693,7 +693,7 @@ kubectl exec -it rabbitmq-0 -n his-hope -- rabbitmqctl list_queues name messages
 
 # Kiểm tra exchanges
 kubectl exec -it rabbitmq-0 -n his-hope -- rabbitmqctl list_exchanges name type | Select-String "his_hope"
-# Expected: his_hope_patient, his_hope_clinical, his_hope_appointment, his_hope_lab, his_hope_billing, his_hope_pharmacy
+# Expected: his_hope_patient, his_hope_clinical, his_hope_appointment, labdb, billingdb, pharmacydb
 ```
 
 ### 7.6 Redis Connectivity Test
@@ -817,3 +817,4 @@ kubectl describe networkpolicy -n his-hope | Select-String -Context 2 "Ingress|E
 # Test connectivity từ pod
 kubectl exec -it deploy/patient-service -n his-hope -- wget -qO- --timeout=3 http://identity-service:5003/health
 ```
+

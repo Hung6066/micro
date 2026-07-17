@@ -29,21 +29,21 @@ ON CONFLICT (Id) DO NOTHING;
 -- 2a. "Patients" (8 "Patients" with Vietnamese names)
 INSERT INTO "Patients" (PatientId, FirstName, LastName, MiddleName, DateOfBirth, Gender, Phone, Email, Street, District, City, Province, PostalCode, Country, BloodType, Race, MaritalStatus, InsuranceId, NationalId, Occupation, EmergencyContactName, EmergencyContactPhone, IsActive, CreatedAt, UpdatedAt) VALUES
 -- P001: Nguyễn Văn A, 45t, male
-('00000000-0000-0000-0000-000000000001', 'A', 'Nguyễn', 'Văn', '1981-03-15', 'Male', '0901234567', 'nguyenvana@email.com', '123 Đường Lê Lợi', 'Quận 1', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700000', 'Việt Nam', 'A+', 'Kinh', 'Married', 'BHYT-12345-01', '079181001234', 'Kỹ sư xây dựng', 'Nguyễn Thị Hà', '0909234567', true, '2026-07-01 08:00:00+00', NULL),
+('00000000-0000-0000-0000-000000000001', 'A', 'Nguyễn', 'Văn', '1981-03-15', 'Male', '0901234567', 'nguyenvana@email.com', '123 Đường Lê Lợi', 'Quận 1', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700000', 'Việt Nam', 'A+', 'ASIAN', 'Married', 'BHYT-12345-01', '079181001234', 'Kỹ sư xây dựng', 'Nguyễn Thị Hà', '0909234567', true, '2026-07-01 08:00:00+00', NULL),
 -- P002: Trần Thị B, 32t, female
-('00000000-0000-0000-0000-000000000002', 'B', 'Trần', 'Thị', '1994-07-22', 'Female', '0912345678', 'tranthib@email.com', '456 Đường Nguyễn Huệ', 'Quận Bình Thạnh', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700001', 'Việt Nam', 'B+', 'Kinh', 'Single', 'BHYT-12345-02', '079182001234', 'Giáo viên', 'Trần Văn Hùng', '0919345678', true, '2026-07-01 08:00:00+00', NULL),
+('00000000-0000-0000-0000-000000000002', 'B', 'Trần', 'Thị', '1994-07-22', 'Female', '0912345678', 'tranthib@email.com', '456 Đường Nguyễn Huệ', 'Quận Bình Thạnh', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700001', 'Việt Nam', 'B+', 'ASIAN', 'Single', 'BHYT-12345-02', '079182001234', 'Giáo viên', 'Trần Văn Hùng', '0919345678', true, '2026-07-01 08:00:00+00', NULL),
 -- P003: Lê Văn C, 67t, male
-('00000000-0000-0000-0000-000000000003', 'C', 'Lê', 'Văn', '1959-01-10', 'Male', '0923456789', 'levanc@email.com', '789 Đường Võ Văn Tần', 'Quận 3', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700002', 'Việt Nam', 'O+', 'Kinh', 'Married', 'BHYT-12345-03', '079183001234', 'Hưu trí', 'Lê Văn Tuấn', '0929456789', true, '2026-07-01 08:00:00+00', NULL),
+('00000000-0000-0000-0000-000000000003', 'C', 'Lê', 'Văn', '1959-01-10', 'Male', '0923456789', 'levanc@email.com', '789 Đường Võ Văn Tần', 'Quận 3', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700002', 'Việt Nam', 'O+', 'ASIAN', 'Married', 'BHYT-12345-03', '079183001234', 'Hưu trí', 'Lê Văn Tuấn', '0929456789', true, '2026-07-01 08:00:00+00', NULL),
 -- P004: Phạm Thị D, 28t, female
-('00000000-0000-0000-0000-000000000004', 'D', 'Phạm', 'Thị', '1998-11-05', 'Female', '0934567890', 'phamthid@email.com', '321 Đường Trần Hưng Đạo', 'Quận 5', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700003', 'Việt Nam', 'A-', 'Kinh', 'Single', 'BHYT-12345-04', '079184001234', 'Nhân viên văn phòng', 'Phạm Văn Hải', '0939567890', true, '2026-07-01 08:00:00+00', NULL),
+('00000000-0000-0000-0000-000000000004', 'D', 'Phạm', 'Thị', '1998-11-05', 'Female', '0934567890', 'phamthid@email.com', '321 Đường Trần Hưng Đạo', 'Quận 5', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700003', 'Việt Nam', 'A-', 'ASIAN', 'Single', 'BHYT-12345-04', '079184001234', 'Nhân viên văn phòng', 'Phạm Văn Hải', '0939567890', true, '2026-07-01 08:00:00+00', NULL),
 -- P005: Hoàng Văn E, 5t, male (pediatric)
-('00000000-0000-0000-0000-000000000005', 'E', 'Hoàng', 'Văn', '2021-04-18', 'Male', '0945678901', NULL, '654 Đường Nguyễn Đình Chiểu', 'Quận 2', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700004', 'Việt Nam', NULL, 'Kinh', NULL, NULL, NULL, NULL, 'Hoàng Văn Hùng (Bố)', '0949678901', true, '2026-07-01 08:00:00+00', NULL),
+('00000000-0000-0000-0000-000000000005', 'E', 'Hoàng', 'Văn', '2021-04-18', 'Male', '0945678901', NULL, '654 Đường Nguyễn Đình Chiểu', 'Quận 2', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700004', 'Việt Nam', NULL, 'ASIAN', NULL, NULL, NULL, NULL, 'Hoàng Văn Hùng (Bố)', '0949678901', true, '2026-07-01 08:00:00+00', NULL),
 -- P006: Vũ Thị F, 52t, female
-('00000000-0000-0000-0000-000000000006', 'F', 'Vũ', 'Thị', '1974-08-30', 'Female', '0956789012', 'vuthif@email.com', '987 Đường Hai Bà Trưng', 'Quận Tân Bình', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700005', 'Việt Nam', 'AB+', 'Kinh', 'Married', 'BHYT-12345-06', '079186001234', 'Kế toán', 'Vũ Văn Bình', '0959789012', true, '2026-07-01 08:00:00+00', NULL),
+('00000000-0000-0000-0000-000000000006', 'F', 'Vũ', 'Thị', '1974-08-30', 'Female', '0956789012', 'vuthif@email.com', '987 Đường Hai Bà Trưng', 'Quận Tân Bình', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700005', 'Việt Nam', 'AB+', 'ASIAN', 'Married', 'BHYT-12345-06', '079186001234', 'Kế toán', 'Vũ Văn Bình', '0959789012', true, '2026-07-01 08:00:00+00', NULL),
 -- P007: Đặng Văn G, 38t, male
-('00000000-0000-0000-0000-000000000007', 'G', 'Đặng', 'Văn', '1988-02-14', 'Male', '0967890123', 'dangvang@email.com', '147 Đường Phạm Ngọc Thạch', 'Quận 10', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700006', 'Việt Nam', 'O-', 'Kinh', 'Married', 'BHYT-12345-07', '079187001234', 'Tài xế', 'Đặng Thị Mai', '0969890123', true, '2026-07-01 08:00:00+00', NULL),
+('00000000-0000-0000-0000-000000000007', 'G', 'Đặng', 'Văn', '1988-02-14', 'Male', '0967890123', 'dangvang@email.com', '147 Đường Phạm Ngọc Thạch', 'Quận 10', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700006', 'Việt Nam', 'O-', 'ASIAN', 'Married', 'BHYT-12345-07', '079187001234', 'Tài xế', 'Đặng Thị Mai', '0969890123', true, '2026-07-01 08:00:00+00', NULL),
 -- P008: Bùi Thị H, 72t, female
-('00000000-0000-0000-0000-000000000008', 'H', 'Bùi', 'Thị', '1954-06-25', 'Female', '0978901234', 'buithih@email.com', '258 Đường Trường Chinh', 'Quận 12', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700007', 'Việt Nam', 'B-', 'Kinh', 'Widowed', 'BHYT-12345-08', '079188001234', 'Hưu trí', 'Bùi Văn An', '0979901234', true, '2026-07-01 08:00:00+00', NULL)
+('00000000-0000-0000-0000-000000000008', 'H', 'Bùi', 'Thị', '1954-06-25', 'Female', '0978901234', 'buithih@email.com', '258 Đường Trường Chinh', 'Quận 12', 'Hồ Chí Minh', 'TP. Hồ Chí Minh', '700007', 'Việt Nam', 'B-', 'ASIAN', 'Widowed', 'BHYT-12345-08', '079188001234', 'Hưu trí', 'Bùi Văn An', '0979901234', true, '2026-07-01 08:00:00+00', NULL)
 ON CONFLICT (PatientId) DO NOTHING;
 
 -- 2b. "Allergies"
@@ -371,7 +371,7 @@ INSERT INTO "OutboxMessages" (Id, Type, Content, CorrelationId, OccurredOn, Proc
 ON CONFLICT (Id) DO NOTHING;
 
 -- ============================================================================
--- SECTION 5: PHARMACY SERVICE (his_hope_pharmacy)
+-- SECTION 5: PHARMACY SERVICE (pharmacydb)
 -- ============================================================================
 
 -- 5a. "Medications" (12 items common in Vietnamese practice)
@@ -411,7 +411,7 @@ INSERT INTO "OutboxMessages" (Id, Type, Content, CorrelationId, OccurredOn, Proc
 ON CONFLICT (Id) DO NOTHING;
 
 -- ============================================================================
--- SECTION 6: LAB SERVICE (his_hope_lab)
+-- SECTION 6: LAB SERVICE (labdb)
 -- ============================================================================
 
 -- 6a. Lab Orders (5 orders)
@@ -480,7 +480,7 @@ INSERT INTO "OutboxMessages" (Id, Type, Content, CorrelationId, OccurredOn, Proc
 ON CONFLICT (Id) DO NOTHING;
 
 -- ============================================================================
--- SECTION 7: BILLING SERVICE (his_hope_billing)
+-- SECTION 7: BILLING SERVICE (billingdb)
 -- ============================================================================
 
 -- 7a. "Invoices" (4 "Invoices")

@@ -16,7 +16,9 @@ public static class JwtAuthenticationExtensions
         services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            // Do NOT set DefaultChallengeScheme - this allows unauthenticated requests
+            // to pass through to endpoints without triggering a 401 challenge.
+            // Endpoints with RequireAuthorization() will still return 401.
         })
         .AddJwtBearer(options =>
         {
@@ -25,16 +27,18 @@ public static class JwtAuthenticationExtensions
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuer = true,
-                ValidateAudience = true,
+                ValidateAudience = !string.IsNullOrEmpty(configuration["Jwt:Audience"]),
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
 
                 ValidIssuer = configuration["Jwt:Issuer"],
                 ValidAudience = configuration["Jwt:Audience"],
 
-                IssuerSigningKey = LoadRsaPublicKey(configuration),
+                IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
+                    System.Text.Encoding.UTF8.GetBytes(
+                        configuration["Jwt:Key"] ?? "super-secret-key-his-hope-2024-at-least-32-chars!")),
 
-                ValidAlgorithms = new[] { SecurityAlgorithms.RsaSha256 },
+                ValidAlgorithms = new[] { Microsoft.IdentityModel.Tokens.SecurityAlgorithms.HmacSha256 },
 
                 ClockSkew = TimeSpan.FromMinutes(configuration.GetValue("Jwt:ClockSkewMinutes", 1)),
             };

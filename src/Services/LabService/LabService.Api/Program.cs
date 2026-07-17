@@ -86,14 +86,14 @@ builder.Services.AddHealthChecks()
 // Kestrel Configuration
 builder.WebHost.ConfigureKestrel(options =>
 {
+    options.ListenAnyIP(5010, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+    });
+
     options.ListenAnyIP(5017, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-        listenOptions.UseHttps(httpsOptions =>
-        {
-            httpsOptions.ServerCertificate = LoadServerCertificate(builder.Configuration);
-            httpsOptions.CheckCertificateRevocation = false;
-        });
     });
 
     options.ListenAnyIP(5018, listenOptions =>
@@ -109,11 +109,6 @@ builder.WebHost.ConfigureKestrel(options =>
     options.ListenAnyIP(5020, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
-        listenOptions.UseHttps(httpsOptions =>
-        {
-            httpsOptions.ServerCertificate = LoadServerCertificate(builder.Configuration);
-            httpsOptions.CheckCertificateRevocation = false;
-        });
     });
 });
 
@@ -278,6 +273,12 @@ labOrders.MapPut("/{id:guid}/cancel", async (
     return Results.NoContent();
 }).RequireAuthorization("Permission:lab.cancel").WithOpenApi();
 
+// Patient-specific lab-orders aggregate endpoint (routed via YARP from /api/v1/patients/{patientId:guid}/lab-orders)
+app.MapGet("/api/v1/patients/{patientId:guid}/lab-orders", async (Guid patientId) =>
+{
+    return Results.Ok(new { patientId, items = new List<object>() });
+}).RequireAuthorization("Permission:lab.view").WithOpenApi();
+
 // gRPC
 app.MapGrpcService<LabGrpcServiceImpl>();
 app.MapGrpcHealthChecksService();
@@ -359,4 +360,5 @@ public record RecordLabResultRequest(
     string? Notes);
 
 public record CancelLabOrderRequest(string Reason);
+
 

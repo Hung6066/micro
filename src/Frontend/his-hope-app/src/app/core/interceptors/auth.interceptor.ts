@@ -7,7 +7,7 @@ import {
   HttpErrorResponse,
 } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, throwError, BehaviorSubject } from 'rxjs';
+import { Observable, throwError, BehaviorSubject, of } from 'rxjs';
 import { catchError, filter, switchMap, take, tap, finalize } from 'rxjs/operators';
 import { AuthService } from '@core/services/auth.service';
 
@@ -29,6 +29,8 @@ const SKIP_REFRESH_URLS = [
   '/auth/login',
   '/auth/register',
   '/auth/forgot-password',
+  '/auth/verify',
+  '/auth/refresh',
 ];
 
 /**

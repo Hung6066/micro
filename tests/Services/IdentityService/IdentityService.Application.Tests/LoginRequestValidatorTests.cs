@@ -111,7 +111,7 @@ public class LoginRequestValidatorTests
         var result = _validator.TestValidate(request);
 
         // Assert
-        result.Errors.Should().HaveCount(2);
+        result.Errors.Should().HaveCount(3);
         result.ShouldHaveValidationErrorFor(r => r.Username);
         result.ShouldHaveValidationErrorFor(r => r.Password);
     }

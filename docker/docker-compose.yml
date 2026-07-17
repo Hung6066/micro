@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_MULTIPLE_DATABASES: identitydb,patientdb,appointmentdb,clinicaldb,his_hope_lab,his_hope_billing,his_hope_pharmacy
+      POSTGRES_MULTIPLE_DATABASES: identitydb,patientdb,appointmentdb,clinicaldb,labdb,billingdb,pharmacydb
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
@@ -188,11 +188,12 @@ services:
       ConnectionStrings__IdentityDb: Host=postgres;Database=identitydb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
       Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
       Jwt__Issuer: his-hope-identity
-      Jwt__Audience: his-hope-gateway
       Jwt__Expiry: "08:00:00"
+      Redis__ConnectionString: redis:6379
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
     depends_on:
       postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5001/health"]
@@ -217,6 +218,7 @@ services:
       EventBus__UserName: ${RABBITMQ_USER:-admin}
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
+      Jwt__Issuer: his-hope-identity
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
     depends_on:
       postgres: { condition: service_healthy }
@@ -247,6 +249,7 @@ services:
       EventBus__UserName: ${RABBITMQ_USER:-admin}
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
+      Jwt__Issuer: his-hope-identity
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
     depends_on:
       patientservice: { condition: service_healthy }
@@ -277,6 +280,7 @@ services:
       EventBus__UserName: ${RABBITMQ_USER:-admin}
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
+      Jwt__Issuer: his-hope-identity
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
     depends_on:
       patientservice: { condition: service_healthy }
@@ -301,13 +305,14 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:5010
-      ConnectionStrings__LabDb: Host=postgres;Database=his_hope_lab;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__LabDb: Host=postgres;Database=labdb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
       GrpcServices__PatientService: http://patientservice:5006
       GrpcServices__ClinicalService: http://clinicalservice:5004
       EventBus__HostName: rabbitmq
       EventBus__UserName: ${RABBITMQ_USER:-admin}
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
+      Jwt__Issuer: his-hope-identity
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
     depends_on:
       postgres: { condition: service_healthy }
@@ -331,7 +336,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:5020
-      ConnectionStrings__BillingDb: Host=postgres;Database=his_hope_billing;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__BillingDb: Host=postgres;Database=billingdb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
       GrpcServices__PatientService: http://patientservice:5006
       GrpcServices__AppointmentService: http://appointmentservice:5007
       GrpcServices__LabService: http://labservice:5010
@@ -340,6 +345,7 @@ services:
       EventBus__UserName: ${RABBITMQ_USER:-admin}
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
+      Jwt__Issuer: his-hope-identity
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
     depends_on:
       postgres: { condition: service_healthy }
@@ -363,13 +369,14 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:5030
-      ConnectionStrings__PharmacyDb: Host=postgres;Database=his_hope_pharmacy;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__PharmacyDb: Host=postgres;Database=pharmacydb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
       GrpcServices__PatientService: http://patientservice:5006
       GrpcServices__ClinicalService: http://clinicalservice:5004
       EventBus__HostName: rabbitmq
       EventBus__UserName: ${RABBITMQ_USER:-admin}
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
+      Jwt__Issuer: his-hope-identity
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
     depends_on:
       postgres: { condition: service_healthy }
@@ -385,7 +392,8 @@ services:
 
   apigateway:
     build:
-      context: ../src/ApiGateway
+      context: ..
+      dockerfile: src/ApiGateway/Dockerfile
     container_name: his-hope-gateway
     ports:
       - "5000:5000"
@@ -410,7 +418,7 @@ services:
       context: ../src/Frontend/his-hope-app
     container_name: his-hope-frontend
     ports:
-      - "4200:8080"
+      - "8081:8080"
     depends_on:
       apigateway: { condition: service_healthy }
     restart: unless-stopped

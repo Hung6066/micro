@@ -15,8 +15,16 @@ export class AuthService {
   constructor(private http: HttpClient) {}
 
   login(request: LoginRequest): Observable<User> {
-    return this.http.post<User>(`${this.baseUrl}/login`, request, { withCredentials: true }).pipe(
-      tap((user) => this.currentUserSubject.next(user)),
+    return this.http.post<any>(`${this.baseUrl}/login`, request, { withCredentials: true }).pipe(
+      tap((response) => {
+        if (response.accessToken) {
+          this.storeAccessToken(response.accessToken);
+        }
+        if (response.user) {
+          this.currentUserSubject.next(response.user);
+        }
+      }),
+      map((response) => response.user as User),
       catchError(this.handleError),
     );
   }
@@ -45,7 +53,12 @@ export class AuthService {
         this.clearStoredAccessToken();
       }),
       retry(1),
-      catchError(this.handleError),
+      catchError((error) => {
+        // Always clear local state on explicit logout, even if backend fails
+        this.currentUserSubject.next(null);
+        this.clearStoredAccessToken();
+        return this.handleError(error);
+      }),
     );
   }
 

@@ -1,4 +1,4 @@
-CREATE TABLE his_hope_lab.LabOrders (
+CREATE TABLE labdb.LabOrders (
     Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     PatientId UUID NOT NULL,
     ProviderId UUID NOT NULL,
@@ -17,9 +17,9 @@ CREATE TABLE his_hope_lab.LabOrders (
     INDEX idx_laborders_orderdate (OrderDate)
 );
 
-CREATE TABLE his_hope_lab.LabTests (
+CREATE TABLE labdb.LabTests (
     Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    LabOrderId UUID NOT NULL REFERENCES his_hope_lab.LabOrders(Id) ON DELETE CASCADE,
+    LabOrderId UUID NOT NULL REFERENCES labdb.LabOrders(Id) ON DELETE CASCADE,
     TestCode STRING(50) NOT NULL,
     TestName STRING(500) NOT NULL,
     SpecimenType STRING(100),
@@ -31,9 +31,9 @@ CREATE TABLE his_hope_lab.LabTests (
     CONSTRAINT chk_labtests_status CHECK (Status IN ('Ordered', 'Collected', 'InProgress', 'Resulted', 'Cancelled'))
 );
 
-CREATE TABLE his_hope_lab.LabResults (
+CREATE TABLE labdb.LabResults (
     Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    LabTestId UUID NOT NULL UNIQUE REFERENCES his_hope_lab.LabTests(Id) ON DELETE CASCADE,
+    LabTestId UUID NOT NULL UNIQUE REFERENCES labdb.LabTests(Id) ON DELETE CASCADE,
     Value STRING NOT NULL,
     Unit STRING(100),
     ReferenceRange STRING(500),
@@ -47,7 +47,7 @@ CREATE TABLE his_hope_lab.LabResults (
     CONSTRAINT chk_labresults_resultstatus CHECK (ResultStatus IN ('Pending', 'Preliminary', 'Final', 'Corrected'))
 );
 
-CREATE TABLE his_hope_lab.OutboxMessages (
+CREATE TABLE labdb.OutboxMessages (
     Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     Type STRING(500) NOT NULL,
     Content JSONB NOT NULL,
@@ -64,10 +64,11 @@ CREATE TABLE his_hope_lab.OutboxMessages (
 );
 
 -- Backward-compatibility for existing deployments
-ALTER TABLE his_hope_lab.OutboxMessages ADD COLUMN IF NOT EXISTS CorrelationId STRING(200);
-ALTER TABLE his_hope_lab.OutboxMessages ADD COLUMN IF NOT EXISTS CausationId STRING(200);
-ALTER TABLE his_hope_lab.OutboxMessages ADD COLUMN IF NOT EXISTS OccurredOn TIMESTAMPTZ NOT NULL DEFAULT now();
-ALTER TABLE his_hope_lab.OutboxMessages ADD COLUMN IF NOT EXISTS ProcessedOn TIMESTAMPTZ;
-ALTER TABLE his_hope_lab.OutboxMessages ADD COLUMN IF NOT EXISTS Status STRING(50) NOT NULL DEFAULT 'Pending';
-ALTER TABLE his_hope_lab.OutboxMessages ADD COLUMN IF NOT EXISTS LastRetryOn TIMESTAMPTZ;
-ALTER TABLE his_hope_lab.OutboxMessages ADD COLUMN IF NOT EXISTS LockExpiresAt TIMESTAMPTZ;
+ALTER TABLE labdb.OutboxMessages ADD COLUMN IF NOT EXISTS CorrelationId STRING(200);
+ALTER TABLE labdb.OutboxMessages ADD COLUMN IF NOT EXISTS CausationId STRING(200);
+ALTER TABLE labdb.OutboxMessages ADD COLUMN IF NOT EXISTS OccurredOn TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE labdb.OutboxMessages ADD COLUMN IF NOT EXISTS ProcessedOn TIMESTAMPTZ;
+ALTER TABLE labdb.OutboxMessages ADD COLUMN IF NOT EXISTS Status STRING(50) NOT NULL DEFAULT 'Pending';
+ALTER TABLE labdb.OutboxMessages ADD COLUMN IF NOT EXISTS LastRetryOn TIMESTAMPTZ;
+ALTER TABLE labdb.OutboxMessages ADD COLUMN IF NOT EXISTS LockExpiresAt TIMESTAMPTZ;
+

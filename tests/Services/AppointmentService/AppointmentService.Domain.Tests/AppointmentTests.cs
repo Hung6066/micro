@@ -253,11 +253,14 @@ public class AppointmentTests
     [Fact]
     public void CheckIn_WithPastAppointment_ShouldThrowDomainException()
     {
-        // Arrange
-        var pastDate = DateTime.Today.AddDays(-5);
+        // Arrange - use a today appointment then move its date back via reflection
         var appointment = Appointment.Schedule(
-            PatientId, ProviderId, pastDate, StartTime, DurationMinutes,
+            PatientId, ProviderId, DateTime.Today, StartTime, DurationMinutes,
             AppointmentType.Checkup, null, null);
+
+        var field = typeof(Appointment).GetField("<ScheduledDate>k__BackingField",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        field?.SetValue(appointment, DateTime.Today.AddDays(-5));
 
         // Act
         var act = () => appointment.CheckIn();

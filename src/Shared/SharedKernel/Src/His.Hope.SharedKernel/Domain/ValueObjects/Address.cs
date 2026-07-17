@@ -11,6 +11,15 @@ public class Address : ValueObject
     public string PostalCode { get; }
     public string Country { get; }
 
+    public static Address Create(
+        string street,
+        string district,
+        string city,
+        string province,
+        string postalCode,
+        string country) =>
+        new(street, district, city, province, postalCode, country);
+
     public Address(
         string street,
         string district,

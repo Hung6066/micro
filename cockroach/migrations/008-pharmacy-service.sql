@@ -1,10 +1,10 @@
 -- Pharmacy Service Migration
--- Database: his_hope_pharmacy
+-- Database: pharmacydb
 
-CREATE DATABASE IF NOT EXISTS his_hope_pharmacy;
+CREATE DATABASE IF NOT EXISTS pharmacydb;
 
 -- Medications table matching EF Core MedicationConfiguration
-CREATE TABLE his_hope_pharmacy.Medications (
+CREATE TABLE pharmacydb.Medications (
     Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     Name STRING(200) NOT NULL,
     GenericName STRING(200),
@@ -22,7 +22,7 @@ CREATE TABLE his_hope_pharmacy.Medications (
 );
 
 -- Prescriptions table matching EF Core PrescriptionConfiguration
-CREATE TABLE his_hope_pharmacy.Prescriptions (
+CREATE TABLE pharmacydb.Prescriptions (
     Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     PatientId UUID NOT NULL,
     ProviderId UUID NOT NULL,
@@ -51,7 +51,7 @@ CREATE TABLE his_hope_pharmacy.Prescriptions (
 );
 
 -- OutboxMessages table matching shared OutboxMessage entity
-CREATE TABLE his_hope_pharmacy.OutboxMessages (
+CREATE TABLE pharmacydb.OutboxMessages (
     Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     Type STRING(500) NOT NULL,
     Content JSONB NOT NULL,
@@ -66,3 +66,4 @@ CREATE TABLE his_hope_pharmacy.OutboxMessages (
     LockExpiresAt TIMESTAMPTZ,
     INDEX idx_outbox_status_occurred (Status, OccurredOn)
 );
+

@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.Extensions.Configuration;
@@ -76,8 +77,11 @@ public class JwtTokenGenerator
             Claims = claims.ToDictionary(c => c.Type, c => (object)c.Value),
             Expires = expiresAt,
             NotBefore = DateTime.UtcNow,
-            // SECURITY: RSA-SHA256 asymmetric signing - private key never leaves IdentityService
-            SigningCredentials = new SigningCredentials(_privateKey.Value, SecurityAlgorithms.RsaSha256)
+            // HMAC-SHA256 symmetric signing using Jwt:Key (must match validation in JwtAuthenticationExtensions)
+            SigningCredentials = new SigningCredentials(
+                new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
+                    _configuration["Jwt:Key"] ?? "super-secret-key-his-hope-2024-at-least-32-chars!")),
+                SecurityAlgorithms.HmacSha256)
         };
 
         var tokenHandler = new JwtSecurityTokenHandler();
@@ -104,6 +108,7 @@ public class JwtTokenGenerator
     /// </summary>
     public ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
     {
+        if (string.IsNullOrEmpty(token)) return null;
         var validation = new TokenValidationParameters
         {
             ValidateIssuer = true,
