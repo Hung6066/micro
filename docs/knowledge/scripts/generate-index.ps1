@@ -27,15 +27,18 @@ foreach ($file in $mdFiles) {
     $content = Get-Content $file.FullName -Raw -ErrorAction SilentlyContinue
     if (-not $content) { continue }
 
+    # Normalize line endings for cross-platform compatibility
+    $content = $content -replace '\r?\n', "`n"
+
     # Parse YAML frontmatter between first two --- blocks
     if ($content -notmatch '(?ms)^---\s*\n(.*?)\n---') { continue }
     $yamlBlock = $matches[1]
 
     # Extract fields using simple regex (avoids YAML library dependency)
-    $id       = if ($yamlBlock -match '^id:\s*(.+)$') { $matches[1].Trim() } else { $null }
-    $type     = if ($yamlBlock -match '^type:\s*(.+)$') { $matches[1].Trim() } else { $null }
-    $domain   = if ($yamlBlock -match '^domain:\s*(.+)$') { $matches[1].Trim() } else { $null }
-    $severity = if ($yamlBlock -match '^severity:\s*(.+)$') { $matches[1].Trim() } else { 'info' }
+    $id       = if ($yamlBlock -match '(?m)^id:\s*(.+)$') { $matches[1].Trim() } else { $null }
+    $type     = if ($yamlBlock -match '(?m)^type:\s*(.+)$') { $matches[1].Trim() } else { $null }
+    $domain   = if ($yamlBlock -match '(?m)^domain:\s*(.+)$') { $matches[1].Trim() } else { $null }
+    $severity = if ($yamlBlock -match '(?m)^severity:\s*(.+)$') { $matches[1].Trim() } else { 'info' }
 
     if (-not $id -or -not $type -or -not $domain) {
         Write-Warning "Skipping $($file.Name): missing required frontmatter (id/type/domain)"
@@ -44,7 +47,7 @@ foreach ($file in $mdFiles) {
 
     # Parse tags: supports [tag1, tag2] format
     $tags = @()
-    if ($yamlBlock -match '^tags:\s*\[(.+?)\]') {
+    if ($yamlBlock -match '(?m)^tags:\s*\[(.+?)\]') {
         $tags = $matches[1] -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
     }
 
