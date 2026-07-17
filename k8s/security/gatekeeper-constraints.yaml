@@ -1,0 +1,341 @@
+# =============================================================================
+# OPA Gatekeeper ConstraintTemplates and Constraints
+# =============================================================================
+# Enforces container image security policies for the His.Hope platform:
+#   1. K8sRequireImageSignature — requires Cosign signature on all images
+#   2. K8sRequireDigest — requires SHA256 digest pinning (rejects :latest tags)
+#
+# Deployment:
+#   kubectl apply -f k8s/security/gatekeeper-constraints.yaml
+#
+# Prerequisites:
+#   - Gatekeeper 3.11+ installed in the cluster
+#   - For K8sRequireImageSignature: a Ratify or custom ExternalData provider
+#     (see Provider example at the bottom of this file)
+# =============================================================================
+
+---
+# ---------------------------------------------------------------------------
+# ConstraintTemplate 1: K8sRequireImageSignature
+# ---------------------------------------------------------------------------
+# Validates that every container image has a valid Cosign signature.
+# Uses Gatekeeper's ExternalData feature to delegate signature verification
+# to an external provider (e.g., Ratify or a custom cosign-verify service).
+#
+# The external provider receives the image reference and returns whether
+# a valid Cosign signature exists for it.
+# ---------------------------------------------------------------------------
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequireimagesignature
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/component: admission-control
+  annotations:
+    metadata.gatekeeper.sh/title: "Require Cosign Image Signature"
+    metadata.gatekeeper.sh/version: "1.0.0"
+    metadata.gatekeeper.sh/description: >-
+      Requires all container images to have a valid Cosign signature.
+      Delegates verification to an ExternalData provider (e.g., Ratify).
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequireImageSignature
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            message:
+              type: string
+              description: "Custom violation message"
+            exemptImages:
+              type: array
+              items:
+                type: object
+                properties:
+                  registry:
+                    type: string
+                    description: "Registry prefix to exempt (e.g., docker.io/library)"
+                  image:
+                    type: string
+                    description: "Exact image name to exempt (e.g., gcr.io/k8s-pause)"
+
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequireimagesignature
+
+        # Default violation message
+        default_message := "container image %v does not have a valid Cosign signature"
+
+        # Check regular containers
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not exempt_container(container)
+          not image_verified(container.image)
+          msg := get_message(container)
+        }
+
+        # Check init containers
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.initContainers[_]
+          not exempt_container(container)
+          not image_verified(container.image)
+          msg := get_message(container)
+        }
+
+        # Check ephemeral containers
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.ephemeralContainers[_]
+          not exempt_container(container)
+          not image_verified(container.image)
+          msg := get_message(container)
+        }
+
+        # Use ExternalData provider to verify the image signature
+        image_verified(image) {
+          response := external_data({"provider": "cosign-verify", "keys": [image]})
+          count(response.items) == 1
+          response.items[0].status == "success"
+        }
+
+        # Check if the container is in the exempt list
+        exempt_container(container) {
+          exempt_spec := input.parameters.exemptImages[_]
+          startswith(container.image, exempt_spec.registry)
+        }
+
+        exempt_container(container) {
+          exempt_spec := input.parameters.exemptImages[_]
+          container.image == exempt_spec.image
+        }
+
+        # Build the violation message
+        get_message(container) = msg {
+          input.parameters.message != ""
+          msg := sprintf(input.parameters.message, [container.name, container.image])
+        }
+
+        get_message(container) = msg {
+          input.parameters.message == ""
+          msg := sprintf(default_message, [container.image])
+        }
+
+      # External data configuration for cosign verification provider
+      externalData:
+        - name: cosign-verify
+          method: PROVIDER
+          provider: cosign-verify
+
+---
+# ---------------------------------------------------------------------------
+# ConstraintTemplate 2: K8sRequireDigest
+# ---------------------------------------------------------------------------
+# Pure Rego constraint — no external dependencies.
+# Rejects any pod whose containers use a tag reference (e.g., :latest, :v1.2)
+# instead of a pinned SHA256 digest (e.g., @sha256:abc123...).
+#
+# This prevents tag mutability attacks and ensures immutable deployments.
+# ---------------------------------------------------------------------------
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredigest
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/component: admission-control
+  annotations:
+    metadata.gatekeeper.sh/title: "Require Image Digest"
+    metadata.gatekeeper.sh/version: "1.0.0"
+    metadata.gatekeeper.sh/description: >-
+      Requires all container images to use a SHA256 digest reference
+      instead of a tag. Rejects images with :latest or any tag-only reference.
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequireDigest
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            message:
+              type: string
+              description: "Custom violation message"
+            exemptImages:
+              type: array
+              items:
+                type: object
+                properties:
+                  registry:
+                    type: string
+                    description: "Registry prefix to exempt (e.g., docker.io/library)"
+                  image:
+                    type: string
+                    description: "Exact image name to exempt (e.g., gcr.io/k8s-pause)"
+
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequiredigest
+
+        # An image is considered to have a digest if it contains @sha256:
+        has_digest(image) {
+          contains(image, "@sha256:")
+        }
+
+        # Check regular containers
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not exempt_container(container)
+          not has_digest(container.image)
+          msg := sprintf(
+            "Container %v uses image %v without a pinned SHA256 digest. Use @sha256:... instead of tags.",
+            [container.name, container.image]
+          )
+        }
+
+        # Check init containers
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.initContainers[_]
+          not exempt_container(container)
+          not has_digest(container.image)
+          msg := sprintf(
+            "Init container %v uses image %v without a pinned SHA256 digest. Use @sha256:... instead of tags.",
+            [container.name, container.image]
+          )
+        }
+
+        # Check ephemeral containers
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.ephemeralContainers[_]
+          not exempt_container(container)
+          not has_digest(container.image)
+          msg := sprintf(
+            "Ephemeral container %v uses image %v without a pinned SHA256 digest. Use @sha256:... instead of tags.",
+            [container.name, container.image]
+          )
+        }
+
+        # Allow exemptions for specific images (e.g., infrastructure sidecars)
+        exempt_container(container) {
+          exempt_spec := input.parameters.exemptImages[_]
+          startswith(container.image, exempt_spec.registry)
+        }
+
+        exempt_container(container) {
+          exempt_spec := input.parameters.exemptImages[_]
+          container.image == exempt_spec.image
+        }
+
+---
+# ---------------------------------------------------------------------------
+# Constraint: K8sRequireImageSignature
+# ---------------------------------------------------------------------------
+# Applies the signature requirement to the his-hope namespace.
+# NOTE: This constraint requires an ExternalData provider to function.
+# Deploy Ratify or a custom cosign-verify provider before enabling.
+# ---------------------------------------------------------------------------
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequireImageSignature
+metadata:
+  name: require-image-signature
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/component: admission-control
+spec:
+  enforcementAction: warn
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces:
+      - "his-hope"
+  parameters:
+    message: "Container %v uses image %v without a valid Cosign signature. All images must be signed via the Cosign+Vault signing pipeline."
+    exemptImages:
+      # Kubernetes infrastructure images
+      - registry: "gcr.io/k8s-pause"
+      - registry: "registry.k8s.io/pause"
+      - registry: "k8s.gcr.io/pause"
+      # Linkerd service mesh sidecar
+      - registry: "cr.l5d.io/linkerd"
+      - registry: "ghcr.io/linkerd"
+      # Vault Agent sidecar
+      - registry: "hashicorp/vault"
+
+---
+# ---------------------------------------------------------------------------
+# Constraint: K8sRequireDigest
+# ---------------------------------------------------------------------------
+# Enforces SHA256 digest pinning on all images in the his-hope namespace.
+# ---------------------------------------------------------------- -----------
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequireDigest
+metadata:
+  name: require-image-digest
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/component: admission-control
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces:
+      - "his-hope"
+  parameters:
+    message: "Container images must use pinned SHA256 digests. Use @sha256:... instead of tag references."
+    exemptImages:
+      # Kubernetes infrastructure sidecars
+      - registry: "gcr.io/k8s-pause"
+      - registry: "registry.k8s.io/pause"
+      - registry: "k8s.gcr.io/pause"
+      # Linkerd service mesh sidecar
+      - registry: "cr.l5d.io/linkerd"
+      - registry: "ghcr.io/linkerd"
+      # Vault Agent sidecar
+      - registry: "hashicorp/vault"
+
+# =============================================================================
+# ExternalData Provider Reference
+# =============================================================================
+# To enable K8sRequireImageSignature, deploy an ExternalData provider such
+# as Ratify (https://ratify.dev/) or a custom cosign-verify service.
+#
+# Example Provider resource for Ratify:
+#
+#   ---
+#   apiVersion: externaldata.gatekeeper.sh/v1alpha1
+#   kind: Provider
+#   metadata:
+#     name: cosign-verify
+#   spec:
+#     url: http://ratify.ratify-system.svc.cluster.local:6000/verify
+#     timeout: 5
+#
+# ---
+# Example Provider resource for a custom cosign-verify service:
+#
+#   ---
+#   apiVersion: externaldata.gatekeeper.sh/v1alpha1
+#   kind: Provider
+#   metadata:
+#     name: cosign-verify
+#     namespace: gatekeeper-system
+#   spec:
+#     url: http://cosign-verify.gatekeeper-system.svc.cluster.local:8090/verify
+#     timeout: 10
+#     caBundle: <base64-encoded-CA-cert>
+#
+# Without an ExternalData provider, the K8sRequireImageSignature constraint
+# will log errors but not deny admission. Set enforcementAction to "warn"
+# (as above) until the provider is deployed.
+# =============================================================================
