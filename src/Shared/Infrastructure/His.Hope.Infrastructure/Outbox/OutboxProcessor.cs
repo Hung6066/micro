@@ -1,5 +1,6 @@
 using System.Data;
 using His.Hope.EventBus.Abstractions;
+using His.Hope.Infrastructure.Events;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -13,16 +14,19 @@ public class OutboxProcessor<TDbContext> : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<OutboxProcessor<TDbContext>> _logger;
+    private readonly EventTypeRegistry _eventTypeRegistry;
     private readonly TimeSpan _pollingInterval = TimeSpan.FromSeconds(5);
     private readonly int _batchSize = 50;
     private readonly int _maxRetries = 3;
 
     public OutboxProcessor(
         IServiceScopeFactory scopeFactory,
-        ILogger<OutboxProcessor<TDbContext>> logger)
+        ILogger<OutboxProcessor<TDbContext>> logger,
+        EventTypeRegistry eventTypeRegistry)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _eventTypeRegistry = eventTypeRegistry;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -71,11 +75,11 @@ public class OutboxProcessor<TDbContext> : BackgroundService
         {
             try
             {
-                var eventType = Type.GetType(message.Type);
+                var eventType = _eventTypeRegistry.Resolve(message.Type);
                 if (eventType is null)
                 {
                     message.Status = OutboxStatus.Skipped;
-                    message.Error = $"Type '{message.Type}' not found";
+                    message.Error = $"Type '{message.Type}' not found by EventTypeRegistry";
                     continue;
                 }
 

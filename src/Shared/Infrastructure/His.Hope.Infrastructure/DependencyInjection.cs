@@ -1,6 +1,7 @@
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Database;
+using His.Hope.Infrastructure.Events;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
@@ -26,6 +27,7 @@ public static class DependencyInjection
         // SECURITY: Register PHI audit service for HIPAA audit compliance
         services.AddPhiAudit();
 
+        services.AddSingleton<EventTypeRegistry>();
         services.AddScoped<CorrelationContext>();
         services.AddSingleton<GlobalExceptionMiddleware>();
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TracingBehaviour<,>));
