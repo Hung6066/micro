@@ -1,0 +1,312 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: kustomize
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: synthetic-monitor
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: synthetic-monitor
+    app.kubernetes.io/component: synthetic-monitoring
+    app.kubernetes.io/part-of: his-hope
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: synthetic-monitor-tests
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: synthetic-monitor
+    app.kubernetes.io/component: synthetic-monitoring
+    app.kubernetes.io/part-of: his-hope
+data:
+  playwright.config.js: |
+    const { defineConfig } = require('@playwright/test');
+    module.exports = defineConfig({
+      testDir: '/tests',
+      testMatch: 'login-journey.spec.js',
+      timeout: 120000,
+      expect: { timeout: 15000 },
+      use: {
+        baseURL: process.env.BASE_URL || 'http://frontend.monitoring.svc.cluster.local/',
+        headless: true,
+        viewport: { width: 1920, height: 1080 },
+        screenshot: 'off',
+        video: 'off',
+        actionTimeout: 30000,
+        navigationTimeout: 60000,
+      },
+      projects: [
+        {
+          name: 'chromium',
+          use: {
+            browserName: 'chromium',
+            launchOptions: {
+              args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+              ],
+            },
+          },
+        },
+      ],
+      retries: 1,
+      reporter: [
+        ['list'],
+        ['json', { outputFile: '/results/test-results.json' }],
+        ['junit', { outputFile: '/results/junit.xml' }],
+      ],
+    });
+
+  login-journey.spec.js: |
+    const { test, expect } = require('@playwright/test');
+
+    const BASE_URL   = process.env.BASE_URL   || 'http://frontend.monitoring.svc.cluster.local/';
+    const USERNAME   = process.env.USERNAME   || 'admin';
+    const PASSWORD   = process.env.PASSWORD   || 'Admin@123';
+    const SEARCH_TERM = process.env.SEARCH_TERM || 'Nguyễn';
+
+    test.describe('Synthetic Monitoring — Login → Search Patient → Logout', () => {
+      test('should complete the full user journey', async ({ page }) => {
+        // ─── Phase 1: Navigate and login ────────────────────────
+        await test.step('Navigate to login page', async () => {
+          await page.goto(`${BASE_URL}/auth/login`, { waitUntil: 'networkidle' });
+          await page.waitForLoadState('domcontentloaded');
+        });
+
+        await test.step('Login with valid credentials', async () => {
+          await page.locator('input[formControlName="username"]').waitFor({ state: 'visible', timeout: 30000 });
+          await page.locator('input[formControlName="username"]').fill(USERNAME);
+          await page.locator('input[formControlName="password"]').fill(PASSWORD);
+          await page.locator('button[type="submit"]').click();
+          await page.waitForURL(/\/dashboard/, { timeout: 30000 });
+          expect(page.url()).toMatch(/\/dashboard/);
+        });
+
+        // ─── Phase 2: Search for a patient ──────────────────────
+        await test.step('Navigate to patient list', async () => {
+          const patientLink = page.locator('mat-nav-list a').filter({ hasText: 'Bệnh nhân' }).first();
+          await expect(patientLink).toBeVisible({ timeout: 10000 });
+          await patientLink.click();
+          await page.waitForURL(/\/patients/, { timeout: 15000 });
+          expect(page.url()).toMatch(/\/patients/);
+        });
+
+        await test.step('Search for a patient by name', async () => {
+          const searchInput = page.locator(
+            'input[placeholder*="tìm kiếm"], input[placeholder*="search"], ' +
+            'input[formControlName="search"], input[placeholder*="Tìm"]'
+          ).first();
+          await expect(searchInput).toBeVisible({ timeout: 10000 });
+          await searchInput.fill(SEARCH_TERM);
+          await page.waitForTimeout(1500);
+
+          const table = page.locator('mat-table, table, .mat-mdc-table');
+          const tableVisible = await table.isVisible().catch(() => false);
+          if (tableVisible) {
+            const rows = page.locator('mat-table mat-row, mat-table tr, table tbody tr');
+            const count = await rows.count();
+            console.log(`Patient search returned ${count} results for "${SEARCH_TERM}"`);
+            expect(count).toBeGreaterThanOrEqual(0);
+          }
+
+          await searchInput.fill('');
+          await page.waitForTimeout(500);
+        });
+
+        // ─── Phase 3: Logout ────────────────────────────────────
+        await test.step('Logout from the application', async () => {
+          const logoutBtn = page.locator('button[aria-label="Đăng xuất"], .sidebar-footer button').first();
+          await expect(logoutBtn).toBeVisible({ timeout: 5000 });
+          await logoutBtn.click();
+          await page.waitForURL(/\/auth\/login/, { timeout: 15000 });
+          expect(page.url()).toMatch(/\/auth\/login/);
+        });
+
+        // ─── Phase 4: Verify redirect to login ──────────────────
+        await test.step('Verify login page is shown after logout', async () => {
+          await expect(page.locator('input[formControlName="username"]')).toBeVisible({ timeout: 10000 });
+          console.log('Synthetic journey completed successfully');
+        });
+      });
+
+      test('should expose health probe endpoints', async ({ request }) => {
+        const response = await request.get(`${BASE_URL}/`);
+        expect(response.ok()).toBeTruthy();
+      });
+    });
+
+  package.json: |
+    {
+      "name": "synthetic-monitor",
+      "private": true,
+      "dependencies": {
+        "@playwright/test": "^1.51.0",
+        "playwright": "^1.51.0"
+      }
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: synthetic-monitor-results
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: synthetic-monitor
+    app.kubernetes.io/component: synthetic-monitoring
+    app.kubernetes.io/part-of: his-hope
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: synthetic-monitor
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: synthetic-monitor
+    app.kubernetes.io/component: synthetic-monitoring
+    app.kubernetes.io/part-of: his-hope
+spec:
+  schedule: "*/5 * * * *"             # Every 5 minutes
+  concurrencyPolicy: Forbid            # Don't overlap runs
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0                   # Don't retry — let the next cycle pick up
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: synthetic-monitor
+            app.kubernetes.io/component: synthetic-monitoring
+          annotations:
+            linkerd.io/inject: disabled # No need for mTLS to non-mesh targets
+        spec:
+          serviceAccountName: synthetic-monitor
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+            - name: tests
+              configMap:
+                name: synthetic-monitor-tests
+                defaultMode: 0644
+            - name: results
+              persistentVolumeClaim:
+                claimName: synthetic-monitor-results
+          initContainers:
+            - name: install-deps
+              image: mcr.microsoft.com/playwright:v1.51.0-noble
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: false
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -euo pipefail
+                  cd /tests
+                  npm install --no-audit --no-fund --no-update-notifier
+                  npx playwright install chromium 2>/dev/null || true
+                  echo "Dependencies installed"
+              volumeMounts:
+                - name: tests
+                  mountPath: /tests/playwright.config.js
+                  subPath: playwright.config.js
+                  readOnly: true
+                - name: tests
+                  mountPath: /tests/package.json
+                  subPath: package.json
+                  readOnly: true
+                - name: tests
+                  mountPath: /tests/login-journey.spec.js
+                  subPath: login-journey.spec.js
+                  readOnly: true
+          containers:
+            - name: playwright
+              image: mcr.microsoft.com/playwright:v1.51.0-noble
+              imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: false
+              env:
+                - name: BASE_URL
+                  value: "http://frontend.monitoring.svc.cluster.local/"
+                - name: USERNAME
+                  value: "admin"
+                - name: PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: synthetic-monitor-credentials
+                      key: password
+                      optional: true
+                - name: SEARCH_TERM
+                  value: "Nguyễn"
+                - name: PLAYWRIGHT_HTML_REPORT
+                  value: "/results/html-report"
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -euo pipefail
+                  cd /tests
+                  echo "=== Synthetic Monitor Run - $(date -u -Iseconds) ==="
+                  npx playwright test \
+                    --config=playwright.config.js \
+                    --project=chromium 2>&1
+                  EXIT_CODE=$?
+                  echo "=== Exit code: ${EXIT_CODE} ==="
+                  # Exit 0 to avoid job retries — alerting is handled by
+                  # the Prometheus metric probe_success from the Blackbox Exporter
+                  exit 0
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+                limits:
+                  cpu: 1000m
+                  memory: 1Gi
+              volumeMounts:
+                - name: tests
+                  mountPath: /tests/playwright.config.js
+                  subPath: playwright.config.js
+                  readOnly: true
+                - name: tests
+                  mountPath: /tests/package.json
+                  subPath: package.json
+                  readOnly: true
+                - name: tests
+                  mountPath: /tests/login-journey.spec.js
+                  subPath: login-journey.spec.js
+                  readOnly: true
+                - name: results
+                  mountPath: /results

@@ -1,0 +1,230 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blackbox-exporter-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: blackbox-exporter
+    app.kubernetes.io/component: blackbox-exporter
+    app.kubernetes.io/part-of: his-hope
+data:
+  blackbox.yml: |
+    modules:
+      http_2xx:
+        prober: http
+        timeout: 10s
+        http:
+          valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+          valid_status_codes: [200, 301, 302]
+          method: GET
+          preferred_ip_protocol: "ip4"
+          follow_redirects: true
+          tls_config:
+            insecure_skip_verify: false
+
+      http_health:
+        prober: http
+        timeout: 10s
+        http:
+          valid_status_codes: [200]
+          method: GET
+          preferred_ip_protocol: "ip4"
+          follow_redirects: false
+
+      tcp_connect:
+        prober: tcp
+        timeout: 10s
+        tcp:
+          preferred_ip_protocol: "ip4"
+
+      grpc_connect:
+        prober: tcp
+        timeout: 15s
+        tcp:
+          preferred_ip_protocol: "ip4"
+
+      http_post_2xx:
+        prober: http
+        timeout: 10s
+        http:
+          valid_status_codes: [200, 201, 202]
+          method: POST
+          preferred_ip_protocol: "ip4"
+          follow_redirects: false
+          headers:
+            Content-Type: application/json
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blackbox-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: blackbox-exporter
+    app.kubernetes.io/component: blackbox-exporter
+    app.kubernetes.io/part-of: his-hope
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: blackbox-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: blackbox-exporter
+        app.kubernetes.io/component: blackbox-exporter
+        app.kubernetes.io/part-of: his-hope
+      annotations:
+        linkerd.io/inject: disabled
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9115"
+    spec:
+      serviceAccountName: blackbox-exporter
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: blackbox-exporter
+          image: prom/blackbox-exporter:v0.25.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--config.file=/config/blackbox.yml"
+            - "--web.listen-address=:9115"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsUser: 65534
+            runAsGroup: 65534
+          ports:
+            - name: http-metrics
+              containerPort: 9115
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9115
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9115
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 2
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /config/blackbox.yml
+              subPath: blackbox.yml
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: blackbox-exporter-config
+            defaultMode: 0644
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blackbox-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: blackbox-exporter
+    app.kubernetes.io/component: blackbox-exporter
+    app.kubernetes.io/part-of: his-hope
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: blackbox-exporter
+  ports:
+    - name: http-metrics
+      port: 9115
+      targetPort: 9115
+      protocol: TCP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: blackbox-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: blackbox-exporter
+    app.kubernetes.io/component: blackbox-exporter
+    app.kubernetes.io/part-of: his-hope
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: blackbox-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: blackbox-exporter
+    app.kubernetes.io/component: service-monitor
+    app.kubernetes.io/part-of: his-hope
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: blackbox-exporter
+  endpoints:
+    - port: http-metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+  namespaceSelector:
+    matchNames:
+      - monitoring
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: blackbox-exporter-alerts
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: blackbox-exporter
+    app.kubernetes.io/component: alerts
+    app.kubernetes.io/part-of: his-hope
+spec:
+  groups:
+    - name: blackbox-exporter
+      interval: 30s
+      rules:
+        - alert: BlackboxProbeFailing
+          expr: |
+            probe_success == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: sre
+          annotations:
+            summary: "Blackbox probe failing for {{ $labels.instance }}"
+            description: "Probe of target {{ $labels.target }} (module {{ $labels.module }}) has been failing for more than 2 minutes."
+
+        - alert: BlackboxProbeSlow
+          expr: |
+            probe_duration_seconds > 5
+          for: 5m
+          labels:
+            severity: warning
+            team: sre
+          annotations:
+            summary: "Blackbox probe slow for {{ $labels.instance }}"
+            description: "Probe duration for {{ $labels.target }} is {{ $value }}s (threshold 5s)."
