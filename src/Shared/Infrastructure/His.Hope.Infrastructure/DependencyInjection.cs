@@ -23,7 +23,15 @@ public static class DependencyInjection
         string redisConnectionString = "localhost:6379")
     {
         services.AddHisHopeOpenTelemetry(configuration, serviceName);
-        services.AddHisHopeCaching(redisConnectionString);
+
+        // Register hybrid cache (L1 in-memory + L2 Redis) with stampede prevention.
+        // Replaces the basic distributed (L2-only) cache.
+        services.AddHisHopeHybridCaching(redisConnectionString);
+
+        // Register cache warmup background service.
+        // Individual services register their IWarmupTask implementations
+        // to pre-load reference data at startup.
+        services.AddHostedService<CacheWarmupService>();
 
         // SECURITY: Register PHI audit service for HIPAA audit compliance
         services.AddPhiAudit();
