@@ -36,6 +36,8 @@ resources:
   # PgBouncer connection pooler infrastructure
   - ../infrastructure/pgbouncer-configmap.yaml
   - ../infrastructure/pgbouncer-secret.yaml
+  # Unleash feature flag service
+  - ../infrastructure/unleash-deployment.yaml
 
 patches:
   - target:
