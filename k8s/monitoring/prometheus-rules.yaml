@@ -10,34 +10,34 @@ spec:
     rules:
     - record: job:slo_availability_30d:ratio
       expr: |
-        sum(rate(http_requests_total{code=~"2.."}[30d]))
+        sum by (service) (rate(http_requests_total{code=~"2.."}[30d]))
         /
-        sum(rate(http_requests_total[30d]))
+        sum by (service) (rate(http_requests_total[30d]))
     - record: job:slo_availability_7d:ratio
       expr: |
-        sum(rate(http_requests_total{code=~"2.."}[7d]))
+        sum by (service) (rate(http_requests_total{code=~"2.."}[7d]))
         /
-        sum(rate(http_requests_total[7d]))
+        sum by (service) (rate(http_requests_total[7d]))
     - record: job:slo_availability_1h:ratio
       expr: |
-        sum(rate(http_requests_total{code=~"2.."}[1h]))
+        sum by (service) (rate(http_requests_total{code=~"2.."}[1h]))
         /
-        sum(rate(http_requests_total[1h]))
+        sum by (service) (rate(http_requests_total[1h]))
     - record: job:slo_latency_p99_30d:ratio
       expr: |
-        sum(rate(http_request_duration_seconds_bucket{le="0.5"}[30d]))
+        sum by (service) (rate(http_request_duration_seconds_bucket{le="0.5"}[30d]))
         /
-        sum(rate(http_request_duration_seconds_count[30d]))
+        sum by (service) (rate(http_request_duration_seconds_count[30d]))
     - record: job:slo_latency_p99_7d:ratio
       expr: |
-        sum(rate(http_request_duration_seconds_bucket{le="0.5"}[7d]))
+        sum by (service) (rate(http_request_duration_seconds_bucket{le="0.5"}[7d]))
         /
-        sum(rate(http_request_duration_seconds_count[7d]))
+        sum by (service) (rate(http_request_duration_seconds_count[7d]))
     - record: job:slo_latency_p99_1h:ratio
       expr: |
-        sum(rate(http_request_duration_seconds_bucket{le="0.5"}[1h]))
+        sum by (service) (rate(http_request_duration_seconds_bucket{le="0.5"}[1h]))
         /
-        sum(rate(http_request_duration_seconds_count[1h]))
+        sum by (service) (rate(http_request_duration_seconds_count[1h]))
     - record: job:slo_error_budget_30d:ratio
       expr: |
         1 - job:slo_availability_30d:ratio
@@ -50,19 +50,59 @@ spec:
         /
         0.001
 
+    # ===== Per-service SLO rules =====
+    # lab-service (99.9% SLO target)
+    - record: lab_service:slo_availability_30d:ratio
+      expr: |
+        sum by (service) (rate(http_requests_total{service="lab-service",code=~"2.."}[30d]))
+        /
+        sum by (service) (rate(http_requests_total{service="lab-service"}[30d]))
+    - record: lab_service:slo_error_budget_30d:ratio
+      expr: |
+        1 - lab_service:slo_availability_30d:ratio
+    - record: lab_service:slo_error_budget_remaining_30d:ratio
+      expr: |
+        0.001 - lab_service:slo_error_budget_30d:ratio
+
+    # billing-service (99.99% SLO target — financial)
+    - record: billing_service:slo_availability_30d:ratio
+      expr: |
+        sum by (service) (rate(http_requests_total{service="billing-service",code=~"2.."}[30d]))
+        /
+        sum by (service) (rate(http_requests_total{service="billing-service"}[30d]))
+    - record: billing_service:slo_error_budget_30d:ratio
+      expr: |
+        1 - billing_service:slo_availability_30d:ratio
+    - record: billing_service:slo_error_budget_remaining_30d:ratio
+      expr: |
+        0.0001 - billing_service:slo_error_budget_30d:ratio
+
+    # pharmacy-service (99.9% SLO target)
+    - record: pharmacy_service:slo_availability_30d:ratio
+      expr: |
+        sum by (service) (rate(http_requests_total{service="pharmacy-service",code=~"2.."}[30d]))
+        /
+        sum by (service) (rate(http_requests_total{service="pharmacy-service"}[30d]))
+    - record: pharmacy_service:slo_error_budget_30d:ratio
+      expr: |
+        1 - pharmacy_service:slo_availability_30d:ratio
+    - record: pharmacy_service:slo_error_budget_remaining_30d:ratio
+      expr: |
+        0.001 - pharmacy_service:slo_error_budget_30d:ratio
+
   - name: his-hope.slo.alerts
     interval: 30s
     rules:
     - alert: SLOErrorBudgetBurnCritical
       expr: |
         (
-          (1 - (sum(rate(http_requests_total{code=~"2.."}[1h])) / sum(rate(http_requests_total[1h]))))
+          (1 - (sum by (service) (rate(http_requests_total{code=~"2.."}[1h])) / sum by (service) (rate(http_requests_total[1h]))))
           /
           0.001
         ) > 2
-        and on()
+        and on (service)
         (
-          (1 - (sum(rate(http_requests_total{code=~"2.."}[5m])) / sum(rate(http_requests_total[5m]))))
+          (1 - (sum by (service) (rate(http_requests_total{code=~"2.."}[5m])) / sum by (service) (rate(http_requests_total[5m]))))
           /
           0.001
         ) > 2
@@ -71,13 +111,13 @@ spec:
         severity: critical
         team: sre
       annotations:
-        summary: "High error budget burn rate (critical)"
-        description: "Error budget is being consumed at >2x rate. Remaining: {{ $value | humanizePercentage }}"
+        summary: "High error budget burn rate for {{ $labels.service }} (critical)"
+        description: "Error budget for {{ $labels.service }} is being consumed at >2x rate. Remaining: {{ $value | humanizePercentage }}"
 
     - alert: SLOErrorBudgetBurnWarning
       expr: |
         (
-          (1 - (sum(rate(http_requests_total{code=~"2.."}[6h])) / sum(rate(http_requests_total[6h]))))
+          (1 - (sum by (service) (rate(http_requests_total{code=~"2.."}[6h])) / sum by (service) (rate(http_requests_total[6h]))))
           /
           0.001
         ) > 1
@@ -86,8 +126,8 @@ spec:
         severity: warning
         team: sre
       annotations:
-        summary: "Error budget burn rate elevated (warning)"
-        description: "Error budget being consumed at >1x rate over 6h"
+        summary: "Error budget burn rate elevated for {{ $labels.service }} (warning)"
+        description: "Error budget for {{ $labels.service }} being consumed at >1x rate over 6h"
 
     - alert: HighLatencyP99
       expr: |
@@ -112,15 +152,15 @@ spec:
 
     - alert: HighGrpcErrorRate
       expr: |
-        sum(rate(grpc_server_handled_total{grpc_code!="OK"}[5m]))
+        sum by (service) (rate(grpc_server_handled_total{grpc_code!="OK"}[5m]))
         /
-        sum(rate(grpc_server_handled_total[5m]))
+        sum by (service) (rate(grpc_server_handled_total[5m]))
         > 0.05
       for: 5m
       labels:
         severity: warning
       annotations:
-        summary: "High gRPC error rate ({{ $value | humanizePercentage }})"
+        summary: "High gRPC error rate for {{ $labels.service }} ({{ $value | humanizePercentage }})"
 
     - alert: CircuitBreakerOpen
       expr: |
@@ -150,3 +190,48 @@ spec:
         severity: warning
       annotations:
         summary: "RabbitMQ queue {{ $labels.queue }} depth > 1000"
+
+  - name: business-errors
+    interval: 30s
+    rules:
+    - alert: HighErrorRate
+      expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+      for: 2m
+      labels:
+        severity: critical
+        category: business-error
+      annotations:
+        summary: "Service {{ $labels.service }} has error rate > 5%"
+        runbook_url: "https://wiki.his-hope.com/runbooks/high-error-rate"
+
+    - alert: ApiLatencyHigh
+      expr: histogram_quantile(0.99, rate(http_request_duration_ms_bucket[5m])) > 2000
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "p99 latency > 2s for {{ $labels.service }}"
+
+    - alert: ServiceDown
+      expr: up == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Service {{ $labels.job }} is DOWN"
+
+    - alert: DeadLetterQueueGrowth
+      expr: rabbitmq_queue_messages{queue=~".*deadletter.*"} > 100
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "DLQ growing: {{ $value }} messages in {{ $labels.queue }}"
+
+    - alert: HighMemoryUsage
+      expr: container_memory_usage_bytes / container_spec_memory_limit_bytes > 0.9
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Container {{ $labels.container }} memory > 90%"
