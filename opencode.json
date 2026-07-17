@@ -15,6 +15,7 @@
     "webfetch": "allow",
     "skill": "allow"
   },
+  "plugin": ["~/.config/opencode/node_modules/superpowers"],
   "default_agent": "architect",
   "agent": {
     "architect": {
@@ -38,7 +39,7 @@
       "permission": "allow"
     },
     "validate": {
-      "description": "Validation agent (API contract, schema, FluentValidation, build, config/secrets, migration safety). Uses MCP: db-* for migration verification, docker for container validation, filesystem for config inspection.",
+      "description": "Validation agent (API contract, schema, FluentValidation, build, config/secrets, migration safety, knowledge index freshness). Uses MCP: db-* for migration verification, docker for container validation, filesystem for config inspection.",
       "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
@@ -98,7 +99,7 @@
       "permission": "allow"
     },
     "docs": {
-      "description": "Documentation agent — ADRs, API docs, service READMEs, changelogs, runbooks, dev guides. Runs in Phase 2 (generate) + Phase 4 (verify) of pipeline. Uses MCP: filesystem for reading/writing docs, github for git operations on doc files.",
+      "description": "Documentation agent — ADRs, API docs, service READMEs, changelogs, runbooks, dev guides, knowledge base (capture & verify). Runs in Phase 2 (generate) + Phase 4 (verify) of pipeline. Uses MCP: filesystem for reading/writing docs, github for git operations on doc files.",
       "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
@@ -146,6 +147,10 @@
     "cockroach": {
       "path": "cockroach",
       "description": "Use for CockroachDB migrations and configs"
+    },
+    "knowledge": {
+      "path": "docs/knowledge",
+      "description": "Use for agent knowledge base: gotchas, patterns, decisions"
     }
   },
   "mcp": {
