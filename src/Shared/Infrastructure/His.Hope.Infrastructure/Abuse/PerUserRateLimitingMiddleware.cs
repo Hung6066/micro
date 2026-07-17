@@ -5,25 +5,25 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
-namespace His.Hope.Infrastructure.Security;
+namespace His.Hope.Infrastructure.Abuse;
 
 /// <summary>
-/// Distributed rate limiting middleware using Redis for counters.
-/// SECURITY: Supports both IP-based and JWT user-based (sub claim) rate limiting.
-/// Using Redis instead of in-memory ConcurrentDictionary ensures:
-///   1. Rate limits are consistent across all instances (horizontal scaling)
-///   2. Rate limit state survives pod restarts
-///   3. Shared state for service mesh deployments
+/// Per-user rate limiting middleware using Redis sorted sets for sliding window.
+/// Replaces the previous Security.RateLimitingMiddleware with consolidated logic.
+/// Supports both IP-based and authenticated user-based rate limiting.
+///
+/// SECURITY: Extracts userId from JWT 'sub' claim for authenticated rate limiting.
+/// Falls back to in-memory ConcurrentDictionary if Redis is unavailable.
 ///
 /// HIPAA Context: Rate limiting helps prevent brute-force attacks on PHI access,
 /// credential stuffing, and DoS attacks against healthcare APIs.
 /// </summary>
-public class RateLimitingMiddleware
+public sealed class PerUserRateLimitingMiddleware
 {
     private readonly RequestDelegate _next;
-    private readonly ILogger<RateLimitingMiddleware> _logger;
-    private readonly ConnectionMultiplexer _redis;
-    private readonly int _maxRequests;
+    private readonly ILogger<PerUserRateLimitingMiddleware> _logger;
+    private readonly ConnectionMultiplexer? _redis;
+    private readonly int _maxRequestsPerIp;
     private readonly int _maxRequestsPerUser;
     private readonly TimeSpan _window;
     private readonly bool _redisAvailable;
@@ -31,15 +31,15 @@ public class RateLimitingMiddleware
     // Fallback in-memory store in case Redis is unavailable
     private static readonly ConcurrentDictionary<string, RateLimitEntry> _fallbackStore = new();
 
-    public RateLimitingMiddleware(
+    public PerUserRateLimitingMiddleware(
         RequestDelegate next,
-        ILogger<RateLimitingMiddleware> logger,
+        ILogger<PerUserRateLimitingMiddleware> logger,
         IConfiguration configuration)
     {
         _next = next;
         _logger = logger;
 
-        _maxRequests = configuration.GetValue("RateLimiting:MaxRequestsPerIp", 100);
+        _maxRequestsPerIp = configuration.GetValue("RateLimiting:MaxRequestsPerIp", 100);
         _maxRequestsPerUser = configuration.GetValue("RateLimiting:MaxRequestsPerUser", 200);
         _window = TimeSpan.FromMinutes(configuration.GetValue("RateLimiting:WindowMinutes", 1));
 
@@ -80,15 +80,15 @@ public class RateLimitingMiddleware
         var ipKey = $"ratelimit:ip:{clientIp}";
 
         // Check IP-based limit
-        if (!await IncrementAndCheckLimit(context, ipKey, _maxRequests))
-            return;  // Rate limited - response already set
+        if (!await IncrementAndCheckLimit(context, ipKey, _maxRequestsPerIp))
+            return; // Rate limited - response already set
 
         // Check user-based limit (separate, higher limit for authenticated users)
         if (!string.IsNullOrEmpty(userId))
         {
             var userKey = $"ratelimit:user:{userId}";
             if (!await IncrementAndCheckLimit(context, userKey, _maxRequestsPerUser))
-                return;  // Rate limited - response already set
+                return; // Rate limited - response already set
         }
 
         await _next(context);
@@ -106,7 +106,7 @@ public class RateLimitingMiddleware
         {
             try
             {
-                var db = _redis.GetDatabase();
+                var db = _redis!.GetDatabase();
                 var now = DateTime.UtcNow;
                 var minScore = now.AddSeconds(-_window.TotalSeconds).Ticks;
 
@@ -114,7 +114,7 @@ public class RateLimitingMiddleware
                 await db.SortedSetRemoveRangeByScoreAsync(key, 0, minScore);
                 await db.SortedSetAddAsync(key, Guid.NewGuid().ToString(), now.Ticks);
                 currentCount = await db.SortedSetLengthAsync(key);
-                await db.KeyExpireAsync(key, _window * 2);  // TTL to prevent memory leaks
+                await db.KeyExpireAsync(key, _window * 2); // TTL to prevent memory leaks
             }
             catch (Exception ex)
             {

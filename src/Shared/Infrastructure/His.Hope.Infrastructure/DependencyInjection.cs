@@ -1,3 +1,4 @@
+using His.Hope.Infrastructure.Abuse;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Database;
@@ -44,6 +45,9 @@ public static class DependencyInjection
         services.AddSingleton<ILockManager, RedisLockManager>();
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LockingPipelineBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TracingBehaviour<,>));
+
+        // SECURITY: Register brute force protection for login attempt tracking
+        services.AddSingleton<IBruteForceProtectionService, BruteForceProtectionService>();
 
         return services;
     }

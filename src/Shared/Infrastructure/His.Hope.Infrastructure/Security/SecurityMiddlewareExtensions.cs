@@ -1,3 +1,4 @@
+using His.Hope.Infrastructure.Abuse;
 using Microsoft.AspNetCore.Builder;
 
 namespace His.Hope.Infrastructure.Security;
@@ -8,5 +9,5 @@ public static class SecurityMiddlewareExtensions
         app.UseMiddleware<SecurityHeadersMiddleware>();
 
     public static IApplicationBuilder UseRateLimiting(this IApplicationBuilder app) =>
-        app.UseMiddleware<RateLimitingMiddleware>();
+        app.UseMiddleware<PerUserRateLimitingMiddleware>();
 }
