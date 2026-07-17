@@ -22,6 +22,8 @@ public partial class RabbitMQEventBus : IEventBus, IAsyncDisposable
     private readonly AsyncRetryPolicy _retryPolicy;
     private IModel? _consumerChannel;
     private readonly Dictionary<string, List<Type>> _eventHandlers = new();
+    private const string DlxExchangeName = "his-hope.dlx";
+    private const int MaxRetryCount = 3;
 
     public RabbitMQEventBus(
         RabbitMQConnection connection,
@@ -113,9 +115,17 @@ public partial class RabbitMQEventBus : IEventBus, IAsyncDisposable
         foreach (var eventName in _eventHandlers.Keys)
         {
             var queueName = $"{_options.ExchangeName}.{eventName}";
-            _consumerChannel.QueueDeclare(queueName, durable: true, exclusive: false, autoDelete: false);
+            var queueArgs = new Dictionary<string, object>
+            {
+                ["x-dead-letter-exchange"] = DlxExchangeName,
+                ["x-dead-letter-routing-key"] = $"dlq.{eventName}"
+            };
+            _consumerChannel.QueueDeclare(queueName, durable: true, exclusive: false, autoDelete: false, arguments: queueArgs);
             _consumerChannel.QueueBind(queueName, _options.ExchangeName, eventName);
         }
+
+        // Declare DLX exchange (if not already declared by DeadLetterConsumer in another service)
+        _consumerChannel.ExchangeDeclare(DlxExchangeName, "topic", durable: true);
 
         var consumer = new AsyncEventingBasicConsumer(_consumerChannel);
         consumer.Received += OnMessageReceived;
@@ -164,7 +174,61 @@ public partial class RabbitMQEventBus : IEventBus, IAsyncDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing {EventName}: {Message}", eventName, message);
-            _consumerChannel?.BasicNack(args.DeliveryTag, false, requeue: true);
+
+            var retryCount = 0;
+            var existingHeaders = args.BasicProperties.Headers;
+            if (existingHeaders is { } &&
+                existingHeaders.TryGetValue("x-retry-count", out var val))
+            {
+                retryCount = Convert.ToInt32(val);
+            }
+
+            if (retryCount < MaxRetryCount)
+            {
+                // Republish message with incremented retry count, then ack original
+                try
+                {
+                    using var channel = (await _connection.GetConnectionAsync()).CreateModel();
+
+                    var newProps = channel.CreateBasicProperties();
+                    newProps.Persistent = true;
+                    newProps.MessageId = args.BasicProperties.MessageId;
+                    newProps.Timestamp = args.BasicProperties.Timestamp;
+                    newProps.Type = args.BasicProperties.Type;
+
+                    // Copy existing headers and set/update retry count
+                    newProps.Headers = new Dictionary<string, object>(existingHeaders ?? new Dictionary<string, object>())
+                    {
+                        ["x-retry-count"] = retryCount + 1
+                    };
+
+                    channel.BasicPublish(
+                        exchange: args.Exchange,
+                        routingKey: args.RoutingKey,
+                        mandatory: true,
+                        basicProperties: newProps,
+                        body: args.Body);
+
+                    _consumerChannel?.BasicAck(args.DeliveryTag, false);
+
+                    _logger.LogWarning(
+                        "Retry {RetryCount}/{MaxRetryCount} for {EventName} {MessageId}",
+                        retryCount + 1, MaxRetryCount, eventName, args.BasicProperties.MessageId);
+                }
+                catch (Exception pubEx)
+                {
+                    _logger.LogError(pubEx,
+                        "Failed to republish {EventName} for retry, sending to DLQ", eventName);
+                    _consumerChannel?.BasicNack(args.DeliveryTag, false, requeue: false);
+                }
+            }
+            else
+            {
+                _logger.LogError(
+                    "Message {EventName} {MessageId} failed after {MaxRetryCount} retries, sending to DLQ",
+                    eventName, args.BasicProperties.MessageId, MaxRetryCount);
+                _consumerChannel?.BasicNack(args.DeliveryTag, false, requeue: false);
+            }
         }
     }
 
