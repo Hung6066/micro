@@ -1,0 +1,92 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  namespace: monitoring
+  name: his-hope-anomaly-rules
+spec:
+  groups:
+  - name: his-hope.anomaly.recording_rules
+    interval: 30s
+    rules:
+    # === Statistical baselines for request rate anomaly detection ===
+    # Rolling 1h average of HTTP request rate (per service)
+    - record: anomaly:request_rate_1h_avg
+      expr: |
+        avg_over_time(
+          sum by (service) (rate(http_requests_total[5m]))
+        [1h:1m])
+
+    # Rolling 1h standard deviation of HTTP request rate (per service)
+    - record: anomaly:request_rate_1h_stddev
+      expr: |
+        stddev_over_time(
+          sum by (service) (rate(http_requests_total[5m]))
+        [1h:1m])
+
+    # Upper bound at 99.7% confidence (mean + 3 sigma)
+    - record: anomaly:request_rate_upper
+      expr: |
+        anomaly:request_rate_1h_avg
+        +
+        3 * anomaly:request_rate_1h_stddev
+
+    # Current rate expressed as z-score (number of sigmas from mean)
+    - record: anomaly:request_rate_score
+      expr: |
+        (
+          sum by (service) (rate(http_requests_total[5m]))
+          -
+          anomaly:request_rate_1h_avg
+        )
+        /
+        anomaly:request_rate_1h_stddev
+
+    # === Statistical baselines for latency anomaly detection ===
+    # Rolling 1h average of p99 latency (per service)
+    - record: anomaly:latency_p99_1h_avg
+      expr: |
+        avg_over_time(
+          histogram_quantile(0.99,
+            sum by (le, service) (rate(http_request_duration_seconds_bucket[5m]))
+          )
+        [1h:1m])
+
+  - name: his-hope.anomaly.alerts
+    interval: 30s
+    rules:
+    - alert: RequestRateAnomalyHigh
+      expr: |
+        anomaly:request_rate_score > 3
+      for: 5m
+      labels:
+        severity: warning
+        team: sre
+      annotations:
+        summary: "Request rate anomaly detected for {{ $labels.service }}"
+        description: "Request rate for {{ $labels.service }} is {{ $value | humanize }} sigma above baseline (threshold: 3)"
+
+    - alert: RequestRateAnomalyCritical
+      expr: |
+        anomaly:request_rate_score > 5
+      for: 3m
+      labels:
+        severity: critical
+        team: sre
+      annotations:
+        summary: "Critical request rate anomaly for {{ $labels.service }}"
+        description: "Request rate for {{ $labels.service }} is {{ $value | humanize }} sigma above baseline (threshold: 5)"
+
+    - alert: LatencyAnomalyHigh
+      expr: |
+        histogram_quantile(0.99,
+          sum by (le, service) (rate(http_request_duration_seconds_bucket[5m]))
+        )
+        >
+        anomaly:latency_p99_1h_avg * 2
+      for: 10m
+      labels:
+        severity: warning
+        team: sre
+      annotations:
+        summary: "Latency anomaly detected for {{ $labels.service }}"
+        description: "p99 latency for {{ $labels.service }} is {{ $value }}s, which is >2x the 1h average baseline"

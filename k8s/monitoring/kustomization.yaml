@@ -15,6 +15,7 @@ resources:
   - kibana.yaml
   - servicemonitors.yaml
   - blackbox-exporter-config.yaml
+  - anomaly-rules.yaml
 
 commonLabels:
   app.kubernetes.io/part-of: his-hope
@@ -51,3 +52,12 @@ patches:
         value:
           app.kubernetes.io/name: prometheus-rules
           app.kubernetes.io/component: slo
+  - target:
+      kind: PrometheusRule
+      name: his-hope-anomaly-rules
+    patch: |-
+      - op: add
+        path: /metadata/labels
+        value:
+          app.kubernetes.io/name: prometheus-rules
+          app.kubernetes.io/component: anomaly
