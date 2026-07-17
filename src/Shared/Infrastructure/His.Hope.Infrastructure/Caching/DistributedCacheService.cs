@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
+using StackExchange.Redis;
 
 namespace His.Hope.Infrastructure.Caching;
 
@@ -19,14 +22,20 @@ public class DistributedCacheService : ICacheService
 {
     private readonly IDistributedCache _cache;
     private readonly ILogger<DistributedCacheService> _logger;
+    private readonly IConnectionMultiplexer _connectionMultiplexer;
+    private readonly string _instancePrefix;
     private readonly DistributedCacheEntryOptions _defaultOptions;
 
     public DistributedCacheService(
         IDistributedCache cache,
-        ILogger<DistributedCacheService> logger)
+        ILogger<DistributedCacheService> logger,
+        IConnectionMultiplexer connectionMultiplexer,
+        IOptions<RedisCacheOptions> redisCacheOptions)
     {
         _cache = cache;
         _logger = logger;
+        _connectionMultiplexer = connectionMultiplexer;
+        _instancePrefix = redisCacheOptions.Value.InstanceName ?? string.Empty;
         _defaultOptions = new DistributedCacheEntryOptions
         {
             AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
@@ -96,6 +105,34 @@ public class DistributedCacheService : ICacheService
 
     public async Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default)
     {
-        await RemoveAsync(prefix, ct);
+        try
+        {
+            var endpoints = _connectionMultiplexer.GetEndPoints();
+            var keysToDelete = new List<RedisKey>();
+
+            foreach (var endpoint in endpoints)
+            {
+                var server = _connectionMultiplexer.GetServer(endpoint);
+
+                if (!server.IsConnected) continue;
+
+                var pattern = $"{_instancePrefix}{prefix}*";
+
+                await foreach (var key in server.KeysAsync(pattern: pattern))
+                {
+                    keysToDelete.Add(key);
+                }
+            }
+
+            if (keysToDelete.Count > 0)
+            {
+                var db = _connectionMultiplexer.GetDatabase();
+                await db.KeyDeleteAsync(keysToDelete.ToArray(), flags: CommandFlags.None);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Cache REMOVE by prefix failed for prefix {Prefix}", prefix);
+        }
     }
 }
