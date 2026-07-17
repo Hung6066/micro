@@ -1,6 +1,7 @@
 using Grpc.Core;
 using Polly;
 using Polly.CircuitBreaker;
+using Polly.RateLimiting;
 using Polly.Retry;
 using Polly.Timeout;
 
@@ -32,6 +33,7 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
                 SamplingDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
                 BreakDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
             })
+            .AddConcurrencyLimiter(BulkheadMaxParallelization, BulkheadMaxQueuing)
             .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
             .Build();
 
@@ -57,6 +59,7 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
                 SamplingDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
                 BreakDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
             })
+            .AddConcurrencyLimiter(BulkheadMaxParallelization, BulkheadMaxQueuing)
             .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
             .Build();
 
@@ -118,6 +121,7 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
         return new ResiliencePipelineBuilder<HttpResponseMessage>()
             .AddRetry(retry)
             .AddCircuitBreaker(circuitBreaker)
+            .AddConcurrencyLimiter(BulkheadMaxParallelization, BulkheadMaxQueuing)
             .AddTimeout(timeout)
             .Build();
     }
@@ -138,6 +142,7 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
                 SamplingDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
                 BreakDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
             })
+            .AddConcurrencyLimiter(BulkheadMaxParallelization, BulkheadMaxQueuing)
             .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
             .Build();
 
