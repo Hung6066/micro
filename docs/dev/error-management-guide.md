@@ -745,7 +745,7 @@ To configure AlertManager receivers:
 # Example: Configuring a Slack receiver
 - name: 'slack-critical'
   slack_configs:
-  - api_url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX'
+  - api_url: '${SLACK_WEBHOOK_URL}'  # Set via environment variable or Vault
     channel: '#his-hope-alerts'
     title: '{{ .GroupLabels.alertname }}'
     text: |
