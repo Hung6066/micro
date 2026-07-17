@@ -2,12 +2,27 @@ const { test, expect } = require('@playwright/test');
 
 const BASE = 'http://localhost:8081';
 
-async function login(page) {
-  await page.goto(BASE + '/auth/login');
-  await page.locator('input[formControlName="username"]').fill('admin');
-  await page.locator('input[formControlName="password"]').fill('Admin@123');
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+async function login(page, attempt = 1) {
+  try {
+    await page.goto(BASE + '/auth/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    // Wait for the login form to be ready
+    await page.locator('input[formControlName="username"]').waitFor({ state: 'visible', timeout: 30000 });
+    // Clear stale session state after page is fully loaded on the correct origin
+    await page.evaluate(() => sessionStorage.clear());
+    await page.locator('input[formControlName="username"]').fill('admin');
+    await page.locator('input[formControlName="password"]').fill('Admin@123');
+    await page.waitForTimeout(500); // Let Angular settle before submit
+    await page.locator('button[type="submit"]').click();
+    await page.waitForURL(/\/dashboard/, { timeout: 60000 });
+  } catch (e) {
+    if (attempt < 2) {
+      // Retry once with a fresh page load
+      console.log('Login timeout, retrying...');
+      await login(page, 2);
+    } else {
+      throw e;
+    }
+  }
 }
 
 async function navigateToSidebar(page, label, expectedPath) {

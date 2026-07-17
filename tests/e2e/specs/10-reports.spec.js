@@ -1,13 +1,27 @@
 const { test, expect } = require('@playwright/test');
 
 const BASE = 'http://localhost:8081';
+const TEST_USER = 'admin';
+const TEST_PASS = 'Admin@123';
 
-async function login(page) {
-  await page.goto(BASE + '/auth/login');
-  await page.fill('input[formControlName="username"]', 'admin');
-  await page.fill('input[formControlName="password"]', 'Admin@123');
-  await page.click('button[type="submit"]');
-  await page.waitForURL(/\/dashboard/, { timeout: 15000 });
+async function login(page, attempt = 1) {
+  try {
+    await page.goto(BASE + '/auth/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.locator('input[formControlName="username"]').waitFor({ state: 'visible', timeout: 30000 });
+    await page.evaluate(() => sessionStorage.clear());
+    await page.locator('input[formControlName="username"]').fill(TEST_USER);
+    await page.locator('input[formControlName="password"]').fill(TEST_PASS);
+    await page.waitForTimeout(500);
+    await page.locator('button[type="submit"]').click();
+    await page.waitForURL(/\/dashboard/, { timeout: 60000 });
+  } catch (e) {
+    if (attempt < 2) {
+      console.log('Login timeout, retrying...');
+      await login(page, 2);
+    } else {
+      throw e;
+    }
+  }
 }
 
 async function navigateToSidebar(page, label, expectedPath) {

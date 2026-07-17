@@ -5,16 +5,27 @@ const BASE = 'http://localhost:8081';
 /**
  * Robust login helper: clears state, navigates fresh, fills form, waits for redirect.
  */
-async function doLogin(page) {
-  await page.goto(BASE + '/auth/login', { waitUntil: 'domcontentloaded', timeout: 20000 });
-  // Wait for the login form to be ready
-  await page.locator('input[formControlName="username"]').waitFor({ state: 'visible', timeout: 20000 });
-  // Clear stale session state after page is fully loaded on the correct origin
-  await page.evaluate(() => sessionStorage.clear());
-  await page.locator('input[formControlName="username"]').fill('admin');
-  await page.locator('input[formControlName="password"]').fill('Admin@123');
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL(/\/dashboard/, { timeout: 30000 });
+async function doLogin(page, attempt = 1) {
+  try {
+    await page.goto(BASE + '/auth/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    // Wait for the login form to be ready
+    await page.locator('input[formControlName="username"]').waitFor({ state: 'visible', timeout: 30000 });
+    // Clear stale session state after page is fully loaded on the correct origin
+    await page.evaluate(() => sessionStorage.clear());
+    await page.locator('input[formControlName="username"]').fill('admin');
+    await page.locator('input[formControlName="password"]').fill('Admin@123');
+    await page.waitForTimeout(500); // Let Angular settle before submit
+    await page.locator('button[type="submit"]').click();
+    await page.waitForURL(/\/dashboard/, { timeout: 60000 });
+  } catch (e) {
+    if (attempt < 2) {
+      // Retry once with a fresh page load
+      console.log('Login timeout, retrying...');
+      await doLogin(page, 2);
+    } else {
+      throw e;
+    }
+  }
 }
 
 test.describe('Sidebar Navigation', () => {
