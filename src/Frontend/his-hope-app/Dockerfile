@@ -28,11 +28,12 @@ FROM nginxinc/nginx-unprivileged:alpine
 
 # Install curl for healthcheck + tzdata for hospital timezone support
 USER root
-RUN apk add --no-cache curl tzdata
+RUN apk add --no-cache curl tzdata && \
+    rm -f /usr/share/nginx/html/index.html /usr/share/nginx/html/50x.html
 USER nginx
 
-# Copy built Angular app
-COPY --from=build /app/dist/en/ /usr/share/nginx/html/
+# Copy built Angular app (localized under /en/)
+COPY --from=build /app/dist/en/ /usr/share/nginx/html/en/
 
 # Copy nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf

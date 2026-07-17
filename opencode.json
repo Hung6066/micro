@@ -1,0 +1,245 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": true,
+  "permission": {
+    "read": "allow",
+    "edit": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "bash": "allow",
+    "task": "allow",
+    "external_directory": "allow",
+    "todowrite": "allow",
+    "question": "allow",
+    "webfetch": "allow",
+    "skill": "allow"
+  },
+  "default_agent": "architect",
+  "agent": {
+    "architect": {
+      "description": "Lead system architect — coordinates the engineering team, delegates to specialized agents (@explore, @dotnet, @angular, @devops, @dba, @security, @ml-ai, @data-platform, @qa). Uses all MCP servers: db-* (7 databases), github, kubernetes, docker, rabbitmq, redis, prometheus, filesystem, playwright, sequential-thinking.",
+      "model": "opencode-go/deepseek-v4-pro",
+      "permission": "allow"
+    },
+    "plan": {
+      "description": "Plan agent — produces step-by-step plans before any code changes, never edits files, delegates exploration to @explore. Uses MCP: sequential-thinking for complex problem decomposition.",
+      "model": "opencode-go/deepseek-v4-pro",
+      "permission": "allow"
+    },
+    "testing-backend": {
+      "description": "Backend testing agent (.NET xUnit, integration tests with Testcontainers, gRPC contract tests). Uses MCP: db-* for test DB verification, rabbitmq for event bus test inspection, docker for containerized integration test exec.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
+    "testing-frontend": {
+      "description": "Frontend testing agent (Angular Jasmine/Karma, Cypress E2E, Playwright, accessibility axe). Uses MCP: playwright for browser automation testing.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
+    "validate": {
+      "description": "Validation agent (API contract, schema, FluentValidation, build, config/secrets, migration safety). Uses MCP: db-* for migration verification, docker for container validation, filesystem for config inspection.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
+    "check-ui": {
+      "description": "UI check agent (Material theming, accessibility WCAG 2.1 AA, responsive layout, design system). Uses MCP: playwright for visual regression and accessibility testing.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
+    "dotnet": {
+      "description": "Senior .NET backend engineer for His.Hope microservices (Clean Architecture, CQRS, DDD, gRPC, EF Core). Uses MCP: db-* (7 databases) for data queries, rabbitmq for event bus debugging, docker for container exec/logs, filesystem for code navigation.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
+    "angular": {
+      "description": "Senior Angular frontend engineer for His.Hope SPA (Angular 17, NgRx, Angular Material, RxJS). Uses MCP: filesystem for code navigation and file operations.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
+    "devops": {
+      "description": "DevOps / SRE engineer (Kubernetes, Docker, Linkerd, Cilium, Tekton, ArgoCD, Bazel). Uses MCP: kubernetes for pod/deployment/service management, docker for container exec/logs, prometheus for metrics/SLO queries, rabbitmq for event bus health, redis for cache inspection.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
+    "dba": {
+      "description": "Database engineer / DBA (CockroachDB, SQL migrations, data modeling, query performance). Uses MCP: db-identity, db-patient, db-appointment, db-clinical, db-lab, db-billing, db-pharmacy for direct SQL queries on all 7 service databases, docker for DB container management.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
+    "security": {
+      "description": "Security engineer (Vault, JWT auth, RBAC, Cilium network policies, HIPAA compliance). Uses MCP: redis for JWT token blacklist inspection, github for security audit/secret scanning, kubernetes for network policy verification.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
+    "ml-ai": {
+      "description": "ML/AI engineer (model training/serving, Vertex AI, feature store, predictive analytics). Uses MCP: prometheus for model performance metrics, docker for ML container management.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
+    "data-platform": {
+      "description": "Data platform engineer (BigQuery, Dataflow, Pub/Sub, dbt, analytics pipelines). Uses MCP: prometheus for pipeline metrics, rabbitmq for event stream inspection.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
+    "qa": {
+      "description": "QA / Testing engineer (xUnit, Cypress, Chaos Mesh, k6, contract testing, quality gates). Uses MCP: playwright for E2E browser tests, kubernetes for chaos experiment status, docker for test container management, prometheus for quality/SLO metrics.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
+    "dispatcher": {
+      "description": "Intelligent Dispatcher — analyzes feature requests, classifies scope/complexity, selects optimal minimal agent set (including @explore). SMART ENTRY POINT: use before @orchestrator or direct delegation. No MCP usage (router only).",
+      "model": "opencode-go/deepseek-v4-pro",
+      "permission": "allow"
+    },
+    "orchestrator": {
+      "description": "Pipeline Orchestrator — full 5-phase pipeline for COMPLEX features only. Coordinates @explore, @docs, @dotnet, @angular, @qa, @check-ui, @security, @git. Activated by @dispatcher when PATH_FULL is selected. Only @orchestrator can green-light @git for commits. Uses MCP indirectly via delegated agents.",
+      "model": "opencode-go/deepseek-v4-pro",
+      "permission": "allow"
+    },
+    "docs": {
+      "description": "Documentation agent — ADRs, API docs, service READMEs, changelogs, runbooks, dev guides. Runs in Phase 2 (generate) + Phase 4 (verify) of pipeline. Uses MCP: filesystem for reading/writing docs, github for git operations on doc files.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
+    "explore": {
+      "description": "Fast agent specialized for exploring codebases — find files by patterns, search code for keywords, answer questions about the codebase. Uses MCP: filesystem for file navigation and content search.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
+    "git": {
+      "description": "Git/GitHub integration agent — stage, commit (Conventional Commits), push, branch, PR. Commits ONLY after quality gate green-light from @orchestrator. Uses MCP: github for GitHub API operations (PRs, issues, search), filesystem for staging files.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
+    "e2e-test": {
+      "description": "Playwright E2E UI testing agent — tests ALL Angular routes, forms, dialogs, tables, search, pagination, navigation, error states. Uses Playwright MCP browser automation for comprehensive end-to-end UI validation across all feature modules.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    }
+  },
+  "references": {
+    "docs": {
+      "path": "docs",
+      "description": "Use for architecture decisions and conventions"
+    },
+    "protos": {
+      "path": "src/Shared/Protos",
+      "description": "Use for gRPC contract references"
+    },
+    "k8s": {
+      "path": "k8s",
+      "description": "Use for Kubernetes manifests and deployment configs"
+    },
+    "vault": {
+      "path": "vault",
+      "description": "Use for Vault policies and secrets configuration"
+    },
+    "cicd": {
+      "path": "cicd",
+      "description": "Use for CI/CD pipeline definitions"
+    },
+    "docker": {
+      "path": "docker",
+      "description": "Use for Docker Compose local dev setup"
+    },
+    "cockroach": {
+      "path": "cockroach",
+      "description": "Use for CockroachDB migrations and configs"
+    }
+  },
+  "mcp": {
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "-y", "@playwright/mcp"],
+      "enabled": true
+    },
+    "github": {
+      "type": "local",
+      "command": ["cmd", "/c", "github-mcp-server-mcp"],
+      "enabled": true
+    },
+    "filesystem": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "D:\\AI\\micro"],
+      "enabled": true
+    },
+    "db-identity": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-postgres", "postgresql://postgres:postgres@localhost:5433/identitydb"],
+      "enabled": true
+    },
+    "db-patient": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-postgres", "postgresql://postgres:postgres@localhost:5433/patientdb"],
+      "enabled": true
+    },
+    "db-appointment": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-postgres", "postgresql://postgres:postgres@localhost:5433/appointmentdb"],
+      "enabled": true
+    },
+    "db-clinical": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-postgres", "postgresql://postgres:postgres@localhost:5433/clinicaldb"],
+      "enabled": true
+    },
+    "db-lab": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-postgres", "postgresql://postgres:postgres@localhost:5433/labdb"],
+      "enabled": true
+    },
+    "db-billing": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-postgres", "postgresql://postgres:postgres@localhost:5433/billingdb"],
+      "enabled": true
+    },
+    "db-pharmacy": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-postgres", "postgresql://postgres:postgres@localhost:5433/pharmacydb"],
+      "enabled": true
+    },
+    "sequential-thinking": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "enabled": true
+    },
+    "kubernetes": {
+      "type": "local",
+      "command": ["npx", "-y", "mcp-server-kubernetes"],
+      "enabled": true
+    },
+    "rabbitmq": {
+      "type": "local",
+      "command": ["npx", "-y", "rabbitmq-mcp"],
+      "enabled": true,
+      "env": {
+        "RABBITMQ_HOST": "localhost",
+        "RABBITMQ_USERNAME": "admin",
+        "RABBITMQ_PASSWORD": "admin",
+        "RABBITMQ_MANAGEMENT_PORT": "15672",
+        "RABBITMQ_PROTOCOL": "http"
+      }
+    },
+    "redis": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-redis", "redis://localhost:6379"],
+      "enabled": true
+    },
+    "prometheus": {
+      "type": "local",
+      "command": ["npx", "-y", "mcp-prometheus", "--url", "http://localhost:9090"],
+      "enabled": true
+    },
+    "docker": {
+      "type": "local",
+      "command": ["npx", "-y", "mcp-server-docker"],
+      "enabled": true,
+      "env": {
+        "ALLOWED_CONTAINERS": "his-hope-postgres:his-hope-postgres,his-hope-redis:his-hope-redis,his-hope-rabbitmq:his-hope-rabbitmq,his-hope-elasticsearch:his-hope-elasticsearch,his-hope-jaeger:his-hope-jaeger,his-hope-prometheus:his-hope-prometheus,his-hope-grafana:his-hope-grafana,his-hope-identity:his-hope-identity,his-hope-patient:his-hope-patient,his-hope-appointment:his-hope-appointment,his-hope-clinical:his-hope-clinical,his-hope-lab:his-hope-lab,his-hope-billing:his-hope-billing,his-hope-pharmacy:his-hope-pharmacy,his-hope-gateway:his-hope-gateway,his-hope-frontend:his-hope-frontend",
+        "DEFAULT_SERVICE": "his-hope-identity",
+        "COMMAND_TIMEOUT": "300000"
+      }
+    }
+  }
+}

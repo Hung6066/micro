@@ -37,9 +37,9 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
 FROM curlimages/curl:8.12.1 AS curl
 
 # ============================================================
-# RUNTIME STAGE (distroless chiseled)
+# RUNTIME STAGE
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 EXPOSE 8080
 
@@ -51,11 +51,14 @@ ENV ASPNETCORE_URLS=http://+:8080 \
     DOTNET_GCHeapHardLimit=0x40000000 \
     DOTNET_ThreadPool_UnfairSemaphoreSpinCount=0
 
-COPY --from=build /app/publish .
-COPY --from=curl /usr/bin/curl /usr/bin/curl
+# Install curl for health checks, create cert directory
+RUN apt-get update && apt-get install -y curl && \
+    adduser --disabled-password --gecos '' appuser && \
+    mkdir -p /app/Certificates && \
+    chown -R appuser:appuser /app
 
-# Chiseled images use 'app' user (UID 1654) — no shell, no package manager
-USER app
+COPY --from=build /app/publish .
+USER appuser
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD ["curl", "-f", "-s", "-o", "/dev/null", "http://localhost:8080/health"]
