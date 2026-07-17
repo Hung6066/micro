@@ -20,12 +20,12 @@
   "agent": {
     "architect": {
       "description": "Lead system architect — coordinates the engineering team, delegates to specialized agents (@explore, @dotnet, @angular, @devops, @dba, @security, @ml-ai, @data-platform, @qa). Uses all MCP servers: db-* (7 databases), github, kubernetes, docker, rabbitmq, redis, prometheus, filesystem, playwright, sequential-thinking.",
-      "model": "opencode-go/deepseek-v4-pro",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
     "plan": {
       "description": "Plan agent — produces step-by-step plans before any code changes, never edits files, delegates exploration to @explore. Uses MCP: sequential-thinking for complex problem decomposition.",
-      "model": "opencode-go/deepseek-v4-pro",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
     "testing-backend": {
@@ -90,12 +90,12 @@
     },
     "dispatcher": {
       "description": "Intelligent Dispatcher — analyzes feature requests, classifies scope/complexity, selects optimal minimal agent set (including @explore). SMART ENTRY POINT: use before @orchestrator or direct delegation. No MCP usage (router only).",
-      "model": "opencode-go/deepseek-v4-pro",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
     "orchestrator": {
       "description": "Pipeline Orchestrator — full 5-phase pipeline for COMPLEX features only. Coordinates @explore, @docs, @dotnet, @angular, @qa, @check-ui, @security, @git. Activated by @dispatcher when PATH_FULL is selected. Only @orchestrator can green-light @git for commits. Uses MCP indirectly via delegated agents.",
-      "model": "opencode-go/deepseek-v4-pro",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
     "docs": {
