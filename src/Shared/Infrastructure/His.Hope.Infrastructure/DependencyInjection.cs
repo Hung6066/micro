@@ -1,9 +1,11 @@
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Database;
+using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.Infrastructure.Resilience;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +26,10 @@ public static class DependencyInjection
         // SECURITY: Register PHI audit service for HIPAA audit compliance
         services.AddPhiAudit();
 
+        services.AddScoped<CorrelationContext>();
+        services.AddSingleton<GlobalExceptionMiddleware>();
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TracingBehaviour<,>));
+
         return services;
     }
 
@@ -34,11 +40,12 @@ public static class DependencyInjection
         var config = new ResilienceConfiguration();
         configure?.Invoke(config);
         services.AddSingleton(config);
+        services.AddSingleton<IResiliencePipelineFactory>(config);
 
-        services.AddSingleton(sp =>
+        services.AddTransient<GrpcResilienceHandler>(sp =>
         {
-            var cfg = sp.GetRequiredService<ResilienceConfiguration>();
-            return cfg;
+            var factory = sp.GetRequiredService<IResiliencePipelineFactory>();
+            return new GrpcResilienceHandler(factory.GetGrpcPipeline("grpc-default"));
         });
 
         return services;

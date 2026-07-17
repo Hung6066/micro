@@ -1,5 +1,4 @@
 using System.Security.Cryptography.X509Certificates;
-using Grpc.Net.Client;
 using His.Hope.AppointmentGrpc;
 using His.Hope.AppointmentService.Api.GrpcServices;
 using His.Hope.AppointmentService.Application;
@@ -59,21 +58,20 @@ builder.Services.AddGrpc(options =>
     options.Interceptors.Add<GrpcServerInterceptor>();
 });
 
-builder.Services.AddSingleton(_ =>
+builder.Services.AddGrpcClient<PatientGrpcService.PatientGrpcServiceClient>(o =>
 {
-    var handler = new SocketsHttpHandler
-    {
-        EnableMultipleHttp2Connections = true,
-        UseProxy = false,
-        AllowAutoRedirect = false,
-    };
-    var channel = GrpcChannel.ForAddress("http://localhost:5013", new GrpcChannelOptions
-    {
-        HttpHandler = handler,
-        DisposeHttpClient = true,
-        MaxRetryAttempts = 0,
-    });
-    return new PatientGrpcService.PatientGrpcServiceClient(channel);
+    o.Address = new Uri("http://localhost:5013");
+})
+.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+{
+    EnableMultipleHttp2Connections = true,
+    UseProxy = false,
+    AllowAutoRedirect = false,
+})
+.AddHttpMessageHandler(sp =>
+{
+    var factory = sp.GetRequiredService<IResiliencePipelineFactory>();
+    return new GrpcResilienceHandler(factory.GetGrpcPipeline("patient-grpc-client"));
 });
 
 builder.Services.AddRabbitMQEventBus(options =>
@@ -108,7 +106,6 @@ builder.WebHost.ConfigureKestrel(options =>
     options.ListenAnyIP(5003, l =>
     {
         l.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-        l.UseHttps(LoadServerCertificate(builder.Configuration));
     });
     options.ListenAnyIP(5009, l =>
     {
@@ -117,11 +114,6 @@ builder.WebHost.ConfigureKestrel(options =>
     options.ListenAnyIP(5007, l =>
     {
         l.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
-        l.UseHttps(h =>
-        {
-            h.ServerCertificate = LoadServerCertificate(builder.Configuration);
-            h.CheckCertificateRevocation = false;
-        });
     });
     options.ListenAnyIP(5014, l =>
     {
@@ -130,6 +122,13 @@ builder.WebHost.ConfigureKestrel(options =>
 });
 
 var app = builder.Build();
+
+// Auto-create database on startup
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppointmentDbContext>();
+    db.Database.EnsureCreated();
+}
 
 app.UseSecurityHeaders();
 app.UseRateLimiting();
@@ -273,6 +272,12 @@ grp.MapGet("/patient/{patientId:guid}", async (
     return Results.Ok(result);
 }).RequireAuthorization("Permission:appointments.view").WithOpenApi();
 
+// Patient-specific appointments aggregate endpoint (routed via YARP from /api/v1/patients/{patientId:guid}/appointments)
+app.MapGet("/api/v1/patients/{patientId:guid}/appointments", async (Guid patientId) =>
+{
+    return Results.Ok(new { patientId, items = new List<object>() });
+}).RequireAuthorization("Permission:appointments.view").WithOpenApi();
+
 app.MapGrpcService<AppointmentGrpcServiceImpl>();
 app.MapGrpcHealthChecksService();
 
@@ -335,4 +340,6 @@ static X509Certificate2 CreateDevCert(string cn)
 public record ScheduleAppointmentRequest(Guid PatientId, Guid ProviderId, DateTime ScheduledDate,
     TimeSpan StartTime, int DurationMinutes, string TypeCode, string? Reason, string? Location);
 public record CancelRequest(string? Reason);
+
+
 

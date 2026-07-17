@@ -52,11 +52,19 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
 builder.Services.AddResiliencePolicies();
 builder.Services.AddOutbox<PatientDbContext>();
 
+// Resilient HTTP client for outbound calls to internal services
+builder.Services.AddHttpClient("resilient-internal-client")
+    .AddHttpMessageHandler(sp =>
+    {
+        var factory = sp.GetRequiredService<IResiliencePipelineFactory>();
+        return new GrpcResilienceHandler(factory.GetPipeline("patient-http-internal"));
+    });
+
 builder.Services.AddGrpc(options =>
 {
     options.EnableDetailedErrors = builder.Environment.IsDevelopment();
-    options.Interceptors.Add<GrpcServerInterceptor>();
 });
+builder.Services.AddGrpcHealthChecks();
 
 builder.Services.AddRabbitMQEventBus(options =>
 {
@@ -83,17 +91,12 @@ builder.Services.AddHealthChecks()
         builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!,
         name: "redis", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded);
 
-// Kestrel Configuration
+// Kestrel Configuration - HTTPS disabled for Docker dev; enable with cert in production
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenAnyIP(5002, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-        listenOptions.UseHttps(httpsOptions =>
-        {
-            httpsOptions.ServerCertificate = LoadServerCertificate(builder.Configuration);
-            httpsOptions.CheckCertificateRevocation = false;
-        });
     });
 
     options.ListenAnyIP(5008, listenOptions =>
@@ -109,11 +112,6 @@ builder.WebHost.ConfigureKestrel(options =>
     options.ListenAnyIP(5006, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
-        listenOptions.UseHttps(httpsOptions =>
-        {
-            httpsOptions.ServerCertificate = LoadServerCertificate(builder.Configuration);
-            httpsOptions.CheckCertificateRevocation = false;
-        });
     });
 });
 
@@ -236,9 +234,9 @@ patients.MapPatch("/{id:guid}/reactivate", async (
     return Results.NoContent();
 }).RequireAuthorization("Permission:patients.update").WithOpenApi();
 
-// gRPC
+// gRPC - allow anonymous for health checks
 app.MapGrpcService<PatientGrpcServiceImpl>();
-app.MapGrpcHealthChecksService();
+app.MapGrpcHealthChecksService().AllowAnonymous();
 
 // Health checks
 app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions

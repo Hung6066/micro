@@ -1,3 +1,4 @@
+using Grpc.Core;
 using Polly;
 using Polly.CircuitBreaker;
 using Polly.Retry;
@@ -5,7 +6,7 @@ using Polly.Timeout;
 
 namespace His.Hope.Infrastructure.Resilience;
 
-public class ResilienceConfiguration
+public class ResilienceConfiguration : IResiliencePipelineFactory
 {
     public int RetryCount { get; set; } = 3;
     public int RetryBaseDelayMs { get; set; } = 200;
@@ -14,6 +15,50 @@ public class ResilienceConfiguration
     public int TimeoutSeconds { get; set; } = 10;
     public int BulkheadMaxParallelization { get; set; } = 10;
     public int BulkheadMaxQueuing { get; set; } = 50;
+
+    public ResiliencePipeline GetPipeline(string dependencyName) =>
+        new ResiliencePipelineBuilder()
+            .AddRetry(new RetryStrategyOptions
+            {
+                MaxRetryAttempts = RetryCount,
+                BackoffType = DelayBackoffType.Exponential,
+                Delay = TimeSpan.FromMilliseconds(RetryBaseDelayMs),
+                UseJitter = true,
+            })
+            .AddCircuitBreaker(new CircuitBreakerStrategyOptions
+            {
+                FailureRatio = 0.5,
+                MinimumThroughput = CircuitBreakerFailureThreshold,
+                SamplingDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
+                BreakDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
+            })
+            .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
+            .Build();
+
+    public ResiliencePipeline GetGrpcPipeline(string dependencyName) =>
+        new ResiliencePipelineBuilder()
+            .AddRetry(new RetryStrategyOptions
+            {
+                MaxRetryAttempts = RetryCount,
+                BackoffType = DelayBackoffType.Exponential,
+                Delay = TimeSpan.FromMilliseconds(RetryBaseDelayMs),
+                UseJitter = true,
+                ShouldHandle = args => args.Outcome switch
+                {
+                    { Exception: RpcException rpcEx } when IsTransientGrpcError(rpcEx) => PredicateResult.True(),
+                    { Exception: HttpRequestException } => PredicateResult.True(),
+                    _ => PredicateResult.False(),
+                },
+            })
+            .AddCircuitBreaker(new CircuitBreakerStrategyOptions
+            {
+                FailureRatio = 0.5,
+                MinimumThroughput = CircuitBreakerFailureThreshold,
+                SamplingDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
+                BreakDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
+            })
+            .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
+            .Build();
 
     public ResiliencePipeline<HttpResponseMessage> BuildHttpPipeline(string operationName)
     {
@@ -95,4 +140,16 @@ public class ResilienceConfiguration
             })
             .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
             .Build();
+
+    private static bool IsTransientGrpcError(RpcException ex) =>
+        ex.StatusCode switch
+        {
+            StatusCode.DeadlineExceeded => true,
+            StatusCode.ResourceExhausted => true,
+            StatusCode.Unavailable => true,
+            StatusCode.Aborted => true,
+            StatusCode.Internal => true,
+            StatusCode.Unknown => true,
+            _ => false,
+        };
 }
