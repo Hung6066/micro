@@ -2,6 +2,7 @@ using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Database;
 using His.Hope.Infrastructure.Events;
+using His.Hope.Infrastructure.Locking;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
@@ -30,6 +31,10 @@ public static class DependencyInjection
         services.AddSingleton<EventTypeRegistry>();
         services.AddScoped<CorrelationContext>();
         services.AddSingleton<GlobalExceptionMiddleware>();
+
+        // Locking pipeline behavior registered before tracing so it wraps externally
+        services.AddSingleton<ILockManager, RedisLockManager>();
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LockingPipelineBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TracingBehaviour<,>));
 
         return services;
