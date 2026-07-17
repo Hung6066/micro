@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package his.hope.appointment;
+package his.hope.appointment.v1;
 
 option csharp_namespace = "His.Hope.AppointmentGrpc";
 

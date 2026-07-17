@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package his.hope.lab;
+package his.hope.lab.v1;
 
 option csharp_namespace = "His.Hope.LabGrpc";
 

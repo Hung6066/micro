@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package his.hope.billing;
+package his.hope.billing.v1;
 
 option csharp_namespace = "His.Hope.BillingGrpc";
 

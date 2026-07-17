@@ -1,0 +1,14 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: buf-breaking-check
+spec:
+  params:
+    - name: base-ref
+      description: Git ref to compare against
+      default: "main"
+  steps:
+    - name: buf-check
+      image: bufbuild/buf:latest
+      script: |
+        buf breaking src/Shared/Protos --against "https://github.com/his-hope/his-hope.git#ref=$(params.base-ref)"

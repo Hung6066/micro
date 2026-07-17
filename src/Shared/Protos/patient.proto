@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package his.hope.patient;
+package his.hope.patient.v1;
 
 option csharp_namespace = "His.Hope.PatientGrpc";
 
