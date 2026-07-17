@@ -13,6 +13,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<UserMfa> UserMfas => Set<UserMfa>();
 
     public IdentityDbContext(DbContextOptions<IdentityDbContext> options) : base(options) { }
 
@@ -158,6 +159,27 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.HasIndex(al => al.ResourceType);
             entity.HasIndex(al => al.Action);
             entity.HasIndex(al => al.Timestamp);
+        });
+
+        // ──────────────────────────────────────────────
+        // UserMfa configuration
+        // ──────────────────────────────────────────────
+        builder.Entity<UserMfa>(entity =>
+        {
+            entity.ToTable("user_mfa");
+            entity.HasKey(m => m.UserId);
+            entity.Property(m => m.SecretKey).HasMaxLength(100).IsRequired();
+            entity.Property(m => m.IsEnabled).IsRequired().HasDefaultValue(false);
+            entity.Property(m => m.EnrolledAt);
+            entity.Property(m => m.RecoveryCodes);
+            entity.Property(m => m.BackupCodesUsed).IsRequired().HasDefaultValue(0);
+            entity.Property(m => m.CreatedAt).IsRequired();
+            entity.Property(m => m.UpdatedAt).IsRequired();
+
+            entity.HasOne(m => m.User)
+                  .WithOne()
+                  .HasForeignKey<UserMfa>(m => m.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

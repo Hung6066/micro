@@ -14,6 +14,7 @@ public interface IApplicationDbContext
     DbSet<RolePermission> RolePermissions { get; }
     DbSet<SystemSetting> SystemSettings { get; }
     DbSet<AuditLog> AuditLogs { get; }
+    DbSet<UserMfa> UserMfas { get; }
     DbSet<Domain.Entities.User> Users { get; }
     DbSet<Role> Roles { get; }
     DbSet<IdentityUserRole<Guid>> UserRoles { get; }

@@ -4,6 +4,7 @@ using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.IdentityService.Application.Services;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.Infrastructure;
 using His.Hope.Infrastructure.Audit;
@@ -55,6 +56,8 @@ builder.Services.AddHisHopeTokenBlacklist();
 builder.Services.AddHisHopeAuthorization();
 builder.Services.AddScoped<JwtTokenGenerator>();
 builder.Services.AddScoped<IIdentityService, His.Hope.IdentityService.Infrastructure.Services.IdentityService>();
+builder.Services.AddScoped<TotpService>();
+builder.Services.AddScoped<RecoveryCodeService>();
 
 // SECURITY: Redis-backed refresh token store (replaces in-memory ConcurrentDictionary)
 builder.Services.AddSingleton<RedisRefreshTokenStore>();
@@ -191,6 +194,9 @@ auth.MapGet("/me", async (HttpContext httpContext, IIdentityService identityServ
 })
 .RequireAuthorization()
 .WithOpenApi();
+
+// MFA endpoints
+auth.MapMfaEndpoints();
 
 // SECURITY: Token revocation endpoints
 auth.MapTokenRevocationEndpoints();

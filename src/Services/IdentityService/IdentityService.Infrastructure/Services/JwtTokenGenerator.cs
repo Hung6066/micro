@@ -40,7 +40,8 @@ public class JwtTokenGenerator
     public (string token, DateTime expiresAt) GenerateAccessToken(
         User user,
         IList<string> roles,
-        IList<string>? permissions = null)
+        IList<string>? permissions = null,
+        IList<string>? amrValues = null)
     {
         var claims = new List<Claim>
         {
@@ -53,6 +54,12 @@ public class JwtTokenGenerator
             new("fullName", user.FullName),
             new("licenseNumber", user.LicenseNumber ?? string.Empty),
         };
+
+        // SECURITY: Add amr (Authentication Methods References) claim for MFA
+        if (amrValues is { Count: > 0 })
+        {
+            claims.AddRange(amrValues.Select(amr => new Claim("amr", amr)));
+        }
 
         // Add role claims for RBAC enforcement
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
