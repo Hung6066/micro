@@ -1,5 +1,6 @@
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.RateLimiting;
+using His.Hope.Infrastructure.Idempotency;
 using His.Hope.Infrastructure.Security;
 using Serilog;
 
@@ -45,6 +46,9 @@ builder.Services.AddReverseProxy()
 
 builder.Services.AddGrpc();
 builder.Services.AddHealthChecks();
+
+// === Idempotency: safe retries for POST/PUT/PATCH requests ===
+builder.Services.AddIdempotency(builder.Configuration);
 
 // === Rate limiting per IP + per user for the gateway ===
 builder.Services.AddRateLimiter(options =>
@@ -92,6 +96,8 @@ app.UseSecurityHeaders();
 app.UseCors();  // Must be after UseSecurityHeaders, before UseRateLimiter
 app.UseRateLimiter();
 app.UseSerilogRequestLogging();
+
+app.UseIdempotency();
 
 app.MapReverseProxy();
 
