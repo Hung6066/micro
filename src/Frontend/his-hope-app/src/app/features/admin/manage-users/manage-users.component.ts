@@ -37,7 +37,16 @@ const ROLE_FILTERS = [
 
 @Component({
   selector: 'app-manage-users',
-  standalone: false,
+  standalone: true,
+  imports: [
+    CommonModule, ReactiveFormsModule,
+    MatTableModule, MatPaginatorModule, MatButtonModule, MatIconModule,
+    MatFormFieldModule, MatInputModule, MatSelectModule, MatMenuModule,
+    MatChipsModule, MatProgressSpinnerModule, MatTooltipModule, MatDialogModule,
+    MatSnackBarModule,
+    UserFormDialogComponent, AssignRolesDialogComponent,
+    ConfirmDialogComponent, LoadingSpinnerComponent, EmptyStateComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="manage-users">

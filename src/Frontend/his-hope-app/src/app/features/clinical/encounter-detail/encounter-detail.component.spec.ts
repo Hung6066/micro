@@ -34,8 +34,9 @@ describe('EncounterDetailComponent', () => {
     pharmacySpy.getPatientPrescriptions.and.returnValue(of(createMockPagedResult([], 0)));
 
     await TestBed.configureTestingModule({
-    declarations: [EncounterDetailComponent],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        EncounterDetailComponent, RouterTestingModule, NoopAnimationsModule,
         MatCardModule, MatListModule, MatButtonModule, MatIconModule,
         MatSnackBarModule, CommonModule],
     providers: [

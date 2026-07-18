@@ -31,10 +31,9 @@ describe('AdminDashboardComponent', () => {
     spy.getDashboardStats.and.returnValue(of(mockStats));
 
     await TestBed.configureTestingModule({
-    declarations: [
-        AdminDashboardComponent, LoadingSpinnerComponent
-    ],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        AdminDashboardComponent, LoadingSpinnerComponent, RouterTestingModule, NoopAnimationsModule,
         MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule,
         CommonModule, RouterModule],
     providers: [

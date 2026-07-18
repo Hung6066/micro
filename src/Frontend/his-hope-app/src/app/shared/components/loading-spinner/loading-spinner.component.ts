@@ -1,8 +1,11 @@
 import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 @Component({
   selector: 'app-loading-spinner',
-  standalone: false,
+  standalone: true,
+  imports: [CommonModule, MatProgressSpinnerModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="loading-overlay" *ngIf="loading">

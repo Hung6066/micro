@@ -30,8 +30,9 @@ describe('InvoiceFormComponent', () => {
     patientSpy.search.and.returnValue(of({ items: [], totalCount: 0, page: 1, pageSize: 20, hasNextPage: false, hasPreviousPage: false }));
 
     await TestBed.configureTestingModule({
-    declarations: [InvoiceFormComponent],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        InvoiceFormComponent, RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatSelectModule,
         MatAutocompleteModule, MatCardModule, MatDatepickerModule, MatNativeDateModule,
         MatButtonModule, MatIconModule, MatSnackBarModule, MatProgressSpinnerModule],

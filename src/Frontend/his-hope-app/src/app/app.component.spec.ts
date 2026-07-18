@@ -4,7 +4,9 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { RouterTestingModule } from '@angular/router/testing';
 import { AppComponent } from './app.component';
 import { AuthService } from '@core/services/auth.service';
-import { SharedModule } from '@shared/shared.module';
+import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
+import { MatSidenavModule } from '@angular/material/sidenav';
 import { Store } from '@ngrx/store';
 
 describe('AppComponent', () => {
@@ -18,8 +20,8 @@ describe('AppComponent', () => {
     });
 
     TestBed.configureTestingModule({
-      declarations: [AppComponent],
-      imports: [SharedModule, NoopAnimationsModule, RouterTestingModule],
+
+      imports: [AppComponent, CommonModule, RouterModule, MatSidenavModule, NoopAnimationsModule, RouterTestingModule],
       providers: [
         { provide: AuthService, useValue: authSpy },
         { provide: Store, useValue: { select: () => of({}), dispatch: () => {} } },

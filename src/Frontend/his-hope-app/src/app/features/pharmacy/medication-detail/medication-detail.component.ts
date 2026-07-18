@@ -1,12 +1,23 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { CommonModule } from '@angular/common';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Subject, takeUntil } from 'rxjs';
 import { PharmacyService } from '@core/services/pharmacy.service';
 import { Medication } from '@core/models/medication.model';
 
 @Component({
     selector: 'app-medication-detail',
+    standalone: true,
+    imports: [
+        CommonModule, RouterModule,
+        MatCardModule, MatIconModule, MatButtonModule, MatProgressSpinnerModule,
+        MatSnackBarModule,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="medication-detail" *ngIf="medication">
@@ -78,7 +89,6 @@ import { Medication } from '@core/models/medication.model';
     mat-card-content p { margin: 8px 0; }
     .loading-container, .error-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 24px; gap: 16px; color: var(--text-secondary, #787774); }
   `],
-    standalone: false
 })
 export class MedicationDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

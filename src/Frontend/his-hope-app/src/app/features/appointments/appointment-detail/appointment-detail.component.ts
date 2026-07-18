@@ -1,11 +1,20 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
+import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
+import { MatListModule } from '@angular/material/list';
 import { AppointmentService } from '@core/services/appointment.service';
 import { Appointment } from '@core/models/appointment.model';
 
 @Component({
     selector: 'app-appointment-detail',
+    standalone: true,
+    imports: [
+        CommonModule, RouterModule,
+        MatCardModule, MatIconModule, MatListModule,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="detail" *ngIf="appointment">
@@ -89,7 +98,6 @@ import { Appointment } from '@core/models/appointment.model';
     .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 24px; }
     .timeline h2 { margin-bottom: 16px; }
   `],
-    standalone: false
 })
 export class AppointmentDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

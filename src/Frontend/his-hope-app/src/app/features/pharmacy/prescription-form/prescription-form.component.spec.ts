@@ -28,8 +28,9 @@ describe('PrescriptionFormComponent', () => {
     patientSpy.search.and.returnValue(of({ items: [], totalCount: 0, page: 1, pageSize: 20, hasNextPage: false, hasPreviousPage: false }));
 
     await TestBed.configureTestingModule({
-    declarations: [PrescriptionFormComponent],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        PrescriptionFormComponent, RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatSelectModule,
         MatAutocompleteModule, MatButtonModule, MatIconModule, MatSnackBarModule, MatProgressSpinnerModule],
     providers: [

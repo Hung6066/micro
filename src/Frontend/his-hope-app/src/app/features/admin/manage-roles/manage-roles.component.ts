@@ -18,7 +18,15 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
 
 @Component({
   selector: 'app-manage-roles',
-  standalone: false,
+  standalone: true,
+  imports: [
+    CommonModule,
+    MatTableModule, MatButtonModule, MatIconModule, MatMenuModule,
+    MatProgressSpinnerModule, MatTooltipModule, MatDialogModule,
+    MatSnackBarModule,
+    RoleFormDialogComponent,
+    ConfirmDialogComponent, LoadingSpinnerComponent, EmptyStateComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="manage-roles">

@@ -1,14 +1,30 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { FormBuilder, Validators, FormArray, FormControl } from '@angular/forms';
-import { Router } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { FormBuilder, Validators, FormArray, FormControl, ReactiveFormsModule } from '@angular/forms';
+import { Router, RouterModule } from '@angular/router';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
+import { MatSelectModule } from '@angular/material/select';
+import { MatButtonModule } from '@angular/material/button';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { LabService } from '@core/services/lab.service';
 import { PatientService } from '@core/services/patient.service';
 import { Patient } from '@core/models/patient.model';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 @Component({
     selector: 'app-lab-order-form',
+    standalone: true,
+    imports: [
+        CommonModule, ReactiveFormsModule, RouterModule,
+        MatCardModule, MatFormFieldModule, MatInputModule, MatIconModule,
+        MatSelectModule, MatButtonModule, MatAutocompleteModule, MatProgressSpinnerModule,
+        MatSnackBarModule,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="lab-order-form">
@@ -117,7 +133,6 @@ import { MatSnackBar } from '@angular/material/snack-bar';
     .form-actions { margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end; }
     .btn-spinner { display: inline-block; margin-right: 8px; }
   `],
-    standalone: false
 })
 export class LabOrderFormComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

@@ -33,10 +33,9 @@ describe('ManageRolesComponent', () => {
     spy.getRoles.and.returnValue(of(mockRoles));
 
     await TestBed.configureTestingModule({
-    declarations: [
-        ManageRolesComponent, LoadingSpinnerComponent, EmptyStateComponent
-    ],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        ManageRolesComponent, LoadingSpinnerComponent, EmptyStateComponent, RouterTestingModule, NoopAnimationsModule,
         MatTableModule, MatButtonModule, MatIconModule, MatMenuModule,
         MatProgressSpinnerModule, MatTooltipModule, MatDialogModule,
         MatSnackBarModule, CommonModule],

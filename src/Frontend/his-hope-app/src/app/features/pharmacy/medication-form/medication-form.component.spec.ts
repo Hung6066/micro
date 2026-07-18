@@ -25,8 +25,9 @@ describe('MedicationFormComponent', () => {
     const spy = jasmine.createSpyObj('PharmacyService', ['getMedication', 'createMedication', 'updateMedication']);
 
     await TestBed.configureTestingModule({
-    declarations: [MedicationFormComponent],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        MedicationFormComponent, RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatSelectModule,
         MatCheckboxModule, MatButtonModule, MatIconModule, MatSnackBarModule, MatProgressSpinnerModule, CommonModule],
     providers: [

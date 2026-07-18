@@ -12,7 +12,8 @@ import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/load
 
 @Component({
   selector: 'app-admin-dashboard',
-  standalone: false,
+  standalone: true,
+  imports: [CommonModule, MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, RouterModule, LoadingSpinnerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="admin-dashboard">

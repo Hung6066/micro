@@ -1,15 +1,34 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { FormBuilder, Validators, FormArray, FormControl } from '@angular/forms';
-import { Router } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { FormBuilder, Validators, FormArray, FormControl, ReactiveFormsModule } from '@angular/forms';
+import { Router, RouterModule } from '@angular/router';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil, filter } from 'rxjs';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
+import { MatSelectModule } from '@angular/material/select';
+import { MatButtonModule } from '@angular/material/button';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { BillingService } from '@core/services/billing.service';
 import { PatientService } from '@core/services/patient.service';
 import { Patient } from '@core/models/patient.model';
 import { CreateInvoiceRequest } from '@core/models/invoice.model';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 @Component({
     selector: 'app-invoice-form',
+    standalone: true,
+    imports: [
+        CommonModule, ReactiveFormsModule, RouterModule,
+        MatCardModule, MatFormFieldModule, MatInputModule, MatIconModule,
+        MatSelectModule, MatButtonModule, MatAutocompleteModule,
+        MatDatepickerModule, MatNativeDateModule, MatProgressSpinnerModule,
+        MatSnackBarModule,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="invoice-form">
@@ -142,7 +161,6 @@ import { MatSnackBar } from '@angular/material/snack-bar';
     .form-actions { margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end; }
     .btn-spinner { display: inline-block; margin-right: 8px; }
   `],
-    standalone: false
 })
 export class InvoiceFormComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

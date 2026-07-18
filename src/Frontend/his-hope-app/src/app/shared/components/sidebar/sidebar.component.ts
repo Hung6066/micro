@@ -1,7 +1,18 @@
 import { Component, OnInit, OnDestroy, Input, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { Router } from '@angular/router';
-import { FormControl } from '@angular/forms';
+import { Router, RouterModule } from '@angular/router';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Subject, takeUntil, debounceTime, distinctUntilChanged } from 'rxjs';
+import { CommonModule } from '@angular/common';
+import { MatListModule } from '@angular/material/list';
+import { MatIconModule } from '@angular/material/icon';
+import { MatBadgeModule } from '@angular/material/badge';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { HasPermissionDirective } from '@core/directives/has-permission.directive';
+import { HasRoleDirective } from '@core/directives/has-role.directive';
 import { AuthService } from '@core/services/auth.service';
 import { PatientService } from '@core/services/patient.service';
 import { User } from '@core/models/auth.model';
@@ -9,6 +20,13 @@ import { Patient } from '@core/models/patient.model';
 
 @Component({
     selector: 'app-sidebar',
+    standalone: true,
+    imports: [
+        CommonModule, RouterModule, ReactiveFormsModule,
+        MatListModule, MatIconModule, MatBadgeModule, MatTooltipModule,
+        MatButtonModule, MatFormFieldModule, MatInputModule, MatAutocompleteModule,
+        HasPermissionDirective, HasRoleDirective,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="sidebar-header">
@@ -262,7 +280,6 @@ import { Patient } from '@core/models/patient.model';
       color: var(--color-warn, #C25450);
     }
   `],
-    standalone: false
 })
 export class SidebarComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

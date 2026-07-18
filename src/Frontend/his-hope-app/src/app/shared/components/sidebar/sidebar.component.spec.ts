@@ -2,11 +2,21 @@ import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testin
 import { Router } from '@angular/router';
 import { Subject, of } from 'rxjs';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
+import { ReactiveFormsModule } from '@angular/forms';
+import { MatListModule } from '@angular/material/list';
+import { MatIconModule } from '@angular/material/icon';
+import { MatBadgeModule } from '@angular/material/badge';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { RouterTestingModule } from '@angular/router/testing';
 import { SidebarComponent } from './sidebar.component';
 import { AuthService } from '@core/services/auth.service';
 import { PatientService } from '@core/services/patient.service';
-import { SharedModule } from '@shared/shared.module';
 
 describe('SidebarComponent', () => {
   let component: SidebarComponent;
@@ -24,8 +34,7 @@ describe('SidebarComponent', () => {
     const patientSpy = jasmine.createSpyObj('PatientService', ['search']);
 
     TestBed.configureTestingModule({
-      declarations: [SidebarComponent],
-      imports: [SharedModule, NoopAnimationsModule, RouterTestingModule.withRoutes([])],
+      imports: [SidebarComponent, CommonModule, RouterModule, ReactiveFormsModule, MatListModule, MatIconModule, MatBadgeModule, MatTooltipModule, MatButtonModule, MatFormFieldModule, MatInputModule, MatAutocompleteModule, NoopAnimationsModule, RouterTestingModule.withRoutes([])],
       providers: [
         { provide: AuthService, useValue: authSpy },
         { provide: PatientService, useValue: patientSpy },

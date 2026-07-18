@@ -1,14 +1,20 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { Store } from '@ngrx/store';
 import { Subject, timer } from 'rxjs';
 import { takeUntil, tap } from 'rxjs/operators';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { selectError } from '@store/error/error.selectors';
 import { clearError, ErrorPayload } from '@store/error/error.actions';
 
 @Component({
   selector: 'app-error-bar',
-  standalone: false,
+  standalone: true,
+  imports: [CommonModule, MatProgressBarModule, MatButtonModule, MatIconModule, MatSnackBarModule, MatTooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div *ngIf="error$ | async as error" class="error-bar" [class]="'error-bar--' + getSeverity(error.code)">

@@ -42,10 +42,9 @@ describe('ManageUsersComponent', () => {
     spy.getUsers.and.returnValue(of(mockUsers));
 
     await TestBed.configureTestingModule({
-    declarations: [
-        ManageUsersComponent, LoadingSpinnerComponent, EmptyStateComponent
-    ],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        ManageUsersComponent, LoadingSpinnerComponent, EmptyStateComponent, RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatTableModule, MatPaginatorModule, MatButtonModule,
         MatIconModule, MatFormFieldModule, MatInputModule, MatSelectModule,
         MatMenuModule, MatChipsModule, MatProgressSpinnerModule, MatTooltipModule,

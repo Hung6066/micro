@@ -1,12 +1,26 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { Router } from '@angular/router';
-import { FormControl } from '@angular/forms';
+import { CommonModule } from '@angular/common';
+import { Router, RouterModule } from '@angular/router';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
+import { MatTableModule } from '@angular/material/table';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatPaginatorModule } from '@angular/material/paginator';
+import { MatButtonModule } from '@angular/material/button';
 import { PharmacyService } from '@core/services/pharmacy.service';
 import { Medication } from '@core/models/medication.model';
 
 @Component({
     selector: 'app-medication-list',
+    standalone: true,
+    imports: [
+        CommonModule, RouterModule, ReactiveFormsModule,
+        MatTableModule, MatFormFieldModule, MatInputModule, MatIconModule,
+        MatProgressBarModule, MatPaginatorModule, MatButtonModule,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="medication-list">
@@ -100,7 +114,6 @@ import { Medication } from '@core/models/medication.model';
     .empty-state { text-align: center; padding: 48px; color: #999; }
     .empty-icon { font-size: 48px; width: 48px; height: 48px; margin-bottom: 16px; }
   `],
-    standalone: false
 })
 export class MedicationListComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

@@ -41,10 +41,9 @@ describe('AuditLogsComponent', () => {
     spy.getAuditLogs.and.returnValue(of(mockLogs));
 
     await TestBed.configureTestingModule({
-    declarations: [
-        AuditLogsComponent, LoadingSpinnerComponent, EmptyStateComponent
-    ],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        AuditLogsComponent, LoadingSpinnerComponent, EmptyStateComponent, RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatTableModule, MatPaginatorModule, MatButtonModule,
         MatIconModule, MatFormFieldModule, MatInputModule, MatSelectModule,
         MatDatepickerModule, MatNativeDateModule, MatProgressSpinnerModule,

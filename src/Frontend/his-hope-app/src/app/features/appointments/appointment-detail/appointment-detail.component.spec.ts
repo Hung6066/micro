@@ -24,8 +24,9 @@ describe('AppointmentDetailComponent', () => {
     spy.getById.and.returnValue(of(mockAppointment));
 
     await TestBed.configureTestingModule({
-    declarations: [AppointmentDetailComponent],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        AppointmentDetailComponent, RouterTestingModule, NoopAnimationsModule,
         MatCardModule, MatListModule, MatIconModule, CommonModule],
     providers: [
         { provide: AppointmentService, useValue: spy },

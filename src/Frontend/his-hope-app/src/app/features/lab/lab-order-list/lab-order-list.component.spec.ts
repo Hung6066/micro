@@ -30,8 +30,9 @@ describe('LabOrderListComponent', () => {
     spy.searchLabOrders.and.returnValue(of(createMockPagedResult(mockOrders, 2)));
 
     await TestBed.configureTestingModule({
-    declarations: [LabOrderListComponent],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        LabOrderListComponent, RouterTestingModule, NoopAnimationsModule,
         MatTableModule, MatPaginatorModule, MatFormFieldModule, MatInputModule,
         MatSelectModule, MatIconModule, MatButtonModule, MatProgressBarModule,
         ReactiveFormsModule, CommonModule],

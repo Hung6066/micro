@@ -33,8 +33,9 @@ describe('PatientDetailComponent', () => {
     spy.getLabOrders.and.returnValue(of(createMockPagedResult([], 0)));
 
     await TestBed.configureTestingModule({
-    declarations: [PatientDetailComponent],
-    imports: [RouterTestingModule,
+    
+    imports: [
+        PatientDetailComponent, RouterTestingModule,
         NoopAnimationsModule,
         MatCardModule,
         MatTabsModule,

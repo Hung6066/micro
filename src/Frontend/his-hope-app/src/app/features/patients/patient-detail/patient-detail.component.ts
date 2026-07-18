@@ -1,6 +1,15 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { CommonModule } from '@angular/common';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatListModule } from '@angular/material/list';
+import { MatTableModule } from '@angular/material/table';
+import { MatTabsModule } from '@angular/material/tabs';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { Subject, forkJoin, takeUntil } from 'rxjs';
 import { PatientService } from '@core/services/patient.service';
 import { Patient } from '@core/models/patient.model';
@@ -10,6 +19,13 @@ import { LabOrder } from '@core/models/lab-order.model';
 
 @Component({
     selector: 'app-patient-detail',
+    standalone: true,
+    imports: [
+        CommonModule, RouterModule,
+        MatCardModule, MatIconModule, MatButtonModule, MatListModule,
+        MatTableModule, MatTabsModule, MatProgressSpinnerModule, MatTooltipModule,
+        MatSnackBarModule,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="patient-detail" *ngIf="patient">
@@ -316,7 +332,6 @@ import { LabOrder } from '@core/models/lab-order.model';
       }
     }
   `],
-    standalone: false
 })
 export class PatientDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

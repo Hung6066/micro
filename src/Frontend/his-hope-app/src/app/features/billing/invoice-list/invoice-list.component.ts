@@ -1,12 +1,27 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { Router } from '@angular/router';
-import { FormControl } from '@angular/forms';
+import { CommonModule } from '@angular/common';
+import { Router, RouterModule } from '@angular/router';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
+import { MatTableModule } from '@angular/material/table';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
+import { MatSelectModule } from '@angular/material/select';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatPaginatorModule } from '@angular/material/paginator';
+import { MatButtonModule } from '@angular/material/button';
 import { BillingService } from '@core/services/billing.service';
 import { Invoice } from '@core/models/invoice.model';
 
 @Component({
     selector: 'app-invoice-list',
+    standalone: true,
+    imports: [
+        CommonModule, RouterModule, ReactiveFormsModule,
+        MatTableModule, MatFormFieldModule, MatInputModule, MatIconModule,
+        MatSelectModule, MatProgressBarModule, MatPaginatorModule, MatButtonModule,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="invoice-list">
@@ -130,7 +145,6 @@ import { Invoice } from '@core/models/invoice.model';
     .empty-state { text-align: center; padding: 48px; color: #999; }
     .empty-icon { font-size: 48px; width: 48px; height: 48px; margin-bottom: 16px; }
   `],
-    standalone: false
 })
 export class InvoiceListComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

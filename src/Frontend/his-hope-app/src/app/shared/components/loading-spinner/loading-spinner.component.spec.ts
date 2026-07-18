@@ -1,6 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { CommonModule } from '@angular/common';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { LoadingSpinnerComponent } from './loading-spinner.component';
-import { SharedModule } from '@shared/shared.module';
 
 describe('LoadingSpinnerComponent', () => {
   let component: LoadingSpinnerComponent;
@@ -8,8 +9,7 @@ describe('LoadingSpinnerComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      declarations: [LoadingSpinnerComponent],
-      imports: [SharedModule],
+      imports: [LoadingSpinnerComponent, CommonModule, MatProgressSpinnerModule],
     });
     fixture = TestBed.createComponent(LoadingSpinnerComponent);
     component = fixture.componentInstance;

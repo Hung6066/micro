@@ -26,8 +26,9 @@ describe('PrescriptionDetailComponent', () => {
     spy.getPrescription.and.returnValue(of(mockPrescription));
 
     await TestBed.configureTestingModule({
-    declarations: [PrescriptionDetailComponent],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        PrescriptionDetailComponent, RouterTestingModule, NoopAnimationsModule,
         MatCardModule, MatButtonModule, MatIconModule, MatSnackBarModule,
         MatProgressSpinnerModule, CommonModule],
     providers: [

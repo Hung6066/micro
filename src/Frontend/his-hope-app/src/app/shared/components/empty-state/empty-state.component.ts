@@ -1,8 +1,12 @@
 import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
 
 @Component({
   selector: 'app-empty-state',
-  standalone: false,
+  standalone: true,
+  imports: [CommonModule, MatIconModule, MatButtonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="empty-state">

@@ -18,8 +18,9 @@ describe('ErrorBarComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      declarations: [ErrorBarComponent],
-      imports: [NoopAnimationsModule, MatSnackBarModule, MatIconModule, MatTooltipModule],
+      
+      imports: [
+        ErrorBarComponent, NoopAnimationsModule, MatSnackBarModule, MatIconModule, MatTooltipModule],
       providers: [
         provideMockStore({ initialState: initialAppState }),
       ],

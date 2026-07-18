@@ -1,12 +1,25 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { Router } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { Router, RouterModule } from '@angular/router';
 import { PatientService } from '@core/services/patient.service';
 import { Patient } from '@core/models/patient.model';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
-import { FormControl } from '@angular/forms';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { MatTableModule } from '@angular/material/table';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
+import { MatPaginatorModule } from '@angular/material/paginator';
+import { MatButtonModule } from '@angular/material/button';
 
 @Component({
     selector: 'app-patient-list',
+    standalone: true,
+    imports: [
+        CommonModule, RouterModule, ReactiveFormsModule,
+        MatTableModule, MatFormFieldModule, MatInputModule, MatIconModule,
+        MatPaginatorModule, MatButtonModule,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="patient-list">
@@ -79,7 +92,6 @@ import { FormControl } from '@angular/forms';
     mat-table { width: 100%; cursor: pointer; }
     mat-row:hover { background: #f5f5f5; }
   `],
-    standalone: false
 })
 export class PatientListComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

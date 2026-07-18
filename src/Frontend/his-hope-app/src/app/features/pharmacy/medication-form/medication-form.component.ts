@@ -1,12 +1,26 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { FormBuilder, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { MatButtonModule } from '@angular/material/button';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { PharmacyService } from '@core/services/pharmacy.service';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 @Component({
     selector: 'app-medication-form',
+    standalone: true,
+    imports: [
+        CommonModule, ReactiveFormsModule, RouterModule,
+        MatFormFieldModule, MatInputModule, MatSelectModule,
+        MatButtonModule, MatProgressSpinnerModule, MatCheckboxModule,
+        MatSnackBarModule,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="medication-form">
@@ -92,7 +106,6 @@ import { MatSnackBar } from '@angular/material/snack-bar';
     .form-actions { margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end; }
     .btn-spinner { display: inline-block; margin-right: 8px; }
   `],
-    standalone: false
 })
 export class MedicationFormComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

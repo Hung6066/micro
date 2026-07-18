@@ -1,7 +1,12 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { Subject, forkJoin, takeUntil } from 'rxjs';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatListModule } from '@angular/material/list';
 import { ClinicalService } from '@core/services/clinical.service';
 import { LabService } from '@core/services/lab.service';
 import { PharmacyService } from '@core/services/pharmacy.service';
@@ -19,6 +24,12 @@ interface LabResultDisplay {
 
 @Component({
     selector: 'app-encounter-detail',
+    standalone: true,
+    imports: [
+        CommonModule, RouterModule,
+        MatCardModule, MatIconModule, MatButtonModule, MatListModule,
+        MatSnackBarModule,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="detail" *ngIf="encounter">
@@ -251,7 +262,6 @@ interface LabResultDisplay {
       .overview-grid { grid-template-columns: 1fr; }
     }
   `],
-    standalone: false
 })
 export class EncounterDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

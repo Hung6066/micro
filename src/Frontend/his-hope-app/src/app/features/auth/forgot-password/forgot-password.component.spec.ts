@@ -1,7 +1,10 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { CommonModule } from '@angular/common';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { RouterTestingModule } from '@angular/router/testing';
 import { ForgotPasswordComponent } from './forgot-password.component';
-import { SharedModule } from '@shared/shared.module';
 
 describe('ForgotPasswordComponent', () => {
   let component: ForgotPasswordComponent;
@@ -9,8 +12,7 @@ describe('ForgotPasswordComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      declarations: [ForgotPasswordComponent],
-      imports: [SharedModule, NoopAnimationsModule],
+      imports: [ForgotPasswordComponent, CommonModule, MatIconModule, MatButtonModule, RouterTestingModule.withRoutes([]), NoopAnimationsModule],
     });
     fixture = TestBed.createComponent(ForgotPasswordComponent);
     component = fixture.componentInstance;
