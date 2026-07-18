@@ -1,0 +1,70 @@
+# =============================================================================
+# ML Anomaly Detection — Configuration
+# =============================================================================
+# Controls training, serving, and webhook for the LSTM autoencoder-based
+# anomaly detection system. Prometheus address is injected via environment
+# variable at runtime (overrides the default below).
+
+project: his-hope-analytics
+region: us-east1
+
+prometheus_url: "http://prometheus-k8s.monitoring.svc.cluster.local:9090"
+
+display_name: anomaly-detector-v1
+
+# -- Anomaly model endpoint URL (for webhook) --------------------------------
+anomaly_endpoint_url: "http://anomaly-detection:8080"
+
+# -- Dataset configuration ---------------------------------------------------
+dataset:
+  source: prometheus
+  history_days: 28
+  data_interval_minutes: 1
+  metrics:
+    - name: request_rate
+      promql: 'sum(rate(http_requests_total{service="%s"}[1m])) by (service)'
+    - name: error_rate
+      promql: '(sum(rate(http_requests_total{service="%s",status=~"5.."}[1m])) by (service)) / (sum(rate(http_requests_total{service="%s"}[1m])) by (service))'
+    - name: latency_p99
+      promql: 'histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{service="%s"}[1m])) by (le))'
+
+  incident_periods:
+    # Known incidents to exclude from training data
+    - service: "*"
+      start: "2026-07-04T10:00:00Z"
+      end: "2026-07-04T14:30:00Z"
+      reason: "Database failover incident"
+
+# -- Model hyperparameters ---------------------------------------------------
+model:
+  type: lstm_autoencoder
+  sequence_length: 60
+  latent_dim: 8
+  encoding_layers: [32, 16]
+  learning_rate: 0.001
+  batch_size: 64
+  epochs: 100
+  early_stopping_patience: 10
+  validation_split: 0.2
+  anomaly_threshold_percentile: 95.0
+
+# -- Serving configuration ---------------------------------------------------
+serving:
+  machine_type: n1-standard-4
+  min_replicas: 1
+  max_replicas: 3
+
+# -- Model monitoring thresholds ---------------------------------------------
+monitoring:
+  prediction_drift_threshold: 0.15
+  feature_drift_threshold: 0.2
+
+# -- Alertmanager webhook suppression ---------------------------------------
+suppression:
+  min_anomaly_score: 0.5
+  max_suppression_count: 50
+
+# -- Training schedule -------------------------------------------------------
+schedule:
+  frequency: daily
+  time: "03:00"
