@@ -1,4 +1,4 @@
-import { Component, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -72,6 +72,11 @@ import { MatSnackBar } from '@angular/material/snack-bar';
   `],
 })
 export class LoginComponent implements OnDestroy {
+  private fb = inject(FormBuilder);
+  private authService = inject(AuthService);
+  private router = inject(Router);
+  private snackBar = inject(MatSnackBar);
+  private cdr = inject(ChangeDetectorRef);
   private destroy$ = new Subject<void>();
 
   loginForm = this.fb.group({
@@ -79,14 +84,6 @@ export class LoginComponent implements OnDestroy {
     password: ['', Validators.required],
   });
   loading = false;
-
-  constructor(
-    private fb: FormBuilder,
-    private authService: AuthService,
-    private router: Router,
-    private snackBar: MatSnackBar,
-    private cdr: ChangeDetectorRef,
-  ) {}
 
   ngOnDestroy(): void {
     this.destroy$.next();

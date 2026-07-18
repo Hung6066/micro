@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, Input, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, Input, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Subject, takeUntil, debounceTime, distinctUntilChanged } from 'rxjs';
@@ -299,19 +299,16 @@ export class SidebarComponent implements OnInit, OnDestroy {
   @Input() sidenavOpened = true;
   @Output() toggle = new EventEmitter<void>();
 
-  constructor(
-    private authService: AuthService,
-    private patientService: PatientService,
-    private router: Router,
-    private cdr: ChangeDetectorRef,
-  ) {}
+  private authService = inject(AuthService);
+  private patientService = inject(PatientService);
+  private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
 
   ngOnInit(): void {
     this.authService.currentUser$
       .pipe(takeUntil(this.destroy$))
       .subscribe((user) => {
         this.currentUser = user;
-        this.cdr.markForCheck();
       });
 
     this.patientSearchControl.valueChanges
@@ -351,7 +348,6 @@ export class SidebarComponent implements OnInit, OnDestroy {
       this.patientSearchControl.setValue('', { emitEvent: false });
       this.searchResults = [];
       this.router.navigate(['/patients', patient.id, 'workspace']);
-      this.cdr.markForCheck();
     }
   }
 
@@ -363,12 +359,10 @@ export class SidebarComponent implements OnInit, OnDestroy {
         complete: () => {
           this.loggingOut = false;
           this.router.navigate(['/auth/login']);
-          this.cdr.markForCheck();
         },
         error: () => {
           this.loggingOut = false;
           this.router.navigate(['/auth/login']);
-          this.cdr.markForCheck();
         },
       });
   }

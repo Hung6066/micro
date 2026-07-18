@@ -26,7 +26,7 @@ try
 
     // Register persistence, event bus, and agent dispatcher
     builder.Services.AddHarnessPersistence(config.DatabaseConnectionString);
-    builder.Services.AddSingleton<IEventBus>(_ => new RabbitMQEventBus(config.RabbitMQHost));
+    builder.Services.AddSingleton<IEventBus>(_ => new RabbitMQEventBus(config.RabbitMQConnectionString));
     builder.Services.AddScoped<IAgentDispatcher, OpenCodeAgentDispatcher>();
 
     // Register MediatR with handlers and pipeline behaviors
