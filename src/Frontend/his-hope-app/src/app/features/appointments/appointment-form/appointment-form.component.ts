@@ -3,7 +3,6 @@ import { CommonModule } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
 import { Subject, Observable, of, debounceTime, distinctUntilChanged, switchMap, takeUntil } from 'rxjs';
-import moment from 'moment';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatIconModule } from '@angular/material/icon';
@@ -241,7 +240,7 @@ export class AppointmentFormComponent implements OnInit, OnDestroy {
     const request = {
       patientId: formValue.patientId!,
       providerId: formValue.providerId!,
-      scheduledDate: moment(formValue.scheduledDate!).toISOString(),
+      scheduledDate: new Date(formValue.scheduledDate!).toISOString(),
       startTime: formValue.startTime!,
       durationMinutes: formValue.durationMinutes!,
       typeCode: formValue.typeCode!,

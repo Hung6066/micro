@@ -8,6 +8,7 @@ using His.Hope.AgentHarness.Infrastructure.Dispatch;
 using His.Hope.AgentHarness.Infrastructure.EventBus;
 using His.Hope.AgentHarness.Application.Behaviors;
 using His.Hope.AgentHarness.Application.Commands.StartPipeline;
+using His.Hope.AgentHarness.Application.Services;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -37,6 +38,14 @@ try
         cfg.AddOpenBehavior(typeof(TimeoutBehavior<,>));
     });
 
+    // Register pipeline engine and supporting services
+    builder.Services.AddScoped<BackpressureController>();
+    builder.Services.AddScoped<AgentPoolManager>();
+    builder.Services.AddScoped<ErrorClassifier>();
+    builder.Services.AddScoped<ConfidenceScorer>();
+    builder.Services.AddScoped<ILoopEngineer, LoopEngineer>();
+    builder.Services.AddScoped<IPipelineEngine, PipelineEngine>();
+
     // Register MCP tools as singletons
     builder.Services.AddSingleton<StartPipelineTool>();
     builder.Services.AddSingleton<GetStatusTool>();
@@ -44,6 +53,13 @@ try
     builder.Services.AddSingleton<CancelPipelineTool>();
 
     var app = builder.Build();
+
+    // Auto-create database schema on startup
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<HarnessDbContext>();
+        db.Database.EnsureCreated();
+    }
 
     // Health endpoint
     app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "agent-harness" }));
