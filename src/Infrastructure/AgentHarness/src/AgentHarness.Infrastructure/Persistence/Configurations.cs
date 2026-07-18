@@ -97,6 +97,7 @@ public class ArtifactConfiguration : IEntityTypeConfiguration<Artifact>
         builder.Property(a => a.ContentType).HasColumnName("content_type").HasMaxLength(128);
         builder.Property(a => a.StoragePath).HasColumnName("storage_ref").HasMaxLength(512);
         builder.Property(a => a.SizeBytes).HasColumnName("size_bytes");
+        builder.Property(a => a.Content).HasColumnName("content").HasColumnType("bytea");
         builder.Property(a => a.CreatedAt).HasColumnName("created_at");
         builder.HasIndex(a => a.PipelineRunId).HasDatabaseName("ix_artifacts_pipeline_run_id");
     }

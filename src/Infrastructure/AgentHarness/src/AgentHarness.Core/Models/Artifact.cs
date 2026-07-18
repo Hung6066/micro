@@ -8,11 +8,12 @@ public class Artifact
     public string ContentType { get; private set; } = string.Empty;
     public string StoragePath { get; private set; } = string.Empty;
     public long SizeBytes { get; private set; }
+    public byte[]? Content { get; private set; } // Inline artifact data
     public DateTime CreatedAt { get; private set; }
 
     private Artifact() { }
 
-    public static Artifact Create(Guid pipelineRunId, string name, string contentType, string storagePath, long sizeBytes)
+    public static Artifact Create(Guid pipelineRunId, string name, string contentType, string storagePath, long sizeBytes, byte[]? content = null)
     {
         return new Artifact
         {
@@ -22,6 +23,7 @@ public class Artifact
             ContentType = contentType,
             StoragePath = storagePath,
             SizeBytes = sizeBytes,
+            Content = content,
             CreatedAt = DateTime.UtcNow
         };
     }

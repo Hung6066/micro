@@ -183,6 +183,9 @@ static async Task RunHttpMode(string[] args)
     // Helper: return raw JSON without double-encoding
     static IResult RawJson(string json) => Results.Content(json, "application/json", System.Text.Encoding.UTF8);
 
+    // SECURITY: API key authentication middleware (skip if no key configured)
+    app.UseMiddleware<ApiKeyMiddleware>();
+
     // 3. REST endpoints
     app.MapPost("/mcp/start-pipeline", async (StartPipelineTool tool, HttpContext ctx) =>
     {
@@ -278,6 +281,34 @@ static async Task RunHttpMode(string[] args)
         catch (Exception ex)
         {
             Log.Error(ex, "GetPipelineStatus failed");
+            return Results.Json(new { error = ex.Message }, statusCode: 404);
+        }
+    });
+
+    app.MapPost("/mcp/save-artifact", async (SaveArtifactTool tool, HttpContext ctx) =>
+    {
+        try
+        {
+            var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
+            return RawJson(await tool.ExecuteAsync(p));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "SaveArtifact failed");
+            return Results.Json(new { error = ex.Message }, statusCode: 500);
+        }
+    });
+
+    app.MapPost("/mcp/get-artifact", async (GetArtifactTool tool, HttpContext ctx) =>
+    {
+        try
+        {
+            var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
+            return RawJson(await tool.ExecuteAsync(p));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "GetArtifact failed");
             return Results.Json(new { error = ex.Message }, statusCode: 404);
         }
     });
@@ -389,6 +420,8 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
     services.AddScoped<GetPendingTasksTool>();
     services.AddScoped<CompleteTaskTool>();
     services.AddScoped<GetPipelineStatusTool>();
+    services.AddScoped<SaveArtifactTool>();
+    services.AddScoped<GetArtifactTool>();
 }
 
 static void InitializeDatabase(IServiceProvider sp)
@@ -497,6 +530,18 @@ static async Task<string?> HandleJsonRpcString(string body, Channel<string>? sse
                     case "get-pipeline-status":
                     {
                         var t = sp.GetRequiredService<GetPipelineStatusTool>();
+                        toolResult = await t.ExecuteAsync(arguments);
+                        break;
+                    }
+                    case "save-artifact":
+                    {
+                        var t = sp.GetRequiredService<SaveArtifactTool>();
+                        toolResult = await t.ExecuteAsync(arguments);
+                        break;
+                    }
+                    case "get-artifact":
+                    {
+                        var t = sp.GetRequiredService<GetArtifactTool>();
                         toolResult = await t.ExecuteAsync(arguments);
                         break;
                     }
@@ -661,6 +706,38 @@ static JsonArray BuildToolList()
                     ["pipeline_run_id"] = MakeProp("string", "The pipeline run ID (GUID)")
                 },
                 ["required"] = new JsonArray("pipeline_run_id")
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "save-artifact",
+            ["description"] = "Save an artifact (test results, logs, build output) associated with a pipeline run",
+            ["inputSchema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["pipeline_run_id"] = MakeProp("string", "The pipeline run ID (GUID)"),
+                    ["name"] = MakeProp("string", "Artifact name"),
+                    ["content_type"] = MakeProp("string", "MIME type (default: text/plain)"),
+                    ["content_base64"] = MakeProp("string", "Base64-encoded artifact content"),
+                    ["storage_path"] = MakeProp("string", "Storage path reference (optional)")
+                },
+                ["required"] = new JsonArray("pipeline_run_id", "name")
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "get-artifact",
+            ["description"] = "Retrieve an artifact by ID with its content",
+            ["inputSchema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["artifact_id"] = MakeProp("string", "The artifact ID (GUID)")
+                },
+                ["required"] = new JsonArray("artifact_id")
             }
         }
     };
