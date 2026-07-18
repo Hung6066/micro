@@ -2,7 +2,7 @@ import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, ChangeDetectorRe
 import { FormBuilder, Validators } from '@angular/forms';
 import { Router, ActivatedRoute } from '@angular/router';
 import { Subject, Observable, of, debounceTime, distinctUntilChanged, switchMap, takeUntil } from 'rxjs';
-import * as moment from 'moment';
+import moment from 'moment';
 import { AppointmentService } from '@core/services/appointment.service';
 import { PatientService } from '@core/services/patient.service';
 import { Patient } from '@core/models/patient.model';

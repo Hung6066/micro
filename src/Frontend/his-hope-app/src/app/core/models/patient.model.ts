@@ -70,4 +70,4 @@ export interface CreatePatientRequest {
   nationalId?: string;
 }
 
-export { PagedResult } from './paged-result.model';
+export type { PagedResult } from './paged-result.model';
