@@ -7,4 +7,5 @@ public class FixResult
     public decimal ConfidenceScore { get; set; }
     public List<string> Changes { get; set; } = new();
     public List<string> UnfixedIssues { get; set; } = new();
+    public bool MemoryHit { get; set; }
 }

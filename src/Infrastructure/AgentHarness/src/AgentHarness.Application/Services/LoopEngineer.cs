@@ -1,4 +1,5 @@
 using His.Hope.AgentHarness.Core.ValueObjects;
+using Serilog;
 
 namespace His.Hope.AgentHarness.Application.Services;
 
@@ -6,12 +7,14 @@ public class LoopEngineer : ILoopEngineer
 {
     private readonly ErrorClassifier _classifier;
     private readonly ConfidenceScorer _scorer;
+    private readonly IMemoryService _memory;
     private const int MaxIterations = 3;
 
-    public LoopEngineer(ErrorClassifier classifier, ConfidenceScorer scorer)
+    public LoopEngineer(ErrorClassifier classifier, ConfidenceScorer scorer, IMemoryService memory)
     {
         _classifier = classifier;
         _scorer = scorer;
+        _memory = memory;
     }
 
     public async Task<FixResult> AnalyzeAndFixAsync(LoopContext context, CancellationToken ct)
@@ -32,7 +35,24 @@ public class LoopEngineer : ILoopEngineer
 
         foreach (var gate in context.FailedGates)
         {
-            var category = _classifier.Classify(gate.Output ?? string.Empty);
+            var output = gate.Output ?? string.Empty;
+
+            // Step 1: Check memory for known fix
+            var memoryEntry = await _memory.FindSimilarAsync(output, gate.GateType, ct);
+            if (memoryEntry != null)
+            {
+                await _memory.RecordHitAsync(memoryEntry.Id, ct);
+                result.Changes.Add($"Known fix from memory (use #{memoryEntry.UseCount}): {memoryEntry.FixDescription}");
+                anyFixed = true;
+                result.ConfidenceScore = Math.Max(result.ConfidenceScore, 0.85m);
+                result.MemoryHit = true;
+                Log.Information("LoopEngineer found memory match: {Fix} (confidence={Conf})",
+                    memoryEntry.FixDescription, result.ConfidenceScore);
+                continue;
+            }
+
+            // Step 2: Classify error
+            var category = _classifier.Classify(output);
 
             if (!_classifier.IsAutoFixable(category))
             {
@@ -54,8 +74,8 @@ public class LoopEngineer : ILoopEngineer
             var errorCtx = new ErrorContext
             {
                 MatchesKnownPattern = category != ErrorCategory.Unknown,
-                ChangeSize = EstimateChangeSize(gate.Output ?? string.Empty),
-                HasSucceededBefore = CheckPreviousSuccess(gate.GateId),
+                ChangeSize = EstimateChangeSize(output),
+                HasSucceededBefore = memoryEntry != null,
                 IsReversible = category != ErrorCategory.QualityGateFailure
             };
 
@@ -66,6 +86,15 @@ public class LoopEngineer : ILoopEngineer
                 result.Changes.Add($"Auto-fix for gate '{gate.GateName}': {category}");
                 anyFixed = true;
                 result.ConfidenceScore = Math.Max(result.ConfidenceScore, confidence.Value);
+
+                // Store the fix attempt in memory
+                await _memory.StoreAsync(
+                    output,
+                    category.ToString(),
+                    gate.GateType ?? "unknown",
+                    $"Auto-fix applied: {category} for {gate.GateName}",
+                    null,
+                    true, ct);
             }
             else
             {

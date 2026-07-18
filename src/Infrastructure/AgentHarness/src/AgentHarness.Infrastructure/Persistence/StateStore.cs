@@ -93,4 +93,23 @@ public class StateStore : IStateStore
         => await _db.PipelineRuns
             .Where(p => p.Status == PipelineStatus.Running)
             .ToListAsync(ct);
+
+    public async Task SaveMemoryEntryAsync(MemoryEntry entry, CancellationToken ct = default)
+    {
+        var existing = await _db.Set<MemoryEntry>().FindAsync([entry.Id], ct);
+        if (existing is null)
+            _db.Set<MemoryEntry>().Add(entry);
+        else
+            _db.Entry(existing).CurrentValues.SetValues(entry);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<MemoryEntry?> GetMemoryEntryAsync(Guid id, CancellationToken ct = default)
+        => await _db.Set<MemoryEntry>().FindAsync([id], ct);
+
+    public async Task<List<MemoryEntry>> GetMemoryEntriesAsync(CancellationToken ct = default)
+        => await _db.Set<MemoryEntry>()
+            .OrderByDescending(m => m.UseCount)
+            .ThenByDescending(m => m.LastUsedAt)
+            .ToListAsync(ct);
 }

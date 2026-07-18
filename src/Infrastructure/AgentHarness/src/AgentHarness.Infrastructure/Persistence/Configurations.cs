@@ -122,6 +122,28 @@ public class PipelineCheckpointConfiguration : IEntityTypeConfiguration<Pipeline
     }
 }
 
+public class MemoryEntryConfiguration : IEntityTypeConfiguration<MemoryEntry>
+{
+    public void Configure(EntityTypeBuilder<MemoryEntry> builder)
+    {
+        builder.ToTable("memory_entries");
+        builder.HasKey(m => m.Id);
+        builder.Property(m => m.Id).HasColumnName("id");
+        builder.Property(m => m.ErrorPattern).HasColumnName("error_pattern").HasColumnType("text");
+        builder.Property(m => m.ErrorCategory).HasColumnName("error_category").HasMaxLength(50);
+        builder.Property(m => m.AgentName).HasColumnName("agent_name").HasMaxLength(128);
+        builder.Property(m => m.FixDescription).HasColumnName("fix_description").HasColumnType("text");
+        builder.Property(m => m.FixArtifactRef).HasColumnName("fix_artifact_ref").HasMaxLength(512);
+        builder.Property(m => m.Success).HasColumnName("success");
+        builder.Property(m => m.UseCount).HasColumnName("use_count");
+        builder.Property(m => m.Keywords).HasColumnName("keywords").HasColumnType("text");
+        builder.Property(m => m.CreatedAt).HasColumnName("created_at");
+        builder.Property(m => m.LastUsedAt).HasColumnName("last_used_at");
+        builder.HasIndex(m => m.AgentName).HasDatabaseName("ix_memory_agent_name");
+        builder.HasIndex(m => m.ErrorCategory).HasDatabaseName("ix_memory_error_category");
+    }
+}
+
 public class AgentPoolStateConfiguration : IEntityTypeConfiguration<AgentPoolState>
 {
     public void Configure(EntityTypeBuilder<AgentPoolState> builder)

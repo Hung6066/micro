@@ -17,4 +17,7 @@ public interface IStateStore
     Task SaveCheckpointAsync(PipelineCheckpoint checkpoint, CancellationToken ct = default);
     Task<PipelineCheckpoint?> GetLatestCheckpointAsync(Guid pipelineRunId, CancellationToken ct = default);
     Task<List<PipelineRun>> GetRunningPipelinesAsync(CancellationToken ct = default);
+    Task SaveMemoryEntryAsync(MemoryEntry entry, CancellationToken ct = default);
+    Task<MemoryEntry?> GetMemoryEntryAsync(Guid id, CancellationToken ct = default);
+    Task<List<MemoryEntry>> GetMemoryEntriesAsync(CancellationToken ct = default);
 }

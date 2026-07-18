@@ -456,6 +456,7 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
     services.AddScoped<AgentPoolManager>();
     services.AddScoped<ErrorClassifier>();
     services.AddScoped<ConfidenceScorer>();
+    services.AddScoped<IMemoryService, MemoryService>();
     services.AddScoped<ILoopEngineer, LoopEngineer>();
     services.AddScoped<IPipelineEngine, PipelineEngine>();
 
