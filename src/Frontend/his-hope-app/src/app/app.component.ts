@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { Subject, takeUntil } from 'rxjs';
 import { AuthService } from '@core/services/auth.service';
+import { RumService } from './monitoring/rum.service';
 
 @Component({
   selector: 'app-root',
@@ -35,6 +36,7 @@ export class AppComponent implements OnInit, OnDestroy {
   constructor(
     private authService: AuthService,
     private cdr: ChangeDetectorRef,
+    private rum: RumService,
   ) {}
 
   toggleSidenav(): void {
@@ -42,6 +44,9 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    // Initialise Real User Monitoring (Web Vitals + OpenTelemetry).
+    this.rum.initialize();
+
     this.authService.isLoggedIn()
       .pipe(takeUntil(this.destroy$))
       .subscribe((loggedIn) => {
