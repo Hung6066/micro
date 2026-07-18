@@ -1,9 +1,0 @@
-// @ts-nocheck
-export interface PagedResult<T> {
-  items: T[];
-  totalCount: number;
-  page: number;
-  pageSize: number;
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
-}
