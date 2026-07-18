@@ -110,7 +110,9 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
           <button mat-button type="button" routerLink="/patients">Hủy</button>
           <button mat-raised-button color="primary" type="submit"
                   [disabled]="patientForm.invalid || submitting">
-            <mat-spinner diameter="18" *ngIf="submitting" class="btn-spinner" aria-label="Đang lưu"></mat-spinner>
+            @if (submitting) {
+            <mat-spinner diameter="18" class="btn-spinner" aria-label="Đang lưu"></mat-spinner>
+            }
             {{ submitting ? 'Đang lưu...' : 'Lưu bệnh nhân' }}
           </button>
         </div>

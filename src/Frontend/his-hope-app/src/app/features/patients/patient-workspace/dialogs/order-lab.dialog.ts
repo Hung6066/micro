@@ -49,19 +49,25 @@ const AVAILABLE_TESTS = [
     template: `
     <h2 mat-dialog-title>Chỉ định xét nghiệm</h2>
     <mat-dialog-content>
-      <div class="patient-info" *ngIf="data.patientName">
+      @if (data.patientName) {
+      <div class="patient-info">
         <mat-icon>person</mat-icon>
         <span>{{ data.patientName }}</span>
       </div>
+      }
       <form [formGroup]="form" class="dialog-form">
         <mat-form-field appearance="outline">
           <mat-label>Loại xét nghiệm</mat-label>
           <mat-select formControlName="testCode" required>
-            <mat-option *ngFor="let t of availableTests" [value]="t.code">
+            @for (t of availableTests; track t.code) {
+            <mat-option [value]="t.code">
               {{ t.name }}
             </mat-option>
+            }
           </mat-select>
-          <mat-error *ngIf="form.get('testCode')?.hasError('required')">Vui lòng chọn xét nghiệm</mat-error>
+          @if (form.get('testCode')?.hasError('required')) {
+          <mat-error>Vui lòng chọn xét nghiệm</mat-error>
+          }
         </mat-form-field>
 
         <mat-form-field appearance="outline">
@@ -84,8 +90,12 @@ const AVAILABLE_TESTS = [
       <button mat-button mat-dialog-close [disabled]="saving">Hủy</button>
       <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid || saving">
         <mat-icon>science</mat-icon>
-        <span *ngIf="!saving">Gửi chỉ định</span>
-        <mat-spinner *ngIf="saving" diameter="20"></mat-spinner>
+        @if (!saving) {
+        <span>Gửi chỉ định</span>
+        }
+        @if (saving) {
+        <mat-spinner diameter="20"></mat-spinner>
+        }
       </button>
     </mat-dialog-actions>
   `,
