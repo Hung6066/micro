@@ -160,6 +160,16 @@ spec:
         target:
           type: Utilization
           averageUtilization: 70
+    - type: Object
+      object:
+        describedObject:
+          kind: Service
+          name: lab-service
+        metric:
+          name: requests_per_second
+        target:
+          type: AverageValue
+          averageValue: "200"
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

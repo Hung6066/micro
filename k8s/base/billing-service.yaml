@@ -162,6 +162,16 @@ spec:
         target:
           type: Utilization
           averageUtilization: 70
+    - type: Object
+      object:
+        describedObject:
+          kind: Service
+          name: billing-service
+        metric:
+          name: requests_per_second
+        target:
+          type: AverageValue
+          averageValue: "300"
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

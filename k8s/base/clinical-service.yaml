@@ -221,6 +221,16 @@ spec:
         target:
           type: Utilization
           averageUtilization: 70
+    - type: Object
+      object:
+        describedObject:
+          kind: Service
+          name: clinical-service
+        metric:
+          name: requests_per_second
+        target:
+          type: AverageValue
+          averageValue: "400"
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

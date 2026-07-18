@@ -159,6 +159,16 @@ spec:
         target:
           type: Utilization
           averageUtilization: 70
+    - type: Object
+      object:
+        describedObject:
+          kind: Service
+          name: appointment-service
+        metric:
+          name: requests_per_second
+        target:
+          type: AverageValue
+          averageValue: "500"
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget

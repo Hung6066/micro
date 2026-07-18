@@ -1,0 +1,132 @@
+# ============================================================================
+# Prometheus Adapter Config — Custom Metrics API
+# ============================================================================
+# This ConfigMap is consumed by prometheus-adapter (a.k.a.
+# custom-metrics-apiserver), which sits in the Kubernetes API aggregation
+# layer and exposes Prometheus-scraped metrics as first-class custom /
+# external metrics that HorizontalPodAutoscaler can consume.
+#
+# Installed via:  helm install prometheus-adapter ... \
+#   --set configmap=prometheus-adapter-config \
+#   --set-file config="k8s/autoscaling/prometheus-adapter-config.yaml"
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-adapter-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus-adapter
+    app.kubernetes.io/component: metrics-adapter
+    app.kubernetes.io/part-of: his-hope
+data:
+  config.yaml: |
+    # ── Prometheus connection ──────────────────────────────────────────────
+    # The adapter discovers which Prometheus server to talk to via the
+    # --prometheus-url CLI flag at runtime, NOT here.  The config below
+    # only defines *metric transformations*.
+    # ────────────────────────────────────────────────────────────────────────
+
+    resourceRules:
+      # Map well-known resource metrics so HPA can reference them by short name.
+      # These are already available via the resource metrics API (metrics-server)
+      # but we alias them here for consistency in cross-metric policies.
+      cpu:
+        containerQuery: |
+          sum by (<<.GroupBy>>) (
+            rate(container_cpu_usage_seconds_total{container!="",<<.LabelMatchers>>}[3m])
+          )
+        nodeQuery: |
+          sum by (<<.GroupBy>>) (
+            rate(node_cpu_seconds_total{mode!="idle",mode!="steal",<<.LabelMatchers>>}[3m])
+          )
+        resources:
+          overrides:
+            namespace: {resource: "namespace"}
+            pod:       {resource: "pod"}
+        containerLabel: container
+      memory:
+        containerQuery: |
+          sum by (<<.GroupBy>>) (
+            container_memory_working_set_bytes{container!="",<<.LabelMatchers>>}
+          )
+        nodeQuery: |
+          sum by (<<.GroupBy>>) (
+            node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
+          )
+        resources:
+          overrides:
+            namespace: {resource: "namespace"}
+            pod:       {resource: "pod"}
+        containerLabel: container
+      window: 3m
+
+    # ── Custom metrics exposed to HPA ──────────────────────────────────────
+    # These rules transform Prometheus series into named custom metrics
+    # scoped to Kubernetes resources (namespaces, pods, services).
+    rules:
+
+    # ------------------------------------------------------------------
+    # metric: requests_per_second
+    # Used by:  all service HPAs
+    # PromQL:   sum(rate(http_requests_total{service="<name>"}[2m]))
+    # Exposes per-service HTTP request rate so HPA can react faster than
+    # CPU lag allows.
+    # ------------------------------------------------------------------
+    - seriesQuery:   'http_requests_total{service!=""}'
+      resources:
+        overrides:
+          namespace: {resource: "namespace"}
+          service:   {resource: "service"}
+      name:
+        as: "requests_per_second"
+      metricsQuery: |
+        sum(rate(<<.Series>>{<<.LabelMatchers>>}[2m])) by (<<.GroupBy>>)
+
+    # ------------------------------------------------------------------
+    # metric: grpc_requests_per_second
+    # Used by:  service HPAs for gRPC-heavy paths
+    # PromQL:   sum(rate(grpc_server_handled_total{service="<name>"}[2m]))
+    # ------------------------------------------------------------------
+    - seriesQuery:   'grpc_server_handled_total{service!=""}'
+      resources:
+        overrides:
+          namespace: {resource: "namespace"}
+          service:   {resource: "service"}
+      name:
+        as: "grpc_requests_per_second"
+      metricsQuery: |
+        sum(rate(<<.Series>>{<<.LabelMatchers>>}[2m])) by (<<.GroupBy>>)
+
+    # ------------------------------------------------------------------
+    # metric: outbox_pending_count
+    # Used by:  outbox-processor HPA (also via KEDA ScaledObject)
+    # PromQL:   max(outbox_messages_total{status="pending"}) by (service)
+    # Gauges the pending outbox backlog per service so the outbox
+    # processor can scale horizontally when the buffer grows.
+    # ------------------------------------------------------------------
+    - seriesQuery:   'outbox_messages_total{status="pending"}'
+      resources:
+        overrides:
+          namespace: {resource: "namespace"}
+          service:   {resource: "service"}
+      name:
+        as: "outbox_pending_count"
+      metricsQuery: |
+        max(<<.Series>>{<<.LabelMatchers>>,status="pending"}) by (<<.GroupBy>>)
+
+    # ------------------------------------------------------------------
+    # metric: queue_depth_per_pod
+    # Used by:  outbox-processor fallback HPA
+    # PromQL:   rabbitmq_queue_messages_ready{queue="outbox.delivery"}
+    # Provides RabbitMQ queue depth as a custom metric for HPA-based
+    # scaling alongside the KEDA ScaledObject (belt-and-suspenders).
+    # ------------------------------------------------------------------
+    - seriesQuery:   'rabbitmq_queue_messages_ready{queue="outbox.delivery"}'
+      resources:
+        overrides:
+          namespace: {resource: "namespace"}
+      name:
+        as: "queue_depth_outbox"
+      metricsQuery: |
+        <<.Series>>{<<.LabelMatchers>>,queue="outbox.delivery"}
