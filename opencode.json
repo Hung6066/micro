@@ -121,6 +121,25 @@
       "description": "Playwright E2E UI testing agent — tests ALL Angular routes, forms, dialogs, tables, search, pagination, navigation, error states. Uses Playwright MCP browser automation for comprehensive end-to-end UI validation across all feature modules.",
       "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
+    },
+    "loop-engineer": {
+      "description": "Autonomous fix agent — analyzes failed quality gates, classifies errors, generates and applies fixes with confidence scoring. Escalates when below confidence threshold or max loops reached. Reads knowledge base for known patterns. Self-records successful fixes.",
+      "model": "deepseek-v4-pro",
+      "permission": "allow",
+      "tools": ["filesystem-edit", "filesystem-read", "bash", "grep", "glob"],
+      "mcp": ["filesystem", "agent-harness", "db-identity", "db-patient", "db-appointment", "db-clinical", "db-lab", "db-billing", "db-pharmacy"],
+      "loop_config": {
+        "max_iterations": 3,
+        "confidence_threshold": 0.8,
+        "max_files_per_cycle": 5,
+        "max_lines_per_cycle": 200,
+        "timeout_seconds": 600
+      },
+      "safety_fences": {
+        "readonly_paths": ["vault/", "**/secrets/**", "**/certificates/**"],
+        "no_edit_paths": ["**/Migrations/*.cs", "opencode.json"],
+        "scope_paths": ["src/"]
+      }
     }
   },
   "references": {
@@ -249,6 +268,11 @@
         "DEFAULT_SERVICE": "his-hope-identity",
         "COMMAND_TIMEOUT": "300000"
       }
+    },
+    "agent-harness": {
+      "type": "http",
+      "url": "http://localhost:5200/mcp",
+      "description": "Agent Harness — Pipeline orchestration and state management for OpenCode agents"
     }
   }
 }

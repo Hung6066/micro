@@ -76,3 +76,17 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 | Simplicity First | Don't over-engineer microservice boundaries; start coarse, split only if needed |
 | Surgical Changes | Match existing patterns (CQRS, MediatR, Clean Architecture layers) |
 | Goal-Driven | Define testability criteria first; His.Hope has full E2E + unit test infrastructure |
+
+## Agent Harness & Loop Engineer
+
+The His.Hope agent system is powered by a runtime harness (.NET 8 MCP server at `src/Infrastructure/AgentHarness/`).
+
+### Key Components
+- **Agent Harness MCP Server** — Stateful pipeline execution engine with CockroachDB persistence
+- **Loop Engineer** (`@loop-engineer`) — Autonomous fix agent that intercepts failed quality gates and applies fixes
+- **MCP Tools**: `harness_start_pipeline`, `harness_get_status`, `harness_dispatch_agent`, `harness_cancel_pipeline`
+
+### When to Use
+- Use `harness_start_pipeline` to run any agent pipeline with state persistence
+- Loop Engineer activates automatically when a quality gate fails
+- Loop Engineer will auto-fix if confidence > 0.8, otherwise escalate to human
