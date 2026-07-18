@@ -36,7 +36,7 @@ public class StartPipelineHandler : IRequestHandler<StartPipelineCommand, Pipeli
                 if (parsed != null)
                 {
                     foreach (var t in parsed)
-                        tasks.Add((t.Phase, t.Agent, t.Task));
+                        tasks.Add((t.Phase, t.Agent, t.Task, t.Condition, t.DependsOn));
                 }
             }
             catch (JsonException ex)
@@ -46,16 +46,30 @@ public class StartPipelineHandler : IRequestHandler<StartPipelineCommand, Pipeli
         }
 
         var dag = new PipelineDag();
-        foreach (var (phase, agent, task) in tasks)
+        var nodeMap = new Dictionary<string, PipelineNode>();
+
+        foreach (var (phase, agent, task, condition, dependsOn) in tasks)
         {
             var phaseEnum = Enum.TryParse<PipelinePhase>(phase, ignoreCase: true, out var p) ? p : PipelinePhase.Implement;
             var node = dag.AddNode(agent, phaseEnum);
             node.TaskDescription = task;
+            node.Condition = ParseCondition(condition);
+
+            // Build edges from dependencies
+            if (dependsOn != null && nodeMap.TryGetValue(dependsOn, out var depNode))
+            {
+                dag.AddEdge(depNode, node, node.Condition);
+            }
+
+            nodeMap[agent + "_" + task.GetHashCode()] = node;
         }
 
         run.SetDag(dag);
         // Save resolved tasks as 'tasks' parameter for background execution
-        var resolvedTasksJson = JsonSerializer.Serialize(tasks.Select(t => new { phase = t.Phase, agent = t.Agent, task = t.Task }));
+        var resolvedTasksJson = JsonSerializer.Serialize(tasks.Select(t => new {
+            phase = t.Phase, agent = t.Agent, task = t.Task,
+            condition = t.Condition, depends_on = t.DependsOn
+        }));
         run.AddMetadata("resolved_tasks", resolvedTasksJson);
         run.AddMetadata("task_count", tasks.Count.ToString());
         await _store.SavePipelineRunAsync(run, ct);
@@ -63,10 +77,20 @@ public class StartPipelineHandler : IRequestHandler<StartPipelineCommand, Pipeli
         return run;
     }
 
+    private static BranchCondition ParseCondition(string? condition) => condition?.ToLowerInvariant() switch
+    {
+        "on_success" or "on-success" => BranchCondition.OnSuccess,
+        "on_failure" or "on-failure" => BranchCondition.OnFailure,
+        "never" => BranchCondition.Never,
+        _ => BranchCondition.Always
+    };
+
     private class PipelineTaskDef
     {
         public string Agent { get; set; } = "dotnet";
         public string Task { get; set; } = "";
         public string Phase { get; set; } = "Implement";
+        public string? Condition { get; set; }
+        public string? DependsOn { get; set; }
     }
 }
