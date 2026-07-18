@@ -1,6 +1,9 @@
 export interface LoginRequest {
   username: string;
   password: string;
+  deviceInfo?: string;
+  ipAddress?: string;
+  userAgent?: string;
 }
 
 export interface RegisterRequest {

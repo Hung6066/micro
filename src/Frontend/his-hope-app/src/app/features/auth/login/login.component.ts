@@ -94,16 +94,25 @@ export class LoginComponent implements OnDestroy {
 
   onSubmit(): void {
     if (this.loginForm.invalid) return;
-
     this.loading = true;
-    this.authService.login(this.loginForm.value as any)
+    this.cdr.markForCheck();
+
+    const { username, password } = this.loginForm.value;
+    if (!username || !password) return;
+
+    const request: import('@core/models/auth.model').LoginRequest = {
+      username,
+      password,
+      deviceInfo: navigator.platform,
+      userAgent: navigator.userAgent,
+    };
+
+    this.authService.login(request)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
           this.sessionService.startTracking();
-          this.snackBar.open('Login successful', 'Close', { duration: 3000 });
           this.router.navigate(['/dashboard']);
-          this.cdr.markForCheck();
         },
         error: (err) => {
           this.loading = false;

@@ -55,13 +55,18 @@ describe('LoginComponent', () => {
     expect(passwordInput).toBeTruthy();
   });
 
-  it('should call authService.login on form submit', () => {
+  it('should call authService.login on form submit with device info', () => {
     authService.login.and.returnValue(of({ id: 'usr-001', username: 'admin', email: 'admin@hishope.vn', firstName: 'Admin', lastName: 'User', fullName: 'Admin User', roles: ['admin'] }));
 
     component.loginForm.setValue({ username: 'admin', password: 'secret' });
     component.onSubmit();
 
-    expect(authService.login).toHaveBeenCalledWith({ username: 'admin', password: 'secret' });
+    expect(authService.login).toHaveBeenCalledWith({
+      username: 'admin',
+      password: 'secret',
+      deviceInfo: jasmine.any(String),
+      userAgent: jasmine.any(String),
+    } as any);
   });
 
   it('should show error snackbar on login failure', () => {
