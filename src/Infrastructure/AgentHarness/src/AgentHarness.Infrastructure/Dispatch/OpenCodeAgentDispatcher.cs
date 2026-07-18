@@ -1,53 +1,53 @@
+using Serilog;
 using His.Hope.AgentHarness.Core.Events;
 using His.Hope.AgentHarness.Core.Interfaces;
 using His.Hope.AgentHarness.Core.Models;
 using His.Hope.AgentHarness.Infrastructure.Observability;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace His.Hope.AgentHarness.Infrastructure.Dispatch;
 
+/// <summary>
+/// Dispatches agent runs WITHOUT executing them inline.
+/// Sets status to Running, persists, and returns immediately.
+/// External agents (OpenCode Angular, .NET, etc.) poll via
+/// <c>get-pending-tasks</c> and report completion via <c>complete-task</c>.
+/// The <see cref="Application.Services.PipelineEngine"/> polls the store
+/// until the agent run reaches a terminal state.
+/// </summary>
 public class OpenCodeAgentDispatcher : IAgentDispatcher
 {
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IEventBus _eventBus;
-    private readonly IStateStore _store;
 
-    public OpenCodeAgentDispatcher(IEventBus eventBus, IStateStore store)
+    public OpenCodeAgentDispatcher(IServiceScopeFactory scopeFactory, IEventBus eventBus)
     {
+        _scopeFactory = scopeFactory;
         _eventBus = eventBus;
-        _store = store;
     }
 
     public async Task<AgentRun> DispatchAsync(AgentRun agentRun, CancellationToken ct)
     {
+        using var scope = _scopeFactory.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStateStore>();
+
         agentRun.Start();
-        await _store.SaveAgentRunAsync(agentRun, ct);
+        await store.SaveAgentRunAsync(agentRun, ct);
         await _eventBus.PublishAsync(
             new AgentStarted(agentRun.Id, agentRun.PipelineRunId, agentRun.AgentName, agentRun.TaskDescription), ct);
         HarnessMetrics.AgentDispatchCount.Add(1);
 
-        try
-        {
-            // Actual dispatch via MCP tool invocation at the Mcp layer
-            await Task.CompletedTask;
-        }
-        catch (TimeoutException)
-        {
-            agentRun.Timeout();
-            await _store.SaveAgentRunAsync(agentRun, ct);
-            await _eventBus.PublishAsync(
-                new AgentFailed(agentRun.Id, agentRun.PipelineRunId, agentRun.AgentName, "Timeout", agentRun.RetryCount), ct);
-        }
-        catch (Exception ex)
-        {
-            agentRun.Fail(ex.Message);
-            await _store.SaveAgentRunAsync(agentRun, ct);
-            await _eventBus.PublishAsync(
-                new AgentFailed(agentRun.Id, agentRun.PipelineRunId, agentRun.AgentName, ex.Message, agentRun.RetryCount), ct);
-        }
+        Log.Information("Agent dispatched (external execution): {AgentName} | {TaskDescription} | run={Id}",
+            agentRun.AgentName, agentRun.TaskDescription, agentRun.Id);
 
         return agentRun;
     }
 
     public async Task<AgentRun> GetStatusAsync(Guid agentRunId, CancellationToken ct)
-        => await _store.GetAgentRunAsync(agentRunId, ct)
-           ?? throw new InvalidOperationException($"Agent run {agentRunId} not found");
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<IStateStore>();
+        return await store.GetAgentRunAsync(agentRunId, ct)
+               ?? throw new InvalidOperationException($"Agent run {agentRunId} not found");
+    }
 }

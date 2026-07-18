@@ -33,8 +33,10 @@ public class StateStore : IStateStore
         await _db.SaveChangesAsync(ct);
     }
 
+    /// <summary>Reads agent run via a FRESH DbContext to bypass EF Core change tracker cache.
+    /// Required by PipelineEngine polling — ensures we see external updates from complete-task.</summary>
     public async Task<AgentRun?> GetAgentRunAsync(Guid id, CancellationToken ct = default)
-        => await _db.AgentRuns.FindAsync([id], ct);
+        => await _db.AgentRuns.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, ct);
 
     public async Task SaveQualityGateAsync(QualityGate gate, CancellationToken ct = default)
     {
@@ -67,5 +69,11 @@ public class StateStore : IStateStore
     public async Task<List<AgentRun>> GetAgentRunsAsync(Guid pipelineRunId, CancellationToken ct = default)
         => await _db.AgentRuns
             .Where(a => a.PipelineRunId == pipelineRunId)
+            .ToListAsync(ct);
+
+    public async Task<List<AgentRun>> GetPendingAgentRunsAsync(CancellationToken ct = default)
+        => await _db.AgentRuns
+            .Where(a => a.Status == AgentRunStatus.Running)
+            .OrderBy(a => a.StartedAt)
             .ToListAsync(ct);
 }

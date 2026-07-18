@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using His.Hope.AgentHarness.Core.Models;
@@ -17,12 +18,18 @@ public class PipelineRunConfiguration : IEntityTypeConfiguration<PipelineRun>
             .HasMaxLength(32)
             .HasConversion<string>();
         builder.Ignore(p => p.DagDefinition);
-        builder.Property(p => p.Parameters).HasColumnName("parameters").HasColumnType("jsonb");
+        builder.Property(p => p.Parameters).HasColumnName("parameters").HasColumnType("jsonb")
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, new JsonSerializerOptions()),
+                v => JsonSerializer.Deserialize<Dictionary<string, string>>(v, new JsonSerializerOptions()) ?? new());
         builder.Property(p => p.TriggeredBy).HasColumnName("triggered_by").HasMaxLength(64);
         builder.Property(p => p.StartedAt).HasColumnName("started_at");
         builder.Property(p => p.CompletedAt).HasColumnName("completed_at");
         builder.Property(p => p.TimeoutAt).HasColumnName("timeout_at");
-        builder.Property(p => p.Metadata).HasColumnName("metadata").HasColumnType("jsonb");
+        builder.Property(p => p.Metadata).HasColumnName("metadata").HasColumnType("jsonb")
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, new JsonSerializerOptions()),
+                v => JsonSerializer.Deserialize<Dictionary<string, string>>(v, new JsonSerializerOptions()) ?? new());
         builder.Property(p => p.CreatedAt).HasColumnName("created_at");
         builder.HasIndex(p => p.Status).HasDatabaseName("ix_pipeline_runs_status");
     }
@@ -50,6 +57,7 @@ public class AgentRunConfiguration : IEntityTypeConfiguration<AgentRun>
         builder.Property(a => a.ErrorMessage).HasColumnName("error_message").HasColumnType("text");
         builder.Property(a => a.RetryCount).HasColumnName("retry_count");
         builder.Property(a => a.MaxRetries).HasColumnName("max_retries");
+        builder.Property(a => a.TimeoutSeconds).HasColumnName("timeout_seconds");
         builder.Property(a => a.CircuitState)
             .HasColumnName("circuit_state")
             .HasMaxLength(16)

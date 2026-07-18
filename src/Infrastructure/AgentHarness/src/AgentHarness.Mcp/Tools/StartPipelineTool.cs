@@ -6,6 +6,7 @@ namespace His.Hope.AgentHarness.Mcp.Tools;
 
 public class StartPipelineTool
 {
+    private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
     private readonly IMediator _mediator;
 
     public StartPipelineTool(IMediator mediator) => _mediator = mediator;
@@ -17,10 +18,25 @@ public class StartPipelineTool
         var triggeredBy = parameters.GetValueOrDefault("triggered_by")?.ToString() ?? "system";
 
         var paramsDict = new Dictionary<string, string>();
-        if (parameters.TryGetValue("params", out var paramsObj) && paramsObj is Dictionary<string, object> rawParams)
+
+        // "params" may arrive as Dictionary<string, object> or JsonElement
+        if (parameters.TryGetValue("params", out var paramsObj) && paramsObj != null)
         {
-            foreach (var kvp in rawParams)
-                paramsDict[kvp.Key] = kvp.Value?.ToString() ?? "";
+            Dictionary<string, object>? rawParams = null;
+            if (paramsObj is Dictionary<string, object> dictParams)
+            {
+                rawParams = dictParams;
+            }
+            else if (paramsObj is JsonElement jsonEl && jsonEl.ValueKind == JsonValueKind.Object)
+            {
+                rawParams = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonEl.GetRawText(), JsonOpts);
+            }
+
+            if (rawParams != null)
+            {
+                foreach (var kvp in rawParams)
+                    paramsDict[kvp.Key] = kvp.Value?.ToString() ?? "";
+            }
         }
 
         var command = new StartPipelineCommand(workflowId, paramsDict, triggeredBy);

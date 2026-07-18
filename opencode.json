@@ -122,12 +122,44 @@
       "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
+    "harness-runner": {
+      "description": "Pipeline Runner — autonomously executes workflows via Agent Harness.\n\n## Protocol\nHarness REST API at http://localhost:5200/mcp/* (port 5200, Docker container his-hope-agentharness).\n\n## Workflow\n1. POST /mcp/start-pipeline with {workflow_id, triggered_by, params: {tasks: JSON array}}\n   - tasks format: [{\"phase\":\"Implement\",\"agent\":\"angular\",\"task\":\"description\"}, ...]\n   - phases: Plan, Implement, Test, Validate, Commit\n2. GET /mcp/get-pending-tasks (optional filter: pipeline_run_id)\n3. For each pending task: task(agent_name, task_description) → await result → POST /mcp/complete-task with {agent_run_id, status, confidence, artifact_ref}\n4. GET /mcp/get-pipeline-status to check completion\n\n## Rules\n- ALWAYS call complete-task after an agent finishes (success or failure)\n- Use curl via bash for all harness API calls\n- Use task() tool to delegate to specialized agents (angular, dotnet, etc)\n- If a task fails, mark complete-task with status='failed' and error_message\n- Pipeline is done when status='Completed' or 'Failed'",
+      "model": "opencode-go/deepseek-v4-pro",
+      "permission": "allow",
+      "tools": {
+        "bash": true,
+        "task": true,
+        "todowrite": true,
+        "filesystem-read": true,
+        "grep": true,
+        "glob": true
+      }
+    },
     "loop-engineer": {
       "description": "Autonomous fix agent — analyzes failed quality gates, classifies errors, generates and applies fixes with confidence scoring. Escalates when below confidence threshold or max loops reached. Reads knowledge base for known patterns. Self-records successful fixes.",
       "model": "deepseek-v4-pro",
       "permission": "allow",
-      "tools": ["filesystem-edit", "filesystem-read", "bash", "grep", "glob"],
-      "mcp": ["filesystem", "agent-harness", "db-identity", "db-patient", "db-appointment", "db-clinical", "db-lab", "db-billing", "db-pharmacy"],
+	  "tools": {
+        "filesystem-edit": true,
+        "filesystem-read": true,
+        "bash": true,
+        "grep": true,
+        "glob": true,
+		"harness_start_pipeline": true,
+		"harness_get_status": true,
+		"harness_dispatch_agent": true,
+		"harness_cancel_pipeline": true
+      },
+      "mcp": {
+        "agent-harness": "allow",
+        "db-identity": "allow",
+        "db-patient": "allow",
+        "db-appointment": "allow",
+        "db-clinical": "allow",
+        "db-lab": "allow",
+        "db-billing": "allow",
+        "db-pharmacy": "allow"
+      },
       "loop_config": {
         "max_iterations": 3,
         "confidence_threshold": 0.8,
@@ -227,6 +259,11 @@
       "command": ["npx", "-y", "@modelcontextprotocol/server-postgres", "postgresql://postgres:postgres@localhost:5433/pharmacydb"],
       "enabled": true
     },
+    "db-harness": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-postgres", "postgresql://postgres:postgres@localhost:5433/harnessdb"],
+      "enabled": true
+    },
     "sequential-thinking": {
       "type": "local",
       "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
@@ -270,9 +307,10 @@
       }
     },
     "agent-harness": {
-      "type": "http",
-      "url": "http://localhost:5200/mcp",
-      "description": "Agent Harness — Pipeline orchestration and state management for OpenCode agents"
+      "type": "local",
+      "command": ["docker", "exec", "-i", "his-hope-agentharness", "dotnet", "/app/His.Hope.AgentHarness.Mcp.dll", "--stdio"],
+      "description": "Agent Harness — Pipeline orchestration and state management for OpenCode agents",
+      "enabled": true
     }
   }
 }

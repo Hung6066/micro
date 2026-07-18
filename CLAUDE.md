@@ -83,10 +83,22 @@ The His.Hope agent system is powered by a runtime harness (.NET 8 MCP server at 
 
 ### Key Components
 - **Agent Harness MCP Server** — Stateful pipeline execution engine with CockroachDB persistence
+- **Harness Runner** (`@harness-runner`) — Autonomous pipeline executor. Delegates to specialized agents, reports back to harness. For multi-step workflows.
 - **Loop Engineer** (`@loop-engineer`) — Autonomous fix agent that intercepts failed quality gates and applies fixes
-- **MCP Tools**: `harness_start_pipeline`, `harness_get_status`, `harness_dispatch_agent`, `harness_cancel_pipeline`
+
+### Harness Runner Flow
+```
+1. task(harness-runner, "run workflow fix-backend")
+2. @harness-runner:
+   a. POST /mcp/start-pipeline    → pipeline_running
+   b. Loop: GET /mcp/get-pending-tasks
+            → task(angular, "fix bug")
+            → POST /mcp/complete-task(id, success)
+            → next task...
+   c. Until pipeline status = Completed
+```
 
 ### When to Use
-- Use `harness_start_pipeline` to run any agent pipeline with state persistence
+- **Direct delegation** (`task(angular, ...)`) — for single-file fixes, simple tasks
+- **@harness-runner** — for multi-step workflows (implement → test → validate → commit)
 - Loop Engineer activates automatically when a quality gate fails
-- Loop Engineer will auto-fix if confidence > 0.8, otherwise escalate to human

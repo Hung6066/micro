@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading;
+using Serilog;
 using His.Hope.AgentHarness.Core.Events;
 
 namespace His.Hope.AgentHarness.Application.Services;
@@ -105,21 +106,59 @@ public class PipelineEngine : IPipelineEngine
         return run;
     }
 
+    private static readonly TimeSpan AgentPollInterval = TimeSpan.FromSeconds(5);
+
     /// <summary>
-    /// Creates an <see cref="AgentRun"/> for the given pipeline node and dispatches it
-    /// through the <see cref="AgentPoolManager"/>.
+    /// Dispatches the agent via <see cref="AgentPoolManager"/> then polls the store
+    /// until the agent run reaches a terminal state (Completed, Failed, Cancelled, TimedOut).
+    /// External agents (OpenCode) execute the actual work and report back via
+    /// <c>complete-task</c> MCP tool.
     /// </summary>
     private async Task<AgentRun> ExecuteNodeAsync(PipelineNode node, PipelineRun run, CancellationToken ct)
     {
+        var description = !string.IsNullOrEmpty(node.TaskDescription)
+            ? node.TaskDescription
+            : $"Executing {node.AgentName} for phase {node.Phase}";
         var agentRun = AgentRun.Create(
             run.Id,
             node.AgentName,
-            $"Executing {node.AgentName} for phase {node.Phase}",
-            maxRetries: 3);
+            description,
+            maxRetries: 3,
+            timeoutSeconds: 600);
 
         node.StartedAt = DateTime.UtcNow;
 
+        // Dispatch (now returns immediately with Running status)
         var result = await _poolManager.DispatchWithPoolAsync(agentRun, ct);
+
+        // Poll store until terminal
+        var deadline = DateTime.UtcNow.AddSeconds(result.TimeoutSeconds);
+        while (!ct.IsCancellationRequested && DateTime.UtcNow < deadline)
+        {
+            var current = await _store.GetAgentRunAsync(result.Id, ct);
+            if (current == null)
+            {
+                Log.Warning("Agent run {RunId} not found in store, breaking poll", result.Id);
+                break;
+            }
+
+            if (current.IsTerminal())
+            {
+                result = current;
+                break;
+            }
+
+            await Task.Delay(AgentPollInterval, ct);
+        }
+
+        // Timeout check
+        if (!result.IsTerminal())
+        {
+            result.Timeout();
+            await _store.SaveAgentRunAsync(result, ct);
+            await _eventBus.PublishAsync(
+                new AgentFailed(result.Id, result.PipelineRunId, result.AgentName, "Timed out waiting for external agent", result.RetryCount), ct);
+        }
 
         // Sync node status from agent run result
         node.Status = result.Status switch
@@ -131,6 +170,10 @@ public class PipelineEngine : IPipelineEngine
             _ => node.Status
         };
         node.CompletedAt = DateTime.UtcNow;
+
+        Log.Information("Agent run {RunId} finished: {AgentName} status={Status} ({Elapsed}ms)",
+            result.Id, result.AgentName, result.Status,
+            node.StartedAt.HasValue ? (DateTime.UtcNow - node.StartedAt.Value).TotalMilliseconds : 0);
 
         return result;
     }

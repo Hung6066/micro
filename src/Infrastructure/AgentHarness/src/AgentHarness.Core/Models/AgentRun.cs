@@ -18,6 +18,7 @@ public class AgentRun
     public string? ErrorMessage { get; private set; }
     public int RetryCount { get; private set; }
     public int MaxRetries { get; private set; } = 3;
+    public int TimeoutSeconds { get; private set; } = 600;
     public CircuitState CircuitState { get; private set; } = CircuitState.Closed;
     public DateTime CreatedAt { get; private set; }
 
@@ -33,6 +34,7 @@ public class AgentRun
             TaskDescription = taskDescription,
             Status = AgentRunStatus.Pending,
             MaxRetries = maxRetries,
+            TimeoutSeconds = timeoutSeconds,
             CreatedAt = DateTime.UtcNow
         };
     }
@@ -41,6 +43,7 @@ public class AgentRun
     public void Complete(decimal confidenceScore, string artifactRef) { Status = AgentRunStatus.Completed; CompletedAt = DateTime.UtcNow; ConfidenceScore = confidenceScore; OutputArtifactRef = artifactRef; }
     public void Fail(string error) { Status = AgentRunStatus.Failed; CompletedAt = DateTime.UtcNow; ErrorMessage = error; RetryCount++; }
     public void Timeout() { Status = AgentRunStatus.TimedOut; CompletedAt = DateTime.UtcNow; ErrorMessage = "Agent execution timed out"; }
+    public bool IsTerminal() => Status is AgentRunStatus.Completed or AgentRunStatus.Failed or AgentRunStatus.Cancelled or AgentRunStatus.TimedOut;
     public bool CanRetry() => RetryCount < MaxRetries;
     public void OpenCircuit() => CircuitState = CircuitState.Open;
     public void HalfOpenCircuit() => CircuitState = CircuitState.HalfOpen;
