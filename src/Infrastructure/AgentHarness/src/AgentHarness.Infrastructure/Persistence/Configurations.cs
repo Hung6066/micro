@@ -1,0 +1,113 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using His.Hope.AgentHarness.Core.Models;
+
+namespace His.Hope.AgentHarness.Infrastructure.Persistence;
+
+public class PipelineRunConfiguration : IEntityTypeConfiguration<PipelineRun>
+{
+    public void Configure(EntityTypeBuilder<PipelineRun> builder)
+    {
+        builder.ToTable("pipeline_runs");
+        builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).HasColumnName("id");
+        builder.Property(p => p.WorkflowId).HasColumnName("workflow_id").HasMaxLength(256);
+        builder.Property(p => p.Status)
+            .HasColumnName("status")
+            .HasMaxLength(32)
+            .HasConversion<string>();
+        builder.Ignore(p => p.DagDefinition);
+        builder.Property(p => p.Parameters).HasColumnName("parameters").HasColumnType("jsonb");
+        builder.Property(p => p.TriggeredBy).HasColumnName("triggered_by").HasMaxLength(64);
+        builder.Property(p => p.StartedAt).HasColumnName("started_at");
+        builder.Property(p => p.CompletedAt).HasColumnName("completed_at");
+        builder.Property(p => p.TimeoutAt).HasColumnName("timeout_at");
+        builder.Property(p => p.Metadata).HasColumnName("metadata").HasColumnType("jsonb");
+        builder.Property(p => p.CreatedAt).HasColumnName("created_at");
+        builder.HasIndex(p => p.Status).HasDatabaseName("ix_pipeline_runs_status");
+    }
+}
+
+public class AgentRunConfiguration : IEntityTypeConfiguration<AgentRun>
+{
+    public void Configure(EntityTypeBuilder<AgentRun> builder)
+    {
+        builder.ToTable("agent_runs");
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).HasColumnName("id");
+        builder.Property(a => a.PipelineRunId).HasColumnName("pipeline_run_id");
+        builder.Property(a => a.AgentName).HasColumnName("agent_name").HasMaxLength(128);
+        builder.Property(a => a.TaskDescription).HasColumnName("task_description").HasColumnType("text");
+        builder.Property(a => a.Status)
+            .HasColumnName("status")
+            .HasMaxLength(32)
+            .HasConversion<string>();
+        builder.Property(a => a.AttemptNumber).HasColumnName("attempt_number");
+        builder.Property(a => a.ConfidenceScore).HasColumnName("confidence_score").HasPrecision(3, 2);
+        builder.Property(a => a.StartedAt).HasColumnName("started_at");
+        builder.Property(a => a.CompletedAt).HasColumnName("completed_at");
+        builder.Property(a => a.OutputArtifactRef).HasColumnName("output_artifact_ref").HasMaxLength(512);
+        builder.Property(a => a.ErrorMessage).HasColumnName("error_message").HasColumnType("text");
+        builder.Property(a => a.RetryCount).HasColumnName("retry_count");
+        builder.Property(a => a.MaxRetries).HasColumnName("max_retries");
+        builder.Property(a => a.CircuitState)
+            .HasColumnName("circuit_state")
+            .HasMaxLength(16)
+            .HasConversion<string>();
+        builder.Property(a => a.CreatedAt).HasColumnName("created_at");
+        builder.HasIndex(a => a.PipelineRunId).HasDatabaseName("ix_agent_runs_pipeline_run_id");
+        builder.HasIndex(a => a.AgentName).HasDatabaseName("ix_agent_runs_agent_name");
+    }
+}
+
+public class QualityGateConfiguration : IEntityTypeConfiguration<QualityGate>
+{
+    public void Configure(EntityTypeBuilder<QualityGate> builder)
+    {
+        builder.ToTable("quality_gate_results");
+        builder.HasKey(g => g.Id);
+        builder.Property(g => g.Id).HasColumnName("id");
+        builder.Property(g => g.PipelineRunId).HasColumnName("pipeline_run_id");
+        builder.Property(g => g.GateId).HasColumnName("gate_id").HasMaxLength(128);
+        builder.Property(g => g.GateType).HasColumnName("gate_name").HasMaxLength(256);
+        builder.Property(g => g.Passed).HasColumnName("passed");
+        builder.Property(g => g.Details).HasColumnName("details").HasColumnType("text");
+        builder.Property(g => g.EvaluatedAt).HasColumnName("evaluated_at");
+        builder.HasIndex(g => g.PipelineRunId).HasDatabaseName("ix_quality_gate_results_pipeline_run_id");
+    }
+}
+
+public class ArtifactConfiguration : IEntityTypeConfiguration<Artifact>
+{
+    public void Configure(EntityTypeBuilder<Artifact> builder)
+    {
+        builder.ToTable("artifacts");
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).HasColumnName("id");
+        builder.Property(a => a.PipelineRunId).HasColumnName("pipeline_run_id");
+        builder.Property(a => a.Name).HasColumnName("name").HasMaxLength(256);
+        builder.Property(a => a.ContentType).HasColumnName("content_type").HasMaxLength(128);
+        builder.Property(a => a.StoragePath).HasColumnName("storage_ref").HasMaxLength(512);
+        builder.Property(a => a.SizeBytes).HasColumnName("size_bytes");
+        builder.Property(a => a.CreatedAt).HasColumnName("created_at");
+        builder.HasIndex(a => a.PipelineRunId).HasDatabaseName("ix_artifacts_pipeline_run_id");
+    }
+}
+
+public class AgentPoolStateConfiguration : IEntityTypeConfiguration<AgentPoolState>
+{
+    public void Configure(EntityTypeBuilder<AgentPoolState> builder)
+    {
+        builder.ToTable("agent_pool");
+        builder.HasKey(p => p.AgentName);
+        builder.Property(p => p.AgentName).HasColumnName("agent_name").HasMaxLength(128);
+        builder.Property(p => p.AvailableSlots).HasColumnName("available_slots");
+        builder.Property(p => p.TotalSlots).HasColumnName("total_slots");
+        builder.Property(p => p.IsEnabled).HasColumnName("is_enabled");
+        builder.Property(p => p.LastHeartbeat).HasColumnName("last_heartbeat");
+        builder.Property(p => p.CircuitState)
+            .HasColumnName("circuit_state")
+            .HasMaxLength(16)
+            .HasConversion<string>();
+    }
+}
