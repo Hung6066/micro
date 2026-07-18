@@ -36,8 +36,7 @@
     "material-icons": "^1.13.14",
     "rxjs": "~7.8.0",
     "tslib": "^2.6.2",
-    "web-vitals": "^5.3.0",
-    "zone.js": "~0.15.1"
+    "web-vitals": "^5.3.0"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^19.2.27",

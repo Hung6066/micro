@@ -24,7 +24,7 @@
             "outputPath": "dist",
             "index": "src/index.html",
             "browser": "src/main.ts",
-            "polyfills": ["zone.js"],
+            "polyfills": [],
             "tsConfig": "tsconfig.json",
             "assets": ["src/favicon.ico", "src/assets"],
             "styles": [
@@ -97,7 +97,7 @@
           "builder": "@angular-devkit/build-angular:jest",
           "options": {
             "tsConfig": "tsconfig.spec.json",
-            "polyfills": ["zone.js", "zone.js/testing"],
+            "polyfills": [],
             "codeCoverage": true,
             "codeCoverageExclude": [
               "src/app/core/models/**",
