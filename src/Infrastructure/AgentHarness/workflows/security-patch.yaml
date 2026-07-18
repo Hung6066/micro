@@ -1,0 +1,48 @@
+name: security-patch
+description: "Security patch — full security gates and compliance checks"
+version: "1.0"
+triggers:
+  paths: ["vault/**", "**/Auth/**", "**/Security/**", "**/Identity/**"]
+  exclude: ["**/*.md"]
+
+pipeline:
+  plan:
+    - agent: explore
+      task: "Analyze security scope and identify affected services"
+      timeout_minutes: 5
+
+  implement:
+    parallel:
+      - agent: security
+        depends_on: [explore]
+        task: "Apply security patch and verify configuration"
+        timeout_minutes: 15
+      - agent: dotnet
+        depends_on: [explore]
+        task: "Update backend authentication and authorization"
+        timeout_minutes: 15
+
+  test:
+    - agent: testing-backend
+      depends_on: [dotnet]
+      gates: ["unit-tests", "integration-tests"]
+
+  validate:
+    - agent: security
+      depends_on: [testing-backend]
+      gates: ["vault-secrets", "rbac-audit", "hipaa-compliance", "network-policy"]
+    - agent: validate
+      depends_on: [testing-backend]
+      gates: ["build-integrity", "dependency-scan"]
+
+  commit:
+    agent: git
+    depends_on: [security, validate]
+    mode: create-pr-full-review
+    require_confidence: 0.9
+
+loop:
+  agent: loop-engineer
+  max_iterations: 3
+  strategy: autofix_then_escalate
+  on_failure: any_gate

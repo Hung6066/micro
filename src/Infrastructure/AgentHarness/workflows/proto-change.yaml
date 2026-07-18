@@ -1,0 +1,47 @@
+name: proto-change
+description: "Protobuf changes — requires both backend and frontend regeneration"
+version: "1.0"
+triggers:
+  paths: ["protos/**", "src/Shared/Protos/**"]
+
+pipeline:
+  plan:
+    - agent: explore
+      task: "Analyze proto changes and identify affected services"
+      timeout_minutes: 5
+
+  implement:
+    parallel:
+      - agent: dotnet
+        depends_on: [explore]
+        task: "Regenerate C# gRPC clients and update service implementations"
+        timeout_minutes: 10
+      - agent: angular
+        depends_on: [explore]
+        task: "Regenerate TypeScript gRPC clients"
+        timeout_minutes: 10
+
+  test:
+    - agent: testing-backend
+      depends_on: [dotnet]
+      gates: ["contract-tests", "unit-tests"]
+    - agent: testing-frontend
+      depends_on: [angular]
+      gates: ["component-tests"]
+
+  validate:
+    - agent: validate
+      depends_on: [testing-backend, testing-frontend]
+      gates: ["contract-consistency", "proto-lint"]
+
+  commit:
+    agent: git
+    depends_on: [validate]
+    mode: auto_pr
+    require_confidence: 0.85
+
+loop:
+  agent: loop-engineer
+  max_iterations: 3
+  strategy: autofix_then_escalate
+  on_failure: any_gate

@@ -71,7 +71,7 @@ export interface AssignRolesData {
     </mat-dialog-actions>
   `,
     styles: [`
-    .user-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: #e8f5e9; border-radius: 8px; color: #2F6B4A; font-weight: 500; }
+    .user-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: var(--mat-sys-primary-container); border-radius: 8px; color: var(--mat-sys-on-primary-container); font-weight: 500; }
     .instruction { color: #666; font-size: 14px; margin-bottom: 16px; }
     .roles-list { display: flex; flex-direction: column; gap: 8px; min-width: 400px; max-height: 400px; overflow-y: auto; }
     .role-item { padding: 8px 12px; border: 1px solid #EAEAEA; border-radius: 8px; transition: background 0.15s; }

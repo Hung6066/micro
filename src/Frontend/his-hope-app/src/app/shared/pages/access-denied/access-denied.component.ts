@@ -57,14 +57,14 @@ import { MatIconModule } from '@angular/material/icon';
       width: 72px;
       height: 72px;
       border-radius: 50%;
-      background: #FDEBEC;
+      background: var(--mat-sys-error-container);
       margin: 0 auto 24px;
     }
     .lock-icon {
       font-size: 36px;
       width: 36px;
       height: 36px;
-      color: #C25450;
+      color: var(--mat-sys-on-error-container);
     }
     .title {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;

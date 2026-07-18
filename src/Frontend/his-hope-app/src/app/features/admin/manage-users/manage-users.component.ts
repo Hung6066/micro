@@ -180,16 +180,16 @@ const ROLE_FILTERS = [
 
     .roles-cell { display: flex; flex-wrap: wrap; gap: 4px; }
     .role-badge { display: inline-flex; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
-    .role-admin { background: #e8f5e9; color: #2F6B4A; }
-    .role-doctor { background: #e3f2fd; color: #1565c0; }
+    .role-admin { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
+    .role-doctor { background: var(--mat-sys-tertiary-container); color: var(--mat-sys-on-tertiary-container); }
     .role-nurse { background: #fce4ec; color: #c62828; }
     .role-pharmacist { background: #fff3e0; color: #e65100; }
     .role-receptionist { background: #f3e5f5; color: #7b1fa2; }
     .role-manager { background: #e0f2f1; color: #00695c; }
 
     .status-badge { display: inline-flex; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; }
-    .status-badge.active { background: #e8f5e9; color: #2F6B4A; }
-    .status-badge.inactive { background: #fbe9e7; color: #c62828; }
+    .status-badge.active { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
+    .status-badge.inactive { background: var(--mat-sys-error-container); color: var(--mat-sys-on-error-container); }
 
     mat-row:hover { background: #F7F6F3; }
     .mat-mdc-header-cell { font-weight: 600; color: #787774; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }

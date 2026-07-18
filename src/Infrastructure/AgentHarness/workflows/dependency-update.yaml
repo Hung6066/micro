@@ -1,0 +1,43 @@
+name: dependency-update
+description: "Dependency updates — smoke test only, skip full pipeline"
+version: "1.0"
+triggers:
+  paths: ["*.csproj", "**/*.csproj", "package.json", "**/package.json"]
+  exclude: ["**/node_modules/**"]
+
+pipeline:
+  implement:
+    parallel:
+      - agent: dotnet
+        task: "Update NuGet packages and fix breaking changes"
+        timeout_minutes: 10
+      - agent: angular
+        task: "Update npm packages and fix breaking changes"
+        timeout_minutes: 10
+
+  test:
+    - agent: testing-backend
+      depends_on: [dotnet]
+      gates: ["smoke-tests"]
+      timeout_minutes: 5
+    - agent: testing-frontend
+      depends_on: [angular]
+      gates: ["smoke-tests"]
+      timeout_minutes: 5
+
+  validate:
+    - agent: validate
+      depends_on: [testing-backend, testing-frontend]
+      gates: ["build-integrity"]
+
+  commit:
+    agent: git
+    depends_on: [validate]
+    mode: create-pr-light-review
+    require_confidence: 0.7
+
+loop:
+  agent: loop-engineer
+  max_iterations: 2
+  strategy: autofix_then_escalate
+  on_failure: any_gate

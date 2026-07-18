@@ -1,0 +1,103 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: agent-harness-rules
+  namespace: monitoring
+spec:
+  groups:
+  - name: agent-harness
+    interval: 30s
+    rules:
+      # ── Recording Rules ─────────────────────────────────────────────
+      - record: harness:pipeline_success_rate:ratio_5m
+        expr: |
+          rate(harness_pipeline_completions_total[5m])
+          /
+          rate(harness_pipeline_starts_total[5m])
+
+      - record: harness:loop_engineer_fix_rate:ratio_5m
+        expr: |
+          rate(harness_loop_engineer_fixes_total{outcome="auto_fixed"}[5m])
+          /
+          rate(harness_loop_engineer_fixes_total[5m])
+
+      # ── Alert Rules ─────────────────────────────────────────────────
+      - alert: HarnessPipelineFailureRate
+        expr: rate(harness_pipeline_failures_total[5m]) / rate(harness_pipeline_starts_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Pipeline failure rate > 10%"
+          description: "Pipeline failure rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+      - alert: HarnessCircuitBreakerOpen
+        expr: harness_active_pipelines{circuit_state="open"} > 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Circuit breaker is OPEN"
+          description: "Circuit breaker has opened for agent {{ $labels.agent }}. Manual intervention may be required."
+
+      - alert: HarnessBackpressureActive
+        expr: rate(harness_backpressure_rejections_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Pipeline backpressure active"
+          description: "Backpressure controller is rejecting requests at {{ $value }}/s. Pipeline queue may be saturated."
+
+      - alert: HarnessPipelineStuck
+        expr: harness_active_pipelines > 0 and (time() - max(harness_pipeline_duration_seconds_sum) > 300)
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Pipeline may be stuck"
+          description: "No pipeline has completed in over 5 minutes, but active pipelines > 0"
+
+      - alert: HarnessAgentDispatchFailures
+        expr: rate(harness_agent_dispatches_failed_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Agent dispatch failures detected"
+          description: "Agent dispatch failing at {{ $value }}/s. Check OpenCode connectivity."
+
+      - alert: HarnessQueueDepthHigh
+        expr: harness_pipeline_queue_depth > 5
+        for: 1m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Pipeline queue depth > 5"
+          description: "There are {{ $value }} pipelines waiting in the queue"
+
+      - alert: HarnessLoopEngineerEscalationRate
+        expr: rate(harness_loop_engineer_fixes_total{outcome="escalated"}[15m]) / rate(harness_loop_engineer_fixes_total[15m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Loop engineer escalation rate > 50%"
+          description: "Loop engineer is escalating {{ $value | humanizePercentage }} of issues. Review error patterns."
+
+      - alert: HarnessPipelineDurationSpike
+        expr: histogram_quantile(0.99, sum(rate(harness_pipeline_duration_seconds_bucket[5m])) by (le)) > 300
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "p99 pipeline duration > 5 minutes"
+          description: "p99 pipeline execution time is {{ $value }}s"

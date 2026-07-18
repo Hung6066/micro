@@ -117,17 +117,17 @@ import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/load
 
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 32px; }
     .stat-card { border-radius: 8px; border: 1px solid #EAEAEA; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
-    .stat-card:hover { border-color: #2F6B4A; box-shadow: 0 1px 4px rgba(47, 107, 74, 0.1); }
+    .stat-card:hover { border-color: var(--mat-sys-primary); box-shadow: 0 1px 4px rgba(47, 107, 74, 0.1); }
     .stat-card:active { transform: scale(0.98); }
     .stat-card mat-card-content { display: flex; align-items: center; gap: 16px; padding: 20px; }
     .stat-icon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0; }
     .stat-icon mat-icon { font-size: 24px; width: 24px; height: 24px; }
-    .stat-icon.users { background: #e8f5e9; color: #2F6B4A; }
-    .stat-icon.roles { background: #e3f2fd; color: #1565c0; }
-    .stat-icon.audit { background: #fff3e0; color: #e65100; }
-    .stat-icon.healthy { background: #e8f5e9; color: #2F6B4A; }
-    .stat-icon.degraded { background: #fff3e0; color: #e65100; }
-    .stat-icon.down { background: #fbe9e7; color: #c62828; }
+    .stat-icon.users { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
+    .stat-icon.roles { background: var(--mat-sys-tertiary-container); color: var(--mat-sys-on-tertiary-container); }
+    .stat-icon.audit { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
+    .stat-icon.healthy { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
+    .stat-icon.degraded { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
+    .stat-icon.down { background: var(--mat-sys-error-container); color: var(--mat-sys-on-error-container); }
     .stat-info { display: flex; flex-direction: column; }
     .stat-value { font-size: 22px; font-weight: 700; color: #1A1A1A; line-height: 1.2; }
     .stat-label { font-size: 12px; color: #787774; margin-top: 2px; }
@@ -136,7 +136,7 @@ import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/load
     .quick-links h2 { font-size: 18px; font-weight: 600; color: #1A1A1A; margin: 0 0 16px; }
     .links-grid { display: flex; flex-wrap: wrap; gap: 12px; }
     .links-grid a { display: flex; align-items: center; gap: 8px; min-width: 180px; border-radius: 6px; border: 1px solid #EAEAEA; }
-    .links-grid a:hover { border-color: #2F6B4A; background: rgba(47, 107, 74, 0.03); }
+    .links-grid a:hover { border-color: var(--mat-sys-primary); background: rgba(47, 107, 74, 0.03); }
   `],
 })
 export class AdminDashboardComponent implements OnInit, OnDestroy {

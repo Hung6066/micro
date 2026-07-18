@@ -118,8 +118,8 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
     .role-name-cell .desc { font-size: 12px; color: #787774; margin-top: 2px; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
     .system-badge { display: inline-flex; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; }
-    .system-badge.system { background: #e8f5e9; color: #2F6B4A; }
-    .system-badge.custom { background: #e3f2fd; color: #1565c0; }
+    .system-badge.system { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
+    .system-badge.custom { background: var(--mat-sys-tertiary-container); color: var(--mat-sys-on-tertiary-container); }
 
     .clickable-row { cursor: pointer; }
     .clickable-row:hover { background: #F7F6F3; }

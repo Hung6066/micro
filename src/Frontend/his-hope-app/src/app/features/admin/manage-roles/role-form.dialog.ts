@@ -116,7 +116,7 @@ export interface RoleFormData {
     styles: [`
     .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 520px; padding-top: 8px; }
     .section-label { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #1A1A1A; margin-top: 8px; }
-    .section-label mat-icon { color: #2F6B4A; }
+    .section-label mat-icon { color: var(--mat-sys-primary); }
     .permission-accordion { margin-top: 4px; }
     .perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; padding: 4px 0; }
     .perm-item { padding: 4px 0; }

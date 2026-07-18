@@ -203,10 +203,10 @@ const RESOURCE_OPTIONS = [
     .cell-mono { font-family: 'Roboto Mono', monospace; font-size: 12px; color: #787774; }
 
     .action-badge { display: inline-flex; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-    .action-create { background: #e8f5e9; color: #2F6B4A; }
-    .action-read { background: #e3f2fd; color: #1565c0; }
-    .action-update { background: #fff3e0; color: #e65100; }
-    .action-delete { background: #fbe9e7; color: #c62828; }
+    .action-create { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
+    .action-read { background: var(--mat-sys-tertiary-container); color: var(--mat-sys-on-tertiary-container); }
+    .action-update { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
+    .action-delete { background: var(--mat-sys-error-container); color: var(--mat-sys-on-error-container); }
 
     .resource-badge { display: inline-flex; padding: 2px 8px; border-radius: 4px; font-size: 11px; background: #f5f5f5; color: #666; }
 

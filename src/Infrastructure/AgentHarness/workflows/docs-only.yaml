@@ -1,0 +1,30 @@
+name: docs-only
+description: "Documentation-only changes — skip implement and test phases"
+version: "1.0"
+triggers:
+  paths: ["docs/**", "**/*.md"]
+  exclude: ["**/*.cs", "**/*.ts"]
+
+pipeline:
+  plan:
+    - agent: docs
+      task: "Review documentation changes"
+      timeout_minutes: 5
+
+  validate:
+    - agent: validate
+      depends_on: [docs]
+      gates: ["spelling", "link-check"]
+      timeout_minutes: 5
+
+  commit:
+    agent: git
+    depends_on: [validate]
+    mode: auto_pr
+    require_confidence: 0.6
+
+loop:
+  agent: loop-engineer
+  max_iterations: 2
+  strategy: autofix_then_escalate
+  on_failure: any_gate

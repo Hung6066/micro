@@ -140,38 +140,38 @@ html {
 // CSS Custom Properties (legacy, will migrate to M3 tokens)
 // ═══════════════════════════════════════════
 :root {
-  // Background & Surface
-  --bg-warm: #F7F6F3;
-  --bg-warm-alt: #FBFBFA;
-  --surface-white: #FFFFFF;
+  // Background & Surface (M3 tokens)
+  --bg-warm: var(--mat-sys-surface);
+  --bg-warm-alt: var(--mat-sys-surface-container-low);
+  --surface-white: var(--mat-sys-surface-container-lowest);
 
-  // Text
-  --text-primary: #1A1A1A;
-  --text-secondary: #787774;
-  --text-muted: #A1A09B;
-  --text-placeholder: #B8B7B2;
+  // Text (M3 tokens)
+  --text-primary: var(--mat-sys-on-surface);
+  --text-secondary: var(--mat-sys-on-surface-variant);
+  --text-muted: var(--mat-sys-on-surface-variant);
+  --text-placeholder: var(--mat-sys-on-surface-variant);
 
-  // Borders & Dividers
-  --border-default: #EAEAEA;
-  --border-light: #F0F0EE;
+  // Borders & Dividers (M3 tokens)
+  --border-default: var(--mat-sys-outline-variant);
+  --border-light: var(--mat-sys-outline-variant);
 
-  // Brand
-  --color-primary: #2F6B4A;
-  --color-primary-light: #E8F5E9;
-  --color-accent: #5B8C5A;
-  --color-accent-light: #F1F8E9;
-  --color-warn: #C25450;
-  --color-warn-light: #FDECEC;
+  // Brand (M3 tokens)
+  --color-primary: var(--mat-sys-primary);
+  --color-primary-light: var(--mat-sys-primary-container);
+  --color-accent: var(--mat-sys-tertiary);
+  --color-accent-light: var(--mat-sys-tertiary-container);
+  --color-warn: var(--mat-sys-error);
+  --color-warn-light: var(--mat-sys-error-container);
 
-  // Pastel Status Colors (as CSS variables)
-  --pastel-red: #FDEBEC;
-  --pastel-red-text: #C25450;
-  --pastel-blue: #E1F3FE;
-  --pastel-blue-text: #1A6BB5;
-  --pastel-green: #EDF3EC;
-  --pastel-green-text: #2F6B4A;
-  --pastel-yellow: #FBF3DB;
-  --pastel-yellow-text: #8D6E2B;
+  // Pastel Status Colors (M3 container tokens)
+  --pastel-red: var(--mat-sys-error-container);
+  --pastel-red-text: var(--mat-sys-on-error-container);
+  --pastel-blue: var(--mat-sys-tertiary-container);
+  --pastel-blue-text: var(--mat-sys-on-tertiary-container);
+  --pastel-green: var(--mat-sys-secondary-container);
+  --pastel-green-text: var(--mat-sys-on-secondary-container);
+  --pastel-yellow: var(--mat-sys-primary-container);
+  --pastel-yellow-text: var(--mat-sys-on-primary-container);
   --pastel-purple: #F0ECFA;
   --pastel-purple-text: #6B4FA0;
   --pastel-orange: #FEF0E0;
@@ -183,9 +183,9 @@ html {
   --radius-input: 4px;
   --radius-badge: 4px;
 
-  // Shadows (removed from cards, kept minimal for dropdowns)
-  --shadow-dropdown: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-modal: 0 8px 24px rgba(0, 0, 0, 0.12);
+  // Shadows (M3 elevation tokens)
+  --shadow-dropdown: var(--mat-sys-level1);
+  --shadow-modal: var(--mat-sys-level3);
 
   // Sizing
   --max-width-container: 1200px;

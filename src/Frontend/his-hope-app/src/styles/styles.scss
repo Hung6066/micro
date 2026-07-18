@@ -3,7 +3,6 @@
 // Palette: #F7F6F3 bone; #FFFFFF cards; #EAEAEA borders; 8px/6px/4px radii
 
 @use '@angular/material' as mat;
-@use 'theme' as his;
 
 // ═══════════════════════════════════════════
 // Base Layout
@@ -215,7 +214,7 @@ body {
   letter-spacing: 0.02em;
   text-transform: uppercase;
 
-  // -- Status-specific overrides via CSS vars --
+  // -- Status-specific overrides via M3 container tokens --
   &.status-in_progress,
   &.status-active,
   &.status-ordered,
@@ -228,8 +227,8 @@ body {
   &.lab-status-ordered,
   &.lab-status-collected,
   &.lab-status-in_progress {
-    background: var(--pastel-blue, #E1F3FE);
-    color: var(--pastel-blue-text, #1A6BB5);
+    background: var(--mat-sys-tertiary-container);
+    color: var(--mat-sys-on-tertiary-container);
   }
 
   &.status-completed,
@@ -240,8 +239,8 @@ body {
   &.lab-status-completed,
   &.rx-status-filled,
   &.inv-status-paid {
-    background: var(--pastel-green, #EDF3EC);
-    color: var(--pastel-green-text, #2F6B4A);
+    background: var(--mat-sys-secondary-container);
+    color: var(--mat-sys-on-secondary-container);
   }
 
   &.status-signed,
@@ -249,8 +248,8 @@ body {
   &.rx-status-expired,
   &.inv-status-voided,
   &.status-voided {
-    background: var(--pastel-purple, #F0ECFA);
-    color: var(--pastel-purple-text, #6B4FA0);
+    background: var(--pastel-purple);
+    color: var(--pastel-purple-text);
   }
 
   &.status-cancelled,
@@ -258,8 +257,8 @@ body {
   &.lab-status-cancelled,
   &.rx-status-cancelled,
   &.inv-status-cancelled {
-    background: var(--pastel-red, #FDEBEC);
-    color: var(--pastel-red-text, #C25450);
+    background: var(--mat-sys-error-container);
+    color: var(--mat-sys-on-error-container);
   }
 
   &.status-pending,
@@ -271,22 +270,22 @@ body {
   &.inv-status-issued,
   &.inv-status-partially_paid,
   &.lab-status-pending {
-    background: var(--pastel-yellow, #FBF3DB);
-    color: var(--pastel-yellow-text, #8D6E2B);
+    background: var(--mat-sys-primary-container);
+    color: var(--mat-sys-on-primary-container);
   }
 
   &.status-overdue,
   &.inv-status-overdue,
   &.lab-status-abnormal,
   &.status-abnormal {
-    background: var(--pastel-red, #FDEBEC);
-    color: var(--pastel-red-text, #C25450);
+    background: var(--mat-sys-error-container);
+    color: var(--mat-sys-on-error-container);
     font-weight: 600;
   }
 
   &.status-inactive {
-    background: #F0F0EE;
-    color: #787774;
+    background: var(--mat-sys-surface-variant);
+    color: var(--mat-sys-on-surface-variant);
   }
 }
 
@@ -304,13 +303,13 @@ body {
 
   &.priority-high,
   &.priority-urgent {
-    background: var(--pastel-orange, #FEF0E0);
-    color: var(--pastel-orange-text, #B6581C);
+    background: var(--pastel-orange);
+    color: var(--pastel-orange-text);
   }
 
   &.priority-routine {
-    background: var(--pastel-green, #EDF3EC);
-    color: var(--pastel-green-text, #2F6B4A);
+    background: var(--mat-sys-secondary-container);
+    color: var(--mat-sys-on-secondary-container);
   }
 }
 
@@ -518,8 +517,8 @@ body {
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
-  background: var(--pastel-red, #FDEBEC);
-  color: var(--pastel-red-text, #C25450);
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
   border-radius: var(--radius-card, 8px);
   margin-bottom: 16px;
   font-size: 14px;

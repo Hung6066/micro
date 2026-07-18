@@ -26,19 +26,22 @@ public class PipelineEngine : IPipelineEngine
     private readonly IEventBus _eventBus;
     private readonly AgentPoolManager _poolManager;
     private readonly BackpressureController _backpressure;
+    private readonly ILoopEngineer _loopEngineer;
 
     public PipelineEngine(
         IAgentDispatcher dispatcher,
         IStateStore store,
         IEventBus eventBus,
         AgentPoolManager poolManager,
-        BackpressureController backpressure)
+        BackpressureController backpressure,
+        ILoopEngineer loopEngineer)
     {
         _dispatcher = dispatcher;
         _store = store;
         _eventBus = eventBus;
         _poolManager = poolManager;
         _backpressure = backpressure;
+        _loopEngineer = loopEngineer;
     }
 
     /// <inheritdoc />
@@ -69,46 +72,8 @@ public class PipelineEngine : IPipelineEngine
 
         try
         {
-            // 6. Execute DAG phases in strict order
-            foreach (var phase in PhaseOrder)
-            {
-                // Check cancellation before starting a new phase
-                cts.Token.ThrowIfCancellationRequested();
-
-                // Check timeout before starting a new phase
-                if (run.IsTimedOut())
-                {
-                    run.TransitionTo(PipelineStatus.Failed);
-                    run.AddMetadata("timeout", "Pipeline exceeded its configured timeout before phase " + phase);
-                    break;
-                }
-
-                var nodes = dag.GetPhaseNodes(phase).ToList();
-                if (nodes.Count == 0)
-                    continue;
-
-                // Execute all nodes in this phase in parallel
-                var tasks = nodes.Select(node => ExecuteNodeAsync(run, node, cts.Token));
-                var results = await Task.WhenAll(tasks);
-
-                // Check timeout after phase completes
-                if (run.IsTimedOut())
-                {
-                    run.TransitionTo(PipelineStatus.Failed);
-                    run.AddMetadata("timeout", "Pipeline exceeded its configured timeout after phase " + phase);
-                    break;
-                }
-
-                // Check for node failures — if any node failed, mark pipeline failed
-                if (results.Any(r => r.Status is AgentRunStatus.Failed or AgentRunStatus.TimedOut))
-                {
-                    run.TransitionTo(PipelineStatus.Failed);
-                    var failedNode = nodes.FirstOrDefault(n => n.Status is PipelineStatus.Failed);
-                    run.AddMetadata("failurePhase", phase.ToString());
-                    run.AddMetadata("failedAgent", failedNode?.AgentName ?? "unknown");
-                    break;
-                }
-            }
+            // 6. Execute DAG with adaptive loop-back support
+            await ExecuteDagWithLoopAsync(dag, run, cts.Token);
 
             // If still Running after all phases, mark as Completed
             if (run.Status == PipelineStatus.Running)
@@ -144,7 +109,7 @@ public class PipelineEngine : IPipelineEngine
     /// Creates an <see cref="AgentRun"/> for the given pipeline node and dispatches it
     /// through the <see cref="AgentPoolManager"/>.
     /// </summary>
-    private async Task<AgentRun> ExecuteNodeAsync(PipelineRun run, PipelineNode node, CancellationToken ct)
+    private async Task<AgentRun> ExecuteNodeAsync(PipelineNode node, PipelineRun run, CancellationToken ct)
     {
         var agentRun = AgentRun.Create(
             run.Id,
@@ -168,6 +133,47 @@ public class PipelineEngine : IPipelineEngine
         node.CompletedAt = DateTime.UtcNow;
 
         return result;
+    }
+
+    /// <summary>
+    /// Executes the DAG phases in order with adaptive loop-back support via the Loop Engineer.
+    /// Up to <c>maxLoops</c> iterations allow the pipeline to self-heal when quality gates fail.
+    /// </summary>
+    private async Task ExecuteDagWithLoopAsync(PipelineDag dag, PipelineRun run, CancellationToken ct)
+    {
+        const int maxLoops = 3;
+        for (int loop = 0; loop < maxLoops; loop++)
+        {
+            // Execute all phases
+            foreach (var phase in PhaseOrder)
+            {
+                ct.ThrowIfCancellationRequested();
+                if (run.IsTimedOut()) throw new TimeoutException();
+                var phaseNodes = dag.GetPhaseNodes(phase).ToList();
+                if (!phaseNodes.Any()) continue;
+                var tasks = phaseNodes.Select(n => ExecuteNodeAsync(n, run, ct));
+                await Task.WhenAll(tasks);
+            }
+
+            // Check quality gates
+            var gates = await _store.GetQualityGatesAsync(run.Id, ct);
+            var failedGates = gates.Where(g => !g.Passed).ToList();
+            if (!failedGates.Any()) return; // All passed
+
+            // Invoke Loop Engineer
+            var loopContext = new LoopContext
+            {
+                FailedGates = failedGates,
+                PreviousIteration = loop
+            };
+            var fixResult = await _loopEngineer.AnalyzeAndFixAsync(loopContext, ct);
+
+            if (fixResult.Outcome == FixOutcome.AutoFixed || fixResult.Outcome == FixOutcome.PartialFix)
+                continue; // Re-execute pipeline
+            else
+                throw new InvalidOperationException($"Pipeline blocked: {fixResult.EscalationReason}");
+        }
+        throw new InvalidOperationException("Max pipeline loops reached");
     }
 
     /// <inheritdoc />

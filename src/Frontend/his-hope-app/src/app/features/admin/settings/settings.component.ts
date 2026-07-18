@@ -147,7 +147,7 @@ const CATEGORIES: CategoryConfig[] = [
     .toggle-wrapper { display: flex; align-items: center; padding: 8px 0; }
 
     ::ng-deep .mat-expansion-panel-header-title { display: flex; align-items: center; gap: 8px; }
-    ::ng-deep .mat-expansion-panel-header-title mat-icon { color: #2F6B4A; }
+    ::ng-deep .mat-expansion-panel-header-title mat-icon { color: var(--mat-sys-primary); }
 
     .save-bar { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-top: 24px; padding: 16px 24px; background: #FFFFFF; border: 1px solid #EAEAEA; border-radius: 8px; }
     .changes-hint { color: #e65100; font-size: 13px; font-weight: 500; }
