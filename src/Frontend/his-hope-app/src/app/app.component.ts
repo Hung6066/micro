@@ -1,10 +1,21 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
+import { MatSidenavModule } from '@angular/material/sidenav';
 import { Subject, takeUntil } from 'rxjs';
 import { AuthService } from '@core/services/auth.service';
 import { RumService } from './monitoring/rum.service';
+import { SidebarComponent } from '@shared/components/sidebar/sidebar.component';
+import { ErrorBarComponent } from '@shared/components/error-bar/error-bar.component';
 
 @Component({
     selector: 'app-root',
+    standalone: true,
+    imports: [
+        CommonModule, RouterModule,
+        MatSidenavModule,
+        SidebarComponent, ErrorBarComponent,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <mat-sidenav-container class="app-sidenav-container">
@@ -27,7 +38,6 @@ import { RumService } from './monitoring/rum.service';
     .main-content { min-height: 100vh; padding: 0; }
     :host ::ng-deep .mat-drawer-inner-container { overflow-x: hidden; }
   `],
-    standalone: false
 })
 export class AppComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
