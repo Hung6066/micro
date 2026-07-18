@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_MULTIPLE_DATABASES: identitydb,patientdb,appointmentdb,clinicaldb,labdb,billingdb,pharmacydb
+      POSTGRES_MULTIPLE_DATABASES: identitydb,patientdb,appointmentdb,clinicaldb,labdb,billingdb,pharmacydb,harnessdb
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
@@ -219,6 +219,7 @@ services:
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
+      Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
     depends_on:
       postgres: { condition: service_healthy }
@@ -250,6 +251,7 @@ services:
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
+      Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
     depends_on:
       patientservice: { condition: service_healthy }
@@ -281,6 +283,7 @@ services:
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
+      Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
     depends_on:
       patientservice: { condition: service_healthy }
@@ -313,6 +316,7 @@ services:
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
+      Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
     depends_on:
       postgres: { condition: service_healthy }
@@ -346,6 +350,7 @@ services:
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
+      Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
     depends_on:
       postgres: { condition: service_healthy }
@@ -377,6 +382,7 @@ services:
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
+      Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
       OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
     depends_on:
       postgres: { condition: service_healthy }
@@ -424,6 +430,30 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  # Agent Harness MCP Server
+  agentharness:
+    build:
+      context: ..
+      dockerfile: src/Infrastructure/AgentHarness/Dockerfile
+    container_name: his-hope-agentharness
+    ports:
+      - "5200:5200"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      AgentHarness__DatabaseConnectionString: Host=postgres;Database=harnessdb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      AgentHarness__RabbitMQConnectionString: amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASSWORD:-admin}@rabbitmq:5672/
+      AgentHarness__ApiKey: ${AGENT_HARNESS_API_KEY:-dev-key-change-in-production}
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5200/health"]
       interval: 30s
       timeout: 10s
       retries: 5

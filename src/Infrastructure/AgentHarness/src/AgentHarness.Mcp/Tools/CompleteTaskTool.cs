@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Serilog;
+using His.Hope.AgentHarness.Application.Services;
 using His.Hope.AgentHarness.Core.Events;
 using His.Hope.AgentHarness.Core.Interfaces;
 using His.Hope.AgentHarness.Core.Models;
@@ -15,11 +16,13 @@ public class CompleteTaskTool
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IEventBus _eventBus;
+    private readonly PiiRedactionService _piiRedactionService;
 
-    public CompleteTaskTool(IServiceScopeFactory scopeFactory, IEventBus eventBus)
+    public CompleteTaskTool(IServiceScopeFactory scopeFactory, IEventBus eventBus, PiiRedactionService piiRedactionService)
     {
         _scopeFactory = scopeFactory;
         _eventBus = eventBus;
+        _piiRedactionService = piiRedactionService;
     }
 
     public async Task<string> ExecuteAsync(Dictionary<string, object> parameters)
@@ -61,6 +64,9 @@ public class CompleteTaskTool
         string? errorMessage = null;
         if (parameters.TryGetValue("error_message", out var errObj) && errObj is JsonElement errEl)
             errorMessage = errEl.GetString();
+
+        artifactRef = _piiRedactionService.Redact(artifactRef);
+        errorMessage = _piiRedactionService.Redact(errorMessage);
 
         switch (statusStr.ToLowerInvariant())
         {

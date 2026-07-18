@@ -20,13 +20,13 @@ public class StartPipelineHandler : IRequestHandler<StartPipelineCommand, Pipeli
         var run = PipelineRun.Create(request.WorkflowId, request.Parameters, request.TriggeredBy);
 
         // Load tasks from YAML workflow or inline tasks
-        var tasks = new List<(string Phase, string Agent, string Task)>();
+        var tasks = new List<(string Phase, string Agent, string Task, string? Condition, string? DependsOn)>();
 
         var workflowDef = _workflowLoader.Load(request.WorkflowId);
         if (workflowDef != null)
         {
             Log.Information("Loaded workflow '{Name}' from {Path}", workflowDef.Name, workflowDef.SourcePath);
-            tasks.AddRange(workflowDef.ToTaskList());
+            tasks.AddRange(workflowDef.ToTaskList().Select(t => (t.Phase, t.Agent, t.Task, (string?)null, (string?)null)));
         }
         else if (request.Parameters.TryGetValue("tasks", out var tasksJson) && !string.IsNullOrEmpty(tasksJson))
         {

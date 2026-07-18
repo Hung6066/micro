@@ -21,9 +21,13 @@ public class GuardrailService
     };
 
     private readonly List<GuardrailPolicy> _policies;
+    private readonly CostTracker _costTracker;
 
-    public GuardrailService()
+    public GuardrailService() : this(new CostTracker()) { }
+
+    public GuardrailService(CostTracker costTracker)
     {
+        _costTracker = costTracker;
         _policies = new List<GuardrailPolicy>
         {
             new() { ActionType = "dispatch-agent", AgentPattern = "*", Action = GuardrailAction.Allow },
@@ -41,6 +45,19 @@ public class GuardrailService
     /// </summary>
     public GuardrailResult Validate(string actionType, string? agentName = null, string? details = null)
     {
+        // 0. Check budget when dispatching an agent
+        if (actionType == "dispatch-agent" && agentName != null)
+        {
+            if (_costTracker.IsOverBudget(agentName))
+            {
+                var usage = _costTracker.GetUsage(agentName);
+                return GuardrailResult.Block(
+                    $"Agent '{agentName}' is over budget. " +
+                    $"Calls today: {usage.CallCount}, Estimated cost: ${usage.EstimatedCost:F2}, " +
+                    $"Max daily: ${usage.MaxDailyCost:F2}");
+            }
+        }
+
         // 1. Check agent whitelist (for dispatch actions)
         if (actionType == "dispatch-agent" && agentName != null && !KnownAgents.Contains(agentName))
         {
@@ -82,6 +99,11 @@ public class GuardrailService
         }
 
         return GuardrailResult.Allow();
+    }
+
+    public bool CanExecuteCode(string agentName)
+    {
+        return agentName is "dotnet" or "angular" or "devops";
     }
 
     private static bool MatchesPolicy(GuardrailPolicy policy, string actionType, string? agentName)

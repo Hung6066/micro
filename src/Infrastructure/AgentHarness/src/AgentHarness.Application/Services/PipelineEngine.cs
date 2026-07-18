@@ -116,6 +116,12 @@ public class PipelineEngine : IPipelineEngine
     /// </summary>
     private async Task<AgentRun> ExecuteNodeAsync(PipelineNode node, PipelineRun run, CancellationToken ct)
     {
+        using var activity = ActivitySource.StartActivity("AgentExecution", ActivityKind.Internal);
+        activity?.SetTag("agent_name", node.AgentName);
+        activity?.SetTag("pipeline_id", run.Id.ToString());
+        activity?.SetTag("phase", node.Phase.ToString());
+        activity?.SetTag("node_id", node.Id.ToString());
+
         var description = !string.IsNullOrEmpty(node.TaskDescription)
             ? node.TaskDescription
             : $"Executing {node.AgentName} for phase {node.Phase}";
@@ -331,13 +337,22 @@ public class PipelineEngine : IPipelineEngine
     /// <inheritdoc />
     public async Task<PipelineRun> ResumeAsync(PipelineRun run, CancellationToken ct = default)
     {
+        using var activity = ActivitySource.StartActivity("PipelineResume", ActivityKind.Internal);
+        activity?.SetTag("pipeline.run.id", run.Id.ToString());
+        activity?.SetTag("workflow.id", run.WorkflowId);
+
         var checkpoint = await _store.GetLatestCheckpointAsync(run.Id, ct);
         if (checkpoint == null)
         {
             Log.Warning("No checkpoint found for pipeline {PipelineId}, starting fresh", run.Id);
+            activity?.SetTag("resume.from_checkpoint", false);
             var dag = BuildDagFromRun(run);
             return await StartAsync(dag, run, ct);
         }
+
+        activity?.SetTag("resume.from_checkpoint", true);
+        activity?.SetTag("resume.phase", checkpoint.Phase);
+        activity?.SetTag("resume.iteration", checkpoint.LoopIteration);
 
         Log.Information("Resuming pipeline {PipelineId} from phase {Phase}, iteration {Iter}",
             run.Id, checkpoint.Phase, checkpoint.LoopIteration);
@@ -522,17 +537,26 @@ public class PipelineEngine : IPipelineEngine
     /// </summary>
     private async Task SaveCheckpointAsync(PipelinePhase phase, PipelineDag dag, PipelineRun run, int loopIteration, CancellationToken ct)
     {
+        using var activity = ActivitySource.StartActivity("SaveCheckpoint", ActivityKind.Internal);
+        activity?.SetTag("pipeline.run.id", run.Id.ToString());
+        activity?.SetTag("checkpoint.phase", phase.ToString());
+        activity?.SetTag("checkpoint.iteration", loopIteration);
+        activity?.SetTag("checkpoint.total_nodes", dag.Nodes.Count);
+
         try
         {
             var completedNodes = dag.Nodes.Where(n => n.Status == PipelineStatus.Completed).ToList();
             var failedNodes = dag.Nodes.Where(n => n.Status == PipelineStatus.Failed).ToList();
             var checkpoint = PipelineCheckpoint.Create(run.Id, phase.ToString(), completedNodes, failedNodes, loopIteration);
             await _store.SaveCheckpointAsync(checkpoint, ct);
+            activity?.SetTag("checkpoint.completed_nodes", completedNodes.Count);
+            activity?.SetTag("checkpoint.failed_nodes", failedNodes.Count);
             Log.Debug("Checkpoint saved: phase {Phase}, {Completed}/{Total} nodes", phase, completedNodes.Count, dag.Nodes.Count);
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "Failed to save checkpoint for pipeline {PipelineId}", run.Id);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
         }
     }
 

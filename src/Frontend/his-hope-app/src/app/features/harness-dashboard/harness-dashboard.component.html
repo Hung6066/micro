@@ -1,0 +1,159 @@
+<div class="harness-dashboard">
+  <div class="page-header">
+    <div>
+      <h1>Agent Harness Dashboard</h1>
+      <p class="subtitle">Giám sát và quản lý các pipeline Agent Harness</p>
+    </div>
+    <button mat-stroked-button (click)="refresh()" [disabled]="loading">
+      <mat-icon>refresh</mat-icon>
+      Làm mới
+    </button>
+  </div>
+
+  <mat-card class="dashboard-card">
+    <mat-card-header>
+      <mat-card-title>Pipeline gần đây</mat-card-title>
+      <mat-card-subtitle>{{ pipelines.length }} pipeline(s)</mat-card-subtitle>
+    </mat-card-header>
+
+    <mat-card-content>
+      <app-loading-spinner [loading]="loading" message="Đang tải danh sách pipeline..."></app-loading-spinner>
+
+      @if (!loading) {
+        @if (pipelines.length > 0) {
+        <div class="table-container">
+          <mat-table [dataSource]="pipelines" class="pipeline-table" multiTemplateDataRows>
+
+            <ng-container matColumnDef="workflowId">
+              <mat-header-cell *matHeaderCellDef>Workflow</mat-header-cell>
+              <mat-cell *matCellDef="let p">
+                <span class="cell-mono">{{ p.workflowId }}</span>
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="status">
+              <mat-header-cell *matHeaderCellDef>Trạng thái</mat-header-cell>
+              <mat-cell *matCellDef="let p">
+                <span class="status-chip" [ngClass]="statusChipClass(p.status)">
+                  {{ statusLabel(p.status) }}
+                </span>
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="startedAt">
+              <mat-header-cell *matHeaderCellDef>Bắt đầu</mat-header-cell>
+              <mat-cell *matCellDef="let p">
+                {{ p.startedAt ? (p.startedAt | date:'HH:mm:ss dd/MM') : '—' }}
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="duration">
+              <mat-header-cell *matHeaderCellDef>Thời gian</mat-header-cell>
+              <mat-cell *matCellDef="let p">{{ duration(p.startedAt, p.completedAt) }}</mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="agentCount">
+              <mat-header-cell *matHeaderCellDef>Số Agent</mat-header-cell>
+              <mat-cell *matCellDef="let p">{{ p.agentCount }}</mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="actions">
+              <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
+              <mat-cell *matCellDef="let p">
+                <button mat-icon-button (click)="toggleRow(p)"
+                        matTooltip="{{ expandedPipeline?.id === p.id ? 'Thu gọn' : 'Xem chi tiết' }}">
+                  <mat-icon>{{ expandedPipeline?.id === p.id ? 'expand_less' : 'expand_more' }}</mat-icon>
+                </button>
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="expandedDetail">
+              <mat-cell *matCellDef="let p" [attr.colspan]="displayedColumns.length">
+                @if (expandedPipeline?.id === p.id) {
+                <div class="detail-row-inner">
+                  <div class="detail-header">
+                    <span class="detail-title">Agent Tasks — {{ p.workflowId }}</span>
+                    <span class="detail-id">ID: {{ p.id }}</span>
+                  </div>
+
+                  @if (p.agents && p.agents.length > 0) {
+                  <table class="agent-table">
+                    <thead>
+                      <tr>
+                        <th>Agent</th>
+                        <th>Task</th>
+                        <th>Status</th>
+                        <th>Confidence</th>
+                        <th>Thời gian</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (agent of p.agents; track agent.id) {
+                      <tr>
+                        <td>
+                          <span class="agent-name">{{ agent.agentName }}</span>
+                        </td>
+                        <td class="cell-desc">{{ agent.taskDescription }}</td>
+                        <td>
+                          <span class="agent-status-chip" [ngClass]="agentStatusChipClass(agent.status)">
+                            {{ statusLabel(agent.status) }}
+                          </span>
+                        </td>
+                        <td>
+                          @if (agent.confidenceScore != null) {
+                          <span class="confidence">{{ agent.confidenceScore | percent:'1.0-0' }}</span>
+                          } @else {
+                          <span class="text-muted">—</span>
+                          }
+                        </td>
+                        <td>
+                          @if (agent.completedAt) {
+                          <span class="text-muted">{{ duration(agent.attemptedAt, agent.completedAt) }}</span>
+                          } @else if (agent.attemptedAt) {
+                          <span class="text-muted">{{ duration(agent.attemptedAt, null) }}</span>
+                          } @else {
+                          <span class="text-muted">—</span>
+                          }
+                        </td>
+                      </tr>
+                      @if (agent.errorMessage) {
+                      <tr class="error-row">
+                        <td colspan="5">
+                          <div class="agent-error">
+                            <mat-icon class="error-icon">error_outline</mat-icon>
+                            {{ agent.errorMessage }}
+                          </div>
+                        </td>
+                      </tr>
+                      }
+                      }
+                    </tbody>
+                  </table>
+                  } @else {
+                  <div class="no-agents">
+                    <mat-icon>info_outline</mat-icon>
+                    <span>Đang tải thông tin agent tasks...</span>
+                  </div>
+                  }
+                </div>
+                }
+              </mat-cell>
+            </ng-container>
+
+            <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
+            <mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row"
+                     (click)="toggleRow(row)"></mat-row>
+            <mat-row *matRowDef="let row; columns: ['expandedDetail']" class="detail-row"></mat-row>
+          </mat-table>
+        </div>
+        } @else {
+        <div class="empty-state">
+          <mat-icon class="empty-icon">account_tree</mat-icon>
+          <h3>Chưa có pipeline nào</h3>
+          <p>Các pipeline Agent Harness sẽ xuất hiện tại đây sau khi được khởi chạy.</p>
+        </div>
+        }
+      }
+    </mat-card-content>
+  </mat-card>
+</div>

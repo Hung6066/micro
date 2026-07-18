@@ -8,4 +8,12 @@ public class FixResult
     public List<string> Changes { get; set; } = new();
     public List<string> UnfixedIssues { get; set; } = new();
     public bool MemoryHit { get; set; }
+    public JudgeScore? JudgeScore { get; set; }
+}
+
+public class JudgeScore
+{
+    public int NumericScore { get; set; }
+    public string? Reasoning { get; set; }
+    public bool Passed { get; set; }
 }

@@ -1,0 +1,311 @@
+.harness-dashboard {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+
+  h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #1A1A1A;
+  }
+
+  .subtitle {
+    margin: 4px 0 0;
+    color: #787774;
+    font-size: 14px;
+  }
+}
+
+.dashboard-card {
+  border-radius: 8px;
+  border: 1px solid #EAEAEA;
+
+  mat-card-header {
+    padding: 20px 24px 0;
+
+    mat-card-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #1A1A1A;
+    }
+
+    mat-card-subtitle {
+      font-size: 13px;
+      color: #787774;
+    }
+  }
+
+  mat-card-content {
+    padding: 0;
+  }
+}
+
+.table-container {
+  overflow: hidden;
+}
+
+.pipeline-table {
+  width: 100%;
+
+  .mat-mdc-header-cell {
+    font-weight: 600;
+    color: #787774;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .cell-mono {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1A1A1A;
+  }
+}
+
+.clickable-row {
+  cursor: pointer;
+
+  &:hover {
+    background: #F7F6F3;
+  }
+}
+
+.detail-row {
+  background: #FAFAF8;
+
+  > td {
+    padding: 0;
+  }
+}
+
+.detail-row-inner {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  .detail-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1A1A1A;
+  }
+
+  .detail-id {
+    font-size: 11px;
+    color: #787774;
+    font-family: 'Roboto Mono', monospace;
+  }
+}
+
+.agent-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+
+  th {
+    text-align: left;
+    padding: 8px 12px;
+    font-weight: 600;
+    color: #787774;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border-bottom: 1px solid #EAEAEA;
+    background: #F7F6F3;
+  }
+
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #F0EFED;
+    vertical-align: middle;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+}
+
+.agent-name {
+  display: inline-flex;
+  padding: 2px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--mat-sys-primary-container, #E8F0EC);
+  color: var(--mat-sys-on-primary-container, #1B3D2B);
+}
+
+.cell-desc {
+  color: #575656;
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.confidence {
+  font-weight: 600;
+  color: #1A1A1A;
+  font-variant-numeric: tabular-nums;
+}
+
+.text-muted {
+  color: #787774;
+  font-size: 12px;
+}
+
+.error-row td {
+  padding-top: 0;
+}
+
+.agent-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #FEF2F2;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #DC2626;
+
+  .error-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+}
+
+.no-agents {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #F7F6F3;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #787774;
+}
+
+// Status chips
+.status-chip {
+  display: inline-flex;
+  padding: 3px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.status-completed {
+  background: var(--mat-sys-primary-container, #E8F0EC);
+  color: var(--mat-sys-on-primary-container, #1B3D2B);
+}
+
+.status-running {
+  background: #FFF3E0;
+  color: #E65100;
+
+  &::after {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #E65100;
+    margin-left: 6px;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.status-failed {
+  background: #FEF2F2;
+  color: #DC2626;
+}
+
+.status-cancelled {
+  background: #F3F4F6;
+  color: #6B7280;
+}
+
+.status-pending {
+  background: #EFF6FF;
+  color: #2563EB;
+}
+
+// Agent status chips (smaller)
+.agent-status-chip {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.agent-completed {
+  background: var(--mat-sys-primary-container, #E8F0EC);
+  color: var(--mat-sys-on-primary-container, #1B3D2B);
+}
+
+.agent-running {
+  background: #FFF3E0;
+  color: #E65100;
+}
+
+.agent-failed {
+  background: #FEF2F2;
+  color: #DC2626;
+}
+
+.agent-pending {
+  background: #F3F4F6;
+  color: #6B7280;
+}
+
+// Empty state
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 24px;
+  color: #787774;
+
+  .empty-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+  }
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #1A1A1A;
+  }
+
+  p {
+    margin: 0;
+    font-size: 14px;
+  }
+}

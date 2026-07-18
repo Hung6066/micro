@@ -4,6 +4,9 @@ using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using MediatR;
 using Microsoft.Extensions.Configuration;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Serilog;
 using His.Hope.AgentHarness.Mcp;
 using His.Hope.AgentHarness.Mcp.Tools;
@@ -49,6 +52,16 @@ static async Task RunHttpMode(string[] args)
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
 
+    builder.Services.AddOpenTelemetry()
+        .ConfigureResource(resource => resource.AddService("His.Hope.AgentHarness"))
+        .WithTracing(tracer => tracer
+            .AddAspNetCoreInstrumentation()
+            .AddSource("His.Hope.AgentHarness")
+            .AddConsoleExporter())
+        .WithMetrics(meter => meter
+            .AddAspNetCoreInstrumentation()
+            .AddPrometheusExporter());
+
     var config = builder.Configuration
         .GetSection("AgentHarness")
         .Get<McpServerConfig>() ?? new McpServerConfig();
@@ -69,6 +82,9 @@ static async Task RunHttpMode(string[] args)
 
     // Health endpoint
     app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "agent-harness" }));
+
+    // Prometheus metrics endpoint
+    app.MapPrometheusScrapingEndpoint();
 
     // 1. SSE Endpoint: GET /mcp/sse
     app.MapGet("/mcp/sse", async (HttpContext ctx, CancellationToken ct) =>
@@ -286,6 +302,20 @@ static async Task RunHttpMode(string[] args)
         }
     });
 
+    app.MapPost("/mcp/get-pipeline-timeline", async (TimelineTool tool, HttpContext ctx) =>
+    {
+        try
+        {
+            var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
+            return RawJson(await tool.ExecuteAsync(p));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "GetPipelineTimeline failed");
+            return Results.Json(new { error = ex.Message }, statusCode: 404);
+        }
+    });
+
     app.MapPost("/mcp/save-artifact", async (SaveArtifactTool tool, HttpContext ctx) =>
     {
         try
@@ -456,9 +486,12 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
     services.AddScoped<AgentPoolManager>();
     services.AddScoped<ErrorClassifier>();
     services.AddScoped<ConfidenceScorer>();
+    services.AddScoped<LlmJudgeService>();
     services.AddScoped<IMemoryService, MemoryService>();
     services.AddScoped<ILoopEngineer, LoopEngineer>();
     services.AddScoped<IPipelineEngine, PipelineEngine>();
+    services.AddSingleton<CostTracker>();
+    services.AddSingleton<PromptTemplateService>();
 
     // Register MCP tools as scoped
     services.AddScoped<StartPipelineTool>();
@@ -470,11 +503,17 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
     services.AddScoped<GetPipelineStatusTool>();
     services.AddScoped<SaveArtifactTool>();
     services.AddScoped<GetArtifactTool>();
+    services.AddScoped<TimelineTool>();
     services.AddScoped<RequestApprovalTool>();
     services.AddScoped<ApproveActionTool>();
     services.AddScoped<RejectActionTool>();
     services.AddScoped<ListPendingApprovalsTool>();
-    services.AddSingleton<GuardrailService>();
+    services.AddSingleton<GuardrailService>(sp =>
+    {
+        var costTracker = sp.GetRequiredService<CostTracker>();
+        return new GuardrailService(costTracker);
+    });
+    services.AddSingleton<PiiRedactionService>();
 }
 
 static void InitializeDatabase(IServiceProvider sp)
@@ -583,6 +622,12 @@ static async Task<string?> HandleJsonRpcString(string body, Channel<string>? sse
                     case "get-pipeline-status":
                     {
                         var t = sp.GetRequiredService<GetPipelineStatusTool>();
+                        toolResult = await t.ExecuteAsync(arguments);
+                        break;
+                    }
+                    case "get-pipeline-timeline":
+                    {
+                        var t = sp.GetRequiredService<TimelineTool>();
                         toolResult = await t.ExecuteAsync(arguments);
                         break;
                     }
@@ -751,6 +796,20 @@ static JsonArray BuildToolList()
         {
             ["name"] = "get-pipeline-status",
             ["description"] = "Enhanced pipeline status with all agent runs and quality gates",
+            ["inputSchema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["pipeline_run_id"] = MakeProp("string", "The pipeline run ID (GUID)")
+                },
+                ["required"] = new JsonArray("pipeline_run_id")
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "get-pipeline-timeline",
+            ["description"] = "Get execution timeline for a pipeline run with ordered events and durations",
             ["inputSchema"] = new JsonObject
             {
                 ["type"] = "object",

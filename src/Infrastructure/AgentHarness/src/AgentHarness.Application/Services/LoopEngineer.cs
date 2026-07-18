@@ -8,13 +8,15 @@ public class LoopEngineer : ILoopEngineer
     private readonly ErrorClassifier _classifier;
     private readonly ConfidenceScorer _scorer;
     private readonly IMemoryService _memory;
+    private readonly LlmJudgeService _judge;
     private const int MaxIterations = 3;
 
-    public LoopEngineer(ErrorClassifier classifier, ConfidenceScorer scorer, IMemoryService memory)
+    public LoopEngineer(ErrorClassifier classifier, ConfidenceScorer scorer, IMemoryService memory, LlmJudgeService judge)
     {
         _classifier = classifier;
         _scorer = scorer;
         _memory = memory;
+        _judge = judge;
     }
 
     public async Task<FixResult> AnalyzeAndFixAsync(LoopContext context, CancellationToken ct)
@@ -109,7 +111,13 @@ public class LoopEngineer : ILoopEngineer
             result.EscalationReason = $"Confidence too low for any auto-fix. Unfixed gates: {string.Join(", ", result.UnfixedIssues)}";
         }
         else if (allAutoFixed)
+        {
             result.Outcome = FixOutcome.AutoFixed;
+            result.JudgeScore = _judge.EvaluateQuality(
+                string.Join("\n", context.FailedGates.Select(g => g.Output ?? string.Empty)),
+                "loop-engineer");
+            result.ConfidenceScore = Math.Max(result.ConfidenceScore, result.JudgeScore.NumericScore / 100m);
+        }
         else
             result.Outcome = FixOutcome.PartialFix;
 

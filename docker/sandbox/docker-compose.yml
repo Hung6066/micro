@@ -1,0 +1,13 @@
+services:
+  sandbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: his-hope/sandbox:latest
+    container_name: his-hope-sandbox
+    restart: "no"
+    network_mode: none
+    read_only: true
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 50

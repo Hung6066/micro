@@ -18,7 +18,10 @@ public class RabbitMQEventBus : IEventBus, IDisposable
         var factory = new ConnectionFactory
         {
             Uri = new Uri(connectionString),
-            DispatchConsumersAsync = true
+            DispatchConsumersAsync = true,
+            RequestedConnectionTimeout = TimeSpan.FromSeconds(5),
+            AutomaticRecoveryEnabled = true,
+            NetworkRecoveryInterval = TimeSpan.FromSeconds(10)
         };
 
         _connection = factory.CreateConnection();

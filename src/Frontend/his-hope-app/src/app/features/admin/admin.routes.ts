@@ -11,4 +11,11 @@ export const ADMIN_ROUTES: Routes = [
   { path: 'manage-roles', component: ManageRolesComponent },
   { path: 'audit-logs', component: AuditLogsComponent },
   { path: 'settings', component: SettingsComponent },
+  {
+    path: 'harness',
+    loadComponent: () =>
+      import('@features/harness-dashboard/harness-dashboard.component').then(
+        (m) => m.HarnessDashboardComponent,
+      ),
+  },
 ];
