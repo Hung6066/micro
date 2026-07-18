@@ -70,7 +70,7 @@ export class AuditService {
   }
 
   private startFlushTimer(): void {
-    this.flushTimer = setInterval(() => this.flush(), this.FLUSH_INTERVAL);
+    this.flushTimer = setTimeout(() => this.flush(), this.FLUSH_INTERVAL);
   }
 
   private flush(): void {
@@ -80,10 +80,20 @@ export class AuditService {
     this.queue = [];
 
     this.http.post(this.ENDPOINT, { events }).subscribe({
+      next: () => this.scheduleNextFlush(),
       error: () => {
         // Re-queue on failure — non-blocking
         this.queue.unshift(...events);
+        this.scheduleNextFlush();
       },
     });
+  }
+
+  private scheduleNextFlush(): void {
+    if (this.queue.length > 0) {
+      this.flushTimer = setTimeout(() => this.flush(), this.FLUSH_INTERVAL);
+    } else {
+      this.flushTimer = null;
+    }
   }
 }

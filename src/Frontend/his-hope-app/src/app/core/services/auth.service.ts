@@ -156,17 +156,16 @@ export class AuthService {
 
   // ─── API-based Permission Check ─────────────────────────────────────
   // Thay vì decode JWT client-side, check permission qua backend API.
-  // Cache kết quả trong memory với TTL 5 phút.
+  // Cache kết quả trong memory với TTL 5 phút (riêng cho mỗi permission).
 
-  private permissionCache = new Map<string, boolean>();
-  private permissionCacheTimestamp = 0;
+  private permissionCache = new Map<string, { granted: boolean; timestamp: number }>();
   private readonly PERMISSION_CACHE_TTL = 5 * 60 * 1000;
 
   /** Check permission via backend API (không decode JWT local) */
   hasPermissionOnServer(permission: string): Observable<boolean> {
     const cached = this.permissionCache.get(permission);
-    if (cached !== undefined && Date.now() - this.permissionCacheTimestamp < this.PERMISSION_CACHE_TTL) {
-      return of(cached);
+    if (cached !== undefined && Date.now() - cached.timestamp < this.PERMISSION_CACHE_TTL) {
+      return of(cached.granted);
     }
 
     return this.http.post<{ granted: boolean }>(
@@ -176,21 +175,22 @@ export class AuthService {
     ).pipe(
       map((res) => res.granted),
       tap((granted) => {
-        this.permissionCache.set(permission, granted);
-        this.permissionCacheTimestamp = Date.now();
+        this.permissionCache.set(permission, { granted, timestamp: Date.now() });
       }),
       catchError(() => of(false)),
     );
   }
 
   private handleError(error: HttpErrorResponse): Observable<never> {
-    let errorMessage = 'An unknown error occurred';
-    if (error.error instanceof ErrorEvent) {
-      errorMessage = `Client error: ${error.error.message}`;
-    } else {
-      errorMessage = `Server error: ${error.status} - ${error.message}`;
+    if (!environment.production) {
+      let errorMessage = 'An unknown error occurred';
+      if (error.error instanceof ErrorEvent) {
+        errorMessage = `Client error: ${error.error.message}`;
+      } else {
+        errorMessage = `Server error: ${error.status} - ${error.message}`;
+      }
+      console.error('[AuthService]', errorMessage);
     }
-    console.error('[AuthService]', errorMessage);
     return throwError(() => error);
   }
 }
