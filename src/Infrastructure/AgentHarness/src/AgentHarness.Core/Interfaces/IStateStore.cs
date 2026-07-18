@@ -14,4 +14,7 @@ public interface IStateStore
     Task<Artifact?> GetArtifactAsync(Guid id, CancellationToken ct = default);
     Task<List<AgentRun>> GetAgentRunsAsync(Guid pipelineRunId, CancellationToken ct = default);
     Task<List<AgentRun>> GetPendingAgentRunsAsync(CancellationToken ct = default);
+    Task SaveCheckpointAsync(PipelineCheckpoint checkpoint, CancellationToken ct = default);
+    Task<PipelineCheckpoint?> GetLatestCheckpointAsync(Guid pipelineRunId, CancellationToken ct = default);
+    Task<List<PipelineRun>> GetRunningPipelinesAsync(CancellationToken ct = default);
 }

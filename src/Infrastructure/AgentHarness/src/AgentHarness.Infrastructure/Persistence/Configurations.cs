@@ -103,6 +103,25 @@ public class ArtifactConfiguration : IEntityTypeConfiguration<Artifact>
     }
 }
 
+public class PipelineCheckpointConfiguration : IEntityTypeConfiguration<PipelineCheckpoint>
+{
+    public void Configure(EntityTypeBuilder<PipelineCheckpoint> builder)
+    {
+        builder.ToTable("pipeline_checkpoints");
+        builder.HasKey(c => c.Id);
+        builder.Property(c => c.Id).HasColumnName("id");
+        builder.Property(c => c.PipelineRunId).HasColumnName("pipeline_run_id");
+        builder.Property(c => c.Phase).HasColumnName("phase").HasMaxLength(32);
+        builder.Property(c => c.CompletedNodeIds).HasColumnName("completed_node_ids").HasColumnType("jsonb");
+        builder.Property(c => c.FailedNodeIds).HasColumnName("failed_node_ids").HasColumnType("jsonb");
+        builder.Property(c => c.NodeStatesJson).HasColumnName("node_states").HasColumnType("jsonb");
+        builder.Property(c => c.LoopIteration).HasColumnName("loop_iteration");
+        builder.Property(c => c.CreatedAt).HasColumnName("created_at");
+        builder.HasIndex(c => c.PipelineRunId).HasDatabaseName("ix_checkpoints_pipeline_run_id");
+        builder.HasIndex(c => new { c.PipelineRunId, c.CreatedAt }).HasDatabaseName("ix_checkpoints_pipeline_run_created");
+    }
+}
+
 public class AgentPoolStateConfiguration : IEntityTypeConfiguration<AgentPoolState>
 {
     public void Configure(EntityTypeBuilder<AgentPoolState> builder)

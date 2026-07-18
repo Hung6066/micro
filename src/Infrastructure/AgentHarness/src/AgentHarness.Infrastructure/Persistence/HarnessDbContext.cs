@@ -21,5 +21,6 @@ public class HarnessDbContext : DbContext
         modelBuilder.ApplyConfiguration(new QualityGateConfiguration());
         modelBuilder.ApplyConfiguration(new ArtifactConfiguration());
         modelBuilder.ApplyConfiguration(new AgentPoolStateConfiguration());
+        modelBuilder.ApplyConfiguration(new PipelineCheckpointConfiguration());
     }
 }

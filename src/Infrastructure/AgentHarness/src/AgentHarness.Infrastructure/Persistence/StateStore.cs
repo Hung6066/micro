@@ -76,4 +76,21 @@ public class StateStore : IStateStore
             .Where(a => a.Status == AgentRunStatus.Running)
             .OrderBy(a => a.StartedAt)
             .ToListAsync(ct);
+
+    public async Task SaveCheckpointAsync(PipelineCheckpoint checkpoint, CancellationToken ct = default)
+    {
+        _db.Set<PipelineCheckpoint>().Add(checkpoint);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<PipelineCheckpoint?> GetLatestCheckpointAsync(Guid pipelineRunId, CancellationToken ct = default)
+        => await _db.Set<PipelineCheckpoint>()
+            .Where(c => c.PipelineRunId == pipelineRunId)
+            .OrderByDescending(c => c.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
+    public async Task<List<PipelineRun>> GetRunningPipelinesAsync(CancellationToken ct = default)
+        => await _db.PipelineRuns
+            .Where(p => p.Status == PipelineStatus.Running)
+            .ToListAsync(ct);
 }

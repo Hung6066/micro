@@ -201,6 +201,9 @@ public class PipelineEngine : IPipelineEngine
                 await Task.WhenAll(tasks);
                 anyExecuted = true;
 
+                // Save checkpoint for crash recovery
+                await SaveCheckpointAsync(phase, dag, run, loop, ct);
+
                 // Evaluate quality gates after this phase
                 await EvaluatePhaseGatesAsync(phase, phaseNodes, run, ct);
             }
@@ -324,6 +327,214 @@ public class PipelineEngine : IPipelineEngine
 
     /// <summary>Gets the current number of active pipelines.</summary>
     public static int ActivePipelineCount => Volatile.Read(ref _activePipelineCount);
+
+    /// <inheritdoc />
+    public async Task<PipelineRun> ResumeAsync(PipelineRun run, CancellationToken ct = default)
+    {
+        var checkpoint = await _store.GetLatestCheckpointAsync(run.Id, ct);
+        if (checkpoint == null)
+        {
+            Log.Warning("No checkpoint found for pipeline {PipelineId}, starting fresh", run.Id);
+            var dag = BuildDagFromRun(run);
+            return await StartAsync(dag, run, ct);
+        }
+
+        Log.Information("Resuming pipeline {PipelineId} from phase {Phase}, iteration {Iter}",
+            run.Id, checkpoint.Phase, checkpoint.LoopIteration);
+
+        // Build DAG and match completed nodes by agent+phase+task (not ID, which changes after restart)
+        var resumeDag = BuildDagFromRun(run);
+        var completedAgentKeys = checkpoint.GetCompletedNodeIds();  // stored as "agent|phase|task" combo keys
+        foreach (var node in resumeDag.Nodes)
+        {
+            var key = $"{node.AgentName}|{node.Phase}|{node.TaskDescription}";
+            if (completedAgentKeys.Contains(key))
+                node.Status = PipelineStatus.Completed;
+        }
+
+        run.TransitionTo(PipelineStatus.Running);
+        await _store.SavePipelineRunAsync(run, ct);
+
+        return await ResumeFromCheckpoint(resumeDag, run, checkpoint, ct);
+    }
+
+    /// <summary>
+    /// Rebuilds a DAG from saved parameters or metadata.
+    /// </summary>
+    private static PipelineDag BuildDagFromRun(PipelineRun run)
+    {
+        var dag = new PipelineDag();
+        var tasksJson = run.Parameters.GetValueOrDefault("tasks")
+            ?? run.Metadata.GetValueOrDefault("resolved_tasks");
+        if (string.IsNullOrEmpty(tasksJson)) return dag;
+
+        try
+        {
+            var tasks = System.Text.Json.JsonSerializer.Deserialize<List<TaskDef>>(tasksJson,
+                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (tasks != null)
+            {
+                foreach (var t in tasks)
+                {
+                    var phase = Enum.TryParse<PipelinePhase>(t.Phase, ignoreCase: true, out var p) ? p : PipelinePhase.Implement;
+                    var node = dag.AddNode(t.Agent, phase);
+                    node.TaskDescription = t.Task;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to parse tasks for DAG rebuild");
+        }
+        return dag;
+    }
+
+    private class TaskDef
+    {
+        public string Agent { get; set; } = "dotnet";
+        public string Task { get; set; } = "";
+        public string Phase { get; set; } = "Implement";
+    }
+
+    /// <summary>
+    /// Resumes execution from a checkpoint, skipping completed nodes.
+    /// </summary>
+    private async Task<PipelineRun> ResumeFromCheckpoint(
+        PipelineDag dag, PipelineRun run, PipelineCheckpoint checkpoint, CancellationToken ct)
+    {
+        int startIndex = Array.FindIndex(PhaseOrder, p => p.ToString() == checkpoint.Phase);
+        if (startIndex < 0) startIndex = 0;
+
+        var completedIds = checkpoint.GetCompletedNodeIds();
+        bool anyExecuted = false;
+
+        for (int loop = checkpoint.LoopIteration; loop < 3; loop++)
+        {
+            startIndex = loop > checkpoint.LoopIteration ? 0 : startIndex;
+
+            for (int i = startIndex; i < PhaseOrder.Length; i++)
+            {
+                var phase = PhaseOrder[i];
+                ct.ThrowIfCancellationRequested();
+                if (run.IsTimedOut()) throw new TimeoutException();
+
+                var phaseNodes = dag.GetPhaseNodes(phase)
+                    .Where(n => !completedIds.Contains($"{n.AgentName}|{n.Phase}|{n.TaskDescription}"))
+                    .ToList();
+                if (!phaseNodes.Any()) continue;
+
+                Log.Information("Resume: executing phase {Phase} with {Count} pending nodes", phase, phaseNodes.Count);
+
+                // Reuse existing running agents instead of creating duplicates
+                var existingAgents = await _store.GetAgentRunsAsync(run.Id, ct);
+                var runningAgents = existingAgents
+                    .Where(a => !a.IsTerminal())
+                    .ToDictionary(a => a.AgentName, a => a.Id);
+
+                foreach (var node in phaseNodes)
+                {
+                    if (runningAgents.TryGetValue(node.AgentName, out var existingId))
+                    {
+                        Log.Information("Resume: reusing existing run {RunId} for {Agent}", existingId, node.AgentName);
+                        // Poll the existing run
+                        await PollAgentRunAsync(existingId, node, run, ct);
+                    }
+                    else
+                    {
+                        // Dispatch fresh
+                        await ExecuteNodeAsync(node, run, ct);
+                    }
+                }
+                anyExecuted = true;
+                await SaveCheckpointAsync(phase, dag, run, loop, ct);
+                await EvaluatePhaseGatesAsync(phase, phaseNodes, run, ct);
+            }
+
+            completedIds.Clear();
+
+            var gates = await _store.GetQualityGatesAsync(run.Id, ct);
+            var failedGates = gates.Where(g => !g.Passed).ToList();
+            if (!failedGates.Any()) break;
+
+            var loopContext = new LoopContext { FailedGates = failedGates, PreviousIteration = loop };
+            var fixResult = await _loopEngineer.AnalyzeAndFixAsync(loopContext, ct);
+            if (fixResult.Outcome is FixOutcome.Escalated or FixOutcome.GiveUp)
+                throw new InvalidOperationException($"Pipeline blocked: {fixResult.EscalationReason}");
+        }
+
+        if (!anyExecuted)
+        {
+            Log.Information("Resume: all nodes already completed for pipeline {PipelineId}", run.Id);
+        }
+
+        if (run.Status == PipelineStatus.Running)
+        {
+            run.TransitionTo(PipelineStatus.Completed);
+            await _store.SavePipelineRunAsync(run, ct);
+        }
+
+        return run;
+    }
+
+    /// <summary>
+    /// Polls an existing agent run until terminal — used during resume to avoid duplicate dispatches.
+    /// </summary>
+    private async Task PollAgentRunAsync(Guid agentRunId, PipelineNode node, PipelineRun run, CancellationToken ct)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(600);
+        AgentRun? result = null;
+
+        while (!ct.IsCancellationRequested && DateTime.UtcNow < deadline)
+        {
+            var current = await _store.GetAgentRunAsync(agentRunId, ct);
+            if (current == null) break;
+            if (current.IsTerminal()) { result = current; break; }
+            await Task.Delay(AgentPollInterval, ct);
+        }
+
+        if (result == null)
+        {
+            result = await _store.GetAgentRunAsync(agentRunId, ct);
+            if (result == null || !result.IsTerminal())
+            {
+                Log.Warning("Resume poll timed out for agent run {RunId}, marking failed", agentRunId);
+                result?.Fail("Resume poll timed out");
+                if (result != null) await _store.SaveAgentRunAsync(result, ct);
+            }
+        }
+
+        if (result != null)
+        {
+            node.Status = result.Status switch
+            {
+                AgentRunStatus.Completed => PipelineStatus.Completed,
+                AgentRunStatus.Failed => PipelineStatus.Failed,
+                AgentRunStatus.TimedOut => PipelineStatus.Failed,
+                AgentRunStatus.Cancelled => PipelineStatus.Cancelled,
+                _ => node.Status
+            };
+            node.CompletedAt = DateTime.UtcNow;
+        }
+    }
+
+    /// <summary>
+    /// Saves a checkpoint snapshot for crash recovery.
+    /// </summary>
+    private async Task SaveCheckpointAsync(PipelinePhase phase, PipelineDag dag, PipelineRun run, int loopIteration, CancellationToken ct)
+    {
+        try
+        {
+            var completedNodes = dag.Nodes.Where(n => n.Status == PipelineStatus.Completed).ToList();
+            var failedNodes = dag.Nodes.Where(n => n.Status == PipelineStatus.Failed).ToList();
+            var checkpoint = PipelineCheckpoint.Create(run.Id, phase.ToString(), completedNodes, failedNodes, loopIteration);
+            await _store.SaveCheckpointAsync(checkpoint, ct);
+            Log.Debug("Checkpoint saved: phase {Phase}, {Completed}/{Total} nodes", phase, completedNodes.Count, dag.Nodes.Count);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to save checkpoint for pipeline {PipelineId}", run.Id);
+        }
+    }
 
     private static void IncrementActivePipelines() => Interlocked.Increment(ref _activePipelineCount);
     private static void DecrementActivePipelines() => Interlocked.Decrement(ref _activePipelineCount);

@@ -14,6 +14,7 @@ using His.Hope.AgentHarness.Infrastructure.EventBus;
 using His.Hope.AgentHarness.Application.Behaviors;
 using His.Hope.AgentHarness.Application.Commands.StartPipeline;
 using His.Hope.AgentHarness.Application.Services;
+using His.Hope.AgentHarness.Core.Models;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
@@ -314,6 +315,52 @@ static async Task RunHttpMode(string[] args)
     });
 
     Log.Information("Agent Harness MCP Server starting on port {Port}", config.Port);
+
+    // Resume any pipelines that were Running when the service stopped
+    try
+    {
+        using (var startupScope = app.Services.CreateScope())
+        {
+            var startupStore = startupScope.ServiceProvider.GetRequiredService<IStateStore>();
+            var running = await startupStore.GetRunningPipelinesAsync();
+
+            foreach (var run in running)
+            {
+                var pipelineId = run.Id;
+                var workflowId = run.WorkflowId;
+                Log.Information("Queueing resume for pipeline {PipelineId} ({Workflow})", pipelineId, workflowId);
+
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        using var scope = app.Services.CreateScope();
+                        var engine = scope.ServiceProvider.GetRequiredService<IPipelineEngine>();
+                        var store = scope.ServiceProvider.GetRequiredService<IStateStore>();
+                        using var bgCts = new CancellationTokenSource(TimeSpan.FromHours(8));
+
+                        var pipelineRun = await store.GetPipelineRunAsync(pipelineId, bgCts.Token);
+                        if (pipelineRun == null || pipelineRun.Status != PipelineStatus.Running) return;
+
+                        Log.Information("Resuming pipeline {PipelineId} ({Workflow})", pipelineId, workflowId);
+                        await engine.ResumeAsync(pipelineRun, bgCts.Token);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex, "Resume failed for pipeline {PipelineId}", pipelineId);
+                    }
+                });
+            }
+
+            if (running.Count > 0)
+                Log.Information("Scheduled resume for {Count} pipeline(s)", running.Count);
+        }
+    }
+    catch (Exception ex)
+    {
+        Log.Warning(ex, "Pipeline resume check failed (first start?)");
+    }
+
     app.Run($"http://0.0.0.0:{config.Port}");
 }
 
