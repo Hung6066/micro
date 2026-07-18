@@ -85,8 +85,9 @@ export class RumService {
       url: environment.otelCollectorUrl,
     });
 
-    const provider = new WebTracerProvider();
-    provider.addSpanProcessor(new BatchSpanProcessor(exporter));
+    const provider = new WebTracerProvider({
+      spanProcessors: [new BatchSpanProcessor(exporter)],
+    });
     provider.register();
 
     this.tracer = trace.getTracer('his-hope-app', '0.1.0');
