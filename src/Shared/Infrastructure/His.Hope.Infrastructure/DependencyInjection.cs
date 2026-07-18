@@ -1,4 +1,5 @@
 using His.Hope.Infrastructure.Abuse;
+using His.Hope.Infrastructure.Backpressure;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Database;
@@ -74,10 +75,19 @@ public static class DependencyInjection
         this IServiceCollection services,
         Action<ResilienceConfiguration>? configure = null)
     {
-        var config = new ResilienceConfiguration();
-        configure?.Invoke(config);
-        services.AddSingleton(config);
-        services.AddSingleton<IResiliencePipelineFactory>(config);
+        // Adaptive concurrency limiter: self-tunes max parallelism based on
+        // observed p99 latency. Must be singleton to maintain rolling window.
+        services.AddSingleton<AdaptiveConcurrencyLimiter>();
+
+        services.AddSingleton(sp =>
+        {
+            var limiter = sp.GetRequiredService<AdaptiveConcurrencyLimiter>();
+            var config = new ResilienceConfiguration(limiter);
+            configure?.Invoke(config);
+            return config;
+        });
+        services.AddSingleton<IResiliencePipelineFactory>(sp =>
+            sp.GetRequiredService<ResilienceConfiguration>());
 
         services.AddTransient<GrpcResilienceHandler>(sp =>
         {

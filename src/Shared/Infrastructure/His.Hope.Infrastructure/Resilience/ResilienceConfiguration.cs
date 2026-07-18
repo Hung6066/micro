@@ -1,4 +1,5 @@
 using Grpc.Core;
+using His.Hope.Infrastructure.Backpressure;
 using His.Hope.Infrastructure.Degradation;
 using Polly;
 using Polly.CircuitBreaker;
@@ -11,6 +12,8 @@ namespace His.Hope.Infrastructure.Resilience;
 
 public class ResilienceConfiguration : IResiliencePipelineFactory
 {
+    private readonly AdaptiveConcurrencyLimiter? _adaptiveLimiter;
+
     public int RetryCount { get; set; } = 3;
     public int RetryBaseDelayMs { get; set; } = 200;
     public int CircuitBreakerFailureThreshold { get; set; } = 5;
@@ -18,6 +21,22 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
     public int TimeoutSeconds { get; set; } = 10;
     public int BulkheadMaxParallelization { get; set; } = 10;
     public int BulkheadMaxQueuing { get; set; } = 50;
+
+    /// <summary>
+    /// Creates a new <see cref="ResilienceConfiguration"/>.
+    /// </summary>
+    /// <param name="adaptiveLimiter">
+    /// Optional adaptive concurrency limiter. When provided, the pipeline builder
+    /// uses <see cref="AdaptiveConcurrencyLimiter.CurrentLimit"/> instead of the
+    /// static <see cref="BulkheadMaxParallelization"/> value.
+    /// </param>
+    public ResilienceConfiguration(AdaptiveConcurrencyLimiter? adaptiveLimiter = null)
+    {
+        _adaptiveLimiter = adaptiveLimiter;
+    }
+
+    private int EffectiveConcurrencyLimit =>
+        _adaptiveLimiter?.CurrentLimit ?? BulkheadMaxParallelization;
 
     public ResiliencePipeline GetPipeline(string dependencyName) =>
         new ResiliencePipelineBuilder()
@@ -35,7 +54,7 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
                 SamplingDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
                 BreakDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
             })
-            .AddConcurrencyLimiter(BulkheadMaxParallelization, BulkheadMaxQueuing)
+            .AddConcurrencyLimiter(EffectiveConcurrencyLimit, BulkheadMaxQueuing)
             .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
             .Build();
 
@@ -61,7 +80,7 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
                 SamplingDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
                 BreakDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
             })
-            .AddConcurrencyLimiter(BulkheadMaxParallelization, BulkheadMaxQueuing)
+            .AddConcurrencyLimiter(EffectiveConcurrencyLimit, BulkheadMaxQueuing)
             .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
             .Build();
 
@@ -123,7 +142,7 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
         return new ResiliencePipelineBuilder<HttpResponseMessage>()
             .AddRetry(retry)
             .AddCircuitBreaker(circuitBreaker)
-            .AddConcurrencyLimiter(BulkheadMaxParallelization, BulkheadMaxQueuing)
+            .AddConcurrencyLimiter(EffectiveConcurrencyLimit, BulkheadMaxQueuing)
             .AddTimeout(timeout)
             .Build();
     }
@@ -144,7 +163,7 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
                 SamplingDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
                 BreakDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
             })
-            .AddConcurrencyLimiter(BulkheadMaxParallelization, BulkheadMaxQueuing)
+            .AddConcurrencyLimiter(EffectiveConcurrencyLimit, BulkheadMaxQueuing)
             .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
             .Build();
 
@@ -202,7 +221,7 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
                 SamplingDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
                 BreakDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
             })
-            .AddConcurrencyLimiter(BulkheadMaxParallelization, BulkheadMaxQueuing)
+            .AddConcurrencyLimiter(EffectiveConcurrencyLimit, BulkheadMaxQueuing)
             .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
             .Build();
     }
