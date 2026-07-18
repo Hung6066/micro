@@ -17,8 +17,8 @@ public class AgentPoolManager
         "e2e-test", "explore", "git", "security", "loop-engineer"
     };
 
-    private const int DefaultPoolSize = 3;
-    private const int MaxPoolSize = 10;
+    private const int DefaultPoolSize = 10;
+    private const int MaxPoolSize = 50;
 
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _pools = new();
     private readonly ConcurrentDictionary<string, AgentPoolState> _states = new();
