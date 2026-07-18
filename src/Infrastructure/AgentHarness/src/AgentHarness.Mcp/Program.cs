@@ -180,13 +180,16 @@ static async Task RunHttpMode(string[] args)
         await ctx.Response.WriteAsync("{}");
     });
 
-    // 3. Legacy REST endpoints (backward compat)
+    // Helper: return raw JSON without double-encoding
+    static IResult RawJson(string json) => Results.Content(json, "application/json", System.Text.Encoding.UTF8);
+
+    // 3. REST endpoints
     app.MapPost("/mcp/start-pipeline", async (StartPipelineTool tool, HttpContext ctx) =>
     {
         try
         {
             var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
-            return Results.Ok(await tool.ExecuteAsync(p));
+            return RawJson(await tool.ExecuteAsync(p));
         }
         catch (Exception ex)
         {
@@ -200,7 +203,7 @@ static async Task RunHttpMode(string[] args)
         try
         {
             var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
-            return Results.Ok(await tool.ExecuteAsync(p));
+            return RawJson(await tool.ExecuteAsync(p));
         }
         catch (Exception ex)
         {
@@ -214,7 +217,7 @@ static async Task RunHttpMode(string[] args)
         try
         {
             var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
-            return Results.Ok(await tool.ExecuteAsync(p));
+            return RawJson(await tool.ExecuteAsync(p));
         }
         catch (Exception ex)
         {
@@ -228,7 +231,7 @@ static async Task RunHttpMode(string[] args)
         try
         {
             var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
-            return Results.Ok(await tool.ExecuteAsync(p));
+            return RawJson(await tool.ExecuteAsync(p));
         }
         catch (Exception ex)
         {
@@ -242,7 +245,7 @@ static async Task RunHttpMode(string[] args)
         try
         {
             var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
-            return Results.Ok(await tool.ExecuteAsync(p));
+            return RawJson(await tool.ExecuteAsync(p));
         }
         catch (Exception ex)
         {
@@ -256,7 +259,7 @@ static async Task RunHttpMode(string[] args)
         try
         {
             var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
-            return Results.Ok(await tool.ExecuteAsync(p));
+            return RawJson(await tool.ExecuteAsync(p));
         }
         catch (Exception ex)
         {
@@ -270,7 +273,7 @@ static async Task RunHttpMode(string[] args)
         try
         {
             var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
-            return Results.Ok(await tool.ExecuteAsync(p));
+            return RawJson(await tool.ExecuteAsync(p));
         }
         catch (Exception ex)
         {
@@ -358,7 +361,8 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
             return new NullEventBus();
         }
     });
-    services.AddScoped<IAgentDispatcher, OpenCodeAgentDispatcher>();
+    services.AddSingleton<IAgentDispatcher, OpenCodeAgentDispatcher>();
+    services.AddSingleton<WorkflowLoader>();
 
     // Register MediatR with handlers and pipeline behaviors
     services.AddMediatR(cfg =>

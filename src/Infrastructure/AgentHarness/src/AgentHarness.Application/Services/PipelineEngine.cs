@@ -180,13 +180,15 @@ public class PipelineEngine : IPipelineEngine
 
     /// <summary>
     /// Executes the DAG phases in order with adaptive loop-back support via the Loop Engineer.
-    /// Up to <c>maxLoops</c> iterations allow the pipeline to self-heal when quality gates fail.
+    /// After each phase, quality gates are evaluated. Failed gates trigger Loop Engineer.
     /// </summary>
     private async Task ExecuteDagWithLoopAsync(PipelineDag dag, PipelineRun run, CancellationToken ct)
     {
         const int maxLoops = 3;
         for (int loop = 0; loop < maxLoops; loop++)
         {
+            bool anyExecuted = false;
+
             // Execute all phases
             foreach (var phase in PhaseOrder)
             {
@@ -194,14 +196,24 @@ public class PipelineEngine : IPipelineEngine
                 if (run.IsTimedOut()) throw new TimeoutException();
                 var phaseNodes = dag.GetPhaseNodes(phase).ToList();
                 if (!phaseNodes.Any()) continue;
+
                 var tasks = phaseNodes.Select(n => ExecuteNodeAsync(n, run, ct));
                 await Task.WhenAll(tasks);
+                anyExecuted = true;
+
+                // Evaluate quality gates after this phase
+                await EvaluatePhaseGatesAsync(phase, phaseNodes, run, ct);
             }
+
+            if (!anyExecuted) return;
 
             // Check quality gates
             var gates = await _store.GetQualityGatesAsync(run.Id, ct);
             var failedGates = gates.Where(g => !g.Passed).ToList();
-            if (!failedGates.Any()) return; // All passed
+            if (!failedGates.Any()) return; // All passed — success
+
+            Log.Warning("Quality gates failed ({Count}): {Gates}",
+                failedGates.Count, string.Join(", ", failedGates.Select(g => g.GateId)));
 
             // Invoke Loop Engineer
             var loopContext = new LoopContext
@@ -212,11 +224,78 @@ public class PipelineEngine : IPipelineEngine
             var fixResult = await _loopEngineer.AnalyzeAndFixAsync(loopContext, ct);
 
             if (fixResult.Outcome == FixOutcome.AutoFixed || fixResult.Outcome == FixOutcome.PartialFix)
-                continue; // Re-execute pipeline
+            {
+                Log.Information("LoopEngineer {Outcome} on iteration {Loop}, dispatching fix agents",
+                    fixResult.Outcome, loop);
+
+                // Reset failed nodes + inject fix agents for re-execution
+                foreach (var node in dag.Nodes)
+                {
+                    if (node.Status != PipelineStatus.Completed)
+                    {
+                        node.Status = PipelineStatus.Pending;
+                        node.AttemptNumber++;
+                        node.TaskDescription = $"[Retry {node.AttemptNumber}] {node.TaskDescription}";
+                    }
+                }
+
+                // Add dedicated fix nodes for each failed gate
+                foreach (var gate in failedGates)
+                {
+                    var fixNode = dag.AddNode("loop-engineer", PipelinePhase.Implement);
+                    fixNode.TaskDescription = $"Auto-fix: {gate.GateType} failed — {gate.Details ?? gate.Output ?? "unknown error"}. Iteration {loop + 1}.";
+                    fixNode.AttemptNumber = 1;
+                    Log.Information("  Fix node added: {Task}", fixNode.TaskDescription);
+                }
+                continue;
+            }
             else
-                throw new InvalidOperationException($"Pipeline blocked: {fixResult.EscalationReason}");
+            {
+                throw new InvalidOperationException(
+                    $"Pipeline blocked after {loop + 1} iterations: {fixResult.EscalationReason}");
+            }
         }
         throw new InvalidOperationException("Max pipeline loops reached");
+    }
+
+    /// <summary>
+    /// Creates quality gates for a completed phase based on agent run results.
+    /// </summary>
+    private async Task EvaluatePhaseGatesAsync(
+        PipelinePhase phase, List<PipelineNode> nodes, PipelineRun run, CancellationToken ct)
+    {
+        foreach (var node in nodes)
+        {
+            // Gate 1: Phase/Agent completion
+            var passed = node.Status == PipelineStatus.Completed;
+            var gate = QualityGate.Create(
+                run.Id,
+                $"{node.AgentName}-{phase.ToString().ToLower()}",
+                $"Agent {node.AgentName} completed phase {phase}",
+                passed);
+
+            if (!passed)
+            {
+                gate.MarkFailed($"Agent {node.AgentName} failed in {phase} phase");
+            }
+
+            await _store.SaveQualityGateAsync(gate, ct);
+        }
+
+        // Gate 2: Overall phase health check
+        var allPassed = nodes.All(n => n.Status == PipelineStatus.Completed);
+        var phaseGate = QualityGate.Create(
+            run.Id,
+            $"phase-{phase.ToString().ToLower()}-complete",
+            $"Phase {phase} completion",
+            allPassed);
+
+        if (!allPassed)
+        {
+            phaseGate.MarkFailed($"Phase {phase}: {nodes.Count(n => n.Status != PipelineStatus.Completed)}/{nodes.Count} agents failed");
+        }
+
+        await _store.SaveQualityGateAsync(phaseGate, ct);
     }
 
     /// <inheritdoc />
