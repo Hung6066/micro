@@ -16,6 +16,9 @@
     "skill": "allow"
   },
   "plugin": ["~/.config/opencode/node_modules/superpowers"],
+  "skills": {
+    "paths": [".agents/skills"]
+  },
   "default_agent": "architect",
   "agent": {
     "architect": {
