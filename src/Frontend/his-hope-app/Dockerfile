@@ -8,7 +8,7 @@ WORKDIR /app
 
 # Install Angular CLI globally (cached)
 RUN --mount=type=cache,target=/root/.npm \
-    npm install -g @angular/cli@17
+    npm install -g @angular/cli@19
 
 # Copy package files and install dependencies with cache
 COPY package.json package-lock.json ./
@@ -33,7 +33,7 @@ RUN apk add --no-cache curl tzdata && \
 USER nginx
 
 # Copy built Angular app (localized under /en/)
-COPY --from=build /app/dist/en/ /usr/share/nginx/html/en/
+COPY --from=build /app/dist/browser/en/ /usr/share/nginx/html/en/
 
 # Copy nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
