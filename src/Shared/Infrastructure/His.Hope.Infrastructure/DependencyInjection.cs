@@ -2,6 +2,7 @@ using His.Hope.Infrastructure.Abuse;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Database;
+using His.Hope.Infrastructure.Degradation;
 using His.Hope.Infrastructure.Events;
 using His.Hope.Infrastructure.Locking;
 using His.Hope.Infrastructure.Middleware;
@@ -34,6 +35,12 @@ public static class DependencyInjection
         // Individual services register their IWarmupTask implementations
         // to pre-load reference data at startup.
         services.AddHostedService<CacheWarmupService>();
+
+        // Graceful degradation: stale cache fallback service.
+        // Provides stale cached data when downstream systems fail.
+        // Uses IHttpContextAccessor to set X-Degraded-Data response header.
+        services.AddHttpContextAccessor();
+        services.AddSingleton<IDegradedResponseProvider, StaleCacheFallbackPolicy>();
 
         // SECURITY: Register PHI audit service for HIPAA audit compliance
         services.AddPhiAudit();

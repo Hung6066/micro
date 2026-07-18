@@ -1,6 +1,8 @@
 using Grpc.Core;
+using His.Hope.Infrastructure.Degradation;
 using Polly;
 using Polly.CircuitBreaker;
+using Polly.Fallback;
 using Polly.RateLimiting;
 using Polly.Retry;
 using Polly.Timeout;
@@ -145,6 +147,65 @@ public class ResilienceConfiguration : IResiliencePipelineFactory
             .AddConcurrencyLimiter(BulkheadMaxParallelization, BulkheadMaxQueuing)
             .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
             .Build();
+
+    /// <summary>
+    /// Builds a generic pipeline with a Polly <c>FallbackStrategy</c> as the
+    /// outermost layer. When all inner strategies are exhausted, the fallback
+    /// attempts to serve a stale cached response via the supplied
+    /// <see cref="IDegradedResponseProvider"/>.
+    /// </summary>
+    public ResiliencePipeline<T> GetPipelineWithFallback<T>(
+        string dependencyName,
+        IDegradedResponseProvider degradedProvider) where T : class
+    {
+        return new ResiliencePipelineBuilder<T>()
+            // Fallback is outermost — catches failures from retry, circuit breaker, etc.
+            .AddFallback(new FallbackStrategyOptions<T>
+            {
+                ShouldHandle = args => args.Outcome switch
+                {
+                    { Exception: not null } => PredicateResult.True(),
+                    _ => PredicateResult.False(),
+                },
+                FallbackAction = async args =>
+                {
+                    var stale = await degradedProvider.GetDegradedResponseAsync<T>(
+                        dependencyName, args.Context.CancellationToken);
+
+                    if (stale is not null)
+                    {
+                        return Outcome.FromResult(stale);
+                    }
+
+                    // No stale data available — rethrow the original exception
+                    return Outcome.FromException<T>(args.Outcome.Exception!);
+                },
+                OnFallback = args =>
+                {
+                    Console.WriteLine(
+                        "[{Dependency}] Downstream failure — attempting stale cache fallback",
+                        dependencyName);
+                    return default;
+                },
+            })
+            .AddRetry(new RetryStrategyOptions<T>
+            {
+                MaxRetryAttempts = RetryCount,
+                BackoffType = DelayBackoffType.Exponential,
+                Delay = TimeSpan.FromMilliseconds(RetryBaseDelayMs),
+                UseJitter = true,
+            })
+            .AddCircuitBreaker(new CircuitBreakerStrategyOptions<T>
+            {
+                FailureRatio = 0.5,
+                MinimumThroughput = CircuitBreakerFailureThreshold,
+                SamplingDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
+                BreakDuration = TimeSpan.FromMilliseconds(CircuitBreakerDurationMs),
+            })
+            .AddConcurrencyLimiter(BulkheadMaxParallelization, BulkheadMaxQueuing)
+            .AddTimeout(TimeSpan.FromSeconds(TimeoutSeconds))
+            .Build();
+    }
 
     private static bool IsTransientGrpcError(RpcException ex) =>
         ex.StatusCode switch
