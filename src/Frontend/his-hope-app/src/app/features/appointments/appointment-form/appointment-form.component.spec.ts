@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -17,6 +17,7 @@ import { of } from 'rxjs';
 import { AppointmentFormComponent } from './appointment-form.component';
 import { AppointmentService } from '@core/services/appointment.service';
 import { PatientService } from '@core/services/patient.service';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('AppointmentFormComponent', () => {
   let component: AppointmentFormComponent;
@@ -28,18 +29,18 @@ describe('AppointmentFormComponent', () => {
     patientSpy.search.and.returnValue(of({ items: [], totalCount: 0, page: 1, pageSize: 10, hasNextPage: false, hasPreviousPage: false }));
 
     await TestBed.configureTestingModule({
-      declarations: [AppointmentFormComponent],
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [AppointmentFormComponent],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatSelectModule,
         MatDatepickerModule, MatNativeDateModule, MatAutocompleteModule,
-        MatButtonModule, MatIconModule, MatSnackBarModule, MatProgressSpinnerModule,
-      ],
-      providers: [
+        MatButtonModule, MatIconModule, MatSnackBarModule, MatProgressSpinnerModule],
+    providers: [
         { provide: AppointmentService, useValue: appointmentSpy },
         { provide: PatientService, useValue: patientSpy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(AppointmentFormComponent);
     component = fixture.componentInstance;

@@ -4,11 +4,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 
 @Component({
-  selector: 'app-access-denied',
-  standalone: true,
-  imports: [RouterModule, MatButtonModule, MatIconModule],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-access-denied',
+    imports: [RouterModule, MatButtonModule, MatIconModule],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="access-denied-container">
       <div class="access-denied-card">
         <div class="icon-wrapper">
@@ -32,8 +31,8 @@ import { MatIconModule } from '@angular/material/icon';
       </div>
     </div>
   `,
-  styles: [
-    `
+    styles: [
+        `
     .access-denied-container {
       display: flex;
       align-items: center;
@@ -96,6 +95,6 @@ import { MatIconModule } from '@angular/material/icon';
       border-radius: 6px;
     }
     `,
-  ],
+    ]
 })
 export class AccessDeniedComponent {}

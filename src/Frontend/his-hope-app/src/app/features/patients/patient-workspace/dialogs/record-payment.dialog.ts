@@ -22,24 +22,23 @@ export interface RecordPaymentData {
 }
 
 @Component({
-  selector: 'app-record-payment-dialog',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    MatDatepickerModule,
-    MatNativeDateModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-    MatSnackBarModule,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-record-payment-dialog',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatDialogModule,
+        MatButtonModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatSelectModule,
+        MatDatepickerModule,
+        MatNativeDateModule,
+        MatIconModule,
+        MatProgressSpinnerModule,
+        MatSnackBarModule,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <h2 mat-dialog-title>Ghi nhận thanh toán</h2>
     <mat-dialog-content>
       <div class="patient-info" *ngIf="data.patientName">
@@ -106,14 +105,14 @@ export interface RecordPaymentData {
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: #fce4ec; border-radius: 8px; color: #c62828; font-weight: 500; }
     .no-invoices { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px; color: #999; }
     .no-invoices mat-icon { font-size: 48px; width: 48px; height: 48px; }
     .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 380px; }
     .balance-info { background: #f5f5f5; padding: 12px; border-radius: 8px; border-left: 4px solid #ffa726; }
     .balance-info p { margin: 4px 0; font-size: 14px; }
-  `],
+  `]
 })
 export class RecordPaymentDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();

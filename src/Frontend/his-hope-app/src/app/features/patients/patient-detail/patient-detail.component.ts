@@ -9,9 +9,9 @@ import { Prescription } from '@core/models/prescription.model';
 import { LabOrder } from '@core/models/lab-order.model';
 
 @Component({
-  selector: 'app-patient-detail',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-patient-detail',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="patient-detail" *ngIf="patient">
       <div class="header">
         <div>
@@ -224,7 +224,7 @@ import { LabOrder } from '@core/models/lab-order.model';
       </mat-tab-group>
     </div>
   `,
-  styles: [`
+    styles: [`
     .patient-detail {
       max-width: var(--max-width-container, 1200px);
       margin: 0 auto;
@@ -316,6 +316,7 @@ import { LabOrder } from '@core/models/lab-order.model';
       }
     }
   `],
+    standalone: false
 })
 export class PatientDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

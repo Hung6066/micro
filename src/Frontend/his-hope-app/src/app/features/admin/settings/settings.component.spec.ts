@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -18,6 +18,7 @@ import { of } from 'rxjs';
 import { SettingsComponent } from './settings.component';
 import { AdminService } from '@core/services/admin.service';
 import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('SettingsComponent', () => {
   let component: SettingsComponent;
@@ -36,18 +37,19 @@ describe('SettingsComponent', () => {
     spy.getSettings.and.returnValue(of(mockSettings));
 
     await TestBed.configureTestingModule({
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [
+        SettingsComponent, LoadingSpinnerComponent
+    ],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatButtonModule, MatIconModule, MatFormFieldModule,
         MatInputModule, MatSelectModule, MatSlideToggleModule, MatExpansionModule,
-        MatProgressSpinnerModule, MatProgressBarModule, MatSnackBarModule, CommonModule,
-      ],
-      declarations: [
-      SettingsComponent,LoadingSpinnerComponent],
-      providers: [
+        MatProgressSpinnerModule, MatProgressBarModule, MatSnackBarModule, CommonModule],
+    providers: [
         { provide: AdminService, useValue: spy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(SettingsComponent);
     component = fixture.componentInstance;

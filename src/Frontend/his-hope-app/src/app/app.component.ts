@@ -4,9 +4,9 @@ import { AuthService } from '@core/services/auth.service';
 import { RumService } from './monitoring/rum.service';
 
 @Component({
-  selector: 'app-root',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-root',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <mat-sidenav-container class="app-sidenav-container">
       <mat-sidenav #sidenav mode="side" [opened]="isLoggedIn && sidenavOpened"
                    *ngIf="isLoggedIn">
@@ -21,12 +21,13 @@ import { RumService } from './monitoring/rum.service';
       </mat-sidenav-content>
     </mat-sidenav-container>
   `,
-  styles: [`
+    styles: [`
     .app-sidenav-container { height: 100vh; background: var(--bg-warm, #F7F6F3); }
     .app-sidenav-container .mat-drawer-side { border-right: 1px solid var(--border-default, #EAEAEA); }
     .main-content { min-height: 100vh; padding: 0; }
     :host ::ng-deep .mat-drawer-inner-container { overflow-x: hidden; }
   `],
+    standalone: false
 })
 export class AppComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

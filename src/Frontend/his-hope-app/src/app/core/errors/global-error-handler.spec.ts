@@ -1,13 +1,13 @@
 import { TestBed, fakeAsync, tick, flush } from '@angular/core/testing';
 import { ErrorHandler, Injector, NgZone } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MockStore, provideMockStore } from '@ngrx/store/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 import { GlobalErrorHandler } from './global-error-handler';
 import { ErrorService } from '@core/services/error.service';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 
 const initialAppState = {
   auth: { user: null, loading: false, error: null },
@@ -29,14 +29,16 @@ describe('GlobalErrorHandler', () => {
     const snackBarSpy = jasmine.createSpyObj('MatSnackBar', ['open']);
 
     TestBed.configureTestingModule({
-      imports: [NoopAnimationsModule, HttpClientTestingModule],
-      providers: [
+    imports: [NoopAnimationsModule],
+    providers: [
         GlobalErrorHandler,
         { provide: ErrorService, useValue: errorServiceSpy },
         { provide: MatSnackBar, useValue: snackBarSpy },
         provideMockStore({ initialState: initialAppState }),
-      ],
-    });
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+});
 
     errorHandler = TestBed.inject(GlobalErrorHandler);
     errorService = TestBed.inject(ErrorService) as jasmine.SpyObj<ErrorService>;

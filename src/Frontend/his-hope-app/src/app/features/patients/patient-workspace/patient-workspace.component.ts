@@ -32,27 +32,26 @@ import { ScheduleDialogComponent, ScheduleData } from './dialogs/schedule.dialog
 import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/record-payment.dialog';
 
 @Component({
-  selector: 'app-patient-workspace',
-  standalone: true,
-  imports: [
-    CommonModule,
-    RouterModule,
-    MatTabsModule,
-    MatTableModule,
-    MatButtonModule,
-    MatIconModule,
-    MatCardModule,
-    MatChipsModule,
-    MatProgressSpinnerModule,
-    MatTooltipModule,
-    StartEncounterDialogComponent,
-    OrderLabDialogComponent,
-    PrescribeDialogComponent,
-    ScheduleDialogComponent,
-    RecordPaymentDialogComponent,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-patient-workspace',
+    imports: [
+        CommonModule,
+        RouterModule,
+        MatTabsModule,
+        MatTableModule,
+        MatButtonModule,
+        MatIconModule,
+        MatCardModule,
+        MatChipsModule,
+        MatProgressSpinnerModule,
+        MatTooltipModule,
+        StartEncounterDialogComponent,
+        OrderLabDialogComponent,
+        PrescribeDialogComponent,
+        ScheduleDialogComponent,
+        RecordPaymentDialogComponent,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <!-- Sticky Patient Header Bar -->
     <div class="patient-header" *ngIf="patient">
       <div class="patient-info">
@@ -389,7 +388,7 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
       </mat-tab-group>
     </div>
   `,
-  styles: [`
+    styles: [`
     :host { display: block; height: 100%; }
 
     /* ── Patient Header ── */
@@ -622,7 +621,7 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
     }
 
     ::ng-deep .mat-mdc-tab-body-content { overflow: hidden; }
-  `],
+  `]
 })
 export class PatientWorkspaceComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

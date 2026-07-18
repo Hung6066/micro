@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -16,6 +16,7 @@ import { CommonModule } from '@angular/common';
 import { of } from 'rxjs';
 import { PatientFormComponent } from './patient-form.component';
 import { PatientService } from '@core/services/patient.service';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('PatientFormComponent', () => {
   let component: PatientFormComponent;
@@ -26,11 +27,9 @@ describe('PatientFormComponent', () => {
     patientServiceSpy.getById.and.returnValue(of({} as any));
 
     await TestBed.configureTestingModule({
-      declarations: [PatientFormComponent],
-      imports: [
-        RouterTestingModule,
+    declarations: [PatientFormComponent],
+    imports: [RouterTestingModule,
         NoopAnimationsModule,
-        HttpClientTestingModule,
         ReactiveFormsModule,
         MatFormFieldModule,
         MatInputModule,
@@ -41,12 +40,13 @@ describe('PatientFormComponent', () => {
         MatIconModule,
         MatSnackBarModule,
         MatProgressSpinnerModule,
-        CommonModule,
-      ],
-      providers: [
+        CommonModule],
+    providers: [
         { provide: PatientService, useValue: patientServiceSpy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(PatientFormComponent);
     component = fixture.componentInstance;

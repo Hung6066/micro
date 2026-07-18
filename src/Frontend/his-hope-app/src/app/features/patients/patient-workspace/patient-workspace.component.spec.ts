@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
@@ -20,6 +20,7 @@ import { PatientService } from '@core/services/patient.service';
 import { AuthService } from '@core/services/auth.service';
 import { AppointmentService } from '@core/services/appointment.service';
 import { createMockPatient, createMockPagedResult } from '@testing/mock-data';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('PatientWorkspaceComponent', () => {
   let component: PatientWorkspaceComponent;
@@ -45,11 +46,9 @@ describe('PatientWorkspaceComponent', () => {
     const appointmentSpy = jasmine.createSpyObj('AppointmentService', ['checkIn', 'checkOut', 'cancel']);
 
     await TestBed.configureTestingModule({
-      imports: [
-        PatientWorkspaceComponent,
+    imports: [PatientWorkspaceComponent,
         RouterTestingModule,
         NoopAnimationsModule,
-        HttpClientTestingModule,
         CommonModule,
         RouterModule,
         MatTabsModule,
@@ -61,14 +60,15 @@ describe('PatientWorkspaceComponent', () => {
         MatProgressSpinnerModule,
         MatTooltipModule,
         MatDialogModule,
-        MatSnackBarModule,
-      ],
-      providers: [
+        MatSnackBarModule],
+    providers: [
         { provide: PatientService, useValue: patientSpy },
         { provide: AuthService, useValue: authSpy },
         { provide: AppointmentService, useValue: appointmentSpy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(PatientWorkspaceComponent);
     component = fixture.componentInstance;

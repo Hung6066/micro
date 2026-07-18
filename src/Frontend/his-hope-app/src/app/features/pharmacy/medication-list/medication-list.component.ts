@@ -6,9 +6,9 @@ import { PharmacyService } from '@core/services/pharmacy.service';
 import { Medication } from '@core/models/medication.model';
 
 @Component({
-  selector: 'app-medication-list',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-medication-list',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="medication-list">
       <div class="header">
         <h1>Danh mục thuốc</h1>
@@ -88,7 +88,7 @@ import { Medication } from '@core/models/medication.model';
       </mat-paginator>
     </div>
   `,
-  styles: [`
+    styles: [`
     .medication-list { padding: 24px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .search-field { width: 100%; max-width: 500px; margin-bottom: 20px; }
@@ -100,6 +100,7 @@ import { Medication } from '@core/models/medication.model';
     .empty-state { text-align: center; padding: 48px; color: #999; }
     .empty-icon { font-size: 48px; width: 48px; height: 48px; margin-bottom: 16px; }
   `],
+    standalone: false
 })
 export class MedicationListComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

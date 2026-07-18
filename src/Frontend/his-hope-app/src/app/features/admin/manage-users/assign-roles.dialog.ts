@@ -16,20 +16,19 @@ export interface AssignRolesData {
 }
 
 @Component({
-  selector: 'app-assign-roles-dialog',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatCheckboxModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-    MatSnackBarModule,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-assign-roles-dialog',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatDialogModule,
+        MatButtonModule,
+        MatCheckboxModule,
+        MatIconModule,
+        MatProgressSpinnerModule,
+        MatSnackBarModule,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <h2 mat-dialog-title>Phân vai trò</h2>
     <mat-dialog-content>
       <div class="user-info">
@@ -64,7 +63,7 @@ export interface AssignRolesData {
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     .user-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: #e8f5e9; border-radius: 8px; color: #2F6B4A; font-weight: 500; }
     .instruction { color: #666; font-size: 14px; margin-bottom: 16px; }
     .roles-list { display: flex; flex-direction: column; gap: 8px; min-width: 400px; max-height: 400px; overflow-y: auto; }
@@ -74,7 +73,7 @@ export interface AssignRolesData {
     .role-name { font-weight: 500; font-size: 14px; color: #1A1A1A; }
     .role-desc { font-size: 12px; color: #787774; margin-top: 2px; }
     .loading-state { display: flex; align-items: center; gap: 12px; justify-content: center; padding: 48px; color: #787774; }
-  `],
+  `]
 })
 export class AssignRolesDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();

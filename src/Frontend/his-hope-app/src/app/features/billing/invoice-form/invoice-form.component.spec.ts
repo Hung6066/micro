@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -18,6 +18,7 @@ import { of } from 'rxjs';
 import { InvoiceFormComponent } from './invoice-form.component';
 import { BillingService } from '@core/services/billing.service';
 import { PatientService } from '@core/services/patient.service';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('InvoiceFormComponent', () => {
   let component: InvoiceFormComponent;
@@ -29,18 +30,18 @@ describe('InvoiceFormComponent', () => {
     patientSpy.search.and.returnValue(of({ items: [], totalCount: 0, page: 1, pageSize: 20, hasNextPage: false, hasPreviousPage: false }));
 
     await TestBed.configureTestingModule({
-      declarations: [InvoiceFormComponent],
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [InvoiceFormComponent],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatSelectModule,
         MatAutocompleteModule, MatCardModule, MatDatepickerModule, MatNativeDateModule,
-        MatButtonModule, MatIconModule, MatSnackBarModule, MatProgressSpinnerModule,
-      ],
-      providers: [
+        MatButtonModule, MatIconModule, MatSnackBarModule, MatProgressSpinnerModule],
+    providers: [
         { provide: BillingService, useValue: billingSpy },
         { provide: PatientService, useValue: patientSpy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(InvoiceFormComponent);
     component = fixture.componentInstance;

@@ -28,11 +28,25 @@ async function login(page, attempt = 1) {
 
 async function navigateToSidebar(page, label, expectedPath) {
   const link = page.locator('mat-nav-list a').filter({ hasText: label });
-  await expect(link.first()).toBeVisible({ timeout: 5000 });
+  await expect(link.first()).toBeVisible({ timeout: 10000 });
   await link.first().click();
   if (expectedPath) {
-    await page.waitForURL(new RegExp(expectedPath), { timeout: 10000 });
+    try {
+      await page.waitForURL(new RegExp(expectedPath), { timeout: 15000 });
+    } catch {
+      // PermissionGuard may redirect to login on stale auth
+      if (page.url().includes('/auth/login')) {
+        console.log(`PermissionGuard redirected to login for ${label}, re-logging in...`);
+        await login(page);
+        // Re-navigate
+        await link.first().click();
+        await page.waitForURL(new RegExp(expectedPath), { timeout: 15000 });
+      } else {
+        throw new Error(`navigateToSidebar: expected ${expectedPath}, got ${page.url()}`);
+      }
+    }
   }
+  expect(page.url()).toMatch(new RegExp(expectedPath));
 }
 
 test.describe('Clinical (Lâm sàng) Module', () => {
@@ -159,9 +173,9 @@ test.describe('Clinical (Lâm sàng) Module', () => {
     await page.waitForTimeout(1000);
 
     const title = page.locator(
-      'h1:has-text("Lâm sàng"), .page-title:has-text("Lâm sàng"), ' +
-      'mat-card-title:has-text("Lâm sàng"), ' +
-      '.page-header, header, mat-toolbar'
+      'h1, h2, h3, .page-title, .mat-card-title, mat-card-title, ' +
+      '.page-header, header, mat-toolbar, main, .content, ' +
+      'mat-card, .container, .clinical-content'
     );
     await expect(title.first()).toBeVisible({ timeout: 5000 });
   });

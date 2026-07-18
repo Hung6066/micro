@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -17,6 +17,7 @@ import { of } from 'rxjs';
 import { RecordPaymentDialogComponent, RecordPaymentData } from './record-payment.dialog';
 import { BillingService } from '@core/services/billing.service';
 import { createMockInvoice } from '@testing/mock-data';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('RecordPaymentDialogComponent', () => {
   let component: RecordPaymentDialogComponent;
@@ -29,19 +30,19 @@ describe('RecordPaymentDialogComponent', () => {
     const billingSpy = jasmine.createSpyObj('BillingService', ['recordPayment']);
 
     await TestBed.configureTestingModule({
-      imports: [
-      RecordPaymentDialogComponent,
+    imports: [RecordPaymentDialogComponent,
         CommonModule, ReactiveFormsModule, MatDialogModule, MatButtonModule,
         MatFormFieldModule, MatInputModule, MatSelectModule, MatDatepickerModule,
         MatNativeDateModule, MatIconModule, MatProgressSpinnerModule, MatSnackBarModule,
-        NoopAnimationsModule, HttpClientTestingModule,
-      ],
-      providers: [
+        NoopAnimationsModule],
+    providers: [
         { provide: MatDialogRef, useValue: { close: jasmine.createSpy('close') } },
         { provide: MAT_DIALOG_DATA, useValue: mockData },
         { provide: BillingService, useValue: billingSpy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(RecordPaymentDialogComponent);
     component = fixture.componentInstance;

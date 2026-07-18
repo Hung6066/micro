@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,6 +15,7 @@ import { of } from 'rxjs';
 import { OrderLabDialogComponent, OrderLabData } from './order-lab.dialog';
 import { LabService } from '@core/services/lab.service';
 import { AuthService } from '@core/services/auth.service';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('OrderLabDialogComponent', () => {
   let component: OrderLabDialogComponent;
@@ -28,19 +29,19 @@ describe('OrderLabDialogComponent', () => {
     authSpy.currentUser$ = of({ id: 'usr-001' });
 
     await TestBed.configureTestingModule({
-      imports: [
-      OrderLabDialogComponent,
+    imports: [OrderLabDialogComponent,
         CommonModule, ReactiveFormsModule, MatDialogModule, MatButtonModule,
         MatFormFieldModule, MatInputModule, MatSelectModule, MatIconModule,
-        MatProgressSpinnerModule, MatSnackBarModule, NoopAnimationsModule, HttpClientTestingModule,
-      ],
-      providers: [
+        MatProgressSpinnerModule, MatSnackBarModule, NoopAnimationsModule],
+    providers: [
         { provide: MatDialogRef, useValue: { close: jasmine.createSpy('close') } },
         { provide: MAT_DIALOG_DATA, useValue: mockData },
         { provide: LabService, useValue: labSpy },
         { provide: AuthService, useValue: authSpy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(OrderLabDialogComponent);
     component = fixture.componentInstance;

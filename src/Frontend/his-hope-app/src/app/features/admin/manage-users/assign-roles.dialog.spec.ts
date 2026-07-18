@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -12,6 +12,7 @@ import { CommonModule } from '@angular/common';
 import { of } from 'rxjs';
 import { AssignRolesDialogComponent, AssignRolesData } from './assign-roles.dialog';
 import { AdminService } from '@core/services/admin.service';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('AssignRolesDialogComponent', () => {
   let component: AssignRolesDialogComponent;
@@ -29,18 +30,18 @@ describe('AssignRolesDialogComponent', () => {
     adminSpy.getRoles.and.returnValue(of(mockRoles));
 
     await TestBed.configureTestingModule({
-      imports: [
-      AssignRolesDialogComponent,
+    imports: [AssignRolesDialogComponent,
         CommonModule, ReactiveFormsModule, MatDialogModule, MatButtonModule,
         MatCheckboxModule, MatIconModule, MatProgressSpinnerModule, MatSnackBarModule,
-        NoopAnimationsModule, HttpClientTestingModule,
-      ],
-      providers: [
+        NoopAnimationsModule],
+    providers: [
         { provide: MatDialogRef, useValue: { close: jasmine.createSpy('close') } },
         { provide: MAT_DIALOG_DATA, useValue: mockData },
         { provide: AdminService, useValue: adminSpy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(AssignRolesDialogComponent);
     component = fixture.componentInstance;

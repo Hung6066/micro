@@ -27,24 +27,23 @@ const TIME_SLOTS = [
 ];
 
 @Component({
-  selector: 'app-schedule-dialog',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    MatDatepickerModule,
-    MatNativeDateModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-    MatSnackBarModule,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-schedule-dialog',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatDialogModule,
+        MatButtonModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatSelectModule,
+        MatDatepickerModule,
+        MatNativeDateModule,
+        MatIconModule,
+        MatProgressSpinnerModule,
+        MatSnackBarModule,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <h2 mat-dialog-title>Đặt lịch hẹn</h2>
     <mat-dialog-content>
       <div class="patient-info" *ngIf="data.patientName">
@@ -99,10 +98,10 @@ const TIME_SLOTS = [
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: #fff3e0; border-radius: 8px; color: #e65100; font-weight: 500; }
     .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 380px; }
-  `],
+  `]
 })
 export class ScheduleDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();

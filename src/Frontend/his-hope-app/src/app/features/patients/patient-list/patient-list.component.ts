@@ -6,9 +6,9 @@ import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { FormControl } from '@angular/forms';
 
 @Component({
-  selector: 'app-patient-list',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-patient-list',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="patient-list">
       <div class="header">
         <h1>Patients</h1>
@@ -72,13 +72,14 @@ import { FormControl } from '@angular/forms';
       </mat-paginator>
     </div>
   `,
-  styles: [`
+    styles: [`
     .patient-list { padding: 24px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .search-field { width: 100%; max-width: 500px; margin-bottom: 20px; }
     mat-table { width: 100%; cursor: pointer; }
     mat-row:hover { background: #f5f5f5; }
   `],
+    standalone: false
 })
 export class PatientListComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

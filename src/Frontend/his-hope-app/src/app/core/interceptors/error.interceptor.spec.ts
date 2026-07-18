@@ -1,9 +1,6 @@
 import { TestBed, fakeAsync, tick } from '@angular/core/testing';
-import {
-  HttpClientTestingModule,
-  HttpTestingController,
-} from '@angular/common/http/testing';
-import { HTTP_INTERCEPTORS, HttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { HTTP_INTERCEPTORS, HttpClient, provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
@@ -26,15 +23,17 @@ describe('ErrorInterceptor', () => {
     const errorServiceSpy = jasmine.createSpyObj('ErrorService', ['getCorrelationId']);
 
     TestBed.configureTestingModule({
-      imports: [HttpClientTestingModule, NoopAnimationsModule],
-      providers: [
+    imports: [NoopAnimationsModule],
+    providers: [
         { provide: AuthService, useValue: authSpy },
         { provide: Router, useValue: routerSpy },
         { provide: MatSnackBar, useValue: snackBarSpy },
         { provide: ErrorService, useValue: errorServiceSpy },
         { provide: HTTP_INTERCEPTORS, useClass: ErrorInterceptor, multi: true },
-      ],
-    });
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+});
 
     httpClient = TestBed.inject(HttpClient);
     httpMock = TestBed.inject(HttpTestingController);

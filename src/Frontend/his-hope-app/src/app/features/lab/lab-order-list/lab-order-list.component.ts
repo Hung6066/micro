@@ -6,9 +6,9 @@ import { LabService } from '@core/services/lab.service';
 import { LabOrder } from '@core/models/lab-order.model';
 
 @Component({
-  selector: 'app-lab-order-list',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-lab-order-list',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="lab-order-list">
       <div class="header">
         <h1>Phiếu xét nghiệm</h1>
@@ -113,7 +113,7 @@ import { LabOrder } from '@core/models/lab-order.model';
       </mat-paginator>
     </div>
   `,
-  styles: [`
+    styles: [`
     .lab-order-list { padding: 24px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .filters { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -127,6 +127,7 @@ import { LabOrder } from '@core/models/lab-order.model';
     .empty-state { text-align: center; padding: 48px; color: #999; }
     .empty-icon { font-size: 48px; width: 48px; height: 48px; margin-bottom: 16px; }
   `],
+    standalone: false
 })
 export class LabOrderListComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

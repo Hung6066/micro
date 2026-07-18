@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -15,6 +15,7 @@ import { of } from 'rxjs';
 import { PrescriptionFormComponent } from './prescription-form.component';
 import { PharmacyService } from '@core/services/pharmacy.service';
 import { PatientService } from '@core/services/patient.service';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('PrescriptionFormComponent', () => {
   let component: PrescriptionFormComponent;
@@ -27,17 +28,17 @@ describe('PrescriptionFormComponent', () => {
     patientSpy.search.and.returnValue(of({ items: [], totalCount: 0, page: 1, pageSize: 20, hasNextPage: false, hasPreviousPage: false }));
 
     await TestBed.configureTestingModule({
-      declarations: [PrescriptionFormComponent],
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [PrescriptionFormComponent],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatSelectModule,
-        MatAutocompleteModule, MatButtonModule, MatIconModule, MatSnackBarModule, MatProgressSpinnerModule,
-      ],
-      providers: [
+        MatAutocompleteModule, MatButtonModule, MatIconModule, MatSnackBarModule, MatProgressSpinnerModule],
+    providers: [
         { provide: PharmacyService, useValue: pharmacySpy },
         { provide: PatientService, useValue: patientSpy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(PrescriptionFormComponent);
     component = fixture.componentInstance;

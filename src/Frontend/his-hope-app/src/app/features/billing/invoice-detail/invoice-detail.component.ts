@@ -7,9 +7,9 @@ import { BillingService } from '@core/services/billing.service';
 import { Invoice } from '@core/models/invoice.model';
 
 @Component({
-  selector: 'app-invoice-detail',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-invoice-detail',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="invoice-detail" *ngIf="invoice">
       <div class="header">
         <div>
@@ -198,7 +198,7 @@ import { Invoice } from '@core/models/invoice.model';
       <button mat-stroked-button color="primary" (click)="loadInvoice()">Thử lại</button>
     </div>
   `,
-  styles: [`
+    styles: [`
     .invoice-detail { padding: 24px; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
     .header-actions { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -232,6 +232,7 @@ import { Invoice } from '@core/models/invoice.model';
     .empty { color: #999; font-style: italic; padding: 12px; }
     .loading-container, .error-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 24px; gap: 16px; color: #666; }
   `],
+    standalone: false
 })
 export class InvoiceDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

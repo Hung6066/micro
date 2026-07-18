@@ -8,9 +8,9 @@ import { Patient } from '@core/models/patient.model';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Component({
-  selector: 'app-lab-order-form',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-lab-order-form',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="lab-order-form">
       <h1>Tạo phiếu xét nghiệm mới</h1>
 
@@ -106,7 +106,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
       </form>
     </div>
   `,
-  styles: [`
+    styles: [`
     .lab-order-form { padding: 24px; max-width: 900px; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .full-width { grid-column: 1 / -1; }
@@ -117,6 +117,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
     .form-actions { margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end; }
     .btn-spinner { display: inline-block; margin-right: 8px; }
   `],
+    standalone: false
 })
 export class LabOrderFormComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

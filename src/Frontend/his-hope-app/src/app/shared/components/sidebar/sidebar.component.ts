@@ -8,9 +8,9 @@ import { User } from '@core/models/auth.model';
 import { Patient } from '@core/models/patient.model';
 
 @Component({
-  selector: 'app-sidebar',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-sidebar',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="sidebar-header">
       <div class="brand">
         <mat-icon class="logo-icon" aria-hidden="true">local_hospital</mat-icon>
@@ -89,7 +89,7 @@ import { Patient } from '@core/models/patient.model';
       </button>
     </div>
   `,
-  styles: [`
+    styles: [`
     :host {
       display: flex;
       flex-direction: column;
@@ -262,6 +262,7 @@ import { Patient } from '@core/models/patient.model';
       color: var(--color-warn, #C25450);
     }
   `],
+    standalone: false
 })
 export class SidebarComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

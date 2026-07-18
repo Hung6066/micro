@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,6 +15,7 @@ import { CommonModule } from '@angular/common';
 import { of } from 'rxjs';
 import { RoleFormDialogComponent, RoleFormData } from './role-form.dialog';
 import { AdminService } from '@core/services/admin.service';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('RoleFormDialogComponent', () => {
   let component: RoleFormDialogComponent;
@@ -29,19 +30,19 @@ describe('RoleFormDialogComponent', () => {
     ]));
 
     await TestBed.configureTestingModule({
-      imports: [
-      RoleFormDialogComponent,
+    imports: [RoleFormDialogComponent,
         CommonModule, ReactiveFormsModule, MatDialogModule, MatButtonModule,
         MatFormFieldModule, MatInputModule, MatCheckboxModule, MatExpansionModule,
         MatIconModule, MatProgressSpinnerModule, MatSnackBarModule,
-        NoopAnimationsModule, HttpClientTestingModule,
-      ],
-      providers: [
+        NoopAnimationsModule],
+    providers: [
         { provide: MatDialogRef, useValue: { close: jasmine.createSpy('close') } },
         { provide: MAT_DIALOG_DATA, useValue: mockData },
         { provide: AdminService, useValue: adminSpy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(RoleFormDialogComponent);
     component = fixture.componentInstance;

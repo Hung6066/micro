@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -16,6 +16,7 @@ import { of } from 'rxjs';
 import { LabOrderListComponent } from './lab-order-list.component';
 import { LabService } from '@core/services/lab.service';
 import { createMockLabOrder, createMockPagedResult } from '@testing/mock-data';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('LabOrderListComponent', () => {
   let component: LabOrderListComponent;
@@ -29,17 +30,17 @@ describe('LabOrderListComponent', () => {
     spy.searchLabOrders.and.returnValue(of(createMockPagedResult(mockOrders, 2)));
 
     await TestBed.configureTestingModule({
-      declarations: [LabOrderListComponent],
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [LabOrderListComponent],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         MatTableModule, MatPaginatorModule, MatFormFieldModule, MatInputModule,
         MatSelectModule, MatIconModule, MatButtonModule, MatProgressBarModule,
-        ReactiveFormsModule, CommonModule,
-      ],
-      providers: [
+        ReactiveFormsModule, CommonModule],
+    providers: [
         { provide: LabService, useValue: spy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(LabOrderListComponent);
     component = fixture.componentInstance;

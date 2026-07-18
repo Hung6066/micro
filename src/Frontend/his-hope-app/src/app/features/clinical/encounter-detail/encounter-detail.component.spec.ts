@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { MatCardModule } from '@angular/material/card';
 import { MatListModule } from '@angular/material/list';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,6 +14,7 @@ import { ClinicalService } from '@core/services/clinical.service';
 import { LabService } from '@core/services/lab.service';
 import { PharmacyService } from '@core/services/pharmacy.service';
 import { createMockEncounter, createMockPagedResult } from '@testing/mock-data';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('EncounterDetailComponent', () => {
   let component: EncounterDetailComponent;
@@ -33,18 +34,18 @@ describe('EncounterDetailComponent', () => {
     pharmacySpy.getPatientPrescriptions.and.returnValue(of(createMockPagedResult([], 0)));
 
     await TestBed.configureTestingModule({
-      declarations: [EncounterDetailComponent],
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [EncounterDetailComponent],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         MatCardModule, MatListModule, MatButtonModule, MatIconModule,
-        MatSnackBarModule, CommonModule,
-      ],
-      providers: [
+        MatSnackBarModule, CommonModule],
+    providers: [
         { provide: ClinicalService, useValue: clinicalSpy },
         { provide: LabService, useValue: labSpy },
         { provide: PharmacyService, useValue: pharmacySpy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(EncounterDetailComponent);
     component = fixture.componentInstance;

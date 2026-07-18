@@ -9,9 +9,9 @@ import { CreateInvoiceRequest } from '@core/models/invoice.model';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Component({
-  selector: 'app-invoice-form',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-invoice-form',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="invoice-form">
       <h1>Tạo hóa đơn mới</h1>
 
@@ -127,7 +127,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
       </form>
     </div>
   `,
-  styles: [`
+    styles: [`
     .invoice-form { padding: 24px; max-width: 1000px; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .full-width { grid-column: 1 / -1; }
@@ -142,6 +142,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
     .form-actions { margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end; }
     .btn-spinner { display: inline-block; margin-right: 8px; }
   `],
+    standalone: false
 })
 export class InvoiceFormComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

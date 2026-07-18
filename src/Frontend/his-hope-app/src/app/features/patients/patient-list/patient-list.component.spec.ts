@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -14,6 +14,7 @@ import { of } from 'rxjs';
 import { PatientListComponent } from './patient-list.component';
 import { PatientService } from '@core/services/patient.service';
 import { createMockPatientList, createMockPagedResult } from '@testing/mock-data';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('PatientListComponent', () => {
   let component: PatientListComponent;
@@ -27,11 +28,9 @@ describe('PatientListComponent', () => {
     spy.search.and.returnValue(of(createMockPagedResult(mockPatients, 3)));
 
     await TestBed.configureTestingModule({
-      declarations: [PatientListComponent],
-      imports: [
-        RouterTestingModule,
+    declarations: [PatientListComponent],
+    imports: [RouterTestingModule,
         NoopAnimationsModule,
-        HttpClientTestingModule,
         MatTableModule,
         MatPaginatorModule,
         MatFormFieldModule,
@@ -39,12 +38,13 @@ describe('PatientListComponent', () => {
         MatIconModule,
         MatButtonModule,
         ReactiveFormsModule,
-        CommonModule,
-      ],
-      providers: [
+        CommonModule],
+    providers: [
         { provide: PatientService, useValue: spy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(PatientListComponent);
     component = fixture.componentInstance;

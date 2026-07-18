@@ -6,9 +6,9 @@ import { PatientService } from '@core/services/patient.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Component({
-  selector: 'app-patient-form',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-patient-form',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="patient-form">
       <h1>{{ isEdit ? 'Chỉnh sửa bệnh nhân' : 'Thêm bệnh nhân mới' }}</h1>
 
@@ -102,12 +102,13 @@ import { MatSnackBar } from '@angular/material/snack-bar';
       </form>
     </div>
   `,
-  styles: [`
+    styles: [`
     .patient-form { padding: 24px; max-width: 900px; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .full-width { grid-column: 1 / -1; }
     .form-actions { margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end; }
   `],
+    standalone: false
 })
 export class PatientFormComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

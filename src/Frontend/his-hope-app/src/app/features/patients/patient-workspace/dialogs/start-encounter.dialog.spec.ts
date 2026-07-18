@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,6 +15,7 @@ import { of } from 'rxjs';
 import { StartEncounterDialogComponent, StartEncounterData } from './start-encounter.dialog';
 import { ClinicalService } from '@core/services/clinical.service';
 import { AuthService } from '@core/services/auth.service';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('StartEncounterDialogComponent', () => {
   let component: StartEncounterDialogComponent;
@@ -28,8 +29,7 @@ describe('StartEncounterDialogComponent', () => {
     authSpy.currentUser$ = of({ id: 'usr-001' });
 
     await TestBed.configureTestingModule({
-      imports: [
-      StartEncounterDialogComponent,
+    imports: [StartEncounterDialogComponent,
         CommonModule,
         ReactiveFormsModule,
         MatDialogModule,
@@ -40,16 +40,16 @@ describe('StartEncounterDialogComponent', () => {
         MatIconModule,
         MatProgressSpinnerModule,
         MatSnackBarModule,
-        NoopAnimationsModule,
-        HttpClientTestingModule,
-      ],
-      providers: [
+        NoopAnimationsModule],
+    providers: [
         { provide: MatDialogRef, useValue: { close: jasmine.createSpy('close') } },
         { provide: MAT_DIALOG_DATA, useValue: mockData },
         { provide: ClinicalService, useValue: clinicalSpy },
         { provide: AuthService, useValue: authSpy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(StartEncounterDialogComponent);
     component = fixture.componentInstance;
