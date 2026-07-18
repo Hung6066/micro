@@ -1,0 +1,472 @@
+# Instincts generated from https://github.com/Hung6066/micro
+# Generated: 2026-07-18T01:56:48.665Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: micro-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/Hung6066/micro
+---
+
+# Micro Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: chore, docs
+
+## Evidence
+
+- 8 commits analyzed
+- Detected conventional commit pattern
+- Examples: docs: add Angular 19 comprehensive upgrade design spec, chore: snapshot baseline before Angular 19 upgrade
+
+---
+id: micro-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/Hung6066/micro
+---
+
+# Micro Commit Length
+
+## Action
+
+Write moderate-length commit messages (~53 characters)
+
+## Evidence
+
+- Average commit message length: 53 chars
+- Based on 8 commits
+
+---
+id: micro-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/Hung6066/micro
+---
+
+# Micro Naming Files
+
+## Action
+
+Use kebab-case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: kebab-case
+
+---
+id: micro-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/Hung6066/micro
+---
+
+# Micro Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: micro-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/Hung6066/micro
+---
+
+# Micro Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: micro-test-framework
+trigger: "when writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/Hung6066/micro
+---
+
+# Micro Test Framework
+
+## Action
+
+Use jest as the test framework
+
+## Evidence
+
+- Test framework detected: jest
+- File pattern: *.spec.ts
+
+---
+id: micro-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/Hung6066/micro
+---
+
+# Micro Test Naming
+
+## Action
+
+Name test files using the pattern: *.spec.ts
+
+## Evidence
+
+- File pattern: *.spec.ts
+- Consistent across test files
+
+---
+id: micro-test-types
+trigger: "when planning tests for a feature"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/Hung6066/micro
+---
+
+# Micro Test Types
+
+## Action
+
+Write unit, integration, e2e tests to match project standards
+
+## Evidence
+
+- Test types detected: unit, integration, e2e
+- Coverage config: no
+
+---
+id: micro-workflow-angular-major-upgrade
+trigger: "when doing angular major upgrade"
+confidence: 0.55
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/Hung6066/micro
+---
+
+# Micro Workflow Angular Major Upgrade
+
+## Action
+
+Follow the angular-major-upgrade workflow:
+1. Update package.json and package-lock.json to new Angular version
+2. Update Angular CLI and core packages
+3. Update Angular Material and CDK packages
+4. Update NgRx packages
+5. Update application code and tests to be compatible with new Angular version
+6. Update styles/themes if needed
+7. Update build configuration (e.g., switch builder)
+8. Update Dockerfile or auxiliary build/deploy scripts if needed
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~1x per month
+- Files: src/Frontend/his-hope-app/package.json, src/Frontend/his-hope-app/package-lock.json, src/Frontend/his-hope-app/src/app/**/*.ts
+
+---
+id: micro-workflow-document-major-initiative
+trigger: "when doing document major initiative"
+confidence: 0.55
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/Hung6066/micro
+---
+
+# Micro Workflow Document Major Initiative
+
+## Action
+
+Follow the document-major-initiative workflow:
+1. Write a design spec in docs/superpowers/specs/
+2. Write an implementation plan in docs/superpowers/plans/
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~1x per month
+- Files: docs/superpowers/specs/*.md, docs/superpowers/plans/*.md
+
+---
+id: micro-instinct-file-naming
+trigger: "When creating a new file in the codebase"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Hung6066/micro
+---
+
+# Micro Instinct File Naming
+
+## Action
+
+Name the file using kebab-case (e.g., my-component.ts)
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.files
+- All files in src/Frontend/his-hope-app/ use kebab-case
+
+---
+id: micro-instinct-function-naming
+trigger: "When defining a function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Hung6066/micro
+---
+
+# Micro Instinct Function Naming
+
+## Action
+
+Use camelCase for function names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.functions
+
+---
+id: micro-instinct-class-naming
+trigger: "When creating a class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Hung6066/micro
+---
+
+# Micro Instinct Class Naming
+
+## Action
+
+Use PascalCase for class names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.classes
+
+---
+id: micro-instinct-constant-naming
+trigger: "When declaring a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Hung6066/micro
+---
+
+# Micro Instinct Constant Naming
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.constants
+
+---
+id: micro-instinct-import-style
+trigger: "When importing modules in TypeScript files"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: Hung6066/micro
+---
+
+# Micro Instinct Import Style
+
+## Action
+
+Use relative import paths
+
+## Evidence
+
+- Pattern in codeStyle.importStyle
+
+---
+id: micro-instinct-export-style
+trigger: "When exporting from a module"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: Hung6066/micro
+---
+
+# Micro Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in codeStyle.exportStyle
+
+---
+id: micro-instinct-test-file-pattern
+trigger: "When creating a test file"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: Hung6066/micro
+---
+
+# Micro Instinct Test File Pattern
+
+## Action
+
+Name the file with a .spec.ts suffix
+
+## Evidence
+
+- Pattern in testing.filePattern
+- Files in src/Frontend/his-hope-app/src/app/**/*.spec.ts
+
+---
+id: micro-instinct-test-framework
+trigger: "When writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: Hung6066/micro
+---
+
+# Micro Instinct Test Framework
+
+## Action
+
+Use Jest as the testing framework
+
+## Evidence
+
+- Pattern in testing.framework
+
+---
+id: micro-instinct-test-types
+trigger: "When planning tests for a feature/module"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: Hung6066/micro
+---
+
+# Micro Instinct Test Types
+
+## Action
+
+Write unit, integration, and e2e tests as appropriate
+
+## Evidence
+
+- Pattern in testing.testTypes
+
+---
+id: micro-instinct-commit-format
+trigger: "When committing code"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: Hung6066/micro
+---
+
+# Micro Instinct Commit Format
+
+## Action
+
+Use conventional commit prefixes (chore, docs) followed by a colon and a concise message
+
+## Evidence
+
+- docs: add Angular 19 comprehensive upgrade design spec
+- chore: upgrade Angular CLI and core packages to v19
+- Pattern in commits.prefixes
+
+---
+id: micro-instinct-commit-length
+trigger: "When writing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: Hung6066/micro
+---
+
+# Micro Instinct Commit Length
+
+## Action
+
+Keep the commit message concise, around 53 characters on average
+
+## Evidence
+
+- Pattern in commits.averageLength
+
+---
+id: micro-instinct-angular-upgrade
+trigger: "When upgrading Angular to a new major version"
+confidence: 0.95
+domain: workflow
+source: repo-analysis
+source_repo: Hung6066/micro
+---
+
+# Micro Instinct Angular Upgrade
+
+## Action
+
+Follow the angular-major-upgrade workflow: update dependencies, code, tests, styles, build config, and Dockerfile as needed
+
+## Evidence
+
+- Workflow: angular-major-upgrade
+- Commits: chore: upgrade Angular CLI and core packages to v19, chore: upgrade Angular Material and CDK to v19, chore: upgrade NgRx to v19, chore: switch build from webpack to esbuild application builder
+
+---
+id: micro-instinct-document-initiative
+trigger: "When planning a major technical initiative or upgrade"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: Hung6066/micro
+---
+
+# Micro Instinct Document Initiative
+
+## Action
+
+Create a design spec in docs/superpowers/specs/ and an implementation plan in docs/superpowers/plans/
+
+## Evidence
+
+- Workflow: document-major-initiative
+- Commits: docs: add Angular 19 comprehensive upgrade design spec, docs: add Phase 1 implementation plan - Angular 19 tooling upgrade
+
