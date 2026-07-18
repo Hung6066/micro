@@ -470,6 +470,11 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
     services.AddScoped<GetPipelineStatusTool>();
     services.AddScoped<SaveArtifactTool>();
     services.AddScoped<GetArtifactTool>();
+    services.AddScoped<RequestApprovalTool>();
+    services.AddScoped<ApproveActionTool>();
+    services.AddScoped<RejectActionTool>();
+    services.AddScoped<ListPendingApprovalsTool>();
+    services.AddSingleton<GuardrailService>();
 }
 
 static void InitializeDatabase(IServiceProvider sp)

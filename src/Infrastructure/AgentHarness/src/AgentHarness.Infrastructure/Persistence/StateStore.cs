@@ -112,4 +112,23 @@ public class StateStore : IStateStore
             .OrderByDescending(m => m.UseCount)
             .ThenByDescending(m => m.LastUsedAt)
             .ToListAsync(ct);
+
+    public async Task SavePendingApprovalAsync(PendingApproval approval, CancellationToken ct = default)
+    {
+        var existing = await _db.Set<PendingApproval>().FindAsync([approval.Id], ct);
+        if (existing is null)
+            _db.Set<PendingApproval>().Add(approval);
+        else
+            _db.Entry(existing).CurrentValues.SetValues(approval);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<PendingApproval?> GetPendingApprovalAsync(Guid id, CancellationToken ct = default)
+        => await _db.Set<PendingApproval>().FindAsync([id], ct);
+
+    public async Task<List<PendingApproval>> GetPendingApprovalsAsync(CancellationToken ct = default)
+        => await _db.Set<PendingApproval>()
+            .Where(a => a.Status == "pending")
+            .OrderByDescending(a => a.CreatedAt)
+            .ToListAsync(ct);
 }

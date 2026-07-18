@@ -144,6 +144,26 @@ public class MemoryEntryConfiguration : IEntityTypeConfiguration<MemoryEntry>
     }
 }
 
+public class PendingApprovalConfiguration : IEntityTypeConfiguration<PendingApproval>
+{
+    public void Configure(EntityTypeBuilder<PendingApproval> builder)
+    {
+        builder.ToTable("pending_approvals");
+        builder.HasKey(a => a.Id);
+        builder.Property(a => a.Id).HasColumnName("id");
+        builder.Property(a => a.ActionType).HasColumnName("action_type").HasMaxLength(100);
+        builder.Property(a => a.RequestedBy).HasColumnName("requested_by").HasMaxLength(128);
+        builder.Property(a => a.Details).HasColumnName("details").HasColumnType("text");
+        builder.Property(a => a.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("pending");
+        builder.Property(a => a.ApprovedBy).HasColumnName("approved_by").HasMaxLength(128);
+        builder.Property(a => a.RejectReason).HasColumnName("reject_reason").HasColumnType("text");
+        builder.Property(a => a.ContextJson).HasColumnName("context").HasColumnType("jsonb");
+        builder.Property(a => a.CreatedAt).HasColumnName("created_at");
+        builder.Property(a => a.ResolvedAt).HasColumnName("resolved_at");
+        builder.HasIndex(a => a.Status).HasDatabaseName("ix_pending_approvals_status");
+    }
+}
+
 public class AgentPoolStateConfiguration : IEntityTypeConfiguration<AgentPoolState>
 {
     public void Configure(EntityTypeBuilder<AgentPoolState> builder)

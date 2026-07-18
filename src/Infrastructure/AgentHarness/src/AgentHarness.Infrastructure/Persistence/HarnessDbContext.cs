@@ -23,5 +23,6 @@ public class HarnessDbContext : DbContext
         modelBuilder.ApplyConfiguration(new AgentPoolStateConfiguration());
         modelBuilder.ApplyConfiguration(new PipelineCheckpointConfiguration());
         modelBuilder.ApplyConfiguration(new MemoryEntryConfiguration());
+        modelBuilder.ApplyConfiguration(new PendingApprovalConfiguration());
     }
 }
