@@ -38,9 +38,12 @@
       "permission": "allow"
     },
     "testing-frontend": {
-      "description": "Frontend testing agent (Angular Jasmine/Karma, Cypress E2E, Playwright, accessibility axe). Uses MCP: playwright for browser automation testing.",
+      "description": "Frontend testing agent (Angular Jasmine/Karma, Cypress E2E, Playwright, accessibility axe). Uses MCP: playwright, agent-harness.",
       "model": "opencode-go/deepseek-v4-flash",
-      "permission": "allow"
+      "permission": "allow",
+      "mcp": {
+        "agent-harness": "allow"
+      }
     },
     "validate": {
       "description": "Validation agent (API contract, schema, FluentValidation, build, config/secrets, migration safety, knowledge index freshness). Uses MCP: db-* for migration verification, docker for container validation, filesystem for config inspection.",
@@ -53,14 +56,21 @@
       "permission": "allow"
     },
     "dotnet": {
-      "description": "Senior .NET backend engineer for His.Hope microservices (Clean Architecture, CQRS, DDD, gRPC, EF Core). Uses MCP: db-* (7 databases) for data queries, rabbitmq for event bus debugging, docker for container exec/logs, filesystem for code navigation.",
+      "description": "Senior .NET backend engineer for His.Hope microservices (Clean Architecture, CQRS, DDD, gRPC, EF Core). Uses MCP: db-* (7 databases), rabbitmq, docker, agent-harness for pipeline tasks.",
       "model": "opencode-go/deepseek-v4-flash",
-      "permission": "allow"
+      "permission": "allow",
+      "mcp": {
+        "agent-harness": "allow"
+      }
     },
     "angular": {
-      "description": "Senior Angular frontend engineer for His.Hope SPA (Angular 17, NgRx, Angular Material, RxJS). Uses MCP: filesystem for code navigation and file operations.",
+      "description": "Senior Angular frontend engineer for His.Hope SPA (Angular 17, NgRx, Angular Material, RxJS). Uses MCP: filesystem for code navigation, agent-harness for pipeline tasks.",
       "model": "opencode-go/deepseek-v4-flash",
-      "permission": "allow"
+      "permission": "allow",
+      "mcp": {
+        "agent-harness": "allow",
+        "filesystem": "allow"
+      }
     },
     "devops": {
       "description": "DevOps / SRE engineer (Kubernetes, Docker, Linkerd, Cilium, Tekton, ArgoCD, Bazel). Uses MCP: kubernetes for pod/deployment/service management, docker for container exec/logs, prometheus for metrics/SLO queries, rabbitmq for event bus health, redis for cache inspection.",
@@ -88,9 +98,12 @@
       "permission": "allow"
     },
     "qa": {
-      "description": "QA / Testing engineer (xUnit, Cypress, Chaos Mesh, k6, contract testing, quality gates). Uses MCP: playwright for E2E browser tests, kubernetes for chaos experiment status, docker for test container management, prometheus for quality/SLO metrics.",
+      "description": "QA / Testing engineer (xUnit, Cypress, Chaos Mesh, k6, contract testing, quality gates). Uses MCP: playwright, kubernetes, docker, prometheus, agent-harness for pipeline tasks.",
       "model": "opencode-go/deepseek-v4-flash",
-      "permission": "allow"
+      "permission": "allow",
+      "mcp": {
+        "agent-harness": "allow"
+      }
     },
     "dispatcher": {
       "description": "Intelligent Dispatcher — analyzes feature requests, classifies scope/complexity, selects optimal minimal agent set (including @explore). SMART ENTRY POINT: use before @orchestrator or direct delegation. No MCP usage (router only).",
@@ -139,16 +152,18 @@
       "description": "Autonomous fix agent — analyzes failed quality gates, classifies errors, generates and applies fixes with confidence scoring. Escalates when below confidence threshold or max loops reached. Reads knowledge base for known patterns. Self-records successful fixes.",
       "model": "deepseek-v4-pro",
       "permission": "allow",
-	  "tools": {
+      "tools": {
         "filesystem-edit": true,
         "filesystem-read": true,
         "bash": true,
         "grep": true,
         "glob": true,
-		"harness_start_pipeline": true,
-		"harness_get_status": true,
-		"harness_dispatch_agent": true,
-		"harness_cancel_pipeline": true
+        "agent-harness_start-pipeline": true,
+        "agent-harness_get-pending-tasks": true,
+        "agent-harness_complete-task": true,
+        "agent-harness_get-pipeline-status": true,
+        "agent-harness_cancel-pipeline": true,
+        "agent-harness_dispatch-agent": true
       },
       "mcp": {
         "agent-harness": "allow",
@@ -308,8 +323,8 @@
     },
     "agent-harness": {
       "type": "local",
-      "command": ["docker", "exec", "-i", "his-hope-agentharness", "dotnet", "/app/His.Hope.AgentHarness.Mcp.dll", "--stdio"],
-      "description": "Agent Harness — Pipeline orchestration and state management for OpenCode agents",
+      "command": ["cmd", "/c", "scripts\\mcp-harness.cmd"],
+      "description": "Agent Harness — Pipeline orchestration, get-pending-tasks, complete-task, pipeline lifecycle",
       "enabled": true
     }
   }

@@ -86,19 +86,17 @@ The His.Hope agent system is powered by a runtime harness (.NET 8 MCP server at 
 - **Harness Runner** (`@harness-runner`) — Autonomous pipeline executor. Delegates to specialized agents, reports back to harness. For multi-step workflows.
 - **Loop Engineer** (`@loop-engineer`) — Autonomous fix agent that intercepts failed quality gates and applies fixes
 
-### Harness Runner Flow
-```
-1. task(harness-runner, "run workflow fix-backend")
-2. @harness-runner:
-   a. POST /mcp/start-pipeline    → pipeline_running
-   b. Loop: GET /mcp/get-pending-tasks
-            → task(angular, "fix bug")
-            → POST /mcp/complete-task(id, success)
-            → next task...
-   c. Until pipeline status = Completed
-```
+### MCP Bridge
+Agents (angular, dotnet, qa) now have direct access to harness MCP tools:
+- `agent-harness_get-pending-tasks` — poll for work
+- `agent-harness_complete-task` — report completion
+- `agent-harness_start-pipeline` — start workflows
+- `agent-harness_get-pipeline-status` — check state
+
+This means agents can autonomously interact with the pipeline without
+the architect acting as intermediary.
 
 ### When to Use
 - **Direct delegation** (`task(angular, ...)`) — for single-file fixes, simple tasks
-- **@harness-runner** — for multi-step workflows (implement → test → validate → commit)
-- Loop Engineer activates automatically when a quality gate fails
+- **Harness pipeline** — for multi-step workflows that need audit trail, auto phase transition
+- **Loop Engineer** — activates automatically when a quality gate fails
