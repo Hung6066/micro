@@ -1,0 +1,79 @@
+# =============================================================================
+# RBAC for Remediation Operator
+# =============================================================================
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: remediation-operator
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: remediation-operator
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: operator
+  annotations:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: kustomize
+
+---
+# ClusterRole: read/write CRDs, manage deployments/pods, create events
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: remediation-operator
+  labels:
+    app.kubernetes.io/name: remediation-operator
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: operator
+rules:
+  # RemediationPolicy CRD (read)
+  - apiGroups: ["his-hope.io"]
+    resources: ["remediationpolicies"]
+    verbs: ["get", "list", "watch"]
+  # RemediationAction CRD (create, read, list)
+  - apiGroups: ["his-hope.io"]
+    resources: ["remediationactions"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+  # RemediationAction status subresource
+  - apiGroups: ["his-hope.io"]
+    resources: ["remediationactions/status"]
+    verbs: ["get", "patch", "update"]
+  # Deployments (read/write for scale, restart, rollback)
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/status"]
+    verbs: ["get"]
+  # ReplicaSets (for rollback revision lookup)
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list"]
+  # Pods (read for status checks)
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  # Events (create for audit trail)
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch", "update"]
+
+---
+# Bind ClusterRole to ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: remediation-operator
+  labels:
+    app.kubernetes.io/name: remediation-operator
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: remediation-operator
+subjects:
+  - kind: ServiceAccount
+    name: remediation-operator
+    namespace: his-hope

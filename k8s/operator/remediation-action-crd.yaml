@@ -1,0 +1,247 @@
+# =============================================================================
+# RemediationAction CRD
+# Audit trail for every remediation action executed by the operator
+# =============================================================================
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: remediationactions.his-hope.io
+  annotations:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: kustomize
+  labels:
+    app.kubernetes.io/name: remediation-operator
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: operator
+spec:
+  group: his-hope.io
+  names:
+    plural: remediationactions
+    singular: remediationaction
+    shortNames:
+      - ract
+      - racts
+    kind: RemediationAction
+    listKind: RemediationActionList
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      subresources:
+        status: {}
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+              properties:
+                name:
+                  type: string
+                namespace:
+                  type: string
+                ownerReferences:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      apiVersion:
+                        type: string
+                      kind:
+                        type: string
+                      name:
+                        type: string
+                      uid:
+                        type: string
+                      controller:
+                        type: boolean
+                      blockOwnerDeletion:
+                        type: boolean
+            spec:
+              type: object
+              required:
+                - policyRef
+                - actionType
+                - target
+              properties:
+                # Reference to the RemediationPolicy that triggered this action
+                policyRef:
+                  type: object
+                  required:
+                    - name
+                    - uid
+                  properties:
+                    name:
+                      type: string
+                      minLength: 1
+                      description: Name of the RemediationPolicy
+                    uid:
+                      type: string
+                      format: uuid
+                      description: UID of the RemediationPolicy
+                    alertName:
+                      type: string
+                      description: The alert name that triggered the policy
+                    alertUid:
+                      type: string
+                      description: The Alertmanager alert UID
+                # Type of remediation action executed
+                actionType:
+                  type: string
+                  enum:
+                    - scale
+                    - restart
+                    - rollback
+                    - notify
+                  description: Type of remediation action executed
+                # Target resource identifier
+                target:
+                  type: string
+                  minLength: 1
+                  description: >
+                    Target resource for the action
+                    (e.g. "deployment/identity-service")
+                # Action-specific parameters snapshot
+                params:
+                  type: object
+                  properties:
+                    replicas:
+                      type: integer
+                    revision:
+                      type: integer
+                    message:
+                      type: string
+                      maxLength: 2000
+                    channel:
+                      type: string
+                    cpuRequest:
+                      type: string
+                    memoryRequest:
+                      type: string
+                    cpuLimit:
+                      type: string
+                    memoryLimit:
+                      type: string
+                    maxUnavailable:
+                      type: string
+                  additionalProperties: false
+                # Reason or source of the remediation
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: Human-readable reason for the remediation
+                # Severity at the time of execution
+                severity:
+                  type: string
+                  enum:
+                    - P0
+                    - P1
+                    - P2
+                    - P3
+            status:
+              type: object
+              properties:
+                # Execution result
+                result:
+                  type: string
+                  enum:
+                    - Success
+                    - Failed
+                    - Throttled
+                  description: Whether the action succeeded, failed, or was throttled
+                # Error message if failed
+                error:
+                  type: string
+                  maxLength: 2000
+                  description: Error message if the action failed
+                # When the action started execution
+                executedAt:
+                  type: string
+                  format: date-time
+                  description: Timestamp when the action started
+                # When the action completed
+                completedAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                  description: Timestamp when the action finished
+                # Duration of execution in seconds
+                durationSeconds:
+                  type: integer
+                  minimum: 0
+                  description: Duration of the action execution in seconds
+                # Before-state snapshot (for rollback / scale actions)
+                before:
+                  type: object
+                  properties:
+                    replicas:
+                      type: integer
+                    revision:
+                      type: integer
+                    resourceVersion:
+                      type: string
+                  description: State before the remediation was applied
+                # After-state snapshot
+                after:
+                  type: object
+                  properties:
+                    replicas:
+                      type: integer
+                    revision:
+                      type: integer
+                    resourceVersion:
+                      type: string
+                  description: State after the remediation was applied
+                # Conditions for detailed state tracking
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - type
+                      - status
+                      - lastTransitionTime
+                    properties:
+                      type:
+                        type: string
+                        enum:
+                          - Executing
+                          - Completed
+                          - Failed
+                          - Throttled
+                      status:
+                        type: string
+                        enum:
+                          - "True"
+                          - "False"
+                          - "Unknown"
+                      reason:
+                        type: string
+                      message:
+                        type: string
+                      lastTransitionTime:
+                        type: string
+                        format: date-time
+      additionalPrinterColumns:
+        - name: Action
+          type: string
+          jsonPath: .spec.actionType
+        - name: Target
+          type: string
+          jsonPath: .spec.target
+        - name: Result
+          type: string
+          jsonPath: .status.result
+        - name: Policy
+          type: string
+          jsonPath: .spec.policyRef.name
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
