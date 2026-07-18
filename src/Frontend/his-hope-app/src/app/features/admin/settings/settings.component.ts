@@ -31,7 +31,14 @@ const CATEGORIES: CategoryConfig[] = [
 
 @Component({
   selector: 'app-admin-settings',
-  standalone: false,
+  standalone: true,
+  imports: [
+    CommonModule, ReactiveFormsModule,
+    MatSnackBarModule, MatButtonModule, MatIconModule, MatFormFieldModule,
+    MatInputModule, MatSelectModule, MatSlideToggleModule, MatExpansionModule,
+    MatProgressSpinnerModule, MatProgressBarModule,
+    LoadingSpinnerComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="settings-page">

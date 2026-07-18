@@ -1,12 +1,27 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { FormBuilder, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { MatButtonModule } from '@angular/material/button';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { PatientService } from '@core/services/patient.service';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 
 @Component({
     selector: 'app-patient-form',
+    standalone: true,
+    imports: [
+        CommonModule, ReactiveFormsModule, RouterModule,
+        MatFormFieldModule, MatInputModule, MatSelectModule,
+        MatButtonModule, MatDatepickerModule, MatNativeDateModule,
+        MatProgressSpinnerModule, MatSnackBarModule,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="patient-form">
@@ -108,7 +123,6 @@ import { MatSnackBar } from '@angular/material/snack-bar';
     .full-width { grid-column: 1 / -1; }
     .form-actions { margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end; }
   `],
-    standalone: false
 })
 export class PatientFormComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

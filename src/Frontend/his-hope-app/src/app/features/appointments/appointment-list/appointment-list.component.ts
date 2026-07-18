@@ -1,12 +1,27 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { Router } from '@angular/router';
-import { FormControl } from '@angular/forms';
+import { CommonModule } from '@angular/common';
+import { Router, RouterModule } from '@angular/router';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
+import { MatTableModule } from '@angular/material/table';
+import { MatPaginatorModule } from '@angular/material/paginator';
+import { MatButtonModule } from '@angular/material/button';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { AppointmentService } from '@core/services/appointment.service';
 import { Appointment } from '@core/models/appointment.model';
 
 @Component({
     selector: 'app-appointment-list',
+    standalone: true,
+    imports: [
+        CommonModule, RouterModule, ReactiveFormsModule,
+        MatCardModule, MatFormFieldModule, MatInputModule, MatIconModule,
+        MatTableModule, MatPaginatorModule, MatButtonModule, MatTooltipModule,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="appointments">
@@ -100,7 +115,6 @@ import { Appointment } from '@core/models/appointment.model';
     .placeholder { color: #999; text-align: center; padding: 48px; }
 
   `],
-    standalone: false
 })
 export class AppointmentListComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

@@ -45,7 +45,15 @@ const RESOURCE_OPTIONS = [
 
 @Component({
   selector: 'app-audit-logs',
-  standalone: false,
+  standalone: true,
+  imports: [
+    CommonModule, ReactiveFormsModule,
+    MatSnackBarModule, MatTableModule, MatPaginatorModule, MatButtonModule,
+    MatIconModule, MatFormFieldModule, MatInputModule, MatSelectModule,
+    MatDatepickerModule, MatNativeDateModule, MatProgressSpinnerModule,
+    MatExpansionModule,
+    LoadingSpinnerComponent, EmptyStateComponent,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="audit-logs">
