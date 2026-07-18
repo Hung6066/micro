@@ -1,13 +1,32 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
-import { FormBuilder, Validators } from '@angular/forms';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { CommonModule } from '@angular/common';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatTableModule } from '@angular/material/table';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatNativeDateModule } from '@angular/material/core';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Subject, takeUntil } from 'rxjs';
 import { BillingService } from '@core/services/billing.service';
 import { Invoice } from '@core/models/invoice.model';
 
 @Component({
     selector: 'app-invoice-detail',
+    standalone: true,
+    imports: [
+        CommonModule, RouterModule, ReactiveFormsModule,
+        MatCardModule, MatIconModule, MatButtonModule, MatTableModule,
+        MatFormFieldModule, MatInputModule, MatSelectModule,
+        MatDatepickerModule, MatNativeDateModule, MatProgressSpinnerModule,
+        MatSnackBarModule,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="invoice-detail" *ngIf="invoice">
@@ -232,7 +251,6 @@ import { Invoice } from '@core/models/invoice.model';
     .empty { color: #999; font-style: italic; padding: 12px; }
     .loading-container, .error-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 24px; gap: 16px; color: #666; }
   `],
-    standalone: false
 })
 export class InvoiceDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

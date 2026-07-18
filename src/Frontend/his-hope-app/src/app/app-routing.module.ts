@@ -37,7 +37,7 @@ const routes: Routes = [
     canActivate: [AuthGuard, PermissionGuard],
     data: { permissions: ['patients.view'] },
     loadChildren: () =>
-      import('@features/patients/patients.module').then((m) => m.PatientsModule),
+      import('@features/patients/patients.routes').then((m) => m.PATIENT_ROUTES),
   },
   // ─── Appointments ───────────────────────────────────────────────────
   {
@@ -45,7 +45,7 @@ const routes: Routes = [
     canActivate: [AuthGuard, PermissionGuard],
     data: { permissions: ['appointments.view'] },
     loadChildren: () =>
-      import('@features/appointments/appointments.module').then((m) => m.AppointmentsModule),
+      import('@features/appointments/appointments.routes').then((m) => m.APPOINTMENT_ROUTES),
   },
   // ─── Clinical ───────────────────────────────────────────────────────
   {
@@ -53,7 +53,7 @@ const routes: Routes = [
     canActivate: [AuthGuard, PermissionGuard],
     data: { permissions: ['clinical.view'] },
     loadChildren: () =>
-      import('@features/clinical/clinical.module').then((m) => m.ClinicalModule),
+      import('@features/clinical/clinical.routes').then((m) => m.CLINICAL_ROUTES),
   },
   // ─── Pharmacy ───────────────────────────────────────────────────────
   {
@@ -61,7 +61,7 @@ const routes: Routes = [
     canActivate: [AuthGuard, PermissionGuard],
     data: { permissions: ['pharmacy.view'] },
     loadChildren: () =>
-      import('@features/pharmacy/pharmacy.module').then((m) => m.PharmacyModule),
+      import('@features/pharmacy/pharmacy.routes').then((m) => m.PHARMACY_ROUTES),
   },
   // ─── Lab ────────────────────────────────────────────────────────────
   {
@@ -69,7 +69,7 @@ const routes: Routes = [
     canActivate: [AuthGuard, PermissionGuard],
     data: { permissions: ['lab.view'] },
     loadChildren: () =>
-      import('@features/lab/lab.module').then((m) => m.LabModule),
+      import('@features/lab/lab.routes').then((m) => m.LAB_ROUTES),
   },
   // ─── Billing ────────────────────────────────────────────────────────
   {
@@ -77,7 +77,7 @@ const routes: Routes = [
     canActivate: [AuthGuard, PermissionGuard],
     data: { permissions: ['billing.view'] },
     loadChildren: () =>
-      import('@features/billing/billing.module').then((m) => m.BillingModule),
+      import('@features/billing/billing.routes').then((m) => m.BILLING_ROUTES),
   },
   // ─── Admin (role-based) ─────────────────────────────────────────────
   {
@@ -85,7 +85,7 @@ const routes: Routes = [
     canActivate: [AuthGuard, RoleGuard],
     data: { roles: ['admin'] },
     loadChildren: () =>
-      import('@features/admin/admin.module').then((m) => m.AdminModule),
+      import('@features/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
   },
   // ─── Reports ────────────────────────────────────────────────────────
   {
