@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, Input, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, Input, Output, EventEmitter, ChangeDetectionStrategy, inject, ChangeDetectorRef } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Subject, takeUntil, debounceTime, distinctUntilChanged } from 'rxjs';
@@ -309,6 +309,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe((user) => {
         this.currentUser = user;
+        this.cdr.detectChanges();
       });
 
     this.patientSearchControl.valueChanges
@@ -321,14 +322,14 @@ export class SidebarComponent implements OnInit, OnDestroy {
         const query = (term ?? '').trim();
         if (query.length < 2) {
           this.searchResults = [];
-          this.cdr.markForCheck();
+          this.cdr.detectChanges();
           return;
         }
         this.patientService.search(query, 1, 10)
           .pipe(takeUntil(this.destroy$))
           .subscribe((res) => {
             this.searchResults = res.items;
-            this.cdr.markForCheck();
+            this.cdr.detectChanges();
           });
       });
   }
@@ -348,6 +349,7 @@ export class SidebarComponent implements OnInit, OnDestroy {
       this.patientSearchControl.setValue('', { emitEvent: false });
       this.searchResults = [];
       this.router.navigate(['/patients', patient.id, 'workspace']);
+      this.cdr.detectChanges();
     }
   }
 
@@ -359,10 +361,12 @@ export class SidebarComponent implements OnInit, OnDestroy {
         complete: () => {
           this.loggingOut = false;
           this.router.navigate(['/auth/login']);
+          this.cdr.detectChanges();
         },
         error: () => {
           this.loggingOut = false;
           this.router.navigate(['/auth/login']);
+          this.cdr.detectChanges();
         },
       });
   }
