@@ -292,10 +292,10 @@ public class PipelineEndToEndTests
     [Fact]
     public void PipelineDag_BuildAndTraverse_ShouldWork()
     {
-        var dag = new PipelineDag("test-pipeline");
+        var dag = new PipelineDag();
         var planNode = dag.AddNode("plan", PipelinePhase.Plan);
         var implNode = dag.AddNode("dotnet", PipelinePhase.Implement);
-        dag.AddDependency(implNode.Id, planNode.Id);
+        dag.AddEdge(planNode, implNode);
 
         dag.Nodes.Should().HaveCount(2);
         dag.GetPhaseNodes(PipelinePhase.Plan).Should().Contain(n => n.AgentName == "plan");
