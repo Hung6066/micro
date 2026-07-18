@@ -1,0 +1,106 @@
+# =============================================================================
+# Agent Harness Network Policies
+# =============================================================================
+
+---
+# 1. INGRESS: Allow traffic from his-hope namespace on port 5200
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent-harness-ingress
+  namespace: hishope
+  labels:
+    app.kubernetes.io/name: agent-harness
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: agent-harness
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: hishope
+      ports:
+        - port: 5200
+          protocol: TCP
+
+---
+# 2. EGRESS: CockroachDB (port 26257)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent-harness-egress-cockroachdb
+  namespace: hishope
+  labels:
+    app.kubernetes.io/name: agent-harness
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: agent-harness
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: cockroachdb
+      ports:
+        - port: 26257
+          protocol: TCP
+
+---
+# 3. EGRESS: RabbitMQ (port 5672)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent-harness-egress-rabbitmq
+  namespace: hishope
+  labels:
+    app.kubernetes.io/name: agent-harness
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: agent-harness
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: rabbitmq
+      ports:
+        - port: 5672
+          protocol: TCP
+
+---
+# 4. EGRESS: OpenTelemetry Collector (port 4317)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent-harness-egress-otel
+  namespace: hishope
+  labels:
+    app.kubernetes.io/name: agent-harness
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: agent-harness
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: otel-collector
+      ports:
+        - port: 4317
+          protocol: TCP
