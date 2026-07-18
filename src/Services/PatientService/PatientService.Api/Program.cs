@@ -22,6 +22,7 @@ using His.Hope.PatientService.Application.UseCases.Patients.Queries;
 using His.Hope.PatientService.Domain.Aggregates;
 using His.Hope.PatientService.Infrastructure;
 using His.Hope.PatientService.Infrastructure.Persistence;
+using His.Hope.PatientService.Infrastructure.Projections;
 using MediatR;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Serilog;
@@ -117,11 +118,23 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
-// Auto-create database on startup
+// Auto-create databases and subscribe to integration events on startup
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<His.Hope.PatientService.Infrastructure.Persistence.PatientDbContext>();
-    db.Database.EnsureCreated();
+    var sp = scope.ServiceProvider;
+
+    // Ensure write-side database exists
+    var writeDb = sp.GetRequiredService<His.Hope.PatientService.Infrastructure.Persistence.PatientDbContext>();
+    writeDb.Database.EnsureCreated();
+
+    // Ensure read-side database exists
+    var readDb = sp.GetRequiredService<PatientReadDbContext>();
+    readDb.Database.EnsureCreated();
+
+    // Subscribe to integration events for CQRS read projections
+    var eventBus = sp.GetRequiredService<IEventBus>();
+    eventBus.SubscribeAsync<PatientRegisteredIntegrationEvent, PatientProjector>().GetAwaiter().GetResult();
+    eventBus.SubscribeAsync<PatientUpdatedIntegrationEvent, PatientProjector>().GetAwaiter().GetResult();
 }
 
 // Middleware Pipeline (order matters)
