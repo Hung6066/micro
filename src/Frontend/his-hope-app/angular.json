@@ -24,7 +24,7 @@
             "outputPath": "dist",
             "index": "src/index.html",
             "browser": "src/main.ts",
-            "polyfills": [],
+            "polyfills": ["zone.js"],
             "tsConfig": "tsconfig.json",
             "assets": ["src/favicon.ico", "src/assets"],
             "styles": [
@@ -35,23 +35,24 @@
             "scripts": []
           },
           "configurations": {
-            "production": {
-              "budgets": [
-                { "type": "initial", "maximumWarning": "2mb", "maximumError": "3mb" },
-                { "type": "anyComponentStyle", "maximumWarning": "10kb", "maximumError": "20kb" }
-              ],
-              "outputHashing": "all",
-              "localize": ["en"],
-              "optimization": {
-                "scripts": true,
-                "styles": {
-                  "minify": true,
-                  "inlineCritical": true
-                },
-                "fonts": {
-                  "inline": true
+              "production": {
+                "budgets": [
+                  { "type": "initial", "maximumWarning": "2mb", "maximumError": "3mb" },
+                  { "type": "anyComponentStyle", "maximumWarning": "10kb", "maximumError": "20kb" }
+                ],
+                "outputHashing": "all",
+                "localize": ["en"],
+                "optimization": {
+                  "scripts": true,
+                  "styles": {
+                    "minify": true,
+                    "inlineCritical": true
+                  },
+                  "fonts": {
+                    "inline": true
+                  },
+                  "sri": true
                 }
-              }
             },
             "production-vi": {
               "budgets": [
@@ -68,11 +69,11 @@
                 },
                 "fonts": {
                   "inline": true
-                }
+                },
+                "sri": true
               }
             },
             "development": {
-              "buildOptimizer": false,
               "optimization": false,
               "vendorChunk": true,
               "extractLicenses": false,
