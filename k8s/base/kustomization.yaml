@@ -38,6 +38,8 @@ resources:
   - ../infrastructure/pgbouncer-secret.yaml
   # Unleash feature flag service
   - ../infrastructure/unleash-deployment.yaml
+  # 5-tier request priority classes (P0–P4)
+  - ../priority/priority-classes.yaml
 
 patches:
   - target:

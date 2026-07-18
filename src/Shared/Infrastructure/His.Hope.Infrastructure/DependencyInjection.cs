@@ -7,6 +7,7 @@ using His.Hope.Infrastructure.Locking;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
+using His.Hope.Infrastructure.Qos;
 using His.Hope.Infrastructure.Resilience;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -48,6 +49,16 @@ public static class DependencyInjection
 
         // SECURITY: Register brute force protection for login attempt tracking
         services.AddSingleton<IBruteForceProtectionService, BruteForceProtectionService>();
+
+        // QoS: 5-tier request priority admission control
+        services.AddSingleton<PriorityAdmissionMiddleware>();
+        services.AddSingleton(sp =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            var options = new PriorityAdmissionOptions();
+            config.GetSection("PriorityAdmission").Bind(options);
+            return options;
+        });
 
         return services;
     }

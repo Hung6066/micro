@@ -1,6 +1,7 @@
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.RateLimiting;
 using His.Hope.Infrastructure.Idempotency;
+using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Security;
 using Serilog;
 
@@ -96,6 +97,12 @@ app.UseSecurityHeaders();
 app.UseCors();  // Must be after UseSecurityHeaders, before UseRateLimiter
 app.UseRateLimiter();
 app.UseSerilogRequestLogging();
+
+// QoS: Resolve X-Priority header (P0–P4, default P1) and store in HttpContext.Items
+app.UsePriorityHeader();
+
+// QoS: Admission control — shed low-priority requests when service is at capacity
+app.UsePriorityAdmission();
 
 app.UseIdempotency();
 
