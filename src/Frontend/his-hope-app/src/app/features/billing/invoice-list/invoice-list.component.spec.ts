@@ -30,8 +30,9 @@ describe('InvoiceListComponent', () => {
     spy.searchInvoices.and.returnValue(of(createMockPagedResult(mockInvoices, 2)));
 
     await TestBed.configureTestingModule({
-    declarations: [InvoiceListComponent],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        InvoiceListComponent, RouterTestingModule, NoopAnimationsModule,
         MatTableModule, MatPaginatorModule, MatFormFieldModule, MatInputModule,
         MatSelectModule, MatIconModule, MatButtonModule, MatProgressBarModule,
         ReactiveFormsModule, CommonModule],

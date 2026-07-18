@@ -18,8 +18,9 @@ describe('ConfirmDialogComponent', () => {
     const dialogRefSpy = jasmine.createSpyObj('MatDialogRef', ['close']);
 
     TestBed.configureTestingModule({
-      declarations: [ConfirmDialogComponent],
-      imports: [MatDialogModule, MatButtonModule, NoopAnimationsModule],
+      
+      imports: [
+        ConfirmDialogComponent, MatDialogModule, MatButtonModule, NoopAnimationsModule],
       providers: [
         { provide: MAT_DIALOG_DATA, useValue: defaultData },
         { provide: MatDialogRef, useValue: dialogRefSpy },

@@ -33,8 +33,9 @@ describe('InvoiceDetailComponent', () => {
     spy.getInvoice.and.returnValue(of(mockInvoice));
 
     await TestBed.configureTestingModule({
-    declarations: [InvoiceDetailComponent],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        InvoiceDetailComponent, RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatCardModule, MatTableModule, MatButtonModule,
         MatIconModule, MatSnackBarModule, MatProgressSpinnerModule,
         MatFormFieldModule, MatInputModule, MatSelectModule,

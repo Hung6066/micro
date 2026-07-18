@@ -23,8 +23,9 @@ describe('LoginComponent', () => {
     const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
 
     TestBed.configureTestingModule({
-      declarations: [LoginComponent],
+      
       imports: [
+        LoginComponent, 
         NoopAnimationsModule,
         ReactiveFormsModule,
         MatSnackBarModule,

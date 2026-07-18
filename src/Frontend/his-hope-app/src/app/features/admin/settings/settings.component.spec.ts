@@ -37,10 +37,9 @@ describe('SettingsComponent', () => {
     spy.getSettings.and.returnValue(of(mockSettings));
 
     await TestBed.configureTestingModule({
-    declarations: [
-        SettingsComponent, LoadingSpinnerComponent
-    ],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        SettingsComponent, LoadingSpinnerComponent, RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatButtonModule, MatIconModule, MatFormFieldModule,
         MatInputModule, MatSelectModule, MatSlideToggleModule, MatExpansionModule,
         MatProgressSpinnerModule, MatProgressBarModule, MatSnackBarModule, CommonModule],

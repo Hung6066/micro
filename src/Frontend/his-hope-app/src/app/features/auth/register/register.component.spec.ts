@@ -3,7 +3,7 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-import { RouterModule } from '@angular/router';
+import { RouterTestingModule } from '@angular/router/testing';
 import { RegisterComponent } from './register.component';
 
 describe('RegisterComponent', () => {
@@ -12,7 +12,7 @@ describe('RegisterComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      imports: [RegisterComponent, CommonModule, MatIconModule, MatButtonModule, RouterModule, NoopAnimationsModule],
+      imports: [RegisterComponent, CommonModule, MatIconModule, MatButtonModule, RouterTestingModule.withRoutes([]), NoopAnimationsModule],
     });
     fixture = TestBed.createComponent(RegisterComponent);
     component = fixture.componentInstance;

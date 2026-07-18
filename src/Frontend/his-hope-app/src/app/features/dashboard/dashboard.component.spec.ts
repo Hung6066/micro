@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { DashboardComponent } from './dashboard.component';
@@ -60,6 +60,7 @@ describe('DashboardComponent', () => {
         { provide: AppointmentService, useValue: appointmentSpy },
         { provide: ClinicalService, useValue: clinicalSpy },
         { provide: Router, useValue: routerSpy },
+        { provide: ActivatedRoute, useValue: { snapshot: { params: {} } } },
       ],
     });
 

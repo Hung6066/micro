@@ -29,8 +29,9 @@ describe('AppointmentFormComponent', () => {
     patientSpy.search.and.returnValue(of({ items: [], totalCount: 0, page: 1, pageSize: 10, hasNextPage: false, hasPreviousPage: false }));
 
     await TestBed.configureTestingModule({
-    declarations: [AppointmentFormComponent],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        AppointmentFormComponent, RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatSelectModule,
         MatDatepickerModule, MatNativeDateModule, MatAutocompleteModule,
         MatButtonModule, MatIconModule, MatSnackBarModule, MatProgressSpinnerModule],

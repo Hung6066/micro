@@ -29,8 +29,9 @@ describe('MedicationListComponent', () => {
     spy.searchMedications.and.returnValue(of(createMockPagedResult(mockMedications, 2)));
 
     await TestBed.configureTestingModule({
-    declarations: [MedicationListComponent],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        MedicationListComponent, RouterTestingModule, NoopAnimationsModule,
         MatTableModule, MatPaginatorModule, MatFormFieldModule, MatInputModule,
         MatIconModule, MatButtonModule, MatProgressBarModule, ReactiveFormsModule, CommonModule],
     providers: [

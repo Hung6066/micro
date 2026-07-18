@@ -28,8 +28,9 @@ describe('LabOrderFormComponent', () => {
     patientSpy.search.and.returnValue(of({ items: [], totalCount: 0, page: 1, pageSize: 20, hasNextPage: false, hasPreviousPage: false }));
 
     await TestBed.configureTestingModule({
-    declarations: [LabOrderFormComponent],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        LabOrderFormComponent, RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatSelectModule,
         MatAutocompleteModule, MatCardModule, MatButtonModule, MatIconModule,
         MatSnackBarModule, MatProgressSpinnerModule],

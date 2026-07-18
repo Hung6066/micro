@@ -31,8 +31,9 @@ describe('LabOrderDetailComponent', () => {
     spy.getLabOrder.and.returnValue(of(mockLabOrder));
 
     await TestBed.configureTestingModule({
-    declarations: [LabOrderDetailComponent],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        LabOrderDetailComponent, RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatCardModule, MatTableModule, MatButtonModule,
         MatIconModule, MatSnackBarModule, MatProgressSpinnerModule,
         MatFormFieldModule, MatInputModule, MatSelectModule, CommonModule],

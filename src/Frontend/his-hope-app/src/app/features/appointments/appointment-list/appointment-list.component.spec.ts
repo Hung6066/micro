@@ -31,8 +31,9 @@ describe('AppointmentListComponent', () => {
     spy.search.and.returnValue(of(createMockPagedResult([], 0)));
 
     await TestBed.configureTestingModule({
-    declarations: [AppointmentListComponent],
-    imports: [RouterTestingModule, NoopAnimationsModule,
+    
+    imports: [
+        AppointmentListComponent, RouterTestingModule, NoopAnimationsModule,
         MatTableModule, MatPaginatorModule, MatCardModule, MatFormFieldModule,
         MatInputModule, MatIconModule, MatButtonModule, MatTooltipModule,
         ReactiveFormsModule, CommonModule],

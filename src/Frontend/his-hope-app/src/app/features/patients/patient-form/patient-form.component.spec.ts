@@ -27,8 +27,9 @@ describe('PatientFormComponent', () => {
     patientServiceSpy.getById.and.returnValue(of({} as any));
 
     await TestBed.configureTestingModule({
-    declarations: [PatientFormComponent],
-    imports: [RouterTestingModule,
+    
+    imports: [
+        PatientFormComponent, RouterTestingModule,
         NoopAnimationsModule,
         ReactiveFormsModule,
         MatFormFieldModule,
