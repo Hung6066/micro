@@ -21,5 +21,25 @@ public readonly struct ConfidenceScore : IEquatable<ConfidenceScore>
 
     public static bool operator !=(ConfidenceScore left, ConfidenceScore right) => !left.Equals(right);
 
+        public bool IsAutoFixable => Value >= 0.6m;
+
+    public static ConfidenceScore FromWeightedSignals(params (decimal score, decimal weight)[] signals)
+    {
+        if (signals.Length == 0) return new ConfidenceScore(0m);
+
+        var totalScore = 0m;
+        var totalWeight = 0m;
+
+        foreach (var (score, weight) in signals)
+        {
+            totalScore += score * weight;
+            totalWeight += weight;
+        }
+
+        if (totalWeight == 0) return new ConfidenceScore(0m);
+
+        return new ConfidenceScore(totalScore / totalWeight);
+    }
+
     public override string ToString() => $"{Value:P}";
 }

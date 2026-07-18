@@ -6,4 +6,5 @@ public interface ILoopEngineer
 {
     Task<bool> EvaluateLoopContinuationAsync(PipelineRun run, LoopBackEdge loopEdge, CancellationToken ct = default);
     Task<AgentRun> ExecuteLoopIterationAsync(PipelineRun run, LoopBackEdge loopEdge, CancellationToken ct = default);
+    Task<FixResult> AnalyzeAndFixAsync(LoopContext context, CancellationToken ct);
 }
