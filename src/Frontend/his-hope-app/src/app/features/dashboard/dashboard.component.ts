@@ -58,6 +58,7 @@ import { Patient } from '@core/models/patient.model';
       }
 
       <!-- Row 1: Stat Cards — bento-grid layout -->
+      @defer (on viewport) {
       @if (!loading && !error) {
       <div class="stats-bento">
         <mat-card class="stat-card card-patients">
@@ -131,6 +132,21 @@ import { Patient } from '@core/models/patient.model';
         </mat-card>
       </div>
       }
+      } @placeholder {
+      <div class="stats-bento">
+        @for (_ of [1,2,3,4,5,6]; track _) {
+        <mat-card class="stat-card">
+          <mat-card-content>
+            <div class="stat-icon-placeholder"></div>
+            <div class="stat-info">
+              <span class="stat-value-placeholder"></span>
+              <span class="stat-label-placeholder"></span>
+            </div>
+          </mat-card-content>
+        </mat-card>
+        }
+      </div>
+      }
 
       <!-- Patient Quick Search -->
       @if (!loading && !error) {
@@ -193,6 +209,7 @@ import { Patient } from '@core/models/patient.model';
       }
 
       <!-- Row 2: Recent Encounters -->
+      @defer (on viewport) {
       @if (!loading && !error) {
       <mat-card class="section-card">
         <mat-card-header>
@@ -236,8 +253,12 @@ import { Patient } from '@core/models/patient.model';
         </mat-card-content>
       </mat-card>
       }
+      } @placeholder {
+      <mat-card class="section-card"><mat-card-content><div class="section-empty">Đang tải...</div></mat-card-content></mat-card>
+      }
 
       <!-- Row 3: Upcoming Appointments -->
+      @defer (on viewport) {
       @if (!loading && !error) {
       <mat-card class="section-card">
         <mat-card-header>
@@ -280,6 +301,9 @@ import { Patient } from '@core/models/patient.model';
           }
         </mat-card-content>
       </mat-card>
+      }
+      } @placeholder {
+      <mat-card class="section-card"><mat-card-content><div class="section-empty">Đang tải...</div></mat-card-content></mat-card>
       }
     </div>
   `,
@@ -501,6 +525,28 @@ import { Patient } from '@core/models/patient.model';
 
     .rp-arrow {
       color: var(--text-muted, #A1A09B);
+    }
+
+    .stat-icon-placeholder {
+      width: 44px; height: 44px; border-radius: 8px;
+      background: var(--border-light, #F0F0EE);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .stat-value-placeholder {
+      display: block; width: 60px; height: 30px;
+      background: var(--border-light, #F0F0EE);
+      border-radius: 4px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .stat-label-placeholder {
+      display: block; width: 100px; height: 14px; margin-top: 8px;
+      background: var(--border-light, #F0F0EE);
+      border-radius: 4px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
     }
 
     /* ── Section Cards ── */
