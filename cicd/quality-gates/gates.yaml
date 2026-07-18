@@ -58,6 +58,38 @@ gates:
       agent: validate
       severity: block
 
+    - id: npm-audit
+      description: "Frontend dependencies have no high/critical vulnerabilities"
+      check: "npm audit --audit-level=high"
+      workdir: "src/Frontend/his-hope-app"
+      agent: validate
+      timeout: 120s
+      severity: block
+
+    - id: sri-integrity
+      description: "Built Angular assets have Subresource Integrity attributes"
+      check: "grep -q 'integrity=' dist/his-hope-app/browser/en/index.html"
+      workdir: "src/Frontend/his-hope-app"
+      agent: validate
+      timeout: 30s
+      severity: block
+
+    - id: eslint-security
+      description: "ESLint security rules pass (no-eval, no-implied-eval, no-call-expression)"
+      check: "ng lint"
+      workdir: "src/Frontend/his-hope-app"
+      agent: validate
+      timeout: 60s
+      severity: block
+
+    - id: no-hardcoded-env-secrets
+      description: "Environment files contain no hardcoded secrets"
+      check: 'grep -rn "password\|secret\|key\|token" src/environments/ || true'
+      workdir: "src/Frontend/his-hope-app"
+      agent: security
+      timeout: 30s
+      severity: block
+
   # ── PHASE 3: TESTING ────────────────────────────────────────────
   testing:
     - id: backend-unit-tests
