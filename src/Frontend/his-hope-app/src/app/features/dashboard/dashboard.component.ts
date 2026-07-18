@@ -12,9 +12,9 @@ import { Appointment } from '@core/models/appointment.model';
 import { Patient } from '@core/models/patient.model';
 
 @Component({
-  selector: 'app-dashboard',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-dashboard',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="dashboard">
       <div class="welcome-section">
         <div>
@@ -235,7 +235,7 @@ import { Patient } from '@core/models/patient.model';
       </mat-card>
     </div>
   `,
-  styles: [`
+    styles: [`
     .dashboard {
       max-width: var(--max-width-container, 1200px);
       margin: 0 auto;
@@ -517,6 +517,7 @@ import { Patient } from '@core/models/patient.model';
       }
     }
   `],
+    standalone: false
 })
 export class DashboardComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

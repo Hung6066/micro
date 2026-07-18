@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,6 +16,7 @@ import { of } from 'rxjs';
 import { PrescribeDialogComponent, PrescribeData } from './prescribe.dialog';
 import { PharmacyService } from '@core/services/pharmacy.service';
 import { AuthService } from '@core/services/auth.service';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('PrescribeDialogComponent', () => {
   let component: PrescribeDialogComponent;
@@ -30,19 +31,19 @@ describe('PrescribeDialogComponent', () => {
     authSpy.currentUser$ = of({ id: 'usr-001' });
 
     await TestBed.configureTestingModule({
-      imports: [
-      PrescribeDialogComponent,
+    imports: [PrescribeDialogComponent,
         CommonModule, ReactiveFormsModule, MatDialogModule, MatButtonModule,
         MatFormFieldModule, MatInputModule, MatSelectModule, MatAutocompleteModule,
-        MatIconModule, MatProgressSpinnerModule, MatSnackBarModule, NoopAnimationsModule, HttpClientTestingModule,
-      ],
-      providers: [
+        MatIconModule, MatProgressSpinnerModule, MatSnackBarModule, NoopAnimationsModule],
+    providers: [
         { provide: MatDialogRef, useValue: { close: jasmine.createSpy('close') } },
         { provide: MAT_DIALOG_DATA, useValue: mockData },
         { provide: PharmacyService, useValue: pharmacySpy },
         { provide: AuthService, useValue: authSpy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(PrescribeDialogComponent);
     component = fixture.componentInstance;

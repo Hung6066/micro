@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule } from '@angular/material/paginator';
@@ -21,6 +21,7 @@ import { AuditLogsComponent } from './audit-logs.component';
 import { AdminService } from '@core/services/admin.service';
 import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('AuditLogsComponent', () => {
   let component: AuditLogsComponent;
@@ -40,19 +41,20 @@ describe('AuditLogsComponent', () => {
     spy.getAuditLogs.and.returnValue(of(mockLogs));
 
     await TestBed.configureTestingModule({
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [
+        AuditLogsComponent, LoadingSpinnerComponent, EmptyStateComponent
+    ],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatTableModule, MatPaginatorModule, MatButtonModule,
         MatIconModule, MatFormFieldModule, MatInputModule, MatSelectModule,
         MatDatepickerModule, MatNativeDateModule, MatProgressSpinnerModule,
-        MatExpansionModule, MatSnackBarModule, CommonModule,
-      ],
-      declarations: [
-      AuditLogsComponent,LoadingSpinnerComponent, EmptyStateComponent],
-      providers: [
+        MatExpansionModule, MatSnackBarModule, CommonModule],
+    providers: [
         { provide: AdminService, useValue: spy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(AuditLogsComponent);
     component = fixture.componentInstance;

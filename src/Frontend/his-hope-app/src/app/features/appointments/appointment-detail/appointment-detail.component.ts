@@ -5,9 +5,9 @@ import { AppointmentService } from '@core/services/appointment.service';
 import { Appointment } from '@core/models/appointment.model';
 
 @Component({
-  selector: 'app-appointment-detail',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-appointment-detail',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="detail" *ngIf="appointment">
       <div class="header">
         <h1>Appointment Details</h1>
@@ -78,7 +78,7 @@ import { Appointment } from '@core/models/appointment.model';
       </div>
     </div>
   `,
-  styles: [`
+    styles: [`
     .detail { padding: 24px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .status-badge { padding: 4px 16px; border-radius: 16px; font-weight: 500; font-size: 14px; }
@@ -89,6 +89,7 @@ import { Appointment } from '@core/models/appointment.model';
     .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 24px; }
     .timeline h2 { margin-bottom: 16px; }
   `],
+    standalone: false
 })
 export class AppointmentDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

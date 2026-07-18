@@ -21,23 +21,22 @@ export interface PrescribeData {
 }
 
 @Component({
-  selector: 'app-prescribe-dialog',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    MatAutocompleteModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-    MatSnackBarModule,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-prescribe-dialog',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatDialogModule,
+        MatButtonModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatSelectModule,
+        MatAutocompleteModule,
+        MatIconModule,
+        MatProgressSpinnerModule,
+        MatSnackBarModule,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <h2 mat-dialog-title>Kê đơn thuốc</h2>
     <mat-dialog-content>
       <div class="patient-info" *ngIf="data.patientName">
@@ -102,12 +101,12 @@ export interface PrescribeData {
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: #e8f5e9; border-radius: 8px; color: #2e7d32; font-weight: 500; }
     .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 380px; }
     .selected-med { background: #f5f5f5; padding: 12px; border-radius: 8px; border-left: 4px solid #43a047; }
     .selected-med p { margin: 4px 0; }
-  `],
+  `]
 })
 export class PrescribeDialogComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

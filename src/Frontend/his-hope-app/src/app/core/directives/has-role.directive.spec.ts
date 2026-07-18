@@ -6,11 +6,12 @@ import { AuthService } from '@core/services/auth.service';
 import { Subject } from 'rxjs';
 
 @Component({
-  template: `
+    template: `
     <div *hasRole="'admin'" id="role-single">Has Role</div>
     <div *hasRole="['admin', 'doctor']" id="role-multi">Has Multiple</div>
     <div *hasRole="'nonexistent'" id="role-none">No Role</div>
   `,
+    standalone: false
 })
 class TestHostComponent {}
 

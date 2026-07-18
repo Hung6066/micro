@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { MatCardModule } from '@angular/material/card';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTableModule } from '@angular/material/table';
@@ -16,6 +16,7 @@ import { of } from 'rxjs';
 import { PatientDetailComponent } from './patient-detail.component';
 import { PatientService } from '@core/services/patient.service';
 import { createMockPatient, createMockPagedResult } from '@testing/mock-data';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('PatientDetailComponent', () => {
   let component: PatientDetailComponent;
@@ -32,11 +33,9 @@ describe('PatientDetailComponent', () => {
     spy.getLabOrders.and.returnValue(of(createMockPagedResult([], 0)));
 
     await TestBed.configureTestingModule({
-      declarations: [PatientDetailComponent],
-      imports: [
-        RouterTestingModule,
+    declarations: [PatientDetailComponent],
+    imports: [RouterTestingModule,
         NoopAnimationsModule,
-        HttpClientTestingModule,
         MatCardModule,
         MatTabsModule,
         MatTableModule,
@@ -45,12 +44,13 @@ describe('PatientDetailComponent', () => {
         MatListModule,
         MatSnackBarModule,
         MatProgressSpinnerModule,
-        MatTooltipModule, CommonModule,
-      ],
-      providers: [
+        MatTooltipModule, CommonModule],
+    providers: [
         { provide: PatientService, useValue: spy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(PatientDetailComponent);
     component = fixture.componentInstance;

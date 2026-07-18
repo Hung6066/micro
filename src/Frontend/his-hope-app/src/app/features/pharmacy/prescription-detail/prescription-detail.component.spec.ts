@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -12,6 +12,7 @@ import { of } from 'rxjs';
 import { PrescriptionDetailComponent } from './prescription-detail.component';
 import { PharmacyService } from '@core/services/pharmacy.service';
 import { createMockPrescription } from '@testing/mock-data';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('PrescriptionDetailComponent', () => {
   let component: PrescriptionDetailComponent;
@@ -25,16 +26,16 @@ describe('PrescriptionDetailComponent', () => {
     spy.getPrescription.and.returnValue(of(mockPrescription));
 
     await TestBed.configureTestingModule({
-      declarations: [PrescriptionDetailComponent],
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [PrescriptionDetailComponent],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         MatCardModule, MatButtonModule, MatIconModule, MatSnackBarModule,
-        MatProgressSpinnerModule, CommonModule,
-      ],
-      providers: [
+        MatProgressSpinnerModule, CommonModule],
+    providers: [
         { provide: PharmacyService, useValue: spy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(PrescriptionDetailComponent);
     component = fixture.componentInstance;

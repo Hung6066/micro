@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule } from '@angular/material/paginator';
@@ -22,6 +22,7 @@ import { ManageUsersComponent } from './manage-users.component';
 import { AdminService } from '@core/services/admin.service';
 import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('ManageUsersComponent', () => {
   let component: ManageUsersComponent;
@@ -41,19 +42,20 @@ describe('ManageUsersComponent', () => {
     spy.getUsers.and.returnValue(of(mockUsers));
 
     await TestBed.configureTestingModule({
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [
+        ManageUsersComponent, LoadingSpinnerComponent, EmptyStateComponent
+    ],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatTableModule, MatPaginatorModule, MatButtonModule,
         MatIconModule, MatFormFieldModule, MatInputModule, MatSelectModule,
         MatMenuModule, MatChipsModule, MatProgressSpinnerModule, MatTooltipModule,
-        MatDialogModule, MatSnackBarModule, CommonModule,
-      ],
-      declarations: [
-      ManageUsersComponent,LoadingSpinnerComponent, EmptyStateComponent],
-      providers: [
+        MatDialogModule, MatSnackBarModule, CommonModule],
+    providers: [
         { provide: AdminService, useValue: spy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(ManageUsersComponent);
     component = fixture.componentInstance;

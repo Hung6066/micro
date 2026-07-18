@@ -6,9 +6,9 @@ import { AuthService } from '@core/services/auth.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Component({
-  selector: 'app-login',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-login',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="login-container">
       <mat-card class="login-card">
         <mat-card-header>
@@ -42,7 +42,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
       </mat-card>
     </div>
   `,
-  styles: [`
+    styles: [`
     .login-container { display: flex; justify-content: center; align-items: center; height: 100vh; background: var(--bg-warm, #F7F6F3); }
     .login-card { max-width: 420px; width: 100%; }
     .card-icon { font-size: 48px; width: 48px; height: 48px; color: var(--color-primary, #2F6B4A); margin: 0 auto 16px; }
@@ -51,6 +51,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
     form { display: flex; flex-direction: column; }
     .btn-spinner { display: inline-block; margin-right: 8px; }
   `],
+    standalone: false
 })
 export class LoginComponent implements OnDestroy {
   private destroy$ = new Subject<void>();

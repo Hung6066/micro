@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
@@ -17,6 +17,7 @@ import { of } from 'rxjs';
 import { LabOrderDetailComponent } from './lab-order-detail.component';
 import { LabService } from '@core/services/lab.service';
 import { createMockLabOrder } from '@testing/mock-data';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('LabOrderDetailComponent', () => {
   let component: LabOrderDetailComponent;
@@ -30,17 +31,17 @@ describe('LabOrderDetailComponent', () => {
     spy.getLabOrder.and.returnValue(of(mockLabOrder));
 
     await TestBed.configureTestingModule({
-      declarations: [LabOrderDetailComponent],
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [LabOrderDetailComponent],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatCardModule, MatTableModule, MatButtonModule,
         MatIconModule, MatSnackBarModule, MatProgressSpinnerModule,
-        MatFormFieldModule, MatInputModule, MatSelectModule, CommonModule,
-      ],
-      providers: [
+        MatFormFieldModule, MatInputModule, MatSelectModule, CommonModule],
+    providers: [
         { provide: LabService, useValue: spy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(LabOrderDetailComponent);
     component = fixture.componentInstance;

@@ -6,9 +6,9 @@ import { AppointmentService } from '@core/services/appointment.service';
 import { Appointment } from '@core/models/appointment.model';
 
 @Component({
-  selector: 'app-appointment-list',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-appointment-list',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="appointments">
       <div class="header">
         <h1>Appointments</h1>
@@ -89,7 +89,7 @@ import { Appointment } from '@core/models/appointment.model';
       </mat-card>
     </div>
   `,
-  styles: [`
+    styles: [`
     .appointments { padding: 24px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .search-field { width: 100%; max-width: 400px; }
@@ -100,6 +100,7 @@ import { Appointment } from '@core/models/appointment.model';
     .placeholder { color: #999; text-align: center; padding: 48px; }
 
   `],
+    standalone: false
 })
 export class AppointmentListComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

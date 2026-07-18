@@ -19,22 +19,21 @@ export interface StartEncounterData {
 }
 
 @Component({
-  selector: 'app-start-encounter-dialog',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-    MatSnackBarModule,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-start-encounter-dialog',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatDialogModule,
+        MatButtonModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatSelectModule,
+        MatIconModule,
+        MatProgressSpinnerModule,
+        MatSnackBarModule,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <h2 mat-dialog-title>Bắt đầu lượt khám mới</h2>
     <mat-dialog-content>
       <div class="patient-info" *ngIf="data.patientName">
@@ -99,14 +98,14 @@ export interface StartEncounterData {
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: #e3f2fd; border-radius: 8px; color: #1565c0; font-weight: 500; }
     .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 420px; }
     .vitals-section { border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin: 0; }
     .vitals-section legend { font-weight: 500; color: #555; padding: 0 8px; }
     .vitals-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
     mat-dialog-actions mat-spinner { display: inline-block; }
-  `],
+  `]
 })
 export class StartEncounterDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();

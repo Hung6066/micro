@@ -6,9 +6,9 @@ import { PharmacyService } from '@core/services/pharmacy.service';
 import { Prescription, PrescriptionStatus } from '@core/models/prescription.model';
 
 @Component({
-  selector: 'app-prescription-list',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-prescription-list',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="prescription-list">
       <div class="header">
         <h1>Danh sách đơn thuốc</h1>
@@ -107,7 +107,7 @@ import { Prescription, PrescriptionStatus } from '@core/models/prescription.mode
       </mat-paginator>
     </div>
   `,
-  styles: [`
+    styles: [`
     .prescription-list { padding: 24px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .filters { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -121,6 +121,7 @@ import { Prescription, PrescriptionStatus } from '@core/models/prescription.mode
     .empty-state { text-align: center; padding: 48px; color: #999; }
     .empty-icon { font-size: 48px; width: 48px; height: 48px; margin-bottom: 16px; }
   `],
+    standalone: false
 })
 export class PrescriptionListComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

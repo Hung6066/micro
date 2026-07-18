@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
@@ -19,6 +19,7 @@ import { of } from 'rxjs';
 import { InvoiceDetailComponent } from './invoice-detail.component';
 import { BillingService } from '@core/services/billing.service';
 import { createMockInvoice } from '@testing/mock-data';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('InvoiceDetailComponent', () => {
   let component: InvoiceDetailComponent;
@@ -32,18 +33,18 @@ describe('InvoiceDetailComponent', () => {
     spy.getInvoice.and.returnValue(of(mockInvoice));
 
     await TestBed.configureTestingModule({
-      declarations: [InvoiceDetailComponent],
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [InvoiceDetailComponent],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatCardModule, MatTableModule, MatButtonModule,
         MatIconModule, MatSnackBarModule, MatProgressSpinnerModule,
         MatFormFieldModule, MatInputModule, MatSelectModule,
-        MatDatepickerModule, MatNativeDateModule, CommonModule,
-      ],
-      providers: [
+        MatDatepickerModule, MatNativeDateModule, CommonModule],
+    providers: [
         { provide: BillingService, useValue: spy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(InvoiceDetailComponent);
     component = fixture.componentInstance;

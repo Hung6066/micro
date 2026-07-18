@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatCardModule } from '@angular/material/card';
@@ -16,6 +16,7 @@ import { of } from 'rxjs';
 import { EncounterListComponent } from './encounter-list.component';
 import { ClinicalService } from '@core/services/clinical.service';
 import { createMockEncounter, createMockPagedResult } from '@testing/mock-data';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('EncounterListComponent', () => {
   let component: EncounterListComponent;
@@ -30,17 +31,17 @@ describe('EncounterListComponent', () => {
     spy.search.and.returnValue(of(createMockPagedResult([], 0)));
 
     await TestBed.configureTestingModule({
-      declarations: [EncounterListComponent],
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [EncounterListComponent],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         MatTableModule, MatPaginatorModule, MatCardModule, MatFormFieldModule,
         MatInputModule, MatIconModule, MatButtonModule, MatTooltipModule,
-        ReactiveFormsModule, CommonModule,
-      ],
-      providers: [
+        ReactiveFormsModule, CommonModule],
+    providers: [
         { provide: ClinicalService, useValue: spy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(EncounterListComponent);
     component = fixture.componentInstance;

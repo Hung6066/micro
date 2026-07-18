@@ -32,22 +32,21 @@ const AVAILABLE_TESTS = [
 ];
 
 @Component({
-  selector: 'app-order-lab-dialog',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-    MatSnackBarModule,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-order-lab-dialog',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatDialogModule,
+        MatButtonModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatSelectModule,
+        MatIconModule,
+        MatProgressSpinnerModule,
+        MatSnackBarModule,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <h2 mat-dialog-title>Chỉ định xét nghiệm</h2>
     <mat-dialog-content>
       <div class="patient-info" *ngIf="data.patientName">
@@ -90,10 +89,10 @@ const AVAILABLE_TESTS = [
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: #f3e5f5; border-radius: 8px; color: #7b1fa2; font-weight: 500; }
     .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 380px; }
-  `],
+  `]
 })
 export class OrderLabDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();

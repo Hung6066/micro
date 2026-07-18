@@ -28,22 +28,21 @@ const ROLE_OPTIONS = [
 ];
 
 @Component({
-  selector: 'app-user-form-dialog',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-    MatSnackBarModule,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-user-form-dialog',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatDialogModule,
+        MatButtonModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatSelectModule,
+        MatIconModule,
+        MatProgressSpinnerModule,
+        MatSnackBarModule,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <h2 mat-dialog-title>{{ data.mode === 'create' ? 'Thêm người dùng' : 'Chỉnh sửa người dùng' }}</h2>
     <mat-dialog-content>
       <form [formGroup]="form" class="dialog-form">
@@ -92,9 +91,9 @@ const ROLE_OPTIONS = [
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 420px; padding-top: 8px; }
-  `],
+  `]
 })
 export class UserFormDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();

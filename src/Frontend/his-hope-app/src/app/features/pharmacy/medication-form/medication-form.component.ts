@@ -6,9 +6,9 @@ import { PharmacyService } from '@core/services/pharmacy.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Component({
-  selector: 'app-medication-form',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-medication-form',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="medication-form">
       <h1>{{ isEdit ? 'Chỉnh sửa thuốc' : 'Thêm thuốc mới' }}</h1>
 
@@ -85,13 +85,14 @@ import { MatSnackBar } from '@angular/material/snack-bar';
       </form>
     </div>
   `,
-  styles: [`
+    styles: [`
     .medication-form { padding: 24px; max-width: 900px; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .full-width { grid-column: 1 / -1; margin: 8px 0; }
     .form-actions { margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end; }
     .btn-spinner { display: inline-block; margin-right: 8px; }
   `],
+    standalone: false
 })
 export class MedicationFormComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

@@ -20,23 +20,22 @@ export interface RoleFormData {
 }
 
 @Component({
-  selector: 'app-role-form-dialog',
-  standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    MatDialogModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatCheckboxModule,
-    MatExpansionModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
-    MatSnackBarModule,
-  ],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-role-form-dialog',
+    imports: [
+        CommonModule,
+        ReactiveFormsModule,
+        MatDialogModule,
+        MatButtonModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatCheckboxModule,
+        MatExpansionModule,
+        MatIconModule,
+        MatProgressSpinnerModule,
+        MatSnackBarModule,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <h2 mat-dialog-title>{{ data.mode === 'create' ? 'Thêm vai trò' : 'Chỉnh sửa vai trò' }}</h2>
     <mat-dialog-content>
       <form [formGroup]="form" class="dialog-form">
@@ -101,7 +100,7 @@ export interface RoleFormData {
       </button>
     </mat-dialog-actions>
   `,
-  styles: [`
+    styles: [`
     .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 520px; padding-top: 8px; }
     .section-label { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #1A1A1A; margin-top: 8px; }
     .section-label mat-icon { color: #2F6B4A; }
@@ -114,7 +113,7 @@ export interface RoleFormData {
     .loading-state { display: flex; align-items: center; gap: 12px; justify-content: center; padding: 48px; color: #787774; }
     ::ng-deep .mat-expansion-panel-header-title .mat-checkbox { pointer-events: auto; }
     ::ng-deep .mat-expansion-panel-header-description { justify-content: flex-end; margin-right: 0; }
-  `],
+  `]
 })
 export class RoleFormDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();

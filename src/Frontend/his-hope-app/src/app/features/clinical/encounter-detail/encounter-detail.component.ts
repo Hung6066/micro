@@ -18,9 +18,9 @@ interface LabResultDisplay {
 }
 
 @Component({
-  selector: 'app-encounter-detail',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-encounter-detail',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="detail" *ngIf="encounter">
       <div class="header">
         <div>
@@ -205,7 +205,7 @@ interface LabResultDisplay {
       </mat-card>
     </div>
   `,
-  styles: [`
+    styles: [`
     .detail { padding: 24px; max-width: 1200px; margin: 0 auto; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
     .header-sub { color: #666; font-size: 14px; margin-top: 4px; }
@@ -251,6 +251,7 @@ interface LabResultDisplay {
       .overview-grid { grid-template-columns: 1fr; }
     }
   `],
+    standalone: false
 })
 export class EncounterDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

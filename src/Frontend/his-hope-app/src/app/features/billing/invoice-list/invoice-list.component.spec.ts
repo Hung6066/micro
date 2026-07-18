@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -16,6 +16,7 @@ import { of } from 'rxjs';
 import { InvoiceListComponent } from './invoice-list.component';
 import { BillingService } from '@core/services/billing.service';
 import { createMockInvoice, createMockPagedResult } from '@testing/mock-data';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('InvoiceListComponent', () => {
   let component: InvoiceListComponent;
@@ -29,17 +30,17 @@ describe('InvoiceListComponent', () => {
     spy.searchInvoices.and.returnValue(of(createMockPagedResult(mockInvoices, 2)));
 
     await TestBed.configureTestingModule({
-      declarations: [InvoiceListComponent],
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [InvoiceListComponent],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         MatTableModule, MatPaginatorModule, MatFormFieldModule, MatInputModule,
         MatSelectModule, MatIconModule, MatButtonModule, MatProgressBarModule,
-        ReactiveFormsModule, CommonModule,
-      ],
-      providers: [
+        ReactiveFormsModule, CommonModule],
+    providers: [
         { provide: BillingService, useValue: spy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(InvoiceListComponent);
     component = fixture.componentInstance;

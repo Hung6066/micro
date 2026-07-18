@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -15,6 +15,7 @@ import { CommonModule } from '@angular/common';
 import { of } from 'rxjs';
 import { MedicationFormComponent } from './medication-form.component';
 import { PharmacyService } from '@core/services/pharmacy.service';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('MedicationFormComponent', () => {
   let component: MedicationFormComponent;
@@ -24,16 +25,16 @@ describe('MedicationFormComponent', () => {
     const spy = jasmine.createSpyObj('PharmacyService', ['getMedication', 'createMedication', 'updateMedication']);
 
     await TestBed.configureTestingModule({
-      declarations: [MedicationFormComponent],
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [MedicationFormComponent],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatFormFieldModule, MatInputModule, MatSelectModule,
-        MatCheckboxModule, MatButtonModule, MatIconModule, MatSnackBarModule, MatProgressSpinnerModule, CommonModule,
-      ],
-      providers: [
+        MatCheckboxModule, MatButtonModule, MatIconModule, MatSnackBarModule, MatProgressSpinnerModule, CommonModule],
+    providers: [
         { provide: PharmacyService, useValue: spy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(MedicationFormComponent);
     component = fixture.componentInstance;

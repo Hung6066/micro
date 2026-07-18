@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { MatTableModule } from '@angular/material/table';
 import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -16,6 +16,7 @@ import { of } from 'rxjs';
 import { PrescriptionListComponent } from './prescription-list.component';
 import { PharmacyService } from '@core/services/pharmacy.service';
 import { createMockPrescription, createMockPagedResult } from '@testing/mock-data';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('PrescriptionListComponent', () => {
   let component: PrescriptionListComponent;
@@ -29,17 +30,17 @@ describe('PrescriptionListComponent', () => {
     spy.searchPrescriptions.and.returnValue(of(createMockPagedResult(mockPrescriptions, 3)));
 
     await TestBed.configureTestingModule({
-      declarations: [PrescriptionListComponent],
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [PrescriptionListComponent],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         MatTableModule, MatPaginatorModule, MatFormFieldModule, MatInputModule,
         MatSelectModule, MatIconModule, MatButtonModule, MatProgressBarModule,
-        ReactiveFormsModule, CommonModule,
-      ],
-      providers: [
+        ReactiveFormsModule, CommonModule],
+    providers: [
         { provide: PharmacyService, useValue: spy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(PrescriptionListComponent);
     component = fixture.componentInstance;

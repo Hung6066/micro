@@ -6,9 +6,9 @@ import { PharmacyService } from '@core/services/pharmacy.service';
 import { Medication } from '@core/models/medication.model';
 
 @Component({
-  selector: 'app-medication-detail',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-medication-detail',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="medication-detail" *ngIf="medication">
       <div class="header">
         <div>
@@ -69,7 +69,7 @@ import { Medication } from '@core/models/medication.model';
       <button mat-stroked-button color="primary" (click)="loadMedication()">Thử lại</button>
     </div>
   `,
-  styles: [`
+    styles: [`
     .medication-detail { padding: 24px; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
     .header-actions { display: flex; gap: 12px; }
@@ -78,6 +78,7 @@ import { Medication } from '@core/models/medication.model';
     mat-card-content p { margin: 8px 0; }
     .loading-container, .error-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 24px; gap: 16px; color: var(--text-secondary, #787774); }
   `],
+    standalone: false
 })
 export class MedicationDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

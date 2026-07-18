@@ -6,9 +6,9 @@ import { ClinicalService } from '@core/services/clinical.service';
 import { Encounter } from '@core/models/encounter.model';
 
 @Component({
-  selector: 'app-encounter-list',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-encounter-list',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="encounters">
       <div class="header">
         <h1>Clinical Encounters</h1>
@@ -89,7 +89,7 @@ import { Encounter } from '@core/models/encounter.model';
       </mat-card>
     </div>
   `,
-  styles: [`
+    styles: [`
     .encounters { padding: 24px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .search-field { width: 100%; max-width: 400px; }
@@ -100,6 +100,7 @@ import { Encounter } from '@core/models/encounter.model';
     .placeholder { color: #999; text-align: center; padding: 48px; }
 
   `],
+    standalone: false
 })
 export class EncounterListComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

@@ -15,9 +15,9 @@ interface ProviderOption {
 }
 
 @Component({
-  selector: 'app-appointment-form',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-appointment-form',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="appointment-form">
       <h1>Đặt lịch hẹn</h1>
       <form [formGroup]="appointmentForm" (ngSubmit)="onSubmit()" class="form">
@@ -109,13 +109,14 @@ interface ProviderOption {
       </form>
     </div>
   `,
-  styles: [`
+    styles: [`
     .appointment-form { padding: 24px; max-width: 600px; }
     .form { display: flex; flex-direction: column; gap: 16px; }
     .full-width { width: 100%; }
     .form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 16px; }
     .option-detail { color: #999; }
   `],
+    standalone: false
 })
 export class AppointmentFormComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

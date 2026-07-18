@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ReactiveFormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -17,6 +17,7 @@ import { of } from 'rxjs';
 import { ScheduleDialogComponent, ScheduleData } from './schedule.dialog';
 import { AppointmentService } from '@core/services/appointment.service';
 import { AuthService } from '@core/services/auth.service';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('ScheduleDialogComponent', () => {
   let component: ScheduleDialogComponent;
@@ -30,20 +31,20 @@ describe('ScheduleDialogComponent', () => {
     authSpy.currentUser$ = of({ id: 'usr-001' });
 
     await TestBed.configureTestingModule({
-      imports: [
-      ScheduleDialogComponent,
+    imports: [ScheduleDialogComponent,
         CommonModule, ReactiveFormsModule, MatDialogModule, MatButtonModule,
         MatFormFieldModule, MatInputModule, MatSelectModule, MatDatepickerModule,
         MatNativeDateModule, MatIconModule, MatProgressSpinnerModule, MatSnackBarModule,
-        NoopAnimationsModule, HttpClientTestingModule,
-      ],
-      providers: [
+        NoopAnimationsModule],
+    providers: [
         { provide: MatDialogRef, useValue: { close: jasmine.createSpy('close') } },
         { provide: MAT_DIALOG_DATA, useValue: mockData },
         { provide: AppointmentService, useValue: appointmentSpy },
         { provide: AuthService, useValue: authSpy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(ScheduleDialogComponent);
     component = fixture.componentInstance;

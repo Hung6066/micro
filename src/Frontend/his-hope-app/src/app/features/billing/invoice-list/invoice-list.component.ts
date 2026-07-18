@@ -6,9 +6,9 @@ import { BillingService } from '@core/services/billing.service';
 import { Invoice } from '@core/models/invoice.model';
 
 @Component({
-  selector: 'app-invoice-list',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-invoice-list',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="invoice-list">
       <div class="header">
         <h1>Hóa đơn thanh toán</h1>
@@ -115,7 +115,7 @@ import { Invoice } from '@core/models/invoice.model';
       </mat-paginator>
     </div>
   `,
-  styles: [`
+    styles: [`
     .invoice-list { padding: 24px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .filters { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -130,6 +130,7 @@ import { Invoice } from '@core/models/invoice.model';
     .empty-state { text-align: center; padding: 48px; color: #999; }
     .empty-icon { font-size: 48px; width: 48px; height: 48px; margin-bottom: 16px; }
   `],
+    standalone: false
 })
 export class InvoiceListComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

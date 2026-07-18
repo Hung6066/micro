@@ -7,9 +7,9 @@ import { LabService } from '@core/services/lab.service';
 import { LabOrder, LabTest, AbnormalFlag } from '@core/models/lab-order.model';
 
 @Component({
-  selector: 'app-lab-order-detail',
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
+    selector: 'app-lab-order-detail',
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    template: `
     <div class="lab-order-detail" *ngIf="labOrder">
       <div class="header">
         <div>
@@ -189,7 +189,7 @@ import { LabOrder, LabTest, AbnormalFlag } from '@core/models/lab-order.model';
       <button mat-stroked-button color="primary" (click)="loadLabOrder()">Thử lại</button>
     </div>
   `,
-  styles: [`
+    styles: [`
     .lab-order-detail { padding: 24px; }
     .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
     .header-actions { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -209,6 +209,7 @@ import { LabOrder, LabTest, AbnormalFlag } from '@core/models/lab-order.model';
     .empty { color: #999; font-style: italic; padding: 12px; }
     .loading-container, .error-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 24px; gap: 16px; color: #666; }
   `],
+    standalone: false
 })
 export class LabOrderDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -12,6 +12,7 @@ import { of } from 'rxjs';
 import { AdminDashboardComponent } from './admin-dashboard.component';
 import { AdminService } from '@core/services/admin.service';
 import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('AdminDashboardComponent', () => {
   let component: AdminDashboardComponent;
@@ -30,17 +31,18 @@ describe('AdminDashboardComponent', () => {
     spy.getDashboardStats.and.returnValue(of(mockStats));
 
     await TestBed.configureTestingModule({
-      imports: [
-        RouterTestingModule, NoopAnimationsModule, HttpClientTestingModule,
+    declarations: [
+        AdminDashboardComponent, LoadingSpinnerComponent
+    ],
+    imports: [RouterTestingModule, NoopAnimationsModule,
         MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule,
-        CommonModule, RouterModule,
-      ],
-      declarations: [
-      AdminDashboardComponent,LoadingSpinnerComponent],
-      providers: [
+        CommonModule, RouterModule],
+    providers: [
         { provide: AdminService, useValue: spy },
-      ],
-    }).compileComponents();
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+    ]
+}).compileComponents();
 
     fixture = TestBed.createComponent(AdminDashboardComponent);
     component = fixture.componentInstance;
