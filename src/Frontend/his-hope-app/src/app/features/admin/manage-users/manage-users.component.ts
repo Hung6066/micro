@@ -68,7 +68,9 @@ const ROLE_FILTERS = [
         </mat-form-field>
         <mat-form-field appearance="outline" subscriptSizing="dynamic" class="role-filter">
           <mat-select [formControl]="roleFilter" (selectionChange)="onFilterChange()">
-            <mat-option *ngFor="let f of roleFilters" [value]="f.value">{{ f.label }}</mat-option>
+            @for (f of roleFilters; track f.value) {
+            <mat-option [value]="f.value">{{ f.label }}</mat-option>
+            }
           </mat-select>
         </mat-form-field>
       </div>
@@ -76,8 +78,9 @@ const ROLE_FILTERS = [
       <div class="table-container mat-elevation-z2">
         <app-loading-spinner [loading]="loading" message="Đang tải danh sách người dùng..."></app-loading-spinner>
 
-        <ng-container *ngIf="!loading">
-          <mat-table [dataSource]="users" class="users-table" *ngIf="users.length > 0; else noData">
+        @if (!loading) {
+          @if (users.length > 0) {
+          <mat-table [dataSource]="users" class="users-table">
             <ng-container matColumnDef="id">
               <mat-header-cell *matHeaderCellDef>ID</mat-header-cell>
               <mat-cell *matCellDef="let u" class="cell-id">{{ u.id | slice:0:12 }}</mat-cell>
@@ -102,7 +105,9 @@ const ROLE_FILTERS = [
               <mat-header-cell *matHeaderCellDef>Vai trò</mat-header-cell>
               <mat-cell *matCellDef="let u">
                 <div class="roles-cell">
-                  <span class="role-badge" *ngFor="let r of u.roles" [ngClass]="'role-' + r">{{ getRoleLabel(r) }}</span>
+                  @for (r of u.roles; track r) {
+                  <span class="role-badge" [ngClass]="'role-' + r">{{ getRoleLabel(r) }}</span>
+                  }
                 </div>
               </mat-cell>
             </ng-container>
@@ -139,18 +144,19 @@ const ROLE_FILTERS = [
             <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
             <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>
           </mat-table>
+          } @else {
+          <app-empty-state icon="people" title="Không tìm thấy người dùng"
+                          message="Thử thay đổi bộ lọc hoặc thêm người dùng mới">
+          </app-empty-state>
+          }
+        }
 
-          <ng-template #noData>
-            <app-empty-state icon="people" title="Không tìm thấy người dùng"
-                            message="Thử thay đổi bộ lọc hoặc thêm người dùng mới">
-            </app-empty-state>
-          </ng-template>
-        </ng-container>
-
-        <mat-paginator *ngIf="totalCount > 0" [length]="totalCount" [pageSize]="pageSize"
+        @if (totalCount > 0) {
+        <mat-paginator [length]="totalCount" [pageSize]="pageSize"
                        [pageSizeOptions]="[5, 10, 20, 50]" [pageIndex]="currentPage - 1"
                        (page)="onPageChange($event)" showFirstLastButtons>
         </mat-paginator>
+        }
       </div>
     </div>
   `,

@@ -24,7 +24,8 @@ import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/load
 
       <app-loading-spinner [loading]="loading" message="Đang tải dữ liệu..."></app-loading-spinner>
 
-      <div class="stats-grid" *ngIf="!loading">
+      @if (!loading) {
+      <div class="stats-grid">
         <mat-card class="stat-card" routerLink="/admin/manage-users">
           <mat-card-content>
             <div class="stat-icon users">
@@ -85,8 +86,10 @@ import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/load
           </mat-card-actions>
         </mat-card>
       </div>
+      }
 
-      <div class="quick-links" *ngIf="!loading">
+      @if (!loading) {
+      <div class="quick-links">
         <h2>Truy cập nhanh</h2>
         <div class="links-grid">
           <a mat-stroked-button routerLink="/admin/manage-users">
@@ -103,6 +106,7 @@ import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/load
           </a>
         </div>
       </div>
+      }
     </div>
   `,
   styles: [`

@@ -46,9 +46,15 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 
             <button mat-raised-button color="primary" class="full-width" type="submit"
                     [disabled]="loginForm.invalid || loading" aria-live="polite">
-              <mat-spinner diameter="20" *ngIf="loading" class="btn-spinner" aria-label="Đang đăng nhập"></mat-spinner>
-              <span *ngIf="!loading">Đăng nhập</span>
-              <span class="sr-only" *ngIf="loading">Đang xử lý đăng nhập...</span>
+              @if (loading) {
+              <mat-spinner diameter="20" class="btn-spinner" aria-label="Đang đăng nhập"></mat-spinner>
+              }
+              @if (!loading) {
+              <span>Đăng nhập</span>
+              }
+              @if (loading) {
+              <span class="sr-only">Đang xử lý đăng nhập...</span>
+              }
             </button>
           </form>
         </mat-card-content>

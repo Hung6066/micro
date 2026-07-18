@@ -20,7 +20,8 @@ import { Prescription } from '@core/models/prescription.model';
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="prescription-detail" *ngIf="prescription">
+    @if (prescription) {
+    <div class="prescription-detail">
       <div class="header">
         <div>
           <h1>Đơn thuốc #{{ prescription.id | slice:0:8 }}...</h1>
@@ -35,18 +36,20 @@ import { Prescription } from '@core/models/prescription.model';
           </p>
         </div>
         <div class="header-actions">
+          @if (prescription.statusCode === 'active') {
           <button mat-raised-button color="primary"
-                  *ngIf="prescription.statusCode === 'active'"
                   (click)="fillPrescription()"
                   attr.aria-label="Cấp phát thuốc">
             <mat-icon>medication</mat-icon> Cấp phát
           </button>
+          }
+          @if (prescription.statusCode === 'active' || prescription.statusCode === 'partially_filled') {
           <button mat-stroked-button color="warn"
-                  *ngIf="prescription.statusCode === 'active' || prescription.statusCode === 'partially_filled'"
                   (click)="cancelPrescription()"
                   attr.aria-label="Hủy đơn thuốc">
             <mat-icon>cancel</mat-icon> Hủy đơn
           </button>
+          }
         </div>
       </div>
 
@@ -70,24 +73,33 @@ import { Prescription } from '@core/models/prescription.model';
           <mat-card-header><mat-card-title>Thời gian</mat-card-title></mat-card-header>
           <mat-card-content>
             <p><strong>Ngày kê đơn:</strong> {{ prescription.prescribedAt | date:'medium' }}</p>
-            <p *ngIf="prescription.filledAt"><strong>Ngày cấp phát:</strong> {{ prescription.filledAt | date:'medium' }}</p>
+            @if (prescription.filledAt) {
+            <p><strong>Ngày cấp phát:</strong> {{ prescription.filledAt | date:'medium' }}</p>
+            }
             <p><strong>Ngày tạo:</strong> {{ prescription.createdAt | date:'medium' }}</p>
-            <p *ngIf="prescription.updatedAt"><strong>Cập nhật:</strong> {{ prescription.updatedAt | date:'medium' }}</p>
+            @if (prescription.updatedAt) {
+            <p><strong>Cập nhật:</strong> {{ prescription.updatedAt | date:'medium' }}</p>
+            }
           </mat-card-content>
         </mat-card>
       </div>
     </div>
+    }
 
-    <div class="loading-container" *ngIf="!prescription && !loadError">
+    @if (!prescription && !loadError) {
+    <div class="loading-container">
       <mat-spinner diameter="40" aria-label="Đang tải"></mat-spinner>
       <p>Đang tải thông tin đơn thuốc...</p>
     </div>
+    }
 
-    <div class="error-container" *ngIf="loadError">
+    @if (loadError) {
+    <div class="error-container">
       <mat-icon color="warn">error_outline</mat-icon>
       <p>Không thể tải thông tin đơn thuốc. Vui lòng thử lại sau.</p>
       <button mat-stroked-button color="primary" (click)="loadPrescription()">Thử lại</button>
     </div>
+    }
   `,
     styles: [`
     .prescription-detail { padding: 24px; }

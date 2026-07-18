@@ -37,8 +37,10 @@ export interface AssignRolesData {
       </div>
       <p class="instruction">Chọn các vai trò cho người dùng:</p>
 
-      <div class="roles-list" *ngIf="roles.length > 0; else loadingRoles">
-        <div class="role-item" *ngFor="let role of roles; let i = index">
+      @if (roles.length > 0) {
+      <div class="roles-list">
+        @for (role of roles; track role.id; let i = $index) {
+        <div class="role-item">
           <mat-checkbox [formControl]="roleCheckboxes.at(i)!">
             <div class="role-info">
               <span class="role-name">{{ role.name }}</span>
@@ -46,20 +48,25 @@ export interface AssignRolesData {
             </div>
           </mat-checkbox>
         </div>
+        }
       </div>
-      <ng-template #loadingRoles>
-        <div class="loading-state">
-          <mat-spinner diameter="24"></mat-spinner>
-          <span>Đang tải vai trò...</span>
-        </div>
-      </ng-template>
+      } @else {
+      <div class="loading-state">
+        <mat-spinner diameter="24"></mat-spinner>
+        <span>Đang tải vai trò...</span>
+      </div>
+      }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close [disabled]="saving">Hủy</button>
       <button mat-raised-button color="primary" (click)="save()" [disabled]="saving">
         <mat-icon>save</mat-icon>
-        <span *ngIf="!saving">Lưu vai trò</span>
-        <mat-spinner *ngIf="saving" diameter="20"></mat-spinner>
+        @if (!saving) {
+        <span>Lưu vai trò</span>
+        }
+        @if (saving) {
+        <mat-spinner diameter="20"></mat-spinner>
+        }
       </button>
     </mat-dialog-actions>
   `,

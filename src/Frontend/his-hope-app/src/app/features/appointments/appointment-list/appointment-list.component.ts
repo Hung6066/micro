@@ -42,7 +42,8 @@ import { Appointment } from '@core/models/appointment.model';
         </mat-card-header>
 
         <mat-card-content>
-          <div class="table-container" *ngIf="appointments.length > 0; else empty">
+          @if (appointments.length > 0) {
+          <div class="table-container">
             <table mat-table [dataSource]="appointments" class="appointment-table">
               <ng-container matColumnDef="scheduledDate">
                 <th mat-header-cell *matHeaderCellDef>Date</th>
@@ -96,10 +97,9 @@ import { Appointment } from '@core/models/appointment.model';
               showFirstLastButtons>
             </mat-paginator>
           </div>
-
-          <ng-template #empty>
-            <p class="placeholder">{{ loading ? 'Loading...' : 'No appointments found.' }}</p>
-          </ng-template>
+          } @else {
+          <p class="placeholder">{{ loading ? 'Loading...' : 'No appointments found.' }}</p>
+          }
         </mat-card-content>
       </mat-card>
     </div>

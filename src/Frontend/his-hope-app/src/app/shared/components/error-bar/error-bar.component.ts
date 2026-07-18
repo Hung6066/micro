@@ -17,30 +17,35 @@ import { clearError, ErrorPayload } from '@store/error/error.actions';
   imports: [CommonModule, MatProgressBarModule, MatButtonModule, MatIconModule, MatSnackBarModule, MatTooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div *ngIf="error$ | async as error" class="error-bar" [class]="'error-bar--' + getSeverity(error.code)">
+    @if (error$ | async; as error) {
+    <div class="error-bar" [class]="'error-bar--' + getSeverity(error.code)">
       <div class="error-bar__content">
         <mat-icon class="error-bar__icon">{{ getIcon(error.code) }}</mat-icon>
         <div class="error-bar__text">
           <span class="error-bar__message">{{ error.message }}</span>
-          <span *ngIf="error.correlationId" class="error-bar__ref">
+          @if (error.correlationId) {
+          <span class="error-bar__ref">
             Ref: {{ error.correlationId }}
           </span>
+          }
         </div>
         <div class="error-bar__actions">
+          @if (error.correlationId) {
           <button
-            *ngIf="error.correlationId"
             mat-icon-button
             [matTooltip]="'Copy Reference ID'"
             (click)="copyCorrelationId(error.correlationId)"
           >
             <mat-icon>content_copy</mat-icon>
           </button>
+          }
           <button mat-icon-button (click)="dismiss()">
             <mat-icon>close</mat-icon>
           </button>
         </div>
       </div>
     </div>
+    }
   `,
   styles: [`
     .error-bar {

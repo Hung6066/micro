@@ -38,11 +38,15 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
                    aria-label="Tìm kiếm bệnh nhân" [matAutocomplete]="patientAuto">
             <mat-icon matSuffix>search</mat-icon>
             <mat-autocomplete #patientAuto="matAutocomplete" [displayWith]="displayPatientFn">
-              <mat-option *ngFor="let p of filteredPatients" [value]="p" (onSelectionChange)="onPatientSelected(p)">
+              @for (p of filteredPatients; track p.id) {
+              <mat-option [value]="p" (onSelectionChange)="onPatientSelected(p)">
                 {{ p.fullName }} - {{ p.id | slice:0:8 }}...
               </mat-option>
+              }
             </mat-autocomplete>
-            <mat-error *ngIf="labOrderForm.get('patientId')?.hasError('required')">Vui lòng chọn bệnh nhân</mat-error>
+            @if (labOrderForm.get('patientId')?.hasError('required')) {
+            <mat-error>Vui lòng chọn bệnh nhân</mat-error>
+            }
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -68,7 +72,8 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
           </mat-card-header>
           <mat-card-content>
             <div formArrayName="tests">
-              <div *ngFor="let test of tests.controls; let i = index" [formGroupName]="i" class="test-item">
+              @for (test of tests.controls; track i; let i = $index) {
+              <div [formGroupName]="i" class="test-item">
                 <div class="test-row">
                   <mat-form-field appearance="outline">
                     <mat-label>Mã xét nghiệm</mat-label>
@@ -102,6 +107,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
                   </button>
                 </div>
               </div>
+              }
             </div>
 
             <button mat-stroked-button color="primary" type="button" (click)="addTest()"
@@ -115,7 +121,9 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
           <button mat-button type="button" routerLink="/lab">Hủy</button>
           <button mat-raised-button color="primary" type="submit"
                   [disabled]="labOrderForm.invalid || submitting">
-            <mat-spinner diameter="18" *ngIf="submitting" class="btn-spinner" aria-label="Đang lưu"></mat-spinner>
+            @if (submitting) {
+            <mat-spinner diameter="18" class="btn-spinner" aria-label="Đang lưu"></mat-spinner>
+            }
             {{ submitting ? 'Đang lưu...' : 'Tạo phiếu xét nghiệm' }}
           </button>
         </div>

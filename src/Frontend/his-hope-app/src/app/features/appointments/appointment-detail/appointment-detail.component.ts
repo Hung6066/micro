@@ -17,7 +17,8 @@ import { Appointment } from '@core/models/appointment.model';
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="detail" *ngIf="appointment">
+    @if (appointment) {
+    <div class="detail">
       <div class="header">
         <h1>Appointment Details</h1>
         <div class="status-badge" [class]="'status-' + appointment.status.toLowerCase()">
@@ -44,48 +45,65 @@ import { Appointment } from '@core/models/appointment.model';
           </mat-card-content>
         </mat-card>
 
-        <mat-card *ngIf="appointment.reason">
+        @if (appointment.reason) {
+        <mat-card>
           <mat-card-header><mat-card-title>Reason</mat-card-title></mat-card-header>
           <mat-card-content><p>{{ appointment.reason }}</p></mat-card-content>
         </mat-card>
+        }
 
-        <mat-card *ngIf="appointment.notes">
+        @if (appointment.notes) {
+        <mat-card>
           <mat-card-header><mat-card-title>Notes</mat-card-title></mat-card-header>
           <mat-card-content><p>{{ appointment.notes }}</p></mat-card-content>
         </mat-card>
+        }
 
-        <mat-card *ngIf="appointment.cancellationReason">
+        @if (appointment.cancellationReason) {
+        <mat-card>
           <mat-card-header><mat-card-title>Cancellation Reason</mat-card-title></mat-card-header>
           <mat-card-content><p>{{ appointment.cancellationReason }}</p></mat-card-content>
         </mat-card>
+        }
       </div>
 
-      <div class="timeline" *ngIf="appointment.createdAt">
+      @if (appointment.createdAt) {
+      <div class="timeline">
         <h2>Timeline</h2>
         <mat-list>
-          <mat-list-item *ngIf="appointment.createdAt">
+          @if (appointment.createdAt) {
+          <mat-list-item>
             <mat-icon matListItemIcon>add_circle</mat-icon>
             <div matListItemTitle>Created</div>
             <div matListItemLine>{{ appointment.createdAt | date:'medium' }}</div>
           </mat-list-item>
-          <mat-list-item *ngIf="appointment.checkedInAt">
+          }
+          @if (appointment.checkedInAt) {
+          <mat-list-item>
             <mat-icon matListItemIcon>login</mat-icon>
             <div matListItemTitle>Checked In</div>
             <div matListItemLine>{{ appointment.checkedInAt | date:'medium' }}</div>
           </mat-list-item>
-          <mat-list-item *ngIf="appointment.checkedOutAt">
+          }
+          @if (appointment.checkedOutAt) {
+          <mat-list-item>
             <mat-icon matListItemIcon>logout</mat-icon>
             <div matListItemTitle>Checked Out</div>
             <div matListItemLine>{{ appointment.checkedOutAt | date:'medium' }}</div>
           </mat-list-item>
-          <mat-list-item *ngIf="appointment.cancelledAt">
+          }
+          @if (appointment.cancelledAt) {
+          <mat-list-item>
             <mat-icon matListItemIcon>cancel</mat-icon>
             <div matListItemTitle>Cancelled</div>
             <div matListItemLine>{{ appointment.cancelledAt | date:'medium' }}</div>
           </mat-list-item>
+          }
         </mat-list>
       </div>
+      }
     </div>
+    }
   `,
     styles: [`
     .detail { padding: 24px; }

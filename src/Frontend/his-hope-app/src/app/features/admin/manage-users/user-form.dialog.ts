@@ -49,36 +49,56 @@ const ROLE_OPTIONS = [
         <mat-form-field appearance="outline">
           <mat-label>Họ và tên</mat-label>
           <input matInput formControlName="fullName" placeholder="Nhập họ và tên" required>
-          <mat-error *ngIf="form.get('fullName')?.hasError('required')">Vui lòng nhập họ tên</mat-error>
+          @if (form.get('fullName')?.hasError('required')) {
+          <mat-error>Vui lòng nhập họ tên</mat-error>
+          }
         </mat-form-field>
 
         <mat-form-field appearance="outline">
           <mat-label>Email</mat-label>
           <input matInput formControlName="email" placeholder="email@example.com" required>
-          <mat-error *ngIf="form.get('email')?.hasError('required')">Vui lòng nhập email</mat-error>
-          <mat-error *ngIf="form.get('email')?.hasError('email')">Email không hợp lệ</mat-error>
+          @if (form.get('email')?.hasError('required')) {
+          <mat-error>Vui lòng nhập email</mat-error>
+          }
+          @if (form.get('email')?.hasError('email')) {
+          <mat-error>Email không hợp lệ</mat-error>
+          }
         </mat-form-field>
 
         <mat-form-field appearance="outline">
           <mat-label>Số điện thoại</mat-label>
           <input matInput formControlName="phone" placeholder="090xxxxxxx" required>
-          <mat-error *ngIf="form.get('phone')?.hasError('required')">Vui lòng nhập số điện thoại</mat-error>
-          <mat-error *ngIf="form.get('phone')?.hasError('pattern')">Số điện thoại không hợp lệ (10-11 số)</mat-error>
+          @if (form.get('phone')?.hasError('required')) {
+          <mat-error>Vui lòng nhập số điện thoại</mat-error>
+          }
+          @if (form.get('phone')?.hasError('pattern')) {
+          <mat-error>Số điện thoại không hợp lệ (10-11 số)</mat-error>
+          }
         </mat-form-field>
 
-        <mat-form-field appearance="outline" *ngIf="data.mode === 'create'">
+        @if (data.mode === 'create') {
+        <mat-form-field appearance="outline">
           <mat-label>Mật khẩu</mat-label>
           <input matInput type="password" formControlName="password" placeholder="Nhập mật khẩu" required>
-          <mat-error *ngIf="form.get('password')?.hasError('required')">Vui lòng nhập mật khẩu</mat-error>
-          <mat-error *ngIf="form.get('password')?.hasError('minlength')">Mật khẩu tối thiểu 6 ký tự</mat-error>
+          @if (form.get('password')?.hasError('required')) {
+          <mat-error>Vui lòng nhập mật khẩu</mat-error>
+          }
+          @if (form.get('password')?.hasError('minlength')) {
+          <mat-error>Mật khẩu tối thiểu 6 ký tự</mat-error>
+          }
         </mat-form-field>
+        }
 
         <mat-form-field appearance="outline">
           <mat-label>Vai trò</mat-label>
           <mat-select formControlName="roles" multiple required>
-            <mat-option *ngFor="let r of roleOptions" [value]="r.value">{{ r.label }}</mat-option>
+            @for (r of roleOptions; track r.value) {
+            <mat-option [value]="r.value">{{ r.label }}</mat-option>
+            }
           </mat-select>
-          <mat-error *ngIf="form.get('roles')?.hasError('required')">Vui lòng chọn ít nhất một vai trò</mat-error>
+          @if (form.get('roles')?.hasError('required')) {
+          <mat-error>Vui lòng chọn ít nhất một vai trò</mat-error>
+          }
         </mat-form-field>
       </form>
     </mat-dialog-content>
@@ -86,8 +106,12 @@ const ROLE_OPTIONS = [
       <button mat-button mat-dialog-close [disabled]="saving">Hủy</button>
       <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid || saving">
         <mat-icon>{{ data.mode === 'create' ? 'person_add' : 'save' }}</mat-icon>
-        <span *ngIf="!saving">{{ data.mode === 'create' ? 'Thêm người dùng' : 'Lưu thay đổi' }}</span>
-        <mat-spinner *ngIf="saving" diameter="20"></mat-spinner>
+        @if (!saving) {
+        <span>{{ data.mode === 'create' ? 'Thêm người dùng' : 'Lưu thay đổi' }}</span>
+        }
+        @if (saving) {
+        <mat-spinner diameter="20"></mat-spinner>
+        }
       </button>
     </mat-dialog-actions>
   `,

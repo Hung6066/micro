@@ -46,25 +46,33 @@ const TIME_SLOTS = [
     template: `
     <h2 mat-dialog-title>Đặt lịch hẹn</h2>
     <mat-dialog-content>
-      <div class="patient-info" *ngIf="data.patientName">
+      @if (data.patientName) {
+      <div class="patient-info">
         <mat-icon>person</mat-icon>
         <span>{{ data.patientName }}</span>
       </div>
+      }
       <form [formGroup]="form" class="dialog-form">
         <mat-form-field appearance="outline">
           <mat-label>Ngày hẹn</mat-label>
           <input matInput [matDatepicker]="picker" formControlName="scheduledDate" required>
           <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
           <mat-datepicker #picker></mat-datepicker>
-          <mat-error *ngIf="form.get('scheduledDate')?.hasError('required')">Vui lòng chọn ngày</mat-error>
+          @if (form.get('scheduledDate')?.hasError('required')) {
+          <mat-error>Vui lòng chọn ngày</mat-error>
+          }
         </mat-form-field>
 
         <mat-form-field appearance="outline">
           <mat-label>Giờ hẹn</mat-label>
           <mat-select formControlName="startTime" required>
-            <mat-option *ngFor="let slot of timeSlots" [value]="slot">{{ slot }}</mat-option>
+            @for (slot of timeSlots; track slot) {
+            <mat-option [value]="slot">{{ slot }}</mat-option>
+            }
           </mat-select>
-          <mat-error *ngIf="form.get('startTime')?.hasError('required')">Vui lòng chọn giờ</mat-error>
+          @if (form.get('startTime')?.hasError('required')) {
+          <mat-error>Vui lòng chọn giờ</mat-error>
+          }
         </mat-form-field>
 
         <mat-form-field appearance="outline">
@@ -93,8 +101,12 @@ const TIME_SLOTS = [
       <button mat-button mat-dialog-close [disabled]="saving">Hủy</button>
       <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid || saving">
         <mat-icon>calendar_today</mat-icon>
-        <span *ngIf="!saving">Đặt lịch</span>
-        <mat-spinner *ngIf="saving" diameter="20"></mat-spinner>
+        @if (!saving) {
+        <span>Đặt lịch</span>
+        }
+        @if (saving) {
+        <mat-spinner diameter="20"></mat-spinner>
+        }
       </button>
     </mat-dialog-actions>
   `,

@@ -53,7 +53,8 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <!-- Sticky Patient Header Bar -->
-    <div class="patient-header" *ngIf="patient">
+    @if (patient) {
+    <div class="patient-header">
       <div class="patient-info">
         <div class="patient-avatar">{{ patient.fullName.charAt(0) }}</div>
         <div class="patient-details">
@@ -62,32 +63,42 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
             <span class="meta-item"><mat-icon>badge</mat-icon> Mã BN: {{ patient.id }}</span>
             <span class="meta-item"><mat-icon>cake</mat-icon> {{ patient.age }} tuổi ({{ patient.dateOfBirth | date:'dd/MM/yyyy' }})</span>
             <span class="meta-item"><mat-icon>wc</mat-icon> {{ patient.genderName }}</span>
-            <span class="meta-item" *ngIf="patient.bloodTypeName">
+            @if (patient.bloodTypeName) {
+            <span class="meta-item">
               <mat-icon>bloodtype</mat-icon> {{ patient.bloodTypeName }}
             </span>
+            }
           </div>
         </div>
       </div>
 
-      <div class="patient-alerts" *ngIf="patient.allergies.length > 0">
+      @if (patient.allergies.length > 0) {
+      <div class="patient-alerts">
         <mat-chip-set>
-          <mat-chip *ngFor="let a of patient.allergies" class="allergy-chip"
+          @for (a of patient.allergies; track a) {
+          <mat-chip class="allergy-chip"
                     [matTooltip]="'Phản ứng: ' + (a.reaction || 'Không rõ') + ' | Mức độ: ' + (a.severity || 'N/A')">
             <mat-icon matChipAvatar>warning</mat-icon>
             {{ a.allergen }}
           </mat-chip>
+          }
         </mat-chip-set>
       </div>
+      }
 
-      <div class="patient-conditions" *ngIf="activeConditions.length > 0">
+      @if (activeConditions.length > 0) {
+      <div class="patient-conditions">
         <mat-chip-set>
-          <mat-chip *ngFor="let c of activeConditions" class="condition-chip"
+          @for (c of activeConditions; track c) {
+          <mat-chip class="condition-chip"
                     [matTooltip]="(c.isChronic ? 'Mạn tính' : 'Cấp tính') + ' | ICD-10: ' + (c.icd10Code || 'N/A')">
             <mat-icon matChipAvatar>info</mat-icon>
             {{ c.conditionName }}
           </mat-chip>
+          }
         </mat-chip-set>
       </div>
+      }
 
       <div class="quick-actions">
         <button mat-raised-button color="primary" (click)="startNewEncounter()">
@@ -104,20 +115,26 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
         </button>
       </div>
     </div>
+    }
 
-    <div class="loading-header" *ngIf="!patient && !error">
+    @if (!patient && !error) {
+    <div class="loading-header">
       <mat-spinner diameter="32"></mat-spinner>
       <span>Đang tải thông tin bệnh nhân...</span>
     </div>
+    }
 
-    <div class="error-box" *ngIf="error">
+    @if (error) {
+    <div class="error-box">
       <mat-icon>error_outline</mat-icon>
       <span>{{ error }}</span>
       <button mat-stroked-button (click)="loadPatient()">Thử lại</button>
     </div>
+    }
 
     <!-- Tab Group -->
-    <div class="workspace-tabs" *ngIf="patient">
+    @if (patient) {
+    <div class="workspace-tabs">
       <mat-tab-group dynamicHeight>
         <!-- Tab 1: Encounters -->
         <mat-tab label="Lịch sử khám ({{ encounters.length }})">
@@ -128,12 +145,17 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
                 <mat-icon>add</mat-icon> Bắt đầu khám
               </button>
             </div>
-            <div *ngIf="loadingEncounters" class="tab-loading"><mat-spinner diameter="28"></mat-spinner></div>
-            <div *ngIf="!loadingEncounters && encounters.length === 0" class="tab-empty">
+            @if (loadingEncounters) {
+            <div class="tab-loading"><mat-spinner diameter="28"></mat-spinner></div>
+            }
+            @if (!loadingEncounters && encounters.length === 0) {
+            <div class="tab-empty">
               <mat-icon>inbox</mat-icon>
               <p>Bệnh nhân chưa có lượt khám nào</p>
             </div>
-            <table mat-table [dataSource]="encounters" *ngIf="!loadingEncounters && encounters.length > 0" class="workspace-table">
+            }
+            @if (!loadingEncounters && encounters.length > 0) {
+            <table mat-table [dataSource]="encounters" class="workspace-table">
               <ng-container matColumnDef="encounterDate">
                 <th mat-header-cell *matHeaderCellDef>Ngày khám</th>
                 <td mat-cell *matCellDef="let e">{{ e.encounterDate | date:'dd/MM/yyyy HH:mm' }}</td>
@@ -167,33 +189,42 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
                   [style.display]="expandedEncounterId === row.id ? '' : 'none'">
                 <td [attr.colspan]="encounterColumns.length" class="soap-preview">
                   <div class="soap-content">
-                    <div class="soap-section" *ngIf="row.hpi">
+                    @if (row.hpi) {
+                    <div class="soap-section">
                       <h4>📋 Bệnh sử (HPI)</h4>
-                      <p *ngIf="row.hpi.onset"><strong>Khởi phát:</strong> {{ row.hpi.onset }}</p>
-                      <p *ngIf="row.hpi.characteristics"><strong>Tính chất:</strong> {{ row.hpi.characteristics }}</p>
-                      <p *ngIf="row.hpi.duration"><strong>Thời gian:</strong> {{ row.hpi.duration }}</p>
+                      @if (row.hpi.onset) {<p><strong>Khởi phát:</strong> {{ row.hpi.onset }}</p>}
+                      @if (row.hpi.characteristics) {<p><strong>Tính chất:</strong> {{ row.hpi.characteristics }}</p>}
+                      @if (row.hpi.duration) {<p><strong>Thời gian:</strong> {{ row.hpi.duration }}</p>}
                     </div>
-                    <div class="soap-section" *ngIf="row.vitalSigns">
+                    }
+                    @if (row.vitalSigns) {
+                    <div class="soap-section">
                       <h4>💓 Dấu hiệu sinh tồn</h4>
                       <div class="vitals-row">
-                        <span *ngIf="row.vitalSigns.temperature">🌡 {{ row.vitalSigns.temperature }}°C</span>
-                        <span *ngIf="row.vitalSigns.heartRate">💓 {{ row.vitalSigns.heartRate }} l/ph</span>
-                        <span *ngIf="row.vitalSigns.systolicBP">🩸 {{ row.vitalSigns.systolicBP }}/{{ row.vitalSigns.diastolicBP }}</span>
-                        <span *ngIf="row.vitalSigns.oxygenSaturation">🫁 SpO2: {{ row.vitalSigns.oxygenSaturation }}%</span>
+                        @if (row.vitalSigns.temperature) {<span>🌡 {{ row.vitalSigns.temperature }}°C</span>}
+                        @if (row.vitalSigns.heartRate) {<span>💓 {{ row.vitalSigns.heartRate }} l/ph</span>}
+                        @if (row.vitalSigns.systolicBP) {<span>🩸 {{ row.vitalSigns.systolicBP }}/{{ row.vitalSigns.diastolicBP }}</span>}
+                        @if (row.vitalSigns.oxygenSaturation) {<span>🫁 SpO2: {{ row.vitalSigns.oxygenSaturation }}%</span>}
                       </div>
                     </div>
-                    <div class="soap-section" *ngIf="row.assessment">
+                    }
+                    @if (row.assessment) {
+                    <div class="soap-section">
                       <h4>📝 Đánh giá</h4>
                       <p>{{ row.assessment }}</p>
                     </div>
-                    <div class="soap-section" *ngIf="row.plan">
+                    }
+                    @if (row.plan) {
+                    <div class="soap-section">
                       <h4>📋 Kế hoạch</h4>
                       <pre>{{ row.plan }}</pre>
                     </div>
+                    }
                   </div>
                 </td>
               </tr>
             </table>
+            }
           </div>
         </mat-tab>
 
@@ -206,12 +237,17 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
                 <mat-icon>add</mat-icon> Đặt lịch
               </button>
             </div>
-            <div *ngIf="loadingAppointments" class="tab-loading"><mat-spinner diameter="28"></mat-spinner></div>
-            <div *ngIf="!loadingAppointments && appointments.length === 0" class="tab-empty">
+            @if (loadingAppointments) {
+            <div class="tab-loading"><mat-spinner diameter="28"></mat-spinner></div>
+            }
+            @if (!loadingAppointments && appointments.length === 0) {
+            <div class="tab-empty">
               <mat-icon>event_busy</mat-icon>
               <p>Bệnh nhân chưa có lịch hẹn</p>
             </div>
-            <table mat-table [dataSource]="appointments" *ngIf="!loadingAppointments && appointments.length > 0" class="workspace-table">
+            }
+            @if (!loadingAppointments && appointments.length > 0) {
+            <table mat-table [dataSource]="appointments" class="workspace-table">
               <ng-container matColumnDef="scheduledDate">
                 <th mat-header-cell *matHeaderCellDef>Ngày</th>
                 <td mat-cell *matCellDef="let a">{{ a.scheduledDate | date:'dd/MM/yyyy' }}</td>
@@ -233,21 +269,27 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
               <ng-container matColumnDef="actions">
                 <th mat-header-cell *matHeaderCellDef></th>
                 <td mat-cell *matCellDef="let a">
-                  <button mat-icon-button *ngIf="a.status === 'scheduled'" (click)="checkInAppointment(a.id)" matTooltip="Check-in">
+                  @if (a.status === 'scheduled') {
+                  <button mat-icon-button (click)="checkInAppointment(a.id)" matTooltip="Check-in">
                     <mat-icon>login</mat-icon>
                   </button>
-                  <button mat-icon-button *ngIf="a.status === 'checked_in'" (click)="checkOutAppointment(a.id)" matTooltip="Check-out">
+                  }
+                  @if (a.status === 'checked_in') {
+                  <button mat-icon-button (click)="checkOutAppointment(a.id)" matTooltip="Check-out">
                     <mat-icon>logout</mat-icon>
                   </button>
-                  <button mat-icon-button *ngIf="a.status === 'scheduled' || a.status === 'checked_in'"
-                          (click)="cancelAppointment(a.id)" matTooltip="Hủy">
+                  }
+                  @if (a.status === 'scheduled' || a.status === 'checked_in') {
+                  <button mat-icon-button (click)="cancelAppointment(a.id)" matTooltip="Hủy">
                     <mat-icon>cancel</mat-icon>
                   </button>
+                  }
                 </td>
               </ng-container>
               <tr mat-header-row *matHeaderRowDef="appointmentColumns"></tr>
               <tr mat-row *matRowDef="let row; columns: appointmentColumns;"></tr>
             </table>
+            }
           </div>
         </mat-tab>
 
@@ -260,12 +302,17 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
                 <mat-icon>add</mat-icon> Chỉ định mới
               </button>
             </div>
-            <div *ngIf="loadingLabs" class="tab-loading"><mat-spinner diameter="28"></mat-spinner></div>
-            <div *ngIf="!loadingLabs && labOrders.length === 0" class="tab-empty">
+            @if (loadingLabs) {
+            <div class="tab-loading"><mat-spinner diameter="28"></mat-spinner></div>
+            }
+            @if (!loadingLabs && labOrders.length === 0) {
+            <div class="tab-empty">
               <mat-icon>science</mat-icon>
               <p>Bệnh nhân chưa có xét nghiệm nào</p>
             </div>
-            <table mat-table [dataSource]="labOrders" *ngIf="!loadingLabs && labOrders.length > 0" class="workspace-table">
+            }
+            @if (!loadingLabs && labOrders.length > 0) {
+            <table mat-table [dataSource]="labOrders" class="workspace-table">
               <ng-container matColumnDef="orderDate">
                 <th mat-header-cell *matHeaderCellDef>Ngày chỉ định</th>
                 <td mat-cell *matCellDef="let l">{{ l.orderDate | date:'dd/MM/yyyy' }}</td>
@@ -273,7 +320,9 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
               <ng-container matColumnDef="testName">
                 <th mat-header-cell *matHeaderCellDef>Xét nghiệm</th>
                 <td mat-cell *matCellDef="let l">
-                  <div *ngFor="let t of l.tests">{{ t.testName }}</div>
+                  @for (t of l.tests; track t) {
+                  <div>{{ t.testName }}</div>
+                  }
                 </td>
               </ng-container>
               <ng-container matColumnDef="status">
@@ -285,16 +334,23 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
               <ng-container matColumnDef="result">
                 <th mat-header-cell *matHeaderCellDef>Kết quả</th>
                 <td mat-cell *matCellDef="let l">
-                  <span *ngIf="hasAbnormalFlag(l)" class="abnormal-flag">
+                  @if (hasAbnormalFlag(l)) {
+                  <span class="abnormal-flag">
                     <mat-icon>error</mat-icon> Bất thường
                   </span>
-                  <span *ngIf="!hasAbnormalFlag(l) && isCompleted(l)">Bình thường</span>
-                  <span *ngIf="!isCompleted(l)">-</span>
+                  }
+                  @if (!hasAbnormalFlag(l) && isCompleted(l)) {
+                  <span>Bình thường</span>
+                  }
+                  @if (!isCompleted(l)) {
+                  <span>-</span>
+                  }
                 </td>
               </ng-container>
               <tr mat-header-row *matHeaderRowDef="labColumns"></tr>
               <tr mat-row *matRowDef="let row; columns: labColumns;"></tr>
             </table>
+            }
           </div>
         </mat-tab>
 
@@ -307,12 +363,17 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
                 <mat-icon>add</mat-icon> Kê đơn
               </button>
             </div>
-            <div *ngIf="loadingPrescriptions" class="tab-loading"><mat-spinner diameter="28"></mat-spinner></div>
-            <div *ngIf="!loadingPrescriptions && prescriptions.length === 0" class="tab-empty">
+            @if (loadingPrescriptions) {
+            <div class="tab-loading"><mat-spinner diameter="28"></mat-spinner></div>
+            }
+            @if (!loadingPrescriptions && prescriptions.length === 0) {
+            <div class="tab-empty">
               <mat-icon>medication</mat-icon>
               <p>Bệnh nhân chưa có đơn thuốc nào</p>
             </div>
-            <table mat-table [dataSource]="prescriptions" *ngIf="!loadingPrescriptions && prescriptions.length > 0" class="workspace-table">
+            }
+            @if (!loadingPrescriptions && prescriptions.length > 0) {
+            <table mat-table [dataSource]="prescriptions" class="workspace-table">
               <ng-container matColumnDef="prescribedAt">
                 <th mat-header-cell *matHeaderCellDef>Ngày kê</th>
                 <td mat-cell *matCellDef="let p">{{ p.prescribedAt | date:'dd/MM/yyyy' }}</td>
@@ -338,6 +399,7 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
               <tr mat-header-row *matHeaderRowDef="prescriptionColumns"></tr>
               <tr mat-row *matRowDef="let row; columns: prescriptionColumns;"></tr>
             </table>
+            }
           </div>
         </mat-tab>
 
@@ -350,12 +412,17 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
                 <mat-icon>payments</mat-icon> Ghi nhận thanh toán
               </button>
             </div>
-            <div *ngIf="loadingInvoices" class="tab-loading"><mat-spinner diameter="28"></mat-spinner></div>
-            <div *ngIf="!loadingInvoices && invoices.length === 0" class="tab-empty">
+            @if (loadingInvoices) {
+            <div class="tab-loading"><mat-spinner diameter="28"></mat-spinner></div>
+            }
+            @if (!loadingInvoices && invoices.length === 0) {
+            <div class="tab-empty">
               <mat-icon>receipt</mat-icon>
               <p>Bệnh nhân chưa có hóa đơn</p>
             </div>
-            <table mat-table [dataSource]="invoices" *ngIf="!loadingInvoices && invoices.length > 0" class="workspace-table">
+            }
+            @if (!loadingInvoices && invoices.length > 0) {
+            <table mat-table [dataSource]="invoices" class="workspace-table">
               <ng-container matColumnDef="invoiceNumber">
                 <th mat-header-cell *matHeaderCellDef>Số HĐ</th>
                 <td mat-cell *matCellDef="let i">{{ i.invoiceNumber }}</td>
@@ -383,10 +450,12 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
               <tr mat-header-row *matHeaderRowDef="invoiceColumns"></tr>
               <tr mat-row *matRowDef="let row; columns: invoiceColumns;"></tr>
             </table>
+            }
           </div>
         </mat-tab>
       </mat-tab-group>
     </div>
+    }
   `,
     styles: [`
     :host { display: block; height: 100%; }

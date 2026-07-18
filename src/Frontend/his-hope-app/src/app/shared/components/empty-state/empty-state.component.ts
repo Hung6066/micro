@@ -12,7 +12,9 @@ import { MatButtonModule } from '@angular/material/button';
     <div class="empty-state">
       <mat-icon class="empty-icon">{{ icon }}</mat-icon>
       <h3 class="empty-title">{{ title }}</h3>
-      <p class="empty-message" *ngIf="message">{{ message }}</p>
+      @if (message) {
+      <p class="empty-message">{{ message }}</p>
+      }
       <ng-content></ng-content>
     </div>
   `,

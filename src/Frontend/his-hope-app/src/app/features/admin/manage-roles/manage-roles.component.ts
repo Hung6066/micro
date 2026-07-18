@@ -44,8 +44,9 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
       <div class="table-container mat-elevation-z2">
         <app-loading-spinner [loading]="loading" message="Đang tải danh sách vai trò..."></app-loading-spinner>
 
-        <ng-container *ngIf="!loading">
-          <mat-table [dataSource]="roles" class="roles-table" *ngIf="roles.length > 0; else noData">
+        @if (!loading) {
+          @if (roles.length > 0) {
+          <mat-table [dataSource]="roles" class="roles-table">
             <ng-container matColumnDef="name">
               <mat-header-cell *matHeaderCellDef>Tên vai trò</mat-header-cell>
               <mat-cell *matCellDef="let r">
@@ -94,13 +95,12 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
             <mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row"
                      (click)="openEditRoleDialog(row)"></mat-row>
           </mat-table>
-
-          <ng-template #noData>
-            <app-empty-state icon="admin_panel_settings" title="Không có vai trò nào"
-                            message="Thêm vai trò mới để bắt đầu cấu hình quyền">
-            </app-empty-state>
-          </ng-template>
-        </ng-container>
+          } @else {
+          <app-empty-state icon="admin_panel_settings" title="Không có vai trò nào"
+                          message="Thêm vai trò mới để bắt đầu cấu hình quyền">
+          </app-empty-state>
+          }
+        }
       </div>
     </div>
   `,

@@ -42,13 +42,17 @@ export interface RoleFormData {
         <mat-form-field appearance="outline">
           <mat-label>Tên vai trò</mat-label>
           <input matInput formControlName="name" placeholder="Nhập tên vai trò" required>
-          <mat-error *ngIf="form.get('name')?.hasError('required')">Vui lòng nhập tên vai trò</mat-error>
+          @if (form.get('name')?.hasError('required')) {
+          <mat-error>Vui lòng nhập tên vai trò</mat-error>
+          }
         </mat-form-field>
 
         <mat-form-field appearance="outline">
           <mat-label>Mô tả</mat-label>
           <textarea matInput formControlName="description" rows="3" placeholder="Mô tả vai trò..." required></textarea>
-          <mat-error *ngIf="form.get('description')?.hasError('required')">Vui lòng nhập mô tả</mat-error>
+          @if (form.get('description')?.hasError('required')) {
+          <mat-error>Vui lòng nhập mô tả</mat-error>
+          }
         </mat-form-field>
 
         <div class="section-label">
@@ -56,8 +60,10 @@ export interface RoleFormData {
           <span>Ma trận quyền</span>
         </div>
 
-        <mat-accordion class="permission-accordion" *ngIf="permissionGroups.length > 0; else loadingPerms">
-          <mat-expansion-panel *ngFor="let group of permissionGroups" expanded>
+        @if (permissionGroups.length > 0) {
+        <mat-accordion class="permission-accordion">
+          @for (group of permissionGroups; track group.groupName) {
+          <mat-expansion-panel expanded>
             <mat-expansion-panel-header>
               <mat-panel-title>
                 <mat-checkbox [checked]="isGroupFullySelected(group)" [indeterminate]="isGroupPartiallySelected(group)"
@@ -71,7 +77,8 @@ export interface RoleFormData {
               </mat-panel-description>
             </mat-expansion-panel-header>
             <div class="perm-grid">
-              <div class="perm-item" *ngFor="let perm of group.permissions">
+              @for (perm of group.permissions; track perm.code) {
+              <div class="perm-item">
                 <mat-checkbox [checked]="isPermissionSelected(perm.code)"
                               (change)="togglePermission(perm.code, $event.checked)">
                   <div class="perm-info">
@@ -80,23 +87,29 @@ export interface RoleFormData {
                   </div>
                 </mat-checkbox>
               </div>
+              }
             </div>
           </mat-expansion-panel>
+          }
         </mat-accordion>
-        <ng-template #loadingPerms>
-          <div class="loading-state">
-            <mat-spinner diameter="24"></mat-spinner>
-            <span>Đang tải quyền...</span>
-          </div>
-        </ng-template>
+        } @else {
+        <div class="loading-state">
+          <mat-spinner diameter="24"></mat-spinner>
+          <span>Đang tải quyền...</span>
+        </div>
+        }
       </form>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close [disabled]="saving">Hủy</button>
       <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid || saving">
         <mat-icon>{{ data.mode === 'create' ? 'add_moderator' : 'save' }}</mat-icon>
-        <span *ngIf="!saving">{{ data.mode === 'create' ? 'Thêm vai trò' : 'Lưu thay đổi' }}</span>
-        <mat-spinner *ngIf="saving" diameter="20"></mat-spinner>
+        @if (!saving) {
+        <span>{{ data.mode === 'create' ? 'Thêm vai trò' : 'Lưu thay đổi' }}</span>
+        }
+        @if (saving) {
+        <mat-spinner diameter="20"></mat-spinner>
+        }
       </button>
     </mat-dialog-actions>
   `,

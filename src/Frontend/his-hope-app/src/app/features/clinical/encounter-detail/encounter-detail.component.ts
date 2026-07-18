@@ -32,7 +32,8 @@ interface LabResultDisplay {
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="detail" *ngIf="encounter">
+    @if (encounter) {
+    <div class="detail">
       <div class="header">
         <div>
           <h1>Chi tiết lượt khám</h1>
@@ -45,12 +46,16 @@ interface LabResultDisplay {
           <div class="status-badge" [class]="'status-' + encounter.status.toLowerCase()">
             {{ encounter.statusName || encounter.status }}
           </div>
-          <button mat-stroked-button color="primary" (click)="createLabOrder()" *ngIf="encounter.status !== 'COMPLETED' && encounter.status !== 'SIGNED'">
+          @if (encounter.status !== 'COMPLETED' && encounter.status !== 'SIGNED') {
+          <button mat-stroked-button color="primary" (click)="createLabOrder()">
             <mat-icon>science</mat-icon> Chỉ định XN
           </button>
-          <button mat-stroked-button color="accent" (click)="createPrescription()" *ngIf="encounter.status !== 'COMPLETED' && encounter.status !== 'SIGNED'">
+          }
+          @if (encounter.status !== 'COMPLETED' && encounter.status !== 'SIGNED') {
+          <button mat-stroked-button color="accent" (click)="createPrescription()">
             <mat-icon>medication</mat-icon> Kê đơn
           </button>
+          }
         </div>
       </div>
 
@@ -63,7 +68,9 @@ interface LabResultDisplay {
             <div><strong>Loại:</strong> {{ encounter.encounterTypeName || encounter.encounterType }}</div>
             <div><strong>Bệnh nhân:</strong> {{ encounter.patientId }}</div>
             <div><strong>Bác sĩ:</strong> {{ encounter.providerId }}</div>
-            <div *ngIf="encounter.appointmentId"><strong>Lịch hẹn:</strong> {{ encounter.appointmentId }}</div>
+            @if (encounter.appointmentId) {
+            <div><strong>Lịch hẹn:</strong> {{ encounter.appointmentId }}</div>
+            }
           </div>
         </mat-card-content>
       </mat-card>
@@ -80,18 +87,34 @@ interface LabResultDisplay {
               <strong>Lý do khám (Chief Complaint):</strong>
               <p>{{ encounter.chiefComplaint || 'Chưa ghi nhận' }}</p>
             </div>
-            <div class="soap-section" *ngIf="encounter.hpi">
+            @if (encounter.hpi) {
+            <div class="soap-section">
               <strong>Bệnh sử (HPI):</strong>
               <div class="hpi-grid">
-                <div *ngIf="encounter.hpi.onset"><strong>Khởi phát:</strong> {{ encounter.hpi.onset }}</div>
-                <div *ngIf="encounter.hpi.location"><strong>Vị trí:</strong> {{ encounter.hpi.location }}</div>
-                <div *ngIf="encounter.hpi.duration"><strong>Thời gian:</strong> {{ encounter.hpi.duration }}</div>
-                <div *ngIf="encounter.hpi.characteristics"><strong>Tính chất:</strong> {{ encounter.hpi.characteristics }}</div>
-                <div *ngIf="encounter.hpi.aggravatingFactors"><strong>Yếu tố tăng nặng:</strong> {{ encounter.hpi.aggravatingFactors }}</div>
-                <div *ngIf="encounter.hpi.relievingFactors"><strong>Yếu tố giảm nhẹ:</strong> {{ encounter.hpi.relievingFactors }}</div>
-                <div *ngIf="encounter.hpi.priorTreatments"><strong>Điều trị trước:</strong> {{ encounter.hpi.priorTreatments }}</div>
+                @if (encounter.hpi.onset) {
+                <div><strong>Khởi phát:</strong> {{ encounter.hpi.onset }}</div>
+                }
+                @if (encounter.hpi.location) {
+                <div><strong>Vị trí:</strong> {{ encounter.hpi.location }}</div>
+                }
+                @if (encounter.hpi.duration) {
+                <div><strong>Thời gian:</strong> {{ encounter.hpi.duration }}</div>
+                }
+                @if (encounter.hpi.characteristics) {
+                <div><strong>Tính chất:</strong> {{ encounter.hpi.characteristics }}</div>
+                }
+                @if (encounter.hpi.aggravatingFactors) {
+                <div><strong>Yếu tố tăng nặng:</strong> {{ encounter.hpi.aggravatingFactors }}</div>
+                }
+                @if (encounter.hpi.relievingFactors) {
+                <div><strong>Yếu tố giảm nhẹ:</strong> {{ encounter.hpi.relievingFactors }}</div>
+                }
+                @if (encounter.hpi.priorTreatments) {
+                <div><strong>Điều trị trước:</strong> {{ encounter.hpi.priorTreatments }}</div>
+                }
               </div>
             </div>
+            }
           </mat-card-content>
         </mat-card>
 
@@ -101,40 +124,66 @@ interface LabResultDisplay {
             <mat-card-title><span class="soap-label">O</span> Objective (Khách quan)</mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <div class="soap-section" *ngIf="encounter.vitalSigns">
+            @if (encounter.vitalSigns) {
+            <div class="soap-section">
               <strong>Dấu hiệu sinh tồn:</strong>
               <div class="vitals-grid">
-                <div *ngIf="encounter.vitalSigns.temperature"><strong>Nhiệt độ:</strong> {{ encounter.vitalSigns.temperature }}°C</div>
-                <div *ngIf="encounter.vitalSigns.heartRate"><strong>Nhịp tim:</strong> {{ encounter.vitalSigns.heartRate }} l/ph</div>
-                <div *ngIf="encounter.vitalSigns.respiratoryRate"><strong>Nhịp thở:</strong> {{ encounter.vitalSigns.respiratoryRate }} /ph</div>
-                <div *ngIf="encounter.vitalSigns.systolicBP"><strong>HA:</strong> {{ encounter.vitalSigns.systolicBP }}/{{ encounter.vitalSigns.diastolicBP }}</div>
-                <div *ngIf="encounter.vitalSigns.oxygenSaturation"><strong>SpO2:</strong> {{ encounter.vitalSigns.oxygenSaturation }}%</div>
-                <div *ngIf="encounter.vitalSigns.weightKg"><strong>Cân nặng:</strong> {{ encounter.vitalSigns.weightKg }} kg</div>
-                <div *ngIf="encounter.vitalSigns.heightCm"><strong>Chiều cao:</strong> {{ encounter.vitalSigns.heightCm }} cm</div>
-                <div *ngIf="encounter.vitalSigns.bmi"><strong>BMI:</strong> {{ encounter.vitalSigns.bmi }}</div>
+                @if (encounter.vitalSigns.temperature) {
+                <div><strong>Nhiệt độ:</strong> {{ encounter.vitalSigns.temperature }}°C</div>
+                }
+                @if (encounter.vitalSigns.heartRate) {
+                <div><strong>Nhịp tim:</strong> {{ encounter.vitalSigns.heartRate }} l/ph</div>
+                }
+                @if (encounter.vitalSigns.respiratoryRate) {
+                <div><strong>Nhịp thở:</strong> {{ encounter.vitalSigns.respiratoryRate }} /ph</div>
+                }
+                @if (encounter.vitalSigns.systolicBP) {
+                <div><strong>HA:</strong> {{ encounter.vitalSigns.systolicBP }}/{{ encounter.vitalSigns.diastolicBP }}</div>
+                }
+                @if (encounter.vitalSigns.oxygenSaturation) {
+                <div><strong>SpO2:</strong> {{ encounter.vitalSigns.oxygenSaturation }}%</div>
+                }
+                @if (encounter.vitalSigns.weightKg) {
+                <div><strong>Cân nặng:</strong> {{ encounter.vitalSigns.weightKg }} kg</div>
+                }
+                @if (encounter.vitalSigns.heightCm) {
+                <div><strong>Chiều cao:</strong> {{ encounter.vitalSigns.heightCm }} cm</div>
+                }
+                @if (encounter.vitalSigns.bmi) {
+                <div><strong>BMI:</strong> {{ encounter.vitalSigns.bmi }}</div>
+                }
               </div>
             </div>
-            <div class="soap-section" *ngIf="!encounter.vitalSigns">
+            }
+            @if (!encounter.vitalSigns) {
+            <div class="soap-section">
               <p class="empty-section">Chưa ghi nhận dấu hiệu sinh tồn</p>
             </div>
+            }
 
             <!-- Linked Lab Results -->
-            <div class="soap-section" *ngIf="linkedLabResults.length > 0">
+            @if (linkedLabResults.length > 0) {
+            <div class="soap-section">
               <strong>Kết quả xét nghiệm liên quan:</strong>
               <mat-list dense>
-                <mat-list-item *ngFor="let lab of linkedLabResults">
+                @for (lab of linkedLabResults; track lab.testName) {
+                <mat-list-item>
                   <mat-icon matListItemIcon>science</mat-icon>
                   <span matListItemTitle>{{ lab.testName }}</span>
                   <span matListItemLine>
                     {{ lab.result || 'Chưa có KQ' }}
-                    <span *ngIf="lab.isAbnormal" class="abnormal-badge">Bất thường</span>
+                    @if (lab.isAbnormal) {
+                    <span class="abnormal-badge">Bất thường</span>
+                    }
                     <span class="lab-status-inline" [class]="'lab-status-' + lab.statusCode.toLowerCase()">
                       {{ lab.statusName }}
                     </span>
                   </span>
                 </mat-list-item>
+                }
               </mat-list>
             </div>
+            }
           </mat-card-content>
         </mat-card>
 
@@ -144,22 +193,31 @@ interface LabResultDisplay {
             <mat-card-title><span class="soap-label">A</span> Assessment (Đánh giá)</mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <div *ngIf="encounter.diagnoses.length > 0; else noDiagnoses">
+            @if (encounter.diagnoses.length > 0) {
+            <div>
               <mat-list>
-                <mat-list-item *ngFor="let d of encounter.diagnoses">
+                @for (d of encounter.diagnoses; track d.conditionName) {
+                <mat-list-item>
                   <mat-icon matListItemIcon [style.color]="d.isPrimary ? '#ffa726' : '#90a4ae'">
                     {{ d.isPrimary ? 'star' : 'label' }}
                   </mat-icon>
                   <span matListItemTitle>
                     {{ d.conditionName }}
-                    <small *ngIf="d.icd10Code">({{ d.icd10Code }})</small>
+                    @if (d.icd10Code) {
+                    <small>({{ d.icd10Code }})</small>
+                    }
                     <span class="diag-type">{{ d.isPrimary ? 'Chính' : 'Phụ' }}</span>
                   </span>
-                  <span matListItemLine *ngIf="d.notes">{{ d.notes }}</span>
+                  @if (d.notes) {
+                  <span matListItemLine>{{ d.notes }}</span>
+                  }
                 </mat-list-item>
+                }
               </mat-list>
             </div>
-            <ng-template #noDiagnoses><p class="empty-section">Chưa có chẩn đoán</p></ng-template>
+            } @else {
+            <p class="empty-section">Chưa có chẩn đoán</p>
+            }
           </mat-card-content>
         </mat-card>
 
@@ -169,29 +227,39 @@ interface LabResultDisplay {
             <mat-card-title><span class="soap-label">P</span> Plan (Kế hoạch)</mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <div class="soap-section" *ngIf="encounter.assessment">
+            @if (encounter.assessment) {
+            <div class="soap-section">
               <strong>Nhận định:</strong>
               <p>{{ encounter.assessment }}</p>
             </div>
-            <div class="soap-section" *ngIf="encounter.plan">
+            }
+            @if (encounter.plan) {
+            <div class="soap-section">
               <strong>Kế hoạch điều trị:</strong>
               <p>{{ encounter.plan }}</p>
             </div>
-            <div class="soap-section" *ngIf="!encounter.assessment && !encounter.plan">
+            }
+            @if (!encounter.assessment && !encounter.plan) {
+            <div class="soap-section">
               <p class="empty-section">Chưa có kế hoạch điều trị</p>
             </div>
+            }
 
             <!-- Linked Prescriptions -->
-            <div class="soap-section" *ngIf="linkedPrescriptions.length > 0">
+            @if (linkedPrescriptions.length > 0) {
+            <div class="soap-section">
               <strong>Đơn thuốc đã kê:</strong>
               <mat-list dense>
-                <mat-list-item *ngFor="let rx of linkedPrescriptions">
+                @for (rx of linkedPrescriptions; track rx.id) {
+                <mat-list-item>
                   <mat-icon matListItemIcon>medication</mat-icon>
                   <span matListItemTitle>{{ rx.medicationName }}</span>
                   <span matListItemLine>{{ rx.dosageInstructions }}</span>
                 </mat-list-item>
+                }
               </mat-list>
             </div>
+            }
           </mat-card-content>
         </mat-card>
       </div>
@@ -206,15 +274,18 @@ interface LabResultDisplay {
               <div matListItemTitle>Khởi tạo</div>
               <div matListItemLine>{{ encounter.createdAt | date:'medium' }}</div>
             </mat-list-item>
-            <mat-list-item *ngIf="encounter.updatedAt">
+            @if (encounter.updatedAt) {
+            <mat-list-item>
               <mat-icon matListItemIcon>update</mat-icon>
               <div matListItemTitle>Cập nhật lần cuối</div>
               <div matListItemLine>{{ encounter.updatedAt | date:'medium' }}</div>
             </mat-list-item>
+            }
           </mat-list>
         </mat-card-content>
       </mat-card>
     </div>
+    }
   `,
     styles: [`
     .detail { padding: 24px; max-width: 1200px; margin: 0 auto; }

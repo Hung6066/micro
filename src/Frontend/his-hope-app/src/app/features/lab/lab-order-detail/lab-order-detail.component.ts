@@ -26,7 +26,8 @@ import { LabOrder, LabTest, AbnormalFlag } from '@core/models/lab-order.model';
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="lab-order-detail" *ngIf="labOrder">
+    @if (labOrder) {
+    <div class="lab-order-detail">
       <div class="header">
         <div>
           <h1>Phiếu xét nghiệm #{{ labOrder.id | slice:0:8 }}...</h1>
@@ -46,24 +47,27 @@ import { LabOrder, LabTest, AbnormalFlag } from '@core/models/lab-order.model';
           </p>
         </div>
         <div class="header-actions">
+          @if (labOrder.statusCode === 'ordered') {
           <button mat-raised-button color="primary"
-                  *ngIf="labOrder.statusCode === 'ordered'"
                   (click)="submitLabOrder()"
                   attr.aria-label="Gửi phiếu xét nghiệm">
             <mat-icon>send</mat-icon> Gửi phiếu
           </button>
+          }
+          @if (labOrder.statusCode === 'ordered' || labOrder.statusCode === 'in_progress') {
           <button mat-raised-button color="accent"
-                  *ngIf="labOrder.statusCode === 'ordered' || labOrder.statusCode === 'in_progress'"
                   (click)="collectSpecimen()"
                   attr.aria-label="Lấy mẫu bệnh phẩm">
             <mat-icon>science</mat-icon> Lấy mẫu
           </button>
+          }
+          @if (labOrder.statusCode !== 'completed' && labOrder.statusCode !== 'cancelled') {
           <button mat-stroked-button color="warn"
-                  *ngIf="labOrder.statusCode !== 'completed' && labOrder.statusCode !== 'cancelled'"
                   (click)="cancelLabOrder()"
                   attr.aria-label="Hủy phiếu xét nghiệm">
             <mat-icon>cancel</mat-icon> Hủy phiếu
           </button>
+          }
         </div>
       </div>
 
@@ -73,9 +77,13 @@ import { LabOrder, LabTest, AbnormalFlag } from '@core/models/lab-order.model';
           <mat-card-content>
             <p><strong>Bệnh nhân:</strong> {{ labOrder.patientName || labOrder.patientId }}</p>
             <p><strong>Bác sĩ:</strong> {{ labOrder.providerName || labOrder.providerId }}</p>
-            <p *ngIf="labOrder.encounterId"><strong>Mã hồ sơ:</strong> {{ labOrder.encounterId | slice:0:8 }}...</p>
+            @if (labOrder.encounterId) {
+            <p><strong>Mã hồ sơ:</strong> {{ labOrder.encounterId | slice:0:8 }}...</p>
+            }
             <p><strong>Ngày chỉ định:</strong> {{ labOrder.orderDate | date:'medium' }}</p>
-            <p *ngIf="labOrder.notes"><strong>Ghi chú:</strong> {{ labOrder.notes }}</p>
+            @if (labOrder.notes) {
+            <p><strong>Ghi chú:</strong> {{ labOrder.notes }}</p>
+            }
           </mat-card-content>
         </mat-card>
       </div>
@@ -85,7 +93,8 @@ import { LabOrder, LabTest, AbnormalFlag } from '@core/models/lab-order.model';
           <mat-card-title>Danh sách xét nghiệm ({{ labOrder.tests.length }})</mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <mat-table [dataSource]="labOrder.tests" *ngIf="labOrder.tests.length > 0">
+          @if (labOrder.tests.length > 0) {
+          <mat-table [dataSource]="labOrder.tests">
             <ng-container matColumnDef="testName">
               <mat-header-cell *matHeaderCellDef>Xét nghiệm</mat-header-cell>
               <mat-cell *matCellDef="let t">{{ t.testName }}</mat-cell>
@@ -110,38 +119,49 @@ import { LabOrder, LabTest, AbnormalFlag } from '@core/models/lab-order.model';
             <ng-container matColumnDef="result">
               <mat-header-cell *matHeaderCellDef>Kết quả</mat-header-cell>
               <mat-cell *matCellDef="let t">
-                <ng-container *ngIf="t.result; else noResult">
+                @if (t.result) {
+                <span>
                   <span [class.abnormal]="t.result.abnormalFlagCode !== 'none'">
                     {{ t.result.value }} {{ t.result.unit }}
                   </span>
-                  <span class="abnormal-flag" *ngIf="t.result.abnormalFlagCode !== 'none'">
+                  @if (t.result.abnormalFlagCode !== 'none') {
+                  <span class="abnormal-flag">
                     ({{ t.result.abnormalFlagName }})
                   </span>
-                </ng-container>
-                <ng-template #noResult>-</ng-template>
+                  }
+                </span>
+                } @else {
+                <span>-</span>
+                }
               </mat-cell>
             </ng-container>
 
             <ng-container matColumnDef="actions">
               <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
               <mat-cell *matCellDef="let t">
-                <button mat-stroked-button color="primary" *ngIf="t.statusCode === 'collected'"
+                @if (t.statusCode === 'collected') {
+                <button mat-stroked-button color="primary"
                         (click)="openResultForm(t)" attr.aria-label="Nhập kết quả cho {{ t.testName }}">
                   <mat-icon>edit_note</mat-icon> Nhập KQ
                 </button>
+                }
               </mat-cell>
             </ng-container>
 
             <mat-header-row *matHeaderRowDef="testColumns"></mat-header-row>
             <mat-row *matRowDef="let row; columns: testColumns;"></mat-row>
           </mat-table>
+          }
 
-          <p class="empty" *ngIf="labOrder.tests.length === 0">Chưa có xét nghiệm nào.</p>
+          @if (labOrder.tests.length === 0) {
+          <p class="empty">Chưa có xét nghiệm nào.</p>
+          }
         </mat-card-content>
       </mat-card>
 
       <!-- Result recording form -->
-      <mat-card class="result-form-card" *ngIf="selectedTest">
+      @if (selectedTest) {
+      <mat-card class="result-form-card">
         <mat-card-header>
           <mat-card-title>Nhập kết quả: {{ selectedTest.testName }}</mat-card-title>
         </mat-card-header>
@@ -185,25 +205,33 @@ import { LabOrder, LabTest, AbnormalFlag } from '@core/models/lab-order.model';
               <button mat-button type="button" (click)="cancelResultForm()">Hủy</button>
               <button mat-raised-button color="primary" type="submit"
                       [disabled]="resultForm.invalid || recordingResult">
-                <mat-spinner diameter="18" *ngIf="recordingResult" class="btn-spinner"></mat-spinner>
+                @if (recordingResult) {
+                <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
+                }
                 {{ recordingResult ? 'Đang lưu...' : 'Lưu kết quả' }}
               </button>
             </div>
           </form>
         </mat-card-content>
       </mat-card>
+      }
     </div>
+    }
 
-    <div class="loading-container" *ngIf="!labOrder && !loadError">
+    @if (!labOrder && !loadError) {
+    <div class="loading-container">
       <mat-spinner diameter="40" aria-label="Đang tải"></mat-spinner>
       <p>Đang tải thông tin phiếu xét nghiệm...</p>
     </div>
+    }
 
-    <div class="error-container" *ngIf="loadError">
+    @if (loadError) {
+    <div class="error-container">
       <mat-icon color="warn">error_outline</mat-icon>
       <p>Không thể tải thông tin phiếu xét nghiệm.</p>
       <button mat-stroked-button color="primary" (click)="loadLabOrder()">Thử lại</button>
     </div>
+    }
   `,
     styles: [`
     .lab-order-detail { padding: 24px; }

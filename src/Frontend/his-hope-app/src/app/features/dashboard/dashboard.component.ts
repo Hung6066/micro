@@ -43,27 +43,35 @@ import { Patient } from '@core/models/patient.model';
         </div>
       </div>
 
-      <div *ngIf="loading" class="loading-state" aria-live="polite" aria-busy="true">
+      @if (loading) {
+      <div class="loading-state" aria-live="polite" aria-busy="true">
         <mat-spinner diameter="40"></mat-spinner>
         <span class="sr-only">Đang tải dữ liệu...</span>
       </div>
+      }
 
-      <div *ngIf="error" class="error-message" role="alert" aria-live="assertive">
+      @if (error) {
+      <div class="error-message" role="alert" aria-live="assertive">
         <mat-icon aria-hidden="true">error_outline</mat-icon>
         <span>{{ error }}</span>
       </div>
+      }
 
       <!-- Row 1: Stat Cards — bento-grid layout -->
-      <div class="stats-bento" *ngIf="!loading && !error">
+      @defer (on viewport) {
+      @if (!loading && !error) {
+      <div class="stats-bento">
         <mat-card class="stat-card card-patients">
           <mat-card-content>
             <div class="stat-icon"><mat-icon>people</mat-icon></div>
             <div class="stat-info">
               <span class="stat-value">{{ stats.totalPatients }}</span>
               <span class="stat-label">Tổng bệnh nhân</span>
-              <span class="stat-trend" *ngIf="stats.newPatientsToday > 0">
+              @if (stats.newPatientsToday > 0) {
+              <span class="stat-trend">
                 +{{ stats.newPatientsToday }} hôm nay
               </span>
+              }
             </div>
           </mat-card-content>
         </mat-card>
@@ -74,9 +82,11 @@ import { Patient } from '@core/models/patient.model';
             <div class="stat-info">
               <span class="stat-value">{{ stats.todayAppointments }}</span>
               <span class="stat-label">Lịch hẹn hôm nay</span>
-              <span class="stat-trend" *ngIf="stats.appointmentsTomorrow > 0">
+              @if (stats.appointmentsTomorrow > 0) {
+              <span class="stat-trend">
                 {{ stats.appointmentsTomorrow }} ngày mai
               </span>
+              }
             </div>
           </mat-card-content>
         </mat-card>
@@ -121,9 +131,26 @@ import { Patient } from '@core/models/patient.model';
           </mat-card-content>
         </mat-card>
       </div>
+      }
+      } @placeholder {
+      <div class="stats-bento">
+        @for (_ of [1,2,3,4,5,6]; track _) {
+        <mat-card class="stat-card">
+          <mat-card-content>
+            <div class="stat-icon-placeholder"></div>
+            <div class="stat-info">
+              <span class="stat-value-placeholder"></span>
+              <span class="stat-label-placeholder"></span>
+            </div>
+          </mat-card-content>
+        </mat-card>
+        }
+      </div>
+      }
 
       <!-- Patient Quick Search -->
-      <mat-card class="section-card search-card" *ngIf="!loading && !error">
+      @if (!loading && !error) {
+      <mat-card class="section-card search-card">
         <mat-card-header>
           <mat-card-title>
             <mat-icon>search</mat-icon> Tìm bệnh nhân
@@ -137,21 +164,27 @@ import { Patient } from '@core/models/patient.model';
           </mat-form-field>
           <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayPatientName"
                             (optionSelected)="onPatientSelected($event)">
-            <mat-option *ngFor="let p of patientSearchResults" [value]="p">
+            @for (p of patientSearchResults; track p.id) {
+            <mat-option [value]="p">
               <div class="search-result-item">
                 <span class="result-name">{{ p.fullName }}</span>
                 <span class="result-meta">{{ p.genderName }} · {{ p.age }} tuổi · {{ p.phone }}</span>
               </div>
             </mat-option>
-            <mat-option *ngIf="patientSearchResults.length === 0 && (patientSearchControl.value?.length ?? 0) >= 2" disabled>
+            }
+            @if (patientSearchResults.length === 0 && (patientSearchControl.value?.length ?? 0) >= 2) {
+            <mat-option disabled>
               <span class="no-results">Không tìm thấy bệnh nhân</span>
             </mat-option>
+            }
           </mat-autocomplete>
         </mat-card-content>
       </mat-card>
+      }
 
       <!-- Recent Patients -->
-      <mat-card class="section-card" *ngIf="!loading && !error && recentPatients.length > 0">
+      @if (!loading && !error && recentPatients.length > 0) {
+      <mat-card class="section-card">
         <mat-card-header>
           <mat-card-title>
             <mat-icon>history</mat-icon> Bệnh nhân gần đây
@@ -160,7 +193,8 @@ import { Patient } from '@core/models/patient.model';
         </mat-card-header>
         <mat-card-content>
           <div class="recent-patients-grid">
-            <div class="recent-patient-card" *ngFor="let p of recentPatients" (click)="openPatientWorkspace(p.id)">
+            @for (p of recentPatients; track p.id) {
+            <div class="recent-patient-card" (click)="openPatientWorkspace(p.id)">
               <div class="rp-avatar">{{ p.fullName.charAt(0) }}</div>
               <div class="rp-info">
                 <span class="rp-name">{{ p.fullName }}</span>
@@ -168,12 +202,16 @@ import { Patient } from '@core/models/patient.model';
               </div>
               <mat-icon class="rp-arrow">chevron_right</mat-icon>
             </div>
+            }
           </div>
         </mat-card-content>
       </mat-card>
+      }
 
       <!-- Row 2: Recent Encounters -->
-      <mat-card class="section-card" *ngIf="!loading && !error">
+      @defer (on viewport) {
+      @if (!loading && !error) {
+      <mat-card class="section-card">
         <mat-card-header>
           <mat-card-title>
             <mat-icon>history</mat-icon> Lượt khám gần đây
@@ -181,8 +219,11 @@ import { Patient } from '@core/models/patient.model';
           <button mat-stroked-button size="small" routerLink="/clinical">Xem tất cả</button>
         </mat-card-header>
         <mat-card-content>
-          <div *ngIf="recentEncounters.length === 0" class="section-empty">Chưa có lượt khám nào</div>
-          <table mat-table [dataSource]="recentEncounters" *ngIf="recentEncounters.length > 0" class="dashboard-table">
+          @if (recentEncounters.length === 0) {
+          <div class="section-empty">Chưa có lượt khám nào</div>
+          }
+          @if (recentEncounters.length > 0) {
+          <table mat-table [dataSource]="recentEncounters" class="dashboard-table">
             <ng-container matColumnDef="encounterDate">
               <th mat-header-cell *matHeaderCellDef>Ngày</th>
               <td mat-cell *matCellDef="let e">{{ e.encounterDate | date:'dd/MM HH:mm' }}</td>
@@ -208,11 +249,18 @@ import { Patient } from '@core/models/patient.model';
             <tr mat-header-row *matHeaderRowDef="['encounterDate','patientId','encounterType','chiefComplaint','status']"></tr>
             <tr mat-row *matRowDef="let row; columns: ['encounterDate','patientId','encounterType','chiefComplaint','status'];" class="clickable-row" (click)="viewEncounter(row.id)"></tr>
           </table>
+          }
         </mat-card-content>
       </mat-card>
+      }
+      } @placeholder {
+      <mat-card class="section-card"><mat-card-content><div class="section-empty">Đang tải...</div></mat-card-content></mat-card>
+      }
 
       <!-- Row 3: Upcoming Appointments -->
-      <mat-card class="section-card" *ngIf="!loading && !error">
+      @defer (on viewport) {
+      @if (!loading && !error) {
+      <mat-card class="section-card">
         <mat-card-header>
           <mat-card-title>
             <mat-icon>upcoming</mat-icon> Lịch hẹn sắp tới
@@ -220,8 +268,11 @@ import { Patient } from '@core/models/patient.model';
           <button mat-stroked-button size="small" routerLink="/appointments">Xem tất cả</button>
         </mat-card-header>
         <mat-card-content>
-          <div *ngIf="upcomingAppointments.length === 0" class="section-empty">Không có lịch hẹn nào</div>
-          <table mat-table [dataSource]="upcomingAppointments" *ngIf="upcomingAppointments.length > 0" class="dashboard-table">
+          @if (upcomingAppointments.length === 0) {
+          <div class="section-empty">Không có lịch hẹn nào</div>
+          }
+          @if (upcomingAppointments.length > 0) {
+          <table mat-table [dataSource]="upcomingAppointments" class="dashboard-table">
             <ng-container matColumnDef="scheduledDate">
               <th mat-header-cell *matHeaderCellDef>Ngày</th>
               <td mat-cell *matCellDef="let a">{{ a.scheduledDate | date:'dd/MM' }}</td>
@@ -247,8 +298,13 @@ import { Patient } from '@core/models/patient.model';
             <tr mat-header-row *matHeaderRowDef="['scheduledDate','startTime','patientId','type','status']"></tr>
             <tr mat-row *matRowDef="let row; columns: ['scheduledDate','startTime','patientId','type','status'];" class="clickable-row" (click)="viewAppointment(row.id)"></tr>
           </table>
+          }
         </mat-card-content>
       </mat-card>
+      }
+      } @placeholder {
+      <mat-card class="section-card"><mat-card-content><div class="section-empty">Đang tải...</div></mat-card-content></mat-card>
+      }
     </div>
   `,
     styles: [`
@@ -469,6 +525,28 @@ import { Patient } from '@core/models/patient.model';
 
     .rp-arrow {
       color: var(--text-muted, #A1A09B);
+    }
+
+    .stat-icon-placeholder {
+      width: 44px; height: 44px; border-radius: 8px;
+      background: var(--border-light, #F0F0EE);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .stat-value-placeholder {
+      display: block; width: 60px; height: 30px;
+      background: var(--border-light, #F0F0EE);
+      border-radius: 4px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .stat-label-placeholder {
+      display: block; width: 100px; height: 14px; margin-top: 8px;
+      background: var(--border-light, #F0F0EE);
+      border-radius: 4px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
     }
 
     /* ── Section Cards ── */

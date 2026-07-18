@@ -41,40 +41,55 @@ export interface RecordPaymentData {
     template: `
     <h2 mat-dialog-title>Ghi nhận thanh toán</h2>
     <mat-dialog-content>
-      <div class="patient-info" *ngIf="data.patientName">
+      @if (data.patientName) {
+      <div class="patient-info">
         <mat-icon>person</mat-icon>
         <span>{{ data.patientName }}</span>
       </div>
+      }
 
-      <div *ngIf="data.invoices.length === 0" class="no-invoices">
+      @if (data.invoices.length === 0) {
+      <div class="no-invoices">
         <mat-icon>receipt</mat-icon>
         <p>Bệnh nhân không có hóa đơn nào cần thanh toán</p>
       </div>
+      }
 
-      <form [formGroup]="form" class="dialog-form" *ngIf="data.invoices.length > 0">
+      @if (data.invoices.length > 0) {
+      <form [formGroup]="form" class="dialog-form">
         <mat-form-field appearance="outline">
           <mat-label>Chọn hóa đơn</mat-label>
           <mat-select formControlName="invoiceId" required>
-            <mat-option *ngFor="let inv of payableInvoices" [value]="inv.id">
+            @for (inv of payableInvoices; track inv.id) {
+            <mat-option [value]="inv.id">
               {{ inv.invoiceNumber }} - Còn: {{ inv.balanceDue | number }}₫
             </mat-option>
+            }
           </mat-select>
-          <mat-error *ngIf="form.get('invoiceId')?.hasError('required')">Vui lòng chọn hóa đơn</mat-error>
+          @if (form.get('invoiceId')?.hasError('required')) {
+          <mat-error>Vui lòng chọn hóa đơn</mat-error>
+          }
         </mat-form-field>
 
-        <div class="balance-info" *ngIf="selectedInvoice">
+        @if (selectedInvoice) {
+        <div class="balance-info">
           <p><strong>Số hóa đơn:</strong> {{ selectedInvoice.invoiceNumber }}</p>
           <p><strong>Tổng tiền:</strong> {{ selectedInvoice.totalAmount | number }}₫</p>
           <p><strong>Đã thanh toán:</strong> {{ selectedInvoice.paidAmount | number }}₫</p>
           <p><strong>Còn nợ:</strong> {{ selectedInvoice.balanceDue | number }}₫</p>
         </div>
+        }
 
         <mat-form-field appearance="outline">
           <mat-label>Số tiền thanh toán</mat-label>
           <input matInput type="number" formControlName="amount" min="1" required>
           <span matTextSuffix>₫</span>
-          <mat-error *ngIf="form.get('amount')?.hasError('required')">Vui lòng nhập số tiền</mat-error>
-          <mat-error *ngIf="form.get('amount')?.hasError('min')">Số tiền phải > 0</mat-error>
+          @if (form.get('amount')?.hasError('required')) {
+          <mat-error>Vui lòng nhập số tiền</mat-error>
+          }
+          @if (form.get('amount')?.hasError('min')) {
+          <mat-error>Số tiền phải > 0</mat-error>
+          }
         </mat-form-field>
 
         <mat-form-field appearance="outline">
@@ -94,14 +109,19 @@ export interface RecordPaymentData {
           <input matInput formControlName="referenceNumber" placeholder="Mã giao dịch...">
         </mat-form-field>
       </form>
+      }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close [disabled]="saving">Đóng</button>
       <button mat-raised-button color="primary" (click)="save()"
               [disabled]="form.invalid || saving || data.invoices.length === 0">
         <mat-icon>payments</mat-icon>
-        <span *ngIf="!saving">Ghi nhận thanh toán</span>
-        <mat-spinner *ngIf="saving" diameter="20"></mat-spinner>
+        @if (!saving) {
+        <span>Ghi nhận thanh toán</span>
+        }
+        @if (saving) {
+        <mat-spinner diameter="20"></mat-spinner>
+        }
       </button>
     </mat-dialog-actions>
   `,

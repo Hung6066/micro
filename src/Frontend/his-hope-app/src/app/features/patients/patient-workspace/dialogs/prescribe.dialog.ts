@@ -39,32 +39,44 @@ export interface PrescribeData {
     template: `
     <h2 mat-dialog-title>Kê đơn thuốc</h2>
     <mat-dialog-content>
-      <div class="patient-info" *ngIf="data.patientName">
+      @if (data.patientName) {
+      <div class="patient-info">
         <mat-icon>person</mat-icon>
         <span>{{ data.patientName }}</span>
       </div>
+      }
       <form [formGroup]="form" class="dialog-form">
         <mat-form-field appearance="outline">
           <mat-label>Tìm thuốc</mat-label>
           <input matInput formControlName="medicationSearch" [matAutocomplete]="auto" placeholder="Gõ tên thuốc...">
           <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayMedication" (optionSelected)="onMedicationSelected($event)">
-            <mat-option *ngFor="let med of filteredMedications" [value]="med">
+            @for (med of filteredMedications; track med) {
+            <mat-option [value]="med">
               {{ med.name }} <small>({{ med.strength }})</small>
             </mat-option>
+            }
           </mat-autocomplete>
-          <mat-icon matSuffix *ngIf="form.get('medicationSearch')?.value && !selectedMedication">search</mat-icon>
-          <mat-icon matSuffix *ngIf="selectedMedication" color="primary">check_circle</mat-icon>
+          @if (form.get('medicationSearch')?.value && !selectedMedication) {
+          <mat-icon matSuffix>search</mat-icon>
+          }
+          @if (selectedMedication) {
+          <mat-icon matSuffix color="primary">check_circle</mat-icon>
+          }
         </mat-form-field>
 
-        <div class="selected-med" *ngIf="selectedMedication">
+        @if (selectedMedication) {
+        <div class="selected-med">
           <p><strong>{{ selectedMedication.name }}</strong></p>
           <p>Dạng: {{ selectedMedication.dosageForm }} | Hàm lượng: {{ selectedMedication.strength }}</p>
         </div>
+        }
 
         <mat-form-field appearance="outline">
           <mat-label>Liều dùng</mat-label>
           <input matInput formControlName="dosageInstructions" placeholder="VD: Uống 1 viên x 2 lần/ngày sau ăn" required>
-          <mat-error *ngIf="form.get('dosageInstructions')?.hasError('required')">Vui lòng nhập liều dùng</mat-error>
+          @if (form.get('dosageInstructions')?.hasError('required')) {
+          <mat-error>Vui lòng nhập liều dùng</mat-error>
+          }
         </mat-form-field>
 
         <mat-form-field appearance="outline">
@@ -83,7 +95,9 @@ export interface PrescribeData {
         <mat-form-field appearance="outline">
           <mat-label>Số lượng</mat-label>
           <input matInput type="number" formControlName="quantity" min="1" required>
-          <mat-error *ngIf="form.get('quantity')?.hasError('required')">Vui lòng nhập số lượng</mat-error>
+          @if (form.get('quantity')?.hasError('required')) {
+          <mat-error>Vui lòng nhập số lượng</mat-error>
+          }
         </mat-form-field>
 
         <mat-form-field appearance="outline">
@@ -96,8 +110,12 @@ export interface PrescribeData {
       <button mat-button mat-dialog-close [disabled]="saving">Hủy</button>
       <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid || saving || !selectedMedication">
         <mat-icon>medication</mat-icon>
-        <span *ngIf="!saving">Kê đơn</span>
-        <mat-spinner *ngIf="saving" diameter="20"></mat-spinner>
+        @if (!saving) {
+        <span>Kê đơn</span>
+        }
+        @if (saving) {
+        <mat-spinner diameter="20"></mat-spinner>
+        }
       </button>
     </mat-dialog-actions>
   `,

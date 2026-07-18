@@ -70,13 +70,17 @@ const RESOURCE_OPTIONS = [
 
         <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-action">
           <mat-select [formControl]="actionFilter" placeholder="Hành động">
-            <mat-option *ngFor="let a of actionOptions" [value]="a.value">{{ a.label }}</mat-option>
+            @for (a of actionOptions; track a.value) {
+            <mat-option [value]="a.value">{{ a.label }}</mat-option>
+            }
           </mat-select>
         </mat-form-field>
 
         <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-resource">
           <mat-select [formControl]="resourceFilter" placeholder="Loại tài nguyên">
-            <mat-option *ngFor="let r of resourceOptions" [value]="r.value">{{ r.label }}</mat-option>
+            @for (r of resourceOptions; track r.value) {
+            <mat-option [value]="r.value">{{ r.label }}</mat-option>
+            }
           </mat-select>
         </mat-form-field>
 
@@ -102,9 +106,9 @@ const RESOURCE_OPTIONS = [
       <div class="table-container mat-elevation-z2">
         <app-loading-spinner [loading]="loading" message="Đang tải nhật ký..."></app-loading-spinner>
 
-        <ng-container *ngIf="!loading">
-          <mat-table [dataSource]="auditLogs" class="audit-table" multiTemplateDataRows
-                     *ngIf="auditLogs.length > 0; else noData">
+        @if (!loading) {
+          @if (auditLogs.length > 0) {
+          <mat-table [dataSource]="auditLogs" class="audit-table" multiTemplateDataRows>
 
             <ng-container matColumnDef="timestamp">
               <mat-header-cell *matHeaderCellDef>Thời gian</mat-header-cell>
@@ -145,7 +149,8 @@ const RESOURCE_OPTIONS = [
             <!-- Expanded detail column -->
             <ng-container matColumnDef="expandedDetail">
               <mat-cell *matCellDef="let log" [attr.colspan]="displayedColumns.length">
-                <div class="detail-row-inner" *ngIf="log === expandedLog">
+                @if (log === expandedLog) {
+                <div class="detail-row-inner">
                   <div class="detail-section">
                     <span class="detail-label">User-Agent:</span>
                     <span class="detail-value">{{ log.userAgent }}</span>
@@ -155,6 +160,7 @@ const RESOURCE_OPTIONS = [
                     <pre class="detail-json">{{ log.details | json }}</pre>
                   </div>
                 </div>
+                }
               </mat-cell>
             </ng-container>
 
@@ -163,18 +169,19 @@ const RESOURCE_OPTIONS = [
                      (click)="toggleRowExpansion(row)"></mat-row>
             <mat-row *matRowDef="let row; columns: ['expandedDetail']" class="detail-row"></mat-row>
           </mat-table>
+          } @else {
+          <app-empty-state icon="receipt_long" title="Không có nhật ký nào"
+                          message="Không tìm thấy bản ghi nhật ký phù hợp với bộ lọc">
+          </app-empty-state>
+          }
+        }
 
-          <ng-template #noData>
-            <app-empty-state icon="receipt_long" title="Không có nhật ký nào"
-                            message="Không tìm thấy bản ghi nhật ký phù hợp với bộ lọc">
-            </app-empty-state>
-          </ng-template>
-        </ng-container>
-
-        <mat-paginator *ngIf="totalCount > 0" [length]="totalCount" [pageSize]="pageSize"
+        @if (totalCount > 0) {
+        <mat-paginator [length]="totalCount" [pageSize]="pageSize"
                        [pageSizeOptions]="[5, 10, 20, 50]" [pageIndex]="currentPage - 1"
                        (page)="onPageChange($event)" showFirstLastButtons>
         </mat-paginator>
+        }
       </div>
     </div>
   `,

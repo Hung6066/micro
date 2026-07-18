@@ -54,16 +54,21 @@ import { LabOrder } from '@core/models/lab-order.model';
         </mat-form-field>
       </div>
 
-      <div class="loading-shimmer" *ngIf="loading">
+      @if (loading) {
+      <div class="loading-shimmer">
         <mat-progress-bar mode="indeterminate" aria-label="Đang tải"></mat-progress-bar>
       </div>
+      }
 
-      <div *ngIf="!loading && labOrders.length === 0" class="empty-state">
+      @if (!loading && labOrders.length === 0) {
+      <div class="empty-state">
         <mat-icon class="empty-icon">biotech</mat-icon>
         <p>Không tìm thấy phiếu xét nghiệm nào.</p>
       </div>
+      }
 
-      <mat-table [dataSource]="labOrders" class="mat-elevation-z2" *ngIf="!loading && labOrders.length > 0">
+      @if (!loading && labOrders.length > 0) {
+      <mat-table [dataSource]="labOrders" class="mat-elevation-z2">
         <ng-container matColumnDef="id">
           <mat-header-cell *matHeaderCellDef>Mã phiếu</mat-header-cell>
           <mat-cell *matCellDef="let o">{{ o.id | slice:0:8 }}...</mat-cell>
@@ -121,11 +126,13 @@ import { LabOrder } from '@core/models/lab-order.model';
         <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
         <mat-row *matRowDef="let row; columns: displayedColumns;" (click)="viewDetail(row.id)" class="clickable-row"></mat-row>
       </mat-table>
+      }
 
+      @if (!loading && totalCount > 0) {
       <mat-paginator [length]="totalCount" [pageSize]="pageSize" [pageSizeOptions]="[10, 20, 50]"
-                     (page)="onPageChange($event)" [pageIndex]="page - 1" showFirstLastButtons
-                     *ngIf="!loading && totalCount > 0">
+                     (page)="onPageChange($event)" [pageIndex]="page - 1" showFirstLastButtons>
       </mat-paginator>
+      }
     </div>
   `,
     styles: [`

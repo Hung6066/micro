@@ -50,13 +50,17 @@ interface ProviderOption {
           <mat-icon matSuffix>search</mat-icon>
           <mat-hint>Gõ tên bệnh nhân để tìm kiếm</mat-hint>
           <mat-autocomplete #patientAuto="matAutocomplete" [displayWith]="displayPatientName">
-            <mat-option *ngFor="let p of filteredPatients" [value]="p">
+            @for (p of filteredPatients; track p.id) {
+            <mat-option [value]="p">
               <span>{{ p.fullName }}</span>
               <small class="option-detail"> - {{ p.genderName }}, {{ p.age }}t - {{ p.phone }}</small>
             </mat-option>
-            <mat-option *ngIf="filteredPatients.length === 0 && patientSearchTerm" disabled>
+            }
+            @if (filteredPatients.length === 0 && patientSearchTerm) {
+            <mat-option disabled>
               Không tìm thấy bệnh nhân
             </mat-option>
+            }
           </mat-autocomplete>
         </mat-form-field>
 
@@ -68,9 +72,11 @@ interface ProviderOption {
           <mat-label>Bác sĩ</mat-label>
           <mat-select formControlName="providerId" required>
             <mat-option [value]="" disabled>Chọn bác sĩ</mat-option>
-            <mat-option *ngFor="let prov of providers" [value]="prov.id">
-              {{ prov.fullName }} <small *ngIf="prov.specialty">- {{ prov.specialty }}</small>
+            @for (prov of providers; track prov.id) {
+            <mat-option [value]="prov.id">
+              {{ prov.fullName }} @if (prov.specialty) { <small>- {{ prov.specialty }}</small> }
             </mat-option>
+            }
           </mat-select>
         </mat-form-field>
 
@@ -119,7 +125,9 @@ interface ProviderOption {
           <button mat-button type="button" routerLink="/appointments">Hủy</button>
           <button mat-raised-button color="primary" type="submit"
                   [disabled]="appointmentForm.invalid || submitting">
-            <mat-spinner diameter="18" *ngIf="submitting" class="btn-spinner" aria-label="Đang đặt lịch"></mat-spinner>
+            @if (submitting) {
+            <mat-spinner diameter="18" class="btn-spinner" aria-label="Đang đặt lịch"></mat-spinner>
+            }
             {{ submitting ? 'Đang đặt...' : 'Đặt lịch' }}
           </button>
         </div>

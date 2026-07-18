@@ -31,13 +31,17 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
           <mat-form-field appearance="outline">
             <mat-label>Tên thuốc</mat-label>
             <input matInput formControlName="name" required placeholder="VD: Paracetamol 500mg">
-            <mat-error *ngIf="medicationForm.get('name')?.hasError('required')">Vui lòng nhập tên thuốc</mat-error>
+            @if (medicationForm.get('name')?.hasError('required')) {
+            <mat-error>Vui lòng nhập tên thuốc</mat-error>
+            }
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Hoạt chất</mat-label>
             <input matInput formControlName="genericName" required placeholder="VD: Paracetamol">
-            <mat-error *ngIf="medicationForm.get('genericName')?.hasError('required')">Vui lòng nhập hoạt chất</mat-error>
+            @if (medicationForm.get('genericName')?.hasError('required')) {
+            <mat-error>Vui lòng nhập hoạt chất</mat-error>
+            }
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -48,7 +52,9 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
           <mat-form-field appearance="outline">
             <mat-label>Hàm lượng</mat-label>
             <input matInput formControlName="strength" required placeholder="VD: 500mg">
-            <mat-error *ngIf="medicationForm.get('strength')?.hasError('required')">Vui lòng nhập hàm lượng</mat-error>
+            @if (medicationForm.get('strength')?.hasError('required')) {
+            <mat-error>Vui lòng nhập hàm lượng</mat-error>
+            }
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -64,7 +70,9 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
               <mat-option value="Ống tiêm">Ống tiêm</mat-option>
               <mat-option value="Khí dung">Khí dung</mat-option>
             </mat-select>
-            <mat-error *ngIf="medicationForm.get('dosageForm')?.hasError('required')">Vui lòng chọn dạng bào chế</mat-error>
+            @if (medicationForm.get('dosageForm')?.hasError('required')) {
+            <mat-error>Vui lòng chọn dạng bào chế</mat-error>
+            }
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -80,7 +88,9 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
               <mat-option value="Đặt trực tràng">Đặt trực tràng</mat-option>
               <mat-option value="Hít">Hít</mat-option>
             </mat-select>
-            <mat-error *ngIf="medicationForm.get('route')?.hasError('required')">Vui lòng chọn đường dùng</mat-error>
+            @if (medicationForm.get('route')?.hasError('required')) {
+            <mat-error>Vui lòng chọn đường dùng</mat-error>
+            }
           </mat-form-field>
 
           <mat-checkbox formControlName="requiresPrescription" class="full-width">
@@ -92,7 +102,9 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
           <button mat-button type="button" routerLink="/pharmacy/medications">Hủy</button>
           <button mat-raised-button color="primary" type="submit"
                   [disabled]="medicationForm.invalid || submitting">
-            <mat-spinner diameter="18" *ngIf="submitting" class="btn-spinner" aria-label="Đang lưu"></mat-spinner>
+            @if (submitting) {
+            <mat-spinner diameter="18" class="btn-spinner" aria-label="Đang lưu"></mat-spinner>
+            }
             {{ submitting ? 'Đang lưu...' : (isEdit ? 'Cập nhật thuốc' : 'Thêm thuốc') }}
           </button>
         </div>

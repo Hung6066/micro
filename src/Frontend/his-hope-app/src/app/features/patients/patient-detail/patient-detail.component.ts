@@ -28,17 +28,19 @@ import { LabOrder } from '@core/models/lab-order.model';
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="patient-detail" *ngIf="patient">
+    @if (patient) {
+    <div class="patient-detail">
       <div class="header">
         <div>
           <h1>{{ patient.fullName }}</h1>
           <p class="subtitle">Mã BN: {{ patient.id | slice:0:8 }}... | {{ patient.genderName }} | Tuổi: {{ patient.age }}</p>
         </div>
         <div class="header-actions">
-          <button mat-raised-button color="accent" [routerLink]="['/patients', patient.id, 'edit']"
-                  *ngIf="patient.isActive">
+          @if (patient.isActive) {
+          <button mat-raised-button color="accent" [routerLink]="['/patients', patient.id, 'edit']">
             <mat-icon>edit</mat-icon> Sửa
           </button>
+          }
           <button mat-stroked-button color="primary" [routerLink]="['/appointments/new']"
                   [queryParams]="{patientId: patient.id}">
             <mat-icon>calendar_today</mat-icon> Đặt lịch hẹn
@@ -84,14 +86,19 @@ import { LabOrder } from '@core/models/lab-order.model';
                 <mat-card-title>Bệnh lý ({{ patient.conditions.length }})</mat-card-title>
               </mat-card-header>
               <mat-card-content>
-                <mat-list *ngIf="patient.conditions.length > 0; else noConditions">
-                  <mat-list-item *ngFor="let c of patient.conditions">
+                @if (patient.conditions.length > 0) {
+                <mat-list>
+                  @for (c of patient.conditions; track c) {
+                  <mat-list-item>
                     <mat-icon matListItemIcon>info</mat-icon>
-                    <span matListItemTitle>{{ c.conditionName }} <small *ngIf="c.icd10Code">({{ c.icd10Code }})</small></span>
+                    <span matListItemTitle>{{ c.conditionName }} @if (c.icd10Code) {<small>({{ c.icd10Code }})</small>}</span>
                     <span matListItemLine>{{ c.isChronic ? 'Mạn tính' : 'Cấp tính' }} | {{ c.isActive ? 'Đang hoạt động' : 'Đã khỏi' }}</span>
                   </mat-list-item>
+                  }
                 </mat-list>
-                <ng-template #noConditions><p class="empty">Không có bệnh lý nào</p></ng-template>
+                } @else {
+                <p class="empty">Không có bệnh lý nào</p>
+                }
               </mat-card-content>
             </mat-card>
 
@@ -100,14 +107,19 @@ import { LabOrder } from '@core/models/lab-order.model';
                 <mat-card-title>Dị ứng ({{ patient.allergies.length }})</mat-card-title>
               </mat-card-header>
               <mat-card-content>
-                <mat-list *ngIf="patient.allergies.length > 0; else noAllergies">
-                  <mat-list-item *ngFor="let a of patient.allergies">
+                @if (patient.allergies.length > 0) {
+                <mat-list>
+                  @for (a of patient.allergies; track a) {
+                  <mat-list-item>
                     <mat-icon matListItemIcon>warning</mat-icon>
                     <span matListItemTitle>{{ a.allergen }}</span>
                     <span matListItemLine>{{ a.reaction || 'Không rõ phản ứng' }} | {{ a.severity || 'N/A' }}</span>
                   </mat-list-item>
+                  }
                 </mat-list>
-                <ng-template #noAllergies><p class="empty">Không có dị ứng nào</p></ng-template>
+                } @else {
+                <p class="empty">Không có dị ứng nào</p>
+                }
               </mat-card-content>
             </mat-card>
           </div>
@@ -116,12 +128,17 @@ import { LabOrder } from '@core/models/lab-order.model';
         <!-- Tab 2: Lịch sử khám -->
         <mat-tab label="Lịch sử khám ({{ encounters.length }})">
           <div class="tab-content">
-            <div *ngIf="loadingEncounters" class="tab-loading"><mat-spinner diameter="32"></mat-spinner></div>
-            <div *ngIf="!loadingEncounters && encounters.length === 0" class="tab-empty">
+            @if (loadingEncounters) {
+            <div class="tab-loading"><mat-spinner diameter="32"></mat-spinner></div>
+            }
+            @if (!loadingEncounters && encounters.length === 0) {
+            <div class="tab-empty">
               <mat-icon>inbox</mat-icon>
               <p>Bệnh nhân chưa có lượt khám nào</p>
             </div>
-            <table mat-table [dataSource]="encounters" *ngIf="!loadingEncounters && encounters.length > 0" class="records-table">
+            }
+            @if (!loadingEncounters && encounters.length > 0) {
+            <table mat-table [dataSource]="encounters" class="records-table">
               <ng-container matColumnDef="encounterDate">
                 <th mat-header-cell *matHeaderCellDef>Ngày khám</th>
                 <td mat-cell *matCellDef="let e">{{ e.encounterDate | date:'dd/MM/yyyy HH:mm' }}</td>
@@ -153,18 +170,24 @@ import { LabOrder } from '@core/models/lab-order.model';
               <tr mat-header-row *matHeaderRowDef="['encounterDate','encounterType','chiefComplaint','status','actions']"></tr>
               <tr mat-row *matRowDef="let row; columns: ['encounterDate','encounterType','chiefComplaint','status','actions'];"></tr>
             </table>
+            }
           </div>
         </mat-tab>
 
         <!-- Tab 3: Đơn thuốc -->
         <mat-tab label="Đơn thuốc ({{ prescriptions.length }})">
           <div class="tab-content">
-            <div *ngIf="loadingPrescriptions" class="tab-loading"><mat-spinner diameter="32"></mat-spinner></div>
-            <div *ngIf="!loadingPrescriptions && prescriptions.length === 0" class="tab-empty">
+            @if (loadingPrescriptions) {
+            <div class="tab-loading"><mat-spinner diameter="32"></mat-spinner></div>
+            }
+            @if (!loadingPrescriptions && prescriptions.length === 0) {
+            <div class="tab-empty">
               <mat-icon>medication</mat-icon>
               <p>Bệnh nhân chưa có đơn thuốc nào</p>
             </div>
-            <table mat-table [dataSource]="prescriptions" *ngIf="!loadingPrescriptions && prescriptions.length > 0" class="records-table">
+            }
+            @if (!loadingPrescriptions && prescriptions.length > 0) {
+            <table mat-table [dataSource]="prescriptions" class="records-table">
               <ng-container matColumnDef="prescribedDate">
                 <th mat-header-cell *matHeaderCellDef>Ngày kê</th>
                 <td mat-cell *matCellDef="let p">{{ p.prescribedDate | date:'dd/MM/yyyy' }}</td>
@@ -192,18 +215,24 @@ import { LabOrder } from '@core/models/lab-order.model';
               <tr mat-header-row *matHeaderRowDef="['prescribedDate','medicationName','dosage','frequency','status']"></tr>
               <tr mat-row *matRowDef="let row; columns: ['prescribedDate','medicationName','dosage','frequency','status'];"></tr>
             </table>
+            }
           </div>
         </mat-tab>
 
         <!-- Tab 4: Xét nghiệm -->
         <mat-tab label="Xét nghiệm ({{ labOrders.length }})">
           <div class="tab-content">
-            <div *ngIf="loadingLabs" class="tab-loading"><mat-spinner diameter="32"></mat-spinner></div>
-            <div *ngIf="!loadingLabs && labOrders.length === 0" class="tab-empty">
+            @if (loadingLabs) {
+            <div class="tab-loading"><mat-spinner diameter="32"></mat-spinner></div>
+            }
+            @if (!loadingLabs && labOrders.length === 0) {
+            <div class="tab-empty">
               <mat-icon>science</mat-icon>
               <p>Bệnh nhân chưa có xét nghiệm nào</p>
             </div>
-            <table mat-table [dataSource]="labOrders" *ngIf="!loadingLabs && labOrders.length > 0" class="records-table">
+            }
+            @if (!loadingLabs && labOrders.length > 0) {
+            <table mat-table [dataSource]="labOrders" class="records-table">
               <ng-container matColumnDef="orderDate">
                 <th mat-header-cell *matHeaderCellDef>Ngày chỉ định</th>
                 <td mat-cell *matCellDef="let l">{{ l.orderDate | date:'dd/MM/yyyy' }}</td>
@@ -235,10 +264,12 @@ import { LabOrder } from '@core/models/lab-order.model';
               <tr mat-header-row *matHeaderRowDef="['orderDate','testName','status','result','actions']"></tr>
               <tr mat-row *matRowDef="let row; columns: ['orderDate','testName','status','result','actions'];"></tr>
             </table>
+            }
           </div>
         </mat-tab>
       </mat-tab-group>
     </div>
+    }
   `,
     styles: [`
     .patient-detail {

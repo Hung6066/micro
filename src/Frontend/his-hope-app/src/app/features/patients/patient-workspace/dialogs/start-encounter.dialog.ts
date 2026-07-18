@@ -36,10 +36,12 @@ export interface StartEncounterData {
     template: `
     <h2 mat-dialog-title>Bắt đầu lượt khám mới</h2>
     <mat-dialog-content>
-      <div class="patient-info" *ngIf="data.patientName">
+      @if (data.patientName) {
+      <div class="patient-info">
         <mat-icon>person</mat-icon>
         <span>{{ data.patientName }}</span>
       </div>
+      }
       <form [formGroup]="form" class="dialog-form">
         <mat-form-field appearance="outline">
           <mat-label>Loại khám</mat-label>
@@ -49,7 +51,9 @@ export interface StartEncounterData {
             <mat-option value="emergency">Cấp cứu</mat-option>
             <mat-option value="procedure">Thủ thuật</mat-option>
           </mat-select>
-          <mat-error *ngIf="form.get('encounterType')?.hasError('required')">Vui lòng chọn loại khám</mat-error>
+          @if (form.get('encounterType')?.hasError('required')) {
+          <mat-error>Vui lòng chọn loại khám</mat-error>
+          }
         </mat-form-field>
 
         <mat-form-field appearance="outline">
@@ -93,8 +97,12 @@ export interface StartEncounterData {
       <button mat-button mat-dialog-close [disabled]="saving">Hủy</button>
       <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid || saving">
         <mat-icon>add</mat-icon>
-        <span *ngIf="!saving">Bắt đầu khám</span>
-        <mat-spinner *ngIf="saving" diameter="20"></mat-spinner>
+        @if (!saving) {
+        <span>Bắt đầu khám</span>
+        }
+        @if (saving) {
+        <mat-spinner diameter="20"></mat-spinner>
+        }
       </button>
     </mat-dialog-actions>
   `,
