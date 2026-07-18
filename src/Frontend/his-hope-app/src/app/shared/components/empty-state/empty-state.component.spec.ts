@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { CommonModule } from '@angular/common';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
 import { EmptyStateComponent } from './empty-state.component';
-import { SharedModule } from '@shared/shared.module';
 
 describe('EmptyStateComponent', () => {
   let component: EmptyStateComponent;
@@ -8,8 +10,7 @@ describe('EmptyStateComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      declarations: [EmptyStateComponent],
-      imports: [SharedModule],
+      imports: [EmptyStateComponent, CommonModule, MatIconModule, MatButtonModule],
     });
     fixture = TestBed.createComponent(EmptyStateComponent);
     component = fixture.componentInstance;

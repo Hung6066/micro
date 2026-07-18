@@ -8,7 +8,18 @@ import { DashboardService } from '@core/services/dashboard.service';
 import { PatientService } from '@core/services/patient.service';
 import { AppointmentService } from '@core/services/appointment.service';
 import { ClinicalService } from '@core/services/clinical.service';
-import { SharedModule } from '@shared/shared.module';
+import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
+import { ReactiveFormsModule } from '@angular/forms';
+import { MatCardModule } from '@angular/material/card';
+import { MatInputModule } from '@angular/material/input';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTableModule } from '@angular/material/table';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 
 describe('DashboardComponent', () => {
   let component: DashboardComponent;
@@ -41,8 +52,7 @@ describe('DashboardComponent', () => {
     const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
 
     TestBed.configureTestingModule({
-      declarations: [DashboardComponent],
-      imports: [SharedModule, NoopAnimationsModule],
+      imports: [DashboardComponent, CommonModule, RouterModule, ReactiveFormsModule, MatCardModule, MatInputModule, MatFormFieldModule, MatIconModule, MatButtonModule, MatProgressSpinnerModule, MatTableModule, MatChipsModule, MatAutocompleteModule, NoopAnimationsModule],
       providers: [
         { provide: AuthService, useValue: authSpy },
         { provide: DashboardService, useValue: dashboardSpy },
