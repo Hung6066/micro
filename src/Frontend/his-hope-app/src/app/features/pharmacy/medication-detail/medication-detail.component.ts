@@ -20,7 +20,8 @@ import { Medication } from '@core/models/medication.model';
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="medication-detail" *ngIf="medication">
+    @if (medication) {
+    <div class="medication-detail">
       <div class="header">
         <div>
           <h1>{{ medication.name }}</h1>
@@ -33,10 +34,12 @@ import { Medication } from '@core/models/medication.model';
           </p>
         </div>
         <div class="header-actions">
+          @if (medication.isActive) {
           <button mat-raised-button color="accent" [routerLink]="['/pharmacy/medications', medication.id, 'edit']"
-                  *ngIf="medication.isActive" attr.aria-label="Chỉnh sửa thuốc {{ medication.name }}">
+                  attr.aria-label="Chỉnh sửa thuốc {{ medication.name }}">
             <mat-icon>edit</mat-icon> Chỉnh sửa
           </button>
+          }
           <button mat-stroked-button [color]="medication.isActive ? 'warn' : 'primary'"
                   (click)="toggleActive()" attr.aria-label="{{ medication.isActive ? 'Ngừng' : 'Kích hoạt' }} thuốc">
             <mat-icon>{{ medication.isActive ? 'block' : 'check_circle' }}</mat-icon>
@@ -63,22 +66,29 @@ import { Medication } from '@core/models/medication.model';
           <mat-card-header><mat-card-title>Thời gian</mat-card-title></mat-card-header>
           <mat-card-content>
             <p><strong>Ngày tạo:</strong> {{ medication.createdAt | date:'medium' }}</p>
-            <p *ngIf="medication.updatedAt"><strong>Cập nhật lần cuối:</strong> {{ medication.updatedAt | date:'medium' }}</p>
+            @if (medication.updatedAt) {
+            <p><strong>Cập nhật lần cuối:</strong> {{ medication.updatedAt | date:'medium' }}</p>
+            }
           </mat-card-content>
         </mat-card>
       </div>
     </div>
+    }
 
-    <div class="loading-container" *ngIf="!medication && !loadError">
+    @if (!medication && !loadError) {
+    <div class="loading-container">
       <mat-spinner diameter="40" aria-label="Đang tải"></mat-spinner>
       <p>Đang tải thông tin thuốc...</p>
     </div>
+    }
 
-    <div class="error-container" *ngIf="loadError">
+    @if (loadError) {
+    <div class="error-container">
       <mat-icon color="warn">error_outline</mat-icon>
       <p>Không thể tải thông tin thuốc. Vui lòng thử lại sau.</p>
       <button mat-stroked-button color="primary" (click)="loadMedication()">Thử lại</button>
     </div>
+    }
   `,
     styles: [`
     .medication-detail { padding: 24px; }

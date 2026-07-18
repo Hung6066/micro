@@ -29,7 +29,8 @@ import { Invoice } from '@core/models/invoice.model';
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="invoice-detail" *ngIf="invoice">
+    @if (invoice) {
+    <div class="invoice-detail">
       <div class="header">
         <div>
           <h1>Hóa đơn #{{ invoice.invoiceNumber }}</h1>
@@ -46,18 +47,20 @@ import { Invoice } from '@core/models/invoice.model';
           </p>
         </div>
         <div class="header-actions">
+          @if (invoice.statusCode !== 'paid' && invoice.statusCode !== 'cancelled' && invoice.statusCode !== 'voided') {
           <button mat-raised-button color="primary"
-                  *ngIf="invoice.statusCode !== 'paid' && invoice.statusCode !== 'cancelled' && invoice.statusCode !== 'voided'"
                   (click)="showPaymentForm = !showPaymentForm"
                   attr.aria-label="Ghi nhận thanh toán">
             <mat-icon>payment</mat-icon> Ghi nhận thanh toán
           </button>
+          }
+          @if (invoice.statusCode !== 'voided' && invoice.statusCode !== 'cancelled' && invoice.statusCode !== 'paid') {
           <button mat-stroked-button color="warn"
-                  *ngIf="invoice.statusCode !== 'voided' && invoice.statusCode !== 'cancelled' && invoice.statusCode !== 'paid'"
                   (click)="voidInvoice()"
                   attr.aria-label="Hủy hóa đơn">
             <mat-icon>cancel</mat-icon> Hủy hóa đơn
           </button>
+          }
         </div>
       </div>
 
@@ -67,10 +70,16 @@ import { Invoice } from '@core/models/invoice.model';
           <mat-card-header><mat-card-title>Thông tin hóa đơn</mat-card-title></mat-card-header>
           <mat-card-content>
             <p><strong>Bệnh nhân:</strong> {{ invoice.patientName || invoice.patientId }}</p>
-            <p *ngIf="invoice.encounterId"><strong>Mã hồ sơ:</strong> {{ invoice.encounterId | slice:0:8 }}...</p>
+            @if (invoice.encounterId) {
+            <p><strong>Mã hồ sơ:</strong> {{ invoice.encounterId | slice:0:8 }}...</p>
+            }
             <p><strong>Ngày hóa đơn:</strong> {{ invoice.invoiceDate | date:'medium' }}</p>
-            <p *ngIf="invoice.dueDate"><strong>Ngày đến hạn:</strong> {{ invoice.dueDate | date:'medium' }}</p>
-            <p *ngIf="invoice.notes"><strong>Ghi chú:</strong> {{ invoice.notes }}</p>
+            @if (invoice.dueDate) {
+            <p><strong>Ngày đến hạn:</strong> {{ invoice.dueDate | date:'medium' }}</p>
+            }
+            @if (invoice.notes) {
+            <p><strong>Ghi chú:</strong> {{ invoice.notes }}</p>
+            }
           </mat-card-content>
         </mat-card>
 
@@ -78,8 +87,12 @@ import { Invoice } from '@core/models/invoice.model';
           <mat-card-header><mat-card-title>Tổng kết</mat-card-title></mat-card-header>
           <mat-card-content class="totals">
             <div class="total-row"><span>Tạm tính:</span><span>{{ invoice.subTotal | number:'1.0-0' }} đ</span></div>
-            <div class="total-row" *ngIf="invoice.taxAmount"><span>Thuế:</span><span>{{ invoice.taxAmount | number:'1.0-0' }} đ</span></div>
-            <div class="total-row" *ngIf="invoice.discountAmount"><span>Giảm giá:</span><span>-{{ invoice.discountAmount | number:'1.0-0' }} đ</span></div>
+            @if (invoice.taxAmount) {
+            <div class="total-row"><span>Thuế:</span><span>{{ invoice.taxAmount | number:'1.0-0' }} đ</span></div>
+            }
+            @if (invoice.discountAmount) {
+            <div class="total-row"><span>Giảm giá:</span><span>-{{ invoice.discountAmount | number:'1.0-0' }} đ</span></div>
+            }
             <div class="total-row grand-total"><span>Tổng cộng:</span><span>{{ invoice.totalAmount | number:'1.0-0' }} đ</span></div>
             <div class="total-row paid"><span>Đã thanh toán:</span><span>{{ invoice.paidAmount | number:'1.0-0' }} đ</span></div>
             <div class="total-row balance" [class.text-danger]="invoice.balanceDue > 0">
@@ -93,7 +106,8 @@ import { Invoice } from '@core/models/invoice.model';
       <mat-card class="items-card">
         <mat-card-header><mat-card-title>Chi tiết dịch vụ ({{ invoice.lineItems.length }})</mat-card-title></mat-card-header>
         <mat-card-content>
-          <table class="items-table" *ngIf="invoice.lineItems.length > 0">
+          @if (invoice.lineItems.length > 0) {
+          <table class="items-table">
             <thead>
               <tr>
                 <th>Mã</th>
@@ -105,7 +119,8 @@ import { Invoice } from '@core/models/invoice.model';
               </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let item of invoice.lineItems">
+              @for (item of invoice.lineItems; track item.itemCode) {
+              <tr>
                 <td>{{ item.itemCode }}</td>
                 <td>{{ item.description }}</td>
                 <td>{{ item.itemTypeName }}</td>
@@ -113,9 +128,13 @@ import { Invoice } from '@core/models/invoice.model';
                 <td class="num">{{ item.unitPrice | number:'1.0-0' }} đ</td>
                 <td class="num">{{ item.amount | number:'1.0-0' }} đ</td>
               </tr>
+              }
             </tbody>
           </table>
-          <p class="empty" *ngIf="invoice.lineItems.length === 0">Không có dịch vụ nào.</p>
+          }
+          @if (invoice.lineItems.length === 0) {
+          <p class="empty">Không có dịch vụ nào.</p>
+          }
         </mat-card-content>
       </mat-card>
 
@@ -123,7 +142,8 @@ import { Invoice } from '@core/models/invoice.model';
       <mat-card class="payments-card">
         <mat-card-header><mat-card-title>Lịch sử thanh toán ({{ invoice.payments.length }})</mat-card-title></mat-card-header>
         <mat-card-content>
-          <mat-table [dataSource]="invoice.payments" *ngIf="invoice.payments.length > 0">
+          @if (invoice.payments.length > 0) {
+          <mat-table [dataSource]="invoice.payments">
             <ng-container matColumnDef="amount">
               <mat-header-cell *matHeaderCellDef>Số tiền</mat-header-cell>
               <mat-cell *matCellDef="let p">{{ p.amount | number:'1.0-0' }} đ</mat-cell>
@@ -147,12 +167,16 @@ import { Invoice } from '@core/models/invoice.model';
             <mat-header-row *matHeaderRowDef="paymentColumns"></mat-header-row>
             <mat-row *matRowDef="let row; columns: paymentColumns;"></mat-row>
           </mat-table>
-          <p class="empty" *ngIf="invoice.payments.length === 0">Chưa có thanh toán nào.</p>
+          }
+          @if (invoice.payments.length === 0) {
+          <p class="empty">Chưa có thanh toán nào.</p>
+          }
         </mat-card-content>
       </mat-card>
 
       <!-- Payment Form -->
-      <mat-card class="payment-form-card" *ngIf="showPaymentForm">
+      @if (showPaymentForm) {
+      <mat-card class="payment-form-card">
         <mat-card-header><mat-card-title>Ghi nhận thanh toán</mat-card-title></mat-card-header>
         <mat-card-content>
           <form [formGroup]="paymentForm" (ngSubmit)="recordPayment()" class="payment-form">
@@ -162,8 +186,12 @@ import { Invoice } from '@core/models/invoice.model';
                 <input matInput formControlName="amount" type="number" required min="1"
                        [attr.max]="invoice.balanceDue" aria-label="Số tiền thanh toán">
                 <span matSuffix>đ</span>
-                <mat-error *ngIf="paymentForm.get('amount')?.hasError('required')">Vui lòng nhập số tiền</mat-error>
-                <mat-error *ngIf="paymentForm.get('amount')?.hasError('min')">Số tiền phải lớn hơn 0</mat-error>
+                @if (paymentForm.get('amount')?.hasError('required')) {
+                <mat-error>Vui lòng nhập số tiền</mat-error>
+                }
+                @if (paymentForm.get('amount')?.hasError('min')) {
+                <mat-error>Số tiền phải lớn hơn 0</mat-error>
+                }
               </mat-form-field>
 
               <mat-form-field appearance="outline">
@@ -197,25 +225,33 @@ import { Invoice } from '@core/models/invoice.model';
               <button mat-button type="button" (click)="showPaymentForm = false">Hủy</button>
               <button mat-raised-button color="primary" type="submit"
                       [disabled]="paymentForm.invalid || recordingPayment">
-                <mat-spinner diameter="18" *ngIf="recordingPayment" class="btn-spinner"></mat-spinner>
+                @if (recordingPayment) {
+                <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
+                }
                 {{ recordingPayment ? 'Đang lưu...' : 'Xác nhận thanh toán' }}
               </button>
             </div>
           </form>
         </mat-card-content>
       </mat-card>
+      }
     </div>
+    }
 
-    <div class="loading-container" *ngIf="!invoice && !loadError">
+    @if (!invoice && !loadError) {
+    <div class="loading-container">
       <mat-spinner diameter="40" aria-label="Đang tải"></mat-spinner>
       <p>Đang tải thông tin hóa đơn...</p>
     </div>
+    }
 
-    <div class="error-container" *ngIf="loadError">
+    @if (loadError) {
+    <div class="error-container">
       <mat-icon color="warn">error_outline</mat-icon>
       <p>Không thể tải thông tin hóa đơn. Vui lòng thử lại sau.</p>
       <button mat-stroked-button color="primary" (click)="loadInvoice()">Thử lại</button>
     </div>
+    }
   `,
     styles: [`
     .invoice-detail { padding: 24px; }

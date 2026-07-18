@@ -42,11 +42,15 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
                    aria-label="Tìm kiếm bệnh nhân" [matAutocomplete]="patientAuto">
             <mat-icon matSuffix>search</mat-icon>
             <mat-autocomplete #patientAuto="matAutocomplete" [displayWith]="displayPatientFn">
-              <mat-option *ngFor="let p of filteredPatients" [value]="p" (onSelectionChange)="onPatientSelected(p)">
+              @for (p of filteredPatients; track p.id) {
+              <mat-option [value]="p" (onSelectionChange)="onPatientSelected(p)">
                 {{ p.fullName }} - {{ p.id | slice:0:8 }}...
               </mat-option>
+              }
             </mat-autocomplete>
-            <mat-error *ngIf="invoiceForm.get('patientId')?.hasError('required')">Vui lòng chọn bệnh nhân</mat-error>
+            @if (invoiceForm.get('patientId')?.hasError('required')) {
+            <mat-error>Vui lòng chọn bệnh nhân</mat-error>
+            }
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -71,7 +75,8 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
           </mat-card-header>
           <mat-card-content>
             <div formArrayName="lineItems">
-              <div *ngFor="let item of lineItems.controls; let i = index" [formGroupName]="i" class="item-row">
+              @for (item of lineItems.controls; track i; let i = $index) {
+              <div [formGroupName]="i" class="item-row">
                 <mat-form-field appearance="outline">
                   <mat-label>Mã dịch vụ</mat-label>
                   <input matInput formControlName="itemCode" required placeholder="VD: KCB-001"
@@ -119,6 +124,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
                   <mat-icon>delete</mat-icon>
                 </button>
               </div>
+              }
             </div>
 
             <button mat-stroked-button color="primary" type="button" (click)="addItem()"
@@ -129,17 +135,21 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
         </mat-card>
 
         <!-- Totals Summary -->
-        <mat-card class="totals-card" *ngIf="lineItems.length > 0">
+        @if (lineItems.length > 0) {
+        <mat-card class="totals-card">
           <mat-card-content>
             <div class="total-row"><span>Tổng tạm tính:</span><span>{{ calculateSubTotal() | number:'1.0-0' }} đ</span></div>
           </mat-card-content>
         </mat-card>
+        }
 
         <div class="form-actions">
           <button mat-button type="button" routerLink="/billing">Hủy</button>
           <button mat-raised-button color="primary" type="submit"
                   [disabled]="invoiceForm.invalid || lineItems.length === 0 || submitting">
-            <mat-spinner diameter="18" *ngIf="submitting" class="btn-spinner" aria-label="Đang lưu"></mat-spinner>
+            @if (submitting) {
+            <mat-spinner diameter="18" class="btn-spinner" aria-label="Đang lưu"></mat-spinner>
+            }
             {{ submitting ? 'Đang lưu...' : 'Tạo hóa đơn' }}
           </button>
         </div>

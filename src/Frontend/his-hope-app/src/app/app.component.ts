@@ -19,11 +19,12 @@ import { ErrorBarComponent } from '@shared/components/error-bar/error-bar.compon
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <mat-sidenav-container class="app-sidenav-container">
-      <mat-sidenav #sidenav mode="side" [opened]="isLoggedIn && sidenavOpened"
-                   *ngIf="isLoggedIn">
+      @if (isLoggedIn) {
+      <mat-sidenav #sidenav mode="side" [opened]="isLoggedIn && sidenavOpened">
         <app-sidebar [sidenavOpened]="sidenavOpened"
                      (toggle)="toggleSidenav()"></app-sidebar>
       </mat-sidenav>
+      }
       <mat-sidenav-content>
         <app-error-bar></app-error-bar>
         <div class="main-content" id="main-content">

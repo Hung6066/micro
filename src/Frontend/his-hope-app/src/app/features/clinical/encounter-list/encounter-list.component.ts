@@ -42,7 +42,8 @@ import { Encounter } from '@core/models/encounter.model';
         </mat-card-header>
 
         <mat-card-content>
-          <div class="table-container" *ngIf="encounters.length > 0; else empty">
+          @if (encounters.length > 0) {
+          <div class="table-container">
             <table mat-table [dataSource]="encounters" class="encounter-table">
               <ng-container matColumnDef="encounterDate">
                 <th mat-header-cell *matHeaderCellDef>Date</th>
@@ -96,10 +97,9 @@ import { Encounter } from '@core/models/encounter.model';
               showFirstLastButtons>
             </mat-paginator>
           </div>
-
-          <ng-template #empty>
-            <p class="placeholder">{{ loading ? 'Loading...' : 'No encounters found.' }}</p>
-          </ng-template>
+          } @else {
+          <p class="placeholder">{{ loading ? 'Loading...' : 'No encounters found.' }}</p>
+          }
         </mat-card-content>
       </mat-card>
     </div>

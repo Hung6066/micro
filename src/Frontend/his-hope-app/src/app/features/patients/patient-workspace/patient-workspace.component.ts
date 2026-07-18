@@ -53,7 +53,8 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <!-- Sticky Patient Header Bar -->
-    <div class="patient-header" *ngIf="patient">
+    @if (patient) {
+    <div class="patient-header">
       <div class="patient-info">
         <div class="patient-avatar">{{ patient.fullName.charAt(0) }}</div>
         <div class="patient-details">
@@ -104,20 +105,26 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
         </button>
       </div>
     </div>
+    }
 
-    <div class="loading-header" *ngIf="!patient && !error">
+    @if (!patient && !error) {
+    <div class="loading-header">
       <mat-spinner diameter="32"></mat-spinner>
       <span>Đang tải thông tin bệnh nhân...</span>
     </div>
+    }
 
-    <div class="error-box" *ngIf="error">
+    @if (error) {
+    <div class="error-box">
       <mat-icon>error_outline</mat-icon>
       <span>{{ error }}</span>
       <button mat-stroked-button (click)="loadPatient()">Thử lại</button>
     </div>
+    }
 
     <!-- Tab Group -->
-    <div class="workspace-tabs" *ngIf="patient">
+    @if (patient) {
+    <div class="workspace-tabs">
       <mat-tab-group dynamicHeight>
         <!-- Tab 1: Encounters -->
         <mat-tab label="Lịch sử khám ({{ encounters.length }})">
@@ -387,6 +394,7 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
         </mat-tab>
       </mat-tab-group>
     </div>
+    }
   `,
     styles: [`
     :host { display: block; height: 100%; }

@@ -39,22 +39,30 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
                    aria-label="Tìm kiếm bệnh nhân" [matAutocomplete]="patientAuto">
             <mat-icon matSuffix>search</mat-icon>
             <mat-autocomplete #patientAuto="matAutocomplete" [displayWith]="displayPatientFn">
-              <mat-option *ngFor="let p of filteredPatients" [value]="p" (onSelectionChange)="onPatientSelected(p)">
+              @for (p of filteredPatients; track p.id) {
+              <mat-option [value]="p" (onSelectionChange)="onPatientSelected(p)">
                 {{ p.fullName }} - {{ p.id | slice:0:8 }}...
               </mat-option>
+              }
             </mat-autocomplete>
-            <mat-error *ngIf="prescriptionForm.get('patientId')?.hasError('required')">Vui lòng chọn bệnh nhân</mat-error>
+            @if (prescriptionForm.get('patientId')?.hasError('required')) {
+            <mat-error>Vui lòng chọn bệnh nhân</mat-error>
+            }
           </mat-form-field>
 
           <!-- Medication Search -->
           <mat-form-field appearance="outline">
             <mat-label>Thuốc</mat-label>
             <mat-select formControlName="medicationId" required aria-label="Chọn thuốc">
-              <mat-option *ngFor="let med of medications" [value]="med.id">
+              @for (med of medications; track med.id) {
+              <mat-option [value]="med.id">
                 {{ med.name }} - {{ med.strength }} ({{ med.dosageForm }})
               </mat-option>
+              }
             </mat-select>
-            <mat-error *ngIf="prescriptionForm.get('medicationId')?.hasError('required')">Vui lòng chọn thuốc</mat-error>
+            @if (prescriptionForm.get('medicationId')?.hasError('required')) {
+            <mat-error>Vui lòng chọn thuốc</mat-error>
+            }
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -77,15 +85,21 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
             <input matInput formControlName="dosageInstructions" required
                    placeholder="VD: Uống 1 viên x 2 lần/ngày sau ăn"
                    aria-label="Hướng dẫn sử dụng">
-            <mat-error *ngIf="prescriptionForm.get('dosageInstructions')?.hasError('required')">Vui lòng nhập hướng dẫn</mat-error>
+            @if (prescriptionForm.get('dosageInstructions')?.hasError('required')) {
+            <mat-error>Vui lòng nhập hướng dẫn</mat-error>
+            }
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Số lượng</mat-label>
             <input matInput formControlName="quantity" type="number" required min="1"
                    aria-label="Số lượng thuốc">
-            <mat-error *ngIf="prescriptionForm.get('quantity')?.hasError('required')">Vui lòng nhập số lượng</mat-error>
-            <mat-error *ngIf="prescriptionForm.get('quantity')?.hasError('min')">Số lượng phải lớn hơn 0</mat-error>
+            @if (prescriptionForm.get('quantity')?.hasError('required')) {
+            <mat-error>Vui lòng nhập số lượng</mat-error>
+            }
+            @if (prescriptionForm.get('quantity')?.hasError('min')) {
+            <mat-error>Số lượng phải lớn hơn 0</mat-error>
+            }
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -99,7 +113,9 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
           <button mat-button type="button" routerLink="/pharmacy/prescriptions">Hủy</button>
           <button mat-raised-button color="primary" type="submit"
                   [disabled]="prescriptionForm.invalid || submitting">
-            <mat-spinner diameter="18" *ngIf="submitting" class="btn-spinner" aria-label="Đang lưu"></mat-spinner>
+            @if (submitting) {
+            <mat-spinner diameter="18" class="btn-spinner" aria-label="Đang lưu"></mat-spinner>
+            }
             {{ submitting ? 'Đang lưu...' : 'Tạo đơn thuốc' }}
           </button>
         </div>

@@ -54,16 +54,21 @@ import { Prescription, PrescriptionStatus } from '@core/models/prescription.mode
         </mat-form-field>
       </div>
 
-      <div class="loading-shimmer" *ngIf="loading">
+      @if (loading) {
+      <div class="loading-shimmer">
         <mat-progress-bar mode="indeterminate" aria-label="Đang tải"></mat-progress-bar>
       </div>
+      }
 
-      <div *ngIf="!loading && prescriptions.length === 0" class="empty-state">
+      @if (!loading && prescriptions.length === 0) {
+      <div class="empty-state">
         <mat-icon class="empty-icon">description</mat-icon>
         <p>Không tìm thấy đơn thuốc nào.</p>
       </div>
+      }
 
-      <mat-table [dataSource]="prescriptions" class="mat-elevation-z2" *ngIf="!loading && prescriptions.length > 0">
+      @if (!loading && prescriptions.length > 0) {
+      <mat-table [dataSource]="prescriptions" class="mat-elevation-z2">
         <ng-container matColumnDef="id">
           <mat-header-cell *matHeaderCellDef>Mã đơn</mat-header-cell>
           <mat-cell *matCellDef="let p">{{ p.id | slice:0:8 }}...</mat-cell>
@@ -115,11 +120,13 @@ import { Prescription, PrescriptionStatus } from '@core/models/prescription.mode
         <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
         <mat-row *matRowDef="let row; columns: displayedColumns;" (click)="viewDetail(row.id)" class="clickable-row"></mat-row>
       </mat-table>
+      }
 
+      @if (!loading && totalCount > 0) {
       <mat-paginator [length]="totalCount" [pageSize]="pageSize" [pageSizeOptions]="[10, 20, 50]"
-                     (page)="onPageChange($event)" [pageIndex]="page - 1" showFirstLastButtons
-                     *ngIf="!loading && totalCount > 0">
+                     (page)="onPageChange($event)" [pageIndex]="page - 1" showFirstLastButtons>
       </mat-paginator>
+      }
     </div>
   `,
     styles: [`

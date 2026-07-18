@@ -49,16 +49,22 @@ const CATEGORIES: CategoryConfig[] = [
         </div>
         <button mat-raised-button color="primary" (click)="saveAll()" [disabled]="saving">
           <mat-icon>save</mat-icon>
-          <span *ngIf="!saving">Lưu tất cả</span>
-          <mat-spinner *ngIf="saving" diameter="20"></mat-spinner>
+          @if (!saving) {
+          <span>Lưu tất cả</span>
+          }
+          @if (saving) {
+          <mat-spinner diameter="20"></mat-spinner>
+          }
         </button>
       </div>
 
       <app-loading-spinner [loading]="loading" message="Đang tải cài đặt..."></app-loading-spinner>
 
-      <div class="settings-content" *ngIf="!loading">
+      @if (!loading) {
+      <div class="settings-content">
         <mat-accordion class="settings-accordion" [multi]="true">
-          <mat-expansion-panel *ngFor="let cat of categories" expanded>
+          @for (cat of categories; track cat.key) {
+          <mat-expansion-panel expanded>
             <mat-expansion-panel-header>
               <mat-panel-title>
                 <mat-icon>{{ cat.icon }}</mat-icon>
@@ -67,53 +73,63 @@ const CATEGORIES: CategoryConfig[] = [
             </mat-expansion-panel-header>
 
             <div class="settings-grid">
-              <ng-container *ngFor="let setting of getSettingsByCategory(cat.key)">
+              @for (setting of getSettingsByCategory(cat.key); track setting.key) {
                 <div class="setting-item">
                   <label class="setting-label">{{ setting.label }}</label>
 
-                  <!-- Text input -->
-                  <mat-form-field appearance="outline" *ngIf="setting.type === 'text'" subscriptSizing="dynamic">
+                  @if (setting.type === 'text') {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
                     <input matInput [value]="settingValues[setting.key] || ''"
                            (input)="onSettingChange(setting.key, $event, setting.type)">
                   </mat-form-field>
+                  }
 
-                  <!-- Number input -->
-                  <mat-form-field appearance="outline" *ngIf="setting.type === 'number'" subscriptSizing="dynamic">
+                  @if (setting.type === 'number') {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
                     <input matInput type="number" [value]="settingValues[setting.key] ?? 0"
                            (input)="onSettingChange(setting.key, $event, setting.type)">
                   </mat-form-field>
+                  }
 
-                  <!-- Select -->
-                  <mat-form-field appearance="outline" *ngIf="setting.type === 'select'" subscriptSizing="dynamic">
+                  @if (setting.type === 'select') {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
                     <mat-select [value]="settingValues[setting.key]"
                                 (selectionChange)="onSettingSelect(setting.key, $event)">
-                      <mat-option *ngFor="let opt of setting.options" [value]="opt.value">
+                      @for (opt of setting.options; track opt.value) {
+                      <mat-option [value]="opt.value">
                         {{ opt.label }}
                       </mat-option>
+                      }
                     </mat-select>
                   </mat-form-field>
+                  }
 
-                  <!-- Boolean toggle -->
-                  <div class="toggle-wrapper" *ngIf="setting.type === 'boolean'">
+                  @if (setting.type === 'boolean') {
+                  <div class="toggle-wrapper">
                     <mat-slide-toggle [checked]="settingValues[setting.key] === true"
                                       (change)="onSettingToggle(setting.key, $event)">
                       {{ settingValues[setting.key] ? 'Đã bật' : 'Đã tắt' }}
                     </mat-slide-toggle>
                   </div>
+                  }
                 </div>
-              </ng-container>
+              }
             </div>
           </mat-expansion-panel>
+          }
         </mat-accordion>
 
-        <div class="save-bar" *ngIf="hasChanges">
+        @if (hasChanges) {
+        <div class="save-bar">
           <span class="changes-hint">Có thay đổi chưa được lưu</span>
           <button mat-raised-button color="primary" (click)="saveAll()" [disabled]="saving">
             <mat-icon>save</mat-icon>
             Lưu tất cả
           </button>
         </div>
+        }
       </div>
+      }
     </div>
   `,
   styles: [`

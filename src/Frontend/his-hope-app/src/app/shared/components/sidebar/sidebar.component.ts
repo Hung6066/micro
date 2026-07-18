@@ -49,15 +49,19 @@ import { Patient } from '@core/models/patient.model';
       </mat-form-field>
       <mat-autocomplete #patientAuto="matAutocomplete" [displayWith]="displayPatientName"
                         (optionSelected)="onPatientSelected($event)">
-        <mat-option *ngFor="let p of searchResults" [value]="p">
-          <div class="search-result-item">
-            <span class="result-name">{{ p.fullName }}</span>
-            <span class="result-meta">{{ p.genderName }} · {{ p.age }}t · {{ p.id | slice:0:8 }}</span>
-          </div>
-        </mat-option>
-        <mat-option *ngIf="searchResults.length === 0 && (patientSearchControl.value?.length ?? 0) >= 2" disabled>
-          <span class="no-results">Không tìm thấy bệnh nhân</span>
-        </mat-option>
+        @for (p of searchResults; track p.id) {
+          <mat-option [value]="p">
+            <div class="search-result-item">
+              <span class="result-name">{{ p.fullName }}</span>
+              <span class="result-meta">{{ p.genderName }} · {{ p.age }}t · {{ p.id | slice:0:8 }}</span>
+            </div>
+          </mat-option>
+        }
+        @if (searchResults.length === 0 && (patientSearchControl.value?.length ?? 0) >= 2) {
+          <mat-option disabled>
+            <span class="no-results">Không tìm thấy bệnh nhân</span>
+          </mat-option>
+        }
       </mat-autocomplete>
     </div>
 
@@ -96,7 +100,8 @@ import { Patient } from '@core/models/patient.model';
       </a>
     </mat-nav-list>
 
-    <div class="sidebar-footer" *ngIf="currentUser">
+    @if (currentUser) {
+    <div class="sidebar-footer">
       <div class="user-info">
         <span class="user-name" id="user-name">{{ currentUser.fullName }}</span>
         <span class="user-specialty">{{ currentUser.specialty }}</span>
@@ -106,6 +111,7 @@ import { Patient } from '@core/models/patient.model';
         <mat-icon aria-hidden="true">logout</mat-icon>
       </button>
     </div>
+    }
   `,
     styles: [`
     :host {

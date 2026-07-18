@@ -8,12 +8,16 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
   imports: [CommonModule, MatProgressSpinnerModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="loading-overlay" *ngIf="loading">
+    @if (loading) {
+    <div class="loading-overlay">
       <div class="loading-content">
         <mat-spinner [diameter]="diameter" [strokeWidth]="strokeWidth"></mat-spinner>
-        <p *ngIf="message" class="loading-message">{{ message }}</p>
+        @if (message) {
+        <p class="loading-message">{{ message }}</p>
+        }
       </div>
     </div>
+    }
   `,
   styles: [`
     .loading-overlay {
