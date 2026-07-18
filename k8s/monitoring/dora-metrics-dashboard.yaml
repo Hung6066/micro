@@ -1,0 +1,132 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: monitoring
+  name: grafana-dashboard-dora-metrics
+  labels:
+    grafana_dashboard: "1"
+data:
+  dora-metrics-dashboard.json: |
+    {
+      "title": "DORA Metrics — CI/CD Performance",
+      "version": 1,
+      "time": { "from": "now-30d", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Deployment Frequency",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate(pipeline_deployments_total[7d])) by (service, environment)",
+              "legendFormat": "{{service}} ({{environment}})"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "deploys/d",
+              "decimals": 2,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "yellow", "value": 0.14 },
+                  { "color": "green", "value": 1.0 }
+                ]
+              },
+              "min": 0
+            },
+            "overrides": []
+          },
+          "description": "Number of deployments per day. Elite: 1+/day, High: weekly, Medium: monthly, Low: >monthly. Thresholds reflect daily rate."
+        },
+        {
+          "id": 2,
+          "title": "Lead Time for Changes — p50 / p95",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "avg(pipeline_lead_time_seconds{environment=\"production\"}) by (service)",
+              "legendFormat": "{{service}} avg"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 3600 },
+                  { "color": "red", "value": 86400 }
+                ]
+              },
+              "min": 0
+            },
+            "overrides": []
+          },
+          "description": "Average time from commit to production. Elite: <1h, High: <1d, Medium: <1wk, Low: >1wk. Thresholds: <1h green, <1d yellow, >1d red."
+        },
+        {
+          "id": 3,
+          "title": "Change Failure Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "expr": "sum by (service, environment) (rate(pipeline_deployments_total{status=\"failure\"}[7d])) / sum by (service, environment) (rate(pipeline_deployments_total[7d])) * 100",
+              "legendFormat": "{{service}} ({{environment}})"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 2,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 5 },
+                  { "color": "red", "value": 15 }
+                ]
+              },
+              "min": 0
+            },
+            "overrides": []
+          },
+          "description": "Percentage of deployments that result in failure. Elite: <5%, High: <10%, Medium: <15%, Low: >15%."
+        },
+        {
+          "id": 4,
+          "title": "Mean Time to Recovery — p50 / p95",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "expr": "avg(incident_duration_seconds) by (service, environment)",
+              "legendFormat": "{{service}} avg ({{environment}})"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 600 },
+                  { "color": "red", "value": 3600 }
+                ]
+              },
+              "min": 0
+            },
+            "overrides": []
+          },
+          "description": "Average time from deploy failure to successful recovery. Elite: <1h, High: <1d, Medium: <1wk, Low: >1wk. Thresholds: <10m green, <1h yellow, >1h red."
+        }
+      ]
+    }

@@ -1,0 +1,146 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: pipeline-metrics-exporter
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.17.0"
+    tekton.dev/tags: metrics, dora, pushgateway
+    tekton.dev/displayName: Pipeline Metrics Exporter
+spec:
+  description: >-
+    Exports DORA metrics for a pipeline run to the Prometheus Pushgateway.
+    Pushes duration, status, lead time, and deployment counters so the
+    DORA dashboard can visualise Deployment Frequency, Lead Time for
+    Changes, Change Failure Rate, and Mean Time to Recovery.
+
+  params:
+    - name: SERVICE_NAME
+      type: string
+      description: Name of the service being deployed (e.g., patient-service)
+    - name: STATUS
+      type: string
+      description: Pipeline run status (success / failure)
+    - name: DURATION_SECONDS
+      type: string
+      description: Total pipeline run duration in seconds
+    - name: GIT_REVISION
+      type: string
+      description: Git commit SHA or tag that triggered this pipeline
+    - name: COMMIT_TIMESTAMP
+      type: string
+      description: Unix epoch seconds of the git commit
+      default: ""
+    - name: ENVIRONMENT
+      type: string
+      description: Target environment (dev, staging, production)
+      default: production
+    - name: PUSHGATEWAY_URL
+      type: string
+      description: Prometheus Pushgateway URL
+      default: http://prometheus-pushgateway.monitoring.svc.cluster.local:9091
+    - name: RECOVERY_DURATION_SECONDS
+      type: string
+      description: >
+        Time in seconds from the previous failed deploy to this successful
+        deploy. Used for MTTR calculation. Omit for non-recovery runs.
+      default: ""
+
+  steps:
+    - name: push-metrics
+      image: curlimages/curl:8.11.1
+      script: |
+        #!/bin/sh
+        set -euo pipefail
+
+        SERVICE="$(params.SERVICE_NAME)"
+        STATUS="$(params.STATUS)"
+        DURATION="$(params.DURATION_SECONDS)"
+        REVISION="$(params.GIT_REVISION)"
+        ENV="$(params.ENVIRONMENT)"
+        PUSHGATEWAY="$(params.PUSHGATEWAY_URL)"
+        COMMIT_TS="$(params.COMMIT_TIMESTAMP)"
+        RECOVERY_SEC="$(params.RECOVERY_DURATION_SECONDS)"
+        NOW_EPOCH="$(date +%s)"
+        LEAD_TIME=""
+
+        # Compute lead time if commit timestamp is provided
+        if [ -n "${COMMIT_TS}" ] && [ "${COMMIT_TS}" != "0" ]; then
+          LEAD_TIME="$(( NOW_EPOCH - COMMIT_TS ))"
+        fi
+
+        # Determine success/failure numeric (1 = success, 0 = failure)
+        if [ "${STATUS}" = "success" ]; then
+          STATUS_NUM="1"
+        else
+          STATUS_NUM="0"
+        fi
+
+        # Build the Pushgateway job name
+        JOB_NAME="pipeline_metrics"
+        INSTANCE="${SERVICE}-${ENV}"
+
+        # ------------------------------------------------------------------
+        # Build the metrics payload in Prometheus exposition format
+        # ------------------------------------------------------------------
+        METRICS_FILE="/tmp/metrics.txt"
+
+        cat > "${METRICS_FILE}" <<EOF
+        # HELP pipeline_duration_seconds Total pipeline run duration
+        # TYPE pipeline_duration_seconds gauge
+        pipeline_duration_seconds{service="${SERVICE}",environment="${ENV}",status="${STATUS}"} ${DURATION}
+        # HELP pipeline_status Pipeline run result (1 = success, 0 = failure)
+        # TYPE pipeline_status gauge
+        pipeline_status{service="${SERVICE}",environment="${ENV}"} ${STATUS_NUM}
+        # HELP pipeline_deployments_total Total number of pipeline deployments
+        # TYPE pipeline_deployments_total counter
+        pipeline_deployments_total{service="${SERVICE}",environment="${ENV}",status="${STATUS}"} 1
+        EOF
+
+        # Append lead time metric if available
+        if [ -n "${LEAD_TIME}" ]; then
+          cat >> "${METRICS_FILE}" <<EOF
+        # HELP pipeline_lead_time_seconds Time from git commit to deployment completion
+        # TYPE pipeline_lead_time_seconds gauge
+        pipeline_lead_time_seconds{service="${SERVICE}",environment="${ENV}"} ${LEAD_TIME}
+        EOF
+        fi
+
+        # Append incident / MTTR metric if this is a recovery deploy
+        if [ -n "${RECOVERY_SEC}" ] && [ "${RECOVERY_SEC}" != "0" ]; then
+          cat >> "${METRICS_FILE}" <<EOF
+        # HELP incident_duration_seconds Duration from deploy failure to successful recovery
+        # TYPE incident_duration_seconds gauge
+        incident_duration_seconds{service="${SERVICE}",environment="${ENV}"} ${RECOVERY_SEC}
+        EOF
+        fi
+
+        # Append git revision info
+        cat >> "${METRICS_FILE}" <<EOF
+        # HELP pipeline_git_revision Git commit SHA of the deployed revision
+        # TYPE pipeline_git_revision gauge
+        pipeline_git_revision{service="${SERVICE}",environment="${ENV}",revision="${REVISION}"} 1
+        EOF
+
+        echo "=== Metrics payload ==="
+        cat "${METRICS_FILE}"
+        echo "======================="
+
+        # Push to Pushgateway via PUT (idempotent)
+        PUSH_URL="${PUSHGATEWAY}/metrics/job/${JOB_NAME}/instance/${INSTANCE}"
+
+        echo "Pushing metrics to ${PUSH_URL}"
+        HTTP_CODE=$(curl -s -o /tmp/pushgateway-response.txt -w "%{http_code}" \
+          --connect-timeout 10 \
+          --max-time 30 \
+          -X PUT \
+          --data-binary @"${METRICS_FILE}" \
+          "${PUSH_URL}" || echo "000")
+
+        if [ "${HTTP_CODE}" = "200" ] || [ "${HTTP_CODE}" = "202" ]; then
+          echo "Metrics pushed successfully (HTTP ${HTTP_CODE})"
+        else
+          echo "WARNING: Pushgateway returned HTTP ${HTTP_CODE}"
+          echo "Response: $(cat /tmp/pushgateway-response.txt 2>/dev/null || true)"
+        fi
