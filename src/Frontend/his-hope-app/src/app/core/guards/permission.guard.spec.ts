@@ -21,7 +21,9 @@ describe('PermissionGuard', () => {
   };
 
   beforeEach(() => {
-    const authSpy = jasmine.createSpyObj('AuthService', ['isLoggedIn', 'getUserPermissions'], {
+    const authSpy = jasmine.createSpyObj('AuthService', [
+      'isLoggedIn', 'getUserPermissions', 'hasPermissionOnServer',
+    ], {
       currentUser$: of(mockUser),
     });
     const routerSpy = jasmine.createSpyObj('Router', ['parseUrl']);
@@ -41,16 +43,19 @@ describe('PermissionGuard', () => {
 
   it('should allow activation when user has required permissions', (done) => {
     authService.getUserPermissions.and.returnValue(['patients.view', 'patients.write']);
+    authService.hasPermissionOnServer.and.returnValue(of(true));
     const route = { data: { permissions: ['patients.view'] } } as any as ActivatedRouteSnapshot;
 
     guard.canActivate(route, {} as any).subscribe((result) => {
       expect(result).toBeTrue();
+      expect(authService.hasPermissionOnServer).toHaveBeenCalledWith('patients.view');
       done();
     });
   });
 
   it('should redirect to access-denied when user lacks permissions', (done) => {
     authService.getUserPermissions.and.returnValue(['patients.view']);
+    authService.hasPermissionOnServer.and.returnValue(of(false));
     router.parseUrl.and.returnValue('/access-denied' as any);
     const route = { data: { permissions: ['patients.write'] } } as any as ActivatedRouteSnapshot;
 
@@ -60,12 +65,15 @@ describe('PermissionGuard', () => {
     });
   });
 
-  it('should redirect to login when user is not authenticated', (done) => {
-    const authSpy = jasmine.createSpyObj('AuthService', ['isLoggedIn', 'getUserPermissions'], {
+  it('should redirect to access-denied when API denies permission', (done) => {
+    const authSpy = jasmine.createSpyObj('AuthService', [
+      'isLoggedIn', 'getUserPermissions', 'hasPermissionOnServer',
+    ], {
       currentUser$: of(null),
     });
+    authSpy.hasPermissionOnServer.and.returnValue(of(false));
     const routerSpy = jasmine.createSpyObj('Router', ['parseUrl']);
-    routerSpy.parseUrl.and.returnValue('/auth/login' as any);
+    routerSpy.parseUrl.and.returnValue('/access-denied' as any);
     const route = { data: { permissions: ['patients.view'] } } as any as ActivatedRouteSnapshot;
 
     TestBed.resetTestingModule();
@@ -78,7 +86,7 @@ describe('PermissionGuard', () => {
     });
     const localGuard = TestBed.inject(PermissionGuard);
     localGuard.canActivate(route, {} as any).subscribe((result) => {
-      expect(routerSpy.parseUrl).toHaveBeenCalledWith('/auth/login');
+      expect(routerSpy.parseUrl).toHaveBeenCalledWith('/access-denied');
       done();
     });
   });

@@ -35,7 +35,7 @@ describe('AuthService', () => {
     sessionStorage.clear();
   });
 
-  it('should login, store token, and return user', () => {
+  it('should login, store token in memory, and return user', () => {
     const request: LoginRequest = { username: 'admin', password: 'secret' };
     const response = { accessToken: 'jwt-token', user: mockUser };
 
@@ -48,7 +48,9 @@ describe('AuthService', () => {
     expect(req.request.withCredentials).toBeTrue();
     req.flush(response);
 
-    expect(sessionStorage.getItem('hishope_access_token')).toBe('jwt-token');
+    // Token stored in memory (not sessionStorage)
+    expect(service.getStoredAccessToken()).toBe('jwt-token');
+    expect(sessionStorage.getItem('hishope_access_token')).toBeNull();
   });
 
   it('should register and return user', () => {
@@ -79,15 +81,15 @@ describe('AuthService', () => {
     req.flush(mockUser);
   });
 
-  it('should logout and clear token', () => {
-    sessionStorage.setItem('hishope_access_token', 'existing-token');
+  it('should logout and clear token from memory', () => {
+    service.storeAccessToken('existing-token');
     service.logout().subscribe();
 
     const req = httpMock.expectOne(`${environment.apiUrl}/auth/logout`);
     expect(req.request.method).toBe('POST');
     req.flush(null);
 
-    expect(sessionStorage.getItem('hishope_access_token')).toBeNull();
+    expect(service.getStoredAccessToken()).toBeNull();
   });
 
   it('should return logged in status when token exists', () => {
@@ -145,14 +147,13 @@ describe('AuthService', () => {
   });
 
   it('should return null from getStoredAccessToken when no token', () => {
-    sessionStorage.removeItem('hishope_access_token');
     expect(service.getStoredAccessToken()).toBeNull();
   });
 
-  it('should clear stored access token', () => {
-    sessionStorage.setItem('hishope_access_token', 'test-token');
+  it('should clear stored access token from memory', () => {
+    service.storeAccessToken('test-token');
     service.clearStoredAccessToken();
-    expect(sessionStorage.getItem('hishope_access_token')).toBeNull();
+    expect(service.getStoredAccessToken()).toBeNull();
   });
 
   it('should check hasRole with string array', () => {
@@ -162,9 +163,10 @@ describe('AuthService', () => {
     expect(service.hasRole(['admin', 'nurse'])).toBeTrue();
   });
 
-  it('should store access token', () => {
+  it('should store access token in memory only', () => {
     service.storeAccessToken('new-jwt-token');
-    expect(sessionStorage.getItem('hishope_access_token')).toBe('new-jwt-token');
+    expect(service.getStoredAccessToken()).toBe('new-jwt-token');
+    expect(sessionStorage.getItem('hishope_access_token')).toBeNull();
   });
 
   it('should getCurrentUser', () => {
@@ -182,14 +184,13 @@ describe('AuthService', () => {
     });
   });
 
-  it('should getUserPermissions from JWT when no user', () => {
-    sessionStorage.setItem('hishope_access_token', 'eyJhbGciOiJIUzI1NiJ9.eyJwZXJtaXNzaW9ucyI6WyJwYXRpZW50cy52aWV3Il19.dGVzdA');
+  it('should getUserPermissions from current user when available', () => {
+    service['currentUserSubject'].next(mockUser);
     const perms = service.getUserPermissions();
-    expect(perms).toEqual(['patients.view']);
+    expect(perms).toEqual(['patients.view', 'patients.write']);
   });
 
-  it('should return empty permissions when no token or user', () => {
-    sessionStorage.removeItem('hishope_access_token');
+  it('should return empty permissions when no user and no token', () => {
     service['currentUserSubject'].next(null);
     expect(service.getUserPermissions()).toEqual([]);
   });

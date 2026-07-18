@@ -132,33 +132,55 @@ export class AuthService {
     );
   }
 
-  // ─── Token Storage ──────────────────────────────────────────────────
+  // ─── Token Storage (Memory-only) ────────────────────────────────────
+  // JWT access token chỉ lưu trong RAM, không persist vào sessionStorage.
+  // Reload tab → mất token → refresh qua HttpOnly cookie hoặc redirect login.
+  // Security > convenience: không cho phép XSS đọc token từ storage.
 
-  /** Store the JWT access token (for Bearer header usage) */
+  private accessToken: string | null = null;
+
+  /** Store the JWT access token in memory only */
   storeAccessToken(token: string): void {
-    try {
-      sessionStorage.setItem('hishope_access_token', token);
-    } catch {
-      // sessionStorage may be unavailable in some environments
-    }
+    this.accessToken = token;
   }
 
-  /** Retrieve the stored JWT access token */
+  /** Retrieve the stored JWT access token from memory */
   getStoredAccessToken(): string | null {
-    try {
-      return sessionStorage.getItem('hishope_access_token');
-    } catch {
-      return null;
-    }
+    return this.accessToken;
   }
 
-  /** Remove the stored JWT access token */
+  /** Remove the stored JWT access token from memory */
   clearStoredAccessToken(): void {
-    try {
-      sessionStorage.removeItem('hishope_access_token');
-    } catch {
-      // noop
+    this.accessToken = null;
+  }
+
+  // ─── API-based Permission Check ─────────────────────────────────────
+  // Thay vì decode JWT client-side, check permission qua backend API.
+  // Cache kết quả trong memory với TTL 5 phút.
+
+  private permissionCache = new Map<string, boolean>();
+  private permissionCacheTimestamp = 0;
+  private readonly PERMISSION_CACHE_TTL = 5 * 60 * 1000;
+
+  /** Check permission via backend API (không decode JWT local) */
+  hasPermissionOnServer(permission: string): Observable<boolean> {
+    const cached = this.permissionCache.get(permission);
+    if (cached !== undefined && Date.now() - this.permissionCacheTimestamp < this.PERMISSION_CACHE_TTL) {
+      return of(cached);
     }
+
+    return this.http.post<{ granted: boolean }>(
+      `${this.baseUrl}/check-permission`,
+      { permission },
+      { withCredentials: true },
+    ).pipe(
+      map((res) => res.granted),
+      tap((granted) => {
+        this.permissionCache.set(permission, granted);
+        this.permissionCacheTimestamp = Date.now();
+      }),
+      catchError(() => of(false)),
+    );
   }
 
   private handleError(error: HttpErrorResponse): Observable<never> {

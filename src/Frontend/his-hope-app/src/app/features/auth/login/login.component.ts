@@ -10,6 +10,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '@core/services/auth.service';
+import { SessionService } from '@core/services/session.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Component({
@@ -74,6 +75,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 export class LoginComponent implements OnDestroy {
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
+  private sessionService = inject(SessionService);
   private router = inject(Router);
   private snackBar = inject(MatSnackBar);
   private cdr = inject(ChangeDetectorRef);
@@ -98,6 +100,7 @@ export class LoginComponent implements OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
+          this.sessionService.startTracking();
           this.snackBar.open('Login successful', 'Close', { duration: 3000 });
           this.router.navigate(['/dashboard']);
           this.cdr.markForCheck();

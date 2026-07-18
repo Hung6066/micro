@@ -7,8 +7,8 @@ import {
   Router,
   UrlTree,
 } from '@angular/router';
-import { Observable } from 'rxjs';
-import { map, take } from 'rxjs/operators';
+import { Observable, forkJoin, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
 import { AuthService } from '@core/services/auth.service';
 
 /**
@@ -55,24 +55,18 @@ export class PermissionGuard implements CanActivate, CanActivateChild {
       );
     }
 
-    return this.authService.currentUser$.pipe(
-      take(1),
-      map((user) => {
-        if (!user) {
-          return this.router.parseUrl('/auth/login');
-        }
-
-        const userPermissions = this.authService.getUserPermissions();
-        const hasAllPermissions = requiredPermissions.every((perm) =>
-          userPermissions.includes(perm),
-        );
-
-        if (!hasAllPermissions) {
+    // Check permissions via backend API (không decode JWT local)
+    return forkJoin(
+      requiredPermissions.map((p) => this.authService.hasPermissionOnServer(p)),
+    ).pipe(
+      map((results) => results.every(Boolean)),
+      map((allowed) => {
+        if (!allowed) {
           return this.router.parseUrl('/access-denied');
         }
-
         return true;
       }),
+      catchError(() => of(this.router.parseUrl('/access-denied'))),
     );
   }
 }
