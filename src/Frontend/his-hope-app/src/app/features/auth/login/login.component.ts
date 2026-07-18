@@ -1,12 +1,25 @@
 import { Component, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { FormBuilder, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
+import { Router, RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
+import { MatCardModule } from '@angular/material/card';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '@core/services/auth.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Component({
     selector: 'app-login',
+    standalone: true,
+    imports: [
+        CommonModule, ReactiveFormsModule, RouterModule,
+        MatCardModule, MatFormFieldModule, MatInputModule,
+        MatButtonModule, MatIconModule, MatProgressSpinnerModule,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="login-container">
@@ -51,7 +64,6 @@ import { MatSnackBar } from '@angular/material/snack-bar';
     form { display: flex; flex-direction: column; }
     .btn-spinner { display: inline-block; margin-right: 8px; }
   `],
-    standalone: false
 })
 export class LoginComponent implements OnDestroy {
   private destroy$ = new Subject<void>();

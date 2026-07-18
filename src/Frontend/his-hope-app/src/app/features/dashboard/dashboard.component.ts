@@ -1,7 +1,17 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { Router } from '@angular/router';
-import { FormControl } from '@angular/forms';
+import { CommonModule } from '@angular/common';
+import { Router, RouterModule } from '@angular/router';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Subject, forkJoin, takeUntil, debounceTime, distinctUntilChanged } from 'rxjs';
+import { MatCardModule } from '@angular/material/card';
+import { MatInputModule } from '@angular/material/input';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTableModule } from '@angular/material/table';
+import { MatChipsModule } from '@angular/material/chips';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { AuthService } from '@core/services/auth.service';
 import { DashboardService, DashboardStats } from '@core/services/dashboard.service';
 import { PatientService } from '@core/services/patient.service';
@@ -13,6 +23,12 @@ import { Patient } from '@core/models/patient.model';
 
 @Component({
     selector: 'app-dashboard',
+    standalone: true,
+    imports: [
+        CommonModule, RouterModule, ReactiveFormsModule,
+        MatCardModule, MatInputModule, MatFormFieldModule, MatIconModule, MatButtonModule,
+        MatProgressSpinnerModule, MatTableModule, MatChipsModule, MatAutocompleteModule,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="dashboard">
@@ -517,7 +533,6 @@ import { Patient } from '@core/models/patient.model';
       }
     }
   `],
-    standalone: false
 })
 export class DashboardComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();

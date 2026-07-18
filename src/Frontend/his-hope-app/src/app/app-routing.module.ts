@@ -14,7 +14,7 @@ const routes: Routes = [
   {
     path: 'auth',
     loadChildren: () =>
-      import('@features/auth/auth.module').then((m) => m.AuthModule),
+      import('@features/auth/auth.routes').then((m) => m.AUTH_ROUTES),
   },
   // ─── Access Denied (no guards) ──────────────────────────────────────
   {
@@ -28,7 +28,7 @@ const routes: Routes = [
   {
     path: 'dashboard',
     loadChildren: () =>
-      import('@features/dashboard/dashboard.module').then((m) => m.DashboardModule),
+      import('@features/dashboard/dashboard.routes').then((m) => m.DASHBOARD_ROUTES),
     canActivate: [AuthGuard],
   },
   // ─── Patients ───────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ const routes: Routes = [
     canActivate: [AuthGuard, PermissionGuard],
     data: { permissions: ['reports.view'] },
     loadChildren: () =>
-      import('@features/reports/reports.module').then((m) => m.ReportsModule),
+      import('@features/reports/reports.routes').then((m) => m.REPORTS_ROUTES),
   },
   // ─── Wildcard ───────────────────────────────────────────────────────
   {

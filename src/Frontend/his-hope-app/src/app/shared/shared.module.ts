@@ -48,16 +48,15 @@ const materialModules = [
 ];
 
 @NgModule({
-  declarations: [
+  declarations: [],
+  imports: [
+    CommonModule, ReactiveFormsModule, FormsModule, RouterModule,
+    ...materialModules,
     SidebarComponent,
     LoadingSpinnerComponent,
     EmptyStateComponent,
     ConfirmDialogComponent,
     ErrorBarComponent,
-  ],
-  imports: [
-    CommonModule, ReactiveFormsModule, FormsModule, RouterModule,
-    ...materialModules,
     HasPermissionDirective,
     HasRoleDirective,
   ],
