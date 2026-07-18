@@ -13,7 +13,9 @@ using His.Hope.AgentHarness.Mcp.Tools;
 using His.Hope.AgentHarness.Core.Interfaces;
 using His.Hope.AgentHarness.Infrastructure.Persistence;
 using His.Hope.AgentHarness.Infrastructure.Dispatch;
+using Microsoft.EntityFrameworkCore;
 using His.Hope.AgentHarness.Infrastructure.EventBus;
+using His.Hope.AgentHarness.Infrastructure.Temporal;
 using His.Hope.AgentHarness.Application.Behaviors;
 using His.Hope.AgentHarness.Application.Commands.StartPipeline;
 using His.Hope.AgentHarness.Application.Services;
@@ -487,9 +489,20 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
     services.AddScoped<ErrorClassifier>();
     services.AddScoped<ConfidenceScorer>();
     services.AddScoped<LlmJudgeService>();
+    services.AddScoped<EmbeddingService>();
     services.AddScoped<IMemoryService, MemoryService>();
     services.AddScoped<ILoopEngineer, LoopEngineer>();
-    services.AddScoped<IPipelineEngine, PipelineEngine>();
+    // Temporal or local pipeline engine
+    if (config.UseTemporal)
+    {
+        services.AddTemporalInfrastructure(config.TemporalServerUrl, useTemporal: true);
+        Log.Information("Using Temporal pipeline engine at {Server}", config.TemporalServerUrl);
+    }
+    else
+    {
+        services.AddScoped<IPipelineEngine, PipelineEngine>();
+    }
+
     services.AddSingleton<CostTracker>();
     services.AddSingleton<PromptTemplateService>();
 
@@ -519,6 +532,7 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
 static void InitializeDatabase(IServiceProvider sp)
 {
     var db = sp.GetRequiredService<HarnessDbContext>();
+    db.Database.ExecuteSqlRaw("CREATE EXTENSION IF NOT EXISTS vector");
     db.Database.EnsureCreated();
     var bus = sp.GetRequiredService<IEventBus>();
     Log.Information("Event bus initialized: {EventBusType}", bus.GetType().Name);

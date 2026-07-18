@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: his-hope-postgres
     environment:
       POSTGRES_USER: postgres
@@ -11,6 +11,7 @@ services:
       - ./init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh
     ports:
       - "5433:5432"
+    command: postgres -c shared_preload_libraries='pgvector'
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -435,6 +436,59 @@ services:
       retries: 5
       start_period: 15s
 
+  # Temporal distributed workflow engine
+  temporal:
+    image: temporalio/auto-setup:1.24
+    container_name: his-hope-temporal
+    ports:
+      - "7233:7233"
+      - "8233:8233"
+    environment:
+      - DB=postgresql
+      - POSTGRES_USER=postgres
+      - POSTGRES_PWD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_SEEDS=postgres
+      - DYNAMIC_CONFIG_VALUE=frontend.visibilityMaxPageSize=1000
+      - SERVICES=seed,frontend,history,matching,worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: ["temporal"]
+    restart: unless-stopped
+
+  temporal-admin-tools:
+    image: temporalio/admin-tools:1.24
+    container_name: his-hope-temporal-admin
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+    profiles: ["temporal", "admin"]
+
+  temporal-worker:
+    build:
+      context: ..
+      dockerfile: src/Infrastructure/AgentHarness/src/AgentHarness.TemporalWorker/Dockerfile
+    container_name: his-hope-temporal-worker
+    ports:
+      - "5270:5270"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Temporal__ServerUrl: temporal:7233
+      AgentHarness__DatabaseConnectionString: Host=postgres;Database=harnessdb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+    depends_on:
+      temporal:
+        condition: service_healthy
+    profiles: ["temporal"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5270/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
   # Agent Harness MCP Server
   agentharness:
     build:
@@ -448,9 +502,12 @@ services:
       AgentHarness__DatabaseConnectionString: Host=postgres;Database=harnessdb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
       AgentHarness__RabbitMQConnectionString: amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASSWORD:-admin}@rabbitmq:5672/
       AgentHarness__ApiKey: ${AGENT_HARNESS_API_KEY:-dev-key-change-in-production}
+      AgentHarness__UseTemporal: ${AGENT_HARNESS_USE_TEMPORAL:-false}
+      AgentHarness__TemporalServerUrl: temporal:7233
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
+    profiles: ["default", "temporal"]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5200/health"]

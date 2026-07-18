@@ -8,4 +8,6 @@ public class McpServerConfig
     public int Port { get; set; } = 5200;
     public string DatabaseConnectionString { get; set; } = "Host=localhost;Port=5433;Database=harness;Username=harness;Password=harness";
     public string RabbitMQConnectionString { get; set; } = "amqp://admin:admin@localhost:5672/";
+    public bool UseTemporal { get; set; }
+    public string TemporalServerUrl { get; set; } = "localhost:7233";
 }

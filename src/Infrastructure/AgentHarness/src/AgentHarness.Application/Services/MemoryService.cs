@@ -3,21 +3,18 @@ using His.Hope.AgentHarness.Core.Models;
 
 namespace His.Hope.AgentHarness.Application.Services;
 
-/// <summary>
-/// Memory service for the Loop Engineer.
-/// Stores past error patterns + fixes, queries by similarity.
-/// No external embedding API — uses normalized keyword Jaccard similarity.
-/// </summary>
 public class MemoryService : IMemoryService
 {
     private readonly IStateStore _store;
+    private readonly EmbeddingService _embeddings;
 
-    // Minimum similarity threshold to consider a match
-    private const double MatchThreshold = 0.35;
+    private const double VectorMatchThreshold = 0.6;
+    private const double JaccardMatchThreshold = 0.35;
 
-    public MemoryService(IStateStore store)
+    public MemoryService(IStateStore store, EmbeddingService embeddings)
     {
         _store = store;
+        _embeddings = embeddings;
     }
 
     public async Task<MemoryEntry?> FindSimilarAsync(string errorOutput, string agentName, CancellationToken ct = default)
@@ -26,17 +23,30 @@ public class MemoryService : IMemoryService
         if (memories.Count == 0) return null;
 
         var queryKeywords = MemoryEntry.ExtractKeywords(errorOutput + " " + agentName);
-        if (string.IsNullOrWhiteSpace(queryKeywords)) return null;
+        var queryEmbedding = _embeddings.GenerateEmbedding(errorOutput + " " + agentName);
 
         MemoryEntry? best = null;
         double bestScore = 0;
+        bool usedVector = false;
 
         foreach (var mem in memories)
         {
-            // Prefer memories for the same agent
-            var score = MemoryEntry.ComputeSimilarity(queryKeywords, mem.Keywords);
+            double score;
 
-            // Boost by agent match
+            if (mem.Embedding is { Length: 256 })
+            {
+                score = _embeddings.CosineSimilarity(queryEmbedding, mem.Embedding);
+                usedVector = true;
+            }
+            else if (!string.IsNullOrWhiteSpace(queryKeywords) && !string.IsNullOrWhiteSpace(mem.Keywords))
+            {
+                score = MemoryEntry.ComputeSimilarity(queryKeywords, mem.Keywords);
+            }
+            else
+            {
+                continue;
+            }
+
             if (string.Equals(mem.AgentName, agentName, StringComparison.OrdinalIgnoreCase))
                 score *= 1.3;
 
@@ -47,14 +57,17 @@ public class MemoryService : IMemoryService
             }
         }
 
-        return bestScore >= MatchThreshold ? best : null;
+        var threshold = usedVector ? VectorMatchThreshold : JaccardMatchThreshold;
+        return bestScore >= threshold ? best : null;
     }
 
     public async Task StoreAsync(string errorPattern, string errorCategory, string agentName,
         string fixDescription, string? fixArtifactRef, bool success, CancellationToken ct = default)
     {
+        var text = errorPattern + " " + errorCategory + " " + agentName;
+        var embedding = _embeddings.GenerateEmbedding(text);
         var entry = MemoryEntry.Create(errorPattern, errorCategory, agentName,
-            fixDescription, fixArtifactRef, success);
+            fixDescription, fixArtifactRef, success, embedding);
         await _store.SaveMemoryEntryAsync(entry, ct);
     }
 
@@ -71,13 +84,8 @@ public class MemoryService : IMemoryService
 
 public interface IMemoryService
 {
-    /// <summary>Find a past memory similar to the given error output.</summary>
     Task<MemoryEntry?> FindSimilarAsync(string errorOutput, string agentName, CancellationToken ct = default);
-
-    /// <summary>Store a new memory entry after a fix attempt.</summary>
     Task StoreAsync(string errorPattern, string errorCategory, string agentName,
         string fixDescription, string? fixArtifactRef, bool success, CancellationToken ct = default);
-
-    /// <summary>Record that a memory was used again (increment hit count).</summary>
     Task RecordHitAsync(Guid memoryEntryId, CancellationToken ct = default);
 }

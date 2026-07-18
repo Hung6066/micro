@@ -137,6 +137,7 @@ public class MemoryEntryConfiguration : IEntityTypeConfiguration<MemoryEntry>
         builder.Property(m => m.Success).HasColumnName("success");
         builder.Property(m => m.UseCount).HasColumnName("use_count");
         builder.Property(m => m.Keywords).HasColumnName("keywords").HasColumnType("text");
+        builder.Property(m => m.Embedding).HasColumnName("embedding").HasColumnType("vector(256)");
         builder.Property(m => m.CreatedAt).HasColumnName("created_at");
         builder.Property(m => m.LastUsedAt).HasColumnName("last_used_at");
         builder.HasIndex(m => m.AgentName).HasDatabaseName("ix_memory_agent_name");

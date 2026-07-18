@@ -24,6 +24,9 @@ public class MemoryEntry
     /// <summary>Normalized keywords for matching (space-separated, lowercase).</summary>
     public string Keywords { get; private set; } = string.Empty;
 
+    /// <summary>256-dim embedding vector for semantic similarity search.</summary>
+    public float[]? Embedding { get; set; }
+
     private MemoryEntry() { }
 
     public static MemoryEntry Create(
@@ -32,7 +35,8 @@ public class MemoryEntry
         string agentName,
         string fixDescription,
         string? fixArtifactRef = null,
-        bool success = true)
+        bool success = true,
+        float[]? embedding = null)
     {
         return new MemoryEntry
         {
@@ -45,6 +49,7 @@ public class MemoryEntry
             Success = success,
             UseCount = 1,
             Keywords = ExtractKeywords(errorPattern + " " + errorCategory + " " + agentName),
+            Embedding = embedding,
             CreatedAt = DateTime.UtcNow,
             LastUsedAt = DateTime.UtcNow
         };
