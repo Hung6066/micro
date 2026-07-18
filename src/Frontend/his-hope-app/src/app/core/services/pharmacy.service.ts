@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, retry } from 'rxjs/operators';
@@ -12,7 +12,7 @@ export class PharmacyService {
   private readonly medBaseUrl = `${environment.apiUrl}/medications`;
   private readonly rxBaseUrl = `${environment.apiUrl}/prescriptions`;
 
-  constructor(private http: HttpClient) {}
+  private http = inject(HttpClient);
 
   // ─── Medication endpoints ───────────────────────────────────────────────
 

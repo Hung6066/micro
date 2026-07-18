@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, retry } from 'rxjs/operators';
@@ -10,7 +10,7 @@ import { environment } from '@env/environment';
 export class LabService {
   private readonly baseUrl = `${environment.apiUrl}/lab-orders`;
 
-  constructor(private http: HttpClient) {}
+  private http = inject(HttpClient);
 
   searchLabOrders(params?: LabOrderSearchParams): Observable<PagedResult<LabOrder>> {
     let httpParams = new HttpParams();

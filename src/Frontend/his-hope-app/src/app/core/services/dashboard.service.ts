@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, retry } from 'rxjs/operators';
@@ -26,7 +26,7 @@ export interface DashboardStats {
 export class DashboardService {
   private readonly baseUrl = `${environment.apiUrl}/dashboard`;
 
-  constructor(private http: HttpClient) {}
+  private http = inject(HttpClient);
 
   getStats(): Observable<DashboardStats> {
     return this.http.get<DashboardStats>(`${this.baseUrl}/stats`).pipe(

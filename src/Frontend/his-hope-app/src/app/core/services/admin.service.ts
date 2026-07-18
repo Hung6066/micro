@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, retry } from 'rxjs/operators';
@@ -10,7 +10,7 @@ import { PagedResult } from '@core/models/paged-result.model';
 export class AdminService {
   private readonly baseUrl = `${environment.apiUrl}/admin`;
 
-  constructor(private http: HttpClient) {}
+  private http = inject(HttpClient);
 
   // ─── Users ──────────────────────────────────────────────────────────────────
 

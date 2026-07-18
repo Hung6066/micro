@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
@@ -22,10 +22,8 @@ export class ErrorService {
   private currentAction = '';
   private readonly apiUrl = `${environment.apiUrl}/errors`;
 
-  constructor(
-    private http: HttpClient,
-    private authService: AuthService,
-  ) {}
+  private http = inject(HttpClient);
+  private authService = inject(AuthService);
 
   getCorrelationId(error: HttpErrorResponse): string {
     const fromHeaders = error.headers?.get('X-Correlation-Id');

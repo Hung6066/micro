@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { catchError, map, retry, shareReplay, tap, distinctUntilChanged } from 'rxjs/operators';
@@ -12,7 +12,7 @@ export class AuthService {
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   currentUser$ = this.currentUserSubject.asObservable();
 
-  constructor(private http: HttpClient) {}
+  private http = inject(HttpClient);
 
   login(request: LoginRequest): Observable<User> {
     return this.http.post<any>(`${this.baseUrl}/login`, request, { withCredentials: true }).pipe(
