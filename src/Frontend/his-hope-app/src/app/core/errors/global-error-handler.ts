@@ -1,4 +1,4 @@
-import { ErrorHandler, Injectable, Injector, NgZone } from '@angular/core';
+import { ErrorHandler, inject, Injectable, Injector, NgZone } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ErrorService } from '@core/services/error.service';
@@ -35,7 +35,8 @@ export class GlobalErrorHandler implements ErrorHandler {
     }
   }
 
-  constructor(private injector: Injector, private ngZone: NgZone) {}
+  private injector = inject(Injector);
+  private ngZone = inject(NgZone);
 
   handleError(error: unknown): void {
     const context = this.errorService.buildErrorContext(error);

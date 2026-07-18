@@ -1,4 +1,4 @@
-import { Injectable, NgZone, Injector } from '@angular/core';
+import { inject, Injectable, NgZone, Injector } from '@angular/core';
 import { HttpInterceptor, HttpRequest, HttpHandler, HttpEvent, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError, of } from 'rxjs';
 import { catchError, retry } from 'rxjs/operators';
@@ -13,12 +13,10 @@ export class ErrorInterceptor implements HttpInterceptor {
   private readonly TRANSIENT_STATUSES = [503, 504];
   private readonly MAX_RETRIES = 1;
 
-  constructor(
-    private injector: Injector,
-    private router: Router,
-    private snackBar: MatSnackBar,
-    private ngZone: NgZone,
-  ) {}
+  private injector = inject(Injector);
+  private router = inject(Router);
+  private snackBar = inject(MatSnackBar);
+  private ngZone = inject(NgZone);
 
   intercept(req: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
     const errorService = this.injector.get(ErrorService);

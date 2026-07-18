@@ -1,4 +1,4 @@
-import { Injectable, Optional, Inject } from '@angular/core';
+import { inject, Injectable, Optional, Inject } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 
 import { trace, Span, SpanStatusCode, context } from '@opentelemetry/api';
@@ -60,7 +60,7 @@ export class RumService {
   /** Whether the service has been initialised (prevents double init). */
   private initialized = false;
 
-  constructor(@Optional() @Inject(DOCUMENT) private document: Document) {}
+  private document = inject(DOCUMENT, { optional: true }) as Document;
 
   /**
    * Initialises the RUM pipeline.

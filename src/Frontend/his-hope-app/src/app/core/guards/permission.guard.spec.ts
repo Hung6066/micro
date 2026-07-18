@@ -64,12 +64,21 @@ describe('PermissionGuard', () => {
     const authSpy = jasmine.createSpyObj('AuthService', ['isLoggedIn', 'getUserPermissions'], {
       currentUser$: of(null),
     });
-    router.parseUrl.and.returnValue('/auth/login' as any);
+    const routerSpy = jasmine.createSpyObj('Router', ['parseUrl']);
+    routerSpy.parseUrl.and.returnValue('/auth/login' as any);
     const route = { data: { permissions: ['patients.view'] } } as any as ActivatedRouteSnapshot;
 
-    const localGuard = new PermissionGuard(authSpy, router);
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        PermissionGuard,
+        { provide: AuthService, useValue: authSpy },
+        { provide: Router, useValue: routerSpy },
+      ],
+    });
+    const localGuard = TestBed.inject(PermissionGuard);
     localGuard.canActivate(route, {} as any).subscribe((result) => {
-      expect(router.parseUrl).toHaveBeenCalledWith('/auth/login');
+      expect(routerSpy.parseUrl).toHaveBeenCalledWith('/auth/login');
       done();
     });
   });

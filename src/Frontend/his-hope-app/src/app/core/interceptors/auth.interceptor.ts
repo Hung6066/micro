@@ -1,4 +1,4 @@
-import { Injectable, Injector } from '@angular/core';
+import { inject, Injectable, Injector } from '@angular/core';
 import { HttpInterceptor, HttpRequest, HttpHandler, HttpEvent, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { Observable, throwError, BehaviorSubject, of } from 'rxjs';
@@ -46,10 +46,8 @@ export class AuthInterceptor implements HttpInterceptor {
   private refreshTokenSubject = new BehaviorSubject<string | null>(null);
   private readonly correlationIdPrefix = 'hh-';
 
-  constructor(
-    private injector: Injector,
-    private router: Router,
-  ) {}
+  private injector = inject(Injector);
+  private router = inject(Router);
 
   intercept(
     req: HttpRequest<unknown>,

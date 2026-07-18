@@ -61,12 +61,21 @@ describe('RoleGuard', () => {
     const authSpy = jasmine.createSpyObj('AuthService', ['isLoggedIn'], {
       currentUser$: of(null),
     });
-    router.parseUrl.and.returnValue('/auth/login' as any);
+    const routerSpy = jasmine.createSpyObj('Router', ['parseUrl']);
+    routerSpy.parseUrl.and.returnValue('/auth/login' as any);
     const route = { data: { roles: ['admin'] } } as any as ActivatedRouteSnapshot;
 
-    const localGuard = new RoleGuard(authSpy, router);
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        RoleGuard,
+        { provide: AuthService, useValue: authSpy },
+        { provide: Router, useValue: routerSpy },
+      ],
+    });
+    const localGuard = TestBed.inject(RoleGuard);
     localGuard.canActivate(route, {} as any).subscribe((result) => {
-      expect(router.parseUrl).toHaveBeenCalledWith('/auth/login');
+      expect(routerSpy.parseUrl).toHaveBeenCalledWith('/auth/login');
       done();
     });
   });

@@ -67,8 +67,16 @@ try
     // MCP tool endpoints
     app.MapPost("/mcp/start-pipeline", async (StartPipelineTool tool, HttpContext ctx) =>
     {
-        var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
-        return Results.Ok(await tool.ExecuteAsync(p));
+        try
+        {
+            var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
+            return Results.Ok(await tool.ExecuteAsync(p));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "StartPipeline failed");
+            return Results.Json(new { error = ex.Message, type = ex.GetType().Name }, statusCode: 500);
+        }
     });
 
     app.MapPost("/mcp/get-status", async (GetStatusTool tool, HttpContext ctx) =>

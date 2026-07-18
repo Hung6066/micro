@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { Router } from '@angular/router';
 import { of } from 'rxjs';
@@ -119,10 +119,8 @@ export class AuthEffects {
     ),
   );
 
-  constructor(
-    private actions$: Actions,
-    private authService: AuthService,
-    private router: Router,
-    private snackBar: MatSnackBar,
-  ) {}
+  private actions$ = inject(Actions);
+  private authService = inject(AuthService);
+  private router = inject(Router);
+  private snackBar = inject(MatSnackBar);
 }

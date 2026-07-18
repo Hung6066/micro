@@ -1,5 +1,6 @@
 import {
   Directive,
+  inject,
   Input,
   TemplateRef,
   ViewContainerRef,
@@ -34,11 +35,9 @@ export class HasPermissionDirective implements OnInit, OnDestroy {
     this.requiredPermissions = typeof value === 'string' ? [value] : value;
   }
 
-  constructor(
-    private templateRef: TemplateRef<unknown>,
-    private viewContainerRef: ViewContainerRef,
-    private authService: AuthService,
-  ) {}
+  private templateRef = inject(TemplateRef<unknown>);
+  private viewContainerRef = inject(ViewContainerRef);
+  private authService = inject(AuthService);
 
   ngOnInit(): void {
     this.authService.currentUser$

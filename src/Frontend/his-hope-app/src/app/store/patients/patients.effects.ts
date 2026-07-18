@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { Router } from '@angular/router';
 import { of } from 'rxjs';
@@ -145,10 +145,8 @@ export class PatientsEffects {
     ),
   );
 
-  constructor(
-    private actions$: Actions,
-    private patientService: PatientService,
-    private router: Router,
-    private snackBar: MatSnackBar,
-  ) {}
+  private actions$ = inject(Actions);
+  private patientService = inject(PatientService);
+  private router = inject(Router);
+  private snackBar = inject(MatSnackBar);
 }
