@@ -4,12 +4,14 @@ import { Observable, throwError, of } from 'rxjs';
 import { catchError, retry } from 'rxjs/operators';
 import { Router } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { ErrorService } from '@core/services/error.service';
 import { AuthService } from '@core/services/auth.service';
+import { AuditService } from '@core/services/audit.service';
 
 @Injectable()
 export class ErrorInterceptor implements HttpInterceptor {
-  private readonly SKIP_NOTIFICATION_URLS = ['/auth/verify', '/auth/me', '/api/v1/errors'];
+  private readonly SKIP_NOTIFICATION_URLS = [
+    '/auth/verify', '/auth/me', '/api/v1/errors', '/api/v1/audit/events',
+  ];
   private readonly TRANSIENT_STATUSES = [503, 504];
   private readonly MAX_RETRIES = 1;
 
@@ -17,10 +19,9 @@ export class ErrorInterceptor implements HttpInterceptor {
   private router = inject(Router);
   private snackBar = inject(MatSnackBar);
   private ngZone = inject(NgZone);
+  private auditService = inject(AuditService);
 
   intercept(req: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
-    const errorService = this.injector.get(ErrorService);
-
     return next.handle(req).pipe(
       retry({
         count: this.MAX_RETRIES,
@@ -32,10 +33,15 @@ export class ErrorInterceptor implements HttpInterceptor {
         },
       }),
       catchError((error: HttpErrorResponse) => {
-        const correlationId = errorService.getCorrelationId(error);
-        const shouldNotify = !this.SKIP_NOTIFICATION_URLS.some((url) =>
-          req.url.includes(url),
-        );
+        // Audit log (full context gửi backend an toàn)
+        this.auditService.log('error.server', {
+          status: error.status,
+          url: req.url,
+          method: req.method,
+          correlationId: error.headers?.get('X-Correlation-ID') || undefined,
+        });
+
+        const shouldNotify = !this.isSkippableUrl(req.url);
 
         if (error.status === 0) {
           this.showNotification(
@@ -67,9 +73,9 @@ export class ErrorInterceptor implements HttpInterceptor {
             break;
           }
           case 422: {
-            const message = error.error?.error || 'Validation failed. Please check your input.';
+            // Sanitize: không lộ raw error.message từ server
             if (shouldNotify) {
-              this.showNotification(message, 'error-snackbar', true);
+              this.showNotification('Validation failed. Please check your input.', 'error-snackbar', true);
             }
             break;
           }
@@ -85,23 +91,15 @@ export class ErrorInterceptor implements HttpInterceptor {
           }
           default: {
             if (error.status >= 500) {
-              const message = correlationId
-                ? `Server error. Reference: ${correlationId}`
-                : 'A server error occurred. Please try again later.';
               if (shouldNotify) {
                 this.showNotification(
-                  message,
+                  'A server error occurred. Please try again later.',
                   'error-snackbar-critical',
                   false,
                 );
               }
             } else if (shouldNotify && error.status && error.status >= 400) {
-              const message =
-                error.error?.error ||
-                error.error?.message ||
-                error.message ||
-                'An unexpected error occurred';
-              this.showNotification(message, 'error-snackbar', true);
+              this.showNotification('An unexpected error occurred.', 'error-snackbar', true);
             }
             break;
           }
@@ -110,6 +108,10 @@ export class ErrorInterceptor implements HttpInterceptor {
         return throwError(() => error);
       }),
     );
+  }
+
+  private isSkippableUrl(url: string): boolean {
+    return this.SKIP_NOTIFICATION_URLS.some((skip) => url.includes(skip));
   }
 
   private showNotification(message: string, panelClass: string, autoDismiss: boolean): void {

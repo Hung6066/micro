@@ -1,9 +1,10 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { MatSidenavModule } from '@angular/material/sidenav';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, takeUntil, filter } from 'rxjs';
 import { AuthService } from '@core/services/auth.service';
+import { AuditService } from '@core/services/audit.service';
 import { RumService } from './monitoring/rum.service';
 import { SidebarComponent } from '@shared/components/sidebar/sidebar.component';
 import { ErrorBarComponent } from '@shared/components/error-bar/error-bar.component';
@@ -45,11 +46,13 @@ export class AppComponent implements OnInit, OnDestroy {
   isLoggedIn = false;
   sidenavOpened = true;
 
-  constructor(
-    private authService: AuthService,
-    private cdr: ChangeDetectorRef,
-    private rum: RumService,
-  ) {}
+  private authService = inject(AuthService);
+  private router = inject(Router);
+  private auditService = inject(AuditService);
+  private cdr = inject(ChangeDetectorRef);
+  private rum = inject(RumService);
+
+  private previousUrl = '';
 
   toggleSidenav(): void {
     this.sidenavOpened = !this.sidenavOpened;
@@ -71,8 +74,24 @@ export class AppComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe((user) => {
         this.isLoggedIn = !!user;
+        // Set user ID for audit events
+        this.auditService.setUserId(user?.id);
         this.cdr.markForCheck();
       });
+
+    // Navigation audit — log mỗi lần user đổi route
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      takeUntil(this.destroy$),
+    ).subscribe((event: NavigationEnd) => {
+      if (this.previousUrl && this.previousUrl !== event.url) {
+        this.auditService.log('navigation.change', {
+          from: this.previousUrl,
+          to: event.url,
+        });
+      }
+      this.previousUrl = event.url;
+    });
   }
 
   ngOnDestroy(): void {

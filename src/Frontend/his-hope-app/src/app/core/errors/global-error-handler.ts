@@ -2,8 +2,10 @@ import { ErrorHandler, inject, Injectable, Injector, NgZone } from '@angular/cor
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ErrorService } from '@core/services/error.service';
+import { AuditService } from '@core/services/audit.service';
 import { Store } from '@ngrx/store';
 import { captureError, clearError } from '@store/error/error.actions';
+import { environment } from '@env/environment';
 
 interface ErrorDisplay {
   message: string;
@@ -37,9 +39,22 @@ export class GlobalErrorHandler implements ErrorHandler {
 
   private injector = inject(Injector);
   private ngZone = inject(NgZone);
+  private auditService = inject(AuditService);
 
   handleError(error: unknown): void {
     const context = this.errorService.buildErrorContext(error);
+
+    // Trong production: KHÔNG log ra console (tránh lộ thông tin)
+    if (!environment.production) {
+      console.error('[GlobalErrorHandler]', error);
+    }
+
+    // === Audit log (gửi về backend an toàn) ===
+    this.auditService.log('error.client', {
+      type: context.type,
+      url: context.url,
+      correlationId: context.correlationId,
+    });
 
     // === Guard: skip reporting if this error originated from the errors API ===
     const isFromErrorsApi = context.url?.includes('/api/v1/errors');

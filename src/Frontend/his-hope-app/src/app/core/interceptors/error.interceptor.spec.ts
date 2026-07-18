@@ -7,6 +7,7 @@ import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ErrorInterceptor } from './error.interceptor';
 import { ErrorService } from '@core/services/error.service';
 import { AuthService } from '@core/services/auth.service';
+import { AuditService } from '@core/services/audit.service';
 
 describe('ErrorInterceptor', () => {
   let httpClient: HttpClient;
@@ -21,6 +22,7 @@ describe('ErrorInterceptor', () => {
     const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
     const snackBarSpy = jasmine.createSpyObj('MatSnackBar', ['open']);
     const errorServiceSpy = jasmine.createSpyObj('ErrorService', ['getCorrelationId']);
+    const auditSpy = jasmine.createSpyObj('AuditService', ['log']);
 
     TestBed.configureTestingModule({
     imports: [NoopAnimationsModule],
@@ -29,6 +31,7 @@ describe('ErrorInterceptor', () => {
         { provide: Router, useValue: routerSpy },
         { provide: MatSnackBar, useValue: snackBarSpy },
         { provide: ErrorService, useValue: errorServiceSpy },
+        { provide: AuditService, useValue: auditSpy },
         { provide: HTTP_INTERCEPTORS, useClass: ErrorInterceptor, multi: true },
         provideHttpClient(withInterceptorsFromDi()),
         provideHttpClientTesting(),
