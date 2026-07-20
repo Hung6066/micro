@@ -6,5 +6,6 @@ public record InstinctOptimizationResultDto
     public int DecayedCount { get; init; }
     public int MergedCount { get; init; }
     public int RecordedCount { get; init; }
+    public int RemovedCount { get; init; }
     public DateTime UpdatedAt { get; init; }
 }

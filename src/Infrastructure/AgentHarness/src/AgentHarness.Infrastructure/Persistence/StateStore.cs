@@ -123,6 +123,16 @@ public class StateStore : IStateStore
             .ThenByDescending(m => m.LastUsedAt)
             .ToListAsync(ct);
 
+    public async Task DeleteMemoryEntryAsync(Guid id, CancellationToken ct = default)
+    {
+        var entry = await _db.Set<MemoryEntry>().FindAsync([id], ct);
+        if (entry is not null)
+        {
+            _db.Set<MemoryEntry>().Remove(entry);
+            await _db.SaveChangesAsync(ct);
+        }
+    }
+
     public async Task SavePendingApprovalAsync(PendingApproval approval, CancellationToken ct = default)
     {
         var existing = await _db.Set<PendingApproval>().FindAsync([approval.Id], ct);

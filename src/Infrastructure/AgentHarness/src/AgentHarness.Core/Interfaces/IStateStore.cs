@@ -22,6 +22,7 @@ public interface IStateStore
     Task SaveMemoryEntryAsync(MemoryEntry entry, CancellationToken ct = default);
     Task<MemoryEntry?> GetMemoryEntryAsync(Guid id, CancellationToken ct = default);
     Task<List<MemoryEntry>> GetMemoryEntriesAsync(CancellationToken ct = default);
+    Task DeleteMemoryEntryAsync(Guid id, CancellationToken ct = default);
     Task SavePendingApprovalAsync(PendingApproval approval, CancellationToken ct = default);
     Task<PendingApproval?> GetPendingApprovalAsync(Guid id, CancellationToken ct = default);
     Task<List<PendingApproval>> GetPendingApprovalsAsync(CancellationToken ct = default);

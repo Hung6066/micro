@@ -39,12 +39,12 @@ public class InstinctOptimizer
 
         int boosted = 0, decayed = 0;
 
-        // Phase 1: Boost recently used entries, decay stale entries
+        // Phase 1: Boost recently used successfully, decay stale entries
         foreach (var entry in entries)
         {
             var age = DateTime.UtcNow - entry.LastUsedAt;
 
-            if (age <= BoostWindow && entry.ConfidenceScore < 1.0m)
+            if (age <= BoostWindow && entry.Success && entry.ConfidenceScore < 1.0m)
             {
                 entry.BoostConfidence(BoostAmount);
                 boosted++;
@@ -76,8 +76,8 @@ public class InstinctOptimizer
             }
         }
 
-        // Save all updated entries (skip merged ones that will be removed)
-        var saved = await SaveEntriesAsync(entries, toRemove, ct);
+        // Save all updated entries and delete merged duplicates
+        var (saved, removed) = await SaveEntriesAsync(entries, toRemove, ct);
 
         return new InstinctOptimizationResultDto
         {
@@ -85,20 +85,23 @@ public class InstinctOptimizer
             DecayedCount = decayed,
             MergedCount = merged,
             RecordedCount = saved,
+            RemovedCount = removed,
             UpdatedAt = DateTime.UtcNow
         };
     }
 
-    private async Task<int> SaveEntriesAsync(List<MemoryEntry> allEntries, List<MemoryEntry> toRemove, CancellationToken ct)
+    private async Task<(int saved, int removed)> SaveEntriesAsync(List<MemoryEntry> allEntries, List<MemoryEntry> toRemove, CancellationToken ct)
     {
-        int saved = 0;
+        int saved = 0, removed = 0;
         var removeIds = toRemove.Select(e => e.Id).ToHashSet();
 
         foreach (var entry in allEntries)
         {
             if (removeIds.Contains(entry.Id))
             {
-                // Keep the survivor, skip merged duplicates
+                // Delete duplicate entries so only the survivor remains
+                await _store.DeleteMemoryEntryAsync(entry.Id, ct);
+                removed++;
                 continue;
             }
 
@@ -106,6 +109,6 @@ public class InstinctOptimizer
             saved++;
         }
 
-        return saved;
+        return (saved, removed);
     }
 }

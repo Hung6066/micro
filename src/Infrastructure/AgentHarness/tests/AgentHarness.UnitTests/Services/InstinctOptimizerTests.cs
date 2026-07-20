@@ -71,18 +71,97 @@ public class InstinctOptimizerTests
             .ReturnsAsync(new List<MemoryEntry> { entry1, entry2 });
         store.Setup(s => s.SaveMemoryEntryAsync(It.IsAny<MemoryEntry>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        store.Setup(s => s.DeleteMemoryEntryAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
 
         var optimizer = new InstinctOptimizer(store.Object);
         var result = await optimizer.OptimizeAsync(CancellationToken.None);
 
         result.MergedCount.Should().Be(1);
+        result.RemovedCount.Should().Be(1); // duplicate was deleted
         // Survivor should have combined UseCount
         store.Verify(s => s.SaveMemoryEntryAsync(
             It.Is<MemoryEntry>(m => m.UseCount >= 2), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+        // Duplicate was actually removed
+        store.Verify(s => s.DeleteMemoryEntryAsync(entry2.Id, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
-    public async Task BoostConfidence_ShouldIncreaseScore()
+    public async Task Optimize_ShouldNotBoostUnsuccessfulRecentEntries()
+    {
+        var store = new Mock<IStateStore>();
+        var failedEntry = MemoryEntry.Create("error X", "build", "dotnet", "fix X", success: false);
+        failedEntry.GetType().GetProperty("LastUsedAt")!.SetValue(failedEntry, DateTime.UtcNow.AddHours(-1));
+
+        store.Setup(s => s.GetMemoryEntriesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MemoryEntry> { failedEntry });
+
+        var optimizer = new InstinctOptimizer(store.Object);
+        var result = await optimizer.OptimizeAsync(CancellationToken.None);
+
+        // Unsuccessful entry should NOT be boosted despite being recent
+        result.BoostedCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Optimize_ShouldDeleteMergedDuplicates()
+    {
+        var store = new Mock<IStateStore>(MockBehavior.Strict);
+        var entry1 = MemoryEntry.Create("same error", "build", "dotnet", "fix v1");
+        var entry2 = MemoryEntry.Create("same error", "build", "dotnet", "fix v2");
+
+        store.Setup(s => s.GetMemoryEntriesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MemoryEntry> { entry1, entry2 });
+        store.Setup(s => s.SaveMemoryEntryAsync(It.IsAny<MemoryEntry>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        store.Setup(s => s.DeleteMemoryEntryAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var optimizer = new InstinctOptimizer(store.Object);
+        var result = await optimizer.OptimizeAsync(CancellationToken.None);
+
+        result.MergedCount.Should().Be(1);
+        result.RecordedCount.Should().Be(1); // only survivor saved
+        result.RemovedCount.Should().Be(1);  // duplicate deleted
+
+        // Verify duplicate was deleted
+        store.Verify(s => s.DeleteMemoryEntryAsync(entry2.Id, It.IsAny<CancellationToken>()), Times.Once);
+        // Verify survivor was saved
+        store.Verify(s => s.SaveMemoryEntryAsync(
+            It.Is<MemoryEntry>(m => m.Id == entry1.Id), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Optimize_ShouldPersistSurvivorAndRemoveDuplicates()
+    {
+        var store = new Mock<IStateStore>();
+        var entry1 = MemoryEntry.Create("dup error", "runtime", "angular", "fix v1");
+        var entry2 = MemoryEntry.Create("dup error", "runtime", "angular", "fix v2");
+
+        store.Setup(s => s.GetMemoryEntriesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MemoryEntry> { entry1, entry2 });
+        store.Setup(s => s.SaveMemoryEntryAsync(It.IsAny<MemoryEntry>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        store.Setup(s => s.DeleteMemoryEntryAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var optimizer = new InstinctOptimizer(store.Object);
+        var result = await optimizer.OptimizeAsync(CancellationToken.None);
+
+        result.MergedCount.Should().Be(1);
+        result.RemovedCount.Should().Be(1);
+
+        // After merge, duplicate should no longer be queryable
+        // Simulate: GetMemoryEntryAsync for merged entry returns null
+        store.Setup(s => s.GetMemoryEntryAsync(entry2.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((MemoryEntry?)null);
+
+        var queried = await store.Object.GetMemoryEntryAsync(entry2.Id);
+        queried.Should().BeNull();
+    }
+
+    [Fact]
+    public void BoostConfidence_ShouldIncreaseScore()
     {
         var entry = MemoryEntry.Create("error", "test", "qa", "fix");
         entry.GetType().GetProperty("ConfidenceScore")!.SetValue(entry, 0.5m);
@@ -93,7 +172,7 @@ public class InstinctOptimizerTests
     }
 
     [Fact]
-    public async Task BoostConfidence_ShouldCapAtOne()
+    public void BoostConfidence_ShouldCapAtOne()
     {
         var entry = MemoryEntry.Create("error", "test", "qa", "fix");
         entry.GetType().GetProperty("ConfidenceScore")!.SetValue(entry, 0.95m);
@@ -104,7 +183,7 @@ public class InstinctOptimizerTests
     }
 
     [Fact]
-    public async Task DecayConfidence_ShouldDecreaseScore()
+    public void DecayConfidence_ShouldDecreaseScore()
     {
         var entry = MemoryEntry.Create("error", "test", "qa", "fix");
         entry.GetType().GetProperty("ConfidenceScore")!.SetValue(entry, 0.9m);
@@ -115,7 +194,7 @@ public class InstinctOptimizerTests
     }
 
     [Fact]
-    public async Task DecayConfidence_ShouldFloorAtZero()
+    public void DecayConfidence_ShouldFloorAtZero()
     {
         var entry = MemoryEntry.Create("error", "test", "qa", "fix");
         entry.GetType().GetProperty("ConfidenceScore")!.SetValue(entry, 0.3m);
@@ -126,7 +205,7 @@ public class InstinctOptimizerTests
     }
 
     [Fact]
-    public async Task MergeFrom_ShouldCombineUseCountsAndKeepHigherConfidence()
+    public void MergeFrom_ShouldCombineUseCountsAndKeepHigherConfidence()
     {
         var survivor = MemoryEntry.Create("error", "runtime", "dotnet", "best fix");
         survivor.GetType().GetProperty("ConfidenceScore")!.SetValue(survivor, 0.8m);
@@ -158,10 +237,11 @@ public class InstinctOptimizerTests
         result.DecayedCount.Should().Be(0);
         result.MergedCount.Should().Be(0);
         result.RecordedCount.Should().Be(0);
+        result.RemovedCount.Should().Be(0);
     }
 
     [Fact]
-    public async Task CreateEntry_ShouldHaveDefaultConfidence()
+    public void CreateEntry_ShouldHaveDefaultConfidence()
     {
         var entry = MemoryEntry.Create("error", "build", "dotnet", "fix description");
 
