@@ -23,6 +23,12 @@ public class StateStore : IStateStore
     public async Task<PipelineRun?> GetPipelineRunAsync(Guid id, CancellationToken ct = default)
         => await _db.PipelineRuns.FindAsync([id], ct);
 
+    public async Task<List<PipelineRun>> GetChildPipelineRunsAsync(Guid parentPipelineRunId, CancellationToken ct = default)
+        => await _db.PipelineRuns
+            .Where(p => p.ParentPipelineRunId == parentPipelineRunId)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync(ct);
+
     public async Task SaveAgentRunAsync(AgentRun run, CancellationToken ct = default)
     {
         var existing = await _db.AgentRuns.FindAsync([run.Id], ct);
@@ -69,6 +75,12 @@ public class StateStore : IStateStore
     public async Task<List<AgentRun>> GetAgentRunsAsync(Guid pipelineRunId, CancellationToken ct = default)
         => await _db.AgentRuns
             .Where(a => a.PipelineRunId == pipelineRunId)
+            .ToListAsync(ct);
+
+    public async Task<List<AgentRun>> GetAgentRunsByAgentNameAsync(string agentName, CancellationToken ct = default)
+        => await _db.AgentRuns
+            .Where(a => a.AgentName == agentName)
+            .OrderByDescending(a => a.CreatedAt)
             .ToListAsync(ct);
 
     public async Task<List<AgentRun>> GetPendingAgentRunsAsync(CancellationToken ct = default)

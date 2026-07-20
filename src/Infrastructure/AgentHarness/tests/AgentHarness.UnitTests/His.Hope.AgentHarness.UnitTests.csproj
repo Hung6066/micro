@@ -24,5 +24,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\AgentHarness.Application\His.Hope.AgentHarness.Application.csproj" />
     <ProjectReference Include="..\..\src\AgentHarness.Core\His.Hope.AgentHarness.Core.csproj" />
+    <ProjectReference Include="..\..\src\AgentHarness.Mcp\His.Hope.AgentHarness.Mcp.csproj" />
   </ItemGroup>
 </Project>

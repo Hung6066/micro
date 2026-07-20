@@ -611,6 +611,9 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
     services.AddScoped<ListPendingApprovalsTool>();
     services.AddScoped<RecordInstinctTool>();
     services.AddScoped<QueryInstinctsTool>();
+    services.AddScoped<RouteLlmTool>();
+    services.AddScoped<AgentMetricsService>();
+    services.AddScoped<GetAgentProfileTool>();
     services.AddSingleton<GuardrailService>(sp =>
     {
         var costTracker = sp.GetRequiredService<CostTracker>();
@@ -814,6 +817,18 @@ static async Task<string?> HandleJsonRpcString(string body, Channel<string>? sse
                     case "query-instincts":
                     {
                         var t = sp.GetRequiredService<QueryInstinctsTool>();
+                        toolResult = await t.ExecuteAsync(arguments);
+                        break;
+                    }
+                    case "route-llm":
+                    {
+                        var t = sp.GetRequiredService<RouteLlmTool>();
+                        toolResult = await t.ExecuteAsync(arguments);
+                        break;
+                    }
+                    case "get-agent-profile":
+                    {
+                        var t = sp.GetRequiredService<GetAgentProfileTool>();
                         toolResult = await t.ExecuteAsync(arguments);
                         break;
                     }
@@ -1117,6 +1132,38 @@ static JsonArray BuildToolList()
                     ["min_confidence"] = MakeProp("number", "Minimum similarity threshold 0.0-1.0 (default 0.3)")
                 },
                 ["required"] = new JsonArray("error_pattern")
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "route-llm",
+            ["description"] = "Route an LLM task to the cheapest capable model, redact PII, and track cost.",
+            ["inputSchema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["task_description"] = MakeProp("string", "The task to route"),
+                    ["task_category"] = MakeProp("string", "simple | moderate | complex | security_sensitive"),
+                    ["agent_name"] = MakeProp("string", "Which agent is requesting"),
+                    ["redact_pii"] = MakeProp("boolean", "Whether to redact PII before sending"),
+                    ["available_models"] = MakeProp("array", "Optional list of model names to choose from")
+                },
+                ["required"] = new JsonArray("task_description")
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "get-agent-profile",
+            ["description"] = "Get the Agent Intelligence Score (AIS) and performance profile for a specific agent.",
+            ["inputSchema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["agent_name"] = MakeProp("string", "Name of the agent (e.g. dotnet, angular, qa)")
+                },
+                ["required"] = new JsonArray("agent_name")
             }
         }
     };
