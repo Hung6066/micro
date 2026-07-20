@@ -209,6 +209,11 @@ public class EvalRunConfiguration : IEntityTypeConfiguration<EvalRun>
         builder.Property(r => r.StartedAt).HasColumnName("started_at");
         builder.Property(r => r.CompletedAt).HasColumnName("completed_at");
         builder.Property(r => r.RawResultJson).HasColumnName("raw_result_json").HasColumnType("jsonb");
+        builder.HasOne<EvalSuite>()
+            .WithMany()
+            .HasForeignKey(r => r.EvalSuiteId)
+            .HasConstraintName("fk_eval_runs_suite_id")
+            .OnDelete(DeleteBehavior.Cascade);
         builder.HasIndex(r => r.EvalSuiteId).HasDatabaseName("ix_eval_runs_suite_id");
         builder.HasIndex(r => r.TargetAgent).HasDatabaseName("ix_eval_runs_target_agent");
     }

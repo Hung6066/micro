@@ -76,7 +76,7 @@ public partial class AddEvalTables : Migration
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.DropTable(name: "eval_suites", schema: "harness");
         migrationBuilder.DropTable(name: "eval_runs", schema: "harness");
+        migrationBuilder.DropTable(name: "eval_suites", schema: "harness");
     }
 }
