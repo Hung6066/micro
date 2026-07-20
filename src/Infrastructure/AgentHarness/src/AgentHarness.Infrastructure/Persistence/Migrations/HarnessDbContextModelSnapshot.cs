@@ -577,7 +577,9 @@ namespace His.Hope.AgentHarness.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("GateName")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("gate_display_name");
 
                     b.Property<string>("GateType")
                         .IsRequired()
@@ -586,7 +588,8 @@ namespace His.Hope.AgentHarness.Infrastructure.Persistence.Migrations
                         .HasColumnName("gate_name");
 
                     b.Property<string>("Output")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("output");
 
                     b.Property<bool>("Passed")
                         .HasColumnType("boolean")
@@ -596,8 +599,11 @@ namespace His.Hope.AgentHarness.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("pipeline_run_id");
 
-                    b.Property<int>("Severity")
-                        .HasColumnType("integer");
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("severity");
 
                     b.HasKey("Id");
 
