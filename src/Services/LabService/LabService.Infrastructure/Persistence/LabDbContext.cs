@@ -13,6 +13,9 @@ public class LabDbContext : DbContext, IUnitOfWork
     private readonly IMediator _mediator;
 
     public DbSet<LabOrder> LabOrders => Set<LabOrder>();
+    public DbSet<CriticalAlertRule> CriticalAlertRules => Set<CriticalAlertRule>();
+    public DbSet<CriticalAlert> CriticalAlerts => Set<CriticalAlert>();
+    public DbSet<CriticalAlertAuditEntry> CriticalAlertAuditEntries => Set<CriticalAlertAuditEntry>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public LabDbContext(
@@ -25,24 +28,23 @@ public class LabDbContext : DbContext, IUnitOfWork
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.HasDefaultSchema("lab");
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
-            entity.ToTable("outbox_messages");
+            entity.ToTable("OutboxMessages");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.Type).HasColumnName("type").HasMaxLength(500).IsRequired();
             entity.Property(e => e.Content).HasColumnName("content").IsRequired();
-            entity.Property(e => e.CorrelationId).HasColumnName("correlation_id").HasMaxLength(200);
-            entity.Property(e => e.CausationId).HasColumnName("causation_id").HasMaxLength(200);
-            entity.Property(e => e.OccurredOn).HasColumnName("occurred_on").IsRequired();
-            entity.Property(e => e.ProcessedOn).HasColumnName("processed_on");
+            entity.Property(e => e.CorrelationId).HasColumnName("correlationid").HasMaxLength(200);
+            entity.Property(e => e.CausationId).HasColumnName("causationid").HasMaxLength(200);
+            entity.Property(e => e.OccurredOn).HasColumnName("occurredon").IsRequired();
+            entity.Property(e => e.ProcessedOn).HasColumnName("processedon");
             entity.Property(e => e.Status).HasColumnName("status").HasMaxLength(50).IsRequired();
             entity.Property(e => e.Error).HasColumnName("error").HasMaxLength(1000);
-            entity.Property(e => e.RetryCount).HasColumnName("retry_count");
-            entity.Property(e => e.LastRetryOn).HasColumnName("last_retry_on");
-            entity.Property(e => e.LockExpiresAt).HasColumnName("lock_expires_at");
+            entity.Property(e => e.RetryCount).HasColumnName("retrycount");
+            entity.Property(e => e.LastRetryOn).HasColumnName("lastretryon");
+            entity.Property(e => e.LockExpiresAt).HasColumnName("lockexpiresat");
             entity.HasIndex(e => new { e.Status, e.OccurredOn });
         });
         base.OnModelCreating(modelBuilder);
