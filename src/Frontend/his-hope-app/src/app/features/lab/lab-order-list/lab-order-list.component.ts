@@ -11,7 +11,9 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatButtonModule } from '@angular/material/button';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { LabService } from '@core/services/lab.service';
+import { LabCriticalAlertStreamService } from '@core/services/lab-critical-alert-stream.service';
 import { LabOrder } from '@core/models/lab-order.model';
 
 @Component({
@@ -20,17 +22,21 @@ import { LabOrder } from '@core/models/lab-order.model';
     imports: [
         CommonModule, RouterModule, ReactiveFormsModule,
         MatTableModule, MatFormFieldModule, MatInputModule, MatIconModule,
-        MatSelectModule, MatProgressBarModule, MatPaginatorModule, MatButtonModule,
+        MatSelectModule, MatProgressBarModule, MatPaginatorModule, MatButtonModule, MatSnackBarModule,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="lab-order-list">
       <div class="header">
         <h1>Phiếu xét nghiệm</h1>
-        <button mat-raised-button color="primary" routerLink="/lab/new"
-                attr.aria-label="Tạo phiếu xét nghiệm mới">
-          <mat-icon>add</mat-icon> Tạo phiếu xét nghiệm
-        </button>
+        <div class="header-actions">
+          <div class="critical-badge" aria-live="polite">{{ unreadCriticalAlertCount }} cảnh báo mới</div>
+          <a mat-stroked-button routerLink="/lab/critical-alerts">Hộp cảnh báo</a>
+          <button mat-raised-button color="primary" routerLink="/lab/new"
+                  aria-label="Tạo phiếu xét nghiệm mới">
+            <mat-icon>add</mat-icon> Tạo phiếu xét nghiệm
+          </button>
+        </div>
       </div>
 
       <div class="filters">
@@ -117,7 +123,7 @@ import { LabOrder } from '@core/models/lab-order.model';
           <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
           <mat-cell *matCellDef="let o">
             <button mat-icon-button color="primary" (click)="viewDetail(o.id)"
-                    attr.aria-label="Xem chi tiết phiếu xét nghiệm">
+                    aria-label="Xem chi tiết phiếu xét nghiệm">
               <mat-icon>visibility</mat-icon>
             </button>
           </mat-cell>
@@ -138,9 +144,11 @@ import { LabOrder } from '@core/models/lab-order.model';
     styles: [`
     .lab-order-list { padding: 24px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .header-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .filters { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
     .search-field { flex: 1; min-width: 250px; }
     .status-filter { width: 220px; }
+    .critical-badge { color: #2F6B4A; border: 1px solid #EAEAEA; border-radius: 4px; padding: 8px 12px; background: #FFFFFF; }
     mat-table { width: 100%; cursor: pointer; }
     mat-row:hover { background: #f5f5f5; }
     .clickable-row { cursor: pointer; }
@@ -162,14 +170,39 @@ export class LabOrderListComponent implements OnInit, OnDestroy {
   searchControl = new FormControl('');
   statusControl = new FormControl('');
   private searchTerm = '';
+  unreadCriticalAlertCount = 0;
+  private lastToastAlertId: string | null = null;
 
   constructor(
     private labService: LabService,
     private router: Router,
     private cdr: ChangeDetectorRef,
+    private criticalAlertStreamService: LabCriticalAlertStreamService,
+    private snackBar: MatSnackBar,
   ) {}
 
   ngOnInit(): void {
+    void this.criticalAlertStreamService.connect();
+
+    this.criticalAlertStreamService.unreadCount$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((count) => {
+        this.unreadCriticalAlertCount = count;
+        this.cdr.markForCheck();
+      });
+
+    this.criticalAlertStreamService.latestAlert$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((alert) => {
+        if (!alert || alert.id === this.lastToastAlertId) {
+          return;
+        }
+
+        this.lastToastAlertId = alert.id;
+        this.snackBar.open('Có cảnh báo xét nghiệm nghiêm trọng mới', 'Đóng', { duration: 3000 });
+        this.cdr.markForCheck();
+      });
+
     this.searchControl.valueChanges
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntil(this.destroy$))
       .subscribe((term) => {
@@ -193,6 +226,7 @@ export class LabOrderListComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    void this.criticalAlertStreamService.disconnect();
   }
 
   loadLabOrders(): void {

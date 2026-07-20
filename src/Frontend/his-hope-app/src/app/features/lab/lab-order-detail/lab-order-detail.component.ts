@@ -14,6 +14,8 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Subject, takeUntil } from 'rxjs';
 import { LabService } from '@core/services/lab.service';
 import { LabOrder, LabTest, AbnormalFlag } from '@core/models/lab-order.model';
+import { CriticalAlert } from '@core/models/critical-alert.model';
+import { LabCriticalAlertService } from '@core/services/lab-critical-alert.service';
 
 @Component({
     selector: 'app-lab-order-detail',
@@ -50,26 +52,47 @@ import { LabOrder, LabTest, AbnormalFlag } from '@core/models/lab-order.model';
           @if (labOrder.statusCode === 'ordered') {
           <button mat-raised-button color="primary"
                   (click)="submitLabOrder()"
-                  attr.aria-label="Gửi phiếu xét nghiệm">
+                  aria-label="Gửi phiếu xét nghiệm">
             <mat-icon>send</mat-icon> Gửi phiếu
           </button>
           }
           @if (labOrder.statusCode === 'ordered' || labOrder.statusCode === 'in_progress') {
           <button mat-raised-button color="accent"
                   (click)="collectSpecimen()"
-                  attr.aria-label="Lấy mẫu bệnh phẩm">
+                  aria-label="Lấy mẫu bệnh phẩm">
             <mat-icon>science</mat-icon> Lấy mẫu
           </button>
           }
           @if (labOrder.statusCode !== 'completed' && labOrder.statusCode !== 'cancelled') {
           <button mat-stroked-button color="warn"
                   (click)="cancelLabOrder()"
-                  attr.aria-label="Hủy phiếu xét nghiệm">
+                  aria-label="Hủy phiếu xét nghiệm">
             <mat-icon>cancel</mat-icon> Hủy phiếu
           </button>
           }
         </div>
       </div>
+
+      @if (criticalAlerts.length > 0) {
+      <mat-card class="critical-alerts-card">
+        <mat-card-header>
+          <mat-card-title>Cảnh báo nghiêm trọng</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          @for (alert of criticalAlerts; track alert.id) {
+          <div class="critical-alert-row">
+            <div>
+              <p class="critical-alert-title">{{ alert.message }}</p>
+              <p class="critical-alert-meta">{{ alert.resultValue }} {{ alert.resultUnit }} • {{ alert.status }}</p>
+            </div>
+            <div class="critical-alert-actions">
+              <button mat-stroked-button color="primary" (click)="acknowledgeCriticalAlert(alert)" [disabled]="alert.status !== 'OPEN'">Ghi nhận</button>
+            </div>
+          </div>
+          }
+        </mat-card-content>
+      </mat-card>
+      }
 
       <div class="detail-grid">
         <mat-card>
@@ -238,6 +261,11 @@ import { LabOrder, LabTest, AbnormalFlag } from '@core/models/lab-order.model';
     .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
     .header-actions { display: flex; gap: 12px; flex-wrap: wrap; }
     .subtitle { color: #666; font-size: 14px; display: flex; align-items: center; }
+    .critical-alerts-card { margin-bottom: 20px; border: 1px solid #EAEAEA; }
+    .critical-alert-row { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid #EAEAEA; }
+    .critical-alert-row:first-child { border-top: 0; }
+    .critical-alert-title { margin: 0; font-weight: 600; }
+    .critical-alert-meta { margin: 4px 0 0; color: #787774; font-size: 13px; }
     .detail-grid { display: grid; grid-template-columns: 1fr; gap: 20px; margin-bottom: 20px; }
     .tests-card { margin-bottom: 20px; }
     mat-card-content p { margin: 8px 0; }
@@ -262,6 +290,7 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
   selectedTest: LabTest | null = null;
   recordingResult = false;
   testColumns = ['testName', 'specimenType', 'statusName', 'result', 'actions'];
+  criticalAlerts: CriticalAlert[] = [];
   private labOrderId = '';
 
   resultForm = this.fb.group({
@@ -279,6 +308,7 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
     private snackBar: MatSnackBar,
     private router: Router,
     private cdr: ChangeDetectorRef,
+    private criticalAlertService: LabCriticalAlertService,
   ) {}
 
   ngOnInit(): void {
@@ -298,6 +328,7 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (order) => {
           this.labOrder = order;
+          this.loadCriticalAlerts();
           this.cdr.markForCheck();
         },
         error: () => {
@@ -380,5 +411,33 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
         },
         error: () => this.snackBar.open('Không thể hủy phiếu xét nghiệm', 'Đóng', { duration: 5000 }),
       });
+  }
+
+  acknowledgeCriticalAlert(alert: CriticalAlert): void {
+    this.criticalAlertService.acknowledgeCriticalAlert(alert.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.notify('Đã ghi nhận cảnh báo nghiêm trọng');
+          this.loadCriticalAlerts();
+        },
+      });
+  }
+
+  private loadCriticalAlerts(): void {
+    if (!this.labOrderId) {
+      return;
+    }
+
+    this.criticalAlertService.listCriticalAlerts()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((alerts) => {
+        this.criticalAlerts = alerts.filter((alert) => alert.labOrderId === this.labOrderId);
+        this.cdr.markForCheck();
+      });
+  }
+
+  private notify(message: string): void {
+    this.snackBar.open(message, 'Đóng', { duration: 3000 });
   }
 }

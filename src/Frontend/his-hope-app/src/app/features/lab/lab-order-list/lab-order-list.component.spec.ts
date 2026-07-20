@@ -15,6 +15,7 @@ import { CommonModule } from '@angular/common';
 import { of } from 'rxjs';
 import { LabOrderListComponent } from './lab-order-list.component';
 import { LabService } from '@core/services/lab.service';
+import { LabCriticalAlertStreamService } from '@core/services/lab-critical-alert-stream.service';
 import { createMockLabOrder, createMockPagedResult } from '@testing/mock-data';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
@@ -22,12 +23,19 @@ describe('LabOrderListComponent', () => {
   let component: LabOrderListComponent;
   let fixture: ComponentFixture<LabOrderListComponent>;
   let labService: jasmine.SpyObj<LabService>;
+  let streamService: Partial<LabCriticalAlertStreamService>;
 
   const mockOrders = [createMockLabOrder(), createMockLabOrder()];
 
   beforeEach(async () => {
     const spy = jasmine.createSpyObj('LabService', ['searchLabOrders']);
     spy.searchLabOrders.and.returnValue(of(createMockPagedResult(mockOrders, 2)));
+    streamService = {
+      unreadCount$: of(2),
+      latestAlert$: of(null),
+      connect: jasmine.createSpy('connect').and.returnValue(Promise.resolve()),
+      disconnect: jasmine.createSpy('disconnect').and.returnValue(Promise.resolve()),
+    } as any;
 
     await TestBed.configureTestingModule({
     
@@ -38,6 +46,7 @@ describe('LabOrderListComponent', () => {
         ReactiveFormsModule, CommonModule],
     providers: [
         { provide: LabService, useValue: spy },
+        { provide: LabCriticalAlertStreamService, useValue: streamService },
         provideHttpClient(withInterceptorsFromDi()),
         provideHttpClientTesting(),
     ]
@@ -66,6 +75,11 @@ describe('LabOrderListComponent', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     const btn = compiled.querySelector('button[routerLink="/lab/new"]');
     expect(btn).toBeTruthy();
+  });
+
+  it('should render the critical alert badge in the header', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.textContent).toContain('2 cảnh báo mới');
   });
 
   it('should display lab order rows', () => {

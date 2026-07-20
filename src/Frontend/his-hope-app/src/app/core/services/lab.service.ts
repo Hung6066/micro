@@ -9,6 +9,8 @@ import { environment } from '@env/environment';
 @Injectable({ providedIn: 'root' })
 export class LabService {
   private readonly baseUrl = `${environment.apiUrl}/lab-orders`;
+  readonly criticalAlertsBaseUrl = `${environment.apiUrl}/critical-alerts`;
+  readonly criticalAlertRulesBaseUrl = `${environment.apiUrl}/critical-alert-rules`;
 
   private http = inject(HttpClient);
 
