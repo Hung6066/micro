@@ -10,6 +10,7 @@ namespace His.Hope.AgentHarness.UnitTests.Services;
 public class AgentMetricsServiceTests
 {
     private readonly Mock<IStateStore> _storeMock = new();
+    private readonly Mock<IAgentMetricsRecorder> _metricsMock = new();
 
     [Fact]
     public async Task GetAgentProfile_ForDotnet_ReturnsScoreBetweenZeroAndOneHundred()
@@ -23,7 +24,7 @@ public class AgentMetricsServiceTests
 
         SetupStore("dotnet", pipelineRuns, runs, gates, memories);
 
-        var service = new AgentMetricsService(_storeMock.Object);
+        var service = new AgentMetricsService(_storeMock.Object, _metricsMock.Object);
 
         // Act
         var profile = await service.GetAgentProfileAsync("dotnet");
@@ -47,7 +48,7 @@ public class AgentMetricsServiceTests
 
         SetupStore("dotnet", pipelineRuns, runs, gates, memories);
 
-        var service = new AgentMetricsService(_storeMock.Object);
+        var service = new AgentMetricsService(_storeMock.Object, _metricsMock.Object);
         var successfulCount = runs.Count(r => r.Status == AgentRunStatus.Completed);
         var totalRetries = runs.Sum(r => r.RetryCount);
         var avgMaxRetries = runs.Any() ? runs.Average(r => r.MaxRetries) : 1;
@@ -70,6 +71,8 @@ public class AgentMetricsServiceTests
         profile.ConfidenceAccuracy.Should().BeApproximately(expectedConfidenceAccuracy, 0.01);
         profile.SuccessfulRuns.Should().Be(successfulCount);
         profile.TotalRuns.Should().Be(runs.Count);
+        _metricsMock.Verify(m => m.RecordProfileQuery(), Times.Once);
+        _metricsMock.Verify(m => m.RecordAisScore(It.Is<double>(s => s >= 0 && s <= 100)), Times.Once);
     }
 
     [Fact]
@@ -84,7 +87,7 @@ public class AgentMetricsServiceTests
 
         SetupStore("angular", pipelineRuns, runs, gates, memories);
 
-        var service = new AgentMetricsService(_storeMock.Object);
+        var service = new AgentMetricsService(_storeMock.Object, _metricsMock.Object);
 
         // Act
         var profile = await service.GetAgentProfileAsync("angular");
@@ -116,7 +119,7 @@ public class AgentMetricsServiceTests
         _storeMock.Setup(s => s.GetMemoryEntriesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<MemoryEntry>());
 
-        var service = new AgentMetricsService(_storeMock.Object);
+        var service = new AgentMetricsService(_storeMock.Object, _metricsMock.Object);
 
         // Act
         var profile = await service.GetAgentProfileAsync("unknown");

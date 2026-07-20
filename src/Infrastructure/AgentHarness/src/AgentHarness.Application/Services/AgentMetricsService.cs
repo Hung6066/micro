@@ -7,15 +7,19 @@ namespace His.Hope.AgentHarness.Application.Services;
 public class AgentMetricsService
 {
     private readonly IStateStore _store;
+    private readonly IAgentMetricsRecorder _metrics;
     private const int MaxRecentRuns = 20;
 
-    public AgentMetricsService(IStateStore store)
+    public AgentMetricsService(IStateStore store, IAgentMetricsRecorder metrics)
     {
         _store = store;
+        _metrics = metrics;
     }
 
     public async Task<AgentProfileDto> GetAgentProfileAsync(string agentName, CancellationToken ct = default)
     {
+        _metrics.RecordProfileQuery();
+
         var runs = await _store.GetAllAgentRunsAsync(ct);
         runs = runs
             .Where(r => r.AgentName.Equals(agentName, StringComparison.OrdinalIgnoreCase))
@@ -82,6 +86,8 @@ public class AgentMetricsService
             learningEffectiveness * 0.10 +
             averageJudgeScore * 0.15
         ) * 100;
+
+        _metrics.RecordAisScore(aisScore);
 
         // Recent runs (newest-first, bounded)
         var recentRuns = runs

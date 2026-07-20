@@ -29,8 +29,8 @@ public class GetAgentProfileToolTests
 
         SetupStore("dotnet", pipelineRuns, runs, gates, memories);
 
-        var service = new AgentMetricsService(_storeMock.Object);
-        var tool = new GetAgentProfileTool(service, _recorderMock.Object);
+        var service = new AgentMetricsService(_storeMock.Object, _recorderMock.Object);
+        var tool = new GetAgentProfileTool(service);
 
         var parameters = new Dictionary<string, object>
         {
@@ -84,8 +84,8 @@ public class GetAgentProfileToolTests
         storeMock.Setup(s => s.GetMemoryEntriesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<MemoryEntry>());
 
-        var service = new AgentMetricsService(storeMock.Object);
-        var tool = new GetAgentProfileTool(service, _recorderMock.Object);
+        var service = new AgentMetricsService(storeMock.Object, _recorderMock.Object);
+        var tool = new GetAgentProfileTool(service);
 
         // Act
         Func<Task> act = () => tool.ExecuteAsync(new Dictionary<string, object>());
