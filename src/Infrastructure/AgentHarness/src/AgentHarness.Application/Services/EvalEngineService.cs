@@ -38,14 +38,15 @@ public class EvalEngineService
             return MapToDto(emptyRun, suite.Name);
         }
 
-        // Per-task results: each entry is a list of bools, one per attempt
-        var perTaskResults = new List<List<(bool Passed, int Score)>>();
+        // Per-task results: each entry is a list of attempt outcomes
+        // Serialized as EvalAttemptResult DTOs for deterministic, human-readable JSON
+        var perTaskResults = new List<List<EvalAttemptResult>>();
         var totalJudgeScore = 0;
         var totalEvaluations = 0;
 
         foreach (var task in tasks)
         {
-            var attemptResults = new List<(bool Passed, int Score)>();
+            var attemptResults = new List<EvalAttemptResult>();
             for (var attempt = 0; attempt < k; attempt++)
             {
                 // Deterministic simulation based on suite definition drives pass/fail
@@ -68,7 +69,7 @@ public class EvalEngineService
                     score = judgeScore.NumericScore;
                 }
 
-                attemptResults.Add((passed, score));
+                attemptResults.Add(new EvalAttemptResult(passed, score));
                 totalJudgeScore += score;
                 totalEvaluations++;
             }
@@ -130,6 +131,13 @@ public class EvalEngineService
     // ---- Private helpers ----
 
     private sealed record EvalTaskDef(string Input, string? Expected);
+
+    /// <summary>
+    /// Named record for per-attempt eval results stored in RawResultJson.
+    /// Replaces nested ValueTuple serialization (which produces non-deterministic
+    /// "Item1"/"Item2" keys) with human-readable, deterministic JSON.
+    /// </summary>
+    private sealed record EvalAttemptResult(bool Passed, int Score);
 
     private static List<EvalTaskDef> ExtractTasks(string definitionJson)
     {

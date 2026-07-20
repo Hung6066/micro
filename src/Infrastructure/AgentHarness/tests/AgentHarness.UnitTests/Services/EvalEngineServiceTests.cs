@@ -106,6 +106,57 @@ public class EvalEngineServiceTests
     }
 
     // ============================================================
+    // RawResultJson shape tests — validates deterministic serialization
+    // ============================================================
+
+    [Fact]
+    public async Task RunSuiteAsync_RawResultJson_ShouldUseDeterministicDtoShape()
+    {
+        // Arrange
+        var suite = EvalSuite.Create("raw-json-test", "qa", "Raw JSON test",
+            """{"tasks":[{"input":"q1","expected":"a1"},{"input":"q2","expected":"a2"},{"input":"q3","expected":"a3"}]}""");
+        SetupStoreWithSuite(suite);
+
+        EvalRun? savedRun = null;
+        _storeMock.Setup(s => s.SaveEvalRunAsync(It.IsAny<EvalRun>(), It.IsAny<CancellationToken>()))
+            .Callback<EvalRun, CancellationToken>((run, _) => savedRun = run)
+            .Returns(Task.CompletedTask);
+
+        var service = new EvalEngineService(_storeMock.Object, new LlmJudgeService());
+
+        // Act
+        await service.RunSuiteAsync("raw-json-test", "dotnet", targetModel: null, k: 3);
+
+        // Assert: persisted RawResultJson must use named "Passed"/"Score" keys,
+        // not ValueTuple's "Item1"/"Item2" (which is non-deterministic).
+        savedRun.Should().NotBeNull();
+        savedRun!.RawResultJson.Should().NotBeNullOrEmpty();
+
+        // Parse and validate the JSON structure
+        using var doc = System.Text.Json.JsonDocument.Parse(savedRun.RawResultJson);
+        doc.RootElement.ValueKind.Should().Be(System.Text.Json.JsonValueKind.Array);
+        var outerArray = doc.RootElement.EnumerateArray().ToList();
+        outerArray.Should().HaveCount(3); // 3 tasks
+
+        foreach (var taskArray in outerArray)
+        {
+            taskArray.ValueKind.Should().Be(System.Text.Json.JsonValueKind.Array);
+            var attempts = taskArray.EnumerateArray().ToList();
+            attempts.Should().HaveCount(3); // k=3 attempts each
+
+            foreach (var attempt in attempts)
+            {
+                attempt.ValueKind.Should().Be(System.Text.Json.JsonValueKind.Object);
+                // Must have "Passed" and "Score" — NOT "Item1" or "Item2"
+                attempt.TryGetProperty("Passed", out _).Should().BeTrue();
+                attempt.TryGetProperty("Score", out _).Should().BeTrue();
+                attempt.TryGetProperty("Item1", out _).Should().BeFalse();
+                attempt.TryGetProperty("Item2", out _).Should().BeFalse();
+            }
+        }
+    }
+
+    // ============================================================
     // Suite-driven grading (tasks WITH expected → exact match)
     // ============================================================
 

@@ -218,12 +218,10 @@ namespace His.Hope.AgentHarness.Infrastructure.Persistence.Migrations
                         .HasColumnName("judge_score");
 
                     b.Property<double?>("PassAt1")
-                        .HasPrecision(3, 2)
                         .HasColumnType("double precision")
                         .HasColumnName("pass_at_1");
 
                     b.Property<double?>("PassAtK")
-                        .HasPrecision(3, 2)
                         .HasColumnType("double precision")
                         .HasColumnName("pass_at_k");
 

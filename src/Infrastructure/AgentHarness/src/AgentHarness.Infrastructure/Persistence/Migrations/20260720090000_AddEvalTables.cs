@@ -1,9 +1,13 @@
+using His.Hope.AgentHarness.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace His.Hope.AgentHarness.Infrastructure.Persistence.Migrations;
 
+[DbContext(typeof(HarnessDbContext))]
+[Migration("20260720090000_AddEvalTables")]
 public partial class AddEvalTables : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
@@ -34,8 +38,8 @@ public partial class AddEvalTables : Migration
                 eval_suite_id = table.Column<Guid>(type: "uuid", nullable: false),
                 target_agent = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
                 target_model = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
-                pass_at_1 = table.Column<decimal>(type: "numeric(3,2)", precision: 3, scale: 2, nullable: true),
-                pass_at_k = table.Column<decimal>(type: "numeric(3,2)", precision: 3, scale: 2, nullable: true),
+                pass_at_1 = table.Column<double>(type: "double precision", nullable: true),
+                pass_at_k = table.Column<double>(type: "double precision", nullable: true),
                 judge_score = table.Column<int>(type: "integer", nullable: true),
                 status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
                 started_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),

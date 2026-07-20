@@ -107,6 +107,54 @@ public class AgentMetricsServiceTests
     }
 
     [Fact]
+    public async Task GetAgentProfile_CrossAgentGates_DoNotPolluteTargetAgent()
+    {
+        // Arrange: single pipeline with gates for BOTH "dotnet" and "angular"
+        // Only dotnet gates should count toward dotnet's QualityGatePassRate
+        var pipelineId = Guid.NewGuid();
+        var pipelineRuns = new List<PipelineRun>
+        {
+            PipelineRun.Create("multi-agent", new Dictionary<string, string>(), "tester")
+        };
+        // Override the auto-generated Id with our fixed one
+        pipelineRuns[0].GetType().GetProperty("Id")!.SetValue(pipelineRuns[0], pipelineId);
+
+        var runs = new List<AgentRun>
+        {
+            AgentRun.Create(pipelineId, "dotnet", "Build"),
+            AgentRun.Create(pipelineId, "angular", "Lint"),
+        };
+        runs[0].Start(); runs[0].Complete(0.9m, "out1");
+        runs[1].Start(); runs[1].Complete(0.9m, "out2");
+
+        // Gates: 3 for dotnet (2 pass, 1 fail) + 2 for angular (both pass)
+        var gates = new List<QualityGate>
+        {
+            QualityGate.Create(pipelineId, "dotnet-build", "build", true),
+            QualityGate.Create(pipelineId, "dotnet-test", "test", true),
+            QualityGate.Create(pipelineId, "dotnet-security", "security", false),
+            QualityGate.Create(pipelineId, "angular-lint", "lint", true),
+            QualityGate.Create(pipelineId, "angular-audit", "audit", true),
+        };
+
+        // Only return the two dotnet runs when GetAllAgentRunsAsync is called
+        _storeMock.Setup(s => s.GetAllAgentRunsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(runs.Where(r => r.AgentName == "dotnet").ToList());
+        _storeMock.Setup(s => s.GetMemoryEntriesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MemoryEntry>());
+        _storeMock.Setup(s => s.GetQualityGatesAsync(pipelineId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(gates);
+
+        var service = new AgentMetricsService(_storeMock.Object, _metricsMock.Object);
+
+        // Act
+        var profile = await service.GetAgentProfileAsync("dotnet");
+
+        // Assert: only dotnet's 3 gates count (2 pass / 3 total = 0.6667), not the 2 angular gates
+        profile.QualityGatePassRate.Should().BeApproximately(2.0 / 3.0, 0.01);
+    }
+
+    [Fact]
     public async Task GetAgentProfile_WhenNoRuns_ReturnsZeroDefaults()
     {
         // Arrange
@@ -182,18 +230,21 @@ public class AgentMetricsServiceTests
 
     private static List<QualityGate> CreateFakeGates(List<Guid> pipelineRunIds)
     {
+        // GateIds match the production format: {agentName}-{phase}
+        // This ensures the agent-name filter in GetAgentProfileAsync correctly
+        // attributes these gates to "dotnet" (and not to cross-agent pipelines).
         return new List<QualityGate>
         {
-            QualityGate.Create(pipelineRunIds[0], "gate-1", "build", true),
-            QualityGate.Create(pipelineRunIds[0], "gate-2", "test", true),
-            QualityGate.Create(pipelineRunIds[0], "gate-3", "lint", true),
-            QualityGate.Create(pipelineRunIds[0], "gate-4", "security", false),
-            QualityGate.Create(pipelineRunIds[1], "gate-5", "build", true),
-            QualityGate.Create(pipelineRunIds[1], "gate-6", "test", true),
-            QualityGate.Create(pipelineRunIds[1], "gate-7", "integration", true),
-            QualityGate.Create(pipelineRunIds[1], "gate-8", "coverage", true),
-            QualityGate.Create(pipelineRunIds[1], "gate-9", "deploy", true),
-            QualityGate.Create(pipelineRunIds[1], "gate-10", "security", false),
+            QualityGate.Create(pipelineRunIds[0], "dotnet-build", "build", true),
+            QualityGate.Create(pipelineRunIds[0], "dotnet-test", "test", true),
+            QualityGate.Create(pipelineRunIds[0], "dotnet-lint", "lint", true),
+            QualityGate.Create(pipelineRunIds[0], "dotnet-security", "security", false),
+            QualityGate.Create(pipelineRunIds[1], "dotnet-deploy", "deploy", true),
+            QualityGate.Create(pipelineRunIds[1], "dotnet-integration", "integration", true),
+            QualityGate.Create(pipelineRunIds[1], "dotnet-coverage", "coverage", true),
+            QualityGate.Create(pipelineRunIds[1], "dotnet-deploy-check", "deploy check", true),
+            QualityGate.Create(pipelineRunIds[1], "dotnet-smoke-test", "smoke test", true),
+            QualityGate.Create(pipelineRunIds[1], "dotnet-security-scan", "security scan", false),
         };
     }
 

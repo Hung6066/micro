@@ -228,6 +228,100 @@ public class PipelineEngineGateEvaluationTests
             "risk metadata should still be stored even on success");
     }
 
+    [Fact]
+    public async Task ResumeAsync_ShouldStoreRiskMetadataConsistentWithStartAsync()
+    {
+        // Arrange
+        var dispatcher = new Mock<IAgentDispatcher>();
+        var store = new Mock<IStateStore>();
+        var eventBus = new Mock<IEventBus>();
+        var backpressure = new BackpressureController(100, 100);
+        var costTracker = new CostTracker();
+        var loopEngineer = new Mock<ILoopEngineer>();
+        var metricsMock = new Mock<IAgentMetricsService>();
+
+        SetupAgentProfile(metricsMock, "dotnet", aisScore: 60.0, gatePassRate: 0.8);
+
+        // Create a pipeline run with parameters (needed for BuildDagFromRun)
+        var parameters = new Dictionary<string, string>
+        {
+            ["tasks"] = """[{"agent":"dotnet","task":"Build","phase":"Implement"}]"""
+        };
+        var run = PipelineRun.Create("resume-test-wf", parameters, "tester");
+
+        // Mock: get the pipeline run returns the run
+        store.Setup(s => s.GetPipelineRunAsync(run.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(run);
+
+        // Mock: checkpoint exists (resume path)
+        var checkpoint = PipelineCheckpoint.Create(
+            run.Id, "Implement", new List<PipelineNode>(), new List<PipelineNode>(), loopIteration: 0);
+        store.Setup(s => s.GetLatestCheckpointAsync(run.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(checkpoint);
+
+        // Mock: no existing agent runs (clean resume — needs fresh dispatch)
+        store.Setup(s => s.GetAgentRunsAsync(run.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AgentRun>());
+
+        // Setup dispatcher to start the captured run (needed by ExecuteNodeAsync)
+        AgentRun? capturedRun = null;
+        dispatcher.Setup(d => d.DispatchAsync(It.IsAny<AgentRun>(), It.IsAny<CancellationToken>()))
+            .Callback<AgentRun, CancellationToken>((ar, _) => { ar.Start(); capturedRun = ar; })
+            .ReturnsAsync((AgentRun ar, CancellationToken _) => { ar.Start(); return ar; });
+
+        // Mock agent run polling — complete on first positive poll
+        store.Setup(s => s.GetAgentRunAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Guid id, CancellationToken _) =>
+            {
+                if (capturedRun != null && capturedRun.Id == id)
+                {
+                    capturedRun.Complete(0.95m, "artifact");
+                    return capturedRun;
+                }
+                return null;
+            });
+
+        // Mock: no quality gates yet
+        store.Setup(s => s.GetQualityGatesAsync(run.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<QualityGate>());
+
+        // Track saved pipeline runs for metadata verification
+        PipelineRun? savedRun = null;
+        store.Setup(s => s.SavePipelineRunAsync(It.IsAny<PipelineRun>(), It.IsAny<CancellationToken>()))
+            .Callback<PipelineRun, CancellationToken>((r, _) => { savedRun = r; })
+            .Returns(Task.CompletedTask);
+
+        store.Setup(s => s.SaveAgentRunAsync(It.IsAny<AgentRun>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        store.Setup(s => s.SaveQualityGateAsync(It.IsAny<QualityGate>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        store.Setup(s => s.SaveCheckpointAsync(It.IsAny<PipelineCheckpoint>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var adaptiveGates = new AdaptiveQualityGates(metricsMock.Object, store.Object);
+        var poolManager = new AgentPoolManager(
+            dispatcher.Object, store.Object, eventBus.Object, backpressure, costTracker);
+
+        var engine = new PipelineEngine(
+            dispatcher.Object,
+            store.Object,
+            eventBus.Object,
+            poolManager,
+            backpressure,
+            loopEngineer.Object,
+            adaptiveGates);
+
+        // Act
+        var result = await engine.ResumeAsync(run);
+
+        // Assert: risk metadata must be stored on resume (consistent with StartAsync)
+        savedRun.Should().NotBeNull("pipeline run should have been saved during resume");
+        savedRun!.Metadata.Should().ContainKey("adaptive_risk_checked_at",
+            "resume path must store risk metadata, matching StartAsync behavior");
+        savedRun!.Metadata.Should().ContainKey("adaptive_risk_count",
+            "resume path must store risk count");
+    }
+
     private static void SetupAgentProfile(Mock<IAgentMetricsService> metricsMock, string agentName, double aisScore, double gatePassRate)
     {
         var profile = new AgentProfileDto

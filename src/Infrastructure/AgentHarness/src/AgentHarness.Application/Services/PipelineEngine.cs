@@ -382,6 +382,10 @@ public class PipelineEngine : IPipelineEngine
         run.TransitionTo(PipelineStatus.Running);
         await _store.SavePipelineRunAsync(run, ct);
 
+        // Store initial advisory risk metadata (consistent with StartAsync)
+        await StoreRiskMetadataAsync(resumeDag, run, ct);
+        await _store.SavePipelineRunAsync(run, ct);
+
         return await ResumeFromCheckpoint(resumeDag, run, checkpoint, ct);
     }
 
@@ -504,6 +508,11 @@ public class PipelineEngine : IPipelineEngine
 
             var gates = await _store.GetQualityGatesAsync(run.Id, ct);
             var failedGates = gates.Where(g => !g.Passed).ToList();
+
+            // Store updated advisory risk metadata (matching ExecuteDagWithLoopAsync pattern)
+            await StoreRiskMetadataAsync(dag, run, ct);
+            await _store.SavePipelineRunAsync(run, ct);
+
             if (!failedGates.Any()) break;
 
             var loopContext = new LoopContext { FailedGates = failedGates, PreviousIteration = loop };

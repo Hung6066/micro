@@ -45,13 +45,19 @@ public class AgentMetricsService : IAgentMetricsService
             : 0.0;
 
         // Quality Gate Pass Rate (aggregated across all pipeline runs for this agent)
+        // Only count gates attributable to this agent by matching GateId against agent name.
+        // This prevents cross-agent pipelines (e.g., dotnet + angular) from polluting
+        // the target agent's QualityGatePassRate and AIS.
         int totalGates = 0;
         int passedGates = 0;
         foreach (var pipelineId in runs.Select(r => r.PipelineRunId).Distinct())
         {
             var gates = await _store.GetQualityGatesAsync(pipelineId, ct);
-            totalGates += gates.Count;
-            passedGates += gates.Count(g => g.Passed);
+            var agentGates = gates
+                .Where(g => g.GateId.Contains(agentName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            totalGates += agentGates.Count;
+            passedGates += agentGates.Count(g => g.Passed);
         }
         double qualityGatePassRate = totalGates > 0 ? (double)passedGates / totalGates : 0.0;
 
