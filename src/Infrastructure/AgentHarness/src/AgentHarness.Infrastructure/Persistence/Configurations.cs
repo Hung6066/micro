@@ -144,6 +144,7 @@ public class MemoryEntryConfiguration : IEntityTypeConfiguration<MemoryEntry>
         builder.Property(m => m.FixArtifactRef).HasColumnName("fix_artifact_ref").HasMaxLength(512);
         builder.Property(m => m.Success).HasColumnName("success");
         builder.Property(m => m.UseCount).HasColumnName("use_count");
+        builder.Property(m => m.ConfidenceScore).HasColumnName("confidence_score").HasPrecision(4, 3).HasDefaultValue(0.85m);
         builder.Property(m => m.Keywords).HasColumnName("keywords").HasColumnType("text");
         builder.Property(m => m.Embedding).HasColumnName("embedding").HasColumnType("vector(256)");
         builder.Property(m => m.CreatedAt).HasColumnName("created_at");

@@ -615,6 +615,7 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
     services.AddScoped<AgentMetricsService>();
     services.AddSingleton<IAgentMetricsRecorder, HarnessMetricsRecorder>();
     services.AddScoped<GetAgentProfileTool>();
+    services.AddScoped<InstinctOptimizer>();
     services.AddSingleton<GuardrailService>(sp =>
     {
         var costTracker = sp.GetRequiredService<CostTracker>();

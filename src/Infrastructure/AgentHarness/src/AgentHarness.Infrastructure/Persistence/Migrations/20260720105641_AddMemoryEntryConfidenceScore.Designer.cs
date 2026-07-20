@@ -3,6 +3,7 @@ using System;
 using His.Hope.AgentHarness.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Pgvector;
@@ -12,9 +13,11 @@ using Pgvector;
 namespace His.Hope.AgentHarness.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(HarnessDbContext))]
-    partial class HarnessDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260720105641_AddMemoryEntryConfidenceScore")]
+    partial class AddMemoryEntryConfidenceScore
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

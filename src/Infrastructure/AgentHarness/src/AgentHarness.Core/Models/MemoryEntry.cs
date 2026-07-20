@@ -1,3 +1,5 @@
+using Pgvector;
+
 namespace His.Hope.AgentHarness.Core.Models;
 
 /// <summary>
@@ -18,6 +20,7 @@ public class MemoryEntry
     public string? FixArtifactRef { get; private set; }
     public bool Success { get; private set; }
     public int UseCount { get; private set; }
+    public decimal ConfidenceScore { get; private set; }
     public DateTime CreatedAt { get; private set; }
     public DateTime LastUsedAt { get; private set; }
 
@@ -25,7 +28,7 @@ public class MemoryEntry
     public string Keywords { get; private set; } = string.Empty;
 
     /// <summary>256-dim embedding vector for semantic similarity search.</summary>
-    public float[]? Embedding { get; set; }
+    public Vector? Embedding { get; set; }
 
     private MemoryEntry() { }
 
@@ -48,8 +51,9 @@ public class MemoryEntry
             FixArtifactRef = fixArtifactRef,
             Success = success,
             UseCount = 1,
+            ConfidenceScore = 0.85m,
             Keywords = ExtractKeywords(errorPattern + " " + errorCategory + " " + agentName),
-            Embedding = embedding,
+            Embedding = embedding is null ? null : new Vector(embedding),
             CreatedAt = DateTime.UtcNow,
             LastUsedAt = DateTime.UtcNow
         };
@@ -59,6 +63,41 @@ public class MemoryEntry
     {
         UseCount++;
         LastUsedAt = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Increases confidence by the given amount, capped at 1.0.
+    /// </summary>
+    public void BoostConfidence(decimal amount)
+    {
+        ConfidenceScore = Math.Min(1.0m, ConfidenceScore + amount);
+    }
+
+    /// <summary>
+    /// Decays confidence by multiplying with the given factor, floored at 0.0.
+    /// </summary>
+    public void DecayConfidence(decimal factor)
+    {
+        ConfidenceScore = Math.Max(0.0m, ConfidenceScore * factor);
+    }
+
+    /// <summary>
+    /// Merges another MemoryEntry into this one.
+    /// Combines UseCount, keeps the higher confidence score,
+    /// and retains the more recent LastUsedAt.
+    /// The other entry's FixDescription and FixArtifactRef are preserved
+    /// if they are non-empty and this entry's are empty.
+    /// </summary>
+    public void MergeFrom(MemoryEntry other)
+    {
+        UseCount += other.UseCount;
+        ConfidenceScore = Math.Max(ConfidenceScore, other.ConfidenceScore);
+        if (other.LastUsedAt > LastUsedAt)
+            LastUsedAt = other.LastUsedAt;
+        if (string.IsNullOrWhiteSpace(FixDescription) && !string.IsNullOrWhiteSpace(other.FixDescription))
+            FixDescription = other.FixDescription;
+        if (string.IsNullOrWhiteSpace(FixArtifactRef) && !string.IsNullOrWhiteSpace(other.FixArtifactRef))
+            FixArtifactRef = other.FixArtifactRef;
     }
 
     /// <summary>
