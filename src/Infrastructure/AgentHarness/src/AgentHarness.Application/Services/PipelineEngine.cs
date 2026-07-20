@@ -28,6 +28,7 @@ public class PipelineEngine : IPipelineEngine
     private readonly AgentPoolManager _poolManager;
     private readonly BackpressureController _backpressure;
     private readonly ILoopEngineer _loopEngineer;
+    private readonly AdaptiveQualityGates _adaptiveGates;
 
     public PipelineEngine(
         IAgentDispatcher dispatcher,
@@ -35,7 +36,8 @@ public class PipelineEngine : IPipelineEngine
         IEventBus eventBus,
         AgentPoolManager poolManager,
         BackpressureController backpressure,
-        ILoopEngineer loopEngineer)
+        ILoopEngineer loopEngineer,
+        AdaptiveQualityGates adaptiveGates)
     {
         _dispatcher = dispatcher;
         _store = store;
@@ -43,6 +45,7 @@ public class PipelineEngine : IPipelineEngine
         _poolManager = poolManager;
         _backpressure = backpressure;
         _loopEngineer = loopEngineer;
+        _adaptiveGates = adaptiveGates;
     }
 
     /// <inheritdoc />
@@ -66,7 +69,10 @@ public class PipelineEngine : IPipelineEngine
         // 4. Increment active pipeline gauge
         IncrementActivePipelines();
 
-        // 5. Create tracing activity
+        // 5. Store initial advisory risk metadata (does not affect gate logic)
+        await StoreRiskMetadataAsync(dag, run, ct);
+
+        // 6. Create tracing activity
         using var activity = ActivitySource.StartActivity("PipelineExecution", ActivityKind.Internal);
         activity?.SetTag("workflow.id", run.WorkflowId);
         activity?.SetTag("pipeline.run.id", run.Id.ToString());
@@ -219,6 +225,10 @@ public class PipelineEngine : IPipelineEngine
             // Check quality gates
             var gates = await _store.GetQualityGatesAsync(run.Id, ct);
             var failedGates = gates.Where(g => !g.Passed).ToList();
+
+            // Store updated advisory risk metadata (does not affect gate logic)
+            await StoreRiskMetadataAsync(dag, run, ct);
+
             if (!failedGates.Any()) return; // All passed — success
 
             Log.Warning("Quality gates failed ({Count}): {Gates}",
@@ -385,7 +395,7 @@ public class PipelineEngine : IPipelineEngine
 
         try
         {
-            var tasks = System.Text.Json.JsonSerializer.Deserialize<List<TaskDef>>(tasksJson,
+            var tasks = System.Text.Json.JsonSerializer.Deserialize<List<TaskDef>>(NormalizeJsonArray(tasksJson),
                 new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             if (tasks != null)
             {
@@ -402,6 +412,29 @@ public class PipelineEngine : IPipelineEngine
             Log.Error(ex, "Failed to parse tasks for DAG rebuild");
         }
         return dag;
+    }
+
+    private static string NormalizeJsonArray(string raw)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(raw);
+            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                return NormalizeJsonArray(doc.RootElement.GetString() ?? raw);
+            }
+
+            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                return $"[{raw}]";
+            }
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            // Let the caller's deserialize surface the original parse error.
+        }
+
+        return raw;
     }
 
     private class TaskDef
@@ -557,6 +590,30 @@ public class PipelineEngine : IPipelineEngine
         {
             Log.Warning(ex, "Failed to save checkpoint for pipeline {PipelineId}", run.Id);
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Stores advisory failure risk metadata on the pipeline run.
+    /// This is purely informational — it never bypasses or modifies gate logic.
+    /// Risks are flattened as "risk_{level}" keys with JSON-like values.
+    /// </summary>
+    private async Task StoreRiskMetadataAsync(PipelineDag dag, PipelineRun run, CancellationToken ct)
+    {
+        try
+        {
+            run.AddMetadata("adaptive_risk_checked_at", DateTime.UtcNow.ToString("O"));
+            var risks = await _adaptiveGates.PredictFailureAsync(run, dag, ct);
+            for (int i = 0; i < risks.Count; i++)
+            {
+                var r = risks[i];
+                run.AddMetadata($"adaptive_risk_{i}", $"level={r.RiskLevel};score={r.RiskScore};{r.Reason}");
+            }
+            run.AddMetadata("adaptive_risk_count", risks.Count.ToString());
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to store advisory risk metadata (non-fatal)");
         }
     }
 

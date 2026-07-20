@@ -27,10 +27,12 @@ public class GetPipelineStatusTool
 
         var agentRuns = await _store.GetAgentRunsAsync(pipelineRunId);
         var gates = await _store.GetQualityGatesAsync(pipelineRunId);
+        var childRuns = await _store.GetChildPipelineRunsAsync(pipelineRunId);
 
         var result = new
         {
             pipeline_run_id = run.Id.ToString(),
+            parent_pipeline_run_id = run.ParentPipelineRunId?.ToString(),
             workflow_id = run.WorkflowId,
             status = run.Status.ToString(),
             triggered_by = run.TriggeredBy,
@@ -54,6 +56,15 @@ public class GetPipelineStatusTool
                 gate = g.GateType ?? g.GateId,
                 passed = g.Passed,
                 details = g.Details,
+            }).ToList(),
+            metadata = run.Metadata,
+            child_pipelines = childRuns.Select(c => new
+            {
+                pipeline_run_id = c.Id.ToString(),
+                workflow_id = c.WorkflowId,
+                status = c.Status.ToString(),
+                started_at = c.StartedAt,
+                completed_at = c.CompletedAt
             }).ToList(),
         };
 

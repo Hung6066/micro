@@ -1,10 +1,11 @@
 using His.Hope.AgentHarness.Application.DTOs;
+using His.Hope.AgentHarness.Application.Interfaces;
 using His.Hope.AgentHarness.Core.Interfaces;
 using His.Hope.AgentHarness.Core.Models;
 
 namespace His.Hope.AgentHarness.Application.Services;
 
-public class AgentMetricsService
+public class AgentMetricsService : IAgentMetricsService
 {
     private readonly IStateStore _store;
     private readonly IAgentMetricsRecorder _metrics;

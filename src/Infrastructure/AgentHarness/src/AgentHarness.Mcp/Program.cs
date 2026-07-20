@@ -625,6 +625,7 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
     services.AddScoped<EvalEngineService>();
     services.AddScoped<EvaluateAgentTool>();
     services.AddScoped<CompareModelsTool>();
+    services.AddScoped<AdaptiveQualityGates>();
 }
 
 static void InitializeDatabase(IServiceProvider sp)
