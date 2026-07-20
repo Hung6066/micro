@@ -39,6 +39,8 @@ public class AdaptiveQualityGates
         if (dag.Nodes.Count == 0)
             return Array.Empty<FailureRiskDto>();
 
+        // Fetch gates once to avoid repeated store calls
+        var allGates = await _store.GetQualityGatesAsync(run.Id, ct);
         var results = new List<FailureRiskDto>(dag.Nodes.Count);
 
         foreach (var node in dag.Nodes)
@@ -55,8 +57,7 @@ public class AdaptiveQualityGates
 
             profile ??= new AgentProfileDto { AgentName = node.AgentName };
 
-            var gates = await _store.GetQualityGatesAsync(run.Id, ct);
-            var agentGates = gates.Where(g => g.GateId.Contains(node.AgentName, StringComparison.OrdinalIgnoreCase)).ToList();
+            var agentGates = allGates.Where(g => g.GateId.Contains(node.AgentName, StringComparison.OrdinalIgnoreCase)).ToList();
 
             var risk = CalculateNodeRisk(node, profile, agentGates);
             results.Add(risk);

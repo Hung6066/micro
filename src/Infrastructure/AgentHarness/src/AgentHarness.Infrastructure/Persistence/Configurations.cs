@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using His.Hope.AgentHarness.Core.Models;
 
@@ -27,10 +28,15 @@ public class PipelineRunConfiguration : IEntityTypeConfiguration<PipelineRun>
         builder.Property(p => p.StartedAt).HasColumnName("started_at");
         builder.Property(p => p.CompletedAt).HasColumnName("completed_at");
         builder.Property(p => p.TimeoutAt).HasColumnName("timeout_at");
+        var metadataComparer = new ValueComparer<Dictionary<string, string>>(
+            (c1, c2) => c1!.Count == c2!.Count && !c1.Except(c2).Any(),
+            c => c.Aggregate(0, (a, kv) => HashCode.Combine(a, kv.Key.GetHashCode(), kv.Value.GetHashCode())),
+            c => new Dictionary<string, string>(c));
         builder.Property(p => p.Metadata).HasColumnName("metadata").HasColumnType("jsonb")
             .HasConversion(
                 v => JsonSerializer.Serialize(v, new JsonSerializerOptions()),
-                v => JsonSerializer.Deserialize<Dictionary<string, string>>(v, new JsonSerializerOptions()) ?? new());
+                v => JsonSerializer.Deserialize<Dictionary<string, string>>(v, new JsonSerializerOptions()) ?? new())
+            .Metadata.SetValueComparer(metadataComparer);
         builder.Property(p => p.CreatedAt).HasColumnName("created_at");
         builder.HasIndex(p => p.ParentPipelineRunId).HasDatabaseName("ix_pipeline_runs_parent_id");
         builder.HasIndex(p => p.Status).HasDatabaseName("ix_pipeline_runs_status");

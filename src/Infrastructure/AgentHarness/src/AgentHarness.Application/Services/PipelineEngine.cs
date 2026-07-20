@@ -71,6 +71,7 @@ public class PipelineEngine : IPipelineEngine
 
         // 5. Store initial advisory risk metadata (does not affect gate logic)
         await StoreRiskMetadataAsync(dag, run, ct);
+        await _store.SavePipelineRunAsync(run, ct);
 
         // 6. Create tracing activity
         using var activity = ActivitySource.StartActivity("PipelineExecution", ActivityKind.Internal);
@@ -228,6 +229,7 @@ public class PipelineEngine : IPipelineEngine
 
             // Store updated advisory risk metadata (does not affect gate logic)
             await StoreRiskMetadataAsync(dag, run, ct);
+            await _store.SavePipelineRunAsync(run, ct);
 
             if (!failedGates.Any()) return; // All passed — success
 

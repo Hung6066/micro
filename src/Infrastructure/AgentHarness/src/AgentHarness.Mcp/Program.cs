@@ -19,6 +19,7 @@ using His.Hope.AgentHarness.Infrastructure.EventBus;
 using His.Hope.AgentHarness.Infrastructure.Temporal;
 using His.Hope.AgentHarness.Application.Behaviors;
 using His.Hope.AgentHarness.Application.Commands.StartPipeline;
+using His.Hope.AgentHarness.Application.Interfaces;
 using His.Hope.AgentHarness.Application.Services;
 using His.Hope.AgentHarness.Core.Models;
 
@@ -612,7 +613,7 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
     services.AddScoped<ListPendingApprovalsTool>();
     services.AddScoped<RecordInstinctTool>();
     services.AddScoped<QueryInstinctsTool>();
-    services.AddScoped<AgentMetricsService>();
+    services.AddScoped<IAgentMetricsService, AgentMetricsService>();
     services.AddSingleton<IAgentMetricsRecorder, HarnessMetricsRecorder>();
     services.AddScoped<GetAgentProfileTool>();
     services.AddScoped<InstinctOptimizer>();
