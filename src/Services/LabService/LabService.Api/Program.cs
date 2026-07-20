@@ -14,8 +14,12 @@ using His.Hope.Infrastructure.Security.Authorization;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.IntegrationEvents.Lab;
 using His.Hope.LabService.Api.GrpcServices;
+using His.Hope.LabService.Api.Endpoints;
+using His.Hope.LabService.Api.Hubs;
+using His.Hope.LabService.Api.Services;
 using His.Hope.LabService.Api.Middleware;
 using His.Hope.LabService.Application;
+using His.Hope.LabService.Application.Common.Abstractions;
 using His.Hope.LabService.Application.DTOs;
 using His.Hope.LabService.Application.UseCases.LabOrders.Commands;
 using His.Hope.LabService.Application.UseCases.LabOrders.Queries;
@@ -49,6 +53,9 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
     "lab-service",
     builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379"));
 
+// TEMP: Replace Redis cache with a no-op cache to avoid StackExchange.Redis hang
+builder.Services.AddSingleton<ICacheService>(new NoOpCacheService());
+
 builder.Services.AddResiliencePolicies();
 builder.Services.AddOutbox<LabDbContext>();
 
@@ -57,6 +64,9 @@ builder.Services.AddGrpc(options =>
     options.EnableDetailedErrors = builder.Environment.IsDevelopment();
     options.Interceptors.Add<GrpcServerInterceptor>();
 });
+
+builder.Services.AddSignalR();
+builder.Services.AddScoped<ICriticalAlertRealtimePublisher, CriticalAlertRealtimePublisher>();
 
 builder.Services.AddRabbitMQEventBus(options =>
 {
@@ -135,6 +145,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
+app.UseRouting();
+
 // SECURITY: Authentication & Authorization middleware
 app.UseAuthentication();
 app.UseAuthorization();
@@ -162,6 +174,27 @@ labOrders.MapGet("/", async (
         cacheKey,
         async () => await mediator.Send(new SearchLabOrdersQuery(
             search ?? "", page, pageSize, patientId, status, dateFrom, dateTo), ct),
+        TimeSpan.FromMinutes(2), ct);
+    return Results.Ok(result);
+}).RequireAuthorization("Permission:lab.view").WithOpenApi();
+
+labOrders.MapGet("/search", async (
+    string? q,
+    int page,
+    int pageSize,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct,
+    Guid? patientId = null,
+    string? status = null,
+    DateTime? dateFrom = null,
+    DateTime? dateTo = null) =>
+{
+    var cacheKey = $"laborders:search:{q}:{page}:{pageSize}:{patientId}:{status}:{dateFrom}:{dateTo}";
+    var result = await cache.GetOrSetAsync(
+        cacheKey,
+        async () => await mediator.Send(new SearchLabOrdersQuery(
+            q ?? "", page, pageSize, patientId, status, dateFrom, dateTo), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
 }).RequireAuthorization("Permission:lab.view").WithOpenApi();
@@ -282,6 +315,8 @@ app.MapGet("/api/v1/patients/{patientId:guid}/lab-orders", async (Guid patientId
 // gRPC
 app.MapGrpcService<LabGrpcServiceImpl>();
 app.MapGrpcHealthChecksService();
+app.MapHub<LabCriticalAlertHub>("/hubs/lab-critical-alerts").RequireAuthorization("Permission:lab.view");
+app.MapCriticalAlertEndpoints();
 
 // Health checks
 app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
@@ -360,5 +395,14 @@ public record RecordLabResultRequest(
     string? Notes);
 
 public record CancelLabOrderRequest(string Reason);
+
+file sealed class NoOpCacheService : ICacheService
+{
+    public Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class => Task.FromResult<T?>(null);
+    public Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => factory();
+    public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => Task.CompletedTask;
+    public Task RemoveAsync(string key, CancellationToken ct = default) => Task.CompletedTask;
+    public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default) => Task.CompletedTask;
+}
 
 

@@ -3,6 +3,9 @@ using His.Hope.LabService.Domain.Entities;
 using His.Hope.LabService.Domain.Repositories;
 using His.Hope.LabService.Domain.ValueObjects;
 using His.Hope.LabService.Application.Common.Exceptions;
+using His.Hope.LabService.Application.Common.Abstractions;
+using His.Hope.LabService.Application.DTOs;
+using His.Hope.LabService.Application.Services;
 using His.Hope.SharedKernel.Domain.Common;
 using MediatR;
 
@@ -22,11 +25,18 @@ public record RecordLabResultCommand(
 public class RecordLabResultCommandHandler : IRequestHandler<RecordLabResultCommand, Unit>
 {
     private readonly ILabOrderRepository _labOrderRepository;
+    private readonly CriticalAlertEvaluator _criticalAlertEvaluator;
+    private readonly ICriticalAlertRealtimePublisher _criticalAlertRealtimePublisher;
     private readonly IUnitOfWork _unitOfWork;
 
-    public RecordLabResultCommandHandler(ILabOrderRepository labOrderRepository)
+    public RecordLabResultCommandHandler(
+        ILabOrderRepository labOrderRepository,
+        CriticalAlertEvaluator criticalAlertEvaluator,
+        ICriticalAlertRealtimePublisher criticalAlertRealtimePublisher)
     {
         _labOrderRepository = labOrderRepository;
+        _criticalAlertEvaluator = criticalAlertEvaluator;
+        _criticalAlertRealtimePublisher = criticalAlertRealtimePublisher;
         _unitOfWork = labOrderRepository.UnitOfWork;
     }
 
@@ -64,6 +74,31 @@ public class RecordLabResultCommandHandler : IRequestHandler<RecordLabResultComm
         test.RecordResult(result);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
+        var alert = await _criticalAlertEvaluator.EvaluateAsync(labOrder, test, result, cancellationToken);
+        if (alert is not null)
+        {
+            var eventName = GetRealtimeEventName(alert);
+
+            if (eventName == "criticalAlertResolved")
+                await _criticalAlertRealtimePublisher.PublishResolvedAsync(alert, cancellationToken);
+            else if (eventName == "criticalAlertCreated")
+                await _criticalAlertRealtimePublisher.PublishCreatedAsync(alert, cancellationToken);
+            else
+                await _criticalAlertRealtimePublisher.PublishUpdatedAsync(alert, cancellationToken);
+        }
+
         return Unit.Value;
+    }
+
+    private static string GetRealtimeEventName(CriticalAlertDto alert)
+    {
+        var latestAction = alert.AuditEntries.LastOrDefault()?.Action;
+
+        return latestAction switch
+        {
+            "Resolved" => "criticalAlertResolved",
+            "Created" => "criticalAlertCreated",
+            _ => "criticalAlertUpdated"
+        };
     }
 }

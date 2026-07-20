@@ -8,6 +8,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.4" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.4" />
     <PackageReference Include="xunit" Version="2.7.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.7">
       <PrivateAssets>all</PrivateAssets>
@@ -21,6 +23,8 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Services\LabService\LabService.Api\LabService.Api.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Services\LabService\LabService.Application\LabService.Application.csproj" />
     <ProjectReference Include="..\..\..\..\src\Services\LabService\LabService.Infrastructure\LabService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\..\src\Services\LabService\LabService.Domain\LabService.Domain.csproj" />
     <ProjectReference Include="..\..\..\..\src\Shared\SharedKernel\Src\His.Hope.SharedKernel\His.Hope.SharedKernel.csproj" />
