@@ -103,7 +103,7 @@
       "permission": "allow"
     },
     "qa": {
-      "description": "QA / Testing engineer (xUnit, Cypress, Chaos Mesh, k6, contract testing, quality gates). Uses MCP: playwright, kubernetes, docker, prometheus, agent-harness for pipeline tasks.",
+      "description": "QA / Testing engineer (xUnit, Cypress, Chaos Mesh, k6, contract testing, quality gates, eval-driven development). Uses MCP: playwright, kubernetes, docker, prometheus, agent-harness for pipeline tasks. ECC skills: verification-loop (6-phase quality gates), eval-harness (pass@k metrics), security-review (pre-deployment checks).",
       "model": "openai/gpt-5.4-mini",
       "permission": "allow",
       "mcp": {
@@ -116,7 +116,7 @@
       "permission": "allow"
     },
     "orchestrator": {
-      "description": "Pipeline Orchestrator — full 5-phase pipeline for COMPLEX features only. Coordinates @explore, @docs, @dotnet, @angular, @qa, @check-ui, @security, @git. Activated by @dispatcher when PATH_FULL is selected. Only @orchestrator can green-light @git for commits. Uses MCP indirectly via delegated agents.",
+      "description": "Pipeline Orchestrator — full 5-phase pipeline for COMPLEX features only. Coordinates @explore, @docs, @dotnet, @angular, @qa, @check-ui, @security, @git. Activated by @dispatcher when PATH_FULL is selected. Only @orchestrator can green-light @git for commits. Uses MCP indirectly via delegated agents. ECC skills available: verification-loop (Phase 3 quality gates), eval-harness (pre-commit eval-driven development), autonomous-loops (DAG orchestration patterns), security-review (HIPAA/OWASP checks), search-first (research before coding), continuous-learning-v2 (instinct recording/querying via agent-harness MCP).",
       "model": "openai/gpt-5.4-mini",
       "permission": "allow"
     },

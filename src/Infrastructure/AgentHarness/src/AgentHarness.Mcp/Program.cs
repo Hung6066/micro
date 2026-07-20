@@ -54,15 +54,38 @@ static async Task RunHttpMode(string[] args)
     var builder = WebApplication.CreateBuilder(args);
     builder.Host.UseSerilog();
 
+    var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]
+        ?? Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT");
+
     builder.Services.AddOpenTelemetry()
         .ConfigureResource(resource => resource.AddService("His.Hope.AgentHarness"))
-        .WithTracing(tracer => tracer
-            .AddAspNetCoreInstrumentation()
-            .AddSource("His.Hope.AgentHarness")
-            .AddConsoleExporter())
-        .WithMetrics(meter => meter
-            .AddAspNetCoreInstrumentation()
-            .AddPrometheusExporter());
+        .WithTracing(tracer =>
+        {
+            tracer
+                .AddAspNetCoreInstrumentation()
+                .AddSource("His.Hope.AgentHarness");
+
+            if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+            {
+                tracer.AddOtlpExporter(options => options.Endpoint = new Uri(otlpEndpoint));
+            }
+            else
+            {
+                tracer.AddConsoleExporter();
+            }
+        })
+        .WithMetrics(meter =>
+        {
+            meter
+                .AddAspNetCoreInstrumentation()
+                .AddMeter("His.Hope.AgentHarness")
+                .AddPrometheusExporter();
+
+            if (!string.IsNullOrWhiteSpace(otlpEndpoint))
+            {
+                meter.AddOtlpExporter(options => options.Endpoint = new Uri(otlpEndpoint));
+            }
+        });
 
     var config = builder.Configuration
         .GetSection("AgentHarness")
@@ -84,6 +107,8 @@ static async Task RunHttpMode(string[] args)
 
     // Health endpoint
     app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "agent-harness" }));
+    app.MapGet("/health/ready", () => Results.Ok(new { status = "ready", service = "agent-harness" }));
+    app.MapGet("/health/startup", () => Results.Ok(new { status = "started", service = "agent-harness" }));
 
     // Prometheus metrics endpoint
     app.MapPrometheusScrapingEndpoint();
@@ -346,6 +371,62 @@ static async Task RunHttpMode(string[] args)
         }
     });
 
+    app.MapPost("/mcp/request-approval", async (RequestApprovalTool tool, HttpContext ctx) =>
+    {
+        try
+        {
+            var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
+            return RawJson(await tool.ExecuteAsync(p));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "RequestApproval failed");
+            return Results.Json(new { error = ex.Message }, statusCode: 500);
+        }
+    });
+
+    app.MapPost("/mcp/approve-action", async (ApproveActionTool tool, HttpContext ctx) =>
+    {
+        try
+        {
+            var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
+            return RawJson(await tool.ExecuteAsync(p));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "ApproveAction failed");
+            return Results.Json(new { error = ex.Message }, statusCode: 500);
+        }
+    });
+
+    app.MapPost("/mcp/reject-action", async (RejectActionTool tool, HttpContext ctx) =>
+    {
+        try
+        {
+            var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
+            return RawJson(await tool.ExecuteAsync(p));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "RejectAction failed");
+            return Results.Json(new { error = ex.Message }, statusCode: 500);
+        }
+    });
+
+    app.MapPost("/mcp/list-pending-approvals", async (ListPendingApprovalsTool tool, HttpContext ctx) =>
+    {
+        try
+        {
+            var p = await ctx.Request.ReadFromJsonAsync<Dictionary<string, object>>() ?? new();
+            return RawJson(await tool.ExecuteAsync(p));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "ListPendingApprovals failed");
+            return Results.Json(new { error = ex.Message }, statusCode: 500);
+        }
+    });
+
     Log.Information("Agent Harness MCP Server starting on port {Port}", config.Port);
 
     // Resume any pipelines that were Running when the service stopped
@@ -484,14 +565,21 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
     });
 
     // Register pipeline engine and supporting services
-    services.AddScoped<BackpressureController>();
+    services.AddScoped(_ => new BackpressureController(config.MaxPipelineQueue, config.MaxAgentQueue));
     services.AddScoped<AgentPoolManager>();
     services.AddScoped<ErrorClassifier>();
     services.AddScoped<ConfidenceScorer>();
+    services.AddScoped<ChangeScopeAnalyzer>();
+    services.AddScoped<ConditionalDagBuilder>();
     services.AddScoped<LlmJudgeService>();
     services.AddScoped<EmbeddingService>();
     services.AddScoped<IMemoryService, MemoryService>();
-    services.AddScoped<ILoopEngineer, LoopEngineer>();
+    services.AddScoped<ILoopEngineer>(sp => new LoopEngineer(
+        sp.GetRequiredService<ErrorClassifier>(),
+        sp.GetRequiredService<ConfidenceScorer>(),
+        sp.GetRequiredService<IMemoryService>(),
+        sp.GetRequiredService<LlmJudgeService>(),
+        config.LoopEngineerMaxIterations));
     // Temporal or local pipeline engine
     if (config.UseTemporal)
     {
@@ -521,6 +609,8 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
     services.AddScoped<ApproveActionTool>();
     services.AddScoped<RejectActionTool>();
     services.AddScoped<ListPendingApprovalsTool>();
+    services.AddScoped<RecordInstinctTool>();
+    services.AddScoped<QueryInstinctsTool>();
     services.AddSingleton<GuardrailService>(sp =>
     {
         var costTracker = sp.GetRequiredService<CostTracker>();
@@ -533,7 +623,40 @@ static void InitializeDatabase(IServiceProvider sp)
 {
     var db = sp.GetRequiredService<HarnessDbContext>();
     db.Database.ExecuteSqlRaw("CREATE EXTENSION IF NOT EXISTS vector");
-    db.Database.EnsureCreated();
+    db.Database.ExecuteSqlRaw("ALTER TABLE IF EXISTS harness.pipeline_runs ADD COLUMN IF NOT EXISTS parent_pipeline_run_id uuid");
+    db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS ix_pipeline_runs_parent_id ON harness.pipeline_runs (parent_pipeline_run_id)");
+    db.Database.ExecuteSqlRaw("ALTER TABLE IF EXISTS harness.quality_gate_results ADD COLUMN IF NOT EXISTS gate_display_name character varying(256) NOT NULL DEFAULT ''");
+    db.Database.ExecuteSqlRaw("ALTER TABLE IF EXISTS harness.quality_gate_results ADD COLUMN IF NOT EXISTS output text NULL");
+    db.Database.ExecuteSqlRaw("ALTER TABLE IF EXISTS harness.quality_gate_results ADD COLUMN IF NOT EXISTS severity character varying(32) NOT NULL DEFAULT 'Block'");
+    db.Database.ExecuteSqlRaw("""
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'harness'
+                  AND table_name = 'quality_gate_results'
+                  AND column_name = 'GateName') THEN
+                ALTER TABLE harness.quality_gate_results ALTER COLUMN "GateName" DROP NOT NULL;
+            END IF;
+
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'harness'
+                  AND table_name = 'quality_gate_results'
+                  AND column_name = 'Severity') THEN
+                ALTER TABLE harness.quality_gate_results ALTER COLUMN "Severity" DROP NOT NULL;
+            END IF;
+        END $$;
+        """);
+    if (db.Database.GetMigrations().Any())
+    {
+        db.Database.Migrate();
+    }
+    else
+    {
+        Log.Warning("No EF Core migrations found for Agent Harness; falling back to EnsureCreated for local/dev compatibility.");
+        db.Database.EnsureCreated();
+    }
     var bus = sp.GetRequiredService<IEventBus>();
     Log.Information("Event bus initialized: {EventBusType}", bus.GetType().Name);
 }
@@ -654,6 +777,42 @@ static async Task<string?> HandleJsonRpcString(string body, Channel<string>? sse
                     case "get-artifact":
                     {
                         var t = sp.GetRequiredService<GetArtifactTool>();
+                        toolResult = await t.ExecuteAsync(arguments);
+                        break;
+                    }
+                    case "request-approval":
+                    {
+                        var t = sp.GetRequiredService<RequestApprovalTool>();
+                        toolResult = await t.ExecuteAsync(arguments);
+                        break;
+                    }
+                    case "approve-action":
+                    {
+                        var t = sp.GetRequiredService<ApproveActionTool>();
+                        toolResult = await t.ExecuteAsync(arguments);
+                        break;
+                    }
+                    case "reject-action":
+                    {
+                        var t = sp.GetRequiredService<RejectActionTool>();
+                        toolResult = await t.ExecuteAsync(arguments);
+                        break;
+                    }
+                    case "list-pending-approvals":
+                    {
+                        var t = sp.GetRequiredService<ListPendingApprovalsTool>();
+                        toolResult = await t.ExecuteAsync(arguments);
+                        break;
+                    }
+                    case "record-instinct":
+                    {
+                        var t = sp.GetRequiredService<RecordInstinctTool>();
+                        toolResult = await t.ExecuteAsync(arguments);
+                        break;
+                    }
+                    case "query-instincts":
+                    {
+                        var t = sp.GetRequiredService<QueryInstinctsTool>();
                         toolResult = await t.ExecuteAsync(arguments);
                         break;
                     }
@@ -864,6 +1023,99 @@ static JsonArray BuildToolList()
                     ["artifact_id"] = MakeProp("string", "The artifact ID (GUID)")
                 },
                 ["required"] = new JsonArray("artifact_id")
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "request-approval",
+            ["description"] = "Request human approval for a guarded action",
+            ["inputSchema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["action_type"] = MakeProp("string", "Action type to validate"),
+                    ["requested_by"] = MakeProp("string", "Requester identity"),
+                    ["details"] = MakeProp("string", "Action details for review")
+                },
+                ["required"] = new JsonArray("action_type")
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "approve-action",
+            ["description"] = "Approve a pending human-in-the-loop action",
+            ["inputSchema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["pending_approval_id"] = MakeProp("string", "Pending approval ID (GUID)"),
+                    ["approved_by"] = MakeProp("string", "Human approver identity")
+                },
+                ["required"] = new JsonArray("pending_approval_id")
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "reject-action",
+            ["description"] = "Reject a pending human-in-the-loop action",
+            ["inputSchema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["pending_approval_id"] = MakeProp("string", "Pending approval ID (GUID)"),
+                    ["rejected_by"] = MakeProp("string", "Human reviewer identity"),
+                    ["reason"] = MakeProp("string", "Rejection reason")
+                },
+                ["required"] = new JsonArray("pending_approval_id")
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "list-pending-approvals",
+            ["description"] = "List pending human-in-the-loop approvals",
+            ["inputSchema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject(),
+                ["required"] = new JsonArray()
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "record-instinct",
+            ["description"] = "Save a learned instinct after a successful fix. Agents call this to share knowledge across sessions.",
+            ["inputSchema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["agent_name"] = MakeProp("string", "Which agent learned this (e.g. dotnet, angular, qa)"),
+                    ["error_pattern"] = MakeProp("string", "The error or issue that was encountered"),
+                    ["error_category"] = MakeProp("string", "Category: build | runtime | test | security | config | migration | other"),
+                    ["fix_description"] = MakeProp("string", "How the issue was resolved"),
+                    ["fix_artifact_ref"] = MakeProp("string", "Optional reference to the fix (commit hash, file path, PR URL)"),
+                    ["confidence"] = MakeProp("number", "Confidence score 0.0-1.0 (default 0.85)")
+                },
+                ["required"] = new JsonArray("agent_name", "error_pattern", "error_category", "fix_description")
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "query-instincts",
+            ["description"] = "Search for past instincts similar to the current issue. Returns matches ranked by confidence.",
+            ["inputSchema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["error_pattern"] = MakeProp("string", "The error or issue description to match"),
+                    ["agent_name"] = MakeProp("string", "Optional: filter by agent type"),
+                    ["min_confidence"] = MakeProp("number", "Minimum similarity threshold 0.0-1.0 (default 0.3)")
+                },
+                ["required"] = new JsonArray("error_pattern")
             }
         }
     };
