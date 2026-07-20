@@ -141,4 +141,46 @@ public class StateStore : IStateStore
             .Where(a => a.Status == "pending")
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync(ct);
+
+    // ---- Eval engine ----
+
+    public async Task SaveEvalSuiteAsync(EvalSuite suite, CancellationToken ct = default)
+    {
+        var existing = await _db.EvalSuites.FindAsync([suite.Id], ct);
+        if (existing is null)
+            _db.EvalSuites.Add(suite);
+        else
+            _db.Entry(existing).CurrentValues.SetValues(suite);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<EvalSuite?> GetEvalSuiteAsync(string name, CancellationToken ct = default)
+        => await _db.EvalSuites
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Name == name, ct);
+
+    public async Task<List<EvalSuite>> GetEvalSuitesAsync(CancellationToken ct = default)
+        => await _db.EvalSuites
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+    public async Task SaveEvalRunAsync(EvalRun run, CancellationToken ct = default)
+    {
+        var existing = await _db.EvalRuns.FindAsync([run.Id], ct);
+        if (existing is null)
+            _db.EvalRuns.Add(run);
+        else
+            _db.Entry(existing).CurrentValues.SetValues(run);
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<EvalRun?> GetEvalRunAsync(Guid id, CancellationToken ct = default)
+        => await _db.EvalRuns.FindAsync([id], ct);
+
+    public async Task<List<EvalRun>> GetEvalRunsAsync(Guid evalSuiteId, CancellationToken ct = default)
+        => await _db.EvalRuns
+            .AsNoTracking()
+            .Where(r => r.EvalSuiteId == evalSuiteId)
+            .OrderByDescending(r => r.StartedAt)
+            .ToListAsync(ct);
 }

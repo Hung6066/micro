@@ -25,4 +25,12 @@ public interface IStateStore
     Task SavePendingApprovalAsync(PendingApproval approval, CancellationToken ct = default);
     Task<PendingApproval?> GetPendingApprovalAsync(Guid id, CancellationToken ct = default);
     Task<List<PendingApproval>> GetPendingApprovalsAsync(CancellationToken ct = default);
+
+    // Eval engine
+    Task SaveEvalSuiteAsync(EvalSuite suite, CancellationToken ct = default);
+    Task<EvalSuite?> GetEvalSuiteAsync(string name, CancellationToken ct = default);
+    Task<List<EvalSuite>> GetEvalSuitesAsync(CancellationToken ct = default);
+    Task SaveEvalRunAsync(EvalRun run, CancellationToken ct = default);
+    Task<EvalRun?> GetEvalRunAsync(Guid id, CancellationToken ct = default);
+    Task<List<EvalRun>> GetEvalRunsAsync(Guid evalSuiteId, CancellationToken ct = default);
 }

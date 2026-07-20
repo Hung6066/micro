@@ -12,6 +12,7 @@ public class PipelineRunConfiguration : IEntityTypeConfiguration<PipelineRun>
         builder.ToTable("pipeline_runs");
         builder.HasKey(p => p.Id);
         builder.Property(p => p.Id).HasColumnName("id");
+        builder.Property(p => p.ParentPipelineRunId).HasColumnName("parent_pipeline_run_id");
         builder.Property(p => p.WorkflowId).HasColumnName("workflow_id").HasMaxLength(256);
         builder.Property(p => p.Status)
             .HasColumnName("status")
@@ -31,6 +32,7 @@ public class PipelineRunConfiguration : IEntityTypeConfiguration<PipelineRun>
                 v => JsonSerializer.Serialize(v, new JsonSerializerOptions()),
                 v => JsonSerializer.Deserialize<Dictionary<string, string>>(v, new JsonSerializerOptions()) ?? new());
         builder.Property(p => p.CreatedAt).HasColumnName("created_at");
+        builder.HasIndex(p => p.ParentPipelineRunId).HasDatabaseName("ix_pipeline_runs_parent_id");
         builder.HasIndex(p => p.Status).HasDatabaseName("ix_pipeline_runs_status");
     }
 }
@@ -78,8 +80,14 @@ public class QualityGateConfiguration : IEntityTypeConfiguration<QualityGate>
         builder.Property(g => g.PipelineRunId).HasColumnName("pipeline_run_id");
         builder.Property(g => g.GateId).HasColumnName("gate_id").HasMaxLength(128);
         builder.Property(g => g.GateType).HasColumnName("gate_name").HasMaxLength(256);
+        builder.Property(g => g.GateName).HasColumnName("gate_display_name").HasMaxLength(256);
         builder.Property(g => g.Passed).HasColumnName("passed");
         builder.Property(g => g.Details).HasColumnName("details").HasColumnType("text");
+        builder.Property(g => g.Output).HasColumnName("output").HasColumnType("text");
+        builder.Property(g => g.Severity)
+            .HasColumnName("severity")
+            .HasMaxLength(32)
+            .HasConversion<string>();
         builder.Property(g => g.EvaluatedAt).HasColumnName("evaluated_at");
         builder.HasIndex(g => g.PipelineRunId).HasDatabaseName("ix_quality_gate_results_pipeline_run_id");
     }
@@ -162,6 +170,47 @@ public class PendingApprovalConfiguration : IEntityTypeConfiguration<PendingAppr
         builder.Property(a => a.CreatedAt).HasColumnName("created_at");
         builder.Property(a => a.ResolvedAt).HasColumnName("resolved_at");
         builder.HasIndex(a => a.Status).HasDatabaseName("ix_pending_approvals_status");
+    }
+}
+
+public class EvalSuiteConfiguration : IEntityTypeConfiguration<EvalSuite>
+{
+    public void Configure(EntityTypeBuilder<EvalSuite> builder)
+    {
+        builder.ToTable("eval_suites");
+        builder.HasKey(e => e.Id);
+        builder.Property(e => e.Id).HasColumnName("id");
+        builder.Property(e => e.Name).HasColumnName("name").HasMaxLength(256);
+        builder.Property(e => e.Domain).HasColumnName("domain").HasMaxLength(128);
+        builder.Property(e => e.Description).HasColumnName("description").HasColumnType("text");
+        builder.Property(e => e.DefinitionJson).HasColumnName("definition_json").HasColumnType("jsonb");
+        builder.Property(e => e.CreatedAt).HasColumnName("created_at");
+        builder.HasIndex(e => e.Name).HasDatabaseName("ix_eval_suites_name").IsUnique();
+    }
+}
+
+public class EvalRunConfiguration : IEntityTypeConfiguration<EvalRun>
+{
+    public void Configure(EntityTypeBuilder<EvalRun> builder)
+    {
+        builder.ToTable("eval_runs");
+        builder.HasKey(r => r.Id);
+        builder.Property(r => r.Id).HasColumnName("id");
+        builder.Property(r => r.EvalSuiteId).HasColumnName("eval_suite_id");
+        builder.Property(r => r.TargetAgent).HasColumnName("target_agent").HasMaxLength(128);
+        builder.Property(r => r.TargetModel).HasColumnName("target_model").HasMaxLength(128);
+        builder.Property(r => r.PassAt1).HasColumnName("pass_at_1").HasPrecision(3, 2);
+        builder.Property(r => r.PassAtK).HasColumnName("pass_at_k").HasPrecision(3, 2);
+        builder.Property(r => r.JudgeScoreValue).HasColumnName("judge_score_value");
+        builder.Property(r => r.Status)
+            .HasColumnName("status")
+            .HasMaxLength(20)
+            .HasConversion<string>();
+        builder.Property(r => r.StartedAt).HasColumnName("started_at");
+        builder.Property(r => r.CompletedAt).HasColumnName("completed_at");
+        builder.Property(r => r.RawResultJson).HasColumnName("raw_result_json").HasColumnType("jsonb");
+        builder.HasIndex(r => r.EvalSuiteId).HasDatabaseName("ix_eval_runs_suite_id");
+        builder.HasIndex(r => r.TargetAgent).HasDatabaseName("ix_eval_runs_target_agent");
     }
 }
 

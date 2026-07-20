@@ -621,6 +621,9 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
         return new GuardrailService(costTracker);
     });
     services.AddSingleton<PiiRedactionService>();
+    services.AddScoped<EvalEngineService>();
+    services.AddScoped<EvaluateAgentTool>();
+    services.AddScoped<CompareModelsTool>();
 }
 
 static void InitializeDatabase(IServiceProvider sp)
@@ -824,6 +827,18 @@ static async Task<string?> HandleJsonRpcString(string body, Channel<string>? sse
                     case "get-agent-profile":
                     {
                         var t = sp.GetRequiredService<GetAgentProfileTool>();
+                        toolResult = await t.ExecuteAsync(arguments);
+                        break;
+                    }
+                    case "evaluate-agent":
+                    {
+                        var t = sp.GetRequiredService<EvaluateAgentTool>();
+                        toolResult = await t.ExecuteAsync(arguments);
+                        break;
+                    }
+                    case "compare-models":
+                    {
+                        var t = sp.GetRequiredService<CompareModelsTool>();
                         toolResult = await t.ExecuteAsync(arguments);
                         break;
                     }
@@ -1141,6 +1156,40 @@ static JsonArray BuildToolList()
                     ["agent_name"] = MakeProp("string", "Name of the agent (e.g. dotnet, angular, qa)")
                 },
                 ["required"] = new JsonArray("agent_name")
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "evaluate-agent",
+            ["description"] = "Run an eval suite against an agent/model and return pass@1, pass@k, and judge score.",
+            ["inputSchema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["suite_name"] = MakeProp("string", "Name of the eval suite to run"),
+                    ["target_agent"] = MakeProp("string", "Agent name to evaluate"),
+                    ["target_model"] = MakeProp("string", "Optional model name (e.g. gpt-4, claude-3)"),
+                    ["k"] = MakeProp("number", "Number of attempts per task (default: 5)")
+                },
+                ["required"] = new JsonArray("suite_name", "target_agent")
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "compare-models",
+            ["description"] = "Compare multiple models on the same eval suite and return a ranking with winner.",
+            ["inputSchema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["suite_name"] = MakeProp("string", "Name of the eval suite to run"),
+                    ["target_agent"] = MakeProp("string", "Agent name to evaluate"),
+                    ["models"] = MakeProp("array", "Array of model names to compare (e.g. [\"gpt-4\",\"claude-3\"])"),
+                    ["k"] = MakeProp("number", "Number of attempts per task (default: 5)")
+                },
+                ["required"] = new JsonArray("suite_name", "target_agent", "models")
             }
         }
     };
