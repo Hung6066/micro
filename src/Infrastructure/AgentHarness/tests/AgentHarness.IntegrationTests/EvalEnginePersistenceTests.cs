@@ -1,6 +1,5 @@
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using His.Hope.AgentHarness.Core.Models;
 using His.Hope.AgentHarness.Infrastructure.Persistence;
 
@@ -10,8 +9,9 @@ namespace His.Hope.AgentHarness.IntegrationTests;
 /// NOTE on full StateStore persistence testing:
 /// The real HarnessDbContext uses pgvector (Vector type and HasPostgresExtension),
 /// which is not supported by EF Core InMemory or SQLite providers. The StateStore 
-/// tests below use a lightweight EvalOnlyDbContext (SQLite in-memory) that only 
-/// includes EvalSuite and EvalRun configurations, avoiding the pgvector dependency.
+/// tests below use a TestHarnessDbContext (extends HarnessDbContext via SQLite 
+/// in-memory) that only includes EvalSuite and EvalRun configurations, avoiding 
+/// the pgvector dependency. The real production StateStore methods are exercised.
 ///
 /// Full migration/table validation (including FK constraint, index creation, 
 /// and schema migrations) requires a CockroachDB or PostgreSQL instance, 
@@ -100,107 +100,41 @@ public class EvalEnginePersistenceTests
     // ============================================================
 
     /// <summary>
-    /// Lightweight DbContext that only maps EvalSuite and EvalRun,
-    /// avoiding the pgvector dependency from MemoryEntry config.
+    /// Lightweight HarnessDbContext subclass that only maps EvalSuite and EvalRun,
+    /// avoiding the pgvector dependency from MemoryEntry config. Ignores all other
+    /// entity types discovered through inherited DbSet properties.
     /// </summary>
-    private class EvalOnlyDbContext : DbContext
+    private class TestHarnessDbContext : HarnessDbContext
     {
-        public DbSet<EvalSuite> EvalSuites => Set<EvalSuite>();
-        public DbSet<EvalRun> EvalRuns => Set<EvalRun>();
-
-        public EvalOnlyDbContext(DbContextOptions<EvalOnlyDbContext> options) : base(options) { }
+        public TestHarnessDbContext(DbContextOptions<HarnessDbContext> options) : base(options) { }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<EvalSuite>(ConfigureEvalSuite);
-            modelBuilder.Entity<EvalRun>(ConfigureEvalRun);
-        }
+            modelBuilder.HasDefaultSchema("harness");
+            modelBuilder.ApplyConfiguration(new EvalSuiteConfiguration());
+            modelBuilder.ApplyConfiguration(new EvalRunConfiguration());
 
-        private static void ConfigureEvalSuite(EntityTypeBuilder<EvalSuite> builder)
-        {
-            builder.ToTable("eval_suites");
-            builder.HasKey(e => e.Id);
-            builder.Property(e => e.Id).HasColumnName("id");
-            builder.Property(e => e.Name).HasColumnName("name").HasMaxLength(256);
-            builder.Property(e => e.Domain).HasColumnName("domain").HasMaxLength(128);
-            builder.Property(e => e.Description).HasColumnName("description").HasColumnType("text");
-            builder.Property(e => e.DefinitionJson).HasColumnName("definition_json");
-            builder.Property(e => e.CreatedAt).HasColumnName("created_at");
-            builder.HasIndex(e => e.Name).HasDatabaseName("ix_eval_suites_name").IsUnique();
-        }
-
-        private static void ConfigureEvalRun(EntityTypeBuilder<EvalRun> builder)
-        {
-            builder.ToTable("eval_runs");
-            builder.HasKey(r => r.Id);
-            builder.Property(r => r.Id).HasColumnName("id");
-            builder.Property(r => r.EvalSuiteId).HasColumnName("eval_suite_id");
-            builder.Property(r => r.TargetAgent).HasColumnName("target_agent").HasMaxLength(128);
-            builder.Property(r => r.TargetModel).HasColumnName("target_model").HasMaxLength(128);
-            builder.Property(r => r.PassAt1).HasColumnName("pass_at_1");
-            builder.Property(r => r.PassAtK).HasColumnName("pass_at_k");
-            builder.Property(r => r.JudgeScore).HasColumnName("judge_score");
-            builder.Property(r => r.Status).HasColumnName("status").HasMaxLength(20).HasConversion<string>();
-            builder.Property(r => r.StartedAt).HasColumnName("started_at");
-            builder.Property(r => r.CompletedAt).HasColumnName("completed_at");
-            builder.Property(r => r.RawResultJson).HasColumnName("raw_result_json");
-            builder.HasIndex(r => r.EvalSuiteId).HasDatabaseName("ix_eval_runs_suite_id");
-            builder.HasIndex(r => r.TargetAgent).HasDatabaseName("ix_eval_runs_target_agent");
+            // Ignore all other entities to prevent convention-based discovery
+            // via DbSet properties inherited from HarnessDbContext
+            modelBuilder.Ignore<PipelineRun>();
+            modelBuilder.Ignore<AgentRun>();
+            modelBuilder.Ignore<QualityGate>();
+            modelBuilder.Ignore<Artifact>();
+            modelBuilder.Ignore<AgentPoolState>();
+            modelBuilder.Ignore<PipelineCheckpoint>();
+            modelBuilder.Ignore<MemoryEntry>();
+            modelBuilder.Ignore<PendingApproval>();
         }
     }
 
-    /// <summary>
-    /// Minimal StateStore implementation that uses EvalOnlyDbContext.
-    /// Tests the same persistence contract as the real StateStore.
-    /// </summary>
-    private class EvalOnlyStateStore
+
+
+    private static HarnessDbContext CreateTestDbContext()
     {
-        private readonly EvalOnlyDbContext _db;
-
-        public EvalOnlyStateStore(EvalOnlyDbContext db) => _db = db;
-
-        public async Task SaveEvalSuiteAsync(EvalSuite suite, CancellationToken ct = default)
-        {
-            var existing = await _db.EvalSuites.FindAsync([suite.Id], ct);
-            if (existing is null)
-                _db.EvalSuites.Add(suite);
-            else
-                _db.Entry(existing).CurrentValues.SetValues(suite);
-            await _db.SaveChangesAsync(ct);
-        }
-
-        public async Task<EvalSuite?> GetEvalSuiteAsync(string name, CancellationToken ct = default)
-            => await _db.EvalSuites.AsNoTracking().FirstOrDefaultAsync(e => e.Name == name, ct);
-
-        public async Task<List<EvalSuite>> GetEvalSuitesAsync(CancellationToken ct = default)
-            => await _db.EvalSuites.AsNoTracking().ToListAsync(ct);
-
-        public async Task SaveEvalRunAsync(EvalRun run, CancellationToken ct = default)
-        {
-            var existing = await _db.EvalRuns.FindAsync([run.Id], ct);
-            if (existing is null)
-                _db.EvalRuns.Add(run);
-            else
-                _db.Entry(existing).CurrentValues.SetValues(run);
-            await _db.SaveChangesAsync(ct);
-        }
-
-        public async Task<EvalRun?> GetEvalRunAsync(Guid id, CancellationToken ct = default)
-            => await _db.EvalRuns.FindAsync([id], ct);
-
-        public async Task<List<EvalRun>> GetEvalRunsAsync(Guid evalSuiteId, CancellationToken ct = default)
-            => await _db.EvalRuns.AsNoTracking()
-                .Where(r => r.EvalSuiteId == evalSuiteId)
-                .OrderByDescending(r => r.StartedAt)
-                .ToListAsync(ct);
-    }
-
-    private static EvalOnlyDbContext CreateEvalDbContext()
-    {
-        var options = new DbContextOptionsBuilder<EvalOnlyDbContext>()
+        var options = new DbContextOptionsBuilder<HarnessDbContext>()
             .UseSqlite("DataSource=:memory:")
             .Options;
-        var ctx = new EvalOnlyDbContext(options);
+        var ctx = new TestHarnessDbContext(options);
         ctx.Database.OpenConnection();
         ctx.Database.EnsureCreated();
         return ctx;
@@ -210,8 +144,8 @@ public class EvalEnginePersistenceTests
     public async Task StateStore_SaveAndGetEvalSuite_ShouldPersistAndReload()
     {
         // Arrange
-        using var ctx = CreateEvalDbContext();
-        var store = new EvalOnlyStateStore(ctx);
+        using var ctx = CreateTestDbContext();
+        var store = new StateStore(ctx);
         var suite = EvalSuite.Create("persist-suite", "coding", "Persist test", """{"tasks":[{"input":"hello","expected":"world"}]}""");
 
         // Act - persist
@@ -234,8 +168,8 @@ public class EvalEnginePersistenceTests
     public async Task StateStore_SaveAndGetEvalRun_ShouldPersistAndReload()
     {
         // Arrange
-        using var ctx = CreateEvalDbContext();
-        var store = new EvalOnlyStateStore(ctx);
+        using var ctx = CreateTestDbContext();
+        var store = new StateStore(ctx);
 
         var suite = EvalSuite.Create("run-persist", "qa", "Run persist", """{"tasks":[{"input":"x"}]}""");
         await store.SaveEvalSuiteAsync(suite);
@@ -267,8 +201,8 @@ public class EvalEnginePersistenceTests
     public async Task StateStore_SaveEvalRun_UpdateExisting_ShouldOverwrite()
     {
         // Arrange
-        using var ctx = CreateEvalDbContext();
-        var store = new EvalOnlyStateStore(ctx);
+        using var ctx = CreateTestDbContext();
+        var store = new StateStore(ctx);
 
         var suite = EvalSuite.Create("update-test", "qa", "Update test", """{"tasks":[{"input":"x"}]}""");
         await store.SaveEvalSuiteAsync(suite);
@@ -293,8 +227,8 @@ public class EvalEnginePersistenceTests
     public async Task StateStore_GetEvalRunsBySuiteId_ShouldReturnOrderedResults()
     {
         // Arrange
-        using var ctx = CreateEvalDbContext();
-        var store = new EvalOnlyStateStore(ctx);
+        using var ctx = CreateTestDbContext();
+        var store = new StateStore(ctx);
 
         var suite = EvalSuite.Create("list-test", "qa", "List test", """{"tasks":[{"input":"x"}]}""");
         await store.SaveEvalSuiteAsync(suite);
@@ -322,8 +256,8 @@ public class EvalEnginePersistenceTests
     public async Task StateStore_GetEvalSuites_ShouldReturnAll()
     {
         // Arrange
-        using var ctx = CreateEvalDbContext();
-        var store = new EvalOnlyStateStore(ctx);
+        using var ctx = CreateTestDbContext();
+        var store = new StateStore(ctx);
 
         var suite1 = EvalSuite.Create("s1", "d1", "desc1", "{}");
         var suite2 = EvalSuite.Create("s2", "d2", "desc2", "{}");

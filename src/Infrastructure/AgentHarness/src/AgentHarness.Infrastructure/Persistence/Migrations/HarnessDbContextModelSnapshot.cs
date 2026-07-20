@@ -255,6 +255,12 @@ namespace His.Hope.AgentHarness.Infrastructure.Persistence.Migrations
                     b.HasIndex("TargetAgent")
                         .HasDatabaseName("ix_eval_runs_target_agent");
 
+                    b.HasOne("His.Hope.AgentHarness.Core.Models.EvalSuite", null)
+                        .WithMany()
+                        .HasForeignKey("EvalSuiteId")
+                        .HasConstraintName("fk_eval_runs_suite_id")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.ToTable("eval_runs", "harness");
                 });
 

@@ -152,3 +152,42 @@
 3. **EF relationship**: `EvalRunConfiguration` has `.HasOne<EvalSuite>()` with `HasForeignKey(r => r.EvalSuiteId)`, `HasConstraintName("fk_eval_runs_suite_id")`, and `OnDelete(DeleteBehavior.Cascade)`. This ensures `EnsureCreated()` and future migrations include the FK constraint.
 4. **Model snapshot**: Both `EvalSuite` (with unique index on `Name`) and `EvalRun` (with FK-compatible indexes on `EvalSuiteId`, `TargetAgent`) are defined in the snapshot with proper column types matching the migration.
 5. **StateStore compiled**: All 6 eval methods are implemented in `StateStore.cs` and match the `IStateStore` interface declarations. Build succeeds with 0 errors. Tests prove save/get/update/query behavior via SQLite in-memory.
+
+---
+
+## Task 2 Review Fixes Round 3 (appended 2026-07-20)
+
+### Additional Findings Addressed
+
+| # | Finding | Fix |
+|---|---------|------|
+| 1 | `HarnessDbContextModelSnapshot.cs` includes EvalRun/EvalSuite but is missing the relationship block for `EvalRun -> EvalSuite` with `EvalSuiteId`, cascade delete, and constraint name `fk_eval_runs_suite_id`. | Added `HasOne("EvalSuite")...HasForeignKey("EvalSuiteId").HasConstraintName("fk_eval_runs_suite_id").OnDelete(DeleteBehavior.Cascade)` inside the EvalRun entity block in the snapshot. |
+| 2 | `EvalEnginePersistenceTests` uses a local `EvalOnlyStateStore`, not the real `StateStore`. | Replaced `EvalOnlyDbContext` + `EvalOnlyStateStore` with a `TestHarnessDbContext` (extends `HarnessDbContext`, overrides `OnModelCreating` with only eval configs + ignores for other entities) that is passed directly to the real production `StateStore`. All 5 persistence tests now exercise the actual `StateStore` methods. |
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `src/AgentHarness.Infrastructure/Persistence/Migrations/HarnessDbContextModelSnapshot.cs` | Added `.HasOne(...).WithMany().HasForeignKey("EvalSuiteId").HasConstraintName("fk_eval_runs_suite_id").OnDelete(DeleteBehavior.Cascade)` to EvalRun entity block. |
+| `tests/AgentHarness.IntegrationTests/EvalEnginePersistenceTests.cs` | Replaced `EvalOnlyDbContext`/`EvalOnlyStateStore` with `TestHarnessDbContext` (extends `HarnessDbContext`) that passes directly to real `StateStore`. Removed `Microsoft.EntityFrameworkCore.Metadata.Builders` using. Updated `CreateEvalDbContext` → `CreateTestDbContext`. |
+
+### Test Results (post-fix round 3)
+
+| Suite | Tests | Passed | Failed |
+|-------|-------|--------|--------|
+| Unit: EvalEngineServiceTests | 17 | 17 | 0 |
+| All Unit Tests | 35 | 35 | 0 |
+| Integration: EvalEnginePersistenceTests | 9 | 9 | 0 |
+| All Integration Tests | 35 | 35 | 0 |
+
+**No regressions.** All 70 tests pass (35 unit + 35 integration).
+
+### How Each Finding Is Verified
+
+1. **Snapshot FK relationship**: `HarnessDbContextModelSnapshot.cs` now contains `b.HasOne("His.Hope.AgentHarness.Core.Models.EvalSuite", null).WithMany().HasForeignKey("EvalSuiteId").HasConstraintName("fk_eval_runs_suite_id").OnDelete(DeleteBehavior.Cascade)` within the EvalRun entity block. Future `dotnet ef migrations add` will not re-detect this as missing.
+
+2. **Real StateStore in tests**: `EvalEnginePersistenceTests` now creates a `TestHarnessDbContext` (subclass of `HarnessDbContext` that configures only EvalSuite/EvalRun tables) and passes it to the production `His.Hope.AgentHarness.Infrastructure.Persistence.StateStore`. All 5 persistence tests (`StateStore_SaveAndGetEvalSuite`, `StateStore_SaveAndGetEvalRun`, `StateStore_SaveEvalRun_UpdateExisting`, `StateStore_GetEvalRunsBySuiteId`, `StateStore_GetEvalSuites`) call real `StateStore` methods. The handwritten `EvalOnlyStateStore` class has been removed completely.
+
+### Environment Limitations (unchanged)
+
+- Full CockroachDB migration testing requires a running CockroachDB instance. The `HarnessDbContext` uses pgvector (`Vector` type, `HasPostgresExtension("vector")`) which EF Core InMemory and SQLite providers cannot fully emulate. StateStore persistence is tested via a `TestHarnessDbContext` with SQLite in-memory that exercises the same production `StateStore` code paths.
