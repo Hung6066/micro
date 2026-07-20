@@ -229,6 +229,111 @@ public class AdaptiveQualityGatesTests
         risks[0].Reason.Should().Contain("no historical data");
     }
 
+    [Fact]
+    public async Task PredictFailureAsync_EvalHistory_InfluencesRiskScore()
+    {
+        // Arrange: two agents with identical profile data but different eval histories
+        var metricsMock = new Mock<IAgentMetricsService>();
+        var store = new Mock<IStateStore>();
+
+        SetupAgentProfile(metricsMock, "agent-a", aisScore: 60.0, gatePassRate: 0.80);
+        SetupAgentProfile(metricsMock, "agent-b", aisScore: 60.0, gatePassRate: 0.80);
+
+        // Agent A: perfect eval history (avg pass@1 = 0.95) → should reduce risk
+        // Agent B: poor eval history (avg pass@1 = 0.20) → risk should be higher
+        var suiteId = Guid.NewGuid();
+        var evalSuites = new List<EvalSuite>
+        {
+            EvalSuite.Create("benchmark", "code", "test suite", "{}")
+        };
+        // Override auto-generated IDs for deterministic setup
+        evalSuites[0].GetType().GetProperty("Id")!.SetValue(evalSuites[0], suiteId);
+
+        store.Setup(s => s.GetEvalSuitesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(evalSuites);
+
+        // Agent A eval runs: high pass rates
+        var agentARuns = new List<EvalRun>
+        {
+            CreateCompletedEvalRun(suiteId, "agent-a", passAt1: 0.95),
+            CreateCompletedEvalRun(suiteId, "agent-a", passAt1: 0.92),
+        };
+
+        // Agent B eval runs: low pass rates
+        var agentBRuns = new List<EvalRun>
+        {
+            CreateCompletedEvalRun(suiteId, "agent-b", passAt1: 0.20),
+            CreateCompletedEvalRun(suiteId, "agent-b", passAt1: 0.15),
+        };
+
+        // Return ALL runs for the suite; the service filters by TargetAgent internally
+        var allEvalRuns = agentARuns.Concat(agentBRuns).ToList();
+        store.Setup(s => s.GetEvalRunsAsync(suiteId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(allEvalRuns);
+
+        store.Setup(s => s.GetQualityGatesAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<QualityGate>());
+
+        // Use a run/pipeline to test both agents
+        var run = PipelineRun.Create("test-eval", new(), "test-trigger");
+        run.TransitionTo(PipelineStatus.Running);
+        var dag = new PipelineDag();
+        dag.AddNode("agent-a", PipelinePhase.Implement);
+        dag.AddNode("agent-b", PipelinePhase.Implement);
+
+        var service = new AdaptiveQualityGates(metricsMock.Object, store.Object);
+
+        // Act: compute risk for agent-a (good eval) and agent-b (poor eval)
+        // We use RecommendThresholdsAsync which also incorporates eval history
+        var recA = await service.RecommendThresholdsAsync("agent-a", CancellationToken.None);
+        var recB = await service.RecommendThresholdsAsync("agent-b", CancellationToken.None);
+
+        // Assert: agent-b (poor eval) should have a stricter threshold than agent-a (good eval)
+        // Since both agents have identical AIS and gate pass rates, any difference
+        // in threshold comes from the eval history adjustment.
+        recB.RecommendedGateThreshold.Should().BeGreaterThan(recA.RecommendedGateThreshold,
+            because: "agent-b has poor eval history, so its recommended threshold should be higher (stricter)");
+    }
+
+    [Fact]
+    public async Task PredictFailureAsync_EvalHistoryNoData_ShouldNotAffectRisk()
+    {
+        // Arrange: agent with no eval history should have same risk as without any eval adjustment
+        var metricsMock = new Mock<IAgentMetricsService>();
+        var store = new Mock<IStateStore>();
+
+        SetupAgentProfile(metricsMock, "dotnet", aisScore: 75.0, gatePassRate: 0.90);
+
+        // No eval suites (empty list)
+        store.Setup(s => s.GetEvalSuitesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<EvalSuite>());
+
+        store.Setup(s => s.GetQualityGatesAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<QualityGate>());
+
+        var run = PipelineRun.Create("test-no-eval", new(), "test-trigger");
+        run.TransitionTo(PipelineStatus.Running);
+        var dag = new PipelineDag();
+        dag.AddNode("dotnet", PipelinePhase.Implement);
+
+        var service = new AdaptiveQualityGates(metricsMock.Object, store.Object);
+
+        // Act
+        var risks = await service.PredictFailureAsync(run, dag, CancellationToken.None);
+
+        // Assert: risk should be reasonable even without eval data
+        risks.Should().HaveCount(1);
+        risks[0].RiskScore.Should().BeInRange(0.01, 0.99);
+        risks[0].RiskLevel.Should().NotBeNullOrEmpty();
+    }
+
+    private static EvalRun CreateCompletedEvalRun(Guid suiteId, string agentName, double passAt1)
+    {
+        var run = EvalRun.Create(suiteId, agentName, "test-model");
+        run.Complete(passAt1, passAt1 * 1.1, 85, "[]");
+        return run;
+    }
+
     private static void SetupAgentProfile(Mock<IAgentMetricsService> metricsMock, string agentName, double aisScore, double gatePassRate)
     {
         var profile = new AgentProfileDto

@@ -155,6 +155,86 @@ public class AgentMetricsServiceTests
     }
 
     [Fact]
+    public async Task GetAgentProfile_OverlappingAgentNames_ShouldNotPollute()
+    {
+        // Regression test: "angular" must NOT claim gates belonging to "angular-agent"
+        // when both agents have runs in the same pipeline.
+        var pipelineId = Guid.NewGuid();
+
+        var runs = new List<AgentRun>
+        {
+            AgentRun.Create(pipelineId, "angular", "Lint"),
+            AgentRun.Create(pipelineId, "angular-agent", "Complex Lint"),
+        };
+        runs[0].Start(); runs[0].Complete(0.9m, "out1");
+        runs[1].Start(); runs[1].Complete(0.9m, "out2");
+
+        // Gates: 2 for angular (1 pass, 1 fail) + 2 for angular-agent (both pass)
+        // angular-agent gates use multi-token prefix "angular-agent-" which should
+        // NOT be attributed to "angular" by GateAttributionHelper.
+        var gates = new List<QualityGate>
+        {
+            QualityGate.Create(pipelineId, "angular-lint", "lint", true),
+            QualityGate.Create(pipelineId, "angular-test", "test", false),
+            QualityGate.Create(pipelineId, "angular-agent-lint", "lint", true),
+            QualityGate.Create(pipelineId, "angular-agent-test", "test", true),
+        };
+
+        // Only return angular's runs (not angular-agent's)
+        _storeMock.Setup(s => s.GetAllAgentRunsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(runs.Where(r => r.AgentName == "angular").ToList());
+        _storeMock.Setup(s => s.GetMemoryEntriesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MemoryEntry>());
+        _storeMock.Setup(s => s.GetQualityGatesAsync(pipelineId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(gates);
+
+        var service = new AgentMetricsService(_storeMock.Object, _metricsMock.Object);
+
+        // Act
+        var profile = await service.GetAgentProfileAsync("angular");
+
+        // Assert: only angular's 2 gates count (1/2 = 0.5), NOT angular-agent's 2 gates
+        profile.QualityGatePassRate.Should().BeApproximately(0.5, 0.01);
+    }
+
+    [Fact]
+    public async Task GetAgentProfile_OverlappingAgentNames_AngularAgentGatesShouldNotLeak()
+    {
+        // Symmetric test: "angular-agent" gates should only be counted for "angular-agent",
+        // not "angular". Uses the prefix "agent-" format from DispatchAgentHandler.
+        var pipelineId = Guid.NewGuid();
+
+        var runs = new List<AgentRun>
+        {
+            AgentRun.Create(pipelineId, "angular-agent", "Complex Lint"),
+        };
+        runs[0].Start(); runs[0].Complete(0.9m, "out1");
+
+        var gates = new List<QualityGate>
+        {
+            // DispatchAgentHandler format: "agent-{agentName}"
+            QualityGate.Create(pipelineId, "agent-angular-agent", "agent-task", true),
+        };
+
+        _storeMock.Setup(s => s.GetAllAgentRunsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(runs);
+        _storeMock.Setup(s => s.GetMemoryEntriesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<MemoryEntry>());
+        _storeMock.Setup(s => s.GetQualityGatesAsync(pipelineId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(gates);
+
+        var service = new AgentMetricsService(_storeMock.Object, _metricsMock.Object);
+
+        // Act
+        var angularProfile = await service.GetAgentProfileAsync("angular");
+        var angularAgentProfile = await service.GetAgentProfileAsync("angular-agent");
+
+        // Assert: gate "agent-angular-agent" is attributed to "angular-agent", not "angular"
+        angularProfile.QualityGatePassRate.Should().Be(0.0);
+        angularAgentProfile.QualityGatePassRate.Should().Be(1.0);
+    }
+
+    [Fact]
     public async Task GetAgentProfile_WhenNoRuns_ReturnsZeroDefaults()
     {
         // Arrange
@@ -231,8 +311,11 @@ public class AgentMetricsServiceTests
     private static List<QualityGate> CreateFakeGates(List<Guid> pipelineRunIds)
     {
         // GateIds match the production format: {agentName}-{phase}
-        // This ensures the agent-name filter in GetAgentProfileAsync correctly
-        // attributes these gates to "dotnet" (and not to cross-agent pipelines).
+        // Phase values are single tokens (consistent with PipelinePhase enum:
+        // plan, implement, test, validate, commit). Multi-word phases use
+        // a single-token alias (e.g., "deploycheck" not "deploy-check") to
+        // maintain compatibility with GateAttributionHelper's token-boundary
+        // matching, which requires the phase portion to be a single token.
         return new List<QualityGate>
         {
             QualityGate.Create(pipelineRunIds[0], "dotnet-build", "build", true),
@@ -242,9 +325,9 @@ public class AgentMetricsServiceTests
             QualityGate.Create(pipelineRunIds[1], "dotnet-deploy", "deploy", true),
             QualityGate.Create(pipelineRunIds[1], "dotnet-integration", "integration", true),
             QualityGate.Create(pipelineRunIds[1], "dotnet-coverage", "coverage", true),
-            QualityGate.Create(pipelineRunIds[1], "dotnet-deploy-check", "deploy check", true),
-            QualityGate.Create(pipelineRunIds[1], "dotnet-smoke-test", "smoke test", true),
-            QualityGate.Create(pipelineRunIds[1], "dotnet-security-scan", "security scan", false),
+            QualityGate.Create(pipelineRunIds[1], "dotnet-deploycheck", "deploy check", true),
+            QualityGate.Create(pipelineRunIds[1], "dotnet-smoketest", "smoke test", true),
+            QualityGate.Create(pipelineRunIds[1], "dotnet-securityscan", "security scan", false),
         };
     }
 

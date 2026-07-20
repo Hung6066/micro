@@ -57,9 +57,10 @@ public class AdaptiveQualityGates
 
             profile ??= new AgentProfileDto { AgentName = node.AgentName };
 
-            var agentGates = allGates.Where(g => g.GateId.Contains(node.AgentName, StringComparison.OrdinalIgnoreCase)).ToList();
+            var agentGates = allGates.Where(g => GateAttributionHelper.GateBelongsToAgent(g.GateId, node.AgentName)).ToList();
+            var evalAvgPassRate = await GetAgentEvalAvgPassRateAsync(node.AgentName, ct);
 
-            var risk = CalculateNodeRisk(node, profile, agentGates);
+            var risk = CalculateNodeRisk(node, profile, agentGates, evalAvgPassRate);
             results.Add(risk);
         }
 
@@ -69,13 +70,14 @@ public class AdaptiveQualityGates
     /// <summary>
     /// Recommends a quality gate threshold (0.0 to 1.0) for the given agent.
     /// Higher thresholds mean stricter gates; lower thresholds mean more relaxed.
-    /// Based on AIS score and historical gate pass rate.
+    /// Based on AIS score, historical gate pass rate, and eval history.
     /// </summary>
     public async Task<QualityGateRecommendationDto> RecommendThresholdsAsync(
         string agentName,
         CancellationToken ct = default)
     {
         var profile = await _metrics.GetAgentProfileAsync(agentName, ct);
+        var evalAvgPassRate = await GetAgentEvalAvgPassRateAsync(agentName, ct);
 
         // Base threshold from AIS: low AIS → stricter (higher) threshold
         // Map AIS (0-100) to base threshold: AIS=0 → 0.9, AIS=100 → 0.1
@@ -88,6 +90,13 @@ public class AdaptiveQualityGates
         {
             var passRateFactor = 1.0 - profile.QualityGatePassRate; // 0 when perfect, 1 when terrible
             baseThreshold += passRateFactor * 0.15; // max +0.15 for poor pass rate
+        }
+
+        // Adjust for eval history: low eval pass rate → stricter threshold
+        if (evalAvgPassRate.HasValue && evalAvgPassRate.Value > 0)
+        {
+            var evalFactor = 1.0 - evalAvgPassRate.Value; // 0 when perfect eval, 1 when terrible
+            baseThreshold += evalFactor * 0.10; // max +0.10 for poor eval performance
         }
 
         baseThreshold = Math.Clamp(baseThreshold, 0.1, 0.99);
@@ -105,7 +114,8 @@ public class AdaptiveQualityGates
     private FailureRiskDto CalculateNodeRisk(
         PipelineNode node,
         AgentProfileDto profile,
-        List<QualityGate> agentGates)
+        List<QualityGate> agentGates,
+        double? evalAvgPassRate = null)
     {
         // No profile data: cautious default
         if (profile.TotalRuns == 0 || profile.AisScore <= 0)
@@ -140,6 +150,12 @@ public class AdaptiveQualityGates
             riskScore *= (1.0 - profile.RetryRate * 0.15);
         }
 
+        // Adjust for eval history: higher eval pass@1 → lower risk
+        if (evalAvgPassRate.HasValue && evalAvgPassRate.Value > 0)
+        {
+            riskScore *= (1.0 - evalAvgPassRate.Value * 0.10);
+        }
+
         riskScore = Math.Clamp(riskScore, 0.01, 0.99);
 
         var riskLevel = riskScore switch
@@ -169,5 +185,46 @@ public class AdaptiveQualityGates
             Reason = reason,
             SuggestedModel = null
         };
+    }
+
+    /// <summary>
+    /// Computes the average pass@1 rate from eval history for the given agent.
+    /// Uses existing <see cref="IStateStore"/> eval access — iterates all eval
+    /// suites and their runs, filtering by agent name and completed status.
+    /// Returns null when no eval history exists.
+    /// </summary>
+    private async Task<double?> GetAgentEvalAvgPassRateAsync(string agentName, CancellationToken ct)
+    {
+        try
+        {
+            var suites = await _store.GetEvalSuitesAsync(ct);
+            if (suites.Count == 0) return null;
+
+            double totalPassRate = 0;
+            int completedCount = 0;
+
+            foreach (var suite in suites)
+            {
+                var runs = await _store.GetEvalRunsAsync(suite.Id, ct);
+                var completedRuns = runs
+                    .Where(r => r.Status == EvalRunStatus.Completed
+                        && r.TargetAgent.Equals(agentName, StringComparison.OrdinalIgnoreCase)
+                        && r.PassAt1.HasValue)
+                    .ToList();
+
+                foreach (var run in completedRuns)
+                {
+                    totalPassRate += run.PassAt1!.Value;
+                    completedCount++;
+                }
+            }
+
+            return completedCount > 0 ? totalPassRate / completedCount : null;
+        }
+        catch
+        {
+            // Non-fatal: eval history is advisory only
+            return null;
+        }
     }
 }
