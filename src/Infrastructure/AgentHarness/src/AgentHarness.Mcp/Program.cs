@@ -13,6 +13,7 @@ using His.Hope.AgentHarness.Mcp.Tools;
 using His.Hope.AgentHarness.Core.Interfaces;
 using His.Hope.AgentHarness.Infrastructure.Persistence;
 using His.Hope.AgentHarness.Infrastructure.Dispatch;
+using His.Hope.AgentHarness.Infrastructure.Observability;
 using Microsoft.EntityFrameworkCore;
 using His.Hope.AgentHarness.Infrastructure.EventBus;
 using His.Hope.AgentHarness.Infrastructure.Temporal;
@@ -612,6 +613,7 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
     services.AddScoped<RecordInstinctTool>();
     services.AddScoped<QueryInstinctsTool>();
     services.AddScoped<AgentMetricsService>();
+    services.AddSingleton<IAgentMetricsRecorder, HarnessMetricsRecorder>();
     services.AddScoped<GetAgentProfileTool>();
     services.AddSingleton<GuardrailService>(sp =>
     {

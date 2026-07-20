@@ -12,6 +12,7 @@ namespace His.Hope.AgentHarness.UnitTests.Tools;
 public class GetAgentProfileToolTests
 {
     private readonly Mock<IStateStore> _storeMock = new();
+    private readonly Mock<IAgentMetricsRecorder> _recorderMock = new();
 
     [Fact]
     public async Task Execute_ReturnsAgentProfileJsonShape()
@@ -29,7 +30,7 @@ public class GetAgentProfileToolTests
         SetupStore("dotnet", pipelineRuns, runs, gates, memories);
 
         var service = new AgentMetricsService(_storeMock.Object);
-        var tool = new GetAgentProfileTool(service);
+        var tool = new GetAgentProfileTool(service, _recorderMock.Object);
 
         var parameters = new Dictionary<string, object>
         {
@@ -76,15 +77,15 @@ public class GetAgentProfileToolTests
     {
         // Arrange
         var storeMock = new Mock<IStateStore>();
-        storeMock.Setup(s => s.GetRunningPipelinesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<PipelineRun>());
+        storeMock.Setup(s => s.GetAllAgentRunsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AgentRun>());
         storeMock.Setup(s => s.GetAgentRunsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AgentRun>());
         storeMock.Setup(s => s.GetMemoryEntriesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<MemoryEntry>());
 
         var service = new AgentMetricsService(storeMock.Object);
-        var tool = new GetAgentProfileTool(service);
+        var tool = new GetAgentProfileTool(service, _recorderMock.Object);
 
         // Act
         Func<Task> act = () => tool.ExecuteAsync(new Dictionary<string, object>());
@@ -124,8 +125,8 @@ public class GetAgentProfileToolTests
 
     private void SetupStore(string agentName, List<PipelineRun> pipelineRuns, List<AgentRun> runs, List<QualityGate> gates, List<MemoryEntry> memories)
     {
-        _storeMock.Setup(s => s.GetRunningPipelinesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(pipelineRuns);
+        _storeMock.Setup(s => s.GetAllAgentRunsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(runs);
 
         foreach (var pr in pipelineRuns)
         {

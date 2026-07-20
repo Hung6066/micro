@@ -107,8 +107,8 @@ public class AgentMetricsServiceTests
     public async Task GetAgentProfile_WhenNoRuns_ReturnsZeroDefaults()
     {
         // Arrange
-        _storeMock.Setup(s => s.GetRunningPipelinesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<PipelineRun>());
+        _storeMock.Setup(s => s.GetAllAgentRunsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AgentRun>());
         _storeMock.Setup(s => s.GetAgentRunsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AgentRun>());
         _storeMock.Setup(s => s.GetQualityGatesAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
@@ -229,10 +229,9 @@ public class AgentMetricsServiceTests
 
     private void SetupStore(string agentName, List<PipelineRun> pipelineRuns, List<AgentRun> runs, List<QualityGate> gates, List<MemoryEntry> memories)
     {
-        _storeMock.Setup(s => s.GetRunningPipelinesAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(pipelineRuns);
+        _storeMock.Setup(s => s.GetAllAgentRunsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(runs);
 
-        // Set up GetAgentRunsAsync per pipeline run ID
         foreach (var pr in pipelineRuns)
         {
             var runsForPipeline = runs.Where(r => r.PipelineRunId == pr.Id).ToList();
@@ -240,7 +239,6 @@ public class AgentMetricsServiceTests
                 .ReturnsAsync(runsForPipeline);
         }
 
-        // For any unmatched pipeline run ID, return empty
         var matchedIds = pipelineRuns.Select(pr => pr.Id).ToHashSet();
         _storeMock.Setup(s => s.GetAgentRunsAsync(It.Is<Guid>(id => !matchedIds.Contains(id)), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AgentRun>());

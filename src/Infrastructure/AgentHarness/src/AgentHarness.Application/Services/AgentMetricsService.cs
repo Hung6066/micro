@@ -1,7 +1,6 @@
 using His.Hope.AgentHarness.Application.DTOs;
 using His.Hope.AgentHarness.Core.Interfaces;
 using His.Hope.AgentHarness.Core.Models;
-using His.Hope.AgentHarness.Infrastructure.Observability;
 
 namespace His.Hope.AgentHarness.Application.Services;
 
@@ -17,19 +16,11 @@ public class AgentMetricsService
 
     public async Task<AgentProfileDto> GetAgentProfileAsync(string agentName, CancellationToken ct = default)
     {
-        HarnessMetrics.ProfileQueryCount.Add(1);
+        var runs = await _store.GetAllAgentRunsAsync(ct);
+        runs = runs
+            .Where(r => r.AgentName.Equals(agentName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
-        // Collect agent runs by iterating through running pipelines and filtering by name
-        // Uses the existing GetAgentRunsAsync data path (pipeline-scoped query) rather than
-        // a dedicated agent-name-scoped store method.
-        var pipelines = await _store.GetRunningPipelinesAsync(ct);
-        var runs = new List<AgentRun>();
-        foreach (var pipeline in pipelines)
-        {
-            var pipelineRuns = await _store.GetAgentRunsAsync(pipeline.Id, ct);
-            runs.AddRange(pipelineRuns.Where(r =>
-                r.AgentName.Equals(agentName, StringComparison.OrdinalIgnoreCase)));
-        }
         var memories = await _store.GetMemoryEntriesAsync(ct);
         var agentMemories = memories
             .Where(m => m.AgentName.Equals(agentName, StringComparison.OrdinalIgnoreCase))
@@ -110,9 +101,6 @@ public class AgentMetricsService
                 ArtifactRef = r.OutputArtifactRef
             })
             .ToList();
-
-        // Record AIS score metric
-        HarnessMetrics.AgentAisScore.Record(aisScore);
 
         return new AgentProfileDto
         {
