@@ -100,7 +100,7 @@ static async Task RunHttpMode(string[] args)
     // Auto-create database schema
     using (var scope = app.Services.CreateScope())
     {
-        InitializeDatabase(scope.ServiceProvider);
+        await InitializeDatabase(scope.ServiceProvider);
     }
 
     // SSE sessions: maps sessionId -> Channel<string> for sending
@@ -506,7 +506,7 @@ static async Task RunStdioMode()
     // Auto-create database schema
     using (var scope = sp.CreateScope())
     {
-        InitializeDatabase(scope.ServiceProvider);
+        await InitializeDatabase(scope.ServiceProvider);
     }
 
     Log.Warning("Agent Harness MCP Server started in stdio mode");
@@ -630,7 +630,7 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
     services.AddScoped<AdaptiveQualityGates>();
 }
 
-static void InitializeDatabase(IServiceProvider sp)
+static async Task InitializeDatabase(IServiceProvider sp)
 {
     var db = sp.GetRequiredService<HarnessDbContext>();
     db.Database.ExecuteSqlRaw("CREATE EXTENSION IF NOT EXISTS vector");
@@ -668,6 +668,26 @@ static void InitializeDatabase(IServiceProvider sp)
     {
         Log.Warning("No EF Core migrations found for Agent Harness; falling back to EnsureCreated for local/dev compatibility.");
         db.Database.EnsureCreated();
+    }
+    // Seed default eval suite if none exist (ensures reproducible smoke testing)
+    try
+    {
+        var store = sp.GetRequiredService<IStateStore>();
+        var suites = await store.GetEvalSuitesAsync();
+        if (suites.Count == 0)
+        {
+            var seedSuite = EvalSuite.Create(
+                "dotnet-eval",
+                "coding",
+                "Default eval suite for .NET agent — generated outputs, deterministic pass/fail via stable hash.",
+                """{"tasks":[{"input":"Write a function to add two numbers.","expected":"def add(a, b): return a + b"},{"input":"Write a SQL query to select all users.","expected":"SELECT * FROM users"},{"input":"Explain the concept of dependency injection.","expected":"Dependency injection is a design pattern where dependencies are passed into an object rather than created internally."}]}""");
+            await store.SaveEvalSuiteAsync(seedSuite);
+            Log.Information("Seeded default eval suite 'dotnet-eval' ({SuiteId})", seedSuite.Id);
+        }
+    }
+    catch (Exception ex)
+    {
+        Log.Warning(ex, "Failed to seed default eval suite — smoke tests may need manual setup");
     }
     var bus = sp.GetRequiredService<IEventBus>();
     Log.Information("Event bus initialized: {EventBusType}", bus.GetType().Name);

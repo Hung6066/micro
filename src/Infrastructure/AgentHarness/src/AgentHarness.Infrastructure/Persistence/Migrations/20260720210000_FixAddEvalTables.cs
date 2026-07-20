@@ -8,8 +8,12 @@ namespace His.Hope.AgentHarness.Infrastructure.Persistence.Migrations;
 
 /// <summary>
 /// Corrective migration: ensures eval_suites and eval_runs tables exist on databases
-/// where the earlier 20260720090000_AddEvalTables migration was skipped because its
-/// timestamp precedes the already-applied 20260720105641_AddMemoryEntryConfidenceScore.
+/// that may have been initialized with partial migrations (e.g. EnsureCreated +
+/// later selective Migrate calls). EF Core's GetPendingMigrations computes pending
+/// migrations as the set difference of all available minus applied history entries,
+/// then sorts by timestamp — so an earlier-timestamp migration IS applied once
+/// discovered. The defense here is against edge cases where the history entry exists
+/// but the tables were manually dropped or the DB was created out of band.
 ///
 /// Uses CREATE TABLE IF NOT EXISTS so it is idempotent on fresh databases where
 /// 20260720090000_AddEvalTables already created the tables.

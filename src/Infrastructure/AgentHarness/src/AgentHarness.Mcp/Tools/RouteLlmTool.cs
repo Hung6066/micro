@@ -61,10 +61,12 @@ public class RouteLlmTool
             explicitModels = JsonSerializer.Deserialize<JsonArray>(arr.GetRawText());
         }
 
-        // 1. Redact PII if requested
+        // 1. Redact PII — always for security_sensitive, otherwise on request
+        var isSecuritySensitive = string.Equals(taskCategory, "security_sensitive", StringComparison.OrdinalIgnoreCase);
+        bool shouldRedact = redactPii || isSecuritySensitive;
         string processedTask = taskDescription;
         bool piiRedacted = false;
-        if (redactPii)
+        if (shouldRedact)
         {
             var redacted = _piiRedaction.Redact(taskDescription);
             piiRedacted = redacted != taskDescription;
