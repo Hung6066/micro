@@ -9,6 +9,17 @@ public class RecordInstinctTool
 
     public RecordInstinctTool(IMemoryService memory) => _memory = memory;
 
+    private static double ExtractDouble(Dictionary<string, object> dict, string key, double defaultValue)
+    {
+        if (dict.TryGetValue(key, out var val))
+        {
+            if (val is double d) return d;
+            if (val is JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.Number)
+                return je.GetDouble();
+        }
+        return defaultValue;
+    }
+
     public async Task<string> ExecuteAsync(Dictionary<string, object> parameters)
     {
         var agentName = parameters.GetValueOrDefault("agent_name")?.ToString()
@@ -20,7 +31,7 @@ public class RecordInstinctTool
         var fixDescription = parameters.GetValueOrDefault("fix_description")?.ToString()
             ?? throw new ArgumentException("'fix_description' is required.");
         var fixArtifactRef = parameters.GetValueOrDefault("fix_artifact_ref")?.ToString();
-        var confidence = parameters.GetValueOrDefault("confidence") as double? ?? 0.85;
+        var confidence = ExtractDouble(parameters, "confidence", 0.85);
 
         await _memory.StoreAsync(errorPattern, errorCategory, agentName,
             fixDescription, fixArtifactRef, success: true, CancellationToken.None);

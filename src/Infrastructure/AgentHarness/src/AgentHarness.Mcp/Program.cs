@@ -623,6 +623,7 @@ static void InitializeDatabase(IServiceProvider sp)
 {
     var db = sp.GetRequiredService<HarnessDbContext>();
     db.Database.ExecuteSqlRaw("CREATE EXTENSION IF NOT EXISTS vector");
+    db.Database.ExecuteSqlRaw("ALTER TABLE IF EXISTS harness.memory_entries ADD COLUMN IF NOT EXISTS embedding vector(256)");
     db.Database.ExecuteSqlRaw("ALTER TABLE IF EXISTS harness.pipeline_runs ADD COLUMN IF NOT EXISTS parent_pipeline_run_id uuid");
     db.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS ix_pipeline_runs_parent_id ON harness.pipeline_runs (parent_pipeline_run_id)");
     db.Database.ExecuteSqlRaw("ALTER TABLE IF EXISTS harness.quality_gate_results ADD COLUMN IF NOT EXISTS gate_display_name character varying(256) NOT NULL DEFAULT ''");
