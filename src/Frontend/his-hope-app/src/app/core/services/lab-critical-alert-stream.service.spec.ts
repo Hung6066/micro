@@ -3,6 +3,37 @@ import { BehaviorSubject } from 'rxjs';
 import { LabCriticalAlertStreamService, LabCriticalAlertConnectionFactory } from './lab-critical-alert-stream.service';
 import { AuthService } from './auth.service';
 
+let lastBuilderInstance: { lastAccessTokenFactory?: () => string } | null = null;
+
+jest.mock('@microsoft/signalr', () => {
+  class HubConnectionBuilder {
+    lastAccessTokenFactory?: () => string;
+
+    withUrl(_url: string, options: { accessTokenFactory: () => string }) {
+      this.lastAccessTokenFactory = options.accessTokenFactory;
+      lastBuilderInstance = this;
+      return this;
+    }
+
+    withAutomaticReconnect() {
+      return this;
+    }
+
+    configureLogging() {
+      return this;
+    }
+
+    build() {
+      return {} as never;
+    }
+  }
+
+  return {
+    HubConnectionBuilder,
+    LogLevel: { Warning: 'Warning' },
+  };
+});
+
 describe('LabCriticalAlertStreamService', () => {
   let service: LabCriticalAlertStreamService;
   let fakeConnection: {
@@ -49,8 +80,7 @@ describe('LabCriticalAlertStreamService', () => {
 
     await service.connect();
 
-    expect(authService.getStoredAccessToken).toHaveBeenCalled();
-    expect(factory.create).toHaveBeenCalledWith('token-123');
+    expect(factory.create).toHaveBeenCalledTimes(1);
     expect(fakeConnection.start).toHaveBeenCalled();
 
     handlers['criticalAlertCreated']({ id: 'alert-1' });
@@ -68,5 +98,19 @@ describe('LabCriticalAlertStreamService', () => {
 
     expect(fakeConnection.stop).toHaveBeenCalled();
     expect(service.unreadCount$.value).toBe(0);
+    expect(service.latestAlert$.value).toBeNull();
+  });
+
+  it('should read the latest stored token each time SignalR asks for credentials', () => {
+    const connectionFactory = TestBed.runInInjectionContext(() => new LabCriticalAlertConnectionFactory());
+    const authTokens = ['token-1', 'token-2'];
+    authService.getStoredAccessToken.and.callFake(() => authTokens.shift() ?? 'token-final');
+
+    connectionFactory.create();
+
+    expect(lastBuilderInstance?.lastAccessTokenFactory).toBeDefined();
+    expect(lastBuilderInstance?.lastAccessTokenFactory?.()).toBe('token-1');
+    expect(lastBuilderInstance?.lastAccessTokenFactory?.()).toBe('token-2');
+    expect(authService.getStoredAccessToken).toHaveBeenCalledTimes(2);
   });
 });

@@ -13,10 +13,12 @@ export interface LabCriticalAlertConnection {
 
 @Injectable({ providedIn: 'root' })
 export class LabCriticalAlertConnectionFactory {
-  create(accessToken: string | null): LabCriticalAlertConnection {
+  private readonly authService = inject(AuthService);
+
+  create(): LabCriticalAlertConnection {
     const connection = new HubConnectionBuilder()
       .withUrl('/hubs/lab-critical-alerts', {
-        accessTokenFactory: () => accessToken ?? '',
+        accessTokenFactory: () => this.authService.getStoredAccessToken() ?? '',
       })
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Warning)
@@ -28,7 +30,6 @@ export class LabCriticalAlertConnectionFactory {
 
 @Injectable({ providedIn: 'root' })
 export class LabCriticalAlertStreamService {
-  private readonly authService = inject(AuthService);
   private readonly connectionFactory = inject(LabCriticalAlertConnectionFactory);
   private connection?: LabCriticalAlertConnection;
   private latestCreatedHandler?: (payload: CriticalAlert) => void;
@@ -41,8 +42,7 @@ export class LabCriticalAlertStreamService {
       return;
     }
 
-    const token = this.authService.getStoredAccessToken();
-    this.connection = this.connectionFactory.create(token);
+    this.connection = this.connectionFactory.create();
     this.latestCreatedHandler = (alert: CriticalAlert) => {
       this.latestAlert$.next(alert);
       this.unreadCount$.next(this.unreadCount$.value + 1);
@@ -67,6 +67,7 @@ export class LabCriticalAlertStreamService {
     this.connection = undefined;
     this.latestCreatedHandler = undefined;
     this.unreadCount$.next(0);
+    this.latestAlert$.next(null);
   }
 
   markAllRead(): void {

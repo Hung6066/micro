@@ -6,6 +6,8 @@ import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { CriticalAlertRuleRequest } from '@core/models/critical-alert-rule.model';
+import { LabCriticalAlertService } from '@core/services/lab-critical-alert.service';
 
 const thresholdValidator = (control: AbstractControl): ValidationErrors | null => {
   const low = control.get('lowCriticalValue')?.value;
@@ -59,7 +61,7 @@ const thresholdValidator = (control: AbstractControl): ValidationErrors | null =
         </form>
       </mat-card-content>
       <mat-card-actions align="end">
-        <button mat-raised-button color="primary" type="button" [disabled]="form.invalid">Lưu quy tắc</button>
+        <button mat-raised-button color="primary" type="button" [disabled]="form.invalid" (click)="save()">Lưu quy tắc</button>
       </mat-card-actions>
     </mat-card>
   `,
@@ -79,5 +81,16 @@ export class LabCriticalAlertRuleFormComponent {
     isActive: [true],
   }, { validators: [thresholdValidator] });
 
-  constructor(private readonly fb: FormBuilder) {}
+  constructor(
+    private readonly fb: FormBuilder,
+    private readonly alertService: LabCriticalAlertService,
+  ) {}
+
+  save(): void {
+    if (this.form.invalid) {
+      return;
+    }
+
+    this.alertService.saveCriticalAlertRule(this.form.getRawValue() as CriticalAlertRuleRequest).subscribe();
+  }
 }
