@@ -93,7 +93,10 @@ public class AdaptiveQualityGates
         }
 
         // Adjust for eval history: low eval pass rate → stricter threshold
-        if (evalAvgPassRate.HasValue && evalAvgPassRate.Value > 0)
+        // Note: a 0.0 eval pass rate (all runs failed) still triggers this adjustment,
+        // increasing the threshold (evalFactor = 1.0 → +0.10). This differs from null eval
+        // history (HasValue == false) which means no data at all.
+        if (evalAvgPassRate.HasValue)
         {
             var evalFactor = 1.0 - evalAvgPassRate.Value; // 0 when perfect eval, 1 when terrible
             baseThreshold += evalFactor * 0.10; // max +0.10 for poor eval performance
@@ -150,10 +153,14 @@ public class AdaptiveQualityGates
             riskScore *= (1.0 - profile.RetryRate * 0.15);
         }
 
-        // Adjust for eval history: higher eval pass@1 → lower risk
-        if (evalAvgPassRate.HasValue && evalAvgPassRate.Value > 0)
+        // Adjust for eval history: poor eval pass@1 → higher risk
+        // At 0.0 pass rate: riskScore *= 1.10 (+10% risk)
+        // At 0.5 pass rate: riskScore *= 1.05 (+5% risk)
+        // At 1.0 pass rate: riskScore *= 1.00 (no change, neutral)
+        // When HasValue is false (no eval data), no adjustment is made.
+        if (evalAvgPassRate.HasValue)
         {
-            riskScore *= (1.0 - evalAvgPassRate.Value * 0.10);
+            riskScore *= (1.0 + (1.0 - evalAvgPassRate.Value) * 0.10);
         }
 
         riskScore = Math.Clamp(riskScore, 0.01, 0.99);

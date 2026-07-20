@@ -327,6 +327,130 @@ public class AdaptiveQualityGatesTests
         risks[0].RiskLevel.Should().NotBeNullOrEmpty();
     }
 
+    [Fact]
+    public async Task PredictFailureAsync_EvalHistoryZero_ShouldIncreaseRiskVsStrongEval()
+    {
+        // Arrange: two agents with identical AIS/gate-pass but different eval histories.
+        // Agent-good: strong eval (avg pass@1 = 0.95)
+        // Agent-poor: zero eval history (avg pass@1 = 0.0 — all runs failed)
+        //
+        // This test calls PredictFailureAsync (not RecommendThresholdsAsync) to verify
+        // the CalculateNodeRisk eval adjustment now correctly handles 0.0 pass rate.
+        var metricsMock = new Mock<IAgentMetricsService>();
+        var store = new Mock<IStateStore>();
+
+        // Identical profiles: AIS 70, gate pass rate 0.85
+        SetupAgentProfile(metricsMock, "agent-good", aisScore: 70.0, gatePassRate: 0.85);
+        SetupAgentProfile(metricsMock, "agent-poor", aisScore: 70.0, gatePassRate: 0.85);
+
+        var suiteId = Guid.NewGuid();
+        var evalSuites = new List<EvalSuite>
+        {
+            EvalSuite.Create("benchmark", "code", "test suite", "{}")
+        };
+        // Override auto-generated IDs for deterministic setup
+        evalSuites[0].GetType().GetProperty("Id")!.SetValue(evalSuites[0], suiteId);
+
+        store.Setup(s => s.GetEvalSuitesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(evalSuites);
+
+        // Agent-good: perfect eval runs
+        var goodRuns = new List<EvalRun>
+        {
+            CreateCompletedEvalRun(suiteId, "agent-good", passAt1: 0.95),
+            CreateCompletedEvalRun(suiteId, "agent-good", passAt1: 0.93),
+        };
+
+        // Agent-poor: all eval runs failed (pass@1 = 0.0)
+        var poorRuns = new List<EvalRun>
+        {
+            CreateCompletedEvalRun(suiteId, "agent-poor", passAt1: 0.0),
+            CreateCompletedEvalRun(suiteId, "agent-poor", passAt1: 0.0),
+        };
+
+        var allEvalRuns = goodRuns.Concat(poorRuns).ToList();
+        store.Setup(s => s.GetEvalRunsAsync(suiteId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(allEvalRuns);
+
+        store.Setup(s => s.GetQualityGatesAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<QualityGate>());
+
+        var run = PipelineRun.Create("test-eval-zero", new(), "test-trigger");
+        run.TransitionTo(PipelineStatus.Running);
+        var dag = new PipelineDag();
+        dag.AddNode("agent-good", PipelinePhase.Implement);
+        dag.AddNode("agent-poor", PipelinePhase.Implement);
+
+        var service = new AdaptiveQualityGates(metricsMock.Object, store.Object);
+
+        // Act: call PredictFailureAsync — the real method, not RecommendThresholdsAsync
+        var risks = await service.PredictFailureAsync(run, dag, CancellationToken.None);
+
+        var riskGood = risks.Single(r => r.Reason.Contains("agent-good"));
+        var riskPoor = risks.Single(r => r.Reason.Contains("agent-poor"));
+
+        // Assert: agent-poor (zero eval) must have higher risk than agent-good (strong eval)
+        riskPoor.RiskScore.Should().BeGreaterThan(riskGood.RiskScore,
+            because: "agent-poor has zero eval pass rate which should increase risk, " +
+                     "while agent-good has strong eval pass rate which should not increase risk");
+    }
+
+    [Fact]
+    public async Task PredictFailureAsync_EvalHistoryZeroVsNoData_ZeroShouldTightenMore()
+    {
+        // Arrange: two identical agents; one has zero eval history (0.0 pass rate),
+        // the other has no eval data at all (null). Zero history should tighten
+        // thresholds more aggressively than null (no data = no adjustment).
+        var metricsMock = new Mock<IAgentMetricsService>();
+        var store = new Mock<IStateStore>();
+
+        SetupAgentProfile(metricsMock, "agent-zero", aisScore: 70.0, gatePassRate: 0.85);
+        SetupAgentProfile(metricsMock, "agent-null", aisScore: 70.0, gatePassRate: 0.85);
+
+        // One eval suite, but only agent-zero has runs
+        var suiteId = Guid.NewGuid();
+        var evalSuites = new List<EvalSuite>
+        {
+            EvalSuite.Create("benchmark", "code", "test suite", "{}")
+        };
+        evalSuites[0].GetType().GetProperty("Id")!.SetValue(evalSuites[0], suiteId);
+
+        store.Setup(s => s.GetEvalSuitesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(evalSuites);
+
+        // agent-zero has failed runs (avg pass@1 = 0.0)
+        var zeroRuns = new List<EvalRun>
+        {
+            CreateCompletedEvalRun(suiteId, "agent-zero", passAt1: 0.0),
+            CreateCompletedEvalRun(suiteId, "agent-zero", passAt1: 0.0),
+        };
+        // agent-null has no eval runs at all → evalAvgPassRate will be null
+        store.Setup(s => s.GetEvalRunsAsync(suiteId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(zeroRuns);
+
+        store.Setup(s => s.GetQualityGatesAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<QualityGate>());
+
+        var run = PipelineRun.Create("test-eval-zero-vs-null", new(), "test-trigger");
+        run.TransitionTo(PipelineStatus.Running);
+        var dag = new PipelineDag();
+        dag.AddNode("agent-zero", PipelinePhase.Implement);
+        dag.AddNode("agent-null", PipelinePhase.Implement);
+
+        var service = new AdaptiveQualityGates(metricsMock.Object, store.Object);
+
+        // Act
+        var risks = await service.PredictFailureAsync(run, dag, CancellationToken.None);
+
+        var riskZero = risks.Single(r => r.Reason.Contains("agent-zero"));
+        var riskNull = risks.Single(r => r.Reason.Contains("agent-null"));
+
+        // Assert: agent-zero (0.0 eval) has higher risk than agent-null (null eval, no adjustment)
+        riskZero.RiskScore.Should().BeGreaterThan(riskNull.RiskScore,
+            because: "agent-zero has 0% eval pass rate which tightens thresholds, " +
+                     "while agent-null has no eval data so no eval adjustment applies");
+    }
+
     private static EvalRun CreateCompletedEvalRun(Guid suiteId, string agentName, double passAt1)
     {
         var run = EvalRun.Create(suiteId, agentName, "test-model");
