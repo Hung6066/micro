@@ -25,6 +25,8 @@ public class CriticalAlertEvaluatorTests
         _currentUser.SetupGet(x => x.IsAuthenticated).Returns(true);
         _currentUser.SetupGet(x => x.UserId).Returns("user-1");
         _currentUser.SetupGet(x => x.FullName).Returns("Dr. Jones");
+        _alertRepository.Setup(r => r.AddAndSaveAsync(It.IsAny<CriticalAlert>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((CriticalAlert alert, Guid _, Guid __, CancellationToken ___) => alert);
 
         _evaluator = new CriticalAlertEvaluator(_ruleRepository.Object, _alertRepository.Object, _currentUser.Object);
     }
@@ -52,16 +54,13 @@ public class CriticalAlertEvaluatorTests
             .ReturnsAsync(Array.Empty<CriticalAlertRule>());
         _alertRepository.Setup(r => r.GetCurrentAsync(order.Id.Value, test.Id.Value, It.IsAny<CancellationToken>()))
             .ReturnsAsync((CriticalAlert?)null);
-        _alertRepository.Setup(r => r.AddAsync(It.IsAny<CriticalAlert>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((CriticalAlert alert, CancellationToken _) => alert);
-
         var dto = await _evaluator.EvaluateAsync(order, test, result);
 
         dto.Should().NotBeNull();
         dto!.Status.Should().Be(CriticalAlertStatus.Open);
         dto.TriggerType.Should().Be(CriticalAlertTriggerType.CriticalFlag);
         dto.AuditEntries.Should().ContainSingle(entry => entry.Action == "Created" && entry.ActorUserId == "user-1");
-        _alertRepository.Verify(r => r.AddAsync(It.IsAny<CriticalAlert>(), It.IsAny<CancellationToken>()), Times.Once);
+        _alertRepository.Verify(r => r.AddAndSaveAsync(It.IsAny<CriticalAlert>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -74,9 +73,6 @@ public class CriticalAlertEvaluatorTests
             .ReturnsAsync(new[] { rule });
         _alertRepository.Setup(r => r.GetCurrentAsync(order.Id.Value, test.Id.Value, It.IsAny<CancellationToken>()))
             .ReturnsAsync((CriticalAlert?)null);
-        _alertRepository.Setup(r => r.AddAsync(It.IsAny<CriticalAlert>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((CriticalAlert alert, CancellationToken _) => alert);
-
         var dto = await _evaluator.EvaluateAsync(order, test, result);
 
         dto.Should().NotBeNull();

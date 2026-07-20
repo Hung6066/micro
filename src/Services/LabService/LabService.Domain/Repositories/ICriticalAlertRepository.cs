@@ -9,4 +9,5 @@ public interface ICriticalAlertRepository
     Task<CriticalAlert?> GetCurrentAsync(Guid labOrderId, Guid labTestId, CancellationToken cancellationToken = default);
     Task<CriticalAlert?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<CriticalAlert> AddAsync(CriticalAlert alert, CancellationToken cancellationToken = default);
+    Task<CriticalAlert?> AddAndSaveAsync(CriticalAlert alert, Guid labOrderId, Guid labTestId, CancellationToken cancellationToken = default);
 }

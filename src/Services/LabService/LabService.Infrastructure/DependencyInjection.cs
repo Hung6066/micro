@@ -29,7 +29,8 @@ public static class DependencyInjection
             .UseSnakeCaseNamingConvention()
             .AddInterceptors(new OutboxDomainEventInterceptor()));
 
-        services.AddScoped<ICurrentUserContext, SystemCurrentUserContext>();
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
         services.AddScoped<CriticalAlertEvaluator>();
         services.AddScoped<ILabOrderRepository, LabOrderRepository>();
         services.AddScoped<ICriticalAlertRuleRepository, CriticalAlertRuleRepository>();

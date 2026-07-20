@@ -56,7 +56,9 @@ public class CriticalAlertConfiguration : IEntityTypeConfiguration<CriticalAlert
             .HasForeignKey(e => e.CriticalAlertId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasIndex(a => new { a.LabOrderId, a.LabTestId });
+        builder.HasIndex(a => new { a.LabOrderId, a.LabTestId })
+            .IsUnique()
+            .HasFilter("status <> 'RESOLVED'");
         builder.HasIndex(a => a.Status);
     }
 }

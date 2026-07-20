@@ -66,9 +66,8 @@ public class CriticalAlertEvaluator
                 actorUserId,
                 actorDisplayName);
 
-            await _alertRepository.AddAsync(alert, cancellationToken);
-            await _alertRepository.UnitOfWork.SaveChangesAsync(cancellationToken);
-            return ToDto(alert);
+            var savedAlert = await _alertRepository.AddAndSaveAsync(alert, order.Id.Value, test.Id.Value, cancellationToken);
+            return savedAlert is null ? null : ToDto(savedAlert);
         }
 
         currentAlert.UpdateObservation(
@@ -142,12 +141,12 @@ public class CriticalAlertEvaluator
     }
 
     private string GetActorUserId() =>
-        _currentUserContext.IsAuthenticated && !string.IsNullOrWhiteSpace(_currentUserContext.UserId)
+        _currentUserContext.IsAuthenticated
             ? _currentUserContext.UserId
             : SystemActorUserId;
 
     private string GetActorDisplayName() =>
-        _currentUserContext.IsAuthenticated && !string.IsNullOrWhiteSpace(_currentUserContext.FullName)
+        _currentUserContext.IsAuthenticated
             ? _currentUserContext.FullName
             : SystemActorDisplayName;
 

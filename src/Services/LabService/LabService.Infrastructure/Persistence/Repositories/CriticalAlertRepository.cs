@@ -3,6 +3,7 @@ using His.Hope.LabService.Domain.Repositories;
 using His.Hope.LabService.Domain.ValueObjects;
 using His.Hope.SharedKernel.Domain.Common;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace His.Hope.LabService.Infrastructure.Persistence.Repositories;
 
@@ -31,4 +32,35 @@ public class CriticalAlertRepository : ICriticalAlertRepository
         await _context.CriticalAlerts.AddAsync(alert, cancellationToken);
         return alert;
     }
+
+    public async Task<CriticalAlert?> AddAndSaveAsync(
+        CriticalAlert alert,
+        Guid labOrderId,
+        Guid labTestId,
+        CancellationToken cancellationToken = default)
+    {
+        await AddAsync(alert, cancellationToken);
+
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+            return alert;
+        }
+        catch (DbUpdateException ex) when (IsUniqueCurrentAlertViolation(ex))
+        {
+            Detach(alert);
+            return await GetCurrentAsync(labOrderId, labTestId, cancellationToken);
+        }
+    }
+
+    private void Detach(CriticalAlert alert)
+    {
+        _context.Entry(alert).State = EntityState.Detached;
+
+        foreach (var auditEntry in alert.AuditEntries)
+            _context.Entry(auditEntry).State = EntityState.Detached;
+    }
+
+    private static bool IsUniqueCurrentAlertViolation(DbUpdateException exception) =>
+        exception.InnerException is PostgresException postgresException && postgresException.SqlState == PostgresErrorCodes.UniqueViolation;
 }
