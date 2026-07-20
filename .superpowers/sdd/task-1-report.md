@@ -69,11 +69,12 @@ D:\AI\micro\docs\knowledge\entries\security
 Completed
 
 ## Commits
-Pending commit for Task 1 files only.
+1920d33 `feat(lab): harden critical alert persistence`
 
 ## Test summary
 `dotnet test tests/Services/LabService/LabService.Domain.Tests/LabService.Domain.Tests.csproj --filter "CriticalAlertRuleTests|CriticalAlertTests" -v normal` ✅
 `dotnet test tests/Services/LabService/LabService.Application.Tests/LabService.Application.Tests.csproj --filter "CriticalAlertEvaluatorTests" -v normal` ✅
+`dotnet test tests/Services/LabService/LabService.Integration.Tests/LabService.Integration.Tests.csproj --filter "CriticalAlertPersistenceIntegrationTests" -v normal` ✅
 
 ## Concerns
 Existing LabService nullability warnings remain in pre-existing domain models; Task 1 added only additive alert model/persistence/evaluator wiring.
