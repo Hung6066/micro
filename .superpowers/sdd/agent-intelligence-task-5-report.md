@@ -52,7 +52,7 @@ All 18 containers running, 16 reported as healthy (kibana has no healthcheck).
 
 **Before:** `RouteLlmTool.ExecuteAsync` only redacted PII when the caller explicitly set `redact_pii: true`. Callers of `security_sensitive` tasks could omit this parameter and bypass redaction entirely.
 
-**Fix:** Added `isSecuritySensitive` check — if `task_category == "security_sensitive"`, redaction is enforced regardless of the `redact_pii` parameter value. The response still reports `pii_redacted: true` so callers are aware the input was transformed.
+**Fix:** Added `isSecuritySensitive` check — if `task_category == "security_sensitive"`, redaction is enforced regardless of the `redact_pii` parameter value. The response reports `pii_redacted: true` only when the redactor actually transforms the input.
 
 **Verification:** Build passes (0 errors), unit tests 62/62.
 
