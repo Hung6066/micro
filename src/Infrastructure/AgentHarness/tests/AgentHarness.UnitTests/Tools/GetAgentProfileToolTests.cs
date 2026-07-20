@@ -17,11 +17,16 @@ public class GetAgentProfileToolTests
     public async Task Execute_ReturnsAgentProfileJsonShape()
     {
         // Arrange
-        var runs = CreateFakeRuns(out var pipelineRunIds);
+        var pipelineRuns = new List<PipelineRun>
+        {
+            PipelineRun.Create("wf-1", new Dictionary<string, string>(), "tester")
+        };
+        var pipelineRunIds = pipelineRuns.Select(pr => pr.Id).ToList();
+        var runs = CreateFakeRuns(pipelineRunIds);
         var gates = CreateFakeGates(pipelineRunIds);
         var memories = CreateFakeMemories();
 
-        SetupStore("dotnet", runs, gates, memories);
+        SetupStore("dotnet", pipelineRuns, runs, gates, memories);
 
         var service = new AgentMetricsService(_storeMock.Object);
         var tool = new GetAgentProfileTool(service);
@@ -34,35 +39,35 @@ public class GetAgentProfileToolTests
         // Act
         var json = await tool.ExecuteAsync(parameters);
 
-        // Assert — should deserialize to AgentProfileDto shape
+        // Assert — should deserialize to AgentProfileDto shape (camelCase)
         var obj = JsonSerializer.Deserialize<JsonElement>(json);
-        obj.TryGetProperty("agent_name", out _).Should().BeTrue();
-        obj.TryGetProperty("ais_score", out _).Should().BeTrue();
-        obj.TryGetProperty("task_completion_rate", out _).Should().BeTrue();
-        obj.TryGetProperty("quality_gate_pass_rate", out _).Should().BeTrue();
-        obj.TryGetProperty("retry_rate", out _).Should().BeTrue();
-        obj.TryGetProperty("confidence_accuracy", out _).Should().BeTrue();
-        obj.TryGetProperty("learning_effectiveness", out _).Should().BeTrue();
-        obj.TryGetProperty("average_judge_score", out _).Should().BeTrue();
-        obj.TryGetProperty("total_runs", out _).Should().BeTrue();
-        obj.TryGetProperty("successful_runs", out _).Should().BeTrue();
-        obj.TryGetProperty("recent_runs", out _).Should().BeTrue();
+        obj.TryGetProperty("agentName", out _).Should().BeTrue();
+        obj.TryGetProperty("aisScore", out _).Should().BeTrue();
+        obj.TryGetProperty("taskCompletionRate", out _).Should().BeTrue();
+        obj.TryGetProperty("qualityGatePassRate", out _).Should().BeTrue();
+        obj.TryGetProperty("retryRate", out _).Should().BeTrue();
+        obj.TryGetProperty("confidenceAccuracy", out _).Should().BeTrue();
+        obj.TryGetProperty("learningEffectiveness", out _).Should().BeTrue();
+        obj.TryGetProperty("averageJudgeScore", out _).Should().BeTrue();
+        obj.TryGetProperty("totalRuns", out _).Should().BeTrue();
+        obj.TryGetProperty("successfulRuns", out _).Should().BeTrue();
+        obj.TryGetProperty("recentRuns", out _).Should().BeTrue();
 
         // Verify recent runs is an array
-        var recentRuns = obj.GetProperty("recent_runs");
+        var recentRuns = obj.GetProperty("recentRuns");
         recentRuns.ValueKind.Should().Be(JsonValueKind.Array);
 
         if (recentRuns.GetArrayLength() > 0)
         {
             var first = recentRuns[0];
-            first.TryGetProperty("agent_run_id", out _).Should().BeTrue();
-            first.TryGetProperty("pipeline_run_id", out _).Should().BeTrue();
+            first.TryGetProperty("agentRunId", out _).Should().BeTrue();
+            first.TryGetProperty("pipelineRunId", out _).Should().BeTrue();
             first.TryGetProperty("status", out _).Should().BeTrue();
-            first.TryGetProperty("confidence_score", out _).Should().BeTrue();
-            first.TryGetProperty("started_at", out _).Should().BeTrue();
-            first.TryGetProperty("completed_at", out _).Should().BeTrue();
-            first.TryGetProperty("duration_seconds", out _).Should().BeTrue();
-            first.TryGetProperty("artifact_ref", out _).Should().BeTrue();
+            first.TryGetProperty("confidenceScore", out _).Should().BeTrue();
+            first.TryGetProperty("startedAt", out _).Should().BeTrue();
+            first.TryGetProperty("completedAt", out _).Should().BeTrue();
+            first.TryGetProperty("durationSeconds", out _).Should().BeTrue();
+            first.TryGetProperty("artifactRef", out _).Should().BeTrue();
         }
     }
 
@@ -71,7 +76,9 @@ public class GetAgentProfileToolTests
     {
         // Arrange
         var storeMock = new Mock<IStateStore>();
-        storeMock.Setup(s => s.GetAgentRunsByAgentNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        storeMock.Setup(s => s.GetRunningPipelinesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<PipelineRun>());
+        storeMock.Setup(s => s.GetAgentRunsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AgentRun>());
         storeMock.Setup(s => s.GetMemoryEntriesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<MemoryEntry>());
@@ -89,10 +96,8 @@ public class GetAgentProfileToolTests
 
     // ---- Helpers ----
 
-    private static List<AgentRun> CreateFakeRuns(out List<Guid> pipelineRunIds)
+    private static List<AgentRun> CreateFakeRuns(List<Guid> pipelineRunIds)
     {
-        pipelineRunIds = new List<Guid> { Guid.NewGuid() };
-
         var r1 = AgentRun.Create(pipelineRunIds[0], "dotnet", "Test task");
         r1.Start();
         r1.Complete(0.95m, "ref-1");
@@ -117,12 +122,20 @@ public class GetAgentProfileToolTests
         };
     }
 
-    private void SetupStore(string agentName, List<AgentRun> runs, List<QualityGate> gates, List<MemoryEntry> memories)
+    private void SetupStore(string agentName, List<PipelineRun> pipelineRuns, List<AgentRun> runs, List<QualityGate> gates, List<MemoryEntry> memories)
     {
-        _storeMock.Setup(s => s.GetAgentRunsByAgentNameAsync(agentName, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(runs);
+        _storeMock.Setup(s => s.GetRunningPipelinesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pipelineRuns);
 
-        _storeMock.Setup(s => s.GetAgentRunsByAgentNameAsync(It.Is<string>(a => a != agentName), It.IsAny<CancellationToken>()))
+        foreach (var pr in pipelineRuns)
+        {
+            var runsForPipeline = runs.Where(r => r.PipelineRunId == pr.Id).ToList();
+            _storeMock.Setup(s => s.GetAgentRunsAsync(pr.Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(runsForPipeline);
+        }
+
+        var matchedIds = pipelineRuns.Select(pr => pr.Id).ToHashSet();
+        _storeMock.Setup(s => s.GetAgentRunsAsync(It.Is<Guid>(id => !matchedIds.Contains(id)), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AgentRun>());
 
         foreach (var gate in gates)

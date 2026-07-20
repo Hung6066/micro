@@ -15,11 +15,13 @@ public class AgentMetricsServiceTests
     public async Task GetAgentProfile_ForDotnet_ReturnsScoreBetweenZeroAndOneHundred()
     {
         // Arrange
-        var runs = CreateFakeRuns(out var pipelineRunIds);
+        var pipelineRuns = CreatePipelineRuns(2);
+        var pipelineRunIds = pipelineRuns.Select(pr => pr.Id).ToList();
+        var runs = CreateFakeRuns(pipelineRunIds);
         var gates = CreateFakeGates(pipelineRunIds);
         var memories = CreateFakeMemories();
 
-        SetupStore("dotnet", runs, gates, memories);
+        SetupStore("dotnet", pipelineRuns, runs, gates, memories);
 
         var service = new AgentMetricsService(_storeMock.Object);
 
@@ -37,11 +39,13 @@ public class AgentMetricsServiceTests
     public async Task GetAgentProfile_CalculatesMetricsFromFakeRuns()
     {
         // Arrange
-        var runs = CreateFakeRuns(out var pipelineRunIds);
+        var pipelineRuns = CreatePipelineRuns(2);
+        var pipelineRunIds = pipelineRuns.Select(pr => pr.Id).ToList();
+        var runs = CreateFakeRuns(pipelineRunIds);
         var gates = CreateFakeGates(pipelineRunIds);
         var memories = CreateFakeMemories();
 
-        SetupStore("dotnet", runs, gates, memories);
+        SetupStore("dotnet", pipelineRuns, runs, gates, memories);
 
         var service = new AgentMetricsService(_storeMock.Object);
         var successfulCount = runs.Count(r => r.Status == AgentRunStatus.Completed);
@@ -52,6 +56,10 @@ public class AgentMetricsServiceTests
         var expectedGatePassRate = gates.Count > 0 ? (double)passedGates / gates.Count : 0;
         var expectedTaskCompletion = runs.Count > 0 ? (double)successfulCount / runs.Count : 0;
 
+        // Expected ConfidenceAccuracy:
+        // Only completed runs with confidence: r1 (0.95), r3 (0.80), r4 (0.90) = sum 2.65 / 5 total runs
+        var expectedConfidenceAccuracy = 2.65 / runs.Count;
+
         // Act
         var profile = await service.GetAgentProfileAsync("dotnet");
 
@@ -59,6 +67,7 @@ public class AgentMetricsServiceTests
         profile.TaskCompletionRate.Should().BeApproximately(expectedTaskCompletion, 0.01);
         profile.QualityGatePassRate.Should().BeApproximately(expectedGatePassRate, 0.01);
         profile.RetryRate.Should().BeApproximately(expectedRetryRate, 0.01);
+        profile.ConfidenceAccuracy.Should().BeApproximately(expectedConfidenceAccuracy, 0.01);
         profile.SuccessfulRuns.Should().Be(successfulCount);
         profile.TotalRuns.Should().Be(runs.Count);
     }
@@ -67,11 +76,13 @@ public class AgentMetricsServiceTests
     public async Task GetAgentProfile_ReturnsBoundedHistoryNewestFirst()
     {
         // Arrange
-        var runs = CreateManyRuns(25);
+        var pipelineRuns = CreatePipelineRuns(25);
+        var pipelineRunIds = pipelineRuns.Select(pr => pr.Id).ToList();
+        var runs = CreateManyRuns(pipelineRunIds);
         var gates = new List<QualityGate>();
         var memories = new List<MemoryEntry>();
 
-        SetupStore("angular", runs, gates, memories);
+        SetupStore("angular", pipelineRuns, runs, gates, memories);
 
         var service = new AgentMetricsService(_storeMock.Object);
 
@@ -96,7 +107,9 @@ public class AgentMetricsServiceTests
     public async Task GetAgentProfile_WhenNoRuns_ReturnsZeroDefaults()
     {
         // Arrange
-        _storeMock.Setup(s => s.GetAgentRunsByAgentNameAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        _storeMock.Setup(s => s.GetRunningPipelinesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<PipelineRun>());
+        _storeMock.Setup(s => s.GetAgentRunsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AgentRun>());
         _storeMock.Setup(s => s.GetQualityGatesAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<QualityGate>());
@@ -116,10 +129,18 @@ public class AgentMetricsServiceTests
 
     // ---- Helpers ----
 
-    private List<AgentRun> CreateFakeRuns(out List<Guid> pipelineRunIds)
+    private static List<PipelineRun> CreatePipelineRuns(int count)
     {
-        pipelineRunIds = new List<Guid> { Guid.NewGuid(), Guid.NewGuid() };
+        var runs = new List<PipelineRun>();
+        for (int i = 0; i < count; i++)
+        {
+            runs.Add(PipelineRun.Create($"wf-{i}", new Dictionary<string, string>(), "tester"));
+        }
+        return runs;
+    }
 
+    private List<AgentRun> CreateFakeRuns(List<Guid> pipelineRunIds)
+    {
         var runs = new List<AgentRun>();
 
         // Run 1: Success with high confidence
@@ -184,13 +205,12 @@ public class AgentMetricsServiceTests
         };
     }
 
-    private List<AgentRun> CreateManyRuns(int count)
+    private List<AgentRun> CreateManyRuns(List<Guid> pipelineRunIds)
     {
         var runs = new List<AgentRun>();
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < pipelineRunIds.Count; i++)
         {
-            var pid = Guid.NewGuid();
-            var run = AgentRun.Create(pid, "angular", $"Task {i}");
+            var run = AgentRun.Create(pipelineRunIds[i], "angular", $"Task {i}");
             run.Start();
 
             if (i % 3 == 0)
@@ -207,10 +227,23 @@ public class AgentMetricsServiceTests
         return runs;
     }
 
-    private void SetupStore(string agentName, List<AgentRun> runs, List<QualityGate> gates, List<MemoryEntry> memories)
+    private void SetupStore(string agentName, List<PipelineRun> pipelineRuns, List<AgentRun> runs, List<QualityGate> gates, List<MemoryEntry> memories)
     {
-        _storeMock.Setup(s => s.GetAgentRunsByAgentNameAsync(agentName, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(runs);
+        _storeMock.Setup(s => s.GetRunningPipelinesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(pipelineRuns);
+
+        // Set up GetAgentRunsAsync per pipeline run ID
+        foreach (var pr in pipelineRuns)
+        {
+            var runsForPipeline = runs.Where(r => r.PipelineRunId == pr.Id).ToList();
+            _storeMock.Setup(s => s.GetAgentRunsAsync(pr.Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(runsForPipeline);
+        }
+
+        // For any unmatched pipeline run ID, return empty
+        var matchedIds = pipelineRuns.Select(pr => pr.Id).ToHashSet();
+        _storeMock.Setup(s => s.GetAgentRunsAsync(It.Is<Guid>(id => !matchedIds.Contains(id)), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AgentRun>());
 
         // Set up quality gates per pipeline run
         foreach (var gate in gates)
@@ -220,7 +253,8 @@ public class AgentMetricsServiceTests
         }
 
         // For pipeline runs without explicit gates, return empty
-        _storeMock.Setup(s => s.GetQualityGatesAsync(It.Is<Guid>(id => !gates.Any(g => g.PipelineRunId == id)), It.IsAny<CancellationToken>()))
+        var gatePipelineIds = gates.Select(g => g.PipelineRunId).ToHashSet();
+        _storeMock.Setup(s => s.GetQualityGatesAsync(It.Is<Guid>(id => !gatePipelineIds.Contains(id)), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<QualityGate>());
 
         _storeMock.Setup(s => s.GetMemoryEntriesAsync(It.IsAny<CancellationToken>()))

@@ -77,12 +77,6 @@ public class StateStore : IStateStore
             .Where(a => a.PipelineRunId == pipelineRunId)
             .ToListAsync(ct);
 
-    public async Task<List<AgentRun>> GetAgentRunsByAgentNameAsync(string agentName, CancellationToken ct = default)
-        => await _db.AgentRuns
-            .Where(a => a.AgentName == agentName)
-            .OrderByDescending(a => a.CreatedAt)
-            .ToListAsync(ct);
-
     public async Task<List<AgentRun>> GetPendingAgentRunsAsync(CancellationToken ct = default)
         => await _db.AgentRuns
             .Where(a => a.Status == AgentRunStatus.Running)

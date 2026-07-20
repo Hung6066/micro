@@ -17,29 +17,10 @@ public class GetAgentProfileTool
 
         var profile = await _service.GetAgentProfileAsync(agentName);
 
-        return JsonSerializer.Serialize(new
+        // Return the DTO shape directly using default (camelCase) serialization
+        return JsonSerializer.Serialize(profile, new JsonSerializerOptions
         {
-            agent_name = profile.AgentName,
-            ais_score = profile.AisScore,
-            task_completion_rate = profile.TaskCompletionRate,
-            quality_gate_pass_rate = profile.QualityGatePassRate,
-            retry_rate = profile.RetryRate,
-            confidence_accuracy = profile.ConfidenceAccuracy,
-            learning_effectiveness = profile.LearningEffectiveness,
-            average_judge_score = profile.AverageJudgeScore,
-            total_runs = profile.TotalRuns,
-            successful_runs = profile.SuccessfulRuns,
-            recent_runs = profile.RecentRuns.Select(r => new
-            {
-                agent_run_id = r.AgentRunId.ToString(),
-                pipeline_run_id = r.PipelineRunId.ToString(),
-                status = r.Status,
-                confidence_score = r.ConfidenceScore,
-                started_at = r.StartedAt,
-                completed_at = r.CompletedAt,
-                duration_seconds = r.DurationSeconds,
-                artifact_ref = r.ArtifactRef
-            })
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         });
     }
 }

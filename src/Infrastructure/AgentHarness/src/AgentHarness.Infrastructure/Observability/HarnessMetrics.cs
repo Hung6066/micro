@@ -31,6 +31,14 @@ public static class HarnessMetrics
         Meter.CreateHistogram<double>("agent.duration.seconds", unit: "s",
             description: "Duration of agent executions");
 
+    // Agent profile metrics
+    public static readonly Counter<int> ProfileQueryCount =
+        Meter.CreateCounter<int>("agent.profile.query.count", description: "Number of agent profile queries");
+
+    public static readonly Histogram<double> AgentAisScore =
+        Meter.CreateHistogram<double>("agent.ais.score", unit: "score",
+            description: "Agent Intelligence Score (0-100)");
+
     // ObservableGauge — tracks active pipelines via Interlocked
     private static int _activePipelines;
 

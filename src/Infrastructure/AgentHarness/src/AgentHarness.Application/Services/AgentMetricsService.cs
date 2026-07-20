@@ -1,19 +1,12 @@
-using System.Diagnostics.Metrics;
 using His.Hope.AgentHarness.Application.DTOs;
 using His.Hope.AgentHarness.Core.Interfaces;
 using His.Hope.AgentHarness.Core.Models;
+using His.Hope.AgentHarness.Infrastructure.Observability;
 
 namespace His.Hope.AgentHarness.Application.Services;
 
 public class AgentMetricsService
 {
-    private static readonly Meter Meter = new("His.Hope.AgentHarness", "1.0.0");
-    private static readonly Counter<int> ProfileQueryCount =
-        Meter.CreateCounter<int>("agent.profile.query.count", description: "Number of agent profile queries");
-    private static readonly Histogram<double> AgentAisScore =
-        Meter.CreateHistogram<double>("agent.ais.score", unit: "score",
-            description: "Agent Intelligence Score (0-100)");
-
     private readonly IStateStore _store;
     private const int MaxRecentRuns = 20;
 
@@ -24,9 +17,19 @@ public class AgentMetricsService
 
     public async Task<AgentProfileDto> GetAgentProfileAsync(string agentName, CancellationToken ct = default)
     {
-        ProfileQueryCount.Add(1);
+        HarnessMetrics.ProfileQueryCount.Add(1);
 
-        var runs = await _store.GetAgentRunsByAgentNameAsync(agentName, ct);
+        // Collect agent runs by iterating through running pipelines and filtering by name
+        // Uses the existing GetAgentRunsAsync data path (pipeline-scoped query) rather than
+        // a dedicated agent-name-scoped store method.
+        var pipelines = await _store.GetRunningPipelinesAsync(ct);
+        var runs = new List<AgentRun>();
+        foreach (var pipeline in pipelines)
+        {
+            var pipelineRuns = await _store.GetAgentRunsAsync(pipeline.Id, ct);
+            runs.AddRange(pipelineRuns.Where(r =>
+                r.AgentName.Equals(agentName, StringComparison.OrdinalIgnoreCase)));
+        }
         var memories = await _store.GetMemoryEntriesAsync(ct);
         var agentMemories = memories
             .Where(m => m.AgentName.Equals(agentName, StringComparison.OrdinalIgnoreCase))
@@ -109,7 +112,7 @@ public class AgentMetricsService
             .ToList();
 
         // Record AIS score metric
-        AgentAisScore.Record(aisScore);
+        HarnessMetrics.AgentAisScore.Record(aisScore);
 
         return new AgentProfileDto
         {
