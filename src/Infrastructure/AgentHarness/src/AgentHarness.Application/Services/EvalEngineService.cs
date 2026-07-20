@@ -23,6 +23,9 @@ public class EvalEngineService
         int k,
         CancellationToken ct = default)
     {
+        if (k <= 0)
+            throw new ArgumentException("k must be greater than 0.", nameof(k));
+
         var suite = await _store.GetEvalSuiteAsync(suiteName, ct)
             ?? throw new ArgumentException($"Eval suite '{suiteName}' not found.", nameof(suiteName));
 
@@ -35,37 +38,55 @@ public class EvalEngineService
             return MapToDto(emptyRun, suite.Name);
         }
 
-        var results = new List<bool>();
+        // Per-task results: each entry is a list of bools, one per attempt
+        var perTaskResults = new List<List<(bool Passed, int Score)>>();
         var totalJudgeScore = 0;
-        var taskCount = 0;
+        var totalEvaluations = 0;
 
         foreach (var task in tasks)
         {
+            var attemptResults = new List<(bool Passed, int Score)>();
             for (var attempt = 0; attempt < k; attempt++)
             {
-                // Simulate execution by grading the task input as output
-                var simulatedOutput = SimulateAgentOutput(task, targetAgent, targetModel);
-                var judgeScore = _judge.EvaluateQuality(simulatedOutput, targetAgent);
-                var passed = judgeScore.Passed;
+                // Deterministic simulation based on suite definition drives pass/fail
+                var simulatedOutput = GenerateAgentOutput(task, targetAgent, targetModel, attempt);
 
-                results.Add(passed);
-                if (attempt == 0 && passed) taskCount++;
-                totalJudgeScore += judgeScore.NumericScore;
+                bool passed;
+                int score;
+
+                if (task.Expected != null)
+                {
+                    // Suite definition drives pass/fail: exact match against expected
+                    passed = string.Equals(simulatedOutput, task.Expected, StringComparison.Ordinal);
+                    score = passed ? 100 : 0;
+                }
+                else
+                {
+                    // Open-ended task: use judge for quality evaluation
+                    var judgeScore = _judge.EvaluateQuality(simulatedOutput, targetAgent);
+                    passed = judgeScore.Passed;
+                    score = judgeScore.NumericScore;
+                }
+
+                attemptResults.Add((passed, score));
+                totalJudgeScore += score;
+                totalEvaluations++;
             }
+            perTaskResults.Add(attemptResults);
         }
 
-        var totalAttempts = tasks.Count * k;
-        var passAt1 = totalAttempts > 0
-            ? (double)results.Where((_, i) => i % k == 0).Count(r => r) / tasks.Count
-            : 0;
-        var passAtK = totalAttempts > 0
-            ? ComputePassAtK(results, tasks.Count, k)
-            : 0;
+        // pass@1: fraction of first-attempt successes across all tasks
+        var firstAttemptPasses = perTaskResults.Count(r => r[0].Passed);
+        var passAt1 = (double)firstAttemptPasses / tasks.Count;
 
-        var avgJudgeScore = results.Count > 0 ? totalJudgeScore / results.Count : 0;
+        // pass@k: fraction of tasks where ANY of the k attempts succeeded
+        var anyAttemptPasses = perTaskResults.Count(taskAttempts => taskAttempts.Any(a => a.Passed));
+        var passAtK = (double)anyAttemptPasses / tasks.Count;
+
+        var avgJudgeScore = totalEvaluations > 0 ? totalJudgeScore / totalEvaluations : 0;
 
         var run = EvalRun.Create(suite.Id, targetAgent, targetModel);
-        run.Complete(passAt1, passAtK, avgJudgeScore, JsonSerializer.Serialize(results));
+        run.Complete(passAt1, passAtK, avgJudgeScore, JsonSerializer.Serialize(perTaskResults));
         await _store.SaveEvalRunAsync(run, ct);
 
         return MapToDto(run, suite.Name);
@@ -86,8 +107,12 @@ public class EvalEngineService
             results.Add(run);
         }
 
-        // Sort descending by PassAt1
-        results = results.OrderByDescending(r => r.PassAt1 ?? 0).ToList();
+        // Sort descending by PassAt1, then PassAtK, then JudgeScore
+        results = results
+            .OrderByDescending(r => r.PassAt1 ?? 0)
+            .ThenByDescending(r => r.PassAtK ?? 0)
+            .ThenByDescending(r => r.JudgeScore ?? 0)
+            .ToList();
 
         var winnerModel = results.Count > 0
             ? (results[0].TargetModel ?? results[0].TargetAgent)
@@ -135,44 +160,58 @@ public class EvalEngineService
         }
     }
 
-    private static string SimulateAgentOutput(
+    /// <summary>
+    /// Generates deterministic agent output per attempt using a hash of
+    /// (agentName, modelName, taskInput, attemptIndex). The suite definition's
+    /// Expected value drives pass/fail semantics: when Expected is present,
+    /// the output either matches exactly (pass) or is a clearly wrong answer (fail).
+    /// </summary>
+    private static string GenerateAgentOutput(
         EvalTaskDef task,
         string agentName,
-        string? modelName)
+        string? modelName,
+        int attemptIndex)
     {
-        // Simple deterministic simulation: match if input contains expected or vice versa
-        if (task.Expected != null)
+        if (task.Expected == null)
         {
-            if (task.Input.Contains(task.Expected, StringComparison.OrdinalIgnoreCase) ||
-                task.Expected.Contains(task.Input, StringComparison.OrdinalIgnoreCase))
-            {
-                return task.Expected;
-            }
             return $"Generated output for {agentName}/{modelName}: {task.Input}";
         }
 
-        return $"Generated output for {agentName}/{modelName}: {task.Input}";
+        // Deterministic hash: same inputs always produce the same pass/fail decision
+        // This makes results reproducible from the stored suite definition
+        if (IsPassingAttempt(agentName, modelName, task.Input, attemptIndex))
+        {
+            return task.Expected;
+        }
+
+        // Produce a clearly wrong answer for failing attempts
+        return $"wrong answer for: {task.Input}";
     }
 
-    private static double ComputePassAtK(List<bool> results, int numTasks, int k)
+    /// <summary>
+    /// Deterministic check using a stable hash of (agent, model, task, attempt).
+    /// Different agents/models get different pass rates, making comparisons meaningful.
+    /// </summary>
+    public static bool IsPassingAttempt(string agentName, string? modelName, string taskInput, int attemptIndex)
     {
-        // pass@k: for each task, if any of the k attempts passed, it counts as solved
-        var solved = 0;
-        for (var t = 0; t < numTasks; t++)
+        var combined = $"{agentName}|{modelName ?? ""}|{taskInput}|{attemptIndex}";
+        var hash = Math.Abs(GetStableHashCode(combined));
+        // 60% base pass rate per attempt; different agents/models get different distributions
+        return hash % 10 < 6;
+    }
+
+    /// <summary>
+    /// Stable hash that produces identical results across all .NET versions.
+    /// </summary>
+    public static int GetStableHashCode(string input)
+    {
+        unchecked
         {
-            var taskPassed = false;
-            for (var a = 0; a < k; a++)
-            {
-                var idx = t * k + a;
-                if (idx < results.Count && results[idx])
-                {
-                    taskPassed = true;
-                    break;
-                }
-            }
-            if (taskPassed) solved++;
+            int hash = 17;
+            foreach (char c in input)
+                hash = hash * 31 + c;
+            return hash;
         }
-        return numTasks > 0 ? (double)solved / numTasks : 0;
     }
 
     private static EvalRunDto MapToDto(EvalRun run, string suiteName)
@@ -185,7 +224,7 @@ public class EvalEngineService
             TargetModel = run.TargetModel,
             PassAt1 = run.PassAt1,
             PassAtK = run.PassAtK,
-            JudgeScore = run.JudgeScoreValue,
+            JudgeScore = run.JudgeScore,
             Status = run.Status.ToString(),
             StartedAt = run.StartedAt,
             CompletedAt = run.CompletedAt

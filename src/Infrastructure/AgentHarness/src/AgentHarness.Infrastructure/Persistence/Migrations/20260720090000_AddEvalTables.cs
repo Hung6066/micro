@@ -36,7 +36,7 @@ public partial class AddEvalTables : Migration
                 target_model = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
                 pass_at_1 = table.Column<decimal>(type: "numeric(3,2)", precision: 3, scale: 2, nullable: true),
                 pass_at_k = table.Column<decimal>(type: "numeric(3,2)", precision: 3, scale: 2, nullable: true),
-                judge_score_value = table.Column<int>(type: "integer", nullable: true),
+                judge_score = table.Column<int>(type: "integer", nullable: true),
                 status = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
                 started_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                 completed_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
@@ -45,6 +45,13 @@ public partial class AddEvalTables : Migration
             constraints: table =>
             {
                 table.PrimaryKey("pk_eval_runs", x => x.id);
+                table.ForeignKey(
+                    name: "fk_eval_runs_suite_id",
+                    column: x => x.eval_suite_id,
+                    principalTable: "eval_suites",
+                    principalSchema: "harness",
+                    principalColumn: "id",
+                    onDelete: ReferentialAction.Cascade);
             });
 
         migrationBuilder.CreateIndex(

@@ -10,7 +10,7 @@ public class EvalRun
     public string? TargetModel { get; private set; }
     public double? PassAt1 { get; private set; }
     public double? PassAtK { get; private set; }
-    public int? JudgeScoreValue { get; private set; }
+    public int? JudgeScore { get; private set; }
     public EvalRunStatus Status { get; private set; }
     public DateTime StartedAt { get; private set; }
     public DateTime? CompletedAt { get; private set; }
@@ -35,7 +35,7 @@ public class EvalRun
     {
         PassAt1 = passAt1;
         PassAtK = passAtK;
-        JudgeScoreValue = judgeScore;
+        JudgeScore = judgeScore;
         RawResultJson = rawResultJson;
         Status = EvalRunStatus.Completed;
         CompletedAt = DateTime.UtcNow;

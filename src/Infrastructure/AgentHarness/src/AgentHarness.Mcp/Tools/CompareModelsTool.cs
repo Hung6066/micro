@@ -34,6 +34,7 @@ public class CompareModelsTool
         var k = parameters.TryGetValue("k", out var kVal) && int.TryParse(kVal?.ToString(), out var kParsed)
             ? kParsed
             : 5;
+        if (k <= 0) throw new ArgumentException("k must be greater than 0.");
 
         var result = await _engine.CompareModelsAsync(suiteName, targetAgent, models, k);
 

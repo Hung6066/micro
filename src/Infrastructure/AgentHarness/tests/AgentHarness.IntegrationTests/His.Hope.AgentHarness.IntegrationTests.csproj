@@ -15,6 +15,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
     <PackageReference Include="FluentAssertions" Version="6.12.0" />
+    <PackageReference Include="Moq" Version="4.20.70" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.4" />
     <PackageReference Include="coverlet.collector" Version="6.0.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
@@ -23,5 +25,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\AgentHarness.Application\His.Hope.AgentHarness.Application.csproj" />
     <ProjectReference Include="..\..\src\AgentHarness.Core\His.Hope.AgentHarness.Core.csproj" />
+    <ProjectReference Include="..\..\src\AgentHarness.Infrastructure\His.Hope.AgentHarness.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

@@ -201,7 +201,7 @@ public class EvalRunConfiguration : IEntityTypeConfiguration<EvalRun>
         builder.Property(r => r.TargetModel).HasColumnName("target_model").HasMaxLength(128);
         builder.Property(r => r.PassAt1).HasColumnName("pass_at_1").HasPrecision(3, 2);
         builder.Property(r => r.PassAtK).HasColumnName("pass_at_k").HasPrecision(3, 2);
-        builder.Property(r => r.JudgeScoreValue).HasColumnName("judge_score_value");
+        builder.Property(r => r.JudgeScore).HasColumnName("judge_score");
         builder.Property(r => r.Status)
             .HasColumnName("status")
             .HasMaxLength(20)
