@@ -626,6 +626,7 @@ static void ConfigureServices(IServiceCollection services, McpServerConfig confi
     services.AddScoped<EvalEngineService>();
     services.AddScoped<EvaluateAgentTool>();
     services.AddScoped<CompareModelsTool>();
+    services.AddScoped<RouteLlmTool>();
     services.AddScoped<AdaptiveQualityGates>();
 }
 
@@ -842,6 +843,12 @@ static async Task<string?> HandleJsonRpcString(string body, Channel<string>? sse
                     case "compare-models":
                     {
                         var t = sp.GetRequiredService<CompareModelsTool>();
+                        toolResult = await t.ExecuteAsync(arguments);
+                        break;
+                    }
+                    case "route-llm":
+                    {
+                        var t = sp.GetRequiredService<RouteLlmTool>();
                         toolResult = await t.ExecuteAsync(arguments);
                         break;
                     }
@@ -1193,6 +1200,24 @@ static JsonArray BuildToolList()
                     ["k"] = MakeProp("number", "Number of attempts per task (default: 5)")
                 },
                 ["required"] = new JsonArray("suite_name", "target_agent", "models")
+            }
+        },
+        new JsonObject
+        {
+            ["name"] = "route-llm",
+            ["description"] = "Route an LLM task to the most cost-effective model based on capability requirements and budget.",
+            ["inputSchema"] = new JsonObject
+            {
+                ["type"] = "object",
+                ["properties"] = new JsonObject
+                {
+                    ["task_description"] = MakeProp("string", "Description of the task to route"),
+                    ["task_category"] = MakeProp("string", "Task complexity category: simple | moderate | moderate+ | complex | security_sensitive (default: moderate)"),
+                    ["agent_name"] = MakeProp("string", "Name of the agent making the request"),
+                    ["redact_pii"] = MakeProp("boolean", "Whether to redact PII from the task description"),
+                    ["available_models"] = MakeProp("array", "Optional: restrict to specific models (e.g. [\"gpt-4\",\"claude-3\"])")
+                },
+                ["required"] = new JsonArray("task_description")
             }
         }
     };
