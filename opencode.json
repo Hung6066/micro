@@ -26,7 +26,7 @@
   "default_agent": "architect",
   "agent": {
     "architect": {
-      "description": "Lead system architect — coordinates the engineering team, delegates to specialized agents (@explore, @dotnet, @angular, @devops, @dba, @security, @ml-ai, @data-platform, @qa). Uses all MCP servers: db-* (7 databases), github, kubernetes, docker, rabbitmq, redis, prometheus, filesystem, playwright, sequential-thinking.",
+      "description": "Lead system architect — coordinates the engineering team, delegates to specialized agents (@explore, @dotnet, @angular, @devops, @dba, @security, @ml-ai, @data-platform, @qa). Uses all MCP servers: db-* (7 databases), github, kubernetes, docker, rabbitmq, redis, prometheus, filesystem, playwright, sequential-thinking, jira (issue tracking), confluence (docs), token-optimizer (context compression).",
       "model": "opencode-go/deepseek-v4-pro",
       "fallback_models": ["openai/gpt-5.5"],
       "permission": "allow"
@@ -103,7 +103,7 @@
       "permission": "allow"
     },
     "qa": {
-      "description": "QA / Testing engineer (xUnit, Cypress, Chaos Mesh, k6, contract testing, quality gates, eval-driven development). Uses MCP: playwright, kubernetes, docker, prometheus, agent-harness for pipeline tasks. ECC skills: verification-loop (6-phase quality gates), eval-harness (pass@k metrics), security-review (pre-deployment checks).",
+      "description": "QA / Testing engineer (xUnit, Cypress, Chaos Mesh, k6, contract testing, quality gates, eval-driven development). Uses MCP: playwright, kubernetes, docker, prometheus, agent-harness for pipeline tasks, jira (auto-create bugs), evalview (agent regression testing). ECC skills: verification-loop, eval-harness, security-review.",
       "model": "openai/gpt-5.4-mini",
       "permission": "allow",
       "mcp": {
@@ -116,12 +116,12 @@
       "permission": "allow"
     },
     "orchestrator": {
-      "description": "Pipeline Orchestrator — full 5-phase pipeline for COMPLEX features only. Coordinates @explore, @docs, @dotnet, @angular, @qa, @check-ui, @security, @git. Activated by @dispatcher when PATH_FULL is selected. Only @orchestrator can green-light @git for commits. Uses MCP indirectly via delegated agents. ECC skills available: verification-loop (Phase 3 quality gates), eval-harness (pre-commit eval-driven development), autonomous-loops (DAG orchestration patterns), security-review (HIPAA/OWASP checks), search-first (research before coding), continuous-learning-v2 (instinct recording/querying via agent-harness MCP).",
+      "description": "Pipeline Orchestrator — full 5-phase pipeline for COMPLEX features only. Coordinates @explore, @docs, @dotnet, @angular, @qa, @check-ui, @security, @git. Activated by @dispatcher when PATH_FULL is selected. Only @orchestrator can green-light @git for commits. Uses MCP indirectly via delegated agents. ECC skills: verification-loop, eval-harness, autonomous-loops, security-review, search-first, continuous-learning-v2. MCP: jira (create/link issues during pipeline), evalview (agent regression testing in Phase 3), route-llm (cost-aware model routing via agent-harness).",
       "model": "openai/gpt-5.4-mini",
       "permission": "allow"
     },
     "docs": {
-      "description": "Documentation agent — ADRs, API docs, service READMEs, changelogs, runbooks, dev guides, knowledge base (capture & verify). Runs in Phase 2 (generate) + Phase 4 (verify) of pipeline. Uses MCP: filesystem for reading/writing docs, github for git operations on doc files.",
+      "description": "Documentation agent — ADRs, API docs, service READMEs, changelogs, runbooks, dev guides, knowledge base (capture & verify). Runs in Phase 2 (generate) + Phase 4 (verify) of pipeline. Uses MCP: filesystem for reading/writing docs, github for git operations on doc files, confluence (search enterprise docs for context).",
       "model": "openai/gpt-5.4-mini",
       "permission": "allow"
     },
@@ -331,7 +331,41 @@
     "agent-harness": {
       "type": "local",
       "command": ["cmd", "/c", "scripts\\mcp-harness.cmd"],
-      "description": "Agent Harness — Pipeline orchestration, get-pending-tasks, complete-task, pipeline lifecycle",
+      "description": "Agent Harness — Pipeline orchestration, get-pending-tasks, complete-task, pipeline lifecycle, route-llm",
+      "enabled": true
+    },
+    "jira": {
+      "type": "local",
+      "command": ["uvx", "mcp-atlassian@0.21.0"],
+      "description": "Jira issue tracking — search, create, update, comment, transition issues",
+      "enabled": false,
+      "env": {
+        "JIRA_URL": "",
+        "JIRA_EMAIL": "",
+        "JIRA_API_TOKEN": ""
+      }
+    },
+    "confluence": {
+      "type": "local",
+      "command": ["npx", "-y", "confluence-mcp-server"],
+      "description": "Confluence Cloud integration — search pages, retrieve content, explore spaces",
+      "enabled": false,
+      "env": {
+        "CONFLUENCE_BASE_URL": "",
+        "CONFLUENCE_EMAIL": "",
+        "CONFLUENCE_API_TOKEN": ""
+      }
+    },
+    "evalview": {
+      "type": "local",
+      "command": ["python3", "-m", "evalview", "mcp", "serve"],
+      "description": "AI agent regression testing — snapshot behavior, detect regressions in tool calls and output quality. Requires: pip install evalview",
+      "enabled": false
+    },
+    "token-optimizer": {
+      "type": "local",
+      "command": ["npx", "-y", "token-optimizer-mcp"],
+      "description": "Token optimization — content deduplication and compression for 95%+ context reduction",
       "enabled": true
     }
   }
