@@ -11,3 +11,33 @@
 **Concerns:** None.
 
 **Report path:** `D:\AI\micro\.superpowers\sdd\task-3-report.md`
+
+---
+
+### Task 3 Report: lab critical alerts
+
+**Status:** Complete  
+**Commit:** `060fc0c` — `feat(lab-ui): add critical alert inbox and realtime updates`
+
+**Test results:**
+- `npm test -- --runInBand --testPathPattern=lab-critical-alert` ✅
+- `npm run build` ✅
+
+**Concerns:** Build still emits pre-existing Angular warnings outside Task 3 scope.
+
+**Report path:** `D:\AI\micro\.superpowers\sdd\task-3-report.md`
+
+---
+
+### Task 3 Follow-up Fix: lab critical value alert review
+
+**Status:** Complete  
+**Commit:** `b9ad0ac` — `fix(lab-ui): clear stale critical alert state and wire rule save`
+
+**Test results:**
+- `npm test -- --runInBand --testPathPattern=lab-critical-alert` ✅
+- `npm run build` ✅
+
+**Concerns:** Build still emits pre-existing Angular warnings outside Task 3 scope.
+
+**Report path:** `D:\AI\micro\.superpowers\sdd\task-3-report.md`
