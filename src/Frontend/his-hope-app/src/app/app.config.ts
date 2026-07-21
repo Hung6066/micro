@@ -1,6 +1,6 @@
-import { ApplicationConfig, ErrorHandler, provideZonelessChangeDetection } from '@angular/core';
+import { ApplicationConfig, ErrorHandler, provideZoneChangeDetection } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { provideHttpClient, withInterceptorsFromDi, HTTP_INTERCEPTORS } from '@angular/common/http';
+import { provideHttpClient, withInterceptors, withInterceptorsFromDi, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideStore } from '@ngrx/store';
 import { provideEffects } from '@ngrx/effects';
@@ -14,6 +14,7 @@ import { AuthEffects } from '@store/auth/auth.effects';
 import { PatientsEffects } from '@store/patients/patients.effects';
 import { AuthInterceptor } from '@core/interceptors/auth.interceptor';
 import { ErrorInterceptor } from '@core/interceptors/error.interceptor';
+import { csrfInterceptor } from '@core/interceptors/csrf.interceptor';
 import { GlobalErrorHandler } from '@core/errors/global-error-handler';
 
 import { environment } from '@env/environment';
@@ -21,9 +22,9 @@ import { mockServiceProviders } from '@core/services/mock/mock-providers';
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideZonelessChangeDetection(),
+    provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    provideHttpClient(withInterceptorsFromDi()),
+    provideHttpClient(withInterceptorsFromDi(), withInterceptors([csrfInterceptor])),
     provideAnimations(),
     provideStore({
       auth: authReducer,

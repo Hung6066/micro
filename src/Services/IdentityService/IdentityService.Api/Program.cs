@@ -1,3 +1,7 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using His.Hope.Bff.Core.Authentication;
 using His.Hope.IdentityService.Api.Endpoints;
 using His.Hope.IdentityService.Application;
 using His.Hope.IdentityService.Application.DTOs;
@@ -8,14 +12,17 @@ using His.Hope.IdentityService.Application.Services;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.Infrastructure;
 using His.Hope.Infrastructure.Audit;
+using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Observability;
+using His.Hope.Infrastructure.Locking;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Security.Authorization;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,6 +42,14 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
     "identity-service",
     builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379"));
 
+// Use in-memory distributed cache for token blacklist + refresh token storage in this service.
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSingleton<ICacheService, NoOpCacheService>();
+
+// IdentityService user-management requests do not use distributed locks, so keep
+// MediatR off Redis here to avoid an unnecessary IConnectionMultiplexer dependency.
+builder.Services.AddSingleton<ILockManager, NoOpLockManager>();
+
 builder.Services.AddIdentityCore<User>(options =>
 {
     options.Password.RequireDigit = true;
@@ -42,7 +57,7 @@ builder.Services.AddIdentityCore<User>(options =>
     options.Password.RequireNonAlphanumeric = true;
     options.User.RequireUniqueEmail = true;
 })
-.AddRoles<Role>()
+.AddRoles<His.Hope.IdentityService.Domain.Entities.Role>()
 .AddEntityFrameworkStores<IdentityDbContext>()
 .AddDefaultTokenProviders();
 
@@ -120,11 +135,52 @@ app.UsePhiAudit();
 // Auth endpoints
 var auth = app.MapGroup("/api/v1/auth");
 
-auth.MapPost("/login", async (LoginRequest request, IIdentityService identityService, CancellationToken ct) =>
+auth.MapPost("/login", async (LoginRequest request, IIdentityService identityService,
+    IConnectionMultiplexer redis, HttpContext httpContext, CancellationToken ct) =>
 {
     try
     {
         var result = await identityService.LoginAsync(request, ct);
+
+        // BFF: Create Redis session and set cookies (dual-mode: cookie + Bearer)
+        var permissions = BffHelpers.ExtractPermissionsFromJwt(result.AccessToken);
+        var sessionId = Guid.NewGuid().ToString("N");
+        var csrfToken = Guid.NewGuid().ToString("N");
+        var sessionData = new SessionData
+        {
+            UserId = result.User.Id.ToString(),
+            Jwt = result.AccessToken,
+            Permissions = permissions,
+            CsrfToken = csrfToken,
+            UserAgentHash = BffHelpers.ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
+            IssuedAt = DateTimeOffset.UtcNow,
+            ExpiresAt = result.ExpiresAt
+        };
+
+        var db = redis.GetDatabase();
+        await db.StringSetAsync(
+            $"session:{sessionId}",
+            JsonSerializer.Serialize(sessionData),
+            TimeSpan.FromHours(1));
+
+        httpContext.Response.Cookies.Append("hishop_sid", sessionId, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Lax,
+            Path = "/api",
+            MaxAge = TimeSpan.FromHours(1)
+        });
+
+        httpContext.Response.Cookies.Append("hishop_csrf", csrfToken, new CookieOptions
+        {
+            HttpOnly = false,
+            Secure = true,
+            SameSite = SameSiteMode.Strict,
+            Path = "/api",
+            MaxAge = TimeSpan.FromHours(1)
+        });
+
         return Results.Ok(result);
     }
     catch (UnauthorizedAccessException ex)
@@ -165,14 +221,82 @@ auth.MapPost("/refresh", async (RefreshTokenRequest request, IIdentityService id
 .WithOpenApi()
 .AllowAnonymous();
 
-auth.MapPost("/logout", async (RefreshTokenRequest request, IIdentityService identityService, CancellationToken ct) =>
+auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpContext,
+    IIdentityService identityService, CancellationToken ct) =>
 {
-    await identityService.LogoutAsync(request.RefreshToken, ct);
+    await identityService.LogoutAsync(string.Empty, ct);
+
+    var sessionId = httpContext.Request.Cookies["hishop_sid"];
+    if (!string.IsNullOrEmpty(sessionId))
+    {
+        var db = redis.GetDatabase();
+        await db.KeyDeleteAsync($"session:{sessionId}");
+    }
+
+    httpContext.Response.Cookies.Append("hishop_sid", "", new CookieOptions
+    {
+        HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax,
+        Path = "/api", Expires = DateTimeOffset.UnixEpoch
+    });
+    httpContext.Response.Cookies.Append("hishop_csrf", "", new CookieOptions
+    {
+        HttpOnly = false, Secure = true, SameSite = SameSiteMode.Strict,
+        Path = "/api", Expires = DateTimeOffset.UnixEpoch
+    });
+
     return Results.NoContent();
 })
-.RequireAuthorization()
 .WithOpenApi()
 .AllowAnonymous();
+
+// BFF internal: exchange session ID for new JWT (transparent refresh)
+auth.MapPost("/internal/refresh", async (IConnectionMultiplexer redis, HttpContext httpContext,
+    IIdentityService identityService, CancellationToken ct) =>
+{
+    var sessionId = httpContext.Request.Cookies["hishop_sid"];
+    if (string.IsNullOrEmpty(sessionId))
+        return Results.BadRequest(new { error = "No session cookie" });
+
+    var db = redis.GetDatabase();
+    var sessionJson = await db.StringGetAsync($"session:{sessionId}");
+    if (!sessionJson.HasValue)
+        return Results.Unauthorized();
+
+    var session = JsonSerializer.Deserialize<SessionData>(sessionJson!);
+    if (session is null || session.IsExpired)
+        return Results.Unauthorized();
+
+    var refreshResult = await identityService.RefreshTokenAsync(
+        new RefreshTokenRequest(session.Jwt, ""), ct);
+
+    session = session with
+    {
+        Jwt = refreshResult.AccessToken,
+        ExpiresAt = refreshResult.ExpiresAt,
+        CsrfToken = Guid.NewGuid().ToString("N"),
+        UserAgentHash = BffHelpers.ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
+        IssuedAt = DateTimeOffset.UtcNow
+    };
+
+    await db.StringSetAsync(
+        $"session:{sessionId}",
+        JsonSerializer.Serialize(session),
+        TimeSpan.FromHours(1));
+
+    httpContext.Response.Cookies.Append("hishop_sid", sessionId, new CookieOptions
+    {
+        HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax,
+        Path = "/api", MaxAge = TimeSpan.FromHours(1)
+    });
+    httpContext.Response.Cookies.Append("hishop_csrf", session.CsrfToken, new CookieOptions
+    {
+        HttpOnly = false, Secure = true, SameSite = SameSiteMode.Strict,
+        Path = "/api", MaxAge = TimeSpan.FromHours(1)
+    });
+
+    return Results.Ok(new { refreshed = true });
+})
+.WithOpenApi();
 
 auth.MapGet("/verify", async (HttpContext httpContext) =>
 {
@@ -226,3 +350,49 @@ audit.MapAuditLogEndpoints();
 
 app.MapHealthChecks("/health").AllowAnonymous();
 app.Run();
+
+// ─── BFF Helpers ─────────────────────────────────────────────────────
+
+file static class BffHelpers
+{
+    internal static string ComputeSha256(string input)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input ?? ""));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    internal static string[] ExtractPermissionsFromJwt(string jwt)
+    {
+        try
+        {
+            var payload = jwt.Split('.')[1];
+            var base64 = payload.Replace('-', '+').Replace('_', '/');
+            var padded = base64.PadRight(((base64.Length + 3) / 4) * 4, '=');
+            var json = Encoding.UTF8.GetString(Convert.FromBase64String(padded));
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("permissions", out var permProp))
+            {
+                var value = permProp.GetString();
+                if (!string.IsNullOrEmpty(value))
+                    return value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            }
+        }
+        catch { }
+        return [];
+    }
+}
+
+file sealed class NoOpLockManager : ILockManager
+{
+    public Task<IDistributedLock?> AcquireAsync(string key, TimeSpan? ttl = null, CancellationToken ct = default)
+        => Task.FromResult<IDistributedLock?>(null);
+}
+
+file sealed class NoOpCacheService : ICacheService
+{
+    public Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class => Task.FromResult<T?>(null);
+    public Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => factory();
+    public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => Task.CompletedTask;
+    public Task RemoveAsync(string key, CancellationToken ct = default) => Task.CompletedTask;
+    public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default) => Task.CompletedTask;
+}

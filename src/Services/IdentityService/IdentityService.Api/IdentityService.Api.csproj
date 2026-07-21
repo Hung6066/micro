@@ -13,6 +13,7 @@
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\Bff\His.Hope.Bff.Core\His.Hope.Bff.Core.csproj" />
     <ProjectReference Include="..\..\..\Shared\Infrastructure\His.Hope.Infrastructure\His.Hope.Infrastructure.csproj" />
     <ProjectReference Include="..\IdentityService.Application\IdentityService.Application.csproj" />
     <ProjectReference Include="..\IdentityService.Infrastructure\IdentityService.Infrastructure.csproj" />
