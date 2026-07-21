@@ -12,9 +12,9 @@ public sealed class ResiliencePipelineHandler : DelegatingHandler
 {
     private readonly ResiliencePipeline _pipeline;
 
-    public ResiliencePipelineHandler(IResiliencePipelineFactory factory)
+    public ResiliencePipelineHandler(IResiliencePipelineFactory factory, string pipelineName)
     {
-        _pipeline = factory.GetPipeline("consul-discovery");
+        _pipeline = factory.GetPipeline(pipelineName);
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(

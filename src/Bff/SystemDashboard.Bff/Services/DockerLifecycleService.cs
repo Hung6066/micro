@@ -37,8 +37,8 @@ public sealed class DockerLifecycleService : IServiceLifecycleService
         {
             var psi = new ProcessStartInfo
             {
-                FileName = "docker-compose",
-                Arguments = $"-p \"{_projectName}\" {command} {serviceName}",
+                FileName = "docker",
+                Arguments = $"compose -p \"{_projectName}\" {command} {serviceName}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,

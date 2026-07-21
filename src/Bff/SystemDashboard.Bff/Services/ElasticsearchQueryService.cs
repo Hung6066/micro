@@ -48,12 +48,12 @@ public sealed class ElasticsearchQueryService : IElasticsearchQueryService
 
             var requestBody = new
             {
-                query = new
+                query = (object)new Dictionary<string, object>
                 {
-                    Bool = new
+                    ["bool"] = new Dictionary<string, object?>
                     {
-                        must = mustClauses.Count > 0 ? mustClauses : null,
-                        filter = filterClauses.Count > 0 ? filterClauses : null
+                        ["must"] = mustClauses.Count > 0 ? mustClauses : null,
+                        ["filter"] = filterClauses.Count > 0 ? filterClauses : null
                     }
                 },
                 sort = new[]

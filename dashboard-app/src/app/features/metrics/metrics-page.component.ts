@@ -31,17 +31,17 @@ interface MetricConfig {
 
 const METRIC_TYPES: MetricConfig[] = [
   { key: 'cpu', label: 'CPU', unit: '%', color: '#2F6B4A' },
-  { key: 'memory', label: 'Bộ nhớ', unit: 'MB', color: '#2563EB' },
-  { key: 'requests', label: 'Yêu cầu', unit: 'req/s', color: '#6B4FA0' },
-  { key: 'errors', label: 'Lỗi', unit: 'lỗi/phút', color: '#C25450' },
+  { key: 'memory', label: 'Memory', unit: 'MB', color: '#2563EB' },
+  { key: 'requests', label: 'Requests', unit: 'req/s', color: '#6B4FA0' },
+  { key: 'errors', label: 'Errors', unit: 'errors/min', color: '#C25450' },
 ];
 
 const TIME_RANGES = [
-  { value: '5m', label: '5 phút' },
-  { value: '15m', label: '15 phút' },
-  { value: '1h', label: '1 giờ' },
-  { value: '6h', label: '6 giờ' },
-  { value: '24h', label: '24 giờ' },
+  { value: '5m', label: '5 minutes' },
+  { value: '15m', label: '15 minutes' },
+  { value: '1h', label: '1 hour' },
+  { value: '6h', label: '6 hours' },
+  { value: '24h', label: '24 hours' },
 ];
 
 const SERVICE_COLORS = [
@@ -67,10 +67,10 @@ const SERVICE_COLORS = [
   ],
   template: `
     <div class="page-header">
-      <h1 class="page-title">Chỉ số hệ thống</h1>
+      <h1 class="page-title">System Metrics</h1>
       <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
         <mat-icon>refresh</mat-icon>
-        Làm mới
+        Refresh
       </button>
     </div>
 
@@ -83,7 +83,7 @@ const SERVICE_COLORS = [
         <div class="controls-row">
           <!-- Service multi-select -->
           <mat-form-field appearance="outline" subscriptSizing="dynamic" class="services-field">
-            <mat-label>Dịch vụ</mat-label>
+            <mat-label>Service</mat-label>
             <mat-select [(ngModel)]="selectedServices" multiple (selectionChange)="onServicesChange()">
               <mat-option *ngFor="let svc of availableServices" [value]="svc.name">
                 {{ svc.displayName || svc.name }}
@@ -93,7 +93,7 @@ const SERVICE_COLORS = [
 
           <!-- Metric type selector -->
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Loại chỉ số</mat-label>
+            <mat-label>Metric Type</mat-label>
             <mat-select [(ngModel)]="selectedMetricType" (selectionChange)="onMetricTypeChange()">
               <mat-option *ngFor="let mt of metricTypes" [value]="mt.key">
                 {{ mt.label }}
@@ -103,7 +103,7 @@ const SERVICE_COLORS = [
 
           <!-- Time range selector -->
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Khoảng thời gian</mat-label>
+            <mat-label>Time Range</mat-label>
             <mat-select [(ngModel)]="selectedTimeRange" (selectionChange)="onTimeRangeChange()">
               <mat-option *ngFor="let tr of timeRanges" [value]="tr.value">
                 {{ tr.label }}
@@ -113,7 +113,7 @@ const SERVICE_COLORS = [
 
           <button mat-raised-button color="primary" (click)="applyFilters()">
             <mat-icon>refresh</mat-icon>
-            Áp dụng
+            Apply
           </button>
         </div>
 
@@ -126,7 +126,7 @@ const SERVICE_COLORS = [
           </span>
         </div>
         <div class="service-chips empty-chips" *ngIf="selectedServices.length === 0">
-          <span class="chip-hint">Chọn ít nhất một dịch vụ để xem chỉ số</span>
+          <span class="chip-hint">Select at least one service to view metrics</span>
         </div>
       </mat-card-content>
     </mat-card>
@@ -134,14 +134,14 @@ const SERVICE_COLORS = [
     <!-- Loading -->
     <div class="loading-state" *ngIf="(loading$ | async)">
       <mat-spinner diameter="32"></mat-spinner>
-      <span class="loading-text">Đang tải chỉ số...</span>
+      <span class="loading-text">Loading metrics...</span>
     </div>
 
     <!-- Error -->
     <div class="error-state" *ngIf="error$ | async as err">
       <mat-icon class="error-icon">error_outline</mat-icon>
       <p class="error-message">{{ err }}</p>
-      <button mat-raised-button color="primary" (click)="refresh()">Thử lại</button>
+      <button mat-raised-button color="primary" (click)="refresh()">Retry</button>
     </div>
 
     <!-- Chart card -->
@@ -149,8 +149,8 @@ const SERVICE_COLORS = [
       <mat-card-header>
         <mat-card-title>{{ currentMetric.label }}</mat-card-title>
         <mat-card-subtitle>
-          Khoảng thời gian: {{ getTimeRangeLabel() }} &mdash;
-          {{ selectedServices.length }} dịch vụ được chọn
+          Time range: {{ getTimeRangeLabel() }} &mdash;
+          {{ selectedServices.length }} services selected
         </mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
@@ -163,7 +163,7 @@ const SERVICE_COLORS = [
     <!-- Empty state -->
     <div class="empty-state" *ngIf="!hasData && !(loading$ | async) && !(error$ | async)">
       <mat-icon>monitoring</mat-icon>
-      <p>Chọn dịch vụ và chỉ số để xem biểu đồ</p>
+      <p>Select services and metric to view chart</p>
     </div>
   `,
   styles: [`
@@ -442,7 +442,7 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
       for (const snap of snapshots) {
         if (snap.dataPoints && snap.dataPoints.length > 0) {
           for (const dp of snap.dataPoints) {
-            const label = new Date(dp.timestamp).toLocaleTimeString('vi-VN', {
+            const label = new Date(dp.timestamp).toLocaleTimeString('en-US', {
               hour: '2-digit',
               minute: '2-digit',
               second: '2-digit',

@@ -34,17 +34,17 @@ interface GroupedResources {
   ],
   template: `
     <div class="page-header">
-      <h1 class="page-title">Tài nguyên hệ thống</h1>
+      <h1 class="page-title">System Resources</h1>
       <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
         <mat-icon>refresh</mat-icon>
-        Làm mới
+        Refresh
       </button>
     </div>
 
     <!-- Loading spinner -->
     <div class="loading-state" *ngIf="(loading$ | async) && !(error$ | async)">
       <mat-spinner diameter="32"></mat-spinner>
-      <span style="margin-top: 12px;">Đang tải tài nguyên...</span>
+      <span style="margin-top: 12px;">Loading resources...</span>
     </div>
 
     <!-- Error state -->
@@ -53,7 +53,7 @@ interface GroupedResources {
       <p class="error-message">{{ err }}</p>
       <button mat-raised-button color="primary" (click)="refresh()">
         <mat-icon>refresh</mat-icon>
-        Thử lại
+        Retry
       </button>
     </div>
 
@@ -62,14 +62,14 @@ interface GroupedResources {
       <!-- Loading overlay for existing content -->
       <div class="loading-overlay" *ngIf="(loading$ | async) && !(error$ | async) && grouped.total > 0">
         <mat-spinner diameter="20"></mat-spinner>
-        <span>Đang làm mới...</span>
+        <span>Refreshing...</span>
       </div>
 
       <!-- Services -->
       <section class="resource-group" *ngIf="grouped.services.length > 0">
         <div class="group-header">
           <mat-icon>dns</mat-icon>
-          <h2 class="group-title">Dịch vụ</h2>
+          <h2 class="group-title">Services</h2>
           <span class="group-count">{{ grouped.services.length }}</span>
         </div>
         <div class="card-grid">
@@ -88,7 +88,7 @@ interface GroupedResources {
       <section class="resource-group" *ngIf="grouped.databases.length > 0">
         <div class="group-header">
           <mat-icon>storage</mat-icon>
-          <h2 class="group-title">Cơ sở dữ liệu</h2>
+          <h2 class="group-title">Databases</h2>
           <span class="group-count">{{ grouped.databases.length }}</span>
         </div>
         <div class="card-grid">
@@ -107,7 +107,7 @@ interface GroupedResources {
       <section class="resource-group" *ngIf="grouped.infrastructure.length > 0">
         <div class="group-header">
           <mat-icon>cloud</mat-icon>
-          <h2 class="group-title">Hạ tầng</h2>
+          <h2 class="group-title">Infrastructure</h2>
           <span class="group-count">{{ grouped.infrastructure.length }}</span>
         </div>
         <div class="card-grid">
@@ -125,7 +125,7 @@ interface GroupedResources {
       <!-- Empty state when loaded with no data -->
       <div class="empty-state" *ngIf="grouped.total === 0">
         <mat-icon>inventory_2</mat-icon>
-        <p>Không có tài nguyên nào</p>
+        <p>No resources found</p>
       </div>
     </ng-container>
   `,
@@ -242,7 +242,7 @@ export class ResourcesPageComponent implements OnInit {
     switchMap(() =>
       this.resourceService.getAll().pipe(
         catchError(err => {
-          const msg = err?.message ?? err?.statusText ?? 'Không thể tải tài nguyên. Vui lòng thử lại.';
+          const msg = err?.message ?? err?.statusText ?? 'Failed to load resources. Please try again.';
           this.error$.next(msg);
           this.loading$.next(false);
           return of([] as Resource[]);

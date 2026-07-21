@@ -59,7 +59,6 @@ builder.Services.AddHealthChecks();
 
 // Resilience policies (retry + circuit breaker for all outbound calls)
 builder.Services.AddResiliencePolicies();
-builder.Services.AddTransient<ResiliencePipelineHandler>();
 
 // Consul service discovery with retry + circuit breaker
 builder.Services.AddHttpClient<IConsulDiscoveryService, ConsulDiscoveryService>(client =>
@@ -68,7 +67,8 @@ builder.Services.AddHttpClient<IConsulDiscoveryService, ConsulDiscoveryService>(
     client.BaseAddress = new Uri(consulAddress);
     client.Timeout = TimeSpan.FromSeconds(10);
 })
-.AddHttpMessageHandler<ResiliencePipelineHandler>();
+.AddHttpMessageHandler(sp => new ResiliencePipelineHandler(
+    sp.GetRequiredService<IResiliencePipelineFactory>(), "consul-discovery"));
 
 // Elasticsearch log querying with retry + circuit breaker
 builder.Services.AddHttpClient<IElasticsearchQueryService, ElasticsearchQueryService>((sp, client) =>
@@ -77,7 +77,8 @@ builder.Services.AddHttpClient<IElasticsearchQueryService, ElasticsearchQuerySer
     client.BaseAddress = new Uri(esOptions.Value.Url);
     client.Timeout = TimeSpan.FromSeconds(15);
 })
-.AddHttpMessageHandler<ResiliencePipelineHandler>();
+.AddHttpMessageHandler(sp => new ResiliencePipelineHandler(
+    sp.GetRequiredService<IResiliencePipelineFactory>(), "elasticsearch"));
 
 // Prometheus metrics querying with retry + circuit breaker
 builder.Services.AddHttpClient<IPrometheusQueryService, PrometheusQueryService>((sp, client) =>
@@ -86,7 +87,8 @@ builder.Services.AddHttpClient<IPrometheusQueryService, PrometheusQueryService>(
     client.BaseAddress = new Uri(promOptions.Value.Url);
     client.Timeout = TimeSpan.FromSeconds(15);
 })
-.AddHttpMessageHandler<ResiliencePipelineHandler>();
+.AddHttpMessageHandler(sp => new ResiliencePipelineHandler(
+    sp.GetRequiredService<IResiliencePipelineFactory>(), "prometheus"));
 
 // Jaeger trace querying with retry + circuit breaker
 builder.Services.AddHttpClient<IJaegerQueryService, JaegerQueryService>((sp, client) =>
@@ -95,7 +97,8 @@ builder.Services.AddHttpClient<IJaegerQueryService, JaegerQueryService>((sp, cli
     client.BaseAddress = new Uri(jaegerOptions.Value.QueryUrl);
     client.Timeout = TimeSpan.FromSeconds(15);
 })
-.AddHttpMessageHandler<ResiliencePipelineHandler>();
+.AddHttpMessageHandler(sp => new ResiliencePipelineHandler(
+    sp.GetRequiredService<IResiliencePipelineFactory>(), "jaeger"));
 
 // Logs aggregator
 builder.Services.AddSingleton<ILogsAggregator, LogsAggregator>();
@@ -133,7 +136,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");
-app.MapHub<LogStreamHub>("/ws/logs/stream");
+app.MapHub<LogStreamHub>("/ws/logs/stream").RequireAuthorization();
 
 app.Run();
 

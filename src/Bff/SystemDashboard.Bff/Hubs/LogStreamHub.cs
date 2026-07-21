@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using SystemDashboard.Bff.Models;
 
 namespace SystemDashboard.Bff.Hubs;
 
+[Authorize]
 public class LogStreamHub : Hub
 {
     private readonly ILogger<LogStreamHub> _logger;

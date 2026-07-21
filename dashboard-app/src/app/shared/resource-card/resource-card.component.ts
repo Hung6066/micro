@@ -38,11 +38,11 @@ import { ServiceStatusBadgeComponent } from '../service-status-badge/service-sta
 
         <div class="card-meta">
           <div class="meta-item" *ngIf="resource.version">
-            <span class="meta-label">Phiên bản</span>
+            <span class="meta-label">Version</span>
             <span class="meta-value">{{ resource.version }}</span>
           </div>
           <div class="meta-item">
-            <span class="meta-label">Sức khỏe</span>
+            <span class="meta-label">Health</span>
             <span class="meta-value health-value" [class.healthy]="resource.healthStatus === 'Healthy'"
                                                       [class.unhealthy]="resource.healthStatus === 'Unhealthy'"
                                                       [class.degraded]="resource.healthStatus === 'Degraded'">
@@ -54,7 +54,7 @@ import { ServiceStatusBadgeComponent } from '../service-status-badge/service-sta
             <span class="meta-value">—</span>
           </div>
           <div class="meta-item" *ngIf="resource.type === 'Service' || resource.type === 'service'">
-            <span class="meta-label">Bộ nhớ</span>
+            <span class="meta-label">Memory</span>
             <span class="meta-value">—</span>
           </div>
         </div>
@@ -65,16 +65,16 @@ import { ServiceStatusBadgeComponent } from '../service-status-badge/service-sta
           <button mat-stroked-button size="small" (click)="onStart()"
                   [disabled]="resource.status === 'Running'">
             <mat-icon>play_arrow</mat-icon>
-            Bắt đầu
+            Start
           </button>
           <button mat-stroked-button size="small" (click)="onStop()"
                   [disabled]="resource.status === 'Stopped'">
             <mat-icon>stop</mat-icon>
-            Dừng
+            Stop
           </button>
           <button mat-stroked-button size="small" (click)="onRestart()">
             <mat-icon>refresh</mat-icon>
-            Khởi động lại
+            Restart
           </button>
         </div>
       </mat-card-content>

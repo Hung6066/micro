@@ -28,7 +28,7 @@ import { AuthService } from './core/services/auth.service';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent {
-  readonly isAuthenticated$: Observable<boolean>;
+  readonly isAuthenticated$: Observable<boolean | null>;
 
   constructor(private readonly authService: AuthService) {
     this.isAuthenticated$ = this.authService.isAuthenticated$;

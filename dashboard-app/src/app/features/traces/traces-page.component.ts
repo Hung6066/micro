@@ -36,10 +36,10 @@ import { Router } from '@angular/router';
   ],
   template: `
     <div class="page-header">
-      <h1 class="page-title">Truy vết hệ thống</h1>
+      <h1 class="page-title">System Traces</h1>
       <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
         <mat-icon>refresh</mat-icon>
-        Làm mới
+        Refresh
       </button>
     </div>
 
@@ -48,9 +48,9 @@ import { Router } from '@angular/router';
       <mat-card-content>
         <div class="filters-row">
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Dịch vụ</mat-label>
+            <mat-label>Service</mat-label>
             <mat-select [(ngModel)]="selectedService" (selectionChange)="onFilterChange()">
-              <mat-option value="">Tất cả dịch vụ</mat-option>
+              <mat-option value="">All services</mat-option>
               <mat-option *ngFor="let svc of availableServices" [value]="svc.name">
                 {{ svc.displayName || svc.name }}
               </mat-option>
@@ -58,25 +58,25 @@ import { Router } from '@angular/router';
           </mat-form-field>
 
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Khoảng thời gian</mat-label>
+            <mat-label>Time range</mat-label>
             <mat-select [(ngModel)]="selectedTimeRange" (selectionChange)="onFilterChange()">
-              <mat-option value="15m">15 phút</mat-option>
-              <mat-option value="1h">1 giờ</mat-option>
-              <mat-option value="6h">6 giờ</mat-option>
-              <mat-option value="24h">24 giờ</mat-option>
-              <mat-option value="7d">7 ngày</mat-option>
+              <mat-option value="15m">15 minutes</mat-option>
+              <mat-option value="1h">1 hour</mat-option>
+              <mat-option value="6h">6 hours</mat-option>
+              <mat-option value="24h">24 hours</mat-option>
+              <mat-option value="7d">7 days</mat-option>
             </mat-select>
           </mat-form-field>
 
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Thời gian tối thiểu (ms)</mat-label>
+            <mat-label>Min duration (ms)</mat-label>
             <input matInput type="number" [(ngModel)]="minDurationMs" (ngModelChange)="onFilterChange()"
                    placeholder="0" min="0" />
           </mat-form-field>
 
           <button mat-raised-button color="primary" (click)="search()">
             <mat-icon>search</mat-icon>
-            Tìm kiếm
+            Search
           </button>
         </div>
       </mat-card-content>
@@ -93,7 +93,7 @@ import { Router } from '@angular/router';
         <!-- Error -->
         <div class="error-inline" *ngIf="error$ | async as err">
           <span class="error-text">{{ err }}</span>
-          <button mat-stroked-button size="small" (click)="refresh()">Thử lại</button>
+          <button mat-stroked-button size="small" (click)="refresh()">Retry</button>
         </div>
 
         <!-- Table -->
@@ -104,22 +104,22 @@ import { Router } from '@angular/router';
           </ng-container>
 
           <ng-container matColumnDef="rootService">
-            <th mat-header-cell *matHeaderCellDef>Dịch vụ</th>
+            <th mat-header-cell *matHeaderCellDef>Service</th>
             <td mat-cell *matCellDef="let t">{{ t.rootService }}</td>
           </ng-container>
 
           <ng-container matColumnDef="duration">
-            <th mat-header-cell *matHeaderCellDef>Thời gian</th>
+            <th mat-header-cell *matHeaderCellDef>Duration</th>
             <td mat-cell *matCellDef="let t" class="mono">{{ t.durationMs | number }}ms</td>
           </ng-container>
 
           <ng-container matColumnDef="spans">
-            <th mat-header-cell *matHeaderCellDef>Số spans</th>
+            <th mat-header-cell *matHeaderCellDef>Spans</th>
             <td mat-cell *matCellDef="let t">{{ t.spanCount }}</td>
           </ng-container>
 
           <ng-container matColumnDef="startTime">
-            <th mat-header-cell *matHeaderCellDef>Thời điểm bắt đầu</th>
+            <th mat-header-cell *matHeaderCellDef>Start time</th>
             <td mat-cell *matCellDef="let t" class="mono">{{ t.startTime | date:'dd/MM HH:mm:ss' }}</td>
           </ng-container>
 
@@ -130,7 +130,7 @@ import { Router } from '@angular/router';
           <tr class="mat-row" *matNoDataRow>
             <td class="mat-cell empty-state" [attr.colspan]="displayedColumns.length">
               <mat-icon>timeline</mat-icon>
-              <p>{{ (loading$ | async) ? 'Đang tải...' : 'Không có truy vết nào' }}</p>
+              <p>{{ (loading$ | async) ? 'Loading...' : 'No traces found' }}</p>
             </td>
           </tr>
         </table>
@@ -258,7 +258,7 @@ export class TracesPageComponent implements OnInit, OnDestroy {
         limit: 100,
       }).pipe(
         catchError(err => {
-          const msg = err?.message ?? err?.statusText ?? 'Không thể tải truy vết.';
+          const msg = err?.message ?? err?.statusText ?? 'Failed to load traces.';
           this.error$.next(msg);
           this.loading$.next(false);
           return of([] as TraceSummary[]);

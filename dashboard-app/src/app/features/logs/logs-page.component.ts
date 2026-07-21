@@ -42,10 +42,10 @@ const PAGE_SIZE = 20;
   ],
   template: `
     <div class="page-header">
-      <h1 class="page-title">Nhật ký hệ thống</h1>
+      <h1 class="page-title">System Logs</h1>
       <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
         <mat-icon>refresh</mat-icon>
-        Làm mới
+        Refresh
       </button>
     </div>
 
@@ -54,9 +54,9 @@ const PAGE_SIZE = 20;
       <mat-card-content>
         <div class="filters-row">
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Dịch vụ</mat-label>
+            <mat-label>Service</mat-label>
             <mat-select [(ngModel)]="selectedService" (selectionChange)="onFilterChange()">
-              <mat-option value="">Tất cả dịch vụ</mat-option>
+              <mat-option value="">All services</mat-option>
               <mat-option value="ApiGateway">ApiGateway</mat-option>
               <mat-option value="IdentityService">IdentityService</mat-option>
               <mat-option value="PatientService">PatientService</mat-option>
@@ -69,13 +69,13 @@ const PAGE_SIZE = 20;
           </mat-form-field>
 
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Tìm kiếm</mat-label>
-            <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()" placeholder="Từ khóa..." />
+            <mat-label>Search</mat-label>
+            <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()" placeholder="Keywords..." />
           </mat-form-field>
 
           <button mat-raised-button color="primary" (click)="search()">
             <mat-icon>search</mat-icon>
-            Tìm kiếm
+            Search
           </button>
         </div>
 
@@ -105,18 +105,18 @@ const PAGE_SIZE = 20;
         <!-- Error -->
         <div class="error-inline" *ngIf="error$ | async as err">
           <span class="error-text">{{ err }}</span>
-          <button mat-stroked-button size="small" (click)="refresh()">Thử lại</button>
+          <button mat-stroked-button size="small" (click)="refresh()">Retry</button>
         </div>
 
         <!-- Table -->
         <table mat-table [dataSource]="logs" class="mat-elevation-z0" multiTemplateDataRows>
           <ng-container matColumnDef="timestamp">
-            <th mat-header-cell *matHeaderCellDef>Thời gian</th>
+            <th mat-header-cell *matHeaderCellDef>Time</th>
             <td mat-cell *matCellDef="let l">{{ l.timestamp | date:'dd/MM HH:mm:ss' }}</td>
           </ng-container>
 
           <ng-container matColumnDef="level">
-            <th mat-header-cell *matHeaderCellDef>Cấp độ</th>
+            <th mat-header-cell *matHeaderCellDef>Level</th>
             <td mat-cell *matCellDef="let l">
               <span class="level-badge" [class]="'level-' + l.level.toLowerCase()">
                 {{ l.level }}
@@ -125,12 +125,12 @@ const PAGE_SIZE = 20;
           </ng-container>
 
           <ng-container matColumnDef="service">
-            <th mat-header-cell *matHeaderCellDef>Dịch vụ</th>
+            <th mat-header-cell *matHeaderCellDef>Service</th>
             <td mat-cell *matCellDef="let l">{{ l.service }}</td>
           </ng-container>
 
           <ng-container matColumnDef="message">
-            <th mat-header-cell *matHeaderCellDef>Nội dung</th>
+            <th mat-header-cell *matHeaderCellDef>Message</th>
             <td mat-cell *matCellDef="let l" class="message-cell">{{ l.message }}</td>
           </ng-container>
 
@@ -175,7 +175,7 @@ const PAGE_SIZE = 20;
           <tr class="mat-row" *matNoDataRow>
             <td class="mat-cell empty-state" [attr.colspan]="displayedColumns.length">
               <mat-icon>article</mat-icon>
-              <p>{{ (loading$ | async) ? 'Đang tải...' : 'Không có nhật ký nào' }}</p>
+              <p>{{ (loading$ | async) ? 'Loading...' : 'No logs found' }}</p>
             </td>
           </tr>
         </table>
@@ -185,7 +185,7 @@ const PAGE_SIZE = 20;
           <button mat-stroked-button (click)="loadMore()" [disabled]="loadingMore">
             <mat-icon *ngIf="!loadingMore">expand_more</mat-icon>
             <mat-spinner *ngIf="loadingMore" diameter="16"></mat-spinner>
-            Tải thêm
+            Load More
           </button>
         </div>
       </mat-card-content>
@@ -395,7 +395,7 @@ export class LogsPageComponent implements OnInit {
         size: PAGE_SIZE,
       }).pipe(
         catchError(err => {
-          const msg = err?.message ?? err?.statusText ?? 'Không thể tải nhật ký.';
+          const msg = err?.message ?? err?.statusText ?? 'Failed to load logs.';
           this.error$.next(msg);
           loading.next(false);
           return of([] as LogEntry[]);

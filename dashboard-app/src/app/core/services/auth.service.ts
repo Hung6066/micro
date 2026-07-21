@@ -7,11 +7,13 @@ import { environment } from '../../../environments/environment';
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly authUrl = `${environment.identityUrl}/auth`;
-  private authenticatedSubject = new BehaviorSubject<boolean>(this.hasToken());
+  private authenticatedSubject = new BehaviorSubject<boolean | null>(null);
 
-  readonly isAuthenticated$: Observable<boolean> = this.authenticatedSubject.asObservable();
+  readonly isAuthenticated$: Observable<boolean | null> = this.authenticatedSubject.asObservable();
 
-  constructor(private readonly http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {
+    this.authenticatedSubject.next(this.hasToken());
+  }
 
   login(returnUrl?: string): void {
     const redirectUri = returnUrl

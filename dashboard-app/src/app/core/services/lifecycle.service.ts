@@ -5,7 +5,7 @@ import { environment } from '../../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class LifecycleService {
-  private readonly baseUrl = `${environment.apiUrl}/lifecycle`;
+  private readonly baseUrl = `${environment.apiUrl}/resources`;
 
   constructor(private readonly http: HttpClient) {}
 

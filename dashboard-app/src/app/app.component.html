@@ -12,11 +12,11 @@
   <mat-menu #userMenu="matMenu">
     <button mat-menu-item *ngIf="isAuthenticated$ | async" (click)="onLogout()">
       <mat-icon>logout</mat-icon>
-      <span>Đăng xuất</span>
+      <span>Logout</span>
     </button>
     <button mat-menu-item *ngIf="!(isAuthenticated$ | async)" (click)="onLogin()">
       <mat-icon>login</mat-icon>
-      <span>Đăng nhập</span>
+      <span>Login</span>
     </button>
   </mat-menu>
 </mat-toolbar>
@@ -26,19 +26,19 @@
     <mat-nav-list>
       <a mat-list-item routerLink="/resources" routerLinkActive="active-link">
         <mat-icon matListItemIcon>dns</mat-icon>
-        <span matListItemTitle>Tài nguyên</span>
+        <span matListItemTitle>Resources</span>
       </a>
       <a mat-list-item routerLink="/logs" routerLinkActive="active-link">
         <mat-icon matListItemIcon>article</mat-icon>
-        <span matListItemTitle>Nhật ký</span>
+        <span matListItemTitle>Logs</span>
       </a>
       <a mat-list-item routerLink="/traces" routerLinkActive="active-link">
         <mat-icon matListItemIcon>timeline</mat-icon>
-        <span matListItemTitle>Truy vết</span>
+        <span matListItemTitle>Traces</span>
       </a>
       <a mat-list-item routerLink="/metrics" routerLinkActive="active-link">
         <mat-icon matListItemIcon>monitoring</mat-icon>
-        <span matListItemTitle>Chỉ số</span>
+        <span matListItemTitle>Metrics</span>
       </a>
     </mat-nav-list>
   </mat-sidenav>

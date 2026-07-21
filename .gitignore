@@ -63,6 +63,7 @@ Desktop.ini
 *.log
 *.err
 logs/
+!dashboard-app/src/app/features/logs/
 **/*.log
 **/*.err
 

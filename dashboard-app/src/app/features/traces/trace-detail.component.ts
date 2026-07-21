@@ -38,27 +38,27 @@ const SERVICE_COLORS = [
       <div class="page-header-left">
         <button mat-stroked-button routerLink="/traces" class="back-btn">
           <mat-icon>arrow_back</mat-icon>
-          Quay lại
+          Back
         </button>
-        <h1 class="page-title">Chi tiết truy vết</h1>
+        <h1 class="page-title">Trace Detail</h1>
       </div>
       <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
         <mat-icon>refresh</mat-icon>
-        Làm mới
+        Refresh
       </button>
     </div>
 
     <!-- Loading -->
     <div class="loading-state" *ngIf="(loading$ | async) && !trace">
       <mat-spinner diameter="32"></mat-spinner>
-      <span class="loading-text">Đang tải truy vết...</span>
+      <span class="loading-text">Loading trace...</span>
     </div>
 
     <!-- Error -->
     <div class="error-state" *ngIf="error$ | async as err">
       <mat-icon class="error-icon">error_outline</mat-icon>
       <p class="error-message">{{ err }}</p>
-      <button mat-raised-button color="primary" (click)="refresh()">Thử lại</button>
+      <button mat-raised-button color="primary" (click)="refresh()">Retry</button>
     </div>
 
     <!-- Trace detail -->
@@ -72,23 +72,23 @@ const SERVICE_COLORS = [
               <code class="field-value mono">{{ trace.traceId }}</code>
             </div>
             <div class="header-field">
-              <span class="field-label">Thời gian</span>
+              <span class="field-label">Time</span>
               <span class="field-value">{{ trace.startTime | date:'dd/MM/yyyy HH:mm:ss' }}</span>
             </div>
             <div class="header-field">
-              <span class="field-label">Tổng thời gian</span>
+              <span class="field-label">Total Duration</span>
               <span class="field-value">{{ trace.durationMs | number }} ms</span>
             </div>
             <div class="header-field">
-              <span class="field-label">Số dịch vụ</span>
+              <span class="field-label">Services</span>
               <span class="field-value">{{ trace.services.length }}</span>
             </div>
             <div class="header-field">
-              <span class="field-label">Số spans</span>
+              <span class="field-label">Spans</span>
               <span class="field-value">{{ trace.spanCount }}</span>
             </div>
             <div class="header-field">
-              <span class="field-label">Trạng thái</span>
+                  <span class="field-label">Status</span>
               <span class="field-value">
                 <span class="status-pill" [class.status-ok]="trace.status === 'Ok'"
                       [class.status-error]="trace.status === 'Error'">
@@ -98,7 +98,7 @@ const SERVICE_COLORS = [
             </div>
           </div>
           <div class="service-chips">
-            <span class="service-chip-label">Dịch vụ:</span>
+            <span class="service-chip-label">Services:</span>
             <span class="service-chip" *ngFor="let svc of trace.services; let i = index"
                   [style.--chip-color]="getServiceColor(svc)">
               {{ svc }}
@@ -116,9 +116,9 @@ const SERVICE_COLORS = [
           <div class="waterfall-container" #waterfallContainer>
             <div class="waterfall-labels">
               <div class="waterfall-label-row header-row">
-                <span class="label-service">Dịch vụ</span>
-                <span class="label-operation">Thao tác</span>
-                <span class="label-duration">Thời gian</span>
+                <span class="label-service">Service</span>
+                <span class="label-operation">Operation</span>
+                <span class="label-duration">Duration</span>
               </div>
               <div *ngFor="let span of trace.spans" class="waterfall-label-row"
                    (click)="toggleSpan(span.spanId)"
@@ -178,15 +178,15 @@ const SERVICE_COLORS = [
                   <code class="field-value mono">{{ span.parentSpanId || '—' }}</code>
                 </div>
                 <div class="detail-field">
-                  <span class="field-label">Bắt đầu</span>
+                  <span class="field-label">Start</span>
                   <span class="field-value">{{ span.startTime | date:'HH:mm:ss.SSS' }}</span>
                 </div>
                 <div class="detail-field">
-                  <span class="field-label">Kết thúc</span>
+                  <span class="field-label">End</span>
                   <span class="field-value">{{ span.endTime | date:'HH:mm:ss.SSS' }}</span>
                 </div>
                 <div class="detail-field">
-                  <span class="field-label">Trạng thái</span>
+              <span class="field-label">Status</span>
                   <span class="field-value">{{ span.status }}</span>
                 </div>
               </div>
@@ -206,7 +206,7 @@ const SERVICE_COLORS = [
 
               <!-- Events / Logs -->
               <div class="detail-section" *ngIf="span.events && span.events.length > 0">
-                <h4 class="detail-section-title">Sự kiện & Nhật ký</h4>
+                <h4 class="detail-section-title">Events & Logs</h4>
                 <div class="events-list">
                   <div class="event-item" *ngFor="let evt of span.events">
                     <div class="event-header">
@@ -588,7 +588,7 @@ export class TraceDetailComponent implements OnInit, OnDestroy {
 
     this.tracesService.getById(traceId).pipe(
       catchError(err => {
-        const msg = err?.message ?? err?.statusText ?? 'Không thể tải chi tiết truy vết.';
+        const msg = err?.message ?? err?.statusText ?? 'Failed to load trace detail.';
         this.error$.next(msg);
         this.loading$.next(false);
         throw err;
