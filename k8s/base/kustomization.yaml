@@ -17,7 +17,10 @@ resources:
   - identity-service.yaml
   - appointment-service.yaml
   - clinical-service.yaml
+  - clinical-bff.yaml
   - lab-service.yaml
+  - lab-bff.yaml
+  - pharmacy-bff.yaml
   - billing-service.yaml
   - pharmacy-service.yaml
   - api-gateway.yaml
