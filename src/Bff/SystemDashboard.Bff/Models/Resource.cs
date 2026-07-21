@@ -14,6 +14,7 @@ public sealed record HealthCheckResult
 
 public sealed record ServiceResource : Resource
 {
+    public required string DisplayName { get; init; }
     public int? HttpPort { get; init; }
     public int? GrpcPort { get; init; }
     public required string HealthStatus { get; init; }
@@ -38,4 +39,22 @@ public sealed record InfrastructureResource : Resource
 {
     public required string Category { get; init; }
     public required string Version { get; init; }
+}
+
+public sealed class ConsulOptions
+{
+    public const string SectionName = "Consul";
+    public required string Address { get; init; }
+}
+
+public sealed class DockerOptions
+{
+    public const string SectionName = "Docker";
+    public required string ComposeProjectName { get; init; }
+}
+
+public sealed class KubernetesOptions
+{
+    public const string SectionName = "Kubernetes";
+    public bool Enabled { get; init; }
 }
