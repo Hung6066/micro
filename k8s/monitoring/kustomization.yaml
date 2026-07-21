@@ -16,6 +16,9 @@ resources:
   - servicemonitors.yaml
   - blackbox-exporter-config.yaml
   - anomaly-rules.yaml
+  - bff-pod-monitor.yaml
+  - bff-grafana-dashboard.yaml
+  - bff-slo-alerts.yaml
 
 commonLabels:
   app.kubernetes.io/part-of: his-hope

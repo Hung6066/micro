@@ -1,6 +1,5 @@
 using His.Hope.Bff.Core;
 using His.Hope.Bff.Core.Aggregation;
-using His.Hope.Bff.Core.Authentication;
 using His.Hope.Bff.Core.Proxy;
 using His.Hope.BillingGrpc;
 using BillingBff.Aggregation;
@@ -17,8 +16,7 @@ builder.Services.AddTransient<IAggregationHandler, InvoiceDetailedHandler>();
 
 var app = builder.Build();
 
-app.UseBffSessionAuth();
-app.UseBffCsrfProtection();
+app.UseBffCoreMiddleware();
 app.MapBffReverseProxy();
 app.MapBffAggregation();
 

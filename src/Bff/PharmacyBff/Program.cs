@@ -1,5 +1,4 @@
 using His.Hope.Bff.Core;
-using His.Hope.Bff.Core.Authentication;
 using His.Hope.Bff.Core.Aggregation;
 using His.Hope.Bff.Core.Proxy;
 using His.Hope.PharmacyGrpc;
@@ -18,8 +17,7 @@ builder.Services.AddSingleton<IAggregationHandler>(sp =>
 
 var app = builder.Build();
 
-app.UseBffSessionAuth();
-app.UseBffCsrfProtection();
+app.UseBffCoreMiddleware();
 app.MapBffReverseProxy();
 app.MapBffAggregation();
 

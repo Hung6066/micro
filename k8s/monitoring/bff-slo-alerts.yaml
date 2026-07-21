@@ -1,0 +1,91 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: his-hope-bff-slo
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus-rules
+    app.kubernetes.io/component: slo
+    app.kubernetes.io/part-of: his-hope
+spec:
+  groups:
+    - name: bff-slo
+      interval: 30s
+      rules:
+        # Availability SLO: 99.9% (error budget: 0.1% = 43m/month)
+        - alert: BffErrorBudgetBurn
+          expr: |
+            sum(rate(hishop_bff_requests_total{status=~"5.."}[5m]))
+            / sum(rate(hishop_bff_requests_total[5m])) > 0.001
+          for: 5m
+          labels:
+            severity: critical
+            slo: availability
+          annotations:
+            summary: "BFF error budget burning ({{ $value | humanizePercentage }})"
+
+        # Latency SLO: p95 < 500ms
+        - alert: BffHighLatency
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(hishop_bff_request_duration_seconds_bucket[5m])) by (le, module)
+            ) > 500
+          for: 10m
+          labels:
+            severity: warning
+            slo: latency
+          annotations:
+            summary: "BFF {{ $labels.module }} p95 latency > 500ms ({{ $value }}ms)"
+
+        # Session hit rate < 95%
+        - alert: BffLowSessionHitRate
+          expr: |
+            sum(rate(hishop_bff_session_hits_total[5m]))
+            / (sum(rate(hishop_bff_session_hits_total[5m]))
+               + sum(rate(hishop_bff_session_misses_total[5m]))) < 0.95
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "BFF session hit rate dropped below 95%"
+
+        # High auth failure rate
+        - alert: BffHighAuthFailures
+          expr: |
+            rate(hishop_bff_auth_failures_total[5m]) > 0.1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "BFF auth failures spiking ({{ $value }}/s)"
+
+        # High CSRF rejection rate
+        - alert: BffHighCsrfFailures
+          expr: |
+            rate(hishop_bff_csrf_failures_total[5m]) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "BFF CSRF rejections spiking ({{ $value }}/s)"
+
+        # Circuit breaker open detection
+        - alert: BffCircuitBreakerOpen
+          expr: |
+            hishop_bff_circuit_breaker_state == 1
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "BFF circuit breaker OPEN for {{ $labels.downstream }}"
+
+        # High aggregation degradation rate
+        - alert: BffHighDegradation
+          expr: |
+            sum(rate(hishop_bff_aggregation_degraded_total[5m]))
+            / sum(rate(hishop_bff_requests_total[5m])) > 0.1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "BFF aggregation degraded rate > 10%"

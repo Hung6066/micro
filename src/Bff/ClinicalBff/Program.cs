@@ -1,7 +1,6 @@
 using ClinicalBff.Aggregation;
 using His.Hope.Bff.Core;
 using His.Hope.Bff.Core.Aggregation;
-using His.Hope.Bff.Core.Authentication;
 using His.Hope.Bff.Core.Proxy;
 using His.Hope.ClinicalGrpc;
 using His.Hope.PatientGrpc;
@@ -24,8 +23,7 @@ builder.Services.AddScoped<IAggregationHandler, EncounterVitalsHandler>();
 
 var app = builder.Build();
 
-app.UseBffSessionAuth();
-app.UseBffCsrfProtection();
+app.UseBffCoreMiddleware();
 app.MapBffAggregation();
 app.MapBffReverseProxy();
 
