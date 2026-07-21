@@ -7,6 +7,7 @@ using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using SystemDashboard.Bff.Aggregators;
+using SystemDashboard.Bff.Hubs;
 using SystemDashboard.Bff.Models;
 using SystemDashboard.Bff.Services;
 
@@ -16,6 +17,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<ConsulOptions>(builder.Configuration.GetSection(ConsulOptions.SectionName));
 builder.Services.Configure<DockerOptions>(builder.Configuration.GetSection(DockerOptions.SectionName));
 builder.Services.Configure<KubernetesOptions>(builder.Configuration.GetSection(KubernetesOptions.SectionName));
+builder.Services.Configure<ElasticsearchOptions>(builder.Configuration.GetSection(ElasticsearchOptions.SectionName));
 
 // JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -66,6 +68,18 @@ builder.Services.AddHttpClient<IConsulDiscoveryService, ConsulDiscoveryService>(
 })
 .AddHttpMessageHandler<ResiliencePipelineHandler>();
 
+// Elasticsearch log querying with retry + circuit breaker
+builder.Services.AddHttpClient<IElasticsearchQueryService, ElasticsearchQueryService>((sp, client) =>
+{
+    var esOptions = sp.GetRequiredService<IOptions<ElasticsearchOptions>>();
+    client.BaseAddress = new Uri(esOptions.Value.Url);
+    client.Timeout = TimeSpan.FromSeconds(15);
+})
+.AddHttpMessageHandler<ResiliencePipelineHandler>();
+
+// Logs aggregator
+builder.Services.AddSingleton<ILogsAggregator, LogsAggregator>();
+
 // Resource aggregator
 builder.Services.AddSingleton<IResourceAggregator, ResourceAggregator>();
 
@@ -81,6 +95,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");
+app.MapHub<LogStreamHub>("/ws/logs/stream");
 
 app.Run();
 
