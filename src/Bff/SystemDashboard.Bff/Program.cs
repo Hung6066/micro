@@ -18,6 +18,8 @@ builder.Services.Configure<ConsulOptions>(builder.Configuration.GetSection(Consu
 builder.Services.Configure<DockerOptions>(builder.Configuration.GetSection(DockerOptions.SectionName));
 builder.Services.Configure<KubernetesOptions>(builder.Configuration.GetSection(KubernetesOptions.SectionName));
 builder.Services.Configure<ElasticsearchOptions>(builder.Configuration.GetSection(ElasticsearchOptions.SectionName));
+builder.Services.Configure<PrometheusOptions>(builder.Configuration.GetSection(PrometheusOptions.SectionName));
+builder.Services.Configure<JaegerOptions>(builder.Configuration.GetSection(JaegerOptions.SectionName));
 
 // JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -77,11 +79,35 @@ builder.Services.AddHttpClient<IElasticsearchQueryService, ElasticsearchQuerySer
 })
 .AddHttpMessageHandler<ResiliencePipelineHandler>();
 
+// Prometheus metrics querying with retry + circuit breaker
+builder.Services.AddHttpClient<IPrometheusQueryService, PrometheusQueryService>((sp, client) =>
+{
+    var promOptions = sp.GetRequiredService<IOptions<PrometheusOptions>>();
+    client.BaseAddress = new Uri(promOptions.Value.Url);
+    client.Timeout = TimeSpan.FromSeconds(15);
+})
+.AddHttpMessageHandler<ResiliencePipelineHandler>();
+
+// Jaeger trace querying with retry + circuit breaker
+builder.Services.AddHttpClient<IJaegerQueryService, JaegerQueryService>((sp, client) =>
+{
+    var jaegerOptions = sp.GetRequiredService<IOptions<JaegerOptions>>();
+    client.BaseAddress = new Uri(jaegerOptions.Value.QueryUrl);
+    client.Timeout = TimeSpan.FromSeconds(15);
+})
+.AddHttpMessageHandler<ResiliencePipelineHandler>();
+
 // Logs aggregator
 builder.Services.AddSingleton<ILogsAggregator, LogsAggregator>();
 
 // Resource aggregator
 builder.Services.AddSingleton<IResourceAggregator, ResourceAggregator>();
+
+// Metrics aggregator
+builder.Services.AddSingleton<IMetricsAggregator, MetricsAggregator>();
+
+// Traces aggregator
+builder.Services.AddSingleton<ITracesAggregator, TracesAggregator>();
 
 // OpenTelemetry
 builder.Services.AddOpenTelemetry()
