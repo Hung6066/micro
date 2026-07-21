@@ -1,7 +1,7 @@
 import { Component, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -10,7 +10,6 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '@core/services/auth.service';
-import { SessionService } from '@core/services/session.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Component({
@@ -26,16 +25,16 @@ import { MatSnackBar } from '@angular/material/snack-bar';
     <div class="login-container">
       <mat-card class="login-card">
         <mat-card-header>
-          <mat-icon class="card-icon">local_hospital</mat-icon>
+          <span class="card-logo" aria-hidden="true"></span>
           <mat-card-title>His.Hope</mat-card-title>
-          <mat-card-subtitle>Hệ thống Quản lý Bệnh viện</mat-card-subtitle>
+          <mat-card-subtitle>Đăng nhập hệ thống</mat-card-subtitle>
         </mat-card-header>
 
         <mat-card-content>
           <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Tên đăng nhập</mat-label>
-              <input matInput formControlName="username" placeholder="Nhập tên đăng nhập">
+              <input matInput formControlName="username" placeholder="Nhập tài khoản">
               <mat-icon matPrefix aria-hidden="true">person</mat-icon>
             </mat-form-field>
 
@@ -63,10 +62,39 @@ import { MatSnackBar } from '@angular/material/snack-bar';
     </div>
   `,
     styles: [`
-    .login-container { display: flex; justify-content: center; align-items: center; height: 100vh; background: var(--bg-warm, #F7F6F3); }
-    .login-card { max-width: 420px; width: 100%; }
-    .card-icon { font-size: 48px; width: 48px; height: 48px; color: var(--color-primary, #2F6B4A); margin: 0 auto 16px; }
+    .login-container { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--bg-warm, #F7F6F3); }
+    .login-card { width: min(100%, 420px); }
+    .card-logo {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 16px;
+      border-radius: 10px;
+      background: var(--color-primary, #2F6B4A);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+    }
+    .card-logo::before,
+    .card-logo::after {
+      content: '';
+      position: absolute;
+      border-radius: 2px;
+      background: #FFFFFF;
+    }
+    .card-logo::before {
+      width: 24px;
+      height: 6px;
+    }
+    .card-logo::after {
+      width: 6px;
+      height: 24px;
+    }
     mat-card-header { flex-direction: column; align-items: center; text-align: center; margin-bottom: 24px; }
+    mat-card-title { font-size: 28px; line-height: 1.1; letter-spacing: -0.02em; }
+    mat-card-subtitle { color: var(--text-secondary, #787774); }
+    mat-card-content { padding-top: 0; }
     .full-width { width: 100%; margin-bottom: 16px; }
     form { display: flex; flex-direction: column; }
     .btn-spinner { display: inline-block; margin-right: 8px; }
@@ -75,8 +103,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 export class LoginComponent implements OnDestroy {
   private fb = inject(FormBuilder);
   private authService = inject(AuthService);
-  private sessionService = inject(SessionService);
-  private router = inject(Router);
+  private route = inject(ActivatedRoute);
   private snackBar = inject(MatSnackBar);
   private cdr = inject(ChangeDetectorRef);
   private destroy$ = new Subject<void>();
@@ -111,8 +138,9 @@ export class LoginComponent implements OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.sessionService.startTracking();
-          this.router.navigate(['/dashboard']);
+          const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+          const targetUrl = returnUrl || '/dashboard';
+          window.location.assign(targetUrl);
         },
         error: (err) => {
           this.loading = false;

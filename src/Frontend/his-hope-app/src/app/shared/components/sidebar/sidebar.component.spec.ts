@@ -52,6 +52,16 @@ describe('SidebarComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  it('should render the brand logo without material icon ligature text', () => {
+    fixture.detectChanges();
+
+    const brand: HTMLElement = fixture.nativeElement.querySelector('.brand');
+    const logo = brand.querySelector('.logo-mark');
+
+    expect(logo).toBeTruthy();
+    expect(brand.textContent).not.toContain('local_hospital');
+  });
+
   it('should display current user name when logged in', () => {
     fixture.detectChanges();
     currentUserSubject.next({ fullName: 'Admin User', specialty: 'General' });

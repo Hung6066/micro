@@ -1,4 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
+using His.Hope.Infrastructure.Caching;
 using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
 using His.Hope.EventBusRabbitMQ.Implementations;
@@ -37,11 +38,8 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddPatientApplication();
 builder.Services.AddPatientInfrastructure(builder.Configuration);
 
-// SECURITY: Add JWT Bearer authentication with RSA public key validation
-// The private key is held only by IdentityService - this service only validates
+// SECURITY: JWT Bearer authentication + permission-based authorization
 builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
-
-// SECURITY: Register permission-based authorization policies
 builder.Services.AddHisHopeAuthorization();
 
 // Enterprise Infrastructure
@@ -50,6 +48,9 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
     "patient-service",
     builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379"));
 
+// TEMP: Replace Redis cache with a no-op cache to avoid StackExchange.Redis hang
+// TODO: Fix StackExchange.Redis async timeout properly
+builder.Services.AddSingleton<ICacheService>(new NoOpCacheService());
 builder.Services.AddResiliencePolicies();
 builder.Services.AddOutbox<PatientDbContext>();
 
@@ -139,7 +140,7 @@ using (var scope = app.Services.CreateScope())
 
 // Middleware Pipeline (order matters)
 app.UseSecurityHeaders();
-app.UseRateLimiting();
+// app.UseRateLimiting(); // TEMP DISABLED for debugging auth timeout
 app.UseSerilogRequestLogging();
 app.UseHisHopePrometheus();
 
@@ -151,15 +152,31 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
+app.UseRouting();
+
 // SECURITY: Authentication & Authorization middleware
 app.UseAuthentication();
 app.UseAuthorization();
-
-
 app.UsePhiAudit();
 
 // Patient Endpoints (all require JWT authorization)
 var patients = app.MapGroup("/api/v1/patients").RequireAuthorization();
+
+patients.MapGet("/", async (
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct,
+    int page = 1,
+    int pageSize = 20,
+    string? search = null) =>
+{
+    var cacheKey = $"patients:search:{search}:{page}:{pageSize}";
+    var result = await cache.GetOrSetAsync(
+        cacheKey,
+        async () => await mediator.Send(new SearchPatientsQuery(search ?? "", page, pageSize), ct),
+        TimeSpan.FromMinutes(2), ct);
+    return Results.Ok(result);
+}).RequireAuthorization("Permission:patients.view").WithOpenApi();
 
 patients.MapGet("/{id:guid}", async (
     Guid id,
@@ -306,4 +323,16 @@ static X509Certificate2 LoadServerCertificate(IConfiguration config)
     var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(5));
     return cert;
 }
+
+// TEMP: No-op cache — bypasses Redis until StackExchange.Redis timeout is fixed
+file sealed class NoOpCacheService : ICacheService
+{
+    public Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class => Task.FromResult<T?>(null);
+    public Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => factory();
+    public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => Task.CompletedTask;
+    public Task RemoveAsync(string key, CancellationToken ct = default) => Task.CompletedTask;
+    public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default) => Task.CompletedTask;
+}
+
+
 

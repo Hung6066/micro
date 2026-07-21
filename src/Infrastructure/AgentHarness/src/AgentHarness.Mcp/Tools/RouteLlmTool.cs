@@ -19,8 +19,8 @@ public class RouteLlmTool
 
     private static readonly Dictionary<string, ModelInfo> KnownModels = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["deepseek-v4-flash"] = new("deepseek-v4-flash", 1, 0.01m, "Cheapest, fastest. Good for code gen, simple queries, linting."),
-        ["gpt-5.4-mini"]     = new("gpt-5.4-mini", 2, 0.02m, "Fast mid-tier. Good for unit tests, refactoring, docs."),
+        ["deepseek-v4-flash"] = new("deepseek-v4-flash", 2, 0.02m, "Default flash-tier. Good for code gen, unit tests, refactoring, docs."),
+        ["gpt-5.4-mini"]     = new("gpt-5.4-mini", 1, 0.01m, "Cheapest, fastest fallback. Good for simple queries, linting."),
         ["deepseek-v4-pro"]  = new("deepseek-v4-pro", 3, 0.05m, "Strong reasoning. Good for architecture, security review, complex bugs."),
         ["gpt-5.5"]          = new("gpt-5.5", 4, 0.10m, "Most capable. Good for HIPAA compliance audit, production-critical decisions."),
     };

@@ -1,0 +1,17 @@
+24. [GET] http://localhost:8081/api/v1/auth/verify => [200] OK
+36. [GET] http://localhost:8081/api/v1/auth/verify => [200] OK
+38. [POST] http://localhost:8081/api/v1/auth/login => [200] OK
+40. [GET] http://localhost:8081/api/v1/auth/verify => [200] OK
+41. [GET] http://localhost:8081/api/v1/dashboard/stats => [504] Gateway Time-out
+42. [GET] http://localhost:8081/api/v1/dashboard/recent-encounters?limit=5 => [200] OK
+43. [GET] http://localhost:8081/api/v1/dashboard/upcoming-appointments => [200] OK
+44. [GET] http://localhost:8081/api/v1/patients/search?q=&page=1&pageSize=8 => [200] OK
+45. [GET] http://localhost:8081/api/v1/dashboard/stats => [504] Gateway Time-out
+46. [GET] http://localhost:8081/api/v1/dashboard/stats => [504] Gateway Time-out
+47. [GET] http://localhost:8081/api/v1/dashboard/stats => [FAILED] net::ERR_ABORTED
+49. [GET] http://localhost:8081/api/v1/auth/verify => [200] OK
+50. [GET] http://localhost:8081/api/v1/appointments/search?page=1&pageSize=20 => [504] Gateway Time-out
+51. [GET] http://localhost:8081/api/v1/appointments/search?page=1&pageSize=20 => [504] Gateway Time-out
+52. [GET] http://localhost:8081/api/v1/appointments/search?page=1&pageSize=20
+
+Note: 37 static requests not shown, run with "static" option to see them.

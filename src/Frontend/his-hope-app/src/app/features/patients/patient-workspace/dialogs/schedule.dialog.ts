@@ -111,7 +111,7 @@ const TIME_SLOTS = [
     </mat-dialog-actions>
   `,
     styles: [`
-    .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: #fff3e0; border-radius: 8px; color: #e65100; font-weight: 500; }
+    .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: var(--pastel-orange, #FDF0E2); border-radius: 8px; color: var(--pastel-orange-text, #B6581C); font-weight: 500; }
     .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 380px; }
   `]
 })

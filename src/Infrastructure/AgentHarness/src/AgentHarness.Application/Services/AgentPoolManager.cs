@@ -26,17 +26,20 @@ public class AgentPoolManager
     private readonly IStateStore _store;
     private readonly IEventBus _eventBus;
     private readonly BackpressureController _backpressure;
+    private readonly CostTracker _costTracker;
 
     public AgentPoolManager(
         IAgentDispatcher dispatcher,
         IStateStore store,
         IEventBus eventBus,
-        BackpressureController backpressure)
+        BackpressureController backpressure,
+        CostTracker costTracker)
     {
         _dispatcher = dispatcher;
         _store = store;
         _eventBus = eventBus;
         _backpressure = backpressure;
+        _costTracker = costTracker;
 
         foreach (var agent in KnownAgents)
         {
@@ -58,8 +61,8 @@ public class AgentPoolManager
         // 1. Check circuit breaker state
         if (state.CircuitState == CircuitState.Open)
         {
-            // 2. Attempt recovery by transitioning to Half-Open (allows a trial request)
-            state.UpdateCircuitState(CircuitState.HalfOpen);
+            throw new InvalidOperationException(
+                $"Circuit breaker is open for agent '{agentRun.AgentName}'. Dispatch rejected until manual reset or recovery policy is configured.");
         }
 
         // 3. Check if scale-up is needed (pool is saturated)
@@ -83,6 +86,7 @@ public class AgentPoolManager
 
             // 6. Dispatch the agent via IAgentDispatcher
             var result = await _dispatcher.DispatchAsync(agentRun, ct);
+            _costTracker.TrackCall(agentRun.AgentName);
 
             // 7. Record outcome — update circuit breaker state
             if (result.Status == AgentRunStatus.Completed)

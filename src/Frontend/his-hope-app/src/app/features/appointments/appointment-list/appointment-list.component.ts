@@ -86,7 +86,9 @@ import { Appointment } from '@core/models/appointment.model';
 
               <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
               <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row"
-                  (click)="viewDetail(row.id)"></tr>
+                  (click)="viewDetail(row.id)" (keydown.enter)="viewDetail(row.id)"
+                  (keydown.space)="$event.preventDefault(); viewDetail(row.id)" tabindex="0" role="button"
+                  [attr.aria-label]="'Xem chi tiết cuộc hẹn ' + row.patientId"></tr>
             </table>
 
             <mat-paginator [length]="totalCount"
@@ -108,10 +110,11 @@ import { Appointment } from '@core/models/appointment.model';
     .appointments { padding: 24px; }
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .search-field { width: 100%; max-width: 400px; }
-    .table-container { overflow-x: auto; }
+    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .appointment-table { width: 100%; }
     .clickable-row { cursor: pointer; }
     .clickable-row:hover { background: #f5f5f5; }
+    .clickable-row:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: -2px; }
     .placeholder { color: #999; text-align: center; padding: 48px; }
 
   `],

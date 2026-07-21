@@ -1,0 +1,11 @@
+- generic [active] [ref=f13e1]:
+  - link "Chuyển đến nội dung chính" [ref=f13e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f13e7]:
+    - button "Mở menu điều hướng" [ref=f13e8] [cursor=pointer]:
+      - img [ref=f13e9]: menu
+    - status [ref=f13e13]:
+      - generic [ref=f13e14]:
+        - img [ref=f13e15]: error_outline
+        - button [ref=f13e17] [cursor=pointer]:
+          - img [ref=f13e18]: close

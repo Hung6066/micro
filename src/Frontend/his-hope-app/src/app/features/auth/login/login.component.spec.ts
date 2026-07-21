@@ -1,9 +1,9 @@
-import { ComponentFixture, TestBed, fakeAsync, tick, discardPeriodicTasks } from '@angular/core/testing';
-import { Router } from '@angular/router';
-import { Subject, of, throwError } from 'rxjs';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { of, throwError } from 'rxjs';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ReactiveFormsModule } from '@angular/forms';
-import { MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -11,16 +11,28 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { LoginComponent } from './login.component';
 import { AuthService } from '@core/services/auth.service';
+import { SessionService } from '@core/services/session.service';
 
 describe('LoginComponent', () => {
   let component: LoginComponent;
   let fixture: ComponentFixture<LoginComponent>;
   let authService: jasmine.SpyObj<AuthService>;
-  let router: jasmine.SpyObj<Router>;
+  let locationAssignSpy: jest.Mock;
+  let originalLocation: Location;
 
   beforeEach(() => {
     const authSpy = jasmine.createSpyObj('AuthService', ['login']);
-    const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
+    const snackBarSpy = jasmine.createSpyObj('MatSnackBar', ['open']);
+    const sessionSpy = jasmine.createSpyObj('SessionService', ['startTracking']);
+    const activatedRouteStub = {
+      snapshot: { queryParamMap: convertToParamMap({}) },
+    };
+    originalLocation = window.location;
+    locationAssignSpy = jest.fn();
+    delete (window as any).location;
+    (window as any).location = {
+      assign: locationAssignSpy,
+    };
 
     TestBed.configureTestingModule({
       
@@ -28,7 +40,6 @@ describe('LoginComponent', () => {
         LoginComponent, 
         NoopAnimationsModule,
         ReactiveFormsModule,
-        MatSnackBarModule,
         MatCardModule,
         MatFormFieldModule,
         MatInputModule,
@@ -37,15 +48,21 @@ describe('LoginComponent', () => {
       ],
       providers: [
         { provide: AuthService, useValue: authSpy },
-        { provide: Router, useValue: routerSpy },
+        { provide: SessionService, useValue: sessionSpy },
+        { provide: MatSnackBar, useValue: snackBarSpy },
+        { provide: ActivatedRoute, useValue: activatedRouteStub },
       ],
     });
 
     fixture = TestBed.createComponent(LoginComponent);
     component = fixture.componentInstance;
     authService = TestBed.inject(AuthService) as jasmine.SpyObj<AuthService>;
-    router = TestBed.inject(Router) as jasmine.SpyObj<Router>;
     fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    delete (window as any).location;
+    (window as any).location = originalLocation;
   });
 
   it('should render login form with username and password fields', () => {
@@ -53,6 +70,14 @@ describe('LoginComponent', () => {
     const passwordInput = fixture.nativeElement.querySelector('input[formControlName="password"]');
     expect(usernameInput).toBeTruthy();
     expect(passwordInput).toBeTruthy();
+  });
+
+  it('should render the login logo without material icon ligature text', () => {
+    const cardHeader: HTMLElement = fixture.nativeElement.querySelector('mat-card-header');
+    const logo = cardHeader.querySelector('.card-logo');
+
+    expect(logo).toBeTruthy();
+    expect(cardHeader.textContent).not.toContain('local_hospital');
   });
 
   it('should call authService.login on form submit with device info', () => {
@@ -67,6 +92,15 @@ describe('LoginComponent', () => {
       deviceInfo: jasmine.any(String),
       userAgent: jasmine.any(String),
     } as any);
+  });
+
+  it('should navigate to dashboard after login success', () => {
+    authService.login.and.returnValue(of({ id: 'usr-001', username: 'admin', email: 'admin@hishope.vn', firstName: 'Admin', lastName: 'User', fullName: 'Admin User', roles: ['admin'] }));
+
+    component.loginForm.setValue({ username: 'admin', password: 'secret' });
+    component.onSubmit();
+
+    expect(locationAssignSpy).toHaveBeenCalledWith('/dashboard');
   });
 
   it('should show error snackbar on login failure', () => {

@@ -194,14 +194,19 @@ import { Patient } from '@core/models/patient.model';
         <mat-card-content>
           <div class="recent-patients-grid">
             @for (p of recentPatients; track p.id) {
-            <div class="recent-patient-card" (click)="openPatientWorkspace(p.id)">
+            <button
+              type="button"
+              class="recent-patient-card"
+              (click)="openPatientWorkspace(p.id)"
+              [attr.aria-label]="'Mở hồ sơ bệnh nhân ' + p.fullName"
+            >
               <div class="rp-avatar">{{ p.fullName.charAt(0) }}</div>
               <div class="rp-info">
                 <span class="rp-name">{{ p.fullName }}</span>
                 <span class="rp-meta">{{ p.genderName }} · {{ p.age }} tuổi</span>
               </div>
               <mat-icon class="rp-arrow">chevron_right</mat-icon>
-            </div>
+            </button>
             }
           </div>
         </mat-card-content>
@@ -223,32 +228,34 @@ import { Patient } from '@core/models/patient.model';
           <div class="section-empty">Chưa có lượt khám nào</div>
           }
           @if (recentEncounters.length > 0) {
-          <table mat-table [dataSource]="recentEncounters" class="dashboard-table">
-            <ng-container matColumnDef="encounterDate">
-              <th mat-header-cell *matHeaderCellDef>Ngày</th>
-              <td mat-cell *matCellDef="let e">{{ e.encounterDate | date:'dd/MM HH:mm' }}</td>
-            </ng-container>
-            <ng-container matColumnDef="patientId">
-              <th mat-header-cell *matHeaderCellDef>Bệnh nhân</th>
-              <td mat-cell *matCellDef="let e">{{ e.patientId | slice:0:8 }}...</td>
-            </ng-container>
-            <ng-container matColumnDef="encounterType">
-              <th mat-header-cell *matHeaderCellDef>Loại</th>
-              <td mat-cell *matCellDef="let e">{{ e.encounterTypeName || e.encounterType }}</td>
-            </ng-container>
-            <ng-container matColumnDef="chiefComplaint">
-              <th mat-header-cell *matHeaderCellDef>Lý do</th>
-              <td mat-cell *matCellDef="let e">{{ e.chiefComplaint || '-' }}</td>
-            </ng-container>
-            <ng-container matColumnDef="status">
-              <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
-              <td mat-cell *matCellDef="let e">
-                <span class="status-badge" [class]="'status-' + e.status.toLowerCase()">{{ e.statusName || e.status }}</span>
-              </td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="['encounterDate','patientId','encounterType','chiefComplaint','status']"></tr>
-            <tr mat-row *matRowDef="let row; columns: ['encounterDate','patientId','encounterType','chiefComplaint','status'];" class="clickable-row" (click)="viewEncounter(row.id)"></tr>
-          </table>
+          <div class="table-scroll">
+            <table mat-table [dataSource]="recentEncounters" class="dashboard-table">
+              <ng-container matColumnDef="encounterDate">
+                <th mat-header-cell *matHeaderCellDef>Ngày</th>
+                <td mat-cell *matCellDef="let e">{{ e.encounterDate | date:'dd/MM HH:mm' }}</td>
+              </ng-container>
+              <ng-container matColumnDef="patientId">
+                <th mat-header-cell *matHeaderCellDef>Bệnh nhân</th>
+                <td mat-cell *matCellDef="let e">{{ e.patientId | slice:0:8 }}...</td>
+              </ng-container>
+              <ng-container matColumnDef="encounterType">
+                <th mat-header-cell *matHeaderCellDef>Loại</th>
+                <td mat-cell *matCellDef="let e">{{ e.encounterTypeName || e.encounterType }}</td>
+              </ng-container>
+              <ng-container matColumnDef="chiefComplaint">
+                <th mat-header-cell *matHeaderCellDef>Lý do</th>
+                <td mat-cell *matCellDef="let e">{{ e.chiefComplaint || '-' }}</td>
+              </ng-container>
+              <ng-container matColumnDef="status">
+                <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
+                <td mat-cell *matCellDef="let e">
+                  <span class="status-badge" [class]="'status-' + e.status.toLowerCase()">{{ e.statusName || e.status }}</span>
+                </td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="['encounterDate','patientId','encounterType','chiefComplaint','status']"></tr>
+              <tr mat-row *matRowDef="let row; columns: ['encounterDate','patientId','encounterType','chiefComplaint','status'];" class="clickable-row" (click)="viewEncounter(row.id)" (keydown.enter)="viewEncounter(row.id)" (keydown.space)="$event.preventDefault(); viewEncounter(row.id)" tabindex="0" role="button" [attr.aria-label]="'Mở lượt khám ' + row.patientId"></tr>
+            </table>
+          </div>
           }
         </mat-card-content>
       </mat-card>
@@ -272,32 +279,34 @@ import { Patient } from '@core/models/patient.model';
           <div class="section-empty">Không có lịch hẹn nào</div>
           }
           @if (upcomingAppointments.length > 0) {
-          <table mat-table [dataSource]="upcomingAppointments" class="dashboard-table">
-            <ng-container matColumnDef="scheduledDate">
-              <th mat-header-cell *matHeaderCellDef>Ngày</th>
-              <td mat-cell *matCellDef="let a">{{ a.scheduledDate | date:'dd/MM' }}</td>
-            </ng-container>
-            <ng-container matColumnDef="startTime">
-              <th mat-header-cell *matHeaderCellDef>Giờ</th>
-              <td mat-cell *matCellDef="let a">{{ a.startTime }}</td>
-            </ng-container>
-            <ng-container matColumnDef="patientId">
-              <th mat-header-cell *matHeaderCellDef>Bệnh nhân</th>
-              <td mat-cell *matCellDef="let a">{{ a.patientId | slice:0:8 }}...</td>
-            </ng-container>
-            <ng-container matColumnDef="type">
-              <th mat-header-cell *matHeaderCellDef>Loại</th>
-              <td mat-cell *matCellDef="let a">{{ a.typeName || a.type }}</td>
-            </ng-container>
-            <ng-container matColumnDef="status">
-              <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
-              <td mat-cell *matCellDef="let a">
-                <span class="status-badge" [class]="'apt-status-' + a.status.toLowerCase()">{{ a.statusName || a.status }}</span>
-              </td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="['scheduledDate','startTime','patientId','type','status']"></tr>
-            <tr mat-row *matRowDef="let row; columns: ['scheduledDate','startTime','patientId','type','status'];" class="clickable-row" (click)="viewAppointment(row.id)"></tr>
-          </table>
+          <div class="table-scroll">
+            <table mat-table [dataSource]="upcomingAppointments" class="dashboard-table">
+              <ng-container matColumnDef="scheduledDate">
+                <th mat-header-cell *matHeaderCellDef>Ngày</th>
+                <td mat-cell *matCellDef="let a">{{ a.scheduledDate | date:'dd/MM' }}</td>
+              </ng-container>
+              <ng-container matColumnDef="startTime">
+                <th mat-header-cell *matHeaderCellDef>Giờ</th>
+                <td mat-cell *matCellDef="let a">{{ a.startTime }}</td>
+              </ng-container>
+              <ng-container matColumnDef="patientId">
+                <th mat-header-cell *matHeaderCellDef>Bệnh nhân</th>
+                <td mat-cell *matCellDef="let a">{{ a.patientId | slice:0:8 }}...</td>
+              </ng-container>
+              <ng-container matColumnDef="type">
+                <th mat-header-cell *matHeaderCellDef>Loại</th>
+                <td mat-cell *matCellDef="let a">{{ a.typeName || a.type }}</td>
+              </ng-container>
+              <ng-container matColumnDef="status">
+                <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
+                <td mat-cell *matCellDef="let a">
+                  <span class="status-badge" [class]="'apt-status-' + a.status.toLowerCase()">{{ a.statusName || a.status }}</span>
+                </td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="['scheduledDate','startTime','patientId','type','status']"></tr>
+              <tr mat-row *matRowDef="let row; columns: ['scheduledDate','startTime','patientId','type','status'];" class="clickable-row" (click)="viewAppointment(row.id)" (keydown.enter)="viewAppointment(row.id)" (keydown.space)="$event.preventDefault(); viewAppointment(row.id)" tabindex="0" role="button" [attr.aria-label]="'Mở lịch hẹn ' + row.patientId"></tr>
+            </table>
+          </div>
           }
         </mat-card-content>
       </mat-card>
@@ -475,6 +484,12 @@ import { Patient } from '@core/models/patient.model';
     }
 
     .recent-patient-card {
+      appearance: none;
+      font: inherit;
+      text-align: left;
+      width: 100%;
+      border: 1px solid var(--border-light, #F0F0EE);
+      background: #FFFFFF;
       display: flex;
       align-items: center;
       gap: 12px;
@@ -487,6 +502,12 @@ import { Patient } from '@core/models/patient.model';
 
     .recent-patient-card:hover {
       background: rgba(0, 0, 0, 0.02);
+    }
+
+    .recent-patient-card:focus-visible,
+    .clickable-row:focus-visible {
+      outline: 2px solid var(--color-primary, #2F6B4A);
+      outline-offset: 2px;
     }
 
     .rp-avatar {
@@ -587,6 +608,11 @@ import { Patient } from '@core/models/patient.model';
 
     .clickable-row:hover {
       background: rgba(0, 0, 0, 0.02);
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     /* ── Responsive ── */

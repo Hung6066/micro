@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,13 +17,13 @@ public static class JwtAuthenticationExtensions
         services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-            // Do NOT set DefaultChallengeScheme - this allows unauthenticated requests
-            // to pass through to endpoints without triggering a 401 challenge.
-            // Endpoints with RequireAuthorization() will still return 401.
+            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
         })
         .AddJwtBearer(options =>
         {
             options.RequireHttpsMetadata = !configuration.GetValue<bool>("Jwt:AllowHttp", false);
+
+            var key = configuration["Jwt:Key"] ?? "super-secret-key-his-hope-2024-at-least-32-chars!";
 
             options.TokenValidationParameters = new TokenValidationParameters
             {
@@ -30,16 +31,11 @@ public static class JwtAuthenticationExtensions
                 ValidateAudience = !string.IsNullOrEmpty(configuration["Jwt:Audience"]),
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-
                 ValidIssuer = configuration["Jwt:Issuer"],
                 ValidAudience = configuration["Jwt:Audience"],
-
-                IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
-                    System.Text.Encoding.UTF8.GetBytes(
-                        configuration["Jwt:Key"] ?? "super-secret-key-his-hope-2024-at-least-32-chars!")),
-
-                ValidAlgorithms = new[] { Microsoft.IdentityModel.Tokens.SecurityAlgorithms.HmacSha256 },
-
+                IssuerSigningKey = new SymmetricSecurityKey(
+                    System.Text.Encoding.UTF8.GetBytes(key)),
+                ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 },
                 ClockSkew = TimeSpan.FromMinutes(configuration.GetValue("Jwt:ClockSkewMinutes", 1)),
             };
 
@@ -54,7 +50,7 @@ public static class JwtAuthenticationExtensions
                         context.HttpContext.Connection.RemoteIpAddress);
                     return Task.CompletedTask;
                 },
-                OnTokenValidated = async context =>
+                OnTokenValidated = context =>
                 {
                     var logger = context.HttpContext.RequestServices
                         .GetRequiredService<ILogger<JwtBearerHandler>>();
@@ -62,53 +58,68 @@ public static class JwtAuthenticationExtensions
                     var jti = context.Principal?.FindFirst("jti")?.Value;
                     var userId = context.Principal?.FindFirst("sub")?.Value;
 
-                    // SECURITY: Check if this specific token has been revoked
                     if (!string.IsNullOrEmpty(jti))
                     {
                         var blacklistService = context.HttpContext.RequestServices
                             .GetService<ITokenBlacklistService>();
-
-                        if (blacklistService != null && await blacklistService.IsBlacklistedAsync(jti))
+                        if (blacklistService != null)
                         {
-                            logger.LogWarning(
-                                "Token revoked: jti={Jti}, userId={UserId}", jti, userId);
-                            context.Fail("Token has been revoked.");
-                            return;
+                            try
+                            {
+                                var isBlacklisted = blacklistService.IsBlacklistedAsync(jti)
+                                    .GetAwaiter().GetResult();
+                                if (isBlacklisted)
+                                {
+                                    logger.LogWarning(
+                                        "Token revoked: jti={Jti}, userId={UserId}", jti, userId);
+                                    context.Fail("Token has been revoked.");
+                                    return Task.CompletedTask;
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                logger.LogWarning(ex, "Token blacklist check failed for jti={Jti}", jti);
+                            }
                         }
                     }
 
-                    // SECURITY: Check if all tokens for this user have been revoked
                     if (!string.IsNullOrEmpty(userId))
                     {
                         var blacklistService = context.HttpContext.RequestServices
                             .GetService<ITokenBlacklistService>();
-
                         if (blacklistService != null)
                         {
-                            var revokedAt = await blacklistService
-                                .GetUserRevocationTimestampAsync(userId);
-
-                            if (revokedAt.HasValue)
+                            try
                             {
-                                var iatClaim = context.Principal?.FindFirst("iat")?.Value;
-                                if (long.TryParse(iatClaim, out var iatUnix))
+                                var revokedAt = blacklistService
+                                    .GetUserRevocationTimestampAsync(userId)
+                                    .GetAwaiter().GetResult();
+                                if (revokedAt.HasValue)
                                 {
-                                    var issuedAt = DateTimeOffset.FromUnixTimeSeconds(iatUnix);
-                                    if (issuedAt.UtcDateTime < revokedAt.Value)
+                                    var iatClaim = context.Principal?.FindFirst("iat")?.Value;
+                                    if (long.TryParse(iatClaim, out var iatUnix))
                                     {
-                                        logger.LogWarning(
-                                            "User token revoked (issued before revocation): " +
-                                            "UserId={UserId}", userId);
-                                        context.Fail("User tokens have been revoked.");
-                                        return;
+                                        var issuedAt = DateTimeOffset.FromUnixTimeSeconds(iatUnix);
+                                        if (issuedAt.UtcDateTime < revokedAt.Value)
+                                        {
+                                            logger.LogWarning(
+                                                "User token revoked: UserId={UserId}", userId);
+                                            context.Fail("User tokens have been revoked.");
+                                            return Task.CompletedTask;
+                                        }
                                     }
                                 }
+                            }
+                            catch (Exception ex)
+                            {
+                                logger.LogWarning(ex, "User revocation check failed for UserId={UserId}", userId);
                             }
                         }
                     }
 
                     logger.LogInformation(
                         "JWT token validated for user {UserId}, jti={Jti}", userId, jti);
+                    return Task.CompletedTask;
                 },
                 OnChallenge = context =>
                 {

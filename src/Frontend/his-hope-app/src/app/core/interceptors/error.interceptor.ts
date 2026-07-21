@@ -33,13 +33,15 @@ export class ErrorInterceptor implements HttpInterceptor {
         },
       }),
       catchError((error: HttpErrorResponse) => {
-        // Audit log (full context gửi backend an toàn)
-        this.auditService.log('error.server', {
-          status: error.status,
-          url: req.url,
-          method: req.method,
-          correlationId: error.headers?.get('X-Correlation-ID') || undefined,
-        });
+        if (!this.isSkippableUrl(req.url)) {
+          // Audit log (full context gửi backend an toàn)
+          this.auditService.log('error.server', {
+            status: error.status,
+            url: req.url,
+            method: req.method,
+            correlationId: error.headers?.get('X-Correlation-ID') || undefined,
+          });
+        }
 
         const shouldNotify = !this.isSkippableUrl(req.url);
 
@@ -56,7 +58,7 @@ export class ErrorInterceptor implements HttpInterceptor {
 
         switch (error.status) {
           case 401: {
-            if (!req.url.includes('/auth/')) {
+            if (!req.url.includes('/auth/') && !req.url.includes('/dashboard/') && !req.url.includes('/patients/search')) {
               authService.clearStoredAccessToken();
               this.router.navigate(['/auth/login']);
             }

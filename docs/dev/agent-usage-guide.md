@@ -118,49 +118,49 @@ Ví dụ:
 | `@architect` | deepseek-v4-pro | Kiến trúc sư trưởng, điều phối toàn team | Luôn luôn - là entry point |
 | `@dispatcher` | deepseek-v4-pro | Phân tích thông minh, chọn agent tối ưu, chọn pipeline path | **Đầu tiên** - trước mọi triển khai |
 | `@plan` | deepseek-v4-pro | Lập kế hoạch chi tiết trước khi code | Trước feature lớn, cần phân tích |
-| `@orchestrator` | openai/gpt-5.4-mini | Điều phối pipeline 5 phase CHO COMPLEX FEATURES | Chỉ khi @dispatcher chọn PATH_FULL |
+| `@orchestrator` | opencode-go/deepseek-v4-flash | Điều phối pipeline 5 phase CHO COMPLEX FEATURES | Chỉ khi @dispatcher chọn PATH_FULL |
 
 ### 3.2 Agent triển khai (Implementation) - Phase 2
 
 | Agent | Model | Chuyên môn | Phạm vi |
 |---|---|---|---|
-| `@dotnet` | openai/gpt-5.4-mini | .NET 8, Clean Architecture, CQRS, DDD, gRPC, EF Core | `src/Services/*/` |
-| `@angular` | openai/gpt-5.4-mini | Angular 17, NgRx, Angular Material, RxJS | `src/Frontend/` |
-| `@dba` | openai/gpt-5.4-mini | CockroachDB, SQL migrations, performance | `cockroach/`, EF Core configs |
-| `@devops` | openai/gpt-5.4-mini | K8s, Docker, CI/CD, Linkerd, Cilium, Bazel | `k8s/`, `docker/`, `cicd/` |
-| `@docs` | openai/gpt-5.4-mini | ADRs, API docs, READMEs, changelogs, runbooks | `docs/`, `*.md` |
-| `@ml-ai` | openai/gpt-5.4-mini | ML pipelines, Vertex AI, model training | `ml/` |
-| `@data-platform` | openai/gpt-5.4-mini | BigQuery, Dataflow, Pub/Sub, dbt | `data-platform/` |
+| `@dotnet` | opencode-go/deepseek-v4-flash | .NET 8, Clean Architecture, CQRS, DDD, gRPC, EF Core | `src/Services/*/` |
+| `@angular` | opencode-go/deepseek-v4-flash | Angular 17, NgRx, Angular Material, RxJS | `src/Frontend/` |
+| `@dba` | opencode-go/deepseek-v4-flash | CockroachDB, SQL migrations, performance | `cockroach/`, EF Core configs |
+| `@devops` | opencode-go/deepseek-v4-flash | K8s, Docker, CI/CD, Linkerd, Cilium, Bazel | `k8s/`, `docker/`, `cicd/` |
+| `@docs` | opencode-go/deepseek-v4-flash | ADRs, API docs, READMEs, changelogs, runbooks | `docs/`, `*.md` |
+| `@ml-ai` | opencode-go/deepseek-v4-flash | ML pipelines, Vertex AI, model training | `ml/` |
+| `@data-platform` | opencode-go/deepseek-v4-flash | BigQuery, Dataflow, Pub/Sub, dbt | `data-platform/` |
 
 ### 3.3 Agent kiểm thử (Testing) - Phase 3
 
 | Agent | Model | Chuyên môn | Công cụ |
 |---|---|---|---|
-| `@testing-backend` | openai/gpt-5.4-mini | .NET xUnit, Testcontainers, gRPC contract | xUnit, FluentAssertions, PactNet |
-| `@testing-frontend` | openai/gpt-5.4-mini | Angular unit, Cypress E2E, Playwright, axe | Jasmine, Karma, Cypress |
-| `@qa` | openai/gpt-5.4-mini | Integration, chaos, load tests, quality gates | k6, Chaos Mesh, NBomber |
+| `@testing-backend` | opencode-go/deepseek-v4-flash | .NET xUnit, Testcontainers, gRPC contract | xUnit, FluentAssertions, PactNet |
+| `@testing-frontend` | opencode-go/deepseek-v4-flash | Angular unit, Cypress E2E, Playwright, axe | Jasmine, Karma, Cypress |
+| `@qa` | opencode-go/deepseek-v4-flash | Integration, chaos, load tests, quality gates | k6, Chaos Mesh, NBomber |
 
 ### 3.4 Agent kiểm định (Validation) - Phase 4
 
 | Agent | Model | Chuyên môn | Phạm vi |
 |---|---|---|---|
-| `@validate` | openai/gpt-5.4-mini | Build, proto lint, FluentValidation, secrets scan | Toàn repo |
-| `@check-ui` | openai/gpt-5.4-mini | Material theme, WCAG 2.1 AA, design system | `src/Frontend/` |
-| `@security` | openai/gpt-5.4-mini | Vault, JWT, RBAC, Cilium policies, HIPAA | `vault/`, `k8s/`, IdentityService |
-| `@docs` | openai/gpt-5.4-mini | Doc coverage, ADR freshness, link validity | `docs/` |
+| `@validate` | opencode-go/deepseek-v4-flash | Build, proto lint, FluentValidation, secrets scan | Toàn repo |
+| `@check-ui` | opencode-go/deepseek-v4-flash | Material theme, WCAG 2.1 AA, design system | `src/Frontend/` |
+| `@security` | opencode-go/deepseek-v4-flash | Vault, JWT, RBAC, Cilium policies, HIPAA | `vault/`, `k8s/`, IdentityService |
+| `@docs` | opencode-go/deepseek-v4-flash | Doc coverage, ADR freshness, link validity | `docs/` |
 
 ### 3.5 Agent xuất bản (Release) - Phase 5
 
 | Agent | Model | Chuyên môn | Công cụ |
 |---|---|---|---|
-| `@git` | openai/gpt-5.4-mini | Git commit, push, branch, PR | `git`, `gh` CLI |
+| `@git` | opencode-go/deepseek-v4-flash | Git commit, push, branch, PR | `git`, `gh` CLI |
 
 ### 3.6 Model Tiers
 
 | Tier | Model chính |
 |------|-------------|
 | **Pro** (architect, plan, harness-runner, loop-engineer) | `deepseek-v4-pro` |
-| **Flash** (dotnet, angular, orchestrator, qa, devops, dba, etc.) | `openai/gpt-5.4-mini` |
+| **Flash** (dotnet, angular, orchestrator, qa, devops, dba, etc.) | `opencode-go/deepseek-v4-flash` |
 
 Fallback plugin [`@razroo/opencode-model-fallback`](https://github.com/razroo/opencode-model-fallback) chỉ áp dụng cho Pro tier khi deepseek bị rate limit.
 

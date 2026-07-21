@@ -1,16 +1,16 @@
 import { TestBed } from '@angular/core/testing';
-import { BehaviorSubject } from 'rxjs';
 import { LabCriticalAlertStreamService, LabCriticalAlertConnectionFactory } from './lab-critical-alert-stream.service';
-import { AuthService } from './auth.service';
 
-let lastBuilderInstance: { lastAccessTokenFactory?: () => string } | null = null;
+let lastBuilderInstance: { lastUrl?: string; lastOptions?: { withCredentials?: boolean } } | null = null;
 
 jest.mock('@microsoft/signalr', () => {
   class HubConnectionBuilder {
-    lastAccessTokenFactory?: () => string;
+    lastUrl?: string;
+    lastOptions?: { withCredentials?: boolean };
 
-    withUrl(_url: string, options: { accessTokenFactory: () => string }) {
-      this.lastAccessTokenFactory = options.accessTokenFactory;
+    withUrl(url: string, options: { withCredentials?: boolean }) {
+      this.lastUrl = url;
+      this.lastOptions = options;
       lastBuilderInstance = this;
       return this;
     }
@@ -44,9 +44,9 @@ describe('LabCriticalAlertStreamService', () => {
   };
   let handlers: Record<string, (payload: any) => void>;
   let factory: jasmine.SpyObj<LabCriticalAlertConnectionFactory>;
-  let authService: jasmine.SpyObj<AuthService>;
 
   beforeEach(() => {
+    lastBuilderInstance = null;
     handlers = {};
     fakeConnection = {
       start: jasmine.createSpy('start').and.returnValue(Promise.resolve()),
@@ -59,15 +59,10 @@ describe('LabCriticalAlertStreamService', () => {
 
     factory = jasmine.createSpyObj<LabCriticalAlertConnectionFactory>('LabCriticalAlertConnectionFactory', ['create']);
     factory.create.and.returnValue(fakeConnection as any);
-
-    authService = jasmine.createSpyObj<AuthService>('AuthService', ['getStoredAccessToken']);
-    authService.getStoredAccessToken.and.returnValue('token-123');
-
     TestBed.configureTestingModule({
       providers: [
         LabCriticalAlertStreamService,
         { provide: LabCriticalAlertConnectionFactory, useValue: factory },
-        { provide: AuthService, useValue: authService },
       ],
     });
 
@@ -101,16 +96,12 @@ describe('LabCriticalAlertStreamService', () => {
     expect(service.latestAlert$.value).toBeNull();
   });
 
-  it('should read the latest stored token each time SignalR asks for credentials', () => {
+  it('should create a SignalR connection using browser credentials', () => {
     const connectionFactory = TestBed.runInInjectionContext(() => new LabCriticalAlertConnectionFactory());
-    const authTokens = ['token-1', 'token-2'];
-    authService.getStoredAccessToken.and.callFake(() => authTokens.shift() ?? 'token-final');
 
     connectionFactory.create();
 
-    expect(lastBuilderInstance?.lastAccessTokenFactory).toBeDefined();
-    expect(lastBuilderInstance?.lastAccessTokenFactory?.()).toBe('token-1');
-    expect(lastBuilderInstance?.lastAccessTokenFactory?.()).toBe('token-2');
-    expect(authService.getStoredAccessToken).toHaveBeenCalledTimes(2);
+    expect(lastBuilderInstance?.lastUrl).toBe('/hubs/lab-critical-alerts');
+    expect(lastBuilderInstance?.lastOptions).toEqual({ withCredentials: true });
   });
 });

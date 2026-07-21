@@ -1,79 +1,55 @@
-### Task 2: Create TEMPLATE.md
+### Task 2: Lab Service API, realtime hub, and alert endpoints
 
 **Files:**
-- Create: `docs/knowledge/TEMPLATE.md`
+- Modify: `src/Services/LabService/LabService.Api/Program.cs`
+- Create: `src/Services/LabService/LabService.Api/Hubs/LabCriticalAlertHub.cs`
+- Create: `src/Services/LabService/LabService.Api/Services/HttpCurrentUserContext.cs`
+- Create: `src/Services/LabService/LabService.Api/Services/CriticalAlertRealtimePublisher.cs`
+- Create: `src/Services/LabService/LabService.Api/Endpoints/CriticalAlertEndpoints.cs`
+- Modify: `src/Services/LabService/LabService.Application/UseCases/LabOrders/Commands/RecordLabResultCommand.cs`
+- Modify: `src/Services/LabService/LabService.Application/UseCases/LabOrders/Commands/RecordLabOrderResultCommand.cs`
+- Create: `src/Services/LabService/LabService.Application/UseCases/CriticalAlerts/Commands/AcknowledgeCriticalAlertCommand.cs`
+- Create: `src/Services/LabService/LabService.Application/UseCases/CriticalAlerts/Commands/ResolveCriticalAlertCommand.cs`
+- Create: `src/Services/LabService/LabService.Application/UseCases/CriticalAlerts/Queries/GetCriticalAlertsQuery.cs`
+- Create: `src/Services/LabService/LabService.Application/UseCases/CriticalAlerts/Queries/GetCriticalAlertRulesQuery.cs`
+- Create: `src/Services/LabService/LabService.Application/UseCases/CriticalAlerts/Commands/UpsertCriticalAlertRuleCommand.cs`
+- Create: `src/Services/LabService/LabService.Application/UseCases/CriticalAlerts/Commands/DeleteCriticalAlertRuleCommand.cs`
+- Create: `tests/Services/LabService/LabService.Integration.Tests/CriticalAlertEndpointsTests.cs`
 
 **Interfaces:**
-- Produces: `TEMPLATE.md` — reference for humans and agents creating new entries
+- Consumes: `ICurrentUserContext`, `CriticalAlertEvaluator`, `IHubContext<LabCriticalAlertHub>`, and the existing lab order/result command handlers.
+- Produces: alert rule CRUD endpoints, alert inbox endpoints, `criticalAlertCreated` / `criticalAlertUpdated` / `criticalAlertAcknowledged` / `criticalAlertResolved` socket events, and alert-aware result-recording behavior.
 
-- [ ] **Step 1: Write TEMPLATE.md**
+- [ ] **Step 1: Write failing integration tests for the API and hub behavior**
 
-```markdown
+Create tests that assert:
+- alert rules can be created and listed,
+- recording a critical result creates exactly one persisted alert,
+- acknowledging an alert stores the actor and timestamp,
+- resolving an alert keeps audit history,
+- the realtime publisher emits the expected payload shape for open/acknowledged/resolved updates.
+
+Run:
+`dotnet test tests/Services/LabService/LabService.Integration.Tests/LabService.Integration.Tests.csproj --filter "CriticalAlertEndpointsTests" -v normal`
+
+Expected: fail because the endpoints, hub, and command handlers are missing.
+
+- [ ] **Step 2: Implement the API, hub, and command wiring**
+
+Wire `AddSignalR()` and map the hub in `Program.cs`, add the new endpoints, and update the result-recording command handlers so alert evaluation runs on every result save and publishes notifications after persistence succeeds.
+
+Use `Permission:lab.manage` for rule management and `Permission:lab.view` plus runtime ownership checks for acknowledgment and resolution.
+
+- [ ] **Step 3: Rerun the integration tests**
+
+Run:
+`dotnet test tests/Services/LabService/LabService.Integration.Tests/LabService.Integration.Tests.csproj --filter "CriticalAlertEndpointsTests" -v normal`
+
+Expected: pass.
+
+- [ ] **Step 4: Commit**
+
+Commit message: `feat(lab): add critical alert api and realtime hub`
+
 ---
-id: {domain}-{type}-{nn}
-type: gotcha|pattern|decision
-domain: {domain-name}
-tags: [tag1, tag2]
-severity: critical|warning|info
-agent: @agent-name
-author: @agent-name
-date: YYYY-MM-DD
-related: []
----
 
-# [Title — mô tả ngắn gọn bài học]
-
-## [Section 1]
-
-[Nội dung]
-
-## [Section 2]
-
-[Nội dung]
-
----
-
-## Template by Type
-
-### Gotcha (`type: gotcha`)
-
-Sections bắt buộc:
-- **Vấn đề** (Problem) — mô tả lỗi đã xảy ra
-- **Hậu quả** (Consequence) — điều gì xảy ra nếu không fix
-- **Cách phát hiện** (Detection) — grep command, test, hoặc dấu hiệu
-- **Cách làm đúng** (Correct Approach) — code mẫu đúng + sai
-- **Đã xảy ra ở đâu** (Where It Happened) — service, thời gian
-
-### Pattern (`type: pattern`)
-
-Sections bắt buộc:
-- **Khi nào dùng** (When To Use) — điều kiện áp dụng
-- **Mẫu chuẩn** (Standard Template) — code mẫu
-- **Lý do** (Rationale) — tại sao dùng mẫu này
-- **Tham khảo** (References) — file hoặc doc liên quan
-
-### Decision (`type: decision`)
-
-Sections bắt buộc:
-- **Quyết định** (Decision) — đã chọn gì
-- **Lý do** (Rationale) — tại sao
-- **Trade-off đã cân nhắc** (Trade-offs) — bảng so sánh
-- **Khi nào xem xét lại** (When To Revisit) — điều kiện đổi quyết định
-- **Tham khảo** (References) — ADR hoặc doc liên quan
-
-## Quy tắc chung
-
-1. **1 entry = 1 bài học** — không gộp nhiều vấn đề vào 1 file
-2. **Có ví dụ code** — luôn kèm code mẫu đúng/sai
-3. **Ghi rõ hậu quả** — nếu không tuân thủ thì sao?
-4. **Tối thiểu 2 tags** — 1 tech + 1 problem/concept
-5. **Không trùng lặp** — kiểm tra INDEX.md trước khi tạo
-6. **Đặt tên file**: `{domain}-{type}-{nn}-{slug}.md`
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add docs/knowledge/TEMPLATE.md
-git commit -m "docs(knowledge): add entry template with gotcha/pattern/decision guidelines"
-```

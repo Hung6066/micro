@@ -120,9 +120,9 @@ export interface PrescribeData {
     </mat-dialog-actions>
   `,
     styles: [`
-    .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: #e8f5e9; border-radius: 8px; color: #2e7d32; font-weight: 500; }
+    .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: var(--pastel-green, #EDF3EC); border-radius: 8px; color: var(--pastel-green-text, #346538); font-weight: 500; }
     .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 380px; }
-    .selected-med { background: #f5f5f5; padding: 12px; border-radius: 8px; border-left: 4px solid #43a047; }
+    .selected-med { background: var(--surface-white, #FFFFFF); padding: 12px; border-radius: 8px; border-left: 4px solid var(--color-primary, #2F6B4A); }
     .selected-med p { margin: 4px 0; }
   `]
 })

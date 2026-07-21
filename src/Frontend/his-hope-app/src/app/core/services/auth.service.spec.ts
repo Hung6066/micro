@@ -9,6 +9,11 @@ describe('AuthService', () => {
   let service: AuthService;
   let httpMock: HttpTestingController;
 
+  function createJwtToken(payload: Record<string, unknown>): string {
+    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    return `header.${encoded}.signature`;
+  }
+
   const mockUser: User = {
     id: 'usr-001',
     username: 'admin',
@@ -21,13 +26,13 @@ describe('AuthService', () => {
   };
 
   beforeEach(() => {
+    sessionStorage.clear();
     TestBed.configureTestingModule({
     imports: [],
     providers: [provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
 });
     service = TestBed.inject(AuthService);
     httpMock = TestBed.inject(HttpTestingController);
-    sessionStorage.clear();
   });
 
   afterEach(() => {
@@ -48,9 +53,9 @@ describe('AuthService', () => {
     expect(req.request.withCredentials).toBeTrue();
     req.flush(response);
 
-    // Token stored in memory (not sessionStorage)
+    // Token stored in memory and mirrored to sessionStorage for reload hydration
     expect(service.getStoredAccessToken()).toBe('jwt-token');
-    expect(sessionStorage.getItem('hishope_access_token')).toBeNull();
+    expect(sessionStorage.getItem('hishope_access_token')).toBe('jwt-token');
   });
 
   it('should register and return user', () => {
@@ -78,7 +83,15 @@ describe('AuthService', () => {
 
     const req = httpMock.expectOne(`${environment.apiUrl}/auth/refresh`);
     expect(req.request.method).toBe('POST');
-    req.flush(mockUser);
+    req.flush({
+      accessToken: 'fresh-token',
+      refreshToken: 'fresh-refresh-token',
+      expiresAt: '2026-07-20T12:00:00Z',
+      user: mockUser,
+    });
+
+    expect(service.getStoredAccessToken()).toBe('fresh-token');
+    expect(sessionStorage.getItem('hishope_access_token')).toBe('fresh-token');
   });
 
   it('should logout and clear token from memory', () => {
@@ -93,6 +106,8 @@ describe('AuthService', () => {
   });
 
   it('should return logged in status when token exists', () => {
+    service.storeAccessToken('persisted-token');
+
     service.isLoggedIn().subscribe((loggedIn) => {
       expect(loggedIn).toBeTrue();
     });
@@ -101,7 +116,46 @@ describe('AuthService', () => {
     req.flush({ authenticated: true });
   });
 
-  it('should return false for isLoggedIn on error', () => {
+  it('should hydrate the current user from stored token claims', (done) => {
+    const token = createJwtToken({
+      sub: mockUser.id,
+      email: mockUser.email,
+      unique_name: mockUser.username,
+      fullName: mockUser.fullName,
+      roles: mockUser.roles,
+      permissions: mockUser.permissions?.join(','),
+    });
+    service.storeAccessToken(token);
+
+    service.ensureCurrentUser().subscribe((user) => {
+      expect(user).toEqual(mockUser);
+      expect(service['currentUserSubject'].value).toEqual(mockUser);
+      done();
+    });
+  });
+
+  it('should hydrate unicode claims from stored token claims', (done) => {
+    const token = createJwtToken({
+      sub: mockUser.id,
+      email: mockUser.email,
+      unique_name: mockUser.username,
+      fullName: 'Viên Quản Trị',
+      roles: mockUser.roles,
+      permissions: mockUser.permissions?.join(','),
+    });
+    service.storeAccessToken(token);
+
+    service.ensureCurrentUser().subscribe((user) => {
+      expect(user?.fullName).toBe('Viên Quản Trị');
+      expect(user?.firstName).toBe('Viên Quản');
+      expect(user?.lastName).toBe('Trị');
+      done();
+    });
+  });
+
+  it('should return false for isLoggedIn when verify fails', () => {
+    service.storeAccessToken('persisted-token');
+
     service.isLoggedIn().subscribe((loggedIn) => {
       expect(loggedIn).toBeFalse();
     });
@@ -163,10 +217,10 @@ describe('AuthService', () => {
     expect(service.hasRole(['admin', 'nurse'])).toBeTrue();
   });
 
-  it('should store access token in memory only', () => {
+  it('should store access token in memory and sessionStorage', () => {
     service.storeAccessToken('new-jwt-token');
     expect(service.getStoredAccessToken()).toBe('new-jwt-token');
-    expect(sessionStorage.getItem('hishope_access_token')).toBeNull();
+    expect(sessionStorage.getItem('hishope_access_token')).toBe('new-jwt-token');
   });
 
   it('should getCurrentUser', () => {

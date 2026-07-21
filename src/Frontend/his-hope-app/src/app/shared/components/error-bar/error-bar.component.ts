@@ -18,7 +18,7 @@ import { clearError, ErrorPayload } from '@store/error/error.actions';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (error$ | async; as error) {
-    <div class="error-bar" [class]="'error-bar--' + getSeverity(error.code)">
+    <div class="error-bar" [class]="'error-bar--' + getSeverity(error.code)" role="status" aria-live="polite">
       <div class="error-bar__content">
         <mat-icon class="error-bar__icon">{{ getIcon(error.code) }}</mat-icon>
         <div class="error-bar__text">
@@ -75,7 +75,7 @@ import { clearError, ErrorPayload } from '@store/error/error.actions';
     }
     .error-bar__ref {
       font-size: 12px;
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-mono);
       opacity: 0.8;
     }
     .error-bar__actions {

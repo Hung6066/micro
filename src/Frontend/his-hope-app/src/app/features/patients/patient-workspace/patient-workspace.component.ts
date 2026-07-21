@@ -191,7 +191,7 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
                   <div class="soap-content">
                     @if (row.hpi) {
                     <div class="soap-section">
-                      <h4>📋 Bệnh sử (HPI)</h4>
+                      <h4>Bệnh sử (HPI)</h4>
                       @if (row.hpi.onset) {<p><strong>Khởi phát:</strong> {{ row.hpi.onset }}</p>}
                       @if (row.hpi.characteristics) {<p><strong>Tính chất:</strong> {{ row.hpi.characteristics }}</p>}
                       @if (row.hpi.duration) {<p><strong>Thời gian:</strong> {{ row.hpi.duration }}</p>}
@@ -199,24 +199,24 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
                     }
                     @if (row.vitalSigns) {
                     <div class="soap-section">
-                      <h4>💓 Dấu hiệu sinh tồn</h4>
+                      <h4>Dấu hiệu sinh tồn</h4>
                       <div class="vitals-row">
-                        @if (row.vitalSigns.temperature) {<span>🌡 {{ row.vitalSigns.temperature }}°C</span>}
-                        @if (row.vitalSigns.heartRate) {<span>💓 {{ row.vitalSigns.heartRate }} l/ph</span>}
-                        @if (row.vitalSigns.systolicBP) {<span>🩸 {{ row.vitalSigns.systolicBP }}/{{ row.vitalSigns.diastolicBP }}</span>}
-                        @if (row.vitalSigns.oxygenSaturation) {<span>🫁 SpO2: {{ row.vitalSigns.oxygenSaturation }}%</span>}
+                        @if (row.vitalSigns.temperature) {<span>Nhiệt độ: {{ row.vitalSigns.temperature }}°C</span>}
+                        @if (row.vitalSigns.heartRate) {<span>Mạch: {{ row.vitalSigns.heartRate }} l/ph</span>}
+                        @if (row.vitalSigns.systolicBP) {<span>Huyết áp: {{ row.vitalSigns.systolicBP }}/{{ row.vitalSigns.diastolicBP }}</span>}
+                        @if (row.vitalSigns.oxygenSaturation) {<span>SpO2: {{ row.vitalSigns.oxygenSaturation }}%</span>}
                       </div>
                     </div>
                     }
                     @if (row.assessment) {
                     <div class="soap-section">
-                      <h4>📝 Đánh giá</h4>
+                      <h4>Đánh giá</h4>
                       <p>{{ row.assessment }}</p>
                     </div>
                     }
                     @if (row.plan) {
                     <div class="soap-section">
-                      <h4>📋 Kế hoạch</h4>
+                      <h4>Kế hoạch</h4>
                       <pre>{{ row.plan }}</pre>
                     </div>
                     }

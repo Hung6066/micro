@@ -8,7 +8,7 @@ import {
   UrlTree,
 } from '@angular/router';
 import { Observable } from 'rxjs';
-import { map, take } from 'rxjs/operators';
+import { map } from 'rxjs/operators';
 import { AuthService } from '@core/services/auth.service';
 
 /**
@@ -27,36 +27,33 @@ export class RoleGuard implements CanActivate, CanActivateChild {
     route: ActivatedRouteSnapshot,
     _state: RouterStateSnapshot,
   ): Observable<boolean | UrlTree> {
-    return this.checkRoles(route);
+    return this.checkRoles(route, _state);
   }
 
   canActivateChild(
     childRoute: ActivatedRouteSnapshot,
     _state: RouterStateSnapshot,
   ): Observable<boolean | UrlTree> {
-    return this.checkRoles(childRoute);
+    return this.checkRoles(childRoute, _state);
   }
 
-  private checkRoles(route: ActivatedRouteSnapshot): Observable<boolean | UrlTree> {
+  private checkRoles(
+    route: ActivatedRouteSnapshot,
+    state: RouterStateSnapshot,
+  ): Observable<boolean | UrlTree> {
     const requiredRoles: string[] = route.data?.['roles'];
 
-    // No roles specified — allow through
-    if (!requiredRoles || requiredRoles.length === 0) {
-      return this.authService.isLoggedIn().pipe(
-        map((loggedIn) => {
-          if (!loggedIn) {
-            return this.router.parseUrl('/auth/login');
-          }
-          return true;
-        }),
-      );
-    }
-
-    return this.authService.currentUser$.pipe(
-      take(1),
+    return this.authService.ensureCurrentUser().pipe(
       map((user) => {
         if (!user) {
-          return this.router.parseUrl('/auth/login');
+          return this.router.createUrlTree(['/auth/login'], {
+            queryParams: { returnUrl: state.url },
+          });
+        }
+
+        // No roles specified — allow through once auth is hydrated.
+        if (!requiredRoles || requiredRoles.length === 0) {
+          return true;
         }
 
         const userRoles = user.roles ?? [];
@@ -67,7 +64,7 @@ export class RoleGuard implements CanActivate, CanActivateChild {
         );
 
         if (!hasRole) {
-          return this.router.parseUrl('/access-denied');
+          return this.router.createUrlTree(['/access-denied']);
         }
 
         return true;

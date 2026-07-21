@@ -1,0 +1,37 @@
+{
+  "ReverseProxy": {
+    "Routes": {
+      "patient-search": {
+        "ClusterId": "patient-service",
+        "Match": { "Path": "/api/v1/patients/search", "Methods": ["GET"] }
+      },
+      "patient-get": {
+        "ClusterId": "patient-service",
+        "Match": { "Path": "/api/v1/patients/{id}", "Methods": ["GET"] }
+      },
+      "patient-create": {
+        "ClusterId": "patient-service",
+        "Match": { "Path": "/api/v1/patients", "Methods": ["POST"] }
+      },
+      "patient-update": {
+        "ClusterId": "patient-service",
+        "Match": { "Path": "/api/v1/patients/{id}", "Methods": ["PUT"] }
+      },
+      "patient-deactivate": {
+        "ClusterId": "patient-service",
+        "Match": { "Path": "/api/v1/patients/{id}/deactivate", "Methods": ["POST"] }
+      },
+      "patient-reactivate": {
+        "ClusterId": "patient-service",
+        "Match": { "Path": "/api/v1/patients/{id}/reactivate", "Methods": ["POST"] }
+      }
+    },
+    "Clusters": {
+      "patient-service": {
+        "Destinations": {
+          "patient": { "Address": "http://patientservice:5010/" }
+        }
+      }
+    }
+  }
+}

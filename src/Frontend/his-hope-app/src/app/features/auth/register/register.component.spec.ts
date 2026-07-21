@@ -25,7 +25,7 @@ describe('RegisterComponent', () => {
 
   it('should display register heading', () => {
     const heading: HTMLElement = fixture.nativeElement.querySelector('h1');
-    expect(heading?.textContent?.trim()).toBe('Register');
+    expect(heading?.textContent?.trim()).toBe('Đăng ký tài khoản');
   });
 
   it('should have a link back to login', () => {

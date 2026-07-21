@@ -12,6 +12,8 @@ CREATE TABLE pharmacydb.Medications (
     DosageForm STRING(50) NOT NULL,
     Strength STRING(50) NOT NULL,
     Route STRING(50),
+    Category STRING(100),
+    Manufacturer STRING(200),
     RequiresPrescription BOOL NOT NULL DEFAULT true,
     IsActive BOOL NOT NULL DEFAULT true,
     CreatedAt TIMESTAMPTZ NOT NULL DEFAULT now(),

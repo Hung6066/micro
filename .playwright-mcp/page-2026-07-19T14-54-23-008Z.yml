@@ -1,0 +1,73 @@
+- generic [ref=f28e1]:
+  - link "Chuyển đến nội dung chính" [ref=f28e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f28e4]:
+    - generic [ref=f28e8]:
+      - generic [ref=f28e10]:
+        - img [ref=f28e11]: local_hospital
+        - generic [ref=f28e12]: His.Hope
+      - generic [ref=f28e16]:
+        - img [ref=f28e18]: search
+        - combobox "Tìm bệnh nhân..." [ref=f28e20]
+      - navigation "Điều hướng chính" [ref=f28e21]:
+        - link [ref=f28e22] [cursor=pointer]:
+          - /url: /en/dashboard
+          - img [ref=f28e23]: dashboard
+        - link [active] [ref=f28e25] [cursor=pointer]:
+          - /url: /en/patients
+          - img [ref=f28e26]: people
+        - link [ref=f28e28] [cursor=pointer]:
+          - /url: /en/appointments
+          - img [ref=f28e29]: calendar_today
+        - link [ref=f28e31] [cursor=pointer]:
+          - /url: /en/clinical
+          - img [ref=f28e32]: medical_services
+        - link [ref=f28e34] [cursor=pointer]:
+          - /url: /en/pharmacy
+          - img [ref=f28e35]: medication
+        - link [ref=f28e37] [cursor=pointer]:
+          - /url: /en/lab
+          - img [ref=f28e38]: biotech
+        - link [ref=f28e40] [cursor=pointer]:
+          - /url: /en/billing
+          - img [ref=f28e41]: receipt
+        - link [ref=f28e43] [cursor=pointer]:
+          - /url: /en/admin
+          - img [ref=f28e44]: settings
+      - generic [ref=f28e119]:
+        - generic [ref=f28e120]: Viên Quản Trị
+        - button "Đăng xuất" [ref=f28e122] [cursor=pointer]:
+          - img [ref=f28e123]: logout
+    - generic [ref=f28e47]:
+      - generic [ref=f28e50]:
+        - img [ref=f28e51]: error_outline
+        - button [ref=f28e53] [cursor=pointer]:
+          - img [ref=f28e54]: close
+      - generic [ref=f28e175]:
+        - generic [ref=f28e176]:
+          - heading "Patients" [level=1] [ref=f28e177]
+          - button "New Patient" [ref=f28e178]:
+            - img [ref=f28e179]: add
+        - generic [ref=f28e185]:
+          - generic: Search patients
+          - img [ref=f28e188]: search
+          - textbox "Search patients" [ref=f28e190]:
+            - /placeholder: Name, phone, or ID...
+        - table [ref=f28e192] [cursor=pointer]:
+          - row [ref=f28e193]:
+            - columnheader "Name" [ref=f28e194]
+            - columnheader "Gender" [ref=f28e195]
+            - columnheader "DOB" [ref=f28e196]
+            - columnheader "Age" [ref=f28e197]
+            - columnheader "Phone" [ref=f28e198]
+            - columnheader "Actions" [ref=f28e199]
+        - group [ref=f28e200]:
+          - generic [ref=f28e202]:
+            - generic [ref=f28e203]:
+              - generic [ref=f28e204]: "Items per page:"
+              - combobox "Items per page:" [ref=f28e209] [cursor=pointer]:
+                - generic [ref=f28e210]: "20"
+            - generic [ref=f28e218]:
+              - generic [ref=f28e219]: 0 of 0
+              - button "Previous page" [disabled] [ref=f28e220]
+              - button "Next page" [disabled] [ref=f28e225]

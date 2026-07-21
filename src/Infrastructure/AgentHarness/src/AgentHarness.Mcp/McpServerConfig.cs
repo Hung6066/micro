@@ -10,4 +10,10 @@ public class McpServerConfig
     public string RabbitMQConnectionString { get; set; } = "amqp://admin:admin@localhost:5672/";
     public bool UseTemporal { get; set; }
     public string TemporalServerUrl { get; set; } = "localhost:7233";
+    public int MaxPipelineQueue { get; set; } = 10;
+    public int MaxAgentQueue { get; set; } = 20;
+    public int CircuitBreakerThreshold { get; set; } = 5;
+    public int CircuitBreakerDurationSeconds { get; set; } = 30;
+    public int LoopEngineerMaxIterations { get; set; } = 3;
+    public decimal LoopEngineerConfidenceThreshold { get; set; } = 0.8m;
 }

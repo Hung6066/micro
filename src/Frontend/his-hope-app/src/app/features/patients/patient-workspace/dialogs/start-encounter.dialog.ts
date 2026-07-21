@@ -107,10 +107,10 @@ export interface StartEncounterData {
     </mat-dialog-actions>
   `,
     styles: [`
-    .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: #e3f2fd; border-radius: 8px; color: #1565c0; font-weight: 500; }
+    .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: var(--pastel-blue, #E1F3FE); border-radius: 8px; color: var(--pastel-blue-text, #1F6C9F); font-weight: 500; }
     .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 420px; }
-    .vitals-section { border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; margin: 0; }
-    .vitals-section legend { font-weight: 500; color: #555; padding: 0 8px; }
+    .vitals-section { border: 1px solid var(--border-light, #F0F0EE); border-radius: 8px; padding: 16px; margin: 0; }
+    .vitals-section legend { font-weight: 500; color: var(--text-secondary, #787774); padding: 0 8px; }
     .vitals-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
     mat-dialog-actions mat-spinner { display: inline-block; }
   `]

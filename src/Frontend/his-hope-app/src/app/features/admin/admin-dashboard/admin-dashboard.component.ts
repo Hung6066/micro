@@ -4,7 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
 import { AdminService } from '@core/services/admin.service';
 import { AdminDashboardStats } from '@core/models/admin.model';
@@ -26,7 +26,9 @@ import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/load
 
       @if (!loading) {
       <div class="stats-grid">
-        <mat-card class="stat-card" routerLink="/admin/manage-users">
+        <mat-card class="stat-card" routerLink="/admin/manage-users" tabindex="0" role="link"
+                  (keydown.enter)="goTo('/admin/manage-users')"
+                  (keydown.space)="$event.preventDefault(); goTo('/admin/manage-users')">
           <mat-card-content>
             <div class="stat-icon users">
               <mat-icon>people</mat-icon>
@@ -41,7 +43,9 @@ import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/load
           </mat-card-actions>
         </mat-card>
 
-        <mat-card class="stat-card" routerLink="/admin/manage-roles">
+        <mat-card class="stat-card" routerLink="/admin/manage-roles" tabindex="0" role="link"
+                  (keydown.enter)="goTo('/admin/manage-roles')"
+                  (keydown.space)="$event.preventDefault(); goTo('/admin/manage-roles')">
           <mat-card-content>
             <div class="stat-icon roles">
               <mat-icon>admin_panel_settings</mat-icon>
@@ -56,7 +60,9 @@ import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/load
           </mat-card-actions>
         </mat-card>
 
-        <mat-card class="stat-card" routerLink="/admin/audit-logs">
+        <mat-card class="stat-card" routerLink="/admin/audit-logs" tabindex="0" role="link"
+                  (keydown.enter)="goTo('/admin/audit-logs')"
+                  (keydown.space)="$event.preventDefault(); goTo('/admin/audit-logs')">
           <mat-card-content>
             <div class="stat-icon audit">
               <mat-icon>receipt_long</mat-icon>
@@ -71,7 +77,9 @@ import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/load
           </mat-card-actions>
         </mat-card>
 
-        <mat-card class="stat-card" routerLink="/admin/settings">
+        <mat-card class="stat-card" routerLink="/admin/settings" tabindex="0" role="link"
+                  (keydown.enter)="goTo('/admin/settings')"
+                  (keydown.space)="$event.preventDefault(); goTo('/admin/settings')">
           <mat-card-content>
             <div class="stat-icon" [ngClass]="healthClass">
               <mat-icon>{{ healthIcon }}</mat-icon>
@@ -119,6 +127,7 @@ import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/load
     .stat-card { border-radius: 8px; border: 1px solid #EAEAEA; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
     .stat-card:hover { border-color: var(--mat-sys-primary); box-shadow: 0 1px 4px rgba(47, 107, 74, 0.1); }
     .stat-card:active { transform: scale(0.98); }
+    .stat-card:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; }
     .stat-card mat-card-content { display: flex; align-items: center; gap: 16px; padding: 20px; }
     .stat-icon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0; }
     .stat-icon mat-icon { font-size: 24px; width: 24px; height: 24px; }
@@ -148,6 +157,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
   constructor(
     private adminService: AdminService,
     private cdr: ChangeDetectorRef,
+    private router: Router,
   ) {}
 
   ngOnInit(): void {
@@ -209,5 +219,9 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
       case 'down': return 'Ngừng hoạt động';
       default: return 'Không xác định';
     }
+  }
+
+  goTo(path: string): void {
+    this.router.navigate([path]);
   }
 }

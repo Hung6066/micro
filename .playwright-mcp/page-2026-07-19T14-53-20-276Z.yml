@@ -1,0 +1,56 @@
+- generic [active] [ref=f28e1]:
+  - link "Chuyển đến nội dung chính" [ref=f28e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f28e4]:
+    - generic [ref=f28e8]:
+      - generic [ref=f28e10]:
+        - img [ref=f28e11]: local_hospital
+        - generic [ref=f28e12]: His.Hope
+      - generic [ref=f28e16]:
+        - img [ref=f28e18]: search
+        - combobox "Tìm bệnh nhân..." [ref=f28e20]
+      - navigation "Điều hướng chính" [ref=f28e21]:
+        - link [ref=f28e22] [cursor=pointer]:
+          - /url: /en/dashboard
+          - img [ref=f28e23]: dashboard
+        - link [ref=f28e25] [cursor=pointer]:
+          - /url: /en/patients
+          - img [ref=f28e26]: people
+        - link [ref=f28e28] [cursor=pointer]:
+          - /url: /en/appointments
+          - img [ref=f28e29]: calendar_today
+        - link [ref=f28e31] [cursor=pointer]:
+          - /url: /en/clinical
+          - img [ref=f28e32]: medical_services
+        - link [ref=f28e34] [cursor=pointer]:
+          - /url: /en/pharmacy
+          - img [ref=f28e35]: medication
+        - link [ref=f28e37] [cursor=pointer]:
+          - /url: /en/lab
+          - img [ref=f28e38]: biotech
+        - link [ref=f28e40] [cursor=pointer]:
+          - /url: /en/billing
+          - img [ref=f28e41]: receipt
+        - link [ref=f28e43] [cursor=pointer]:
+          - /url: /en/admin
+          - img [ref=f28e44]: settings
+      - generic [ref=f28e119]:
+        - generic [ref=f28e120]: Viên Quản Trị
+        - button "Đăng xuất" [ref=f28e122] [cursor=pointer]:
+          - img [ref=f28e123]: logout
+    - generic [ref=f28e47]:
+      - generic [ref=f28e50]:
+        - img [ref=f28e51]: error_outline
+        - button [ref=f28e53] [cursor=pointer]:
+          - img [ref=f28e54]: close
+      - generic [ref=f28e127]:
+        - generic [ref=f28e128]:
+          - generic [ref=f28e129]:
+            - heading "Xin chào, Viên Quản Trị" [level=1] [ref=f28e130]
+            - paragraph [ref=f28e131]: Tổng quan bệnh viện
+          - generic [ref=f28e132]:
+            - img [ref=f28e133]: calendar_today
+            - generic [ref=f28e134]: Sunday, 19/07/2026
+        - generic [ref=f28e135]:
+          - progressbar [ref=f28e136]
+          - generic [ref=f28e151]: Đang tải dữ liệu...

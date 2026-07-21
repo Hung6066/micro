@@ -1,0 +1,116 @@
+- generic [active] [ref=f28e1]:
+  - link "Chuyển đến nội dung chính" [ref=f28e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f28e4]:
+    - generic [ref=f28e8]:
+      - generic [ref=f28e10]:
+        - img [ref=f28e11]: local_hospital
+        - generic [ref=f28e12]: His.Hope
+      - generic [ref=f28e16]:
+        - img [ref=f28e18]: search
+        - combobox "Tìm bệnh nhân..." [ref=f28e20]
+      - navigation "Điều hướng chính" [ref=f28e21]:
+        - link [ref=f28e22] [cursor=pointer]:
+          - /url: /en/dashboard
+          - img [ref=f28e23]: dashboard
+        - link [ref=f28e25] [cursor=pointer]:
+          - /url: /en/patients
+          - img [ref=f28e26]: people
+        - link [ref=f28e28] [cursor=pointer]:
+          - /url: /en/appointments
+          - img [ref=f28e29]: calendar_today
+        - link [ref=f28e31] [cursor=pointer]:
+          - /url: /en/clinical
+          - img [ref=f28e32]: medical_services
+        - link [ref=f28e34] [cursor=pointer]:
+          - /url: /en/pharmacy
+          - img [ref=f28e35]: medication
+        - link [ref=f28e37] [cursor=pointer]:
+          - /url: /en/lab
+          - img [ref=f28e38]: biotech
+        - link [ref=f28e40] [cursor=pointer]:
+          - /url: /en/billing
+          - img [ref=f28e41]: receipt
+        - link [ref=f28e43] [cursor=pointer]:
+          - /url: /en/admin
+          - img [ref=f28e44]: settings
+      - generic [ref=f28e119]:
+        - generic [ref=f28e120]: Viên Quản Trị
+        - button "Đăng xuất" [ref=f28e122] [cursor=pointer]:
+          - img [ref=f28e123]: logout
+    - generic [ref=f28e47]:
+      - generic [ref=f28e50]:
+        - img [ref=f28e51]: error_outline
+        - button [ref=f28e53] [cursor=pointer]:
+          - img [ref=f28e54]: close
+      - generic [ref=f28e464]:
+        - heading "Chỉnh sửa bệnh nhân" [level=1] [ref=f28e465]
+        - generic [ref=f28e466]:
+          - generic [ref=f28e467]:
+            - generic [ref=f28e470]:
+              - generic [ref=f28e471]:
+                - text: Họ
+                - generic [ref=f28e472]: "*"
+              - textbox "Họ" [ref=f28e474]: Nguyen
+            - generic [ref=f28e478]:
+              - generic: Tên đệm
+              - textbox "Tên đệm" [ref=f28e481]
+            - generic [ref=f28e485]:
+              - generic [ref=f28e486]:
+                - text: Tên
+                - generic [ref=f28e487]: "*"
+              - textbox "Tên" [ref=f28e489]: An
+            - generic [ref=f28e493]:
+              - generic [ref=f28e494]:
+                - text: Ngày sinh
+                - generic [ref=f28e495]: "*"
+              - textbox "Ngày sinh" [ref=f28e497]: 1/1/1990
+              - button "Open calendar" [ref=f28e500] [cursor=pointer]
+            - generic [ref=f28e508] [cursor=pointer]:
+              - generic [ref=f28e509]:
+                - text: Giới tính
+                - generic [ref=f28e510]: "*"
+              - combobox "Giới tính" [ref=f28e512]:
+                - generic [ref=f28e513]: Nam
+            - generic [ref=f28e523]:
+              - generic [ref=f28e524]:
+                - text: Số điện thoại
+                - generic [ref=f28e525]: "*"
+              - textbox "Số điện thoại" [ref=f28e527]:
+                - /placeholder: +84...
+                - text: "0900000001"
+            - generic [ref=f28e531]:
+              - generic: Email
+              - textbox "Email" [ref=f28e534]
+            - generic [ref=f28e538]:
+              - generic: CMND/CCCD
+              - textbox "CMND/CCCD" [ref=f28e541]
+            - generic [ref=f28e545]:
+              - generic [ref=f28e546]:
+                - text: Địa chỉ
+                - generic [ref=f28e547]: "*"
+              - textbox "Địa chỉ" [ref=f28e549]: 123 Test Street
+            - generic [ref=f28e553]:
+              - generic: Quận/Huyện
+              - textbox "Quận/Huyện" [ref=f28e556]: "-"
+            - generic [ref=f28e560]:
+              - generic [ref=f28e561]:
+                - text: Thành phố
+                - generic [ref=f28e562]: "*"
+              - textbox "Thành phố" [ref=f28e564]: Hanoi
+            - generic [ref=f28e568]:
+              - generic [ref=f28e569]:
+                - text: Tỉnh
+                - generic [ref=f28e570]: "*"
+              - textbox "Tỉnh" [ref=f28e572]: Hanoi
+            - generic [ref=f28e576]:
+              - generic [ref=f28e577]:
+                - text: Quốc gia
+                - generic [ref=f28e578]: "*"
+              - textbox "Quốc gia" [ref=f28e580]: Vietnam
+            - generic [ref=f28e584]:
+              - generic: Mã BHYT
+              - textbox "Mã BHYT" [ref=f28e587]
+          - generic [ref=f28e589]:
+            - button "Hủy" [ref=f28e590]
+            - button "Lưu bệnh nhân" [ref=f28e594]

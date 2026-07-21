@@ -1,5 +1,6 @@
 using His.Hope.AgentHarness.Core.Interfaces;
 using His.Hope.AgentHarness.Core.Models;
+using Pgvector;
 
 namespace His.Hope.AgentHarness.Application.Services;
 
@@ -33,9 +34,9 @@ public class MemoryService : IMemoryService
         {
             double score;
 
-            if (mem.Embedding is { Length: 256 })
+            if (mem.Embedding is { } embedding && embedding.Memory.Length == 256)
             {
-                score = _embeddings.CosineSimilarity(queryEmbedding, mem.Embedding);
+                score = _embeddings.CosineSimilarity(queryEmbedding, embedding.ToArray());
                 usedVector = true;
             }
             else if (!string.IsNullOrWhiteSpace(queryKeywords) && !string.IsNullOrWhiteSpace(mem.Keywords))

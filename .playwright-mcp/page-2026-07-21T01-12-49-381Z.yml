@@ -1,0 +1,60 @@
+- generic [ref=f5e1]:
+  - link "Chuyển đến nội dung chính" [ref=f5e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f5e4]:
+    - generic [ref=f5e8]:
+      - generic [ref=f5e9]:
+        - generic [ref=f5e10]:
+          - img [ref=f5e11]: local_hospital
+          - generic [ref=f5e12]: His.Hope
+        - button "Đóng menu điều hướng" [ref=f5e13] [cursor=pointer]:
+          - img [ref=f5e14]: close
+      - generic [ref=f5e20]:
+        - img [ref=f5e22]: search
+        - combobox "Tìm bệnh nhân..." [ref=f5e24]
+      - navigation "Điều hướng chính" [ref=f5e25]:
+        - link [ref=f5e26] [cursor=pointer]:
+          - /url: /en/dashboard
+          - img [ref=f5e27]: dashboard
+        - link [ref=f5e29] [cursor=pointer]:
+          - /url: /en/patients
+          - img [ref=f5e30]: people
+        - link [ref=f5e32] [cursor=pointer]:
+          - /url: /en/appointments
+          - img [ref=f5e33]: calendar_today
+        - link [ref=f5e35] [cursor=pointer]:
+          - /url: /en/clinical
+          - img [ref=f5e36]: medical_services
+        - link [ref=f5e38] [cursor=pointer]:
+          - /url: /en/pharmacy
+          - img [ref=f5e39]: medication
+        - link [ref=f5e41] [cursor=pointer]:
+          - /url: /en/lab
+          - img [ref=f5e42]: biotech
+        - link [ref=f5e44] [cursor=pointer]:
+          - /url: /en/billing
+          - img [ref=f5e45]: receipt
+        - link [active] [ref=f5e47] [cursor=pointer]:
+          - /url: /en/admin
+          - img [ref=f5e48]: settings
+      - generic [ref=f5e50]:
+        - generic [ref=f5e51]: Viên Quản Trị
+        - button "Đăng xuất" [ref=f5e53] [cursor=pointer]:
+          - img [ref=f5e54]: logout
+    - generic [ref=f5e58]:
+      - status [ref=f5e60]:
+        - generic [ref=f5e61]:
+          - img [ref=f5e62]: error_outline
+          - button [ref=f5e64] [cursor=pointer]:
+            - img [ref=f5e65]: close
+      - generic [ref=f5e271]:
+        - img [ref=f5e273]: lock
+        - heading "Truy cập bị từ chối" [level=1] [ref=f5e274]
+        - paragraph [ref=f5e275]: Bạn không có quyền truy cập vào trang này. Vui lòng liên hệ quản trị viên nếu bạn cần được cấp quyền.
+        - generic [ref=f5e276]:
+          - link "Về trang chính" [ref=f5e277] [cursor=pointer]:
+            - /url: /en/dashboard
+            - img [ref=f5e278]: dashboard
+          - link "Đăng nhập lại" [ref=f5e282] [cursor=pointer]:
+            - /url: /en/auth/login
+            - img [ref=f5e283]: login

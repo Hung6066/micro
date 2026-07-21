@@ -20,10 +20,8 @@ describe('RoleGuard', () => {
   };
 
   beforeEach(() => {
-    const authSpy = jasmine.createSpyObj('AuthService', ['isLoggedIn'], {
-      currentUser$: of(mockUser),
-    });
-    const routerSpy = jasmine.createSpyObj('Router', ['parseUrl']);
+    const authSpy = jasmine.createSpyObj('AuthService', ['ensureCurrentUser']);
+    const routerSpy = jasmine.createSpyObj('Router', ['createUrlTree']);
 
     TestBed.configureTestingModule({
       providers: [
@@ -39,6 +37,7 @@ describe('RoleGuard', () => {
   });
 
   it('should allow activation when user has required role', (done) => {
+    authService.ensureCurrentUser.and.returnValue(of(mockUser as any));
     const route = { data: { roles: ['admin'] } } as any as ActivatedRouteSnapshot;
 
     guard.canActivate(route, {} as any).subscribe((result) => {
@@ -48,22 +47,24 @@ describe('RoleGuard', () => {
   });
 
   it('should redirect to access-denied when user lacks role', (done) => {
-    router.parseUrl.and.returnValue('/access-denied' as any);
+    authService.ensureCurrentUser.and.returnValue(of(mockUser as any));
+    router.createUrlTree.and.returnValue('/access-denied' as any);
     const route = { data: { roles: ['superadmin'] } } as any as ActivatedRouteSnapshot;
 
     guard.canActivate(route, {} as any).subscribe((result) => {
-      expect(router.parseUrl).toHaveBeenCalledWith('/access-denied');
+      expect(router.createUrlTree).toHaveBeenCalledWith(['/access-denied']);
       done();
     });
   });
 
   it('should redirect to login when no user', (done) => {
-    const authSpy = jasmine.createSpyObj('AuthService', ['isLoggedIn'], {
-      currentUser$: of(null),
-    });
-    const routerSpy = jasmine.createSpyObj('Router', ['parseUrl']);
-    routerSpy.parseUrl.and.returnValue('/auth/login' as any);
+    const authSpy = jasmine.createSpyObj('AuthService', ['ensureCurrentUser']);
+    const routerSpy = jasmine.createSpyObj('Router', ['createUrlTree']);
+    routerSpy.createUrlTree.and.returnValue('/auth/login?returnUrl=%2Fadmin' as any);
     const route = { data: { roles: ['admin'] } } as any as ActivatedRouteSnapshot;
+    const state = { url: '/admin' } as any;
+
+    authSpy.ensureCurrentUser.and.returnValue(of(null));
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -74,8 +75,20 @@ describe('RoleGuard', () => {
       ],
     });
     const localGuard = TestBed.inject(RoleGuard);
-    localGuard.canActivate(route, {} as any).subscribe((result) => {
-      expect(routerSpy.parseUrl).toHaveBeenCalledWith('/auth/login');
+    localGuard.canActivate(route, state).subscribe((result) => {
+      expect(routerSpy.createUrlTree).toHaveBeenCalledWith(['/auth/login'], {
+        queryParams: { returnUrl: '/admin' },
+      });
+      done();
+    });
+  });
+
+  it('should allow activation when no roles are required once hydrated', (done) => {
+    authService.ensureCurrentUser.and.returnValue(of(mockUser as any));
+    const route = { data: {} } as any as ActivatedRouteSnapshot;
+
+    guard.canActivate(route, { url: '/admin' } as any).subscribe((result) => {
+      expect(result).toBeTrue();
       done();
     });
   });

@@ -98,4 +98,25 @@ describe('DashboardComponent', () => {
   it('should have fixture defined', () => {
     expect(fixture).toBeDefined();
   });
+
+  it('should render recent patient cards as focusable buttons', fakeAsync(() => {
+    patientService.search.and.returnValue(of({
+      items: [
+        { id: 'p-001', fullName: 'Nguyễn Minh An', genderName: 'Nam', age: 42 },
+      ],
+      totalCount: 1,
+      page: 1,
+      pageSize: 8,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    }));
+
+    fixture.detectChanges();
+    currentUserSubject.next({ fullName: 'Admin' });
+    tick();
+    fixture.detectChanges();
+
+    const card = fixture.nativeElement.querySelector('.recent-patient-card');
+    expect(card?.tagName).toBe('BUTTON');
+  }));
 });

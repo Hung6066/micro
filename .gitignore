@@ -118,3 +118,5 @@ Start-EMR.bat
 Start-EMR.ps1
 start-services-local.ps1
 test-grpc.csx
+
+.jest-cache/

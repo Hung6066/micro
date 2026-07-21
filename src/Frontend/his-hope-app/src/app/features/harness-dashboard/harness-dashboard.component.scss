@@ -64,7 +64,7 @@
   }
 
   .cell-mono {
-    font-family: 'Roboto Mono', monospace;
+    font-family: var(--font-mono);
     font-size: 13px;
     font-weight: 500;
     color: #1A1A1A;
@@ -108,7 +108,7 @@
   .detail-id {
     font-size: 11px;
     color: #787774;
-    font-family: 'Roboto Mono', monospace;
+    font-family: var(--font-mono);
   }
 }
 

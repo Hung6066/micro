@@ -12,9 +12,9 @@ import { patientsReducer } from '@store/patients/patients.reducer';
 import { errorReducer } from '@store/error/error.reducer';
 import { AuthEffects } from '@store/auth/auth.effects';
 import { PatientsEffects } from '@store/patients/patients.effects';
-import { AuthInterceptor } from '@core/interceptors/auth.interceptor';
 import { ErrorInterceptor } from '@core/interceptors/error.interceptor';
 import { csrfInterceptor } from '@core/interceptors/csrf.interceptor';
+import { authInterceptor } from '@core/interceptors/auth.interceptor';
 import { GlobalErrorHandler } from '@core/errors/global-error-handler';
 
 import { environment } from '@env/environment';
@@ -24,7 +24,7 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    provideHttpClient(withInterceptorsFromDi(), withInterceptors([csrfInterceptor])),
+    provideHttpClient(withInterceptorsFromDi(), withInterceptors([authInterceptor, csrfInterceptor])),
     provideAnimations(),
     provideStore({
       auth: authReducer,
@@ -34,7 +34,6 @@ export const appConfig: ApplicationConfig = {
     provideEffects([AuthEffects, PatientsEffects]),
     provideStoreDevtools({ maxAge: 25 }),
     { provide: ErrorHandler, useClass: GlobalErrorHandler },
-    { provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true },
     { provide: HTTP_INTERCEPTORS, useClass: ErrorInterceptor, multi: true },
     ...(environment.useMockServices ? mockServiceProviders : []),
   ],

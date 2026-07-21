@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Pgvector.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using His.Hope.AgentHarness.Core.Interfaces;
 
@@ -13,6 +14,7 @@ public static class PersistenceDependencyInjection
             {
                 npgsql.MigrationsHistoryTable("__ef_migrations_history", "harness");
                 npgsql.EnableRetryOnFailure(3);
+                npgsql.UseVector();
             }));
         services.AddScoped<IStateStore, StateStore>();
         return services;

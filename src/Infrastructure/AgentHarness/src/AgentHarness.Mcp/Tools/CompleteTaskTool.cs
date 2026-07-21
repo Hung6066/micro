@@ -71,10 +71,11 @@ public class CompleteTaskTool
         switch (statusStr.ToLowerInvariant())
         {
             case "completed":
-                agentRun.Complete(confidence, artifactRef ?? $"agents/{agentRun.AgentName}/run-{agentRun.Id:N}");
+                var completedArtifactRef = artifactRef ?? $"agents/{agentRun.AgentName}/run-{agentRun.Id:N}";
+                agentRun.Complete(confidence, completedArtifactRef);
                 await store.SaveAgentRunAsync(agentRun);
                 await _eventBus.PublishAsync(
-                    new AgentCompleted(agentRun.Id, agentRun.PipelineRunId, agentRun.AgentName, confidence, artifactRef));
+                    new AgentCompleted(agentRun.Id, agentRun.PipelineRunId, agentRun.AgentName, confidence, completedArtifactRef));
                 Log.Information("Agent run {RunId} completed externally: {AgentName} confidence={Confidence}",
                     agentRunId, agentRun.AgentName, confidence);
                 break;

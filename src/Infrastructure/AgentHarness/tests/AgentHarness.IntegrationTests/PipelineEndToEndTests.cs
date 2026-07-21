@@ -127,9 +127,7 @@ public class PipelineEndToEndTests
     [Fact]
     public void LoopEngineer_GivesUpAfterMaxIterations()
     {
-        var engine = new His.Hope.AgentHarness.Application.Services.LoopEngineer(
-            new His.Hope.AgentHarness.Application.Services.ErrorClassifier(),
-            new His.Hope.AgentHarness.Application.Services.ConfidenceScorer());
+        var engine = CreateLoopEngineer();
         var context = new His.Hope.AgentHarness.Core.Interfaces.LoopContext
         {
             FailedGates = new(),
@@ -142,7 +140,7 @@ public class PipelineEndToEndTests
     [Fact]
     public void LoopEngineer_EscalatesOnInfrastructureError()
     {
-        var engine = new LoopEngineer(new ErrorClassifier(), new ConfidenceScorer());
+        var engine = CreateLoopEngineer();
         var context = new LoopContext
         {
             FailedGates = new List<QualityGate>
@@ -159,7 +157,7 @@ public class PipelineEndToEndTests
     [Fact]
     public void LoopEngineer_AutoFixesCompilationError()
     {
-        var engine = new LoopEngineer(new ErrorClassifier(), new ConfidenceScorer());
+        var engine = CreateLoopEngineer();
         var context = new LoopContext
         {
             FailedGates = new List<QualityGate>
@@ -274,7 +272,7 @@ public class PipelineEndToEndTests
     [Fact]
     public void LoopEngineer_SafetyFence_BlocksRestrictedPaths()
     {
-        var engine = new LoopEngineer(new ErrorClassifier(), new ConfidenceScorer());
+        var engine = CreateLoopEngineer();
         var context = new LoopContext
         {
             FailedGates = new List<QualityGate>
@@ -301,5 +299,23 @@ public class PipelineEndToEndTests
         dag.GetPhaseNodes(PipelinePhase.Plan).Should().Contain(n => n.AgentName == "plan");
         dag.GetPhaseNodes(PipelinePhase.Implement).Should().Contain(n => n.AgentName == "dotnet");
         dag.Edges.Should().HaveCount(1);
+    }
+
+    private static LoopEngineer CreateLoopEngineer() => new(
+        new ErrorClassifier(),
+        new ConfidenceScorer(),
+        new NoopMemoryService(),
+        new LlmJudgeService());
+
+    private sealed class NoopMemoryService : IMemoryService
+    {
+        public Task<MemoryEntry?> FindSimilarAsync(string errorOutput, string agentName, CancellationToken ct = default) =>
+            Task.FromResult<MemoryEntry?>(null);
+
+        public Task StoreAsync(string errorPattern, string errorCategory, string agentName, string fixDescription, string? fixArtifactRef, bool success, CancellationToken ct = default) =>
+            Task.CompletedTask;
+
+        public Task RecordHitAsync(Guid memoryEntryId, CancellationToken ct = default) =>
+            Task.CompletedTask;
     }
 }

@@ -1,20 +1,22 @@
 namespace His.Hope.IdentityService.Application.DTOs;
 
 public record LoginRequest(
-    string Username,
-    string Password,
+    string? Username = null,
+    string? Email = null,
+    string? Password = null,
     string? DeviceInfo = null,
-    string? IpAddress = null);
+    string? IpAddress = null,
+    string? UserAgent = null);
 
 public record RegisterRequest(
-    string Username,
-    string Email,
-    string Password,
-    string FirstName,
-    string LastName,
-    string? MiddleName,
-    string? LicenseNumber,
-    string? Specialty,
+    string? Username = null,
+    string? Email = null,
+    string? Password = null,
+    string? FirstName = null,
+    string? LastName = null,
+    string? MiddleName = null,
+    string? LicenseNumber = null,
+    string? Specialty = null,
     string? DeviceInfo = null,
     string? IpAddress = null);
 

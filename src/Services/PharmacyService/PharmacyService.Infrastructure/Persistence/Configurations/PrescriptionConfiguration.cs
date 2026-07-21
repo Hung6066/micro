@@ -9,7 +9,7 @@ public class PrescriptionConfiguration : IEntityTypeConfiguration<Prescription>
 {
     public void Configure(EntityTypeBuilder<Prescription> builder)
     {
-        builder.ToTable("prescriptions");
+        builder.ToTable("Prescriptions");
 
         builder.HasKey(p => p.Id);
 
@@ -19,14 +19,14 @@ public class PrescriptionConfiguration : IEntityTypeConfiguration<Prescription>
                 value => PrescriptionId.From(value))
             .HasColumnName("id");
 
-        builder.Property(p => p.PatientId).HasColumnName("patient_id").IsRequired();
-        builder.Property(p => p.ProviderId).HasColumnName("provider_id").IsRequired();
-        builder.Property(p => p.MedicationId).HasColumnName("medication_id");
+        builder.Property(p => p.PatientId).HasColumnName("patientid").IsRequired();
+        builder.Property(p => p.ProviderId).HasColumnName("providerid").IsRequired();
+        builder.Property(p => p.MedicationId).HasColumnName("medicationid");
 
-        builder.Property(p => p.MedicationName).HasColumnName("medication_name").HasMaxLength(200).IsRequired();
+        builder.Property(p => p.MedicationName).HasColumnName("medicationname").HasMaxLength(200).IsRequired();
         builder.Property(p => p.Strength).HasColumnName("strength").HasMaxLength(50).IsRequired();
-        builder.Property(p => p.DosageForm).HasColumnName("dosage_form").HasMaxLength(50).IsRequired();
-        builder.Property(p => p.DosageInstructions).HasColumnName("dosage_instructions").HasMaxLength(500).IsRequired();
+        builder.Property(p => p.DosageForm).HasColumnName("dosageform").HasMaxLength(50).IsRequired();
+        builder.Property(p => p.DosageInstructions).HasColumnName("dosageinstructions").HasMaxLength(500).IsRequired();
         builder.Property(p => p.Route).HasColumnName("route").HasMaxLength(50);
 
         builder.Property(p => p.Quantity).HasColumnName("quantity").IsRequired();
@@ -41,13 +41,13 @@ public class PrescriptionConfiguration : IEntityTypeConfiguration<Prescription>
             .HasMaxLength(20)
             .IsRequired();
 
-        builder.Property(p => p.PrescribedDate).HasColumnName("prescribed_date").IsRequired();
-        builder.Property(p => p.ExpiryDate).HasColumnName("expiry_date");
-        builder.Property(p => p.FilledDate).HasColumnName("filled_date");
-        builder.Property(p => p.CancelledDate).HasColumnName("cancelled_date");
-        builder.Property(p => p.CancellationReason).HasColumnName("cancellation_reason").HasMaxLength(500);
-        builder.Property(p => p.CreatedAt).HasColumnName("created_at").IsRequired();
-        builder.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(p => p.PrescribedDate).HasColumnName("prescribeddate").IsRequired();
+        builder.Property(p => p.ExpiryDate).HasColumnName("expirydate");
+        builder.Property(p => p.FilledDate).HasColumnName("filleddate");
+        builder.Property(p => p.CancelledDate).HasColumnName("cancelleddate");
+        builder.Property(p => p.CancellationReason).HasColumnName("cancellationreason").HasMaxLength(500);
+        builder.Property(p => p.CreatedAt).HasColumnName("createdat").IsRequired();
+        builder.Property(p => p.UpdatedAt).HasColumnName("updatedat");
 
         builder.HasIndex(p => p.PatientId);
         builder.HasIndex(p => p.ProviderId);

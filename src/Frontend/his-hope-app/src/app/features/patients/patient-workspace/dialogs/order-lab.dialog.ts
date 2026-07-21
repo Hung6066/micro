@@ -100,7 +100,7 @@ const AVAILABLE_TESTS = [
     </mat-dialog-actions>
   `,
     styles: [`
-    .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: #f3e5f5; border-radius: 8px; color: #7b1fa2; font-weight: 500; }
+    .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: var(--pastel-purple, #F3EDF8); border-radius: 8px; color: var(--pastel-purple-text, #6B4FA0); font-weight: 500; }
     .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 380px; }
   `]
 })

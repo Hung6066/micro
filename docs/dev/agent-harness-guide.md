@@ -95,7 +95,7 @@ Pending ──► Running ──► Completed
 
 ## 3. MCP Tools Reference
 
-The harness exposes 4 tools over HTTP at `localhost:5200` (Docker) or via OpenCode's native MCP integration.
+The harness exposes MCP tools over HTTP at `localhost:5200` (Docker) or via OpenCode's native MCP integration. Current reachable tools include pipeline lifecycle, pending task polling, task completion, artifact storage, timeline retrieval, and human-in-the-loop approval operations.
 
 ### 3.1 `harness_start_pipeline`
 

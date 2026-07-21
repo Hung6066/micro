@@ -19,6 +19,7 @@ describe('GlobalErrorHandler', () => {
   let errorHandler: GlobalErrorHandler;
   let errorService: jasmine.SpyObj<ErrorService>;
   let snackBar: jasmine.SpyObj<MatSnackBar>;
+  let snackBarSpy: jasmine.SpyObj<MatSnackBar>;
   let store: MockStore;
 
   beforeEach(() => {
@@ -26,7 +27,7 @@ describe('GlobalErrorHandler', () => {
       'buildErrorContext',
       'reportError',
     ]);
-    const snackBarSpy = jasmine.createSpyObj('MatSnackBar', ['open']);
+    snackBarSpy = jasmine.createSpyObj('MatSnackBar', ['open']);
 
     TestBed.configureTestingModule({
     imports: [NoopAnimationsModule],
@@ -67,6 +68,11 @@ describe('GlobalErrorHandler', () => {
 
     expect(errorService.buildErrorContext).toHaveBeenCalledWith(httpError);
     expect(errorService.reportError).toHaveBeenCalled();
+    expect(snackBarSpy.open).toHaveBeenCalledWith(
+      jasmine.any(String),
+      jasmine.any(String),
+      jasmine.objectContaining({ duration: 6000 }),
+    );
   }));
 
   it('should handle TypeError and show snackbar', fakeAsync(() => {
@@ -86,6 +92,10 @@ describe('GlobalErrorHandler', () => {
     flush();
 
     expect(errorService.buildErrorContext).toHaveBeenCalledWith(typeError);
-    expect(snackBar.open).toHaveBeenCalled();
+    expect(snackBarSpy.open).toHaveBeenCalledWith(
+      jasmine.any(String),
+      jasmine.any(String),
+      jasmine.objectContaining({ duration: 6000 }),
+    );
   }));
 });

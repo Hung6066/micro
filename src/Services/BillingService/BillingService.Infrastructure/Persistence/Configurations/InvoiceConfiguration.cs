@@ -10,7 +10,7 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
 {
     public void Configure(EntityTypeBuilder<Invoice> builder)
     {
-        builder.ToTable("invoices");
+        builder.ToTable("Invoices");
 
         builder.HasKey(i => i.Id);
 
@@ -18,29 +18,29 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
             .HasConversion(
                 id => id.Value,
                 value => InvoiceId.From(value))
-            .HasColumnName("id");
+            .HasColumnName("Id");
 
-        builder.Property(i => i.PatientId).HasColumnName("patient_id").IsRequired();
-        builder.Property(i => i.EncounterId).HasColumnName("encounter_id");
-        builder.Property(i => i.InvoiceNumber).HasColumnName("invoice_number").HasMaxLength(50).IsRequired();
-        builder.Property(i => i.InvoiceDate).HasColumnName("invoice_date").IsRequired();
-        builder.Property(i => i.DueDate).HasColumnName("due_date");
-        builder.Property(i => i.Notes).HasColumnName("notes").HasMaxLength(1000);
+        builder.Property(i => i.PatientId).HasColumnName("PatientId").IsRequired();
+        builder.Property(i => i.EncounterId).HasColumnName("EncounterId");
+        builder.Property(i => i.InvoiceNumber).HasColumnName("InvoiceNumber").HasMaxLength(50).IsRequired();
+        builder.Property(i => i.InvoiceDate).HasColumnName("InvoiceDate").IsRequired();
+        builder.Property(i => i.DueDate).HasColumnName("DueDate");
+        builder.Property(i => i.Notes).HasColumnName("Notes").HasMaxLength(1000);
 
         builder.Property(i => i.Status)
             .HasConversion(
                 s => s.Code,
                 code => InvoiceStatus.FromCode(code))
-            .HasColumnName("status")
+            .HasColumnName("Status")
             .HasMaxLength(20)
             .IsRequired();
 
-        builder.Property(i => i.SubTotal).HasColumnName("sub_total").HasColumnType("decimal(18,2)").IsRequired();
-        builder.Property(i => i.TaxAmount).HasColumnName("tax_amount").HasColumnType("decimal(18,2)").IsRequired();
-        builder.Property(i => i.DiscountAmount).HasColumnName("discount_amount").HasColumnType("decimal(18,2)").IsRequired();
-        builder.Property(i => i.PaidAmount).HasColumnName("paid_amount").HasColumnType("decimal(18,2)").IsRequired();
-        builder.Property(i => i.CreatedAt).HasColumnName("created_at").IsRequired();
-        builder.Property(i => i.UpdatedAt).HasColumnName("updated_at");
+        builder.Property(i => i.SubTotal).HasColumnName("SubTotal").HasColumnType("decimal(18,2)").IsRequired();
+        builder.Property(i => i.TaxAmount).HasColumnName("TaxAmount").HasColumnType("decimal(18,2)").IsRequired();
+        builder.Property(i => i.DiscountAmount).HasColumnName("DiscountAmount").HasColumnType("decimal(18,2)").IsRequired();
+        builder.Property(i => i.PaidAmount).HasColumnName("PaidAmount").HasColumnType("decimal(18,2)").IsRequired();
+        builder.Property(i => i.CreatedAt).HasColumnName("CreatedAt").IsRequired();
+        builder.Property(i => i.UpdatedAt).HasColumnName("UpdatedAt");
 
         builder.HasMany(i => i.LineItems)
             .WithOne()

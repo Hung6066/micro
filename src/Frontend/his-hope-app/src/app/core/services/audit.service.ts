@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { environment } from '@env/environment';
 
 export type AuditAction =
@@ -32,6 +32,7 @@ export class AuditService {
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private readonly BATCH_SIZE = 10;
   private readonly FLUSH_INTERVAL = 30000; // 30 seconds
+  private readonly NON_RETRYABLE_STATUSES = new Set([400, 401, 403, 404, 422]);
   private readonly ENDPOINT = `${environment.apiUrl}/audit/events`;
   private userId: string | undefined;
 
@@ -81,12 +82,19 @@ export class AuditService {
 
     this.http.post(this.ENDPOINT, { events }).subscribe({
       next: () => this.scheduleNextFlush(),
-      error: () => {
-        // Re-queue on failure — non-blocking
-        this.queue.unshift(...events);
+      error: (error: unknown) => {
+        if (!this.isNonRetryableFailure(error)) {
+          // Re-queue transient failures — non-blocking
+          this.queue.unshift(...events);
+        }
         this.scheduleNextFlush();
       },
     });
+  }
+
+  private isNonRetryableFailure(error: unknown): boolean {
+    return error instanceof HttpErrorResponse
+      && this.NON_RETRYABLE_STATUSES.has(error.status);
   }
 
   private scheduleNextFlush(): void {

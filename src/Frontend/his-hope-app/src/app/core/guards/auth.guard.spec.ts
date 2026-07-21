@@ -10,8 +10,8 @@ describe('AuthGuard', () => {
   let router: jasmine.SpyObj<Router>;
 
   beforeEach(() => {
-    const authSpy = jasmine.createSpyObj('AuthService', ['isLoggedIn']);
-    const routerSpy = jasmine.createSpyObj('Router', ['parseUrl']);
+    const authSpy = jasmine.createSpyObj('AuthService', ['ensureCurrentUser']);
+    const routerSpy = jasmine.createSpyObj('Router', ['createUrlTree']);
 
     TestBed.configureTestingModule({
       providers: [
@@ -27,30 +27,32 @@ describe('AuthGuard', () => {
   });
 
   it('should allow activation for authenticated user', (done) => {
-    authService.isLoggedIn.and.returnValue(of(true));
+    authService.ensureCurrentUser.and.returnValue(of({ id: 'usr-001' } as any));
 
-    guard.canActivate().subscribe((result) => {
+    guard.canActivate({} as any, { url: '/dashboard' } as any).subscribe((result) => {
       expect(result).toBeTrue();
       done();
     });
   });
 
   it('should redirect unauthenticated user to login', (done) => {
-    authService.isLoggedIn.and.returnValue(of(false));
-    router.parseUrl.and.returnValue('/auth/login' as any);
+    authService.ensureCurrentUser.and.returnValue(of(null));
+    router.createUrlTree.and.returnValue('/auth/login?returnUrl=%2Fdashboard' as any);
 
-    guard.canActivate().subscribe((result) => {
-      expect(router.parseUrl).toHaveBeenCalledWith('/auth/login');
+    guard.canActivate({} as any, { url: '/dashboard' } as any).subscribe((result) => {
+      expect(router.createUrlTree).toHaveBeenCalledWith(['/auth/login'], {
+        queryParams: { returnUrl: '/dashboard' },
+      });
       done();
     });
   });
 
-  it('should handle store-based auth state via isLoggedIn', (done) => {
-    authService.isLoggedIn.and.returnValue(of(true));
+  it('should wait for hydrated auth state before activating', (done) => {
+    authService.ensureCurrentUser.and.returnValue(of({ id: 'usr-001' } as any));
 
-    guard.canActivate().subscribe((result) => {
+    guard.canActivate({} as any, { url: '/dashboard' } as any).subscribe((result) => {
       expect(result).toBeTrue();
-      expect(authService.isLoggedIn).toHaveBeenCalled();
+      expect(authService.ensureCurrentUser).toHaveBeenCalled();
       done();
     });
   });

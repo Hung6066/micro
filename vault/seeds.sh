@@ -302,6 +302,12 @@ vault kv put secret/his-hope/pharmacy-bff/config \
   redis_connection_timeout=10 \
   max_request_size=4096
 
+echo "  Writing dashboard-bff/config..."
+vault kv put secret/his-hope/dashboard-bff/config \
+  log_level=info \
+  redis_connection_timeout=10 \
+  max_request_size=4096
+
 echo "Secrets seeded successfully!"
 echo ""
 echo "Seeded paths:"
@@ -323,6 +329,7 @@ echo "  secret/his-hope/lab-service/config"
 echo "  secret/his-hope/billing-service/config"
 echo "  secret/his-hope/pharmacy-service/config"
 echo "  secret/his-hope/pharmacy-bff/config"
+echo "  secret/his-hope/dashboard-bff/config"
 echo "  secret/his-hope/eventbus/{service}"
 echo "  secret/his-hope/{service}/mtls (for each service)"
 echo ""

@@ -62,6 +62,16 @@ describe('AuditService', () => {
     expect(service.queueLength()).toBe(1);
   });
 
+  it('should drop non-retryable audit endpoint failures', () => {
+    service.log('data.view', { patientId: '123' });
+    service.flushNow();
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/audit/events`);
+    req.flush('Not found', { status: 404, statusText: 'Not Found' });
+
+    expect(service.queueLength()).toBe(0);
+  });
+
   it('should use setUserId in events', () => {
     service.setUserId('usr-001');
     service.log('data.view', {});

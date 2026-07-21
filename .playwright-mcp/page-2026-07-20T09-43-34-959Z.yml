@@ -1,0 +1,161 @@
+- generic [ref=f13e1]:
+  - link "Chuyển đến nội dung chính" [ref=f13e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f13e4]:
+    - generic [ref=f13e141]:
+      - generic [ref=f13e142]:
+        - generic [ref=f13e143]:
+          - img [ref=f13e144]: local_hospital
+          - generic [ref=f13e145]: His.Hope
+        - button "Đóng menu điều hướng" [ref=f13e146] [cursor=pointer]:
+          - img [ref=f13e147]: close
+      - generic [ref=f13e153]:
+        - img [ref=f13e155]: search
+        - combobox "Tìm bệnh nhân..." [ref=f13e157]
+      - navigation "Điều hướng chính" [ref=f13e158]:
+        - link [ref=f13e159] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=f13e160]: dashboard
+        - link [ref=f13e162] [cursor=pointer]:
+          - /url: /patients
+          - img [ref=f13e163]: people
+        - link [ref=f13e165] [cursor=pointer]:
+          - /url: /appointments
+          - img [ref=f13e166]: calendar_today
+        - link [ref=f13e168] [cursor=pointer]:
+          - /url: /clinical
+          - img [ref=f13e169]: medical_services
+        - link [ref=f13e171] [cursor=pointer]:
+          - /url: /pharmacy
+          - img [ref=f13e172]: medication
+        - link [ref=f13e174] [cursor=pointer]:
+          - /url: /lab
+          - img [ref=f13e175]: biotech
+        - link [ref=f13e177] [cursor=pointer]:
+          - /url: /billing
+          - img [ref=f13e178]: receipt
+        - link [ref=f13e180] [cursor=pointer]:
+          - /url: /admin
+          - img [ref=f13e181]: settings
+      - generic [ref=f13e183]:
+        - generic [ref=f13e184]: "Nguyá»\x85n Minh An"
+        - button "Đăng xuất" [ref=f13e186] [cursor=pointer]:
+          - img [ref=f13e187]: logout
+    - generic [ref=f13e7]:
+      - status [ref=f13e13]:
+        - generic [ref=f13e14]:
+          - img [ref=f13e15]: error_outline
+          - generic [ref=f13e191]:
+            - generic [ref=f13e192]: "Failed to fetch dynamically imported module: http://localhost:8081/clinical.routes-33TPZY2S.js"
+            - generic [ref=f13e211]: "Ref: hh-mrt1eie8-6r6c2a"
+          - generic [ref=f13e16]:
+            - button [ref=f13e212] [cursor=pointer]:
+              - img [ref=f13e213]: content_copy
+            - button [ref=f13e17] [cursor=pointer]:
+              - img [ref=f13e18]: close
+      - generic [ref=f13e24]:
+        - generic [ref=f13e25]:
+          - generic [ref=f13e26]:
+            - 'heading "Xin chào, Nguyá»n Minh An" [level=1] [ref=f13e27]'
+            - paragraph [ref=f13e28]: Tổng quan bệnh viện
+          - generic [ref=f13e29]:
+            - img [ref=f13e30]: calendar_today
+            - generic [ref=f13e31]: Monday, 20/07/2026
+        - generic [ref=f13e32]:
+          - generic [ref=f13e34]:
+            - img [ref=f13e36]: people
+            - generic [ref=f13e37]:
+              - generic [ref=f13e38]: "42"
+              - generic [ref=f13e39]: Tổng bệnh nhân
+              - generic [ref=f13e40]: +2 hôm nay
+          - generic [ref=f13e42]:
+            - img [ref=f13e44]: calendar_today
+            - generic [ref=f13e45]:
+              - generic [ref=f13e46]: "7"
+              - generic [ref=f13e47]: Lịch hẹn hôm nay
+              - generic [ref=f13e48]: 5 ngày mai
+          - generic [ref=f13e50]:
+            - img [ref=f13e52]: emergency
+            - generic [ref=f13e53]:
+              - generic [ref=f13e54]: "3"
+              - generic [ref=f13e55]: Điều trị đang mở
+          - generic [ref=f13e57]:
+            - img [ref=f13e59]: science
+            - generic [ref=f13e60]:
+              - generic [ref=f13e61]: "4"
+              - generic [ref=f13e62]: Xét nghiệm chờ KQ
+          - generic [ref=f13e64]:
+            - img [ref=f13e66]: receipt
+            - generic [ref=f13e67]:
+              - generic [ref=f13e68]: "1"
+              - generic [ref=f13e69]: Hóa đơn chưa TT
+          - generic [ref=f13e71]:
+            - img [ref=f13e73]: medication
+            - generic [ref=f13e74]:
+              - generic [ref=f13e75]: "6"
+              - generic [ref=f13e76]: Thuốc sắp hết
+        - generic [ref=f13e77]:
+          - generic [ref=f13e80]:
+            - img [ref=f13e81]: search
+            - text: Tìm bệnh nhân
+          - generic [ref=f13e85]:
+            - generic: Nhập tên, số điện thoại hoặc mã bệnh nhân...
+            - combobox "Nhập tên, số điện thoại hoặc mã bệnh nhân..." [ref=f13e88]
+            - img [ref=f13e90]: search
+        - generic [ref=f13e92]:
+          - generic [ref=f13e93]:
+            - generic [ref=f13e95]:
+              - img [ref=f13e96]: history
+              - text: Bệnh nhân gần đây
+            - button "Xem tất cả" [ref=f13e97]
+          - button "Mở hồ sơ bệnh nhân Nguyễn Minh An" [ref=f13e103] [cursor=pointer]:
+            - generic [ref=f13e104]: "N"
+            - generic [ref=f13e105]:
+              - generic [ref=f13e106]: Nguyễn Minh An
+              - generic [ref=f13e107]: Nam · 42 tuổi
+            - img [ref=f13e108]: chevron_right
+        - generic [ref=f13e109]:
+          - generic [ref=f13e110]:
+            - generic [ref=f13e112]:
+              - img [ref=f13e113]: history
+              - text: Lượt khám gần đây
+            - button "Xem tất cả" [ref=f13e114]
+          - table [ref=f13e120]:
+            - rowgroup [ref=f13e121]:
+              - row [ref=f13e122]:
+                - columnheader "Ngày" [ref=f13e123]
+                - columnheader "Bệnh nhân" [ref=f13e124]
+                - columnheader "Loại" [ref=f13e125]
+                - columnheader "Lý do" [ref=f13e126]
+                - columnheader "Trạng thái" [ref=f13e127]
+            - rowgroup [ref=f13e128]:
+              - button "Mở lượt khám pat-001" [active] [ref=f13e129] [cursor=pointer]:
+                - cell "20/07 15:30" [ref=f13e130]
+                - cell "pat-001..." [ref=f13e131]
+                - cell "Khám tổng quát" [ref=f13e132]
+                - cell "Sốt nhẹ" [ref=f13e133]
+                - cell "Đang mở" [ref=f13e134]
+        - generic [ref=f13e216]:
+          - generic [ref=f13e217]:
+            - generic [ref=f13e219]:
+              - img [ref=f13e220]: upcoming
+              - text: Lịch hẹn sắp tới
+            - button "Xem tất cả" [ref=f13e221]
+          - table [ref=f13e227]:
+            - rowgroup [ref=f13e228]:
+              - row [ref=f13e229]:
+                - columnheader "Ngày" [ref=f13e230]
+                - columnheader "Giờ" [ref=f13e231]
+                - columnheader "Bệnh nhân" [ref=f13e232]
+                - columnheader "Loại" [ref=f13e233]
+                - columnheader "Trạng thái" [ref=f13e234]
+            - rowgroup [ref=f13e235]:
+              - button "Mở lịch hẹn pat-002" [ref=f13e236] [cursor=pointer]:
+                - cell "21/07" [ref=f13e237]
+                - cell "09:30" [ref=f13e238]
+                - cell "pat-002..." [ref=f13e239]
+                - cell "Tái khám" [ref=f13e240]
+                - cell "Đã lên lịch" [ref=f13e241]
+  - generic [ref=f13e249]:
+    - generic [ref=f13e250]: An unexpected application error occurred. Please refresh the page.
+    - button "OK" [ref=f13e252]

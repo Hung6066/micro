@@ -25,7 +25,7 @@ describe('ForgotPasswordComponent', () => {
 
   it('should display forgot password heading', () => {
     const heading: HTMLElement = fixture.nativeElement.querySelector('h1');
-    expect(heading?.textContent?.trim()).toBe('Forgot Password');
+    expect(heading?.textContent?.trim()).toBe('Khôi phục mật khẩu');
   });
 
   it('should have component initialized', () => {

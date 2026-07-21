@@ -1,0 +1,64 @@
+- generic [active] [ref=f9e1]:
+  - link "Chuyển đến nội dung chính" [ref=f9e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f9e4]:
+    - generic [ref=f9e8]:
+      - generic [ref=f9e10]:
+        - img [ref=f9e11]: local_hospital
+        - generic [ref=f9e12]: His.Hope
+      - generic [ref=f9e16]:
+        - img [ref=f9e18]: search
+        - combobox "Tìm bệnh nhân..." [ref=f9e20]
+      - navigation "Điều hướng chính" [ref=f9e21]:
+        - link [ref=f9e22] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=f9e23]: dashboard
+        - link [ref=f9e25] [cursor=pointer]:
+          - /url: /patients
+          - img [ref=f9e26]: people
+        - link [ref=f9e28] [cursor=pointer]:
+          - /url: /appointments
+          - img [ref=f9e29]: calendar_today
+        - link [ref=f9e31] [cursor=pointer]:
+          - /url: /clinical
+          - img [ref=f9e32]: medical_services
+        - link [ref=f9e34] [cursor=pointer]:
+          - /url: /pharmacy
+          - img [ref=f9e35]: medication
+        - link [ref=f9e37] [cursor=pointer]:
+          - /url: /lab
+          - img [ref=f9e38]: biotech
+        - link [ref=f9e40] [cursor=pointer]:
+          - /url: /billing
+          - img [ref=f9e41]: receipt
+        - link [ref=f9e43] [cursor=pointer]:
+          - /url: /admin
+          - img [ref=f9e44]: settings
+    - generic [ref=f9e47]:
+      - status [ref=f9e49]:
+        - generic [ref=f9e50]:
+          - img [ref=f9e51]: error_outline
+          - button [ref=f9e53] [cursor=pointer]:
+            - img [ref=f9e54]: close
+      - generic [ref=f9e60]:
+        - generic [ref=f9e61]:
+          - generic [ref=f9e62]:
+            - generic [ref=f9e63]: His.Hope
+            - generic [ref=f9e64]: Đăng nhập hệ thống
+          - img [ref=f9e65]: local_hospital
+        - generic [ref=f9e67]:
+          - generic [ref=f9e70]:
+            - generic [ref=f9e71]:
+              - text: Tên đăng nhập
+              - generic [ref=f9e72]: "*"
+            - img [ref=f9e74]: person
+            - textbox "Tên đăng nhập" [ref=f9e76]:
+              - /placeholder: Nhập tài khoản
+          - generic [ref=f9e80]:
+            - generic [ref=f9e81]:
+              - text: Mật khẩu
+              - generic [ref=f9e82]: "*"
+            - img [ref=f9e84]: lock
+            - textbox "Mật khẩu" [ref=f9e86]:
+              - /placeholder: Nhập mật khẩu
+          - button "Đăng nhập" [disabled]

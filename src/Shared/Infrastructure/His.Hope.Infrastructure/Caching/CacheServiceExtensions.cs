@@ -9,15 +9,8 @@ public static class CacheServiceExtensions
     /// Registers the standard Redis-based distributed cache (L2).
     /// </summary>
     public static IServiceCollection AddHisHopeCaching(
-        this IServiceCollection services,
-        string redisConnectionString = "localhost:6379")
+        this IServiceCollection services)
     {
-        services.AddStackExchangeRedisCache(options =>
-        {
-            options.Configuration = redisConnectionString;
-            options.InstanceName = "HisHope:";
-        });
-
         services.AddScoped<ICacheService, DistributedCacheService>();
 
         return services;
@@ -34,8 +27,8 @@ public static class CacheServiceExtensions
         this IServiceCollection services,
         string redisConnectionString = "localhost:6379")
     {
-        // Register L2 (Redis) first
-        services.AddHisHopeCaching(redisConnectionString);
+        // Register L2 (Redis) - uses shared IConnectionMultiplexer registered by the service
+        services.AddHisHopeCaching();
 
         // Register L1 (in-memory) with size limit of 500 entries
         services.AddMemoryCache();

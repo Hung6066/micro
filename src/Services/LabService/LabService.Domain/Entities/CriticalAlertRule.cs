@@ -62,6 +62,13 @@ public class CriticalAlertRule : Entity<Guid>
         UpdatedAt = DateTime.UtcNow;
     }
 
+    public void UpdateDetails(string testCode, string testName)
+    {
+        TestCode = Guard.Against.NullOrWhiteSpace(testCode, nameof(testCode));
+        TestName = Guard.Against.NullOrWhiteSpace(testName, nameof(testName));
+        UpdatedAt = DateTime.UtcNow;
+    }
+
     public void SetUnit(string? unit)
     {
         Unit = unit;

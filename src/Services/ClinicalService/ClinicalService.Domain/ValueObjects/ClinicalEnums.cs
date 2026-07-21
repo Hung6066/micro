@@ -31,6 +31,8 @@ public class HistoryPresentIllness : ValueObject
     public string? RelievingFactors { get; }
     public string? PriorTreatments { get; }
 
+    private HistoryPresentIllness() { }
+
     public HistoryPresentIllness(string? onset, string? location, string? duration,
         string? characteristics, string? aggravatingFactors, string? relievingFactors, string? priorTreatments)
     {

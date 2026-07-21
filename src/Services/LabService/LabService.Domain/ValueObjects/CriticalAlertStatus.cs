@@ -1,7 +1,9 @@
+using System.Text.Json.Serialization;
 using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.LabService.Domain.ValueObjects;
 
+[JsonConverter(typeof(EnumerationJsonConverterFactory))]
 public class CriticalAlertStatus : Enumeration<CriticalAlertStatus>
 {
     public static readonly CriticalAlertStatus Open = new("OPEN", "Open");

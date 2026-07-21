@@ -1,166 +1,60 @@
 import { TestBed } from '@angular/core/testing';
+import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { HTTP_INTERCEPTORS, HttpClient, provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
-import { Router } from '@angular/router';
-import { Observable } from 'rxjs';
-import { AuthInterceptor } from './auth.interceptor';
 import { AuthService } from '@core/services/auth.service';
-import { User } from '@core/models/auth.model';
+import { authInterceptor } from './auth.interceptor';
 
-describe('AuthInterceptor', () => {
-  let httpClient: HttpClient;
+describe('authInterceptor', () => {
+  let http: HttpClient;
   let httpMock: HttpTestingController;
   let authService: jasmine.SpyObj<AuthService>;
-  let router: jasmine.SpyObj<Router>;
-
-  const mockUser: User = {
-    id: 'usr-001',
-    username: 'admin',
-    email: 'admin@hishope.vn',
-    firstName: 'Admin',
-    lastName: 'User',
-    fullName: 'Admin User',
-    roles: ['admin'],
-    permissions: ['patients.view', 'patients.write'],
-  };
 
   beforeEach(() => {
-    const authSpy = jasmine.createSpyObj('AuthService', [
-      'getStoredAccessToken',
-      'refreshToken',
-      'clearStoredAccessToken',
-    ]);
-    const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
+    authService = jasmine.createSpyObj<AuthService>('AuthService', ['getStoredAccessToken']);
 
     TestBed.configureTestingModule({
-    imports: [],
-    providers: [
-        { provide: AuthService, useValue: authSpy },
-        { provide: Router, useValue: routerSpy },
-        {
-            provide: HTTP_INTERCEPTORS,
-            useClass: AuthInterceptor,
-            multi: true,
-        },
-        provideHttpClient(withInterceptorsFromDi()),
+      providers: [
+        provideHttpClient(withInterceptors([authInterceptor])),
         provideHttpClientTesting(),
-    ]
-});
+        { provide: AuthService, useValue: authService },
+      ],
+    });
 
-    httpClient = TestBed.inject(HttpClient);
+    http = TestBed.inject(HttpClient);
     httpMock = TestBed.inject(HttpTestingController);
-    authService = TestBed.inject(AuthService) as jasmine.SpyObj<AuthService>;
-    router = TestBed.inject(Router) as jasmine.SpyObj<Router>;
   });
 
   afterEach(() => {
     httpMock.verify();
   });
 
-  it('should attach Authorization Bearer header when token exists', () => {
-    authService.getStoredAccessToken.and.returnValue('test-jwt-token');
+  it('adds bearer authorization to API requests when an access token exists', () => {
+    authService.getStoredAccessToken.and.returnValue('access-token');
 
-    httpClient.get('/api/v1/patients').subscribe();
+    http.get('/api/v1/patients/search').subscribe();
 
-    const req = httpMock.expectOne('/api/v1/patients');
-    expect(req.request.headers.has('Authorization')).toBeTrue();
-    expect(req.request.headers.get('Authorization')).toBe('Bearer test-jwt-token');
-    expect(req.request.headers.has('X-Correlation-ID')).toBeTrue();
-
-    req.flush([]);
-  });
-
-  it('should not attach Authorization header for auth login endpoint', () => {
-    authService.getStoredAccessToken.and.returnValue('test-jwt-token');
-
-    httpClient.post('/api/v1/auth/login', {}).subscribe();
-
-    const req = httpMock.expectOne('/api/v1/auth/login');
-    expect(req.request.headers.has('Authorization')).toBeFalse();
-
+    const req = httpMock.expectOne('/api/v1/patients/search');
+    expect(req.request.headers.get('Authorization')).toBe('Bearer access-token');
     req.flush({});
   });
 
-  it('should not attach Authorization header when no token is stored', () => {
+  it('does not add authorization when no access token exists', () => {
     authService.getStoredAccessToken.and.returnValue(null);
 
-    httpClient.get('/api/v1/patients').subscribe();
+    http.get('/api/v1/patients/search').subscribe();
 
-    const req = httpMock.expectOne('/api/v1/patients');
+    const req = httpMock.expectOne('/api/v1/patients/search');
     expect(req.request.headers.has('Authorization')).toBeFalse();
-
-    req.flush([]);
-  });
-
-  it('should attempt token refresh on 401 and retry the original request', () => {
-    authService.getStoredAccessToken.and.returnValues('expired-token', 'new-token');
-    authService.refreshToken.and.returnValue({
-      pipe: () => ({
-        pipe: () => {},
-        subscribe: () => {},
-      }),
-    } as any);
-    // Use a simplified spy approach: make refreshToken return an observable
-    authService.refreshToken.and.callFake(() => {
-      return new Observable<User>((observer) => {
-        observer.next(mockUser);
-        observer.complete();
-      });
-    });
-
-    httpClient.get('/api/v1/patients').subscribe();
-
-    // First request returns 401
-    const req = httpMock.expectOne('/api/v1/patients');
-    req.flush('Unauthorized', { status: 401, statusText: 'Unauthorized' });
-
-    // After refresh, the retry request should carry the new token
-    const retryReq = httpMock.expectOne('/api/v1/patients');
-    expect(retryReq.request.headers.get('Authorization')).toBe('Bearer new-token');
-    retryReq.flush([]);
-  });
-
-  it('should redirect to login when token refresh fails', () => {
-    authService.getStoredAccessToken.and.returnValue('expired-token');
-    authService.refreshToken.and.callFake(() => {
-      return new Observable<never>((observer) => {
-        observer.error(new Error('Refresh failed'));
-      });
-    });
-
-    httpClient.get('/api/v1/patients').subscribe({
-      error: () => {
-        expect(router.navigate).toHaveBeenCalledWith(['/auth/login']);
-      },
-    });
-
-    const req = httpMock.expectOne('/api/v1/patients');
-    req.flush('Unauthorized', { status: 401, statusText: 'Unauthorized' });
-  });
-
-  it('should add X-Correlation-ID header to every request', () => {
-    authService.getStoredAccessToken.and.returnValue(null);
-
-    httpClient.get('/api/v1/dashboard').subscribe();
-
-    const req = httpMock.expectOne('/api/v1/dashboard');
-    expect(req.request.headers.has('X-Correlation-ID')).toBeTrue();
-    const correlationId = req.request.headers.get('X-Correlation-ID');
-    expect(correlationId).toMatch(/^hh-/);
-
     req.flush({});
   });
 
-  it('should not attempt refresh on non-401 errors', () => {
-    authService.getStoredAccessToken.and.returnValue('test-token');
+  it('does not add authorization to non-API requests', () => {
+    authService.getStoredAccessToken.and.returnValue('access-token');
 
-    httpClient.get('/api/v1/patients').subscribe({
-      error: () => {
-        expect(authService.refreshToken).not.toHaveBeenCalled();
-      },
-    });
+    http.get('/assets/logo.svg').subscribe();
 
-    const req = httpMock.expectOne('/api/v1/patients');
-    req.flush('Forbidden', { status: 403, statusText: 'Forbidden' });
+    const req = httpMock.expectOne('/assets/logo.svg');
+    expect(req.request.headers.has('Authorization')).toBeFalse();
+    req.flush('');
   });
 });

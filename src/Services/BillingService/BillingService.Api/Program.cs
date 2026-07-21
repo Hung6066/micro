@@ -50,6 +50,9 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
     "billing-service",
     builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379"));
 
+// TEMP: Replace Redis cache with a no-op cache to avoid StackExchange.Redis hang
+builder.Services.AddSingleton<ICacheService>(new NoOpCacheService());
+
 builder.Services.AddResiliencePolicies();
 builder.Services.AddOutbox<BillingDbContext>();
 
@@ -136,6 +139,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
+app.UseRouting();
+
 // SECURITY: Authentication & Authorization middleware
 app.UseAuthentication();
 app.UseAuthorization();
@@ -163,6 +168,27 @@ invoices.MapGet("/", async (
         cacheKey,
         async () => await mediator.Send(new SearchInvoicesQuery(
             search ?? "", page, pageSize, patientId, status, dateFrom, dateTo), ct),
+        TimeSpan.FromMinutes(2), ct);
+    return Results.Ok(result);
+}).RequireAuthorization("Permission:billing.view").WithOpenApi();
+
+invoices.MapGet("/search", async (
+    string? q,
+    int page,
+    int pageSize,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct,
+    Guid? patientId = null,
+    string? status = null,
+    DateTime? dateFrom = null,
+    DateTime? dateTo = null) =>
+{
+    var cacheKey = $"invoices:search:{q}:{page}:{pageSize}:{patientId}:{status}:{dateFrom}:{dateTo}";
+    var result = await cache.GetOrSetAsync(
+        cacheKey,
+        async () => await mediator.Send(new SearchInvoicesQuery(
+            q ?? "", page, pageSize, patientId, status, dateFrom, dateTo), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
 }).RequireAuthorization("Permission:billing.view").WithOpenApi();
@@ -360,5 +386,14 @@ public record VoidInvoiceRequest(string Reason);
 public record ApplyDiscountRequest(decimal Amount);
 
 public record ApplyTaxRequest(decimal Amount);
+
+file sealed class NoOpCacheService : ICacheService
+{
+    public Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class => Task.FromResult<T?>(null);
+    public Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => factory();
+    public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => Task.CompletedTask;
+    public Task RemoveAsync(string key, CancellationToken ct = default) => Task.CompletedTask;
+    public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default) => Task.CompletedTask;
+}
 
 

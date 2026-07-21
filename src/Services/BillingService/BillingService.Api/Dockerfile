@@ -17,8 +17,7 @@ COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/*.csproj", "Shared/Infr
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBus/*.csproj", "Shared/EventBus/Src/His.Hope.EventBus/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/*.csproj", "Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/*.csproj", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
-RUN --mount=type=cache,target=/root/.nuget/packages \
-    dotnet restore "Services/BillingService/BillingService.Api/BillingService.Api.csproj"
+RUN dotnet restore "Services/BillingService/BillingService.Api/BillingService.Api.csproj"
 
 # --- Copy source and publish ---
 COPY ["src/Services/BillingService/BillingService.Api/", "Services/BillingService/BillingService.Api/"]
@@ -32,8 +31,7 @@ COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/", "Shared/EventBus/Src
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
 COPY ["src/Shared/Protos/", "Shared/Protos/"]
 
-RUN --mount=type=cache,target=/root/.nuget/packages \
-    dotnet publish "Services/BillingService/BillingService.Api/BillingService.Api.csproj" \
+RUN dotnet publish "Services/BillingService/BillingService.Api/BillingService.Api.csproj" \
     -c Release \
     -o /app/publish \
     --no-restore

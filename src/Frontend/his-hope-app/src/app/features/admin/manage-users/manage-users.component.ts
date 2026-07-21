@@ -170,9 +170,9 @@ const ROLE_FILTERS = [
     .search-field { flex: 1; max-width: 400px; }
     .role-filter { width: 200px; }
 
-    .table-container { background: #FFFFFF; border-radius: 8px; border: 1px solid #EAEAEA; overflow: hidden; }
+    .table-container { background: #FFFFFF; border-radius: 8px; border: 1px solid #EAEAEA; overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .users-table { width: 100%; }
-    .cell-id { font-family: 'Roboto Mono', monospace; font-size: 12px; color: #787774; }
+    .cell-id { font-family: var(--font-mono); font-size: 12px; color: #787774; }
 
     .user-name-cell { display: flex; flex-direction: column; }
     .user-name-cell .name { font-weight: 500; color: #1A1A1A; }

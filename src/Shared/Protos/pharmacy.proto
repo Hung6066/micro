@@ -22,6 +22,7 @@ message PrescriptionSearchRequest {
   string search_term = 1;
   int32 page = 2;
   int32 page_size = 3;
+  string patient_id = 4;
 }
 
 message PrescriptionListResponse {

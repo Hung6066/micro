@@ -49,6 +49,9 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
     "clinical-service",
     builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!);
 
+// TEMP: Replace Redis cache with a no-op cache to avoid StackExchange.Redis hang
+builder.Services.AddSingleton<ICacheService>(new NoOpCacheService());
+
 builder.Services.AddResiliencePolicies();
 
 builder.Services.AddGrpc(options =>
@@ -134,6 +137,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+app.UseRouting();
 
 // SECURITY: Authentication & Authorization middleware
 app.UseAuthentication();
@@ -300,19 +305,19 @@ dashboard.MapGet("/stats", async (
             var now = DateTime.UtcNow;
             var today = now.Date;
 
-            var inProgressStatus = EncounterStatus.InProgress;
+            var totalEncounters = await db.Database
+                .SqlQueryRaw<int>("SELECT COUNT(*)::int AS \"Value\" FROM encounters")
+                .SingleAsync(ct);
+            var activeEncounters = await db.Database
+                .SqlQueryRaw<int>("SELECT COUNT(*)::int AS \"Value\" FROM encounters WHERE status = {0}", EncounterStatus.InProgress.Code)
+                .SingleAsync(ct);
+            var todayEncounters = await db.Database
+                .SqlQueryRaw<int>("SELECT COUNT(*)::int AS \"Value\" FROM encounters WHERE encounter_date >= {0}", today)
+                .SingleAsync(ct);
 
-            // Aggregate counts (parallel-safe: each uses its own translator)
-            var totalEncounters = await db.Encounters.CountAsync(ct);
-            var activeEncounters = await db.Encounters.CountAsync(e => e.Status == inProgressStatus, ct);
-            var todayEncounters = await db.Encounters.CountAsync(e => e.EncounterDate >= today, ct);
-
-            // Encounters by type - select types, materialize via value converter, group in-memory
-            var encounterTypes = await db.Encounters.Select(e => e.EncounterType).ToListAsync(ct);
-            var byTypeRaw = encounterTypes
-                .GroupBy(et => et.Code)
-                .Select(g => new { Code = g.Key, Count = g.Count() })
-                .ToList();
+            var byTypeRaw = await db.Database
+                .SqlQueryRaw<EncounterTypeCount>("SELECT encounter_type AS \"Code\", COUNT(*)::int AS \"Count\" FROM encounters GROUP BY encounter_type")
+                .ToListAsync(ct);
             var encountersByType = byTypeRaw
                 .Select(x => {
                     var et = EncounterType.GetAll().FirstOrDefault(t => t.Code == x.Code);
@@ -516,6 +521,15 @@ public class EncounterTypeCount
 {
     public string Code { get; set; } = string.Empty;
     public int Count { get; set; }
+}
+
+file sealed class NoOpCacheService : ICacheService
+{
+    public Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class => Task.FromResult<T?>(null);
+    public Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => factory();
+    public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => Task.CompletedTask;
+    public Task RemoveAsync(string key, CancellationToken ct = default) => Task.CompletedTask;
+    public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default) => Task.CompletedTask;
 }
 
 

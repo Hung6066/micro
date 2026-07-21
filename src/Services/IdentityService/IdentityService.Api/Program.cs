@@ -166,7 +166,7 @@ auth.MapPost("/login", async (LoginRequest request, IIdentityService identitySer
         httpContext.Response.Cookies.Append("hishop_sid", sessionId, new CookieOptions
         {
             HttpOnly = true,
-            Secure = true,
+            Secure = httpContext.Request.IsHttps,
             SameSite = SameSiteMode.Lax,
             Path = "/api",
             MaxAge = TimeSpan.FromHours(1)
@@ -175,9 +175,9 @@ auth.MapPost("/login", async (LoginRequest request, IIdentityService identitySer
         httpContext.Response.Cookies.Append("hishop_csrf", csrfToken, new CookieOptions
         {
             HttpOnly = false,
-            Secure = true,
+            Secure = httpContext.Request.IsHttps,
             SameSite = SameSiteMode.Strict,
-            Path = "/api",
+            Path = "/",
             MaxAge = TimeSpan.FromHours(1)
         });
 
@@ -235,13 +235,13 @@ auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpCon
 
     httpContext.Response.Cookies.Append("hishop_sid", "", new CookieOptions
     {
-        HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax,
+        HttpOnly = true, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Lax,
         Path = "/api", Expires = DateTimeOffset.UnixEpoch
     });
     httpContext.Response.Cookies.Append("hishop_csrf", "", new CookieOptions
     {
-        HttpOnly = false, Secure = true, SameSite = SameSiteMode.Strict,
-        Path = "/api", Expires = DateTimeOffset.UnixEpoch
+        HttpOnly = false, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Strict,
+        Path = "/", Expires = DateTimeOffset.UnixEpoch
     });
 
     return Results.NoContent();
@@ -285,13 +285,13 @@ auth.MapPost("/internal/refresh", async (IConnectionMultiplexer redis, HttpConte
 
     httpContext.Response.Cookies.Append("hishop_sid", sessionId, new CookieOptions
     {
-        HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax,
+        HttpOnly = true, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Lax,
         Path = "/api", MaxAge = TimeSpan.FromHours(1)
     });
     httpContext.Response.Cookies.Append("hishop_csrf", session.CsrfToken, new CookieOptions
     {
-        HttpOnly = false, Secure = true, SameSite = SameSiteMode.Strict,
-        Path = "/api", MaxAge = TimeSpan.FromHours(1)
+        HttpOnly = false, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Strict,
+        Path = "/", MaxAge = TimeSpan.FromHours(1)
     });
 
     return Results.Ok(new { refreshed = true });
@@ -315,6 +315,22 @@ auth.MapGet("/me", async (HttpContext httpContext, IIdentityService identityServ
     var userId = Guid.Parse(userIdClaim.Value);
     var user = await identityService.GetUserByIdAsync(userId, ct);
     return Results.Ok(user);
+})
+.RequireAuthorization()
+.WithOpenApi();
+
+auth.MapPost("/check-permission", (PermissionCheckRequest request, HttpContext httpContext) =>
+{
+    var permission = request.Permission?.Trim();
+    if (string.IsNullOrWhiteSpace(permission))
+        return Results.BadRequest(new { error = "Permission is required" });
+
+    var granted = httpContext.User
+        .FindAll("permissions")
+        .SelectMany(claim => claim.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        .Contains(permission, StringComparer.OrdinalIgnoreCase);
+
+    return Results.Ok(new { granted });
 })
 .RequireAuthorization()
 .WithOpenApi();
@@ -396,3 +412,5 @@ file sealed class NoOpCacheService : ICacheService
     public Task RemoveAsync(string key, CancellationToken ct = default) => Task.CompletedTask;
     public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default) => Task.CompletedTask;
 }
+
+file sealed record PermissionCheckRequest(string? Permission);

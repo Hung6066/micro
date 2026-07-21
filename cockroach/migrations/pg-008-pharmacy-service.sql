@@ -12,6 +12,8 @@ CREATE TABLE "Medications" (
     DosageForm VARCHAR(50) NOT NULL,
     Strength VARCHAR(50) NOT NULL,
     Route VARCHAR(50),
+    Category VARCHAR(100),
+    Manufacturer VARCHAR(200),
     RequiresPrescription BOOL NOT NULL DEFAULT true,
     IsActive BOOL NOT NULL DEFAULT true,
     CreatedAt TIMESTAMPTZ NOT NULL DEFAULT now(),

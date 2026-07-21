@@ -5,6 +5,7 @@ public enum PipelineStatus { Pending, Running, Completed, Failed, Cancelled }
 public class PipelineRun
 {
     public Guid Id { get; private set; }
+    public Guid? ParentPipelineRunId { get; private set; }
     public string WorkflowId { get; private set; } = string.Empty;
     public PipelineStatus Status { get; private set; }
     public PipelineDag? DagDefinition { get; private set; }
@@ -31,6 +32,15 @@ public class PipelineRun
             CreatedAt = DateTime.UtcNow
         };
     }
+
+    public static PipelineRun CreateChild(string workflowId, Dictionary<string, string> parameters, string triggeredBy, Guid parentPipelineRunId)
+    {
+        var run = Create(workflowId, parameters, triggeredBy);
+        run.SetParent(parentPipelineRunId);
+        return run;
+    }
+
+    public void SetParent(Guid parentPipelineRunId) => ParentPipelineRunId = parentPipelineRunId;
 
     public void TransitionTo(PipelineStatus newStatus)
     {

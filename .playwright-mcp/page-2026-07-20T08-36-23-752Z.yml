@@ -1,0 +1,65 @@
+- generic [active] [ref=f5e1]:
+  - link "Chuyển đến nội dung chính" [ref=f5e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f5e4]:
+    - generic [ref=f5e8]:
+      - generic [ref=f5e10]:
+        - img [ref=f5e11]: local_hospital
+        - generic [ref=f5e12]: His.Hope
+      - generic [ref=f5e16]:
+        - img [ref=f5e18]: search
+        - combobox "Tìm bệnh nhân..." [ref=f5e20]
+      - navigation "Điều hướng chính" [ref=f5e21]:
+        - link [ref=f5e22] [cursor=pointer]:
+          - /url: /en/dashboard
+          - img [ref=f5e23]: dashboard
+        - link [ref=f5e25] [cursor=pointer]:
+          - /url: /en/patients
+          - img [ref=f5e26]: people
+        - link [ref=f5e28] [cursor=pointer]:
+          - /url: /en/appointments
+          - img [ref=f5e29]: calendar_today
+        - link [ref=f5e31] [cursor=pointer]:
+          - /url: /en/clinical
+          - img [ref=f5e32]: medical_services
+        - link [ref=f5e34] [cursor=pointer]:
+          - /url: /en/pharmacy
+          - img [ref=f5e35]: medication
+        - link [ref=f5e37] [cursor=pointer]:
+          - /url: /en/lab
+          - img [ref=f5e38]: biotech
+        - link [ref=f5e40] [cursor=pointer]:
+          - /url: /en/billing
+          - img [ref=f5e41]: receipt
+        - link [ref=f5e43] [cursor=pointer]:
+          - /url: /en/admin
+          - img [ref=f5e44]: settings
+      - generic [ref=f5e240]:
+        - generic [ref=f5e241]: Viên Quản Trị
+        - button "Đăng xuất" [ref=f5e243] [cursor=pointer]:
+          - img [ref=f5e244]: logout
+    - generic [ref=f5e47]:
+      - generic [ref=f5e50]:
+        - img [ref=f5e51]: error_outline
+        - button [ref=f5e53] [cursor=pointer]:
+          - img [ref=f5e54]: close
+      - generic [ref=f5e468]:
+        - generic [ref=f5e469]:
+          - generic [ref=f5e470]:
+            - heading "Quản lý người dùng" [level=1] [ref=f5e471]
+            - paragraph [ref=f5e472]: Quản lý tài khoản bác sĩ, điều dưỡng và nhân viên
+          - button "Thêm người dùng" [ref=f5e473]:
+            - img [ref=f5e474]: person_add
+        - generic [ref=f5e478]:
+          - generic [ref=f5e481]:
+            - img [ref=f5e483]: search
+            - textbox "Tìm kiếm theo tên, email, ID..." [ref=f5e485]
+          - combobox "Tất cả vai trò" [ref=f5e490] [cursor=pointer]
+        - generic "Không tìm thấy người dùng" [ref=f5e499]:
+          - generic [ref=f5e500]:
+            - img [ref=f5e501]: people
+            - heading "Không tìm thấy người dùng" [level=3] [ref=f5e502]
+            - paragraph [ref=f5e503]: Thử thay đổi bộ lọc hoặc thêm người dùng mới
+  - generic [ref=f5e510]:
+    - generic [ref=f5e511]: Không thể tải danh sách người dùng
+    - button "Đóng" [ref=f5e513]

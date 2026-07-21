@@ -22,15 +22,47 @@ public class CriticalAlertRepository : ICriticalAlertRepository
             .OrderByDescending(alert => alert.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
 
+    public async Task<CriticalAlert?> GetCurrentForUpdateAsync(Guid labOrderId, Guid labTestId, CancellationToken cancellationToken = default) =>
+        await _context.CriticalAlerts
+            .Include(alert => alert.AuditEntries)
+            .Where(alert => alert.LabOrderId == labOrderId && alert.LabTestId == labTestId && alert.Status != CriticalAlertStatus.Resolved)
+            .OrderByDescending(alert => alert.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
     public async Task<CriticalAlert?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         await _context.CriticalAlerts
             .Include(alert => alert.AuditEntries)
             .FirstOrDefaultAsync(alert => alert.Id == id, cancellationToken);
 
+    public async Task<CriticalAlert?> GetByIdForUpdateAsync(Guid id, CancellationToken cancellationToken = default) =>
+        await _context.CriticalAlerts
+            .Include(alert => alert.AuditEntries)
+            .FirstOrDefaultAsync(alert => alert.Id == id, cancellationToken);
+
+    public async Task<IReadOnlyList<CriticalAlert>> ListCurrentAsync(CancellationToken cancellationToken = default) =>
+        await _context.CriticalAlerts
+            .Include(alert => alert.AuditEntries)
+            .Where(alert => alert.Status != CriticalAlertStatus.Resolved)
+            .OrderByDescending(alert => alert.CreatedAt)
+            .ToListAsync(cancellationToken);
+
     public async Task<CriticalAlert> AddAsync(CriticalAlert alert, CancellationToken cancellationToken = default)
     {
         await _context.CriticalAlerts.AddAsync(alert, cancellationToken);
         return alert;
+    }
+
+    public void Update(CriticalAlert alert) => _context.CriticalAlerts.Update(alert);
+
+    public void MarkAuditEntriesAdded(CriticalAlert alert)
+    {
+        foreach (var auditEntry in alert.AuditEntries)
+        {
+            var entry = _context.Entry(auditEntry);
+
+            if (entry.State != EntityState.Unchanged)
+                entry.State = EntityState.Added;
+        }
     }
 
     public async Task<CriticalAlert?> AddAndSaveAsync(

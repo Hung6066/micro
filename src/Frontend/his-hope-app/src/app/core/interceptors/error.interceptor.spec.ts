@@ -16,6 +16,7 @@ describe('ErrorInterceptor', () => {
   let router: jasmine.SpyObj<Router>;
   let snackBar: jasmine.SpyObj<MatSnackBar>;
   let errorService: jasmine.SpyObj<ErrorService>;
+  let auditService: jasmine.SpyObj<AuditService>;
 
   beforeEach(() => {
     const authSpy = jasmine.createSpyObj('AuthService', ['clearStoredAccessToken']);
@@ -44,6 +45,7 @@ describe('ErrorInterceptor', () => {
     router = TestBed.inject(Router) as jasmine.SpyObj<Router>;
     snackBar = TestBed.inject(MatSnackBar) as jasmine.SpyObj<MatSnackBar>;
     errorService = TestBed.inject(ErrorService) as jasmine.SpyObj<ErrorService>;
+    auditService = TestBed.inject(AuditService) as jasmine.SpyObj<AuditService>;
   });
 
   afterEach(() => {
@@ -97,6 +99,19 @@ describe('ErrorInterceptor', () => {
 
     const req = httpMock.expectOne('/api/v1/patients');
     req.flush('Forbidden', { status: 403, statusText: 'Forbidden' });
+    tick();
+  }));
+
+  it('should not audit errors from the audit endpoint', fakeAsync(() => {
+    httpClient.post('/api/v1/audit/events', { events: [] }).subscribe({
+      error: () => {
+        expect(auditService.log).not.toHaveBeenCalled();
+        expect(snackBar.open).not.toHaveBeenCalled();
+      },
+    });
+
+    const req = httpMock.expectOne('/api/v1/audit/events');
+    req.flush('Not found', { status: 404, statusText: 'Not Found' });
     tick();
   }));
 });

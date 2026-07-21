@@ -14,7 +14,6 @@ using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
 using His.Hope.EventBusRabbitMQ.Implementations;
 using His.Hope.Infrastructure;
-using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.Infrastructure.HealthChecks;
 using His.Hope.Infrastructure.Observability;
@@ -149,40 +148,27 @@ var grp = app.MapGroup("/api/v1/appointments").RequireAuthorization();
 
 grp.MapGet("/", async (
     IMediator mediator,
-    ICacheService cache,
     CancellationToken ct) =>
 {
-    var result = await cache.GetOrSetAsync(
-        "appointments:all",
-        async () => await mediator.Send(new SearchAppointmentsQuery("", 1, 1000), ct),
-        TimeSpan.FromMinutes(5), ct);
+    var result = await mediator.Send(new SearchAppointmentsQuery("", 1, 1000), ct);
     return Results.Ok(result);
 }).RequireAuthorization("Permission:appointments.view").WithOpenApi();
 
 grp.MapGet("/{id:guid}", async (
     Guid id,
     IMediator mediator,
-    ICacheService cache,
     CancellationToken ct) =>
 {
-    var appointment = await cache.GetOrSetAsync(
-        $"appointment:{id}",
-        async () => await mediator.Send(new GetAppointmentByIdQuery(id), ct),
-        TimeSpan.FromMinutes(5), ct);
+    var appointment = await mediator.Send(new GetAppointmentByIdQuery(id), ct);
     return appointment is null ? Results.NotFound() : Results.Ok(appointment);
 }).RequireAuthorization("Permission:appointments.view").WithOpenApi();
 
 grp.MapGet("/search", async (
     string? q, int page, int pageSize,
     IMediator mediator,
-    ICacheService cache,
     CancellationToken ct) =>
 {
-    var cacheKey = $"appointments:search:{q}:{page}:{pageSize}";
-    var result = await cache.GetOrSetAsync(
-        cacheKey,
-        async () => await mediator.Send(new SearchAppointmentsQuery(q ?? "", page, pageSize), ct),
-        TimeSpan.FromMinutes(2), ct);
+    var result = await mediator.Send(new SearchAppointmentsQuery(q ?? "", page, pageSize), ct);
     return Results.Ok(result);
 }).RequireAuthorization("Permission:appointments.view").WithOpenApi();
 
@@ -191,7 +177,6 @@ grp.MapPost("/", async (
     PatientGrpcService.PatientGrpcServiceClient patientClient,
     IMediator mediator,
     IEventBus eventBus,
-    ICacheService cache,
     CancellationToken ct) =>
 {
     var existsResponse = await patientClient.CheckPatientExistsAsync(
@@ -211,8 +196,6 @@ grp.MapPost("/", async (
         appointmentDto.ProviderId, appointmentDto.ScheduledDate,
         appointmentDto.StartTime, appointmentDto.EndTime), ct);
 
-    await cache.RemoveByPrefixAsync("appointments:", ct);
-
     return Results.Created($"/api/v1/appointments/{appointmentDto.Id}", appointmentDto);
 }).RequireAuthorization("Permission:appointments.create").WithOpenApi();
 
@@ -220,36 +203,27 @@ grp.MapPut("/{id:guid}/cancel", async (
     Guid id,
     CancelRequest request,
     IMediator mediator,
-    ICacheService cache,
     CancellationToken ct) =>
 {
     await mediator.Send(new CancelAppointmentCommand(id, request.Reason), ct);
-    await cache.RemoveAsync($"appointment:{id}", ct);
-    await cache.RemoveByPrefixAsync("appointments:", ct);
     return Results.NoContent();
 }).RequireAuthorization("Permission:appointments.cancel").WithOpenApi();
 
 grp.MapPut("/{id:guid}/checkin", async (
     Guid id,
     IMediator mediator,
-    ICacheService cache,
     CancellationToken ct) =>
 {
     await mediator.Send(new CheckInAppointmentCommand(id), ct);
-    await cache.RemoveAsync($"appointment:{id}", ct);
-    await cache.RemoveByPrefixAsync("appointments:", ct);
     return Results.NoContent();
 }).RequireAuthorization("Permission:appointments.check-in").WithOpenApi();
 
 grp.MapPut("/{id:guid}/checkout", async (
     Guid id,
     IMediator mediator,
-    ICacheService cache,
     CancellationToken ct) =>
 {
     await mediator.Send(new CheckOutAppointmentCommand(id), ct);
-    await cache.RemoveAsync($"appointment:{id}", ct);
-    await cache.RemoveByPrefixAsync("appointments:", ct);
     return Results.NoContent();
 }).RequireAuthorization("Permission:appointments.update").WithOpenApi();
 
@@ -260,15 +234,10 @@ grp.MapGet("/patient/{patientId:guid}", async (
     DateTime? fromDate,
     DateTime? toDate,
     IMediator mediator,
-    ICacheService cache,
     CancellationToken ct) =>
 {
-    var cacheKey = $"appointments:patient:{patientId}:{page}:{pageSize}:{fromDate}:{toDate}";
-    var result = await cache.GetOrSetAsync(
-        cacheKey,
-        async () => await mediator.Send(
-            new GetAppointmentsByPatientQuery(patientId, page, pageSize, fromDate, toDate), ct),
-        TimeSpan.FromMinutes(5), ct);
+    var result = await mediator.Send(
+        new GetAppointmentsByPatientQuery(patientId, page, pageSize, fromDate, toDate), ct);
     return Results.Ok(result);
 }).RequireAuthorization("Permission:appointments.view").WithOpenApi();
 
@@ -340,6 +309,3 @@ static X509Certificate2 CreateDevCert(string cn)
 public record ScheduleAppointmentRequest(Guid PatientId, Guid ProviderId, DateTime ScheduledDate,
     TimeSpan StartTime, int DurationMinutes, string TypeCode, string? Reason, string? Location);
 public record CancelRequest(string? Reason);
-
-
-

@@ -9,6 +9,11 @@ import * as PatientsActions from './patients.actions';
 
 @Injectable()
 export class PatientsEffects {
+  private actions$ = inject(Actions);
+  private patientService = inject(PatientService);
+  private router = inject(Router);
+  private snackBar = inject(MatSnackBar);
+
   searchPatients$ = createEffect(() =>
     this.actions$.pipe(
       ofType(PatientsActions.searchPatients),
@@ -145,8 +150,5 @@ export class PatientsEffects {
     ),
   );
 
-  private actions$ = inject(Actions);
-  private patientService = inject(PatientService);
-  private router = inject(Router);
-  private snackBar = inject(MatSnackBar);
+
 }

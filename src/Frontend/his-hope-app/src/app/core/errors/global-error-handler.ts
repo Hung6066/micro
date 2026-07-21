@@ -107,7 +107,7 @@ export class GlobalErrorHandler implements ErrorHandler {
           return {
             message: 'Unable to connect to the server. Please check your connection.',
             panelClass: 'error-snackbar-critical',
-            duration: 0,
+            duration: 6000,
           };
         case 400:
           return {
@@ -144,7 +144,7 @@ export class GlobalErrorHandler implements ErrorHandler {
             return {
               message: 'A server error occurred. Please try again later.',
               panelClass: 'error-snackbar-critical',
-              duration: 0,
+              duration: 6000,
             };
           }
       }
@@ -154,7 +154,7 @@ export class GlobalErrorHandler implements ErrorHandler {
       return {
         message: 'An unexpected application error occurred. Please refresh the page.',
         panelClass: 'error-snackbar-critical',
-        duration: 0,
+        duration: 6000,
       };
     }
 

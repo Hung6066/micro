@@ -1,0 +1,72 @@
+- generic [active] [ref=f6e1]:
+  - link "Chuyển đến nội dung chính" [ref=f6e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f6e4]:
+    - generic [ref=f6e53]:
+      - generic [ref=f6e55]:
+        - img [ref=f6e56]: local_hospital
+        - generic [ref=f6e57]: His.Hope
+      - generic [ref=f6e61]:
+        - img [ref=f6e63]: search
+        - combobox "Tìm bệnh nhân..." [ref=f6e65]
+      - navigation "Điều hướng chính" [ref=f6e66]:
+        - link [ref=f6e67] [cursor=pointer]:
+          - /url: /en/dashboard
+          - img [ref=f6e68]: dashboard
+        - link [ref=f6e70] [cursor=pointer]:
+          - /url: /en/patients
+          - img [ref=f6e71]: people
+        - link [ref=f6e73] [cursor=pointer]:
+          - /url: /en/appointments
+          - img [ref=f6e74]: calendar_today
+        - link [ref=f6e76] [cursor=pointer]:
+          - /url: /en/clinical
+          - img [ref=f6e77]: medical_services
+        - link [ref=f6e79] [cursor=pointer]:
+          - /url: /en/pharmacy
+          - img [ref=f6e80]: medication
+        - link [ref=f6e82] [cursor=pointer]:
+          - /url: /en/lab
+          - img [ref=f6e83]: biotech
+        - link [ref=f6e85] [cursor=pointer]:
+          - /url: /en/billing
+          - img [ref=f6e86]: receipt
+        - link [ref=f6e88] [cursor=pointer]:
+          - /url: /en/admin
+          - img [ref=f6e89]: settings
+      - generic [ref=f6e91]:
+        - generic [ref=f6e92]: Viên Quản Trị
+        - button "Đăng xuất" [ref=f6e94] [cursor=pointer]:
+          - img [ref=f6e95]: logout
+    - generic [ref=f6e5]:
+      - generic [ref=f6e8]:
+        - img [ref=f6e9]: error_outline
+        - button [ref=f6e11] [cursor=pointer]:
+          - img [ref=f6e12]: close
+      - generic [ref=f6e18]:
+        - generic [ref=f6e19]:
+          - generic [ref=f6e20]:
+            - generic [ref=f6e21]: His.Hope
+            - generic [ref=f6e22]: Hệ thống Quản lý Bệnh viện
+          - img [ref=f6e23]: local_hospital
+        - generic [ref=f6e25]:
+          - generic [ref=f6e28]:
+            - generic [ref=f6e29]:
+              - text: Tên đăng nhập
+              - generic [ref=f6e30]: "*"
+            - img [ref=f6e32]: person
+            - textbox "Tên đăng nhập" [ref=f6e34]:
+              - /placeholder: Nhập tên đăng nhập
+              - text: admin
+          - generic [ref=f6e38]:
+            - generic [ref=f6e39]:
+              - text: Mật khẩu
+              - generic [ref=f6e40]: "*"
+            - img [ref=f6e42]: lock
+            - textbox "Mật khẩu" [ref=f6e44]:
+              - /placeholder: Nhập mật khẩu
+              - text: Admin@123
+          - button "Đang xử lý đăng nhập..." [disabled]:
+            - generic:
+              - progressbar "Đang đăng nhập"
+              - generic: Đang xử lý đăng nhập...

@@ -8,9 +8,7 @@ export const csrfInterceptor: HttpInterceptorFn = (req, next) => {
     }
   }
 
-  if (req.url.startsWith('/api/v1/') && !req.withCredentials) {
-    req = req.clone({ withCredentials: true });
-  }
+  req = req.clone({ withCredentials: true });
 
   return next(req);
 };

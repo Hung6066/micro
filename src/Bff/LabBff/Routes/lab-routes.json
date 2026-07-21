@@ -1,0 +1,41 @@
+{
+  "ReverseProxy": {
+    "Routes": {
+      "lab-search": {
+        "ClusterId": "lab-service",
+        "Match": { "Path": "/api/v1/lab-orders/search", "Methods": ["GET"] }
+      },
+      "lab-get": {
+        "ClusterId": "lab-service",
+        "Match": { "Path": "/api/v1/lab-orders/{id}", "Methods": ["GET"] }
+      },
+      "lab-create": {
+        "ClusterId": "lab-service",
+        "Match": { "Path": "/api/v1/lab-orders", "Methods": ["POST"] }
+      },
+      "lab-submit": {
+        "ClusterId": "lab-service",
+        "Match": { "Path": "/api/v1/lab-orders/{id}/submit", "Methods": ["POST"] }
+      },
+      "lab-collect": {
+        "ClusterId": "lab-service",
+        "Match": { "Path": "/api/v1/lab-orders/{id}/collect", "Methods": ["POST"] }
+      },
+      "lab-result": {
+        "ClusterId": "lab-service",
+        "Match": { "Path": "/api/v1/lab-orders/{id}/result", "Methods": ["POST"] }
+      },
+      "lab-cancel": {
+        "ClusterId": "lab-service",
+        "Match": { "Path": "/api/v1/lab-orders/{id}/cancel", "Methods": ["POST"] }
+      }
+    },
+    "Clusters": {
+      "lab-service": {
+        "Destinations": {
+          "lab": { "Address": "http://labservice:5010/" }
+        }
+      }
+    }
+  }
+}

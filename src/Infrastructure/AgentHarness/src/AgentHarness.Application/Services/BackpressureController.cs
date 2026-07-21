@@ -8,11 +8,17 @@ namespace His.Hope.AgentHarness.Application.Services;
 /// </summary>
 public class BackpressureController
 {
-    private const int MaxPipelineQueue = 10;
-    private const int MaxAgentQueue = 20;
+    private readonly int _maxPipelineQueue;
+    private readonly int _maxAgentQueue;
 
     private int _activePipelines;
     private int _activeAgents;
+
+    public BackpressureController(int maxPipelineQueue = 10, int maxAgentQueue = 20)
+    {
+        _maxPipelineQueue = maxPipelineQueue;
+        _maxAgentQueue = maxAgentQueue;
+    }
 
     /// <summary>
     /// Ensures the pipeline queue has capacity. Throws <see cref="InvalidOperationException"/>
@@ -22,10 +28,10 @@ public class BackpressureController
     public void EnsureCapacity()
     {
         var current = Interlocked.Increment(ref _activePipelines);
-        if (current > MaxPipelineQueue)
+        if (current > _maxPipelineQueue)
         {
             Interlocked.Decrement(ref _activePipelines);
-            throw new InvalidOperationException("HTTP 429: Too many pipelines in queue. Maximum allowed: " + MaxPipelineQueue);
+            throw new InvalidOperationException("HTTP 429: Too many pipelines in queue. Maximum allowed: " + _maxPipelineQueue);
         }
     }
 
@@ -42,7 +48,7 @@ public class BackpressureController
     public bool TryTrackAgent()
     {
         var current = Interlocked.Increment(ref _activeAgents);
-        if (current > MaxAgentQueue)
+        if (current > _maxAgentQueue)
         {
             Interlocked.Decrement(ref _activeAgents);
             return false;

@@ -1,0 +1,33 @@
+- generic [active] [ref=f11e1]:
+  - link "Chuyển đến nội dung chính" [ref=f11e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f11e7]:
+    - button "Mở menu điều hướng" [ref=f11e8] [cursor=pointer]:
+      - img [ref=f11e9]: menu
+    - status [ref=f11e13]:
+      - generic [ref=f11e14]:
+        - img [ref=f11e15]: error_outline
+        - button [ref=f11e17] [cursor=pointer]:
+          - img [ref=f11e18]: close
+    - generic [ref=f11e24]:
+      - generic [ref=f11e25]:
+        - generic [ref=f11e26]:
+          - generic [ref=f11e27]: His.Hope
+          - generic [ref=f11e28]: Đăng nhập hệ thống
+        - img [ref=f11e29]: local_hospital
+      - generic [ref=f11e31]:
+        - generic [ref=f11e34]:
+          - generic [ref=f11e35]:
+            - text: Tên đăng nhập
+            - generic [ref=f11e36]: "*"
+          - img [ref=f11e38]: person
+          - textbox "Tên đăng nhập" [ref=f11e40]:
+            - /placeholder: Nhập tài khoản
+        - generic [ref=f11e44]:
+          - generic [ref=f11e45]:
+            - text: Mật khẩu
+            - generic [ref=f11e46]: "*"
+          - img [ref=f11e48]: lock
+          - textbox "Mật khẩu" [ref=f11e50]:
+            - /placeholder: Nhập mật khẩu
+        - button "Đăng nhập" [disabled]

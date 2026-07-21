@@ -1,0 +1,137 @@
+- generic [active] [ref=f2e1]:
+  - link "Chuyển đến nội dung chính" [ref=f2e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f2e4]:
+    - generic [ref=f2e53]:
+      - generic [ref=f2e55]:
+        - img [ref=f2e56]: local_hospital
+        - generic [ref=f2e57]: His.Hope
+      - generic [ref=f2e61]:
+        - img [ref=f2e63]: search
+        - combobox "Tìm bệnh nhân..." [ref=f2e65]
+      - navigation "Điều hướng chính" [ref=f2e66]:
+        - link [ref=f2e67] [cursor=pointer]:
+          - /url: /en/dashboard
+          - img [ref=f2e68]: dashboard
+        - link [ref=f2e70] [cursor=pointer]:
+          - /url: /en/patients
+          - img [ref=f2e71]: people
+        - link [ref=f2e73] [cursor=pointer]:
+          - /url: /en/appointments
+          - img [ref=f2e74]: calendar_today
+        - link [ref=f2e76] [cursor=pointer]:
+          - /url: /en/clinical
+          - img [ref=f2e77]: medical_services
+        - link [ref=f2e79] [cursor=pointer]:
+          - /url: /en/pharmacy
+          - img [ref=f2e80]: medication
+        - link [ref=f2e82] [cursor=pointer]:
+          - /url: /en/lab
+          - img [ref=f2e83]: biotech
+        - link [ref=f2e85] [cursor=pointer]:
+          - /url: /en/billing
+          - img [ref=f2e86]: receipt
+        - link [ref=f2e88] [cursor=pointer]:
+          - /url: /en/admin
+          - img [ref=f2e89]: settings
+      - generic [ref=f2e91]:
+        - generic [ref=f2e92]: Viên Quản Trị
+        - button "Đăng xuất" [ref=f2e94] [cursor=pointer]:
+          - img [ref=f2e95]: logout
+    - generic [ref=f2e5]:
+      - generic [ref=f2e8]:
+        - img [ref=f2e9]: error_outline
+        - button [ref=f2e11] [cursor=pointer]:
+          - img [ref=f2e12]: close
+      - generic [ref=f2e100]:
+        - generic [ref=f2e101]:
+          - generic [ref=f2e102]:
+            - heading "Xin chào, Viên Quản Trị" [level=1] [ref=f2e103]
+            - paragraph [ref=f2e104]: Tổng quan bệnh viện
+          - generic [ref=f2e105]:
+            - img [ref=f2e106]: calendar_today
+            - generic [ref=f2e107]: Monday, 20/07/2026
+        - generic [ref=f2e108]:
+          - generic [ref=f2e110]:
+            - img [ref=f2e112]: people
+            - generic [ref=f2e113]: Tổng bệnh nhân
+          - generic [ref=f2e116]:
+            - img [ref=f2e118]: calendar_today
+            - generic [ref=f2e119]: Lịch hẹn hôm nay
+          - generic [ref=f2e122]:
+            - img [ref=f2e124]: emergency
+            - generic [ref=f2e125]:
+              - generic [ref=f2e126]: "0"
+              - generic [ref=f2e127]: Điều trị đang mở
+          - generic [ref=f2e129]:
+            - img [ref=f2e131]: science
+            - generic [ref=f2e132]: Xét nghiệm chờ KQ
+          - generic [ref=f2e135]:
+            - img [ref=f2e137]: receipt
+            - generic [ref=f2e138]: Hóa đơn chưa TT
+          - generic [ref=f2e141]:
+            - img [ref=f2e143]: medication
+            - generic [ref=f2e144]: Thuốc sắp hết
+        - generic [ref=f2e146]:
+          - generic [ref=f2e149]:
+            - img [ref=f2e150]: search
+            - text: Tìm bệnh nhân
+          - generic [ref=f2e154]:
+            - generic: Nhập tên, số điện thoại hoặc mã bệnh nhân...
+            - combobox "Nhập tên, số điện thoại hoặc mã bệnh nhân..." [ref=f2e157]
+            - img [ref=f2e159]: search
+        - generic [ref=f2e161]:
+          - generic [ref=f2e162]:
+            - generic [ref=f2e164]:
+              - img [ref=f2e165]: history
+              - text: Bệnh nhân gần đây
+            - button "Xem tất cả" [ref=f2e166]
+          - generic [ref=f2e172] [cursor=pointer]:
+            - generic [ref=f2e173]: "N"
+            - generic [ref=f2e174]:
+              - generic [ref=f2e175]: Nguyen An
+              - generic [ref=f2e176]: Male · 36 tuổi
+            - img [ref=f2e177]: chevron_right
+        - generic [ref=f2e178]:
+          - generic [ref=f2e179]:
+            - generic [ref=f2e181]:
+              - img [ref=f2e182]: history
+              - text: Lượt khám gần đây
+            - button "Xem tất cả" [ref=f2e183]
+          - generic [ref=f2e187]: Chưa có lượt khám nào
+        - generic [ref=f2e189]:
+          - generic [ref=f2e190]:
+            - generic [ref=f2e192]:
+              - img [ref=f2e193]: upcoming
+              - text: Lịch hẹn sắp tới
+            - button "Xem tất cả" [ref=f2e194]
+          - table [ref=f2e199]:
+            - rowgroup [ref=f2e200]:
+              - row [ref=f2e201]:
+                - columnheader "Ngày" [ref=f2e202]
+                - columnheader "Giờ" [ref=f2e203]
+                - columnheader "Bệnh nhân" [ref=f2e204]
+                - columnheader "Loại" [ref=f2e205]
+                - columnheader "Trạng thái" [ref=f2e206]
+            - rowgroup [ref=f2e207]:
+              - row [ref=f2e208] [cursor=pointer]:
+                - cell "21/07" [ref=f2e209]
+                - cell "09:00:00" [ref=f2e210]
+                - cell "9021b232..." [ref=f2e211]
+                - cell "Follow-up" [ref=f2e212]
+                - cell "Scheduled" [ref=f2e213]
+              - row [ref=f2e215] [cursor=pointer]:
+                - cell "21/07" [ref=f2e216]
+                - cell "10:00:00" [ref=f2e217]
+                - cell "1c000b9c..." [ref=f2e218]
+                - cell "Consultation" [ref=f2e219]
+                - cell "Scheduled" [ref=f2e220]
+              - row [ref=f2e222] [cursor=pointer]:
+                - cell "22/07" [ref=f2e223]
+                - cell "14:00:00" [ref=f2e224]
+                - cell "22f9b7dc..." [ref=f2e225]
+                - cell "Lab Results Review" [ref=f2e226]
+                - cell "Scheduled" [ref=f2e227]
+  - generic [ref=f2e236]:
+    - generic [ref=f2e237]: Login successful
+    - button "Close" [ref=f2e239]

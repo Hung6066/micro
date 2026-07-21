@@ -70,11 +70,12 @@ import { Invoice } from '@core/models/invoice.model';
       }
 
       @if (!loading && invoices.length > 0) {
-      <mat-table [dataSource]="invoices" class="mat-elevation-z2">
-        <ng-container matColumnDef="invoiceNumber">
-          <mat-header-cell *matHeaderCellDef>Số hóa đơn</mat-header-cell>
-          <mat-cell *matCellDef="let inv">{{ inv.invoiceNumber }}</mat-cell>
-        </ng-container>
+      <div class="table-container">
+        <mat-table [dataSource]="invoices" class="mat-elevation-z2">
+          <ng-container matColumnDef="invoiceNumber">
+            <mat-header-cell *matHeaderCellDef>Số hóa đơn</mat-header-cell>
+            <mat-cell *matCellDef="let inv">{{ inv.invoiceNumber }}</mat-cell>
+          </ng-container>
 
         <ng-container matColumnDef="patientName">
           <mat-header-cell *matHeaderCellDef>Bệnh nhân</mat-header-cell>
@@ -115,19 +116,22 @@ import { Invoice } from '@core/models/invoice.model';
           </mat-cell>
         </ng-container>
 
-        <ng-container matColumnDef="actions">
-          <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
-          <mat-cell *matCellDef="let inv">
-            <button mat-icon-button color="primary" (click)="viewDetail(inv.id)"
-                    attr.aria-label="Xem chi tiết hóa đơn">
-              <mat-icon>visibility</mat-icon>
-            </button>
-          </mat-cell>
-        </ng-container>
+          <ng-container matColumnDef="actions">
+            <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
+            <mat-cell *matCellDef="let inv">
+              <button mat-icon-button color="primary" (click)="viewDetail(inv.id)"
+                      attr.aria-label="Xem chi tiết hóa đơn">
+                <mat-icon>visibility</mat-icon>
+              </button>
+            </mat-cell>
+          </ng-container>
 
-        <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
-        <mat-row *matRowDef="let row; columns: displayedColumns;" (click)="viewDetail(row.id)" class="clickable-row"></mat-row>
-      </mat-table>
+          <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
+          <mat-row *matRowDef="let row; columns: displayedColumns;" (click)="viewDetail(row.id)" (keydown.enter)="viewDetail(row.id)"
+                   (keydown.space)="$event.preventDefault(); viewDetail(row.id)" class="clickable-row" tabindex="0" role="button"
+                   [attr.aria-label]="'Xem chi tiết hóa đơn ' + row.invoiceNumber"></mat-row>
+        </mat-table>
+      </div>
       }
 
       @if (!loading && totalCount > 0) {
@@ -143,9 +147,11 @@ import { Invoice } from '@core/models/invoice.model';
     .filters { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
     .search-field { flex: 1; min-width: 250px; }
     .status-filter { width: 220px; }
+    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     mat-table { width: 100%; cursor: pointer; }
     mat-row:hover { background: #f5f5f5; }
     .clickable-row { cursor: pointer; }
+    .clickable-row:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: -2px; }
     .text-danger { color: var(--pastel-red-text, #C25450); font-weight: 500; }
     .text-success { color: var(--pastel-green-text, #2F6B4A); font-weight: 500; }
     .loading-shimmer { margin-bottom: 16px; }

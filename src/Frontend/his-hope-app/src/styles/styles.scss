@@ -3,6 +3,8 @@
 // Palette: #F7F6F3 bone; #FFFFFF cards; #EAEAEA borders; 8px/6px/4px radii
 
 @use '@angular/material' as mat;
+@use './theme';
+@import 'material-icons/iconfont/material-icons.css';
 
 // ═══════════════════════════════════════════
 // Base Layout
@@ -19,12 +21,30 @@ html {
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-sans);
   background-color: var(--bg-warm, #F7F6F3);
   color: var(--text-primary, #1A1A1A);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.6;
+  text-rendering: optimizeLegibility;
+  font-variant-numeric: tabular-nums;
+}
+
+.mat-icon.material-icons,
+.mat-icon.mat-ligature-font {
+  font-family: 'Material Icons' !important;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
 }
 
 // ═══════════════════════════════════════════

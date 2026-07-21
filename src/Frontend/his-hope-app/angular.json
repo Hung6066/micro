@@ -46,12 +46,11 @@
                   "scripts": true,
                   "styles": {
                     "minify": true,
-                    "inlineCritical": true
+                    "inlineCritical": false
                   },
                   "fonts": {
                     "inline": true
-                  },
-                  "sri": true
+                  }
                 }
             },
             "production-vi": {
@@ -65,17 +64,15 @@
                 "scripts": true,
                 "styles": {
                   "minify": true,
-                  "inlineCritical": true
+                  "inlineCritical": false
                 },
                 "fonts": {
                   "inline": true
-                },
-                "sri": true
+                }
               }
             },
             "development": {
               "optimization": false,
-              "vendorChunk": true,
               "extractLicenses": false,
               "sourceMap": true,
               "namedChunks": true

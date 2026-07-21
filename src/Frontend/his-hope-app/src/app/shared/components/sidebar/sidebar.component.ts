@@ -31,7 +31,7 @@ import { Patient } from '@core/models/patient.model';
     template: `
     <div class="sidebar-header">
       <div class="brand">
-        <mat-icon class="logo-icon" aria-hidden="true">local_hospital</mat-icon>
+        <span class="logo-mark" aria-hidden="true"></span>
         <span class="logo-text">His.Hope</span>
       </div>
       <button mat-icon-button class="hide-desktop close-btn" (click)="toggle.emit()"
@@ -137,11 +137,35 @@ import { Patient } from '@core/models/patient.model';
       gap: 10px;
     }
 
-    .logo-icon {
-      font-size: 28px;
+    .logo-mark {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       width: 28px;
       height: 28px;
-      color: var(--color-primary, #2F6B4A);
+      border-radius: 7px;
+      background: var(--color-primary, #2F6B4A);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+      flex-shrink: 0;
+    }
+
+    .logo-mark::before,
+    .logo-mark::after {
+      content: '';
+      position: absolute;
+      border-radius: 2px;
+      background: #FFFFFF;
+    }
+
+    .logo-mark::before {
+      width: 14px;
+      height: 4px;
+    }
+
+    .logo-mark::after {
+      width: 4px;
+      height: 14px;
     }
 
     .logo-text {

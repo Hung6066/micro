@@ -1,0 +1,59 @@
+- generic [active] [ref=e1]:
+  - link "Chuyển đến nội dung chính" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=e4]:
+    - generic [ref=e54]:
+      - generic [ref=e56]:
+        - img [ref=e57]: local_hospital
+        - generic [ref=e58]: His.Hope
+      - generic [ref=e62]:
+        - img [ref=e64]: search
+        - combobox "Tìm bệnh nhân..." [ref=e66]
+      - navigation "Điều hướng chính" [ref=e67]:
+        - link [ref=e68] [cursor=pointer]:
+          - /url: /en/dashboard
+          - img [ref=e69]: dashboard
+        - link [ref=e71] [cursor=pointer]:
+          - /url: /en/patients
+          - img [ref=e72]: people
+        - link [ref=e74] [cursor=pointer]:
+          - /url: /en/appointments
+          - img [ref=e75]: calendar_today
+        - link [ref=e77] [cursor=pointer]:
+          - /url: /en/clinical
+          - img [ref=e78]: medical_services
+        - link [ref=e80] [cursor=pointer]:
+          - /url: /en/pharmacy
+          - img [ref=e81]: medication
+        - link [ref=e83] [cursor=pointer]:
+          - /url: /en/lab
+          - img [ref=e84]: biotech
+        - link [ref=e86] [cursor=pointer]:
+          - /url: /en/billing
+          - img [ref=e87]: receipt
+        - link [ref=e89] [cursor=pointer]:
+          - /url: /en/admin
+          - img [ref=e90]: settings
+      - generic [ref=e92]:
+        - generic [ref=e93]: Viên Quản Trị
+        - button "Đăng xuất" [ref=e95] [cursor=pointer]:
+          - img [ref=e96]: logout
+    - generic [ref=e5]:
+      - generic [ref=e8]:
+        - img [ref=e9]: error_outline
+        - button [ref=e11] [cursor=pointer]:
+          - img [ref=e12]: close
+      - generic [ref=e101]:
+        - generic [ref=e102]:
+          - generic [ref=e103]:
+            - heading "Xin chào, Viên Quản Trị" [level=1] [ref=e104]
+            - paragraph [ref=e105]: Tổng quan bệnh viện
+          - generic [ref=e106]:
+            - img [ref=e107]: calendar_today
+            - generic [ref=e108]: Saturday, 18/07/2026
+        - generic [ref=e109]:
+          - progressbar [ref=e110]
+          - generic [ref=e125]: Đang tải dữ liệu...
+  - generic [ref=e133]:
+    - generic [ref=e134]: Login successful
+    - button "Close" [ref=e136]

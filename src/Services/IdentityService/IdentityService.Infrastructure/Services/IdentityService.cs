@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using His.Hope.IdentityService.Application.DTOs;
@@ -8,6 +10,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace His.Hope.IdentityService.Infrastructure.Services;
@@ -20,6 +23,13 @@ public class IdentityService : IIdentityService
     private readonly JwtTokenGenerator _tokenGenerator;
     private readonly RedisRefreshTokenStore _refreshTokenStore;
     private readonly ILogger<IdentityService> _logger;
+    private readonly IConfiguration _configuration;
+
+    private const int MaxFailedAttempts = 5;
+    private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
+
+    // SECURITY: Known patterns suggesting credential stuffing / brute force
+    private static readonly string[] SuspiciousIpPatterns = { "tor", "proxy", "vpn" };
 
     public IdentityService(
         UserManager<User> userManager,
@@ -27,7 +37,8 @@ public class IdentityService : IIdentityService
         IdentityDbContext context,
         JwtTokenGenerator tokenGenerator,
         RedisRefreshTokenStore refreshTokenStore,
-        ILogger<IdentityService> logger)
+        ILogger<IdentityService> logger,
+        IConfiguration configuration)
     {
         _userManager = userManager;
         _roleManager = roleManager;
@@ -35,6 +46,7 @@ public class IdentityService : IIdentityService
         _tokenGenerator = tokenGenerator;
         _refreshTokenStore = refreshTokenStore;
         _logger = logger;
+        _configuration = configuration;
     }
 
     /// <summary>
@@ -63,21 +75,79 @@ public class IdentityService : IIdentityService
     public async Task<TokenResponse> LoginAsync(LoginRequest request,
         CancellationToken cancellationToken = default)
     {
-        var user = await _userManager.FindByNameAsync(request.Username)
-                   ?? await _userManager.FindByEmailAsync(request.Username);
+        var identifier = request.Username ?? request.Email
+            ?? throw new UnauthorizedAccessException("Username or email is required.");
+        var user = await _userManager.FindByNameAsync(identifier)
+                   ?? await _userManager.FindByEmailAsync(identifier);
+
+        // SECURITY: Account lockout check — prevent brute force
+        if (user is { LockoutEnd: not null } && user.LockoutEnd > DateTime.UtcNow)
+        {
+            var remaining = user.LockoutEnd.Value - DateTime.UtcNow;
+            await LogSecurityEventAsync(user.Id, user.UserName!, "lockout_active",
+                "critical", request.IpAddress, request.UserAgent, request.DeviceInfo,
+                $"Account locked. Remaining: {remaining.TotalMinutes:F1}min");
+
+            _logger.LogWarning("Locked account login attempt: UserId={UserId}, IP={IP}, Remaining={Remaining}min",
+                user.Id, request.IpAddress, remaining.TotalMinutes);
+            throw new UnauthorizedAccessException(
+                $"Account temporarily locked. Try again in {remaining.TotalMinutes:F0} minutes.");
+        }
 
         if (user is null || !await _userManager.CheckPasswordAsync(user, request.Password))
         {
-            _logger.LogWarning("Failed login attempt: Username={Username}", request.Username);
+            // SECURITY: Record failed attempt, then check lockout
+            if (user is not null)
+            {
+                user.FailedLoginAttempts++;
+                await _userManager.UpdateAsync(user);
+
+                await LogSecurityEventAsync(user.Id, user.UserName!, "login_failed",
+                    "warning", request.IpAddress, request.UserAgent, request.DeviceInfo,
+                    $"Attempt {user.FailedLoginAttempts}/{MaxFailedAttempts}");
+            }
+
+            // SECURITY: Check if account should be locked after this failure
+            if (user is { FailedLoginAttempts: >= MaxFailedAttempts })
+            {
+                user.LockoutEnd = DateTime.UtcNow.Add(LockoutDuration);
+                user.FailedLoginAttempts = 0;
+                await _userManager.UpdateAsync(user);
+
+                await LogSecurityEventAsync(user.Id, user.UserName!, "account_locked",
+                    "critical", request.IpAddress, request.UserAgent, request.DeviceInfo,
+                    $"Account locked after {MaxFailedAttempts} failed attempts");
+
+                _logger.LogCritical("Account locked due to brute force: UserId={UserId}, IP={IP}, Duration={Duration}min",
+                    user.Id, request.IpAddress, LockoutDuration.TotalMinutes);
+            }
+
+            _logger.LogWarning("Failed login attempt: Username={Username}, IP={IP}, UserAgent={UA}",
+                request.Username, request.IpAddress, request.UserAgent);
             throw new UnauthorizedAccessException("Invalid username or password.");
         }
 
         if (!user.IsActive)
         {
+            await LogSecurityEventAsync(user.Id, user.UserName!, "deactivated_login_attempt",
+                "warning", request.IpAddress, request.UserAgent, request.DeviceInfo,
+                "Attempted login on deactivated account");
             _logger.LogWarning("Login attempt on deactivated account: UserId={UserId}", user.Id);
             throw new UnauthorizedAccessException("Account is deactivated.");
         }
 
+        // SECURITY: Check if password change is required
+        var passwordMaxAgeDays = _configuration.GetValue("Security:PasswordMaxAgeDays", 90);
+        if (user.LastPasswordChangedAt.HasValue &&
+            (DateTime.UtcNow - user.LastPasswordChangedAt.Value).TotalDays > passwordMaxAgeDays)
+        {
+            _logger.LogInformation("Password expired for UserId={UserId}, requiring change", user.Id);
+            // Not blocking login — will be handled by client-side force-change
+        }
+
+        // SECURITY: Reset lockout counters on successful login
+        user.FailedLoginAttempts = 0;
+        user.LockoutEnd = null;
         user.LastLoginAt = DateTime.UtcNow;
         await _userManager.UpdateAsync(user);
 
@@ -101,18 +171,45 @@ public class IdentityService : IIdentityService
 
         await _refreshTokenStore.StoreAsync(refreshTokenRecord, cancellationToken);
 
+        // SECURITY: Log successful login event
+        await LogSecurityEventAsync(user.Id, user.UserName!, "login_success",
+            "info", request.IpAddress, request.UserAgent, request.DeviceInfo,
+            $"Roles: {string.Join(",", roles)}, MFA: false");
+
         _logger.LogInformation(
-            "User logged in: UserId={UserId}, Roles={Roles}, Permissions={PermissionCount}, FamilyId={FamilyId}",
-            user.Id, string.Join(",", roles), permissions.Count, familyId);
+            "User logged in: UserId={UserId}, Roles={Roles}, Permissions={PermissionCount}, FamilyId={FamilyId}, IP={IP}",
+            user.Id, string.Join(",", roles), permissions.Count, familyId, request.IpAddress);
 
         return new TokenResponse(
             accessToken, refreshTokenValue, expiresAt, MapToDto(user, roles));
     }
 
+    /// <summary>
+    /// SECURITY: Records a failed login attempt with incrementing counter.
+    /// </summary>
+    private async Task RecordFailedLoginAsync(User? user, LoginRequest request)
+    {
+        if (user is null) return;
+
+        user.FailedLoginAttempts++;
+        await _userManager.UpdateAsync(default);
+
+        await LogSecurityEventAsync(user.Id, user.UserName!, "login_failed",
+            "warning", request.IpAddress, request.UserAgent, request.DeviceInfo,
+            $"Attempt {user.FailedLoginAttempts}/{MaxFailedAttempts}");
+    }
+
     public async Task<TokenResponse> RegisterAsync(RegisterRequest request,
         CancellationToken cancellationToken = default)
     {
-        var existingUser = await _userManager.FindByNameAsync(request.Username);
+        var username = string.IsNullOrWhiteSpace(request.Username)
+            ? request.Email?.Split('@')[0] ?? throw new InvalidOperationException("Email is required to derive a username.")
+            : request.Username;
+
+        if (string.IsNullOrWhiteSpace(request.Email))
+            throw new InvalidOperationException("Email is required.");
+
+        var existingUser = await _userManager.FindByNameAsync(username);
         if (existingUser is not null)
             throw new InvalidOperationException("Username already exists.");
 
@@ -123,7 +220,7 @@ public class IdentityService : IIdentityService
         var user = new User
         {
             Id = Guid.NewGuid(),
-            UserName = request.Username,
+            UserName = username,
             Email = request.Email,
             FirstName = request.FirstName,
             LastName = request.LastName,
@@ -275,4 +372,39 @@ public class IdentityService : IIdentityService
         user.Id, user.UserName!, user.Email!,
         user.FirstName, user.LastName, user.MiddleName,
         user.FullName, user.LicenseNumber, user.Specialty, roles);
+
+    // ─── Security Event Logging ─────────────────────────────────────
+
+    /// <summary>
+    /// SECURITY: Logs a structured security event to the database.
+    /// These events power audit trails, threat detection, and login notifications.
+    /// </summary>
+    private async Task LogSecurityEventAsync(
+        Guid? userId, string? userName, string eventType, string? severity,
+        string? ipAddress, string? userAgent, string? deviceInfo, string? details)
+    {
+        try
+        {
+            _context.SecurityEvents.Add(new SecurityEvent
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                UserName = userName,
+                EventType = eventType,
+                Severity = severity ?? "info",
+                IpAddress = ipAddress,
+                UserAgent = userAgent,
+                DeviceInfo = deviceInfo,
+                Details = details,
+                Timestamp = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync(default);
+        }
+        catch (Exception ex)
+        {
+            // SECURITY: Never let event logging block the auth flow
+            _logger.LogError(ex, "Failed to log security event: {EventType}", eventType);
+        }
+    }
+
 }

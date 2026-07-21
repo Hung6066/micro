@@ -166,7 +166,9 @@ const RESOURCE_OPTIONS = [
 
             <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
             <mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row"
-                     (click)="toggleRowExpansion(row)"></mat-row>
+                     (click)="toggleRowExpansion(row)" (keydown.enter)="toggleRowExpansion(row)"
+                     (keydown.space)="$event.preventDefault(); toggleRowExpansion(row)" tabindex="0" role="button"
+                     [attr.aria-label]="'Mở chi tiết nhật ký ' + row.userName"></mat-row>
             <mat-row *matRowDef="let row; columns: ['expandedDetail']" class="detail-row"></mat-row>
           </mat-table>
           } @else {
@@ -198,9 +200,9 @@ const RESOURCE_OPTIONS = [
     .filter-date { width: 170px; }
     .clear-btn { margin-top: 4px; }
 
-    .table-container { background: #FFFFFF; border-radius: 8px; border: 1px solid #EAEAEA; overflow: hidden; }
+    .table-container { background: #FFFFFF; border-radius: 8px; border: 1px solid #EAEAEA; overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .audit-table { width: 100%; }
-    .cell-mono { font-family: 'Roboto Mono', monospace; font-size: 12px; color: #787774; }
+    .cell-mono { font-family: var(--font-mono); font-size: 12px; color: #787774; }
 
     .action-badge { display: inline-flex; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
     .action-create { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
@@ -212,6 +214,7 @@ const RESOURCE_OPTIONS = [
 
     .clickable-row { cursor: pointer; }
     .clickable-row:hover { background: #F7F6F3; }
+    .clickable-row:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: -2px; }
     .detail-row { background: #FAFAF8; }
     .detail-row > td { padding: 0; }
 

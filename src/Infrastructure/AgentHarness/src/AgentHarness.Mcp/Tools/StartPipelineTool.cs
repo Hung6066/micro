@@ -104,7 +104,7 @@ public class StartPipelineTool
     {
         try
         {
-            var tasks = JsonSerializer.Deserialize<List<PipelineTaskDef>>(tasksJson, JsonOpts);
+            var tasks = JsonSerializer.Deserialize<List<PipelineTaskDef>>(NormalizeJsonArray(tasksJson), JsonOpts);
             if (tasks != null)
             {
                 foreach (var task in tasks)
@@ -119,5 +119,28 @@ public class StartPipelineTool
         {
             Log.Error(ex, "Failed to parse tasks for background pipeline");
         }
+    }
+
+    private static string NormalizeJsonArray(string raw)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            if (doc.RootElement.ValueKind == JsonValueKind.String)
+            {
+                return NormalizeJsonArray(doc.RootElement.GetString() ?? raw);
+            }
+
+            if (doc.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                return $"[{raw}]";
+            }
+        }
+        catch (JsonException)
+        {
+            // Let the caller's deserialize surface the original parse error.
+        }
+
+        return raw;
     }
 }

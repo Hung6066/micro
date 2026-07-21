@@ -1,0 +1,41 @@
+- generic [active] [ref=f7e1]:
+  - link "Chuyển đến nội dung chính" [ref=f7e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f7e4]:
+    - generic [ref=f7e8]:
+      - generic [ref=f7e10]:
+        - img [ref=f7e11]: local_hospital
+        - generic [ref=f7e12]: His.Hope
+      - generic [ref=f7e16]:
+        - img [ref=f7e18]: search
+        - combobox "Tìm bệnh nhân..." [ref=f7e20]
+      - navigation "Điều hướng chính" [ref=f7e21]:
+        - link [ref=f7e22] [cursor=pointer]:
+          - /url: /dashboard
+          - img [ref=f7e23]: dashboard
+        - link [ref=f7e25] [cursor=pointer]:
+          - /url: /patients
+          - img [ref=f7e26]: people
+        - link [ref=f7e28] [cursor=pointer]:
+          - /url: /appointments
+          - img [ref=f7e29]: calendar_today
+        - link [ref=f7e31] [cursor=pointer]:
+          - /url: /clinical
+          - img [ref=f7e32]: medical_services
+        - link [ref=f7e34] [cursor=pointer]:
+          - /url: /pharmacy
+          - img [ref=f7e35]: medication
+        - link [ref=f7e37] [cursor=pointer]:
+          - /url: /lab
+          - img [ref=f7e38]: biotech
+        - link [ref=f7e40] [cursor=pointer]:
+          - /url: /billing
+          - img [ref=f7e41]: receipt
+        - link [ref=f7e43] [cursor=pointer]:
+          - /url: /admin
+          - img [ref=f7e44]: settings
+    - status [ref=f7e49]:
+      - generic [ref=f7e50]:
+        - img [ref=f7e51]: error_outline
+        - button [ref=f7e53] [cursor=pointer]:
+          - img [ref=f7e54]: close

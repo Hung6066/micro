@@ -4,13 +4,13 @@ CREATE TABLE "LabOrders" (
     ProviderId UUID NOT NULL,
     EncounterId UUID,
     OrderDate TIMESTAMPTZ NOT NULL DEFAULT now(),
-    Status VARCHAR(50) NOT NULL DEFAULT 'Pending',
-    Priority VARCHAR(50) NOT NULL DEFAULT 'Routine',
+    Status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+    Priority VARCHAR(50) NOT NULL DEFAULT 'ROUTINE',
     Notes TEXT,
     CreatedAt TIMESTAMPTZ NOT NULL DEFAULT now(),
     UpdatedAt TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT chk_laborders_status CHECK (Status IN ('Pending', 'Submitted', 'InProgress', 'Completed', 'Cancelled')),
-    CONSTRAINT chk_laborders_priority CHECK (Priority IN ('Routine', 'Urgent', 'STAT', 'ASAP'))
+    CONSTRAINT chk_laborders_status CHECK (Status IN ('PENDING', 'SUBMITTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED')),
+    CONSTRAINT chk_laborders_priority CHECK (Priority IN ('ROUTINE', 'URGENT', 'STAT', 'ASAP'))
 );
 
 CREATE TABLE "LabTests" (
@@ -19,28 +19,30 @@ CREATE TABLE "LabTests" (
     TestCode VARCHAR(50) NOT NULL,
     TestName VARCHAR(500) NOT NULL,
     SpecimenType VARCHAR(100),
-    Status VARCHAR(50) NOT NULL DEFAULT 'Ordered',
+    Status VARCHAR(50) NOT NULL DEFAULT 'ORDERED',
     OrderedAt TIMESTAMPTZ NOT NULL DEFAULT now(),
     CollectedAt TIMESTAMPTZ,
     CompletedAt TIMESTAMPTZ,
     CreatedAt TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT chk_labtests_status CHECK (Status IN ('Ordered', 'Collected', 'InProgress', 'Resulted', 'Cancelled'))
+    UpdatedAt TIMESTAMPTZ,
+    CONSTRAINT chk_labtests_status CHECK (Status IN ('ORDERED', 'COLLECTED', 'IN_PROGRESS', 'RESULTED', 'CANCELLED'))
 );
 
 CREATE TABLE "LabResults" (
     Id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     LabTestId UUID NOT NULL UNIQUE REFERENCES "LabTests"(Id) ON DELETE CASCADE,
+    LabResultId UUID,
     Value TEXT NOT NULL,
     Unit VARCHAR(100),
     ReferenceRange VARCHAR(500),
-    AbnormalFlag VARCHAR(50) NOT NULL DEFAULT 'Normal',
-    ResultStatus VARCHAR(50) NOT NULL DEFAULT 'Pending',
+    AbnormalFlag VARCHAR(50) NOT NULL DEFAULT 'NORMAL',
+    ResultStatus VARCHAR(50) NOT NULL DEFAULT 'PENDING',
     ResultedAt TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PerformedBy UUID,
+    PerformedBy VARCHAR(200),
     Notes TEXT,
     CreatedAt TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT chk_labresults_abnormalflag CHECK (AbnormalFlag IN ('Normal', 'Abnormal', 'CriticalHigh', 'CriticalLow')),
-    CONSTRAINT chk_labresults_resultstatus CHECK (ResultStatus IN ('Pending', 'Preliminary', 'Final', 'Corrected'))
+    CONSTRAINT chk_labresults_abnormalflag CHECK (AbnormalFlag IN ('NORMAL', 'ABNORMAL', 'CRITICAL_HIGH', 'CRITICAL_LOW')),
+    CONSTRAINT chk_labresults_resultstatus CHECK (ResultStatus IN ('PENDING', 'PRELIMINARY', 'FINAL', 'CORRECTED'))
 );
 
 CREATE TABLE "OutboxMessages" (
@@ -59,9 +61,8 @@ CREATE TABLE "OutboxMessages" (
 );
 
 -- Backward-compatibility for existing deployments
-
-
-
+ALTER TABLE "LabTests" ADD COLUMN IF NOT EXISTS UpdatedAt TIMESTAMPTZ;
+ALTER TABLE "LabResults" ADD COLUMN IF NOT EXISTS LabResultId UUID;
 
 
 

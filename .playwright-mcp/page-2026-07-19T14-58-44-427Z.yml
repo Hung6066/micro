@@ -1,0 +1,93 @@
+- generic [ref=f28e1]:
+  - link "Chuyển đến nội dung chính" [ref=f28e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f28e4]:
+    - generic [ref=f28e8]:
+      - generic [ref=f28e10]:
+        - img [ref=f28e11]: local_hospital
+        - generic [ref=f28e12]: His.Hope
+      - generic [ref=f28e16]:
+        - img [ref=f28e18]: search
+        - combobox "Tìm bệnh nhân..." [ref=f28e20]
+      - navigation "Điều hướng chính" [ref=f28e21]:
+        - link [ref=f28e22] [cursor=pointer]:
+          - /url: /en/dashboard
+          - img [ref=f28e23]: dashboard
+        - link [ref=f28e25] [cursor=pointer]:
+          - /url: /en/patients
+          - img [ref=f28e26]: people
+        - link [ref=f28e28] [cursor=pointer]:
+          - /url: /en/appointments
+          - img [ref=f28e29]: calendar_today
+        - link [ref=f28e31] [cursor=pointer]:
+          - /url: /en/clinical
+          - img [ref=f28e32]: medical_services
+        - link [ref=f28e34] [cursor=pointer]:
+          - /url: /en/pharmacy
+          - img [ref=f28e35]: medication
+        - link [ref=f28e37] [cursor=pointer]:
+          - /url: /en/lab
+          - img [ref=f28e38]: biotech
+        - link [ref=f28e40] [cursor=pointer]:
+          - /url: /en/billing
+          - img [ref=f28e41]: receipt
+        - link [active] [ref=f28e43] [cursor=pointer]:
+          - /url: /en/admin
+          - img [ref=f28e44]: settings
+      - generic [ref=f28e119]:
+        - generic [ref=f28e120]: Viên Quản Trị
+        - button "Đăng xuất" [ref=f28e122] [cursor=pointer]:
+          - img [ref=f28e123]: logout
+    - generic [ref=f28e47]:
+      - generic [ref=f28e50]:
+        - img [ref=f28e51]: error_outline
+        - button [ref=f28e53] [cursor=pointer]:
+          - img [ref=f28e54]: close
+      - generic [ref=f28e753]:
+        - generic [ref=f28e754]:
+          - heading "Quản trị hệ thống" [level=1] [ref=f28e755]
+          - paragraph [ref=f28e756]: Tổng quan về hệ thống và điều hướng nhanh
+        - generic [ref=f28e757]:
+          - generic [ref=f28e758] [cursor=pointer]:
+            - generic [ref=f28e759]:
+              - img [ref=f28e761]: people
+              - generic [ref=f28e762]:
+                - generic [ref=f28e763]: "6"
+                - generic [ref=f28e764]: Người dùng
+            - button "Quản lý người dùng" [ref=f28e766]
+          - generic [ref=f28e770] [cursor=pointer]:
+            - generic [ref=f28e771]:
+              - img [ref=f28e773]: admin_panel_settings
+              - generic [ref=f28e774]:
+                - generic [ref=f28e775]: "0"
+                - generic [ref=f28e776]: Vai trò hoạt động
+            - button "Quản lý vai trò" [ref=f28e778]
+          - generic [ref=f28e782] [cursor=pointer]:
+            - generic [ref=f28e783]:
+              - img [ref=f28e785]: receipt_long
+              - generic [ref=f28e786]:
+                - generic [ref=f28e787]: Chưa có
+                - generic [ref=f28e788]: Nhật ký gần nhất
+            - button "Xem nhật ký" [ref=f28e790]
+          - generic [ref=f28e794] [cursor=pointer]:
+            - generic [ref=f28e795]:
+              - img [ref=f28e797]: help
+              - generic [ref=f28e798]:
+                - generic [ref=f28e799]: Không xác định
+                - generic [ref=f28e800]: Trạng thái hệ thống
+            - button "Xem cài đặt" [ref=f28e802]
+        - generic [ref=f28e806]:
+          - heading "Truy cập nhanh" [level=2] [ref=f28e807]
+          - generic [ref=f28e808]:
+            - link "Quản lý người dùng" [ref=f28e809] [cursor=pointer]:
+              - /url: /en/admin/manage-users
+              - img [ref=f28e810]: people
+            - link "Vai trò & quyền" [ref=f28e814] [cursor=pointer]:
+              - /url: /en/admin/manage-roles
+              - img [ref=f28e815]: admin_panel_settings
+            - link "Cài đặt hệ thống" [ref=f28e819] [cursor=pointer]:
+              - /url: /en/admin/settings
+              - img [ref=f28e820]: settings
+            - link "Nhật ký truy cập" [ref=f28e824] [cursor=pointer]:
+              - /url: /en/admin/audit-logs
+              - img [ref=f28e825]: receipt_long

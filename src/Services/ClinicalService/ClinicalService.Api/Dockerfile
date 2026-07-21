@@ -17,8 +17,7 @@ COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/*.csproj", "Shared/Infr
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBus/*.csproj", "Shared/EventBus/Src/His.Hope.EventBus/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/*.csproj", "Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/*.csproj", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
-RUN --mount=type=cache,target=/root/.nuget/packages \
-    dotnet restore "Services/ClinicalService/ClinicalService.Api/ClinicalService.Api.csproj"
+RUN dotnet restore "Services/ClinicalService/ClinicalService.Api/ClinicalService.Api.csproj"
 
 # --- Copy source and publish ---
 COPY ["src/Services/ClinicalService/ClinicalService.Api/", "Services/ClinicalService/ClinicalService.Api/"]
@@ -32,8 +31,7 @@ COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/", "Shared/EventBus/Src
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
 COPY ["src/Shared/Protos/", "Shared/Protos/"]
 
-RUN --mount=type=cache,target=/root/.nuget/packages \
-    dotnet publish "Services/ClinicalService/ClinicalService.Api/ClinicalService.Api.csproj" \
+RUN dotnet publish "Services/ClinicalService/ClinicalService.Api/ClinicalService.Api.csproj" \
     -c Release \
     -o /app/publish \
     --no-restore

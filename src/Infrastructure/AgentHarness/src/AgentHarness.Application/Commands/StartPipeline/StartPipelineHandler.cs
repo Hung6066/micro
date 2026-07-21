@@ -8,16 +8,30 @@ public class StartPipelineHandler : IRequestHandler<StartPipelineCommand, Pipeli
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
     private readonly IStateStore _store;
     private readonly WorkflowLoader _workflowLoader;
+    private readonly ChangeScopeAnalyzer _scopeAnalyzer;
+    private readonly ConditionalDagBuilder _dagBuilder;
 
-    public StartPipelineHandler(IStateStore store, WorkflowLoader workflowLoader)
+    public StartPipelineHandler(
+        IStateStore store,
+        WorkflowLoader workflowLoader,
+        ChangeScopeAnalyzer scopeAnalyzer,
+        ConditionalDagBuilder dagBuilder)
     {
         _store = store;
         _workflowLoader = workflowLoader;
+        _scopeAnalyzer = scopeAnalyzer;
+        _dagBuilder = dagBuilder;
     }
 
     public async Task<PipelineRun> Handle(StartPipelineCommand request, CancellationToken ct)
     {
         var run = PipelineRun.Create(request.WorkflowId, request.Parameters, request.TriggeredBy);
+        if (request.Parameters.TryGetValue("parent_pipeline_run_id", out var parentIdRaw) &&
+            Guid.TryParse(parentIdRaw, out var parentPipelineRunId))
+        {
+            run.SetParent(parentPipelineRunId);
+            run.AddMetadata("parent_pipeline_run_id", parentPipelineRunId.ToString());
+        }
 
         // Load tasks from YAML workflow or inline tasks
         var tasks = new List<(string Phase, string Agent, string Task, string? Condition, string? DependsOn)>();
@@ -32,7 +46,7 @@ public class StartPipelineHandler : IRequestHandler<StartPipelineCommand, Pipeli
         {
             try
             {
-                var parsed = JsonSerializer.Deserialize<List<PipelineTaskDef>>(tasksJson, JsonOpts);
+                var parsed = JsonSerializer.Deserialize<List<PipelineTaskDef>>(NormalizeJsonArray(tasksJson), JsonOpts);
                 if (parsed != null)
                 {
                     foreach (var t in parsed)
@@ -42,6 +56,29 @@ public class StartPipelineHandler : IRequestHandler<StartPipelineCommand, Pipeli
             catch (JsonException ex)
             {
                 run.AddMetadata("dag_error", $"Failed to parse tasks: {ex.Message}");
+            }
+        }
+
+        if (tasks.Count == 0 && request.Parameters.TryGetValue("changed_files", out var changedFilesRaw))
+        {
+            var changedFiles = ParseChangedFiles(changedFilesRaw);
+            if (changedFiles.Count > 0)
+            {
+                var scope = _scopeAnalyzer.Analyze(changedFiles);
+                var scopedDag = _dagBuilder.Build(scope);
+
+                tasks.AddRange(scopedDag.Nodes.Select(n => (
+                    n.Phase.ToString(),
+                    n.AgentName,
+                    string.IsNullOrWhiteSpace(n.TaskDescription)
+                        ? $"Handle scoped {n.Phase} work for changed files: {string.Join(", ", changedFiles)}"
+                        : n.TaskDescription,
+                    (string?)null,
+                    (string?)null)));
+
+                run.AddMetadata("scope_changed_files", JsonSerializer.Serialize(changedFiles));
+                run.AddMetadata("scope_triggered_agents", string.Join(",", scope.TriggeredAgents));
+                run.AddMetadata("scope_skipped_phases", string.Join(",", scope.PhasesToSkip));
             }
         }
 
@@ -84,6 +121,48 @@ public class StartPipelineHandler : IRequestHandler<StartPipelineCommand, Pipeli
         "never" => BranchCondition.Never,
         _ => BranchCondition.Always
     };
+
+    private static List<string> ParseChangedFiles(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return [];
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<List<string>>(raw, JsonOpts);
+            if (parsed != null) return parsed.Where(f => !string.IsNullOrWhiteSpace(f)).ToList();
+        }
+        catch (JsonException)
+        {
+            // Fall through to delimiter parsing.
+        }
+
+        return raw.Split([',', '\n', '\r', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(f => !string.IsNullOrWhiteSpace(f))
+            .ToList();
+    }
+
+    private static string NormalizeJsonArray(string raw)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            if (doc.RootElement.ValueKind == JsonValueKind.String)
+            {
+                return NormalizeJsonArray(doc.RootElement.GetString() ?? raw);
+            }
+
+            if (doc.RootElement.ValueKind == JsonValueKind.Object)
+            {
+                return $"[{raw}]";
+            }
+        }
+        catch (JsonException)
+        {
+            // Let the caller's deserialize surface the original parse error.
+        }
+
+        return raw;
+    }
 
     private class PipelineTaskDef
     {

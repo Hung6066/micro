@@ -31,6 +31,7 @@
       "@testing/*": ["src/app/testing/*"]
     }
   },
+  "exclude": ["**/*.spec.ts", "**/*.d.ts"],
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,
     "strictInjectionParameters": true,

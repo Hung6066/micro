@@ -52,6 +52,9 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
     "pharmacy-service",
     builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379"));
 
+// TEMP: Replace Redis cache with a no-op cache to avoid StackExchange.Redis hang
+builder.Services.AddSingleton<ICacheService>(new NoOpCacheService());
+
 builder.Services.AddResiliencePolicies();
 builder.Services.AddOutbox<PharmacyDbContext>();
 
@@ -89,11 +92,6 @@ builder.Services.AddHealthChecks()
 // Kestrel Configuration
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.ListenAnyIP(5011, listenOptions =>
-    {
-        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-    });
-
     options.ListenAnyIP(5030, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
@@ -133,6 +131,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
+app.UseRouting();
+
 // SECURITY: Authentication & Authorization middleware
 app.UseAuthentication();
 app.UseAuthorization();
@@ -157,6 +157,24 @@ medications.MapGet("/", async (
         cacheKey,
         async () => await mediator.Send(new SearchMedicationsQuery(
             search ?? "", page, pageSize, category), ct),
+        TimeSpan.FromMinutes(2), ct);
+    return Results.Ok(result);
+}).RequireAuthorization("Permission:pharmacy.view").WithOpenApi();
+
+medications.MapGet("/search", async (
+    string? q,
+    int page,
+    int pageSize,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct,
+    string? category = null) =>
+{
+    var cacheKey = $"medications:search:{q}:{page}:{pageSize}:{category}";
+    var result = await cache.GetOrSetAsync(
+        cacheKey,
+        async () => await mediator.Send(new SearchMedicationsQuery(
+            q ?? "", page, pageSize, category), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
 }).RequireAuthorization("Permission:pharmacy.view").WithOpenApi();
@@ -240,6 +258,25 @@ prescriptions.MapGet("/", async (
         cacheKey,
         async () => await mediator.Send(new SearchPrescriptionsQuery(
             "", page, pageSize, patientId, status), ct),
+        TimeSpan.FromMinutes(2), ct);
+    return Results.Ok(result);
+}).RequireAuthorization("Permission:pharmacy.view").WithOpenApi();
+
+prescriptions.MapGet("/search", async (
+    string? q,
+    int page,
+    int pageSize,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct,
+    Guid? patientId = null,
+    string? status = null) =>
+{
+    var cacheKey = $"prescriptions:search:{q}:{page}:{pageSize}:{patientId}:{status}";
+    var result = await cache.GetOrSetAsync(
+        cacheKey,
+        async () => await mediator.Send(new SearchPrescriptionsQuery(
+            q ?? "", page, pageSize, patientId, status), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
 }).RequireAuthorization("Permission:pharmacy.view").WithOpenApi();
@@ -427,5 +464,14 @@ public record CreatePrescriptionRequest(
     string? Notes);
 
 public record CancelPrescriptionRequest(string Reason);
+
+file sealed class NoOpCacheService : ICacheService
+{
+    public Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class => Task.FromResult<T?>(null);
+    public Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => factory();
+    public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => Task.CompletedTask;
+    public Task RemoveAsync(string key, CancellationToken ct = default) => Task.CompletedTask;
+    public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default) => Task.CompletedTask;
+}
 
 

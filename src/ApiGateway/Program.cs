@@ -2,6 +2,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading.RateLimiting;
 using His.Hope.Infrastructure.Idempotency;
 using His.Hope.Infrastructure.Middleware;
+using His.Hope.Infrastructure.Qos;
 using His.Hope.Infrastructure.Security;
 using Serilog;
 
@@ -47,6 +48,16 @@ builder.Services.AddReverseProxy()
 
 builder.Services.AddGrpc();
 builder.Services.AddHealthChecks();
+
+// === QoS: 5-tier request priority admission control ===
+builder.Services.AddSingleton<PriorityAdmissionMiddleware>();
+builder.Services.AddSingleton(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var options = new PriorityAdmissionOptions();
+    config.GetSection("PriorityAdmission").Bind(options);
+    return options;
+});
 
 // === Idempotency: safe retries for POST/PUT/PATCH requests ===
 builder.Services.AddIdempotency(builder.Configuration);

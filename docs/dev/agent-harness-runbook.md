@@ -31,9 +31,9 @@ The Agent Harness is a .NET 8 ASP.NET Core MCP server that provides stateful pip
                     │                       │                       │
                     ▼                       ▼                       ▼
             ┌──────────────┐       ┌──────────────┐       ┌──────────────┐
-            │  CockroachDB │       │   RabbitMQ   │       │  OpenCode    │
-            │  (State)     │       │  (Events)    │       │  (Agents)    │
-            │  port 26257  │       │  port 5672   │       │  (via task)  │
+            │ PostgreSQL + │       │   RabbitMQ   │       │  OpenCode    │
+            │   pgvector   │       │  (Events)    │       │  (Agents)    │
+            │  (State)     │       │  port 5672   │       │  (poll MCP)  │
             └──────────────┘       └──────────────┘       └──────────────┘
 ```
 
@@ -41,10 +41,10 @@ The Agent Harness is a .NET 8 ASP.NET Core MCP server that provides stateful pip
 
 | Component | Description |
 |-----------|-------------|
-| **Mcp** | MCP tool contracts exposed to OpenCode: `harness_start_pipeline`, `harness_get_status`, `harness_dispatch_agent`, `harness_cancel_pipeline` |
+| **Mcp** | MCP/HTTP tool contracts exposed to OpenCode: pipeline lifecycle, pending-task polling, task completion, artifact storage, timeline, and HITL approvals |
 | **Application** | CQRS handlers, pipeline engine, loop engineer, backpressure controller, change scope analyzer |
 | **Core** | Domain models: `PipelineRun`, `AgentRun`, `PipelineDag`, `QualityGate`, events |
-| **Infrastructure** | CockroachDB persistence, RabbitMQ event bus, OpenCode agent dispatcher, OpenTelemetry metrics |
+| **Infrastructure** | PostgreSQL/pgvector persistence, RabbitMQ event bus, OpenCode callback dispatcher, OpenTelemetry metrics |
 
 ### State Machine
 
@@ -58,9 +58,9 @@ Pending ──► Running ──► Completed
 
 1. OpenCode calls MCP tool → `AgentHarness.Mcp` receives request
 2. Request validated by FluentValidation → routed via MediatR to handler
-3. Handler creates/updates domain model → persisted to CockroachDB
+3. Handler creates/updates domain model → persisted to PostgreSQL/pgvector
 4. Events published to RabbitMQ for async processing
-5. Agent dispatched via OpenCode `task` tool (for dispatch operations)
+5. Agent run is persisted as `Running`; external OpenCode agents poll `get-pending-tasks` and report through `complete-task`
 6. Metrics emitted via OpenTelemetry to Prometheus
 
 ---
@@ -71,10 +71,10 @@ Pending ──► Running ──► Completed
 
 ```bash
 # Start harness with dependencies
-docker compose -f docker/docker-compose.yml up -d agent-harness cockroach rabbitmq
+docker compose -f docker/docker-compose.yml up -d agentharness postgres rabbitmq
 
 # Check logs
-docker compose logs -f agent-harness
+docker compose logs -f agentharness
 
 # Stop
 docker compose down
@@ -110,8 +110,8 @@ kubectl delete -f k8s/agent-harness/
 
 ```
 GET /health          → Liveness: returns 200 OK
-GET /health/ready    → Readiness: checks DB + RabbitMQ connectivity
-GET /health/startup  → Startup: waits for DB migrations
+GET /health/ready    → Readiness: returns 200 once the harness process is ready
+GET /health/startup  → Startup: returns 200 once the harness process has started
 ```
 
 ---
@@ -135,27 +135,18 @@ The **Agent Harness — Pipeline Operations** dashboard (`k8s/agent-harness/graf
 ### Key Metrics
 
 ```
-# Pipeline throughput
-rate(harness_pipeline_starts_total[5m])
+# Harness HTTP target health
+up{job=~".*agent-harness.*"}
 
-# Pipeline success rate
-rate(harness_pipeline_completions_total[5m]) / rate(harness_pipeline_starts_total[5m])
-
-# Agent dispatch latency (p99)
-histogram_quantile(0.99, rate(harness_agent_duration_seconds_bucket[5m]))
-
-# Active pipelines
-harness_active_pipelines
+# Agent dispatch throughput (when custom OTel meter is scraped)
+rate(agent_dispatch_count_total[5m])
 ```
 
 ### Prometheus Alerts
 
 | Alert | Severity | Threshold | Action |
 |-------|----------|-----------|--------|
-| `HarnessPipelineFailureRate` | Warning | > 10% over 5m | Check pipeline engine logs |
-| `HarnessCircuitBreakerOpen` | Critical | Any open circuit | May require manual reset |
-| `HarnessBackpressureActive` | Warning | Any rejections | Scale deployment or reduce load |
-| `HarnessPipelineStuck` | Warning | No completion > 5m | Investigate stuck pipeline |
+| `AgentHarnessTargetDown` | Critical | Prometheus target down for 2m | Check pod readiness, service, and scrape configuration |
 
 ---
 

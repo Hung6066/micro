@@ -1,199 +1,62 @@
-### Task 3: Create generate-index.ps1 script
+### Task 3: Angular lab inbox, rule editor, and realtime client
 
 **Files:**
-- Create: `docs/knowledge/scripts/generate-index.ps1`
+- Modify: `src/Frontend/his-hope-app/package.json`
+- Create: `src/Frontend/his-hope-app/src/app/core/models/critical-alert.model.ts`
+- Create: `src/Frontend/his-hope-app/src/app/core/models/critical-alert-rule.model.ts`
+- Create: `src/Frontend/his-hope-app/src/app/core/models/critical-alert-audit.model.ts`
+- Create: `src/Frontend/his-hope-app/src/app/core/services/lab-critical-alert.service.ts`
+- Create: `src/Frontend/his-hope-app/src/app/core/services/lab-critical-alert-stream.service.ts`
+- Modify: `src/Frontend/his-hope-app/src/app/core/services/lab.service.ts`
+- Modify: `src/Frontend/his-hope-app/src/app/features/lab/lab.routes.ts`
+- Create: `src/Frontend/his-hope-app/src/app/features/lab/lab-critical-alerts/lab-critical-alerts.component.ts`
+- Create: `src/Frontend/his-hope-app/src/app/features/lab/lab-critical-alert-rule-form/lab-critical-alert-rule-form.component.ts`
+- Create: `src/Frontend/his-hope-app/src/app/features/lab/lab-critical-alert-detail/lab-critical-alert-detail.component.ts`
+- Modify: `src/Frontend/his-hope-app/src/app/features/lab/lab-order-list/lab-order-list.component.ts`
+- Modify: `src/Frontend/his-hope-app/src/app/features/lab/lab-order-detail/lab-order-detail.component.ts`
+- Test: `src/Frontend/his-hope-app/src/app/core/services/lab-critical-alert.service.spec.ts`
+- Test: `src/Frontend/his-hope-app/src/app/core/services/lab-critical-alert-stream.service.spec.ts`
+- Test: `src/Frontend/his-hope-app/src/app/features/lab/lab-critical-alerts/lab-critical-alerts.component.spec.ts`
+- Test: `src/Frontend/his-hope-app/src/app/features/lab/lab-critical-alert-rule-form/lab-critical-alert-rule-form.component.spec.ts`
+- Test: `src/Frontend/his-hope-app/src/app/features/lab/lab-order-detail/lab-order-detail.component.spec.ts`
 
 **Interfaces:**
-- Consumes: `.md` files under `entries/` with valid YAML frontmatter
-- Produces: `docs/knowledge/INDEX.md`
+- Consumes: the new lab critical alert REST endpoints and the SignalR hub, plus `AuthService.getStoredAccessToken()` for socket authentication.
+- Produces: alert inbox UI, rule editor UI, realtime badge/toast updates, and alert-detail acknowledgment controls.
 
-**Global constraints from the spec:**
-- INDEX.md is auto-generated via script — never edited by hand
-- INDEX.md has exactly three lookup tables: By Tag, By Domain, By Severity
-- Script must handle empty entries directory gracefully (warn, don't crash)
-- Script must skip .md files with missing/invalid frontmatter (warn, continue)
+- [ ] **Step 1: Write failing Jest tests for the alert services and components**
 
-- [ ] **Step 1: Write the script**
+Create tests that assert:
+- the service calls the new alert endpoints,
+- the socket service subscribes to `criticalAlertCreated` and increments unread state,
+- the inbox renders open/acknowledged/resolved filters,
+- the rule form validates threshold fields,
+- the lab order detail page shows critical-state metadata and an acknowledge action.
 
-Create file at `docs/knowledge/scripts/generate-index.ps1`:
+Run:
+`npm test -- --runInBand --testPathPattern=lab-critical-alert`
 
-```powershell
-# docs/knowledge/scripts/generate-index.ps1
-<#
-.SYNOPSIS
-    Generate INDEX.md from knowledge base entries.
-.DESCRIPTION
-    Scans all .md files under entries/, parses YAML frontmatter,
-    and generates INDEX.md with three lookup tables: by tag, by domain, by severity.
-#>
-param(
-    [string]$KnowledgeDir = (Resolve-Path "$PSScriptRoot/..").Path
-)
+Expected: fail because the new components, services, and SignalR client do not exist yet.
 
-$ErrorActionPreference = 'Stop'
-$entriesDir = Join-Path $KnowledgeDir 'entries'
-$indexFile = Join-Path $KnowledgeDir 'INDEX.md'
-$entries = [System.Collections.ArrayList]::new()
+- [ ] **Step 2: Implement the Angular feature**
 
-# --- 1. Scan all .md files in entries/ ---
-$mdFiles = Get-ChildItem -Path $entriesDir -Recurse -Filter '*.md' -ErrorAction SilentlyContinue
-if (-not $mdFiles) {
-    Write-Warning "No .md files found in $entriesDir"
-    Write-Output "# His.Hope Knowledge Base Index`n> No entries yet. Create entries in entries/{domain}/ then re-run this script.`n" | Set-Content -Path $indexFile -Encoding UTF8
-    exit 0
-}
+Add the SignalR client dependency, create the alert models/services/components, wire the new lab route, and surface the alert badge and detail actions in the existing lab UI.
 
-foreach ($file in $mdFiles) {
-    $content = Get-Content $file.FullName -Raw -ErrorAction SilentlyContinue
-    if (-not $content) { continue }
+Keep the styling aligned with the current Angular Material patterns; do not redesign the lab module shell.
 
-    # Parse YAML frontmatter between first two --- blocks
-    if ($content -notmatch '(?ms)^---\s*\n(.*?)\n---') { continue }
-    $yamlBlock = $matches[1]
+- [ ] **Step 3: Rerun the Jest suite and the Angular build**
 
-    # Extract fields using simple regex (avoids YAML library dependency)
-    $id       = if ($yamlBlock -match '^id:\s*(.+)$') { $matches[1].Trim() } else { $null }
-    $type     = if ($yamlBlock -match '^type:\s*(.+)$') { $matches[1].Trim() } else { $null }
-    $domain   = if ($yamlBlock -match '^domain:\s*(.+)$') { $matches[1].Trim() } else { $null }
-    $severity = if ($yamlBlock -match '^severity:\s*(.+)$') { $matches[1].Trim() } else { 'info' }
+Run:
+`npm test -- --runInBand --testPathPattern=lab-critical-alert`
 
-    if (-not $id -or -not $type -or -not $domain) {
-        Write-Warning "Skipping $($file.Name): missing required frontmatter (id/type/domain)"
-        continue
-    }
+Run:
+`npm run build`
 
-    # Parse tags: supports [tag1, tag2] format
-    $tags = @()
-    if ($yamlBlock -match '^tags:\s*\[(.+?)\]') {
-        $tags = $matches[1] -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
-    }
+Expected: both pass.
 
-    # Compute relative path from knowledge dir for links in INDEX.md
-    $relPath = $file.FullName.Replace($KnowledgeDir, '').TrimStart('\', '/') -replace '\\', '/'
+- [ ] **Step 4: Commit**
 
-    $null = $entries.Add(@{
-        Id       = $id
-        Type     = $type
-        Domain   = $domain
-        Tags     = $tags
-        Severity = $severity
-        RelPath  = $relPath
-    })
-}
+Commit message: `feat(lab-ui): add critical alert inbox and realtime updates`
 
-if ($entries.Count -eq 0) {
-    Write-Warning "No valid entries found (all .md files skipped due to missing frontmatter)"
-    Write-Output "# His.Hope Knowledge Base Index`n> No valid entries found. Check frontmatter in entries/*.md files.`n" | Set-Content -Path $indexFile -Encoding UTF8
-    exit 0
-}
+---
 
-# --- 2. Build tag map ---
-$tagMap = @{}
-foreach ($e in $entries) {
-    foreach ($t in $e.Tags) {
-        if (-not $tagMap.ContainsKey($t)) { $tagMap[$t] = [System.Collections.ArrayList]::new() }
-        $null = $tagMap[$t].Add($e)
-    }
-}
-
-# --- 3. Build domain map ---
-$domainMap = @{}
-foreach ($e in $entries) {
-    if (-not $domainMap.ContainsKey($e.Domain)) {
-        $domainMap[$e.Domain] = @{ gotcha = [System.Collections.ArrayList]::new(); pattern = [System.Collections.ArrayList]::new(); decision = [System.Collections.ArrayList]::new() }
-    }
-    $null = $domainMap[$e.Domain][$e.Type].Add($e)
-}
-
-# --- 4. Build severity map ---
-$severityMap = @{ critical = [System.Collections.ArrayList]::new(); warning = [System.Collections.ArrayList]::new(); info = [System.Collections.ArrayList]::new() }
-foreach ($e in $entries) {
-    $sev = $e.Severity
-    if (-not $severityMap.ContainsKey($sev)) { $sev = 'info' }
-    $null = $severityMap[$sev].Add($e)
-}
-
-# --- 5. Generate INDEX.md content ---
-$now = Get-Date -Format 'yyyy-MM-dd HH:mm'
-$count = $entries.Count
-
-$sb = [System.Text.StringBuilder]::new()
-[void]$sb.AppendLine('# His.Hope Knowledge Base Index')
-[void]$sb.AppendLine("> Auto-generated: $now | $count entries | Run ``./scripts/generate-index.ps1`` to update")
-[void]$sb.AppendLine('')
-[void]$sb.AppendLine('---')
-[void]$sb.AppendLine('')
-[void]$sb.AppendLine('## Quick Reference')
-[void]$sb.AppendLine('')
-[void]$sb.AppendLine('| What | Where |')
-[void]$sb.AppendLine('|---|---|')
-[void]$sb.AppendLine('| Gotchas (pitfalls to avoid) | Search by tag below → read entry |')
-[void]$sb.AppendLine('| Patterns (proven code templates) | Search by domain below → read entry |')
-[void]$sb.AppendLine('| Decisions (architectural choices) | Search by tag below → read entry |')
-[void]$sb.AppendLine('| Contribute new entry | Create in `.capture/` → @architect review → move to `entries/` |')
-[void]$sb.AppendLine('')
-[void]$sb.AppendLine('---')
-[void]$sb.AppendLine('')
-[void]$sb.AppendLine('## By Tag')
-[void]$sb.AppendLine('')
-[void]$sb.AppendLine('| Tag | Entries |')
-[void]$sb.AppendLine('|---|---|')
-
-foreach ($tag in ($tagMap.Keys | Sort-Object)) {
-    $links = ($tagMap[$tag] | ForEach-Object { "[$($_.Id)]($($_.RelPath))" }) -join ', '
-    [void]$sb.AppendLine("| `` $tag `` | $links |")
-}
-
-[void]$sb.AppendLine('')
-[void]$sb.AppendLine('---')
-[void]$sb.AppendLine('')
-[void]$sb.AppendLine('## By Domain')
-[void]$sb.AppendLine('')
-[void]$sb.AppendLine('| Domain | Gotchas | Patterns | Decisions |')
-[void]$sb.AppendLine('|---|---|---|---|')
-
-foreach ($domain in ($domainMap.Keys | Sort-Object)) {
-    $dm = $domainMap[$domain]
-    $gItems = if ($dm['gotcha'].Count -gt 0) { ($dm['gotcha'] | ForEach-Object { "[$($_.Id)]($($_.RelPath))" }) -join ', ' } else { '—' }
-    $pItems = if ($dm['pattern'].Count -gt 0) { ($dm['pattern'] | ForEach-Object { "[$($_.Id)]($($_.RelPath))" }) -join ', ' } else { '—' }
-    $dItems = if ($dm['decision'].Count -gt 0) { ($dm['decision'] | ForEach-Object { "[$($_.Id)]($($_.RelPath))" }) -join ', ' } else { '—' }
-    [void]$sb.AppendLine("| `` $domain `` | $gItems | $pItems | $dItems |")
-}
-
-[void]$sb.AppendLine('')
-[void]$sb.AppendLine('---')
-[void]$sb.AppendLine('')
-[void]$sb.AppendLine('## By Severity')
-[void]$sb.AppendLine('')
-[void]$sb.AppendLine('| Severity | Entries |')
-[void]$sb.AppendLine('|---|---|')
-
-$sevIcons = @{ critical = 'critical'; warning = 'warning'; info = 'info' }
-foreach ($sev in @('critical', 'warning', 'info')) {
-    $items = $severityMap[$sev]
-    if ($items.Count -gt 0) {
-        $links = ($items | ForEach-Object { "[$($_.Id)]($($_.RelPath))" }) -join ', '
-        [void]$sb.AppendLine("| $sev | $links |")
-    }
-}
-
-# Write to file
-$sb.ToString() | Set-Content -Path $indexFile -Encoding UTF8
-
-Write-Host "INDEX.md generated: $count entries, $($tagMap.Count) tags, $($domainMap.Count) domains"
-```
-
-- [ ] **Step 2: Test script with empty entries directory (should warn gracefully)**
-
-```powershell
-pwsh -File docs/knowledge/scripts/generate-index.ps1
-```
-
-Expected: Warning about no .md files, creates minimal INDEX.md
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add docs/knowledge/scripts/generate-index.ps1
-git commit -m "feat(knowledge): add generate-index.ps1 script for auto-generating INDEX.md"
-```

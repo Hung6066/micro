@@ -1,0 +1,82 @@
+- generic [active] [ref=f1e1]:
+  - link "Chuyển đến nội dung chính" [ref=f1e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f1e4]:
+    - generic [ref=f1e8]:
+      - generic [ref=f1e9]:
+        - generic [ref=f1e10]:
+          - img [ref=f1e11]: local_hospital
+          - generic [ref=f1e12]: His.Hope
+        - button "Đóng menu điều hướng" [ref=f1e13] [cursor=pointer]:
+          - img [ref=f1e14]: close
+      - generic [ref=f1e20]:
+        - img [ref=f1e22]: search
+        - combobox "Tìm bệnh nhân..." [ref=f1e24]
+      - navigation "Điều hướng chính" [ref=f1e25]:
+        - link [ref=f1e26] [cursor=pointer]:
+          - /url: /en/dashboard
+          - img [ref=f1e27]: dashboard
+        - link [ref=f1e29] [cursor=pointer]:
+          - /url: /en/patients
+          - img [ref=f1e30]: people
+        - link [ref=f1e32] [cursor=pointer]:
+          - /url: /en/appointments
+          - img [ref=f1e33]: calendar_today
+        - link [ref=f1e35] [cursor=pointer]:
+          - /url: /en/clinical
+          - img [ref=f1e36]: medical_services
+        - link [ref=f1e38] [cursor=pointer]:
+          - /url: /en/pharmacy
+          - img [ref=f1e39]: medication
+        - link [ref=f1e41] [cursor=pointer]:
+          - /url: /en/lab
+          - img [ref=f1e42]: biotech
+        - link [ref=f1e44] [cursor=pointer]:
+          - /url: /en/billing
+          - img [ref=f1e45]: receipt
+        - link [ref=f1e47] [cursor=pointer]:
+          - /url: /en/admin
+          - img [ref=f1e48]: settings
+      - generic [ref=f1e50]:
+        - generic [ref=f1e51]: Viên Quản Trị
+        - button "Đăng xuất" [ref=f1e53] [cursor=pointer]:
+          - img [ref=f1e54]: logout
+    - generic [ref=f1e58]:
+      - status [ref=f1e60]:
+        - generic [ref=f1e61]:
+          - img [ref=f1e62]: warning_amber
+          - generic [ref=f1e63]:
+            - generic [ref=f1e64]: "Http failure response for http://localhost:8081/api/v1/patients/search?q=&page=1&pageSize=8: 401 Unauthorized"
+            - generic [ref=f1e65]: "Ref: hh-mrtfgbpl-khms2y"
+          - generic [ref=f1e66]:
+            - button [ref=f1e67] [cursor=pointer]:
+              - img [ref=f1e68]: content_copy
+            - button [ref=f1e71] [cursor=pointer]:
+              - img [ref=f1e72]: close
+      - generic [ref=f1e78]:
+        - generic [ref=f1e79]:
+          - generic [ref=f1e80]:
+            - generic [ref=f1e81]: His.Hope
+            - generic [ref=f1e82]: Đăng nhập hệ thống
+          - img [ref=f1e83]: local_hospital
+        - generic [ref=f1e85]:
+          - generic [ref=f1e88]:
+            - generic [ref=f1e89]:
+              - text: Tên đăng nhập
+              - generic [ref=f1e90]: "*"
+            - img [ref=f1e92]: person
+            - textbox "Tên đăng nhập" [ref=f1e94]:
+              - /placeholder: Nhập tài khoản
+              - text: admin
+          - generic [ref=f1e98]:
+            - generic [ref=f1e99]:
+              - text: Mật khẩu
+              - generic [ref=f1e100]: "*"
+            - img [ref=f1e102]: lock
+            - textbox "Mật khẩu" [ref=f1e104]:
+              - /placeholder: Nhập mật khẩu
+              - text: Admin@123
+          - button "Đăng nhập" [disabled]
+  - generic [ref=f1e113]:
+    - generic [ref=f1e114]: An unexpected error occurred. Please try again.
+    - button "OK" [ref=f1e116]

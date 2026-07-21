@@ -1,7 +1,4 @@
-using Microsoft.Extensions.Caching.Distributed;
-using Microsoft.Extensions.Caching.StackExchangeRedis;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using StackExchange.Redis;
 
@@ -20,27 +17,39 @@ public interface ICacheService
 
 public class DistributedCacheService : ICacheService
 {
-    private readonly IDistributedCache _cache;
     private readonly ILogger<DistributedCacheService> _logger;
     private readonly IConnectionMultiplexer _connectionMultiplexer;
     private readonly string _instancePrefix;
-    private readonly DistributedCacheEntryOptions _defaultOptions;
+    private static readonly TimeSpan RedisOpTimeout = TimeSpan.FromSeconds(5);
 
     public DistributedCacheService(
-        IDistributedCache cache,
         ILogger<DistributedCacheService> logger,
-        IConnectionMultiplexer connectionMultiplexer,
-        IOptions<RedisCacheOptions> redisCacheOptions)
+        IConnectionMultiplexer connectionMultiplexer)
     {
-        _cache = cache;
         _logger = logger;
         _connectionMultiplexer = connectionMultiplexer;
-        _instancePrefix = redisCacheOptions.Value.InstanceName ?? string.Empty;
-        _defaultOptions = new DistributedCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
-            SlidingExpiration = TimeSpan.FromMinutes(2),
-        };
+        _instancePrefix = "HisHope:";
+    }
+
+    private IDatabase GetDatabase() => _connectionMultiplexer.GetDatabase();
+
+    private static async Task<T> WithTimeout<T>(Task<T> task, TimeSpan timeout)
+    {
+        using var cts = new CancellationTokenSource(timeout);
+        var completed = await Task.WhenAny(task, Task.Delay(Timeout.Infinite, cts.Token));
+        if (completed == task)
+            return await task;
+        throw new TimeoutException("Redis operation timed out");
+    }
+
+    private static async Task WithTimeout(Task task, TimeSpan timeout)
+    {
+        using var cts = new CancellationTokenSource(timeout);
+        var completed = await Task.WhenAny(task, Task.Delay(Timeout.Infinite, cts.Token));
+        if (completed == task)
+            await task;
+        else
+            throw new TimeoutException("Redis operation timed out");
     }
 
     public async Task<T?> GetAsync<T>(string key, CancellationToken ct = default)
@@ -48,8 +57,10 @@ public class DistributedCacheService : ICacheService
     {
         try
         {
-            var cached = await _cache.GetStringAsync(key, ct);
-            return cached is null ? null : JsonConvert.DeserializeObject<T>(cached);
+            var redisKey = (RedisKey)(_instancePrefix + key);
+            var cached = await WithTimeout(GetDatabase().StringGetAsync(redisKey), RedisOpTimeout);
+            if (cached.IsNullOrEmpty) return null;
+            return JsonConvert.DeserializeObject<T>(cached.ToString());
         }
         catch (Exception ex)
         {
@@ -75,15 +86,12 @@ public class DistributedCacheService : ICacheService
     {
         try
         {
-            var options = expiry.HasValue
-                ? new DistributedCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = expiry
-                }
-                : _defaultOptions;
-
+            var redisKey = (RedisKey)(_instancePrefix + key);
             var serialized = JsonConvert.SerializeObject(value);
-            await _cache.SetStringAsync(key, serialized, options, ct);
+            if (expiry.HasValue)
+                await WithTimeout(GetDatabase().StringSetAsync(redisKey, serialized, expiry), RedisOpTimeout);
+            else
+                await WithTimeout(GetDatabase().StringSetAsync(redisKey, serialized), RedisOpTimeout);
         }
         catch (Exception ex)
         {
@@ -95,7 +103,8 @@ public class DistributedCacheService : ICacheService
     {
         try
         {
-            await _cache.RemoveAsync(key, ct);
+            var redisKey = (RedisKey)(_instancePrefix + key);
+            await WithTimeout(GetDatabase().KeyDeleteAsync(redisKey), RedisOpTimeout);
         }
         catch (Exception ex)
         {
@@ -126,8 +135,7 @@ public class DistributedCacheService : ICacheService
 
             if (keysToDelete.Count > 0)
             {
-                var db = _connectionMultiplexer.GetDatabase();
-                await db.KeyDeleteAsync(keysToDelete.ToArray(), flags: CommandFlags.None);
+                await WithTimeout(GetDatabase().KeyDeleteAsync(keysToDelete.ToArray()), RedisOpTimeout);
             }
         }
         catch (Exception ex)

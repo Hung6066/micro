@@ -9,24 +9,30 @@ public class LoopEngineer : ILoopEngineer
     private readonly ConfidenceScorer _scorer;
     private readonly IMemoryService _memory;
     private readonly LlmJudgeService _judge;
-    private const int MaxIterations = 3;
+    private readonly int _maxIterations;
 
-    public LoopEngineer(ErrorClassifier classifier, ConfidenceScorer scorer, IMemoryService memory, LlmJudgeService judge)
+    public LoopEngineer(
+        ErrorClassifier classifier,
+        ConfidenceScorer scorer,
+        IMemoryService memory,
+        LlmJudgeService judge,
+        int maxIterations = 3)
     {
         _classifier = classifier;
         _scorer = scorer;
         _memory = memory;
         _judge = judge;
+        _maxIterations = maxIterations;
     }
 
     public async Task<FixResult> AnalyzeAndFixAsync(LoopContext context, CancellationToken ct)
     {
-        if (context.PreviousIteration >= MaxIterations)
+        if (context.PreviousIteration >= _maxIterations)
         {
             return new FixResult
             {
                 Outcome = FixOutcome.GiveUp,
-                EscalationReason = $"Max iterations ({MaxIterations}) reached",
+                EscalationReason = $"Max iterations ({_maxIterations}) reached",
                 ConfidenceScore = 0m
             };
         }
@@ -38,9 +44,10 @@ public class LoopEngineer : ILoopEngineer
         foreach (var gate in context.FailedGates)
         {
             var output = gate.Output ?? string.Empty;
+            var gateType = gate.GateType ?? gate.GateName ?? "unknown";
 
             // Step 1: Check memory for known fix
-            var memoryEntry = await _memory.FindSimilarAsync(output, gate.GateType, ct);
+            var memoryEntry = await _memory.FindSimilarAsync(output, gateType, ct);
             if (memoryEntry != null)
             {
                 await _memory.RecordHitAsync(memoryEntry.Id, ct);
@@ -101,7 +108,7 @@ public class LoopEngineer : ILoopEngineer
             else
             {
                 allAutoFixed = false;
-                result.UnfixedIssues.Add(gate.GateName);
+                result.UnfixedIssues.Add(gate.GateName ?? gate.GateId ?? "unknown-gate");
             }
         }
 
@@ -126,12 +133,21 @@ public class LoopEngineer : ILoopEngineer
 
     public Task<bool> EvaluateLoopContinuationAsync(PipelineRun run, LoopBackEdge loopEdge, CancellationToken ct = default)
     {
-        throw new NotImplementedException();
+        var canContinue = run.Status == PipelineStatus.Running &&
+                          loopEdge.CurrentIteration < loopEdge.MaxIterations;
+        return Task.FromResult(canContinue);
     }
 
     public Task<AgentRun> ExecuteLoopIterationAsync(PipelineRun run, LoopBackEdge loopEdge, CancellationToken ct = default)
     {
-        throw new NotImplementedException();
+        loopEdge.CurrentIteration++;
+        var agentRun = AgentRun.Create(
+            run.Id,
+            loopEdge.ViaAgent,
+            $"Loop iteration {loopEdge.CurrentIteration}/{loopEdge.MaxIterations}: review failed gate '{loopEdge.From.GateId ?? loopEdge.From.AgentName}' and route back to '{loopEdge.To.AgentName}'.",
+            maxRetries: 1,
+            timeoutSeconds: 600);
+        return Task.FromResult(agentRun);
     }
 
     private List<string> CheckSafetyFences(QualityGate gate)

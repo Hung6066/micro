@@ -1,0 +1,88 @@
+- generic [ref=f5e1]:
+  - link "Chuyển đến nội dung chính" [ref=f5e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f5e4]:
+    - generic [ref=f5e8]:
+      - generic [ref=f5e9]:
+        - generic [ref=f5e10]:
+          - img [ref=f5e11]: local_hospital
+          - generic [ref=f5e12]: His.Hope
+        - button "Đóng menu điều hướng" [ref=f5e13] [cursor=pointer]:
+          - img [ref=f5e14]: close
+      - generic [ref=f5e20]:
+        - img [ref=f5e22]: search
+        - combobox "Tìm bệnh nhân..." [ref=f5e24]
+      - navigation "Điều hướng chính" [ref=f5e25]:
+        - link [ref=f5e26] [cursor=pointer]:
+          - /url: /en/dashboard
+          - img [ref=f5e27]: dashboard
+        - link [active] [ref=f5e29] [cursor=pointer]:
+          - /url: /en/patients
+          - img [ref=f5e30]: people
+        - link [ref=f5e32] [cursor=pointer]:
+          - /url: /en/appointments
+          - img [ref=f5e33]: calendar_today
+        - link [ref=f5e35] [cursor=pointer]:
+          - /url: /en/clinical
+          - img [ref=f5e36]: medical_services
+        - link [ref=f5e38] [cursor=pointer]:
+          - /url: /en/pharmacy
+          - img [ref=f5e39]: medication
+        - link [ref=f5e41] [cursor=pointer]:
+          - /url: /en/lab
+          - img [ref=f5e42]: biotech
+        - link [ref=f5e44] [cursor=pointer]:
+          - /url: /en/billing
+          - img [ref=f5e45]: receipt
+        - link [ref=f5e47] [cursor=pointer]:
+          - /url: /en/admin
+          - img [ref=f5e48]: settings
+      - generic [ref=f5e50]:
+        - generic [ref=f5e51]: Viên Quản Trị
+        - button "Đăng xuất" [ref=f5e53] [cursor=pointer]:
+          - img [ref=f5e54]: logout
+    - generic [ref=f5e58]:
+      - status [ref=f5e60]:
+        - generic [ref=f5e61]:
+          - img [ref=f5e62]: error_outline
+          - button [ref=f5e64] [cursor=pointer]:
+            - img [ref=f5e65]: close
+      - generic [ref=f5e199]:
+        - generic [ref=f5e200]:
+          - heading "Patients" [level=1] [ref=f5e201]
+          - button "New Patient" [ref=f5e202]:
+            - img [ref=f5e203]: add
+        - generic [ref=f5e209]:
+          - generic: Search patients
+          - img [ref=f5e212]: search
+          - textbox "Search patients" [ref=f5e214]:
+            - /placeholder: Name, phone, or ID...
+        - table [ref=f5e216] [cursor=pointer]:
+          - row [ref=f5e217]:
+            - columnheader "Name" [ref=f5e218]
+            - columnheader "Gender" [ref=f5e219]
+            - columnheader "DOB" [ref=f5e220]
+            - columnheader "Age" [ref=f5e221]
+            - columnheader "Phone" [ref=f5e222]
+            - columnheader "Actions" [ref=f5e223]
+          - row [ref=f5e224]:
+            - cell "Nguyen An" [ref=f5e225]
+            - cell "Male" [ref=f5e226]
+            - cell "Jan 1, 1990" [ref=f5e227]
+            - cell "36" [ref=f5e228]
+            - cell "0900000001" [ref=f5e229]
+            - cell [ref=f5e230]:
+              - button "Xem chi tiết bệnh nhân Nguyen An" [ref=f5e231]:
+                - img [ref=f5e232]: visibility
+              - button "Chỉnh sửa bệnh nhân Nguyen An" [ref=f5e235]:
+                - img [ref=f5e236]: edit
+        - group [ref=f5e239]:
+          - generic [ref=f5e241]:
+            - generic [ref=f5e242]:
+              - generic [ref=f5e243]: "Items per page:"
+              - combobox "Items per page:" [ref=f5e248] [cursor=pointer]:
+                - generic [ref=f5e249]: "20"
+            - generic [ref=f5e257]:
+              - generic [ref=f5e258]: 1 – 1 of 1
+              - button "Previous page" [disabled] [ref=f5e259]
+              - button "Next page" [disabled] [ref=f5e264]

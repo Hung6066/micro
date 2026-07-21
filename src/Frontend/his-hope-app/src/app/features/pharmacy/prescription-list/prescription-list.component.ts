@@ -68,11 +68,12 @@ import { Prescription, PrescriptionStatus } from '@core/models/prescription.mode
       }
 
       @if (!loading && prescriptions.length > 0) {
-      <mat-table [dataSource]="prescriptions" class="mat-elevation-z2">
-        <ng-container matColumnDef="id">
-          <mat-header-cell *matHeaderCellDef>Mã đơn</mat-header-cell>
-          <mat-cell *matCellDef="let p">{{ p.id | slice:0:8 }}...</mat-cell>
-        </ng-container>
+      <div class="table-container">
+        <mat-table [dataSource]="prescriptions" class="mat-elevation-z2">
+          <ng-container matColumnDef="id">
+            <mat-header-cell *matHeaderCellDef>Mã đơn</mat-header-cell>
+            <mat-cell *matCellDef="let p">{{ p.id | slice:0:8 }}...</mat-cell>
+          </ng-container>
 
         <ng-container matColumnDef="medicationName">
           <mat-header-cell *matHeaderCellDef>Thuốc</mat-header-cell>
@@ -107,19 +108,22 @@ import { Prescription, PrescriptionStatus } from '@core/models/prescription.mode
           </mat-cell>
         </ng-container>
 
-        <ng-container matColumnDef="actions">
-          <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
-          <mat-cell *matCellDef="let p">
-            <button mat-icon-button color="primary" (click)="viewDetail(p.id)"
-                    attr.aria-label="Xem chi tiết đơn thuốc">
-              <mat-icon>visibility</mat-icon>
-            </button>
-          </mat-cell>
-        </ng-container>
+          <ng-container matColumnDef="actions">
+            <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
+            <mat-cell *matCellDef="let p">
+              <button mat-icon-button color="primary" (click)="viewDetail(p.id)"
+                      attr.aria-label="Xem chi tiết đơn thuốc">
+                <mat-icon>visibility</mat-icon>
+              </button>
+            </mat-cell>
+          </ng-container>
 
-        <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
-        <mat-row *matRowDef="let row; columns: displayedColumns;" (click)="viewDetail(row.id)" class="clickable-row"></mat-row>
-      </mat-table>
+          <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
+          <mat-row *matRowDef="let row; columns: displayedColumns;" (click)="viewDetail(row.id)" (keydown.enter)="viewDetail(row.id)"
+                   (keydown.space)="$event.preventDefault(); viewDetail(row.id)" class="clickable-row" tabindex="0" role="button"
+                   [attr.aria-label]="'Xem chi tiết đơn thuốc ' + row.medicationName"></mat-row>
+        </mat-table>
+      </div>
       }
 
       @if (!loading && totalCount > 0) {
@@ -135,9 +139,11 @@ import { Prescription, PrescriptionStatus } from '@core/models/prescription.mode
     .filters { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
     .search-field { flex: 1; min-width: 250px; }
     .status-filter { width: 220px; }
+    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     mat-table { width: 100%; cursor: pointer; }
     mat-row:hover { background: #f5f5f5; }
     .clickable-row { cursor: pointer; }
+    .clickable-row:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: -2px; }
 
     .loading-shimmer { margin-bottom: 16px; }
     .empty-state { text-align: center; padding: 48px; color: #999; }

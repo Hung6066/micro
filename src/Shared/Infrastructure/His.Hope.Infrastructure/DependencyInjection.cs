@@ -15,6 +15,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using StackExchange.Redis;
 
 namespace His.Hope.Infrastructure;
 
@@ -30,6 +31,11 @@ public static class DependencyInjection
 
         // Register hybrid cache (L1 in-memory + L2 Redis) with stampede prevention.
         // Replaces the basic distributed (L2-only) cache.
+        // Register singleton Redis ConnectionMultiplexer for lock manager and cache
+        // Uses default settings matching the health check's ConnectionMultiplexer
+        services.AddSingleton<IConnectionMultiplexer>(sp =>
+            ConnectionMultiplexer.Connect(redisConnectionString));
+
         services.AddHisHopeHybridCaching(redisConnectionString);
 
         // Register cache warmup background service.
@@ -48,8 +54,6 @@ public static class DependencyInjection
 
         services.AddSingleton<EventTypeRegistry>();
         services.AddScoped<CorrelationContext>();
-        services.AddSingleton<GlobalExceptionMiddleware>();
-
         // Locking pipeline behavior registered before tracing so it wraps externally
         services.AddSingleton<ILockManager, RedisLockManager>();
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LockingPipelineBehavior<,>));
@@ -59,7 +63,6 @@ public static class DependencyInjection
         services.AddSingleton<IBruteForceProtectionService, BruteForceProtectionService>();
 
         // QoS: 5-tier request priority admission control
-        services.AddSingleton<PriorityAdmissionMiddleware>();
         services.AddSingleton(sp =>
         {
             var config = sp.GetRequiredService<IConfiguration>();

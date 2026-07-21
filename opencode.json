@@ -26,7 +26,7 @@
   "default_agent": "architect",
   "agent": {
     "architect": {
-      "description": "Lead system architect — coordinates the engineering team, delegates to specialized agents (@explore, @dotnet, @angular, @devops, @dba, @security, @ml-ai, @data-platform, @qa). Uses all MCP servers: db-* (7 databases), github, kubernetes, docker, rabbitmq, redis, prometheus, filesystem, playwright, sequential-thinking, jira (issue tracking), confluence (docs), token-optimizer (context compression).",
+      "description": "Lead system architect — coordinates the engineering team, delegates to specialized agents (@explore, @dotnet, @angular, @devops, @dba, @security, @ml-ai, @data-platform, @qa). Uses all MCP servers: db-* (7 databases), github, kubernetes, docker, rabbitmq, redis, prometheus, filesystem, playwright, sequential-thinking, jira (issue tracking), confluence (docs), token-optimizer (context compression), code-review-graph (graph-based code intelligence).",
       "model": "opencode-go/deepseek-v4-pro",
       "fallback_models": ["openai/gpt-5.5"],
       "permission": "allow"
@@ -39,30 +39,33 @@
     },
     "testing-backend": {
       "description": "Backend testing agent (.NET xUnit, integration tests with Testcontainers, gRPC contract tests). Uses MCP: db-* for test DB verification, rabbitmq for event bus test inspection, docker for containerized integration test exec.",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
     "testing-frontend": {
       "description": "Frontend testing agent (Angular Jasmine/Karma, Cypress E2E, Playwright, accessibility axe). Uses MCP: playwright, agent-harness.",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow",
       "mcp": {
         "agent-harness": "allow"
       }
     },
     "validate": {
-      "description": "Validation agent (API contract, schema, FluentValidation, build, config/secrets, migration safety, knowledge index freshness). Uses MCP: db-* for migration verification, docker for container validation, filesystem for config inspection.",
-      "model": "openai/gpt-5.4-mini",
-      "permission": "allow"
+      "description": "Validation agent (API contract, schema, FluentValidation, build, config/secrets, migration safety, knowledge index freshness). Uses MCP: db-* for migration verification, docker for container validation, filesystem for config inspection, code-review-graph for impact analysis.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow",
+      "mcp": {
+        "code-review-graph": "allow"
+      }
     },
     "check-ui": {
       "description": "UI check agent (Material theming, accessibility WCAG 2.1 AA, responsive layout, design system). Uses MCP: playwright for visual regression and accessibility testing.",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
     "dotnet": {
       "description": "Senior .NET backend engineer for His.Hope microservices (Clean Architecture, CQRS, DDD, gRPC, EF Core). Uses MCP: db-* (7 databases), rabbitmq, docker, agent-harness for pipeline tasks.",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow",
       "mcp": {
         "agent-harness": "allow"
@@ -70,7 +73,7 @@
     },
     "angular": {
       "description": "Senior Angular frontend engineer for His.Hope SPA (Angular 17, NgRx, Angular Material, RxJS). Uses MCP: filesystem for code navigation, agent-harness for pipeline tasks.",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow",
       "mcp": {
         "agent-harness": "allow",
@@ -79,65 +82,72 @@
     },
     "devops": {
       "description": "DevOps / SRE engineer (Kubernetes, Docker, Linkerd, Cilium, Tekton, ArgoCD, Bazel). Uses MCP: kubernetes for pod/deployment/service management, docker for container exec/logs, prometheus for metrics/SLO queries, rabbitmq for event bus health, redis for cache inspection.",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
     "dba": {
       "description": "Database engineer / DBA (CockroachDB, SQL migrations, data modeling, query performance). Uses MCP: db-identity, db-patient, db-appointment, db-clinical, db-lab, db-billing, db-pharmacy for direct SQL queries on all 7 service databases, docker for DB container management.",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
     "security": {
       "description": "Security engineer (Vault, JWT auth, RBAC, Cilium network policies, HIPAA compliance). Uses MCP: redis for JWT token blacklist inspection, github for security audit/secret scanning, kubernetes for network policy verification.",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
     "ml-ai": {
       "description": "ML/AI engineer (model training/serving, Vertex AI, feature store, predictive analytics). Uses MCP: prometheus for model performance metrics, docker for ML container management.",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
     "data-platform": {
       "description": "Data platform engineer (BigQuery, Dataflow, Pub/Sub, dbt, analytics pipelines). Uses MCP: prometheus for pipeline metrics, rabbitmq for event stream inspection.",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
     "qa": {
       "description": "QA / Testing engineer (xUnit, Cypress, Chaos Mesh, k6, contract testing, quality gates, eval-driven development). Uses MCP: playwright, kubernetes, docker, prometheus, agent-harness for pipeline tasks, jira (auto-create bugs), evalview (agent regression testing). ECC skills: verification-loop, eval-harness, security-review.",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow",
       "mcp": {
-        "agent-harness": "allow"
+        "agent-harness": "allow",
+        "code-review-graph": "allow"
       }
     },
     "dispatcher": {
       "description": "Intelligent Dispatcher — analyzes feature requests, classifies scope/complexity, selects optimal minimal agent set (including @explore). SMART ENTRY POINT: use before @orchestrator or direct delegation. No MCP usage (router only).",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
     "orchestrator": {
       "description": "Pipeline Orchestrator — full 5-phase pipeline for COMPLEX features only. Coordinates @explore, @docs, @dotnet, @angular, @qa, @check-ui, @security, @git. Activated by @dispatcher when PATH_FULL is selected. Only @orchestrator can green-light @git for commits. Uses MCP indirectly via delegated agents. ECC skills: verification-loop, eval-harness, autonomous-loops, security-review, search-first, continuous-learning-v2. MCP: jira (create/link issues during pipeline), evalview (agent regression testing in Phase 3), route-llm (cost-aware model routing via agent-harness).",
-      "model": "openai/gpt-5.4-mini",
-      "permission": "allow"
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow",
+      "mcp": {
+        "code-review-graph": "allow"
+      }
     },
     "docs": {
       "description": "Documentation agent — ADRs, API docs, service READMEs, changelogs, runbooks, dev guides, knowledge base (capture & verify). Runs in Phase 2 (generate) + Phase 4 (verify) of pipeline. Uses MCP: filesystem for reading/writing docs, github for git operations on doc files, confluence (search enterprise docs for context).",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
     "explore": {
-      "description": "Fast agent specialized for exploring codebases — find files by patterns, search code for keywords, answer questions about the codebase. Uses MCP: filesystem for file navigation and content search.",
-      "model": "openai/gpt-5.4-mini",
-      "permission": "allow"
+      "description": "Fast agent specialized for exploring codebases — find files by patterns, search code for keywords, answer questions about the codebase. Uses MCP: filesystem for file navigation and content search, code-review-graph for graph-based code intelligence.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow",
+      "mcp": {
+        "code-review-graph": "allow"
+      }
     },
     "git": {
       "description": "Git/GitHub integration agent — stage, commit (Conventional Commits), push, branch, PR. Commits ONLY after quality gate green-light from @orchestrator. Uses MCP: github for GitHub API operations (PRs, issues, search), filesystem for staging files.",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
     "e2e-test": {
       "description": "Playwright E2E UI testing agent — tests ALL Angular routes, forms, dialogs, tables, search, pagination, navigation, error states. Uses Playwright MCP browser automation for comprehensive end-to-end UI validation across all feature modules.",
-      "model": "openai/gpt-5.4-mini",
+      "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
     "harness-runner": {
@@ -180,7 +190,8 @@
         "db-clinical": "allow",
         "db-lab": "allow",
         "db-billing": "allow",
-        "db-pharmacy": "allow"
+        "db-pharmacy": "allow",
+        "code-review-graph": "allow"
       },
       "loop_config": {
         "max_iterations": 3,
@@ -366,6 +377,18 @@
       "type": "local",
       "command": ["npx", "-y", "token-optimizer-mcp"],
       "description": "Token optimization — content deduplication and compression for 95%+ context reduction",
+      "enabled": true
+    },
+    "code-review-graph": {
+      "type": "local",
+      "command": ["uvx", "code-review-graph", "serve"],
+      "description": "Code intelligence graph — blast-radius analysis, risk-scored PR reviews, semantic search, architecture maps, 30+ MCP tools. Builds persistent AST graph via Tree-sitter. GitHub: https://github.com/tirth8205/code-review-graph",
+      "env": {
+        "CRG_DATA_DIR": "D:\\AI\\micro\\.code-review-graph",
+        "CRG_GIT_TIMEOUT": "30",
+        "CRG_MAX_IMPACT_NODES": "500",
+        "CRG_MAX_IMPACT_DEPTH": "2"
+      },
       "enabled": true
     }
   }

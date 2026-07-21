@@ -19,6 +19,16 @@ public class User : IdentityUser<Guid>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAt { get; set; }
 
+    // SECURITY: Account lockout
+    public int FailedLoginAttempts { get; set; }
+    public DateTime? LockoutEnd { get; set; }
+
+    // SECURITY: Password policy
+    public DateTime? LastPasswordChangedAt { get; set; }
+
+    // SECURITY: Trusted devices for MFA skip
+    public string? TrustedDeviceToken { get; set; }
+
     public string FullName
     {
         get

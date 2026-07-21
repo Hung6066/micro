@@ -67,7 +67,7 @@ import { MatIconModule } from '@angular/material/icon';
       color: var(--mat-sys-on-error-container);
     }
     .title {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: var(--font-sans);
       font-size: 24px;
       font-weight: 600;
       color: #1A1A1A;
@@ -75,7 +75,7 @@ import { MatIconModule } from '@angular/material/icon';
       line-height: 1.3;
     }
     .message {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: var(--font-sans);
       font-size: 15px;
       color: #787774;
       line-height: 1.6;

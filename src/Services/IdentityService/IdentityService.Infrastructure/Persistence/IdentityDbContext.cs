@@ -14,6 +14,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<UserMfa> UserMfas => Set<UserMfa>();
+    public DbSet<SecurityEvent> SecurityEvents => Set<SecurityEvent>();
 
     public IdentityDbContext(DbContextOptions<IdentityDbContext> options) : base(options) { }
 
@@ -60,6 +61,10 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(u => u.IsActive).IsRequired();
             entity.Property(u => u.CreatedAt).IsRequired();
             entity.Property(u => u.LastLoginAt);
+            entity.Property(u => u.FailedLoginAttempts).IsRequired().HasDefaultValue(0);
+            entity.Property(u => u.LockoutEnd);
+            entity.Property(u => u.LastPasswordChangedAt);
+            entity.Property(u => u.TrustedDeviceToken).HasMaxLength(256);
         });
 
         // ──────────────────────────────────────────────
@@ -180,6 +185,31 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
                   .WithOne()
                   .HasForeignKey<UserMfa>(m => m.UserId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ──────────────────────────────────────────────
+        // SecurityEvent configuration
+        // ──────────────────────────────────────────────
+        builder.Entity<SecurityEvent>(entity =>
+        {
+            entity.ToTable("security_events");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(e => e.UserId);
+            entity.Property(e => e.UserName).HasMaxLength(256);
+            entity.Property(e => e.EventType).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Severity).HasMaxLength(20).IsRequired().HasDefaultValue("info");
+            entity.Property(e => e.IpAddress).HasMaxLength(50);
+            entity.Property(e => e.UserAgent).HasMaxLength(500);
+            entity.Property(e => e.DeviceInfo).HasMaxLength(500);
+            entity.Property(e => e.Details).HasMaxLength(2000);
+            entity.Property(e => e.GeoCountry).HasMaxLength(100);
+            entity.Property(e => e.Timestamp).IsRequired();
+
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.EventType);
+            entity.HasIndex(e => e.Severity);
+            entity.HasIndex(e => e.Timestamp);
         });
     }
 }

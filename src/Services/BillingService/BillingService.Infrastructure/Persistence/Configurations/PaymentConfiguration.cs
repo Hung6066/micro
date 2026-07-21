@@ -9,7 +9,7 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
 {
     public void Configure(EntityTypeBuilder<Payment> builder)
     {
-        builder.ToTable("payments");
+        builder.ToTable("Payments");
 
         builder.HasKey(p => p.Id);
 
@@ -17,38 +17,38 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
             .HasConversion(
                 id => id.Value,
                 value => PaymentId.From(value))
-            .HasColumnName("id");
+            .HasColumnName("Id");
 
         builder.Property(p => p.InvoiceId)
             .HasConversion(
                 id => id.Value,
                 value => InvoiceId.From(value))
-            .HasColumnName("invoice_id");
+            .HasColumnName("InvoiceId");
 
-        builder.Property(p => p.PatientId).HasColumnName("patient_id").IsRequired();
-        builder.Property(p => p.Amount).HasColumnName("amount").HasColumnType("decimal(18,2)").IsRequired();
-        builder.Property(p => p.PaymentDate).HasColumnName("payment_date").IsRequired();
+        builder.Property(p => p.PatientId).HasColumnName("PatientId").IsRequired();
+        builder.Property(p => p.Amount).HasColumnName("Amount").HasColumnType("decimal(18,2)").IsRequired();
+        builder.Property(p => p.PaymentDate).HasColumnName("PaymentDate").IsRequired();
 
         builder.Property(p => p.Method)
             .HasConversion(
                 m => m.Code,
                 code => PaymentMethod.FromCode(code))
-            .HasColumnName("method")
+            .HasColumnName("Method")
             .HasMaxLength(20)
             .IsRequired();
 
-        builder.Property(p => p.ReferenceNumber).HasColumnName("reference_number").HasMaxLength(100);
+        builder.Property(p => p.ReferenceNumber).HasColumnName("ReferenceNumber").HasMaxLength(100);
 
         builder.Property(p => p.Status)
             .HasConversion(
                 s => s.Code,
                 code => PaymentStatus.FromCode(code))
-            .HasColumnName("status")
+            .HasColumnName("Status")
             .HasMaxLength(20)
             .IsRequired();
 
-        builder.Property(p => p.Notes).HasColumnName("notes").HasMaxLength(500);
-        builder.Property(p => p.CreatedAt).HasColumnName("created_at").IsRequired();
+        builder.Property(p => p.Notes).HasColumnName("Notes").HasMaxLength(500);
+        builder.Property(p => p.CreatedAt).HasColumnName("CreatedAt").IsRequired();
 
         builder.HasIndex(p => p.InvoiceId);
         builder.HasIndex(p => p.PatientId);

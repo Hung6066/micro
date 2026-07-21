@@ -9,7 +9,7 @@ public class InvoiceLineItemConfiguration : IEntityTypeConfiguration<InvoiceLine
 {
     public void Configure(EntityTypeBuilder<InvoiceLineItem> builder)
     {
-        builder.ToTable("invoice_line_items");
+        builder.ToTable("InvoiceLineItems");
 
         builder.HasKey(li => li.Id);
 
@@ -17,27 +17,27 @@ public class InvoiceLineItemConfiguration : IEntityTypeConfiguration<InvoiceLine
             .HasConversion(
                 id => id.Value,
                 value => InvoiceLineItemId.From(value))
-            .HasColumnName("id");
+            .HasColumnName("Id");
 
         builder.Property(li => li.InvoiceId)
             .HasConversion(
                 id => id.Value,
                 value => InvoiceId.From(value))
-            .HasColumnName("invoice_id");
+            .HasColumnName("InvoiceId");
 
-        builder.Property(li => li.Description).HasColumnName("description").HasMaxLength(500).IsRequired();
-        builder.Property(li => li.Quantity).HasColumnName("quantity").IsRequired();
-        builder.Property(li => li.UnitPrice).HasColumnName("unit_price").HasColumnType("decimal(18,2)").IsRequired();
-        builder.Property(li => li.ItemCode).HasColumnName("item_code").HasMaxLength(50);
+        builder.Property(li => li.Description).HasColumnName("Description").HasMaxLength(500).IsRequired();
+        builder.Property(li => li.Quantity).HasColumnName("Quantity").IsRequired();
+        builder.Property(li => li.UnitPrice).HasColumnName("UnitPrice").HasColumnType("decimal(18,2)").IsRequired();
+        builder.Property(li => li.ItemCode).HasColumnName("ItemCode").HasMaxLength(50);
 
         builder.Property(li => li.ItemType)
             .HasConversion(
                 t => t != null ? t.Code : null,
                 code => code != null ? InvoiceLineItemType.FromCode(code) : null)
-            .HasColumnName("item_type")
+            .HasColumnName("ItemType")
             .HasMaxLength(20);
 
-        builder.Property(li => li.CreatedAt).HasColumnName("created_at").IsRequired();
+        builder.Property(li => li.CreatedAt).HasColumnName("CreatedAt").IsRequired();
 
         builder.HasIndex(li => li.InvoiceId);
     }

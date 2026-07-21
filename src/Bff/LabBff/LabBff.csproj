@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>LabBff</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\His.Hope.Bff.Core\His.Hope.Bff.Core.csproj" />
+    <Protobuf Include="..\..\Shared\Protos\lab.proto" GrpcServices="Client" Link="Protos\lab.proto" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Grpc.Net.ClientFactory" Version="2.60.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.62.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Google.Protobuf" Version="3.26.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="LabBff.IntegrationTests" />
+  </ItemGroup>
+</Project>

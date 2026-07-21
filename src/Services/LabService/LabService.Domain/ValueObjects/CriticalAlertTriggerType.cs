@@ -1,7 +1,9 @@
+using System.Text.Json.Serialization;
 using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.LabService.Domain.ValueObjects;
 
+[JsonConverter(typeof(EnumerationJsonConverterFactory))]
 public class CriticalAlertTriggerType : Enumeration<CriticalAlertTriggerType>
 {
     public static readonly CriticalAlertTriggerType CriticalFlag = new("CRITICAL_FLAG", "Critical Flag");

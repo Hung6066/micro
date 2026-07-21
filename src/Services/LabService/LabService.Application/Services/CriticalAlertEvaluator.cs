@@ -42,7 +42,7 @@ public class CriticalAlertEvaluator
             ? await FindMatchingRuleAsync(test, result.Unit, numericValue.Value, cancellationToken)
             : null;
         var thresholdMatch = matchedRule is not null && numericValue.HasValue;
-        var currentAlert = await _alertRepository.GetCurrentAsync(order.Id.Value, test.Id.Value, cancellationToken);
+        var currentAlert = await _alertRepository.GetCurrentForUpdateAsync(order.Id.Value, test.Id.Value, cancellationToken);
 
         if (!isCriticalFlag && !thresholdMatch)
             return await ResolveAsync(order, test, result, cancellationToken);
@@ -67,7 +67,7 @@ public class CriticalAlertEvaluator
                 actorDisplayName);
 
             var savedAlert = await _alertRepository.AddAndSaveAsync(alert, order.Id.Value, test.Id.Value, cancellationToken);
-            return savedAlert is null ? null : ToDto(savedAlert);
+            return savedAlert is null ? null : CriticalAlertDtoMapper.ToDto(savedAlert);
         }
 
         currentAlert.UpdateObservation(
@@ -81,8 +81,11 @@ public class CriticalAlertEvaluator
             actorUserId,
             actorDisplayName);
 
+        _alertRepository.MarkAuditEntriesAdded(currentAlert);
+
         await _alertRepository.UnitOfWork.SaveChangesAsync(cancellationToken);
-        return ToDto(currentAlert);
+        var updatedAlert = await _alertRepository.GetByIdAsync(currentAlert.Id, cancellationToken) ?? currentAlert;
+        return CriticalAlertDtoMapper.ToDto(updatedAlert);
     }
 
     public async Task<CriticalAlertDto?> ResolveAsync(
@@ -91,7 +94,7 @@ public class CriticalAlertEvaluator
         LabResult result,
         CancellationToken cancellationToken = default)
     {
-        var currentAlert = await _alertRepository.GetCurrentAsync(order.Id.Value, test.Id.Value, cancellationToken);
+        var currentAlert = await _alertRepository.GetCurrentForUpdateAsync(order.Id.Value, test.Id.Value, cancellationToken);
         if (currentAlert is null)
             return null;
 
@@ -99,8 +102,12 @@ public class CriticalAlertEvaluator
         var actorDisplayName = GetActorDisplayName();
 
         currentAlert.Resolve(actorUserId, actorDisplayName, $"Resolved by noncritical result {result.Value}");
+
+        _alertRepository.MarkAuditEntriesAdded(currentAlert);
+
         await _alertRepository.UnitOfWork.SaveChangesAsync(cancellationToken);
-        return ToDto(currentAlert);
+        var resolvedAlert = await _alertRepository.GetByIdAsync(currentAlert.Id, cancellationToken) ?? currentAlert;
+        return CriticalAlertDtoMapper.ToDto(resolvedAlert);
     }
 
     private async Task<CriticalAlertRule?> FindMatchingRuleAsync(LabTest test, string? resultUnit, decimal value, CancellationToken cancellationToken)
@@ -161,33 +168,4 @@ public class CriticalAlertEvaluator
         return null;
     }
 
-    private static CriticalAlertDto ToDto(CriticalAlert alert) =>
-        new(
-            alert.Id,
-            alert.LabOrderId,
-            alert.LabTestId,
-            alert.LabResultId,
-            alert.RuleId,
-            alert.TriggerType,
-            alert.Status,
-            alert.Message,
-            alert.ResultValue,
-            alert.ResultUnit,
-            alert.ThresholdValue,
-            alert.CreatedAt,
-            alert.UpdatedAt,
-            alert.AcknowledgedAt,
-            alert.AcknowledgedByUserId,
-            alert.AcknowledgedByDisplayName,
-            alert.ResolvedAt,
-            alert.ResolvedByUserId,
-            alert.ResolvedByDisplayName,
-            alert.AuditEntries.Select(e => new CriticalAlertAuditEntryDto(
-                e.Id,
-                e.CriticalAlertId,
-                e.Action,
-                e.ActorUserId,
-                e.ActorDisplayName,
-                e.Notes,
-                e.OccurredAt)).ToList());
 }

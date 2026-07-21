@@ -1,7 +1,7 @@
 ---
 description: Playwright E2E UI testing agent for His.Hope Angular 17 SPA. Tests ALL routes, forms, dialogs, tables, search, pagination, navigation, error states, and responsive layouts. Use for comprehensive end-to-end UI validation across all feature modules. Uses Playwright MCP browser automation.
 mode: subagent
-model: openai/gpt-5.4-mini
+model: opencode-go/deepseek-v4-flash
 permission: allow
 ---
 

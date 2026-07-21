@@ -1,0 +1,30 @@
+- generic [active] [ref=f9e1]:
+  - link "Chuyển đến nội dung chính" [ref=f9e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f9e5]:
+    - generic [ref=f9e8]:
+      - img [ref=f9e9]: error_outline
+      - button [ref=f9e11] [cursor=pointer]:
+        - img [ref=f9e12]: close
+    - generic [ref=f9e18]:
+      - generic [ref=f9e19]:
+        - generic [ref=f9e20]:
+          - generic [ref=f9e21]: His.Hope
+          - generic [ref=f9e22]: Hệ thống Quản lý Bệnh viện
+        - img [ref=f9e23]: local_hospital
+      - generic [ref=f9e25]:
+        - generic [ref=f9e28]:
+          - generic [ref=f9e29]:
+            - text: Tên đăng nhập
+            - generic [ref=f9e30]: "*"
+          - img [ref=f9e32]: person
+          - textbox "Tên đăng nhập" [ref=f9e34]:
+            - /placeholder: Nhập tên đăng nhập
+        - generic [ref=f9e38]:
+          - generic [ref=f9e39]:
+            - text: Mật khẩu
+            - generic [ref=f9e40]: "*"
+          - img [ref=f9e42]: lock
+          - textbox "Mật khẩu" [ref=f9e44]:
+            - /placeholder: Nhập mật khẩu
+        - button "Đăng nhập" [disabled]

@@ -2,17 +2,26 @@ import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { catchError, map, retry, shareReplay, tap, distinctUntilChanged } from 'rxjs/operators';
-import { LoginRequest, RegisterRequest, User } from '@core/models/auth.model';
+import { LoginRequest, RegisterRequest, TokenResponse, User } from '@core/models/auth.model';
 import { environment } from '@env/environment';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly baseUrl = `${environment.apiUrl}/auth`;
+  private readonly accessTokenStorageKey = 'hishope_access_token';
 
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   currentUser$ = this.currentUserSubject.asObservable();
 
   private http = inject(HttpClient);
+  private currentUserLoad$?: Observable<User | null>;
+
+  constructor() {
+    const tokenUser = this.getUserFromStoredAccessToken();
+    if (tokenUser) {
+      this.currentUserSubject.next(tokenUser);
+    }
+  }
 
   login(request: LoginRequest): Observable<User> {
     return this.http.post<any>(`${this.baseUrl}/login`, request, { withCredentials: true }).pipe(
@@ -38,9 +47,15 @@ export class AuthService {
 
   refreshToken(): Observable<User> {
     return this.http
-      .post<User>(`${this.baseUrl}/refresh`, {}, { withCredentials: true })
+      .post<TokenResponse>(`${this.baseUrl}/refresh`, {}, { withCredentials: true })
       .pipe(
-        tap((user) => this.currentUserSubject.next(user)),
+        tap((response) => {
+          if (response.accessToken) {
+            this.storeAccessToken(response.accessToken);
+          }
+          this.currentUserSubject.next(response.user);
+        }),
+        map((response) => response.user),
         retry(1),
         catchError(this.handleError),
       );
@@ -63,6 +78,11 @@ export class AuthService {
   }
 
   getCurrentUser(): Observable<User> {
+    const currentUser = this.currentUserSubject.value;
+    if (currentUser) {
+      return of(currentUser);
+    }
+
     return this.http.get<User>(`${this.baseUrl}/me`, { withCredentials: true }).pipe(
       tap((user) => this.currentUserSubject.next(user)),
       shareReplay(1),
@@ -72,11 +92,34 @@ export class AuthService {
   }
 
   isLoggedIn(): Observable<boolean> {
+    if (this.currentUserSubject.value) {
+      return of(true);
+    }
+
+    if (!this.getStoredAccessToken()) {
+      return of(false);
+    }
+
     return this.http.get<{ authenticated: boolean }>(`${this.baseUrl}/verify`, { withCredentials: true }).pipe(
       map((res) => res.authenticated),
       retry(1),
       catchError(() => of(false)),
     );
+  }
+
+  ensureCurrentUser(): Observable<User | null> {
+    const currentUser = this.currentUserSubject.value;
+    if (currentUser) {
+      return of(currentUser);
+    }
+
+    const tokenUser = this.getUserFromStoredAccessToken();
+    if (tokenUser) {
+      this.currentUserSubject.next(tokenUser);
+      return of(tokenUser);
+    }
+
+    return of(null);
   }
 
   // ─── Role Methods ─────────────────────────────────────────────────
@@ -93,15 +136,9 @@ export class AuthService {
     if (user?.permissions && user.permissions.length > 0) {
       return user.permissions;
     }
-    // Fallback: try to decode JWT from sessionStorage
-    const token = this.getStoredAccessToken();
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        return payload.permissions ?? payload.roles ?? [];
-      } catch {
-        return [];
-      }
+    const tokenUser = this.getUserFromStoredAccessToken();
+    if (tokenUser?.permissions?.length) {
+      return tokenUser.permissions;
     }
     return [];
   }
@@ -133,25 +170,33 @@ export class AuthService {
   }
 
   // ─── Token Storage (Memory-only) ────────────────────────────────────
-  // JWT access token chỉ lưu trong RAM, không persist vào sessionStorage.
-  // Reload tab → mất token → refresh qua HttpOnly cookie hoặc redirect login.
-  // Security > convenience: không cho phép XSS đọc token từ storage.
+  // JWT access token được mirror vào sessionStorage để survive hard reload.
+  // Memory vẫn là source of truth trong runtime; storage chỉ phục vụ hydrate.
 
   private accessToken: string | null = null;
 
   /** Store the JWT access token in memory only */
   storeAccessToken(token: string): void {
     this.accessToken = token;
+    this.writeStoredAccessToken(token);
+    this.currentUserLoad$ = undefined;
   }
 
   /** Retrieve the stored JWT access token from memory */
   getStoredAccessToken(): string | null {
+    if (this.accessToken) {
+      return this.accessToken;
+    }
+
+    this.accessToken = this.readStoredAccessToken();
     return this.accessToken;
   }
 
   /** Remove the stored JWT access token from memory */
   clearStoredAccessToken(): void {
     this.accessToken = null;
+    this.writeStoredAccessToken(null);
+    this.currentUserLoad$ = undefined;
   }
 
   // ─── API-based Permission Check ─────────────────────────────────────
@@ -192,5 +237,92 @@ export class AuthService {
       console.error('[AuthService]', errorMessage);
     }
     return throwError(() => error);
+  }
+
+  private readStoredAccessToken(): string | null {
+    try {
+      return sessionStorage.getItem(this.accessTokenStorageKey);
+    } catch {
+      return null;
+    }
+  }
+
+  private writeStoredAccessToken(token: string | null): void {
+    try {
+      if (token) {
+        sessionStorage.setItem(this.accessTokenStorageKey, token);
+      } else {
+        sessionStorage.removeItem(this.accessTokenStorageKey);
+      }
+    } catch {
+      // noop
+    }
+  }
+
+  private getUserFromStoredAccessToken(): User | null {
+    const token = this.getStoredAccessToken();
+    if (!token) {
+      return null;
+    }
+
+    try {
+      const payload = this.decodeJwtPayload(token);
+      if (!payload) {
+        return null;
+      }
+
+      const roles = Array.isArray(payload['roles'])
+        ? payload['roles'] as string[]
+        : typeof payload['role'] === 'string'
+          ? [payload['role'] as string]
+          : [];
+      const permissions = Array.isArray(payload['permissions'])
+        ? payload['permissions'] as string[]
+        : typeof payload['permissions'] === 'string'
+          ? (payload['permissions'] as string).split(',').map((permission: string) => permission.trim()).filter(Boolean)
+          : [];
+      const fullName = typeof payload['fullName'] === 'string'
+        ? payload['fullName'] as string
+        : typeof payload['unique_name'] === 'string'
+          ? payload['unique_name'] as string
+          : typeof payload['email'] === 'string'
+            ? payload['email'] as string
+            : '';
+      const nameParts = fullName.trim().split(/\s+/).filter(Boolean);
+      const firstName = typeof payload['firstName'] === 'string'
+        ? payload['firstName'] as string
+        : nameParts.slice(0, -1).join(' ') || fullName;
+      const lastName = typeof payload['lastName'] === 'string'
+        ? payload['lastName'] as string
+        : nameParts.length > 1
+          ? nameParts[nameParts.length - 1]
+          : '';
+
+      return {
+        id: typeof payload['sub'] === 'string' ? payload['sub'] as string : '',
+        username: typeof payload['unique_name'] === 'string' ? payload['unique_name'] as string : fullName,
+        email: typeof payload['email'] === 'string' ? payload['email'] as string : '',
+        firstName,
+        lastName,
+        fullName,
+        roles,
+        permissions,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private decodeJwtPayload(token: string): Record<string, unknown> | null {
+    const payload = token.split('.')[1];
+    if (!payload) {
+      return null;
+    }
+
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return JSON.parse(new TextDecoder('utf-8').decode(bytes));
   }
 }

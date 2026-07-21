@@ -7,20 +7,28 @@ public class DispatchAgentHandler : IRequestHandler<DispatchAgentCommand, AgentR
     private readonly AgentPoolManager _poolManager;
     private readonly IStateStore _store;
     private readonly IEventBus _eventBus;
+    private readonly PromptTemplateService _prompts;
 
-    public DispatchAgentHandler(AgentPoolManager poolManager, IStateStore store, IEventBus eventBus)
+    public DispatchAgentHandler(
+        AgentPoolManager poolManager,
+        IStateStore store,
+        IEventBus eventBus,
+        PromptTemplateService prompts)
     {
         _poolManager = poolManager;
         _store = store;
         _eventBus = eventBus;
+        _prompts = prompts;
     }
 
     public async Task<AgentRun> Handle(DispatchAgentCommand request, CancellationToken ct)
     {
+        var taskDescription = BuildPrompt(request.AgentName, request.TaskDescription, request.ContextFrom);
+
         var agentRun = AgentRun.Create(
             request.PipelineRunId,
             request.AgentName,
-            request.TaskDescription,
+            taskDescription,
             request.MaxRetries,
             request.TimeoutSeconds);
 
@@ -63,5 +71,30 @@ public class DispatchAgentHandler : IRequestHandler<DispatchAgentCommand, AgentR
                 storagePath), ct);
 
         return result;
+    }
+
+    private string BuildPrompt(string agentName, string taskDescription, string? contextFrom)
+    {
+        var tools = agentName switch
+        {
+            "dotnet" => "db-* MCP, rabbitmq, docker, agent-harness",
+            "angular" => "filesystem, playwright, agent-harness",
+            "devops" => "kubernetes, docker, prometheus, rabbitmq, redis",
+            "security" => "kubernetes, redis, github security scanning",
+            _ => "agent-harness and role-specific project tools"
+        };
+
+        var prompt = _prompts.GetPrompt("default-agent", new Dictionary<string, string>
+        {
+            ["task"] = taskDescription,
+            ["tools"] = tools
+        });
+
+        if (!string.IsNullOrWhiteSpace(contextFrom))
+        {
+            prompt += $"\n\nContext source: {contextFrom}";
+        }
+
+        return prompt;
     }
 }

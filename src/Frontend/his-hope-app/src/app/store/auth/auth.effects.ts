@@ -9,6 +9,11 @@ import * as AuthActions from './auth.actions';
 
 @Injectable()
 export class AuthEffects {
+  private actions$ = inject(Actions);
+  private authService = inject(AuthService);
+  private router = inject(Router);
+  private snackBar = inject(MatSnackBar);
+
   login$ = createEffect(() =>
     this.actions$.pipe(
       ofType(AuthActions.login),
@@ -119,8 +124,4 @@ export class AuthEffects {
     ),
   );
 
-  private actions$ = inject(Actions);
-  private authService = inject(AuthService);
-  private router = inject(Router);
-  private snackBar = inject(MatSnackBar);
 }

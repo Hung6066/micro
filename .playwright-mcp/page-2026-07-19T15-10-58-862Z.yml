@@ -1,0 +1,60 @@
+- generic [ref=e1]:
+  - link "Chuyển đến nội dung chính" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=e4]:
+    - generic [ref=e53]:
+      - generic [ref=e55]:
+        - img [ref=e56]: local_hospital
+        - generic [ref=e57]: His.Hope
+      - generic [ref=e61]:
+        - img [ref=e63]: search
+        - combobox "Tìm bệnh nhân..." [ref=e65]
+      - navigation "Điều hướng chính" [ref=e66]:
+        - link [ref=e67] [cursor=pointer]:
+          - /url: /en/dashboard
+          - img [ref=e68]: dashboard
+        - link [ref=e70] [cursor=pointer]:
+          - /url: /en/patients
+          - img [ref=e71]: people
+        - link [active] [ref=e73] [cursor=pointer]:
+          - /url: /en/appointments
+          - img [ref=e74]: calendar_today
+        - link [ref=e76] [cursor=pointer]:
+          - /url: /en/clinical
+          - img [ref=e77]: medical_services
+        - link [ref=e79] [cursor=pointer]:
+          - /url: /en/pharmacy
+          - img [ref=e80]: medication
+        - link [ref=e82] [cursor=pointer]:
+          - /url: /en/lab
+          - img [ref=e83]: biotech
+        - link [ref=e85] [cursor=pointer]:
+          - /url: /en/billing
+          - img [ref=e86]: receipt
+        - link [ref=e88] [cursor=pointer]:
+          - /url: /en/admin
+          - img [ref=e89]: settings
+      - generic [ref=e91]:
+        - generic [ref=e92]: Viên Quản Trị
+        - button "Đăng xuất" [ref=e94] [cursor=pointer]:
+          - img [ref=e95]: logout
+    - generic [ref=e5]:
+      - generic [ref=e8]:
+        - img [ref=e9]: error_outline
+        - button [ref=e11] [cursor=pointer]:
+          - img [ref=e12]: close
+      - generic [ref=e127]:
+        - generic [ref=e128]:
+          - heading "Appointments" [level=1] [ref=e129]
+          - button "Schedule Appointment" [ref=e130]:
+            - img [ref=e131]: add
+        - generic [ref=e135]:
+          - generic [ref=e139]:
+            - generic: Search by Patient ID
+            - textbox "Search by Patient ID" [ref=e142]:
+              - /placeholder: Type to search...
+            - img [ref=e144]: search
+          - paragraph [ref=e147]: Loading...
+  - generic [ref=e154]:
+    - generic [ref=e155]: "Server error. Reference: hh-mrrxm81j-bwdf1i"
+    - button "Close" [ref=e157]
