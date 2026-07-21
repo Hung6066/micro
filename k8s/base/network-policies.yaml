@@ -164,6 +164,18 @@ spec:
         # clinical-bff HTTP
         - port: 5200
           protocol: TCP
+        # patient-bff HTTP
+        - port: 5100
+          protocol: TCP
+        # billing-bff HTTP
+        - port: 5400
+          protocol: TCP
+        # pharmacy-bff HTTP
+        - port: 5500
+          protocol: TCP
+        # dashboard-bff HTTP
+        - port: 5600
+          protocol: TCP
 
 ---
 # ---------------------------------------------------------------------------
@@ -676,6 +688,38 @@ spec:
       ports:
         - port: 5200
           protocol: TCP
+    # patient-bff
+    - to:
+        - podSelector:
+            matchLabels:
+              app: patient-bff
+      ports:
+        - port: 5100
+          protocol: TCP
+    # billing-bff
+    - to:
+        - podSelector:
+            matchLabels:
+              app: billing-bff
+      ports:
+        - port: 5400
+          protocol: TCP
+    # pharmacy-bff
+    - to:
+        - podSelector:
+            matchLabels:
+              app: pharmacy-bff
+      ports:
+        - port: 5500
+          protocol: TCP
+    # dashboard-bff
+    - to:
+        - podSelector:
+            matchLabels:
+              app: dashboard-bff
+      ports:
+        - port: 5600
+          protocol: TCP
 
 ---
 # ---------------------------------------------------------------------------
@@ -776,6 +820,18 @@ spec:
           protocol: TCP
         # clinical-bff HTTP
         - port: 5200
+          protocol: TCP
+        # patient-bff HTTP
+        - port: 5100
+          protocol: TCP
+        # billing-bff HTTP
+        - port: 5400
+          protocol: TCP
+        # pharmacy-bff HTTP
+        - port: 5500
+          protocol: TCP
+        # dashboard-bff HTTP
+        - port: 5600
           protocol: TCP
         # Linkerd proxy metrics port
         - port: 4190
@@ -901,19 +957,127 @@ spec:
 
 ---
 # ---------------------------------------------------------------------------
-# 17. BFF TO BACKEND SERVICES
+# 17. PER-BFF EGRESS POLICIES
+#     Each BFF has a least-privilege egress policy preventing lateral
+#     BFF-to-BFF movement.
 # ----------------------------------------------------------------------------
-# Lab BFF needs egress to lab-service (HTTP) and Redis
+# PatientBff egress — PatientService + ClinicalService + LabService + PharmacyService + Redis
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: allow-bff-to-lab-service
+  name: allow-patient-bff-egress
   labels:
     app.kubernetes.io/part-of: his-hope
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/component: bff
+      app: patient-bff
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: patient-service
+      ports:
+        - port: 5002
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: clinical-service
+      ports:
+        - port: 5005
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: lab-service
+      ports:
+        - port: 5010
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: pharmacy-service
+      ports:
+        - port: 5030
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+---
+# ClinicalBff egress — ClinicalService + PatientService + Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-clinical-bff-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: clinical-bff
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: clinical-service
+      ports:
+        - port: 5005
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: patient-service
+      ports:
+        - port: 5002
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+---
+# LabBff egress — LabService + Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-lab-bff-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: lab-bff
   policyTypes:
     - Egress
   egress:
@@ -931,3 +1095,172 @@ spec:
       ports:
         - port: 6379
           protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+---
+# BillingBff egress — BillingService + Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-billing-bff-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: billing-bff
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: billing-service
+      ports:
+        - port: 5020
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+---
+# PharmacyBff egress — PharmacyService + Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-pharmacy-bff-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: pharmacy-bff
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: pharmacy-service
+      ports:
+        - port: 5030
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+---
+# DashboardBff egress — ALL backend services + Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dashboard-bff-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: dashboard-bff
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: patient-service
+      ports:
+        - port: 5002
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: identity-service
+      ports:
+        - port: 5003
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: appointment-service
+      ports:
+        - port: 5004
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: clinical-service
+      ports:
+        - port: 5005
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: lab-service
+      ports:
+        - port: 5010
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: billing-service
+      ports:
+        - port: 5020
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: pharmacy-service
+      ports:
+        - port: 5030
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
