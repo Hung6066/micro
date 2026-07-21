@@ -1,82 +1,551 @@
-import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, inject, OnDestroy, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
-import { MatGridListModule } from '@angular/material/grid-list';
 import { MatIconModule } from '@angular/material/icon';
-import { Observable } from 'rxjs';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
+import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatDividerModule } from '@angular/material/divider';
+import { BehaviorSubject, Subject, of, combineLatest } from 'rxjs';
+import { catchError, finalize, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs/operators';
 import { MetricsService } from '../../core/services/metrics.service';
-import { MetricSnapshot } from '../../core/models/metric-snapshot.model';
+import { ResourceService } from '../../core/services/resource.service';
+import { MetricSnapshot, MetricDataPoint } from '../../core/models/metric-snapshot.model';
+import { Resource } from '../../core/models/resource.model';
+import { MetricsOverviewComponent } from './metrics-overview.component';
+import { Chart, LineController, LineElement, PointElement, LinearScale, TimeScale, CategoryScale, Tooltip, Legend, Filler } from 'chart.js';
+
+Chart.register(LineController, LineElement, PointElement, LinearScale, TimeScale, CategoryScale, Tooltip, Legend, Filler);
+
+type MetricType = 'cpu' | 'memory' | 'requests' | 'errors';
+
+interface MetricConfig {
+  key: MetricType;
+  label: string;
+  unit: string;
+  color: string;
+}
+
+const METRIC_TYPES: MetricConfig[] = [
+  { key: 'cpu', label: 'CPU', unit: '%', color: '#2F6B4A' },
+  { key: 'memory', label: 'Bộ nhớ', unit: 'MB', color: '#2563EB' },
+  { key: 'requests', label: 'Yêu cầu', unit: 'req/s', color: '#6B4FA0' },
+  { key: 'errors', label: 'Lỗi', unit: 'lỗi/phút', color: '#C25450' },
+];
+
+const TIME_RANGES = [
+  { value: '5m', label: '5 phút' },
+  { value: '15m', label: '15 phút' },
+  { value: '1h', label: '1 giờ' },
+  { value: '6h', label: '6 giờ' },
+  { value: '24h', label: '24 giờ' },
+];
+
+const SERVICE_COLORS = [
+  '#2F6B4A', '#5B8C5A', '#2563EB', '#6B4FA0', '#B6581C',
+  '#C25450', '#0D9488', '#7C3AED', '#0891B2', '#D97706',
+];
 
 @Component({
   selector: 'app-metrics-page',
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     MatCardModule,
-    MatGridListModule,
     MatIconModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatSelectModule,
+    MatCheckboxModule,
+    MatProgressSpinnerModule,
+    MatDividerModule,
+    MetricsOverviewComponent,
   ],
   template: `
     <div class="page-header">
       <h1 class="page-title">Chỉ số hệ thống</h1>
+      <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
+        <mat-icon>refresh</mat-icon>
+        Làm mới
+      </button>
     </div>
 
-    <div class="metrics-grid">
-      <mat-card *ngFor="let metric of metrics$ | async" class="metric-card">
-        <mat-card-content>
-          <div class="metric-header">
-            <span class="metric-name">{{ metric.displayName || metric.name }}</span>
-            <span class="metric-unit">{{ metric.unit }}</span>
-          </div>
-          <div class="metric-value">{{ formatValue(metric.currentValue) }}</div>
-          <div class="metric-change" *ngIf="metric.previousValue !== undefined">
-            <span [class.up]="metric.currentValue > metric.previousValue"
-                  [class.down]="metric.currentValue < metric.previousValue">
-              {{ metric.currentValue - metric.previousValue > 0 ? '+' : ''
-              }}{{ formatValue(metric.currentValue - metric.previousValue) }}
-            </span>
-            so với trước đó
-          </div>
-          <div class="metric-range" *ngIf="metric.min !== undefined">
-            Min: {{ formatValue(metric.min) }} / Max: {{ formatValue(metric.max) }} / Avg: {{ formatValue(metric.avg) }}
-          </div>
-        </mat-card-content>
-      </mat-card>
+    <!-- Overview cards -->
+    <app-metrics-overview></app-metrics-overview>
+
+    <!-- Controls card -->
+    <mat-card class="controls-card">
+      <mat-card-content>
+        <div class="controls-row">
+          <!-- Service multi-select -->
+          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="services-field">
+            <mat-label>Dịch vụ</mat-label>
+            <mat-select [(ngModel)]="selectedServices" multiple (selectionChange)="onServicesChange()">
+              <mat-option *ngFor="let svc of availableServices" [value]="svc.name">
+                {{ svc.displayName || svc.name }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <!-- Metric type selector -->
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Loại chỉ số</mat-label>
+            <mat-select [(ngModel)]="selectedMetricType" (selectionChange)="onMetricTypeChange()">
+              <mat-option *ngFor="let mt of metricTypes" [value]="mt.key">
+                {{ mt.label }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <!-- Time range selector -->
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Khoảng thời gian</mat-label>
+            <mat-select [(ngModel)]="selectedTimeRange" (selectionChange)="onTimeRangeChange()">
+              <mat-option *ngFor="let tr of timeRanges" [value]="tr.value">
+                {{ tr.label }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <button mat-raised-button color="primary" (click)="applyFilters()">
+            <mat-icon>refresh</mat-icon>
+            Áp dụng
+          </button>
+        </div>
+
+        <!-- Selected services chips -->
+        <div class="service-chips" *ngIf="selectedServices.length > 0">
+          <span class="chip" *ngFor="let svc of selectedServices; let i = index"
+                [style.--chip-color]="getServiceColor(svc)">
+            {{ svc }}
+            <mat-icon class="chip-remove" (click)="removeService(svc)">close</mat-icon>
+          </span>
+        </div>
+        <div class="service-chips empty-chips" *ngIf="selectedServices.length === 0">
+          <span class="chip-hint">Chọn ít nhất một dịch vụ để xem chỉ số</span>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Loading -->
+    <div class="loading-state" *ngIf="(loading$ | async)">
+      <mat-spinner diameter="32"></mat-spinner>
+      <span class="loading-text">Đang tải chỉ số...</span>
     </div>
 
-    <div *ngIf="(metrics$ | async)?.length === 0" class="empty-state">
+    <!-- Error -->
+    <div class="error-state" *ngIf="error$ | async as err">
+      <mat-icon class="error-icon">error_outline</mat-icon>
+      <p class="error-message">{{ err }}</p>
+      <button mat-raised-button color="primary" (click)="refresh()">Thử lại</button>
+    </div>
+
+    <!-- Chart card -->
+    <mat-card class="chart-card" *ngIf="hasData && !(loading$ | async)">
+      <mat-card-header>
+        <mat-card-title>{{ currentMetric.label }}</mat-card-title>
+        <mat-card-subtitle>
+          Khoảng thời gian: {{ getTimeRangeLabel() }} &mdash;
+          {{ selectedServices.length }} dịch vụ được chọn
+        </mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="chart-wrapper">
+          <canvas #chartCanvas></canvas>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Empty state -->
+    <div class="empty-state" *ngIf="!hasData && !(loading$ | async) && !(error$ | async)">
       <mat-icon>monitoring</mat-icon>
-      <p>Chưa có chỉ số nào</p>
+      <p>Chọn dịch vụ và chỉ số để xem biểu đồ</p>
     </div>
   `,
   styles: [`
-    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-    .metric-card { cursor: default; }
-    .metric-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    .metric-name { font-size: 13px; color: #787774; font-weight: 500; }
-    .metric-unit { font-size: 11px; color: #A1A09B; text-transform: uppercase; }
-    .metric-value { font-size: 32px; font-weight: 600; color: #1A1A1A; line-height: 1.2; margin-bottom: 4px; }
-    .metric-change { font-size: 12px; color: #787774; }
-    .metric-change .up { color: #C25450; }
-    .metric-change .down { color: #2F6B4A; }
-    .metric-range { font-size: 11px; color: #A1A09B; margin-top: 4px; }
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    .page-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #1A1A1A;
+      margin: 0;
+    }
+    .controls-card {
+      margin-bottom: 16px;
+    }
+    .controls-row {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    .controls-row mat-form-field {
+      flex: 1;
+      min-width: 160px;
+    }
+    .services-field {
+      min-width: 220px;
+      flex: 1.5;
+    }
+    .controls-row button {
+      margin-top: 4px;
+      height: 40px;
+    }
+    .service-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px 2px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--chip-color);
+      background: color-mix(in srgb, var(--chip-color) 12%, transparent);
+    }
+    .chip-remove {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+      opacity: 0.6;
+    }
+    .chip-remove:hover {
+      opacity: 1;
+    }
+    .empty-chips {
+      margin-top: 4px;
+    }
+    .chip-hint {
+      font-size: 12px;
+      color: #A1A09B;
+      font-style: italic;
+    }
+    .loading-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 64px 24px;
+      color: #787774;
+    }
+    .loading-text {
+      margin-top: 12px;
+      font-size: 14px;
+    }
+    .error-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 24px;
+      text-align: center;
+      background: #FDEBEC;
+      border: 1px solid #F5C6C4;
+      border-radius: 8px;
+      gap: 12px;
+    }
+    .error-icon { font-size: 40px; width: 40px; height: 40px; color: #C25450; }
+    .error-message { font-size: 14px; color: #C25450; max-width: 400px; }
+    .chart-card { margin-bottom: 16px; }
+    .chart-wrapper {
+      position: relative;
+      width: 100%;
+      min-height: 350px;
+      margin-top: 8px;
+    }
+    .chart-wrapper canvas {
+      width: 100% !important;
+      height: 100% !important;
+      max-height: 400px;
+    }
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 64px 24px;
+      color: #A1A09B;
+      text-align: center;
+    }
+    .empty-state mat-icon {
+      font-size: 48px;
+      width: 48px;
+      height: 48px;
+      margin-bottom: 16px;
+      opacity: 0.4;
+    }
+    .empty-state p { font-size: 14px; }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class MetricsPageComponent implements OnInit {
-  readonly metrics$: Observable<MetricSnapshot[]>;
+export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
+  @ViewChild('chartCanvas') chartCanvas!: ElementRef<HTMLCanvasElement>;
 
-  constructor(private readonly metricsService: MetricsService) {
-    this.metrics$ = this.metricsService.getSummary();
+  private readonly metricsService = inject(MetricsService);
+  private readonly resourceService = inject(ResourceService);
+  private readonly destroy$ = new Subject<void>();
+
+  private readonly refreshTrigger = new BehaviorSubject<void>(undefined);
+
+  readonly loading$ = new BehaviorSubject<boolean>(false);
+  readonly error$ = new BehaviorSubject<string | null>(null);
+
+  selectedServices: string[] = [];
+  selectedMetricType: MetricType = 'cpu';
+  selectedTimeRange = '1h';
+
+  availableServices: Resource[] = [];
+  metricTypes = METRIC_TYPES;
+  timeRanges = TIME_RANGES;
+  hasData = false;
+
+  currentMetric = METRIC_TYPES[0];
+
+  private chart: Chart | null = null;
+
+  private readonly query$ = this.refreshTrigger.pipe(
+    debounceTime(100),
+    distinctUntilChanged(),
+  );
+
+  ngOnInit(): void {
+    this.currentMetric = METRIC_TYPES.find(m => m.key === this.selectedMetricType) ?? METRIC_TYPES[0];
+
+    // Load services from ResourceService
+    this.resourceService.getAll().pipe(
+      catchError(() => of([] as Resource[])),
+      takeUntil(this.destroy$),
+    ).subscribe(resources => {
+      this.availableServices = resources.filter(
+        r => r.type?.toLowerCase() === 'service'
+      );
+    });
   }
 
-  ngOnInit(): void {}
+  ngAfterViewInit(): void {
+    this.query$.subscribe(() => {
+      this.loadChartData();
+    });
+  }
 
-  formatValue(value: number | undefined | null): string {
-    if (value == null) return '-';
-    if (value >= 1_000_000_000) return (value / 1_000_000_000).toFixed(1) + 'B';
-    if (value >= 1_000_000) return (value / 1_000_000).toFixed(1) + 'M';
-    if (value >= 1_000) return (value / 1_000).toFixed(1) + 'K';
-    return value.toLocaleString();
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+    this.destroyChart();
+  }
+
+  getServiceColor(service: string): string {
+    let hash = 0;
+    for (let i = 0; i < service.length; i++) {
+      hash = ((hash << 5) - hash) + service.charCodeAt(i);
+      hash |= 0;
+    }
+    return SERVICE_COLORS[Math.abs(hash) % SERVICE_COLORS.length];
+  }
+
+  getTimeRangeLabel(): string {
+    return TIME_RANGES.find(r => r.value === this.selectedTimeRange)?.label ?? this.selectedTimeRange;
+  }
+
+  onServicesChange(): void {
+    if (this.selectedServices.length > 0) {
+      this.applyFilters();
+    }
+  }
+
+  onMetricTypeChange(): void {
+    this.currentMetric = METRIC_TYPES.find(m => m.key === this.selectedMetricType) ?? METRIC_TYPES[0];
+    if (this.selectedServices.length > 0) {
+      this.applyFilters();
+    }
+  }
+
+  onTimeRangeChange(): void {
+    if (this.selectedServices.length > 0) {
+      this.applyFilters();
+    }
+  }
+
+  removeService(service: string): void {
+    this.selectedServices = this.selectedServices.filter(s => s !== service);
+    if (this.selectedServices.length > 0) {
+      this.applyFilters();
+    } else {
+      this.hasData = false;
+      this.destroyChart();
+    }
+  }
+
+  applyFilters(): void {
+    if (this.selectedServices.length === 0) return;
+    this.refreshTrigger.next();
+  }
+
+  refresh(): void {
+    this.error$.next(null);
+    if (this.selectedServices.length > 0) {
+      this.refreshTrigger.next();
+    }
+  }
+
+  private loadChartData(): void {
+    if (this.selectedServices.length === 0) return;
+
+    this.loading$.next(true);
+    this.error$.next(null);
+
+    const metricKey = this.selectedMetricType;
+    const requests = this.selectedServices.map(service =>
+      this.metricsService.getServiceMetrics(service, [metricKey], this.selectedTimeRange).pipe(
+        catchError(() => of([] as MetricSnapshot[])),
+      )
+    );
+
+    // Use combineLatest to load all services in parallel
+    const sub = combineLatest(requests).pipe(
+      finalize(() => this.loading$.next(false)),
+      takeUntil(this.destroy$),
+    ).subscribe(results => {
+      this.renderChart(results);
+    });
+  }
+
+  private renderChart(allMetrics: MetricSnapshot[][]): void {
+    if (!this.chartCanvas) return;
+
+    this.destroyChart();
+
+    // Build datasets: one line per service
+    const datasets: { label: string; data: { x: string; y: number }[]; borderColor: string; backgroundColor: string; fill: boolean; tension: number; pointRadius: number; }[] = [];
+    const allLabels = new Set<string>();
+
+    for (let i = 0; i < allMetrics.length; i++) {
+      const snapshots = allMetrics[i];
+      const service = this.selectedServices[i] ?? `Service ${i}`;
+      const color = this.getServiceColor(service);
+
+      // Collect all data points from snapshots
+      const points: { x: string; y: number }[] = [];
+
+      for (const snap of snapshots) {
+        if (snap.dataPoints && snap.dataPoints.length > 0) {
+          for (const dp of snap.dataPoints) {
+            const label = new Date(dp.timestamp).toLocaleTimeString('vi-VN', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            });
+            allLabels.add(label);
+            points.push({ x: label, y: dp.value });
+          }
+        } else {
+          // Use currentValue if no dataPoints
+          const label = 'now';
+          allLabels.add(label);
+          points.push({ x: label, y: snap.currentValue });
+        }
+      }
+
+      if (points.length > 0) {
+        datasets.push({
+          label: service,
+          data: points,
+          borderColor: color,
+          backgroundColor: color + '20',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 3,
+        });
+      }
+    }
+
+    if (datasets.length === 0) {
+      this.hasData = false;
+      return;
+    }
+
+    this.hasData = true;
+
+    const ctx = this.chartCanvas.nativeElement.getContext('2d');
+    if (!ctx) return;
+
+    this.chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        datasets: datasets as any,
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 300 },
+        interaction: {
+          intersect: false,
+          mode: 'index',
+        },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              padding: 16,
+              usePointStyle: true,
+              font: { size: 12 },
+            },
+          },
+          tooltip: {
+            backgroundColor: '#1A1A1A',
+            titleFont: { size: 12 },
+            bodyFont: { size: 12 },
+            padding: 10,
+            cornerRadius: 6,
+          },
+        },
+        scales: {
+          x: {
+            display: true,
+            grid: { display: false },
+            ticks: {
+              maxTicksLimit: 10,
+              font: { size: 11 },
+              color: '#787774',
+            },
+          },
+          y: {
+            display: true,
+            beginAtZero: true,
+            grid: {
+              color: '#EAEAEA',
+            },
+            ticks: {
+              font: { size: 11 },
+              color: '#787774',
+              callback: (value) => {
+                const v = Number(value);
+                if (v >= 1000) return (v / 1000).toFixed(1) + 'k';
+                return v.toString();
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  private destroyChart(): void {
+    if (this.chart) {
+      this.chart.destroy();
+      this.chart = null;
+    }
   }
 }
