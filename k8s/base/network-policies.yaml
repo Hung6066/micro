@@ -158,6 +158,12 @@ spec:
         # pharmacy-service HTTP
         - port: 5030
           protocol: TCP
+        # lab-bff HTTP
+        - port: 5300
+          protocol: TCP
+        # clinical-bff HTTP
+        - port: 5200
+          protocol: TCP
 
 ---
 # ---------------------------------------------------------------------------
@@ -655,6 +661,21 @@ spec:
           protocol: TCP
         - port: 5672
           protocol: TCP
+    # BFF services
+    - to:
+        - podSelector:
+            matchLabels:
+              app: lab-bff
+      ports:
+        - port: 5300
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: clinical-bff
+      ports:
+        - port: 5200
+          protocol: TCP
 
 ---
 # ---------------------------------------------------------------------------
@@ -750,6 +771,12 @@ spec:
           protocol: TCP
         - port: 5030
           protocol: TCP
+        # lab-bff HTTP
+        - port: 5300
+          protocol: TCP
+        # clinical-bff HTTP
+        - port: 5200
+          protocol: TCP
         # Linkerd proxy metrics port
         - port: 4190
           protocol: TCP
@@ -829,6 +856,8 @@ spec:
           protocol: TCP
         - port: 5030
           protocol: TCP
+        - port: 5300
+          protocol: TCP
         - port: 80
           protocol: TCP
         # Linkerd proxy liveness/readiness
@@ -869,3 +898,36 @@ spec:
           protocol: UDP
         - port: 6832
           protocol: UDP
+
+---
+# ---------------------------------------------------------------------------
+# 17. BFF TO BACKEND SERVICES
+# ----------------------------------------------------------------------------
+# Lab BFF needs egress to lab-service (HTTP) and Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-bff-to-lab-service
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: bff
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: lab-service
+      ports:
+        - port: 5010
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP

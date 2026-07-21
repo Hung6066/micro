@@ -35,6 +35,12 @@ spec:
             namespace: his-hope-clinical
             repoURL: https://github.com/hishop/his-hope
             targetRevision: main
+          - name: lab-bff
+            path: k8s/overlays/prod
+            namespace: his-hope
+          - name: clinical-bff
+            path: k8s/overlays/prod
+            namespace: his-hope
           - name: infrastructure
             path: k8s/overlays/prod/infrastructure
             namespace: his-hope-infrastructure

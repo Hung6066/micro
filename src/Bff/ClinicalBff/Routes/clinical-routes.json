@@ -1,0 +1,29 @@
+{
+  "ReverseProxy": {
+    "Routes": {
+      "encounter-search": {
+        "ClusterId": "clinical-service",
+        "Match": { "Path": "/api/v1/encounters/search", "Methods": ["GET"] }
+      },
+      "encounter-get": {
+        "ClusterId": "clinical-service",
+        "Match": { "Path": "/api/v1/encounters/{id}", "Methods": ["GET"] }
+      },
+      "encounter-start": {
+        "ClusterId": "clinical-service",
+        "Match": { "Path": "/api/v1/encounters", "Methods": ["POST"] }
+      },
+      "encounter-complete": {
+        "ClusterId": "clinical-service",
+        "Match": { "Path": "/api/v1/encounters/{id}/complete", "Methods": ["PUT"] }
+      }
+    },
+    "Clusters": {
+      "clinical-service": {
+        "Destinations": {
+          "clinical": { "Address": "http://clinicalservice:5005/" }
+        }
+      }
+    }
+  }
+}
