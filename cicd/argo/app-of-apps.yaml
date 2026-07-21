@@ -203,6 +203,40 @@ spec:
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
+  name: lab-bff
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: lab-bff
+    app.kubernetes.io/component: bff
+    app.kubernetes.io/part-of: his-hope
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: his-hope
+  source:
+    repoURL: https://github.com/hishop/his-hope
+    targetRevision: main
+    path: k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: his-hope
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - Validate=true
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
+        his-hope.io/managed-by: argocd
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
   name: infrastructure
   namespace: argocd
   labels:
@@ -237,4 +271,72 @@ spec:
     managedNamespaceMetadata:
       labels:
         pod-security.kubernetes.io/enforce: baseline
+        his-hope.io/managed-by: argocd
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: clinical-bff
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: clinical-bff
+    app.kubernetes.io/component: bff
+    app.kubernetes.io/part-of: his-hope
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: his-hope
+  source:
+    repoURL: https://github.com/hishop/his-hope
+    targetRevision: main
+    path: k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: his-hope
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - Validate=true
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
+        his-hope.io/managed-by: argocd
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: billing-bff
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: billing-bff
+    app.kubernetes.io/component: bff
+    app.kubernetes.io/part-of: his-hope
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: his-hope
+  source:
+    repoURL: https://github.com/hishop/his-hope
+    targetRevision: main
+    path: k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: his-hope
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - Validate=true
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: restricted
         his-hope.io/managed-by: argocd

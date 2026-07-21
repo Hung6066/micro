@@ -132,6 +132,52 @@ spec:
         - cidr: 0.0.0.0/0
 ---
 # =============================================================================
+# Lab BFF Authorizations
+# =============================================================================
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  namespace: his-hope
+  name: lab-bff-http
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: lab-bff
+spec:
+  server:
+    name: lab-bff-http
+  client:
+    meshTLS:
+      unauthenticated: false
+      identities:
+        - api-gateway.his-hope.serviceaccount.identity.cluster.local
+    unauthenticated:
+      - networks:
+        - cidr: 0.0.0.0/0
+
+# =============================================================================
+# Clinical BFF Authorizations
+# =============================================================================
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  namespace: his-hope
+  name: clinical-bff-http
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: clinical-bff
+spec:
+  server:
+    name: clinical-bff-http
+  client:
+    meshTLS:
+      unauthenticated: false
+      identities:
+        - api-gateway.his-hope.serviceaccount.identity.cluster.local
+    unauthenticated:
+      - networks:
+        - cidr: 0.0.0.0/0
+
+# =============================================================================
 # Clinical Service Authorizations (PHI - most restricted)
 # =============================================================================
 apiVersion: policy.linkerd.io/v1beta1
@@ -171,6 +217,30 @@ spec:
         - patient-service.his-hope.serviceaccount.identity.cluster.local
         - appointment-service.his-hope.serviceaccount.identity.cluster.local
         - identity-service.his-hope.serviceaccount.identity.cluster.local
+    unauthenticated:
+      - networks:
+        - cidr: 0.0.0.0/0
+
+---
+# =============================================================================
+# Billing BFF Authorizations
+# =============================================================================
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  namespace: his-hope
+  name: billing-bff-http
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: billing-bff
+spec:
+  server:
+    name: billing-bff-http
+  client:
+    meshTLS:
+      unauthenticated: false
+      identities:
+        - api-gateway.his-hope.serviceaccount.identity.cluster.local
     unauthenticated:
       - networks:
         - cidr: 0.0.0.0/0

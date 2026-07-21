@@ -92,6 +92,36 @@ apiVersion: policy.linkerd.io/v1beta1
 kind: Server
 metadata:
   namespace: his-hope
+  name: lab-bff-http
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: lab-bff
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: lab-bff
+  port: http
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  namespace: his-hope
+  name: clinical-bff-http
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: clinical-bff
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: clinical-bff
+  port: http
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  namespace: his-hope
   name: clinical-service-grpc
   labels:
     app.kubernetes.io/part-of: his-hope
@@ -115,5 +145,20 @@ spec:
   podSelector:
     matchLabels:
       app.kubernetes.io/name: clinical-service
+  port: http
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  namespace: his-hope
+  name: billing-bff-http
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: billing-bff
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: billing-bff
   port: http
   proxyProtocol: HTTP/1
