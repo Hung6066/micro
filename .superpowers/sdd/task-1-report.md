@@ -1,83 +1,41 @@
-# Task 1 Report: Create directory scaffold
+# Task 1: Create SystemDashboard.Bff Project Scaffold — Report
 
-## What I implemented
+**Status:** DONE
 
-Created the `docs/knowledge/` directory scaffold for the His.Hope Agent Knowledge Base. This includes 15 directories organized into three categories:
+## Summary
 
-- **Capture** (1): `.capture` — for agent-captured knowledge artifacts
-- **Scripts** (1): `scripts` — for knowledge pipeline automation scripts
-- **Entries** (13): service-specific directories under `entries/`:
-  - `patient-service`, `identity-service`, `clinical-service`, `appointment-service`
-  - `lab-service`, `billing-service`, `pharmacy-service`
-  - `frontend`, `devops`, `security`, `database`, `ml-ai`, `data-platform`
+Created the `src/Bff/SystemDashboard.Bff/` project scaffold for the Aspire-like SystemDashboard BFF service.
 
-Each directory contains a `.gitkeep` placeholder so the empty directories are tracked by git.
+## Files Created
 
-## Test results
+| File | Description |
+|------|-------------|
+| `SystemDashboard.Bff.csproj` | .NET 8 Web project with SignalR, Polly, OpenTelemetry, JWT Bearer, and project references to `His.Hope.Infrastructure` and `His.Hope.Bff.Core` |
+| `GlobalUsings.cs` | Common global usings (System, Microsoft.AspNetCore.Mvc, etc.) |
+| `appsettings.json` | Config with Consul, Elasticsearch, Jaeger, Prometheus, Docker, Kubernetes, and Jwt settings |
+| `appsettings.Development.json` | Development overrides with Debug-level logging |
+| `Properties/launchSettings.json` | Launch profile on ports 5700 (HTTP) / 5701 (HTTPS) |
+| `Program.cs` | Minimal API skeleton with JSON camelCase serialization, JWT auth, CORS (localhost:4201), SignalR, health check at `/health`, and OpenTelemetry tracing + metrics |
 
-Verification command: `Get-ChildItem -Recurse -Directory docs/knowledge | Select-Object FullName`
+## Build Verification
 
-All 15 directories confirmed present:
 ```
-D:\AI\micro\docs\knowledge\.capture
-D:\AI\micro\docs\knowledge\scripts
-D:\AI\micro\docs\knowledge\entries\appointment-service
-D:\AI\micro\docs\knowledge\entries\billing-service
-D:\AI\micro\docs\knowledge\entries\clinical-service
-D:\AI\micro\docs\knowledge\entries\data-platform
-D:\AI\micro\docs\knowledge\entries\database
-D:\AI\micro\docs\knowledge\entries\devops
-D:\AI\micro\docs\knowledge\entries\frontend
-D:\AI\micro\docs\knowledge\entries\identity-service
-D:\AI\micro\docs\knowledge\entries\lab-service
-D:\AI\micro\docs\knowledge\entries\ml-ai
-D:\AI\micro\docs\knowledge\entries\patient-service
-D:\AI\micro\docs\knowledge\entries\pharmacy-service
-D:\AI\micro\docs\knowledge\entries\security
+dotnet build src/Bff/SystemDashboard.Bff/SystemDashboard.Bff.csproj
 ```
+→ **Build succeeded.** 0 warnings, 0 errors.
 
-## Files changed
+## Files Created (6 total)
 
-- `docs/knowledge/.capture/.gitkeep` (created)
-- `docs/knowledge/scripts/.gitkeep` (created)
-- `docs/knowledge/entries/appointment-service/.gitkeep` (created)
-- `docs/knowledge/entries/billing-service/.gitkeep` (created)
-- `docs/knowledge/entries/clinical-service/.gitkeep` (created)
-- `docs/knowledge/entries/data-platform/.gitkeep` (created)
-- `docs/knowledge/entries/database/.gitkeep` (created)
-- `docs/knowledge/entries/devops/.gitkeep` (created)
-- `docs/knowledge/entries/frontend/.gitkeep` (created)
-- `docs/knowledge/entries/identity-service/.gitkeep` (created)
-- `docs/knowledge/entries/lab-service/.gitkeep` (created)
-- `docs/knowledge/entries/ml-ai/.gitkeep` (created)
-- `docs/knowledge/entries/patient-service/.gitkeep` (created)
-- `docs/knowledge/entries/pharmacy-service/.gitkeep` (created)
-- `docs/knowledge/entries/security/.gitkeep` (created)
+- `src/Bff/SystemDashboard.Bff/SystemDashboard.Bff.csproj`
+- `src/Bff/SystemDashboard.Bff/GlobalUsings.cs`
+- `src/Bff/SystemDashboard.Bff/appsettings.json`
+- `src/Bff/SystemDashboard.Bff/appsettings.Development.json`
+- `src/Bff/SystemDashboard.Bff/Properties/launchSettings.json`
+- `src/Bff/SystemDashboard.Bff/Program.cs`
 
-## Self-review findings
+## Notes
 
-- All 15 directories match the task brief exactly
-- `.gitkeep` files present in every directory
-- Commit message matches specification
-- No concerns — this is a pure scaffolding task with no logic to validate
-
----
-
-# Task 1 Report: Lab critical alert backend
-
-## Status
-Completed
-
-## Commits
-1920d33 `feat(lab): harden critical alert persistence`
-
-## Test summary
-`dotnet test tests/Services/LabService/LabService.Domain.Tests/LabService.Domain.Tests.csproj --filter "CriticalAlertRuleTests|CriticalAlertTests" -v normal` ✅
-`dotnet test tests/Services/LabService/LabService.Application.Tests/LabService.Application.Tests.csproj --filter "CriticalAlertEvaluatorTests" -v normal` ✅
-`dotnet test tests/Services/LabService/LabService.Integration.Tests/LabService.Integration.Tests.csproj --filter "CriticalAlertPersistenceIntegrationTests" -v normal` ✅
-
-## Concerns
-Existing LabService nullability warnings remain in pre-existing domain models; Task 1 added only additive alert model/persistence/evaluator wiring.
-
-## Report path
-`.superpowers/sdd/task-1-report.md`
+- No database dependencies (as specified — no controllers yet).
+- OpenTelemetry required explicit `using OpenTelemetry; using OpenTelemetry.Metrics; using OpenTelemetry.Trace;` directives — these were added to Program.cs to fix initial build errors.
+- Polly version (8.7.0) and OpenTelemetry versions (1.15.3 / 1.8.1) match those used by `His.Hope.Infrastructure`.
+- SignalR is referenced via `Microsoft.AspNetCore.SignalR.Common` package (included in ASP.NET Core framework).
