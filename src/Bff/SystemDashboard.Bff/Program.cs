@@ -109,6 +109,18 @@ builder.Services.AddSingleton<IMetricsAggregator, MetricsAggregator>();
 // Traces aggregator
 builder.Services.AddSingleton<ITracesAggregator, TracesAggregator>();
 
+// Lifecycle services (Docker or Kubernetes based on config)
+builder.Services.AddSingleton<DockerLifecycleService>();
+builder.Services.AddSingleton<KubernetesLifecycleService>();
+builder.Services.AddSingleton<IServiceLifecycleService>(sp =>
+{
+    var k8s = sp.GetRequiredService<IOptions<KubernetesOptions>>();
+    return k8s.Value.Enabled
+        ? sp.GetRequiredService<KubernetesLifecycleService>()
+        : sp.GetRequiredService<DockerLifecycleService>();
+});
+builder.Services.AddSingleton<ILifecycleController, LifecycleController>();
+
 // OpenTelemetry
 builder.Services.AddOpenTelemetry()
     .WithTracing(tracing => tracing.AddAspNetCoreInstrumentation())
