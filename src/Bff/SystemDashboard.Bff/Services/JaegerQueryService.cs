@@ -7,16 +7,13 @@ namespace SystemDashboard.Bff.Services;
 public sealed class JaegerQueryService : IJaegerQueryService
 {
     private readonly HttpClient _httpClient;
-    private readonly IOptions<JaegerOptions> _options;
     private readonly ILogger<JaegerQueryService> _logger;
 
     public JaegerQueryService(
         HttpClient httpClient,
-        IOptions<JaegerOptions> options,
         ILogger<JaegerQueryService> logger)
     {
         _httpClient = httpClient;
-        _options = options;
         _logger = logger;
     }
 
@@ -88,7 +85,7 @@ public sealed class JaegerQueryService : IJaegerQueryService
             TraceId = trace.TraceId ?? "",
             RootService = rootSpan?.ProcessId ?? trace.Processes?.FirstOrDefault().Key ?? "",
             RootOperation = rootSpan?.OperationName ?? "",
-            DurationMs = (trace.Spans?.Max(s => s.StartTime + s.Duration) ?? 0 - startTimeUs) / 1000,
+            DurationMs = ((trace.Spans?.Max(s => s.StartTime + s.Duration) ?? startTimeUs) - startTimeUs) / 1000,
             SpanCount = trace.Spans?.Count ?? 0,
             StartTime = FromUnixTimeMicroseconds(startTimeUs).UtcDateTime
         };

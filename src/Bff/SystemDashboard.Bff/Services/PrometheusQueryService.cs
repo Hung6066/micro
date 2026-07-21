@@ -8,16 +8,13 @@ namespace SystemDashboard.Bff.Services;
 public sealed class PrometheusQueryService : IPrometheusQueryService
 {
     private readonly HttpClient _httpClient;
-    private readonly IOptions<PrometheusOptions> _options;
     private readonly ILogger<PrometheusQueryService> _logger;
 
     public PrometheusQueryService(
         HttpClient httpClient,
-        IOptions<PrometheusOptions> options,
         ILogger<PrometheusQueryService> logger)
     {
         _httpClient = httpClient;
-        _options = options;
         _logger = logger;
     }
 
