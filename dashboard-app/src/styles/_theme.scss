@@ -1,0 +1,92 @@
+// His.Hope Dashboard — Angular Material 3 Custom Theme
+// Mirrors the main SPA theme: clinical green primary, warm monochrome
+// Palette: #F7F6F3 bone; #FFFFFF cards; #EAEAEA borders
+
+@use '@angular/material' as mat;
+
+// ── Custom Clinical Green Palette (M3) ──
+$clinical-green: (
+  0: #000000,
+  10: #002106,
+  20: #003913,
+  25: #00461a,
+  30: #1a5e2e,
+  35: #256d3c,
+  40: #2F6B4A,
+  50: #4a855f,
+  60: #64a075,
+  70: #7ebb8c,
+  80: #99d7a3,
+  90: #b4f4bb,
+  95: #c8ffce,
+  98: #e9ffe6,
+  99: #f5fff3,
+  100: #ffffff,
+  secondary: (
+    0: #000000, 10: #121f0e, 20: #263422, 25: #313f2c, 30: #3c4b37,
+    35: #485642, 40: #54634d, 50: #6c7b65, 60: #86957e, 70: #a0b097,
+    80: #bbcbb2, 90: #d7e8cd, 95: #e5f6da, 98: #eeffe3, 99: #f7ffee, 100: #ffffff,
+  ),
+  neutral: (
+    0: #000000, 10: #1a1c18, 20: #2f312d, 25: #3a3c38, 30: #454743,
+    35: #51534e, 40: #5d5f5a, 50: #767872, 60: #90918c, 70: #abaca6,
+    80: #c6c7c1, 90: #e2e3dc, 95: #f1f1eb, 98: #f9faf3, 99: #fcfdf6, 100: #ffffff,
+    4: #0c0f0b, 6: #121410, 12: #1e201c, 17: #282b26, 22: #333531,
+    24: #383a35, 87: #dadbd3, 92: #e8e9e1, 94: #eeeee7, 96: #f3f4ed,
+  ),
+  neutral-variant: (
+    0: #000000, 10: #181d15, 20: #2c3229, 25: #373d34, 30: #43483f,
+    35: #4e544a, 40: #5a6056, 50: #73796e, 60: #8d9387, 70: #a7ada1,
+    80: #c3c8bc, 90: #dfe4d7, 95: #edf3e5, 98: #f6fbee, 99: #f9fef1, 100: #ffffff,
+  ),
+  error: (
+    0: #000000, 10: #410002, 20: #690005, 25: #7e0007, 30: #93000a,
+    35: #a80710, 40: #ba1a1a, 50: #de3730, 60: #ff5449, 70: #ff897d,
+    80: #ffb4ab, 90: #ffdad6, 95: #ffedea, 98: #fff8f7, 99: #fffbff, 100: #ffffff,
+  ),
+);
+
+$dashboard-theme: mat.define-theme((
+  color: (
+    theme-type: light,
+    primary: $clinical-green,
+    tertiary: mat.$blue-palette,
+  ),
+  typography: (
+    plain-family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif',
+    brand-family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif',
+    bold-weight: 700,
+    medium-weight: 500,
+    regular-weight: 400,
+  ),
+  density: (
+    scale: -1,
+  ),
+));
+
+html {
+  @include mat.all-component-themes($dashboard-theme);
+  @include mat.system-level-colors($dashboard-theme);
+  @include mat.system-level-typography($dashboard-theme);
+}
+
+@include mat.table-density(-3);
+
+:root {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, Monaco, monospace;
+  --bg-warm: var(--mat-sys-surface);
+  --surface-white: var(--mat-sys-surface-container-lowest);
+  --text-primary: var(--mat-sys-on-surface);
+  --text-secondary: var(--mat-sys-on-surface-variant);
+  --text-muted: var(--mat-sys-on-surface-variant);
+  --border-default: var(--mat-sys-outline-variant);
+  --border-light: var(--mat-sys-outline-variant);
+  --color-primary: var(--mat-sys-primary);
+  --color-warn: var(--mat-sys-error);
+  --radius-card: 8px;
+  --radius-button: 6px;
+  --radius-input: 4px;
+  --radius-badge: 4px;
+  --max-width-container: 1200px;
+}
