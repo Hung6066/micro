@@ -1,0 +1,107 @@
+---
+# Experiment 1: Kill Redis — verify circuit breaker opens, sessions fail gracefully
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: bff-redis-kill
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    chaos-mesh/experiment-type: pod-kill
+    chaos-mesh/target: redis
+  annotations:
+    description: "Kills Redis pod for 30s to verify BFF circuit breaker opens and sessions degrade gracefully"
+    expected-behavior: "BFF returns 503 for session-dependent requests → circuit breaker opens → Angular retries with backoff"
+    alert-expected: "BffCircuitBreakerOpen fires within 10s of Redis downtime"
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+      - his-hope
+    labelSelectors:
+      app: redis
+  duration: "30s"
+  scheduler:
+    cron: "@every 1h"
+---
+# Experiment 2: Network delay on downstream — verify timeout + degradation
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: bff-downstream-latency
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    chaos-mesh/experiment-type: network-delay
+    chaos-mesh/target: backend
+  annotations:
+    description: "Injects 5000ms + 1000ms jitter latency on all backend pods to verify BFF timeout handling and degraded responses"
+    expected-behavior: "BFF returns 200 with degraded indicators for aggregation endpoints; some requests time out"
+    alert-expected: "BffHighLatency fires when p(99) exceeds 2s threshold"
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - his-hope
+    labelSelectors:
+      app.kubernetes.io/component: backend
+  delay:
+    latency: "5000ms"
+    jitter: "1000ms"
+  duration: "60s"
+  scheduler:
+    cron: "@every 3h"
+---
+# Experiment 3: Packet loss on BFF → verify retry + circuit breaker
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: bff-packet-loss
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    chaos-mesh/experiment-type: packet-loss
+    chaos-mesh/target: bff
+  annotations:
+    description: "30% packet loss on all BFF pods to verify retry logic and circuit breaker behavior under unreliable network"
+    expected-behavior: "Retries succeed; some degraded returns; no 5xx if retry logic works correctly"
+    alert-expected: "None if retry logic handles gracefully"
+spec:
+  action: loss
+  mode: all
+  selector:
+    namespaces:
+      - his-hope
+    labelSelectors:
+      app.kubernetes.io/component: bff
+  loss:
+    loss: "30"
+    correlation: "50"
+  duration: "45s"
+---
+# Experiment 4: Pod kill on a BFF — verify graceful degradation, other replicas take over
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: bff-pod-kill
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    chaos-mesh/experiment-type: pod-kill
+    chaos-mesh/target: patient-bff
+  annotations:
+    description: "Kills the patient-bff pod to verify other replicas serve traffic without downtime"
+    expected-behavior: "Other replicas serve traffic; no downtime (Linkerd reroutes seamlessly)"
+    alert-expected: "None (Linkerd reroutes); PodRestart counter increments"
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces:
+      - his-hope
+    labelSelectors:
+      app.kubernetes.io/component: bff
+      app.kubernetes.io/name: patient-bff
+  duration: "10s"
