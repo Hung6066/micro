@@ -435,6 +435,26 @@ services:
       timeout: 10s
       retries: 5
       start_period: 15s
+  # Aspire Dashboard BFF
+  systemdashboard-bff:
+    build:
+      context: ..
+      dockerfile: src/Bff/SystemDashboard.Bff/Dockerfile
+    ports:
+      - "5700:5700"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Consul__Address=http://consul:8500
+      - Elasticsearch__Url=http://elasticsearch:9200
+      - Jaeger__QueryUrl=http://jaeger:16686
+      - Prometheus__Url=http://prometheus:9090
+    depends_on:
+      - consul
+      - elasticsearch
+      - jaeger
+      - prometheus
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
   # Temporal distributed workflow engine
   temporal:
