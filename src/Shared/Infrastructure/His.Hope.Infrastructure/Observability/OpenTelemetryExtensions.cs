@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OpenTelemetry;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -15,8 +16,8 @@ public static class OpenTelemetryExtensions
         IConfiguration configuration,
         string serviceName)
     {
-        var otlpEndpoint = configuration.GetValue("Otlp:Endpoint", "http://localhost:4317");
-        var environment = configuration.GetValue("Environment", "development");
+        var otlpEndpoint = configuration.GetValue<string>("Otlp:Endpoint") ?? "http://localhost:4317";
+        var environment = configuration.GetValue<string>("Environment") ?? "development";
 
         services.AddOpenTelemetry()
             .ConfigureResource(resource => resource
@@ -59,10 +60,10 @@ public static class OpenTelemetryExtensions
                     options.SetDbStatementForText = false;
                     options.SetDbStatementForStoredProcedure = true;
                 })
-                .AddJaegerExporter(options =>
+                .AddOtlpExporter(options =>
                 {
-                    options.AgentHost = configuration.GetValue("Otlp:Host", "localhost");
-                    options.AgentPort = configuration.GetValue("Otlp:Port", 6831);
+                    options.Endpoint = new Uri(otlpEndpoint);
+                    options.Protocol = OtlpExportProtocol.Grpc;
                 })
                 .SetSampler(new ParentBasedSampler(new TraceIdRatioBasedSampler(0.1))))
             .WithMetrics(metrics => metrics

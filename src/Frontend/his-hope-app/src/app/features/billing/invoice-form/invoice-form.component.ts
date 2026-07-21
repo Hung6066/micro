@@ -120,7 +120,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
                 </div>
 
                 <button mat-icon-button color="warn" type="button" (click)="removeItem(i)"
-                        attr.aria-label="Xóa dịch vụ">
+                        aria-label="Xóa dịch vụ">
                   <mat-icon>delete</mat-icon>
                 </button>
               </div>
@@ -128,7 +128,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
             </div>
 
             <button mat-stroked-button color="primary" type="button" (click)="addItem()"
-                    attr.aria-label="Thêm dịch vụ">
+                    aria-label="Thêm dịch vụ">
               <mat-icon>add</mat-icon> Thêm dịch vụ
             </button>
           </mat-card-content>

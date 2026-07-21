@@ -39,14 +39,14 @@ import { Prescription } from '@core/models/prescription.model';
           @if (prescription.statusCode === 'active') {
           <button mat-raised-button color="primary"
                   (click)="fillPrescription()"
-                  attr.aria-label="Cấp phát thuốc">
+                  aria-label="Cấp phát thuốc">
             <mat-icon>medication</mat-icon> Cấp phát
           </button>
           }
           @if (prescription.statusCode === 'active' || prescription.statusCode === 'partially_filled') {
           <button mat-stroked-button color="warn"
                   (click)="cancelPrescription()"
-                  attr.aria-label="Hủy đơn thuốc">
+                  aria-label="Hủy đơn thuốc">
             <mat-icon>cancel</mat-icon> Hủy đơn
           </button>
           }

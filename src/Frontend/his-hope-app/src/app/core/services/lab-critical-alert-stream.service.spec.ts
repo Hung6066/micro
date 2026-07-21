@@ -1,14 +1,18 @@
 import { TestBed } from '@angular/core/testing';
 import { LabCriticalAlertStreamService, LabCriticalAlertConnectionFactory } from './lab-critical-alert-stream.service';
+import { AuthService } from './auth.service';
 
-let lastBuilderInstance: { lastUrl?: string; lastOptions?: { withCredentials?: boolean } } | null = null;
+let lastBuilderInstance: {
+  lastUrl?: string;
+  lastOptions?: { accessTokenFactory?: () => string; withCredentials?: boolean };
+} | null = null;
 
 jest.mock('@microsoft/signalr', () => {
   class HubConnectionBuilder {
     lastUrl?: string;
-    lastOptions?: { withCredentials?: boolean };
+    lastOptions?: { accessTokenFactory?: () => string; withCredentials?: boolean };
 
-    withUrl(url: string, options: { withCredentials?: boolean }) {
+    withUrl(url: string, options: { accessTokenFactory?: () => string; withCredentials?: boolean }) {
       this.lastUrl = url;
       this.lastOptions = options;
       lastBuilderInstance = this;
@@ -44,6 +48,7 @@ describe('LabCriticalAlertStreamService', () => {
   };
   let handlers: Record<string, (payload: any) => void>;
   let factory: jasmine.SpyObj<LabCriticalAlertConnectionFactory>;
+  let authService: jasmine.SpyObj<AuthService>;
 
   beforeEach(() => {
     lastBuilderInstance = null;
@@ -59,9 +64,12 @@ describe('LabCriticalAlertStreamService', () => {
 
     factory = jasmine.createSpyObj<LabCriticalAlertConnectionFactory>('LabCriticalAlertConnectionFactory', ['create']);
     factory.create.and.returnValue(fakeConnection as any);
+    authService = jasmine.createSpyObj<AuthService>('AuthService', ['getStoredAccessToken']);
+    authService.getStoredAccessToken.and.returnValue('jwt-token');
     TestBed.configureTestingModule({
       providers: [
         LabCriticalAlertStreamService,
+        { provide: AuthService, useValue: authService },
         { provide: LabCriticalAlertConnectionFactory, useValue: factory },
       ],
     });
@@ -102,6 +110,7 @@ describe('LabCriticalAlertStreamService', () => {
     connectionFactory.create();
 
     expect(lastBuilderInstance?.lastUrl).toBe('/hubs/lab-critical-alerts');
-    expect(lastBuilderInstance?.lastOptions).toEqual({ withCredentials: true });
+    expect(lastBuilderInstance?.lastOptions?.withCredentials).toBeTrue();
+    expect(lastBuilderInstance?.lastOptions?.accessTokenFactory?.()).toBe('jwt-token');
   });
 });

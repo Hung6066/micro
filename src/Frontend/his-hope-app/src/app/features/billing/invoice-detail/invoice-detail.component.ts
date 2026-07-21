@@ -50,14 +50,14 @@ import { Invoice } from '@core/models/invoice.model';
           @if (invoice.statusCode !== 'paid' && invoice.statusCode !== 'cancelled' && invoice.statusCode !== 'voided') {
           <button mat-raised-button color="primary"
                   (click)="showPaymentForm = !showPaymentForm"
-                  attr.aria-label="Ghi nhận thanh toán">
+                  aria-label="Ghi nhận thanh toán">
             <mat-icon>payment</mat-icon> Ghi nhận thanh toán
           </button>
           }
           @if (invoice.statusCode !== 'voided' && invoice.statusCode !== 'cancelled' && invoice.statusCode !== 'paid') {
           <button mat-stroked-button color="warn"
                   (click)="voidInvoice()"
-                  attr.aria-label="Hủy hóa đơn">
+                  aria-label="Hủy hóa đơn">
             <mat-icon>cancel</mat-icon> Hủy hóa đơn
           </button>
           }

@@ -78,7 +78,7 @@ import { Appointment } from '@core/models/appointment.model';
                 <th mat-header-cell *matHeaderCellDef></th>
                 <td mat-cell *matCellDef="let a">
                   <button mat-icon-button (click)="viewDetail(a.id)" matTooltip="View details"
-                          attr.aria-label="Xem chi tiết cuộc hẹn">
+                          aria-label="Xem chi tiết cuộc hẹn">
                     <mat-icon>visibility</mat-icon>
                   </button>
                 </td>

@@ -13,7 +13,7 @@ internal sealed class HttpCurrentUserContext : ICurrentUserContext
         _httpContextAccessor = httpContextAccessor;
     }
 
-    public string UserId => IsAuthenticated ? GetUser().FindFirst("sub")?.Value ?? string.Empty : "system";
+    public string UserId => IsAuthenticated ? GetUser().FindFirst("sub")?.Value ?? "system" : "system";
 
     public string FullName => IsAuthenticated ? GetUser().FindFirst("fullName")?.Value ?? string.Empty : "System";
 

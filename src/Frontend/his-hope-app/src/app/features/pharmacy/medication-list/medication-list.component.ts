@@ -27,7 +27,7 @@ import { Medication } from '@core/models/medication.model';
       <div class="header">
         <h1>Danh mục thuốc</h1>
         <button mat-raised-button color="primary" routerLink="/pharmacy/medications/new"
-                attr.aria-label="Thêm thuốc mới">
+                aria-label="Thêm thuốc mới">
           <mat-icon>add</mat-icon> Thêm thuốc
         </button>
       </div>
@@ -88,11 +88,11 @@ import { Medication } from '@core/models/medication.model';
             <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
             <mat-cell *matCellDef="let m">
               <button mat-icon-button color="primary" (click)="viewDetail(m.id)"
-                      attr.aria-label="Xem chi tiết thuốc {{ m.name }}">
+                      [attr.aria-label]="'Xem chi tiết thuốc ' + m.name">
                 <mat-icon>visibility</mat-icon>
               </button>
               <button mat-icon-button color="accent" [routerLink]="['/pharmacy/medications', m.id, 'edit']"
-                      attr.aria-label="Chỉnh sửa thuốc {{ m.name }}">
+                      [attr.aria-label]="'Chỉnh sửa thuốc ' + m.name">
                 <mat-icon>edit</mat-icon>
               </button>
             </mat-cell>

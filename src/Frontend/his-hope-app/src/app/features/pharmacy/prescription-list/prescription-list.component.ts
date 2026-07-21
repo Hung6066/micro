@@ -28,7 +28,7 @@ import { Prescription, PrescriptionStatus } from '@core/models/prescription.mode
       <div class="header">
         <h1>Danh sách đơn thuốc</h1>
         <button mat-raised-button color="primary" routerLink="/pharmacy/prescriptions/new"
-                attr.aria-label="Tạo đơn thuốc mới">
+                aria-label="Tạo đơn thuốc mới">
           <mat-icon>add</mat-icon> Tạo đơn thuốc
         </button>
       </div>
@@ -112,7 +112,7 @@ import { Prescription, PrescriptionStatus } from '@core/models/prescription.mode
             <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
             <mat-cell *matCellDef="let p">
               <button mat-icon-button color="primary" (click)="viewDetail(p.id)"
-                      attr.aria-label="Xem chi tiết đơn thuốc">
+                      aria-label="Xem chi tiết đơn thuốc">
                 <mat-icon>visibility</mat-icon>
               </button>
             </mat-cell>

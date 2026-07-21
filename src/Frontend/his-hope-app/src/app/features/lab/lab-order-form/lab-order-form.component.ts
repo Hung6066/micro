@@ -102,7 +102,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
                   </mat-form-field>
 
                   <button mat-icon-button color="warn" type="button" (click)="removeTest(i)"
-                          attr.aria-label="Xóa xét nghiệm">
+                          aria-label="Xóa xét nghiệm">
                     <mat-icon>delete</mat-icon>
                   </button>
                 </div>
@@ -111,7 +111,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
             </div>
 
             <button mat-stroked-button color="primary" type="button" (click)="addTest()"
-                    attr.aria-label="Thêm xét nghiệm">
+                    aria-label="Thêm xét nghiệm">
               <mat-icon>add</mat-icon> Thêm xét nghiệm
             </button>
           </mat-card-content>

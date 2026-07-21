@@ -64,6 +64,23 @@ public static class SettingsEndpoints
             return Results.Ok(settings);
         }).RequireAuthorization("Permission:admin.settings.write");
 
+        // Frontend admin module calls PUT /api/v1/admin/settings/bulk.
+        group.MapPut("/settings/bulk", async (
+            BulkUpdateSettingsRequest request,
+            HttpContext httpContext,
+            IMediator mediator = null!,
+            CancellationToken ct = default) =>
+        {
+            var userId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? httpContext.User.FindFirst("sub")?.Value;
+
+            var settings = await mediator.Send(
+                new BulkUpdateSettingsCommand(request.Settings, userId), ct);
+            return Results.Ok(settings);
+        }).RequireAuthorization("Permission:admin.settings.write");
+
         return group;
     }
 }
+
+public sealed record BulkUpdateSettingsRequest(List<BulkUpdateSettingItem> Settings);

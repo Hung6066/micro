@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import { CriticalAlert } from '@core/models/critical-alert.model';
+import { AuthService } from './auth.service';
 
 export interface LabCriticalAlertConnection {
   start(): Promise<void>;
@@ -12,9 +13,14 @@ export interface LabCriticalAlertConnection {
 
 @Injectable({ providedIn: 'root' })
 export class LabCriticalAlertConnectionFactory {
+  private readonly authService = inject(AuthService);
+
   create(): LabCriticalAlertConnection {
     const connection = new HubConnectionBuilder()
-      .withUrl('/hubs/lab-critical-alerts', { withCredentials: true })
+      .withUrl('/hubs/lab-critical-alerts', {
+        accessTokenFactory: () => this.authService.getStoredAccessToken() ?? '',
+        withCredentials: true,
+      })
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Warning)
       .build();

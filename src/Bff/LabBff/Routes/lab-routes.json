@@ -28,6 +28,26 @@
       "lab-cancel": {
         "ClusterId": "lab-service",
         "Match": { "Path": "/api/v1/lab-orders/{id}/cancel", "Methods": ["POST"] }
+      },
+      "critical-alert-list": {
+        "ClusterId": "lab-service",
+        "Match": { "Path": "/api/v1/critical-alerts", "Methods": ["GET", "POST"] }
+      },
+      "critical-alert-acknowledge": {
+        "ClusterId": "lab-service",
+        "Match": { "Path": "/api/v1/critical-alerts/{id}/acknowledge", "Methods": ["POST"] }
+      },
+      "critical-alert-resolve": {
+        "ClusterId": "lab-service",
+        "Match": { "Path": "/api/v1/critical-alerts/{id}/resolve", "Methods": ["POST"] }
+      },
+      "critical-alert-rules-list": {
+        "ClusterId": "lab-service",
+        "Match": { "Path": "/api/v1/critical-alert-rules", "Methods": ["GET", "POST"] }
+      },
+      "critical-alert-rules-item": {
+        "ClusterId": "lab-service",
+        "Match": { "Path": "/api/v1/critical-alert-rules/{id}", "Methods": ["GET", "PUT", "DELETE"] }
       }
     },
     "Clusters": {

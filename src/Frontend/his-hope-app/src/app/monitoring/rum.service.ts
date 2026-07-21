@@ -76,7 +76,6 @@ export class RumService {
 
     // Short-circuit in environments where OTEL collector is not configured.
     if (!environment.otelCollectorUrl) {
-      console.warn('[RumService] No OTEL collector URL configured — skipping OpenTelemetry initialisation.');
       return;
     }
 

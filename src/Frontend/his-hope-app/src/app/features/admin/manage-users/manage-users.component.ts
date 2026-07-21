@@ -44,8 +44,7 @@ const ROLE_FILTERS = [
     MatFormFieldModule, MatInputModule, MatSelectModule, MatMenuModule,
     MatChipsModule, MatProgressSpinnerModule, MatTooltipModule, MatDialogModule,
     MatSnackBarModule,
-    UserFormDialogComponent, AssignRolesDialogComponent,
-    ConfirmDialogComponent, LoadingSpinnerComponent, EmptyStateComponent,
+    LoadingSpinnerComponent, EmptyStateComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

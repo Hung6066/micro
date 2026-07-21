@@ -164,7 +164,7 @@ import { LabCriticalAlertService } from '@core/services/lab-critical-alert.servi
               <mat-cell *matCellDef="let t">
                 @if (t.statusCode === 'collected') {
                 <button mat-stroked-button color="primary"
-                        (click)="openResultForm(t)" attr.aria-label="Nhập kết quả cho {{ t.testName }}">
+                        (click)="openResultForm(t)" [attr.aria-label]="'Nhập kết quả cho ' + t.testName">
                   <mat-icon>edit_note</mat-icon> Nhập KQ
                 </button>
                 }

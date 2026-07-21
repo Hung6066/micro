@@ -44,11 +44,6 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
         MatChipsModule,
         MatProgressSpinnerModule,
         MatTooltipModule,
-        StartEncounterDialogComponent,
-        OrderLabDialogComponent,
-        PrescribeDialogComponent,
-        ScheduleDialogComponent,
-        RecordPaymentDialogComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `

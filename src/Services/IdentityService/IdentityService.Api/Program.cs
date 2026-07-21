@@ -350,6 +350,8 @@ secured.MapRoleEndpoints();
 var admin = app.MapGroup("/api/v1/admin").RequireAuthorization();
 admin.MapUserEndpoints();
 admin.MapRoleEndpoints();
+admin.MapSettingsEndpoints();
+admin.MapAuditLogEndpoints();
 admin.MapGet("/dashboard", async (IdentityDbContext db, CancellationToken ct) =>
 {
     var totalUsers = await db.Users.CountAsync(ct);

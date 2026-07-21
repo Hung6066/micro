@@ -116,6 +116,16 @@ describe('AuthService', () => {
     req.flush({ authenticated: true });
   });
 
+  it('should verify cookie session when no access token exists', () => {
+    service.isLoggedIn().subscribe((loggedIn) => {
+      expect(loggedIn).toBeTrue();
+    });
+
+    const req = httpMock.expectOne(`${environment.apiUrl}/auth/verify`);
+    expect(req.request.withCredentials).toBeTrue();
+    req.flush({ authenticated: true });
+  });
+
   it('should hydrate the current user from stored token claims', (done) => {
     const token = createJwtToken({
       sub: mockUser.id,
@@ -149,6 +159,23 @@ describe('AuthService', () => {
       expect(user?.fullName).toBe('Viên Quản Trị');
       expect(user?.firstName).toBe('Viên Quản');
       expect(user?.lastName).toBe('Trị');
+      done();
+    });
+  });
+
+  it('should hydrate role from the .NET role claim URI', (done) => {
+    const token = createJwtToken({
+      sub: mockUser.id,
+      email: mockUser.email,
+      unique_name: mockUser.username,
+      fullName: mockUser.fullName,
+      'http://schemas.microsoft.com/ws/2008/06/identity/claims/role': 'Admin',
+      permissions: mockUser.permissions?.join(','),
+    });
+    service.storeAccessToken(token);
+
+    service.ensureCurrentUser().subscribe((user) => {
+      expect(user?.roles).toEqual(['Admin']);
       done();
     });
   });

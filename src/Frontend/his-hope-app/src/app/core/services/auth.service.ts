@@ -96,10 +96,6 @@ export class AuthService {
       return of(true);
     }
 
-    if (!this.getStoredAccessToken()) {
-      return of(false);
-    }
-
     return this.http.get<{ authenticated: boolean }>(`${this.baseUrl}/verify`, { withCredentials: true }).pipe(
       map((res) => res.authenticated),
       retry(1),
@@ -271,10 +267,15 @@ export class AuthService {
         return null;
       }
 
+      const roleClaimUri = 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role';
       const roles = Array.isArray(payload['roles'])
         ? payload['roles'] as string[]
+        : Array.isArray(payload[roleClaimUri])
+          ? payload[roleClaimUri] as string[]
         : typeof payload['role'] === 'string'
           ? [payload['role'] as string]
+          : typeof payload[roleClaimUri] === 'string'
+            ? [payload[roleClaimUri] as string]
           : [];
       const permissions = Array.isArray(payload['permissions'])
         ? payload['permissions'] as string[]

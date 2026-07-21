@@ -78,7 +78,7 @@ import { Encounter } from '@core/models/encounter.model';
                 <th mat-header-cell *matHeaderCellDef></th>
                 <td mat-cell *matCellDef="let e">
                   <button mat-icon-button (click)="viewDetail(e.id)" matTooltip="View details"
-                          attr.aria-label="Xem chi tiết hồ sơ lâm sàng">
+                          aria-label="Xem chi tiết hồ sơ lâm sàng">
                     <mat-icon>visibility</mat-icon>
                   </button>
                 </td>

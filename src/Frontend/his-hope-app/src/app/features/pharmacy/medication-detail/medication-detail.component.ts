@@ -36,12 +36,12 @@ import { Medication } from '@core/models/medication.model';
         <div class="header-actions">
           @if (medication.isActive) {
           <button mat-raised-button color="accent" [routerLink]="['/pharmacy/medications', medication.id, 'edit']"
-                  attr.aria-label="Chỉnh sửa thuốc {{ medication.name }}">
+                  [attr.aria-label]="'Chỉnh sửa thuốc ' + medication.name">
             <mat-icon>edit</mat-icon> Chỉnh sửa
           </button>
           }
           <button mat-stroked-button [color]="medication.isActive ? 'warn' : 'primary'"
-                  (click)="toggleActive()" attr.aria-label="{{ medication.isActive ? 'Ngừng' : 'Kích hoạt' }} thuốc">
+                  (click)="toggleActive()" [attr.aria-label]="(medication.isActive ? 'Ngừng' : 'Kích hoạt') + ' thuốc'">
             <mat-icon>{{ medication.isActive ? 'block' : 'check_circle' }}</mat-icon>
             {{ medication.isActive ? 'Ngừng sử dụng' : 'Kích hoạt' }}
           </button>

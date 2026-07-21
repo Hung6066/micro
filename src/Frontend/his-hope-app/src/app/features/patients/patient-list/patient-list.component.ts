@@ -66,11 +66,11 @@ import { MatButtonModule } from '@angular/material/button';
           <mat-header-cell *matHeaderCellDef>Actions</mat-header-cell>
           <mat-cell *matCellDef="let p">
             <button mat-icon-button color="primary" (click)="viewPatient(p.id)"
-                    attr.aria-label="Xem chi tiết bệnh nhân {{ p.fullName }}">
+                    [attr.aria-label]="'Xem chi tiết bệnh nhân ' + p.fullName">
               <mat-icon>visibility</mat-icon>
             </button>
             <button mat-icon-button color="accent" [routerLink]="['/patients', p.id, 'edit']"
-                    attr.aria-label="Chỉnh sửa bệnh nhân {{ p.fullName }}">
+                    [attr.aria-label]="'Chỉnh sửa bệnh nhân ' + p.fullName">
               <mat-icon>edit</mat-icon>
             </button>
           </mat-cell>

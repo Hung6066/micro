@@ -28,7 +28,7 @@ import { Invoice } from '@core/models/invoice.model';
       <div class="header">
         <h1>Hóa đơn thanh toán</h1>
         <button mat-raised-button color="primary" routerLink="/billing/new"
-                attr.aria-label="Tạo hóa đơn mới">
+                aria-label="Tạo hóa đơn mới">
           <mat-icon>add</mat-icon> Tạo hóa đơn
         </button>
       </div>
@@ -120,7 +120,7 @@ import { Invoice } from '@core/models/invoice.model';
             <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
             <mat-cell *matCellDef="let inv">
               <button mat-icon-button color="primary" (click)="viewDetail(inv.id)"
-                      attr.aria-label="Xem chi tiết hóa đơn">
+                      aria-label="Xem chi tiết hóa đơn">
                 <mat-icon>visibility</mat-icon>
               </button>
             </mat-cell>

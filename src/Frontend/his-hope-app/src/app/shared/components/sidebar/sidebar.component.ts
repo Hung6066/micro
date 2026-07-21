@@ -11,8 +11,6 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
-import { HasPermissionDirective } from '@core/directives/has-permission.directive';
-import { HasRoleDirective } from '@core/directives/has-role.directive';
 import { AuthService } from '@core/services/auth.service';
 import { PatientService } from '@core/services/patient.service';
 import { User } from '@core/models/auth.model';
@@ -25,7 +23,6 @@ import { Patient } from '@core/models/patient.model';
         CommonModule, RouterModule, ReactiveFormsModule,
         MatListModule, MatIconModule, MatBadgeModule, MatTooltipModule,
         MatButtonModule, MatFormFieldModule, MatInputModule, MatAutocompleteModule,
-        HasPermissionDirective, HasRoleDirective,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `

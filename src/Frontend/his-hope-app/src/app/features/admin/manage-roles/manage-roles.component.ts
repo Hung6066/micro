@@ -24,8 +24,7 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
     MatTableModule, MatButtonModule, MatIconModule, MatMenuModule,
     MatProgressSpinnerModule, MatTooltipModule, MatDialogModule,
     MatSnackBarModule,
-    RoleFormDialogComponent,
-    ConfirmDialogComponent, LoadingSpinnerComponent, EmptyStateComponent,
+    LoadingSpinnerComponent, EmptyStateComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
