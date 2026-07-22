@@ -69,13 +69,14 @@ public sealed class SloController : ControllerBase
         var latencySamples = latencyTask.Result;
         var latencyRangeData = latencyRangeTask.Result;
 
-        // Collect all unique service names from all metric labels
+        // Collect all unique service names from metric 'job' labels
+        // Prometheus recording rules use 'job' label (from scrape config) as service identifier
         var serviceNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         void CollectServices(List<PrometheusSample> samples)
         {
             foreach (var s in samples)
             {
-                if (s.Labels.TryGetValue("service", out var svc) && !string.IsNullOrWhiteSpace(svc))
+                if (s.Labels.TryGetValue("job", out var svc) && !string.IsNullOrWhiteSpace(svc))
                     serviceNames.Add(svc);
             }
         }
@@ -86,11 +87,11 @@ public sealed class SloController : ControllerBase
         CollectServices(burnRate6hSamples);
         CollectServices(latencySamples);
 
-        // Build helper: get value for a specific service from a sample list
+        // Build helper: get value for a specific service from a sample list (by 'job' label)
         static double GetValue(List<PrometheusSample> samples, string service)
         {
             return samples
-                .Where(s => s.Labels.TryGetValue("service", out var svc)
+                .Where(s => s.Labels.TryGetValue("job", out var svc)
                             && string.Equals(svc, service, StringComparison.OrdinalIgnoreCase))
                 .Select(s => s.Value)
                 .FirstOrDefault();
@@ -114,6 +115,19 @@ public sealed class SloController : ControllerBase
         }
 
         _logger.LogInformation("Returned SLO data for {Count} services", records.Count);
+
+        // Log debug info about what was found
+        _logger.LogInformation("SLO debug: availabilitySamples={A}, errorBudgetSamples={B}, burn1h={C}, burn6h={D}, latencySamples={E}, serviceNames={F}",
+            availabilitySamples.Count, errorBudgetSamples.Count, burnRate1hSamples.Count, burnRate6hSamples.Count, latencySamples.Count,
+            string.Join(",", serviceNames));
+
+        if (availabilitySamples.Count > 0)
+        {
+            var first = availabilitySamples[0];
+            _logger.LogInformation("SLO debug first availability sample: labels count={L}, keys={K}",
+                first.Labels.Count, string.Join(",", first.Labels.Keys));
+        }
+
         return Ok(new SloResponse
         {
             Services = records,
