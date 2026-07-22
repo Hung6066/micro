@@ -90,6 +90,137 @@ spec:
       expr: |
         0.001 - pharmacy_service:slo_error_budget_30d:ratio
 
+  - name: his-hope.slo.per-service-completion
+    interval: 30s
+    rules:
+      # ---------- patient-service SLO (99.9% availability, p99 < 500ms) ----------
+      - record: slo:availability:patient_service:ratio_30d
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="patientservice",http_response_status_code!~"5.."}[30d]))
+          / sum(rate(http_server_request_duration_seconds_count{job="patientservice"}[30d]))
+      - record: slo:availability:patient_service:ratio_7d
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="patientservice",http_response_status_code!~"5.."}[7d]))
+          / sum(rate(http_server_request_duration_seconds_count{job="patientservice"}[7d]))
+      - record: slo:availability:patient_service:ratio_1h
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="patientservice",http_response_status_code!~"5.."}[1h]))
+          / sum(rate(http_server_request_duration_seconds_count{job="patientservice"}[1h]))
+      - record: slo:latency_p99:patient_service:ratio_30d
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_server_request_duration_seconds_bucket{job="patientservice"}[30d])) by (le))
+          / 0.5
+      - record: slo:error_budget_remaining:patient_service
+        expr: (1 - (1 - slo:availability:patient_service:ratio_30d) / (1 - 0.999)) * 100
+      - record: slo:burn_rate_1h:patient_service
+        expr: |
+          (1 - slo:availability:patient_service:ratio_1h)
+          / (1 - 0.999)
+      - record: slo:burn_rate_6h:patient_service
+        expr: |
+          (1 - slo:availability:patient_service:ratio_7d)
+          / (1 - 0.999)
+
+      # ---------- identity-service SLO (99.95% availability, p99 < 300ms) ----------
+      - record: slo:availability:identity_service:ratio_30d
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="identityservice",http_response_status_code!~"5.."}[30d]))
+          / sum(rate(http_server_request_duration_seconds_count{job="identityservice"}[30d]))
+      - record: slo:availability:identity_service:ratio_7d
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="identityservice",http_response_status_code!~"5.."}[7d]))
+          / sum(rate(http_server_request_duration_seconds_count{job="identityservice"}[7d]))
+      - record: slo:availability:identity_service:ratio_1h
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="identityservice",http_response_status_code!~"5.."}[1h]))
+          / sum(rate(http_server_request_duration_seconds_count{job="identityservice"}[1h]))
+      - record: slo:latency_p99:identity_service:ratio_30d
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_server_request_duration_seconds_bucket{job="identityservice"}[30d])) by (le))
+          / 0.3
+      - record: slo:error_budget_remaining:identity_service
+        expr: (1 - (1 - slo:availability:identity_service:ratio_30d) / (1 - 0.9995)) * 100
+      - record: slo:burn_rate_1h:identity_service
+        expr: |
+          (1 - slo:availability:identity_service:ratio_1h)
+          / (1 - 0.9995)
+      - record: slo:burn_rate_6h:identity_service
+        expr: |
+          (1 - slo:availability:identity_service:ratio_7d)
+          / (1 - 0.9995)
+
+      # ---------- appointment-service SLO (99.9% availability, p99 < 1s) ----------
+      - record: slo:availability:appointment_service:ratio_30d
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="appointmentservice",http_response_status_code!~"5.."}[30d]))
+          / sum(rate(http_server_request_duration_seconds_count{job="appointmentservice"}[30d]))
+      - record: slo:availability:appointment_service:ratio_7d
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="appointmentservice",http_response_status_code!~"5.."}[7d]))
+          / sum(rate(http_server_request_duration_seconds_count{job="appointmentservice"}[7d]))
+      - record: slo:availability:appointment_service:ratio_1h
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="appointmentservice",http_response_status_code!~"5.."}[1h]))
+          / sum(rate(http_server_request_duration_seconds_count{job="appointmentservice"}[1h]))
+      - record: slo:latency_p99:appointment_service:ratio_30d
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_server_request_duration_seconds_bucket{job="appointmentservice"}[30d])) by (le))
+          / 1.0
+      - record: slo:error_budget_remaining:appointment_service
+        expr: (1 - (1 - slo:availability:appointment_service:ratio_30d) / (1 - 0.999)) * 100
+      - record: slo:burn_rate_1h:appointment_service
+        expr: |
+          (1 - slo:availability:appointment_service:ratio_1h)
+          / (1 - 0.999)
+      - record: slo:burn_rate_6h:appointment_service
+        expr: |
+          (1 - slo:availability:appointment_service:ratio_7d)
+          / (1 - 0.999)
+
+      # ---------- clinical-service SLO (99.99% availability, p99 < 500ms) ----------
+      - record: slo:availability:clinical_service:ratio_30d
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="clinicalservice",http_response_status_code!~"5.."}[30d]))
+          / sum(rate(http_server_request_duration_seconds_count{job="clinicalservice"}[30d]))
+      - record: slo:availability:clinical_service:ratio_7d
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="clinicalservice",http_response_status_code!~"5.."}[7d]))
+          / sum(rate(http_server_request_duration_seconds_count{job="clinicalservice"}[7d]))
+      - record: slo:availability:clinical_service:ratio_1h
+        expr: |
+          sum(rate(http_server_request_duration_seconds_count{
+            job="clinicalservice",http_response_status_code!~"5.."}[1h]))
+          / sum(rate(http_server_request_duration_seconds_count{job="clinicalservice"}[1h]))
+      - record: slo:latency_p99:clinical_service:ratio_30d
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_server_request_duration_seconds_bucket{job="clinicalservice"}[30d])) by (le))
+          / 0.5
+      - record: slo:error_budget_remaining:clinical_service
+        expr: (1 - (1 - slo:availability:clinical_service:ratio_30d) / (1 - 0.9999)) * 100
+      - record: slo:burn_rate_1h:clinical_service
+        expr: |
+          (1 - slo:availability:clinical_service:ratio_1h)
+          / (1 - 0.9999)
+      - record: slo:burn_rate_6h:clinical_service
+        expr: |
+          (1 - slo:availability:clinical_service:ratio_7d)
+          / (1 - 0.9999)
+
   - name: his-hope.slo.alerts
     interval: 30s
     rules:
@@ -190,6 +321,42 @@ spec:
         severity: warning
       annotations:
         summary: "RabbitMQ queue {{ $labels.queue }} depth > 1000"
+
+    - alert: SLOErrorBudgetBurnCritical_Patient
+      expr: slo:burn_rate_1h:patient_service > 14.4 and slo:burn_rate_6h:patient_service > 14.4
+      for: 2m
+      labels:
+        severity: critical
+        service: patient-service
+      annotations:
+        summary: "Patient service error budget burn rate critical"
+
+    - alert: SLOErrorBudgetBurnCritical_Identity
+      expr: slo:burn_rate_1h:identity_service > 14.4 and slo:burn_rate_6h:identity_service > 14.4
+      for: 2m
+      labels:
+        severity: critical
+        service: identity-service
+      annotations:
+        summary: "Identity service error budget burn rate critical"
+
+    - alert: SLOErrorBudgetBurnCritical_Appointment
+      expr: slo:burn_rate_1h:appointment_service > 14.4 and slo:burn_rate_6h:appointment_service > 14.4
+      for: 2m
+      labels:
+        severity: critical
+        service: appointment-service
+      annotations:
+        summary: "Appointment service error budget burn rate critical"
+
+    - alert: SLOErrorBudgetBurnCritical_Clinical
+      expr: slo:burn_rate_1h:clinical_service > 14.4 and slo:burn_rate_6h:clinical_service > 14.4
+      for: 2m
+      labels:
+        severity: critical
+        service: clinical-service
+      annotations:
+        summary: "Clinical service error budget burn rate critical"
 
   - name: business-errors
     interval: 30s
