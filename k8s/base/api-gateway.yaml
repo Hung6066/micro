@@ -45,7 +45,8 @@ spec:
         runAsGroup: 1654
         fsGroup: 1654
         seccompProfile:
-          type: RuntimeDefault
+          type: Localhost
+          localhostProfile: his-hope-dotnet-strict.json
       containers:
         - name: api-gateway
           image: his-hope/api-gateway:latest
@@ -57,7 +58,8 @@ spec:
                 - ALL
             readOnlyRootFilesystem: true
             seccompProfile:
-              type: RuntimeDefault
+              type: Localhost
+              localhostProfile: his-hope-dotnet-strict.json
             runAsUser: 1654
             runAsGroup: 1654
           ports:
