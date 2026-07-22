@@ -40,6 +40,7 @@ resources:
   - ../linkerd/pod-monitor.yaml
   - network-policies.yaml
   - seccomp-profiles.yaml
+  - seccomp-daemonset.yaml
   # PgBouncer connection pooler infrastructure
   - ../infrastructure/pgbouncer-configmap.yaml
   - ../infrastructure/pgbouncer-secret.yaml

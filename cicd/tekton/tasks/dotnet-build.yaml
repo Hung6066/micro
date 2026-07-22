@@ -225,4 +225,5 @@ spec:
 
   volumes:
     - name: nuget-cache
-      emptyDir: {}
+      persistentVolumeClaim:
+        claimName: nuget-cache-pvc
