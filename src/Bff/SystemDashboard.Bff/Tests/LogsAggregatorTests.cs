@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using SystemDashboard.Bff.Aggregators;
@@ -35,8 +36,9 @@ public sealed class LogsAggregatorTests
                 ct: Arg.Any<CancellationToken>())
             .Returns(expectedLogs);
 
+        var cache = Substitute.For<IMemoryCache>();
         var logger = Substitute.For<ILogger<LogsAggregator>>();
-        var aggregator = new LogsAggregator(esService, logger);
+        var aggregator = new LogsAggregator(cache, esService, logger);
 
         // Act
         var results = await aggregator.QueryLogsAsync(
@@ -68,8 +70,9 @@ public sealed class LogsAggregatorTests
                 ct: Arg.Any<CancellationToken>())
             .Returns([]);
 
+        var cache = Substitute.For<IMemoryCache>();
         var logger = Substitute.For<ILogger<LogsAggregator>>();
-        var aggregator = new LogsAggregator(esService, logger);
+        var aggregator = new LogsAggregator(cache, esService, logger);
 
         // Act
         var results = await aggregator.QueryLogsAsync(
@@ -101,8 +104,9 @@ public sealed class LogsAggregatorTests
                 Arg.Any<CancellationToken>())
             .Returns<List<LogEntry>>(_ => throw new HttpRequestException("ES unavailable"));
 
+        var cache = Substitute.For<IMemoryCache>();
         var logger = Substitute.For<ILogger<LogsAggregator>>();
-        var aggregator = new LogsAggregator(esService, logger);
+        var aggregator = new LogsAggregator(cache, esService, logger);
 
         // Act
         var results = await aggregator.QueryLogsAsync(service: "identity-service");
