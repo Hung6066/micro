@@ -1,12 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SystemDashboard.Bff.Aggregators;
+using SystemDashboard.Bff.Authorization;
 
 namespace SystemDashboard.Bff.Controllers;
 
 [ApiController]
 [Route("api/resources")]
-[Authorize]
 public sealed class ResourcesController : ControllerBase
 {
     private readonly IResourceAggregator _resourceAggregator;
@@ -23,6 +23,7 @@ public sealed class ResourcesController : ControllerBase
         _logger = logger;
     }
 
+    [Authorize(Roles = DashboardRoles.ReadOnly)]
     [HttpGet]
     public async Task<IActionResult> GetAllResources(CancellationToken ct)
     {
@@ -30,6 +31,7 @@ public sealed class ResourcesController : ControllerBase
         return Ok(resources);
     }
 
+    [Authorize(Roles = DashboardRoles.ReadOnly)]
     [HttpGet("{name}")]
     public async Task<IActionResult> GetResourceByName(string name, CancellationToken ct)
     {
@@ -39,6 +41,7 @@ public sealed class ResourcesController : ControllerBase
         return Ok(resource);
     }
 
+    [Authorize(Roles = DashboardRoles.Manage)]
     [HttpPost("{name}/start")]
     public async Task<IActionResult> StartService(string name, CancellationToken ct)
     {
@@ -49,6 +52,7 @@ public sealed class ResourcesController : ControllerBase
         return Ok(new { message = $"Service '{name}' started" });
     }
 
+    [Authorize(Roles = DashboardRoles.Manage)]
     [HttpPost("{name}/stop")]
     public async Task<IActionResult> StopService(string name, CancellationToken ct)
     {
@@ -59,6 +63,7 @@ public sealed class ResourcesController : ControllerBase
         return Ok(new { message = $"Service '{name}' stopped" });
     }
 
+    [Authorize(Roles = DashboardRoles.Manage)]
     [HttpPost("{name}/restart")]
     public async Task<IActionResult> RestartService(string name, CancellationToken ct)
     {

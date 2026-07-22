@@ -144,6 +144,9 @@ builder.Services.AddSingleton<ILifecycleController, LifecycleController>();
 // Background service: polls ES for new logs and pushes via SignalR
 builder.Services.AddHostedService<LogStreamBackgroundService>();
 
+// Rate limiting
+builder.Services.AddHisHopeRateLimiting(builder.Configuration);
+
 // OpenTelemetry
 builder.Services.AddOpenTelemetry()
     .WithTracing(tracing => tracing.AddAspNetCoreInstrumentation())
@@ -154,6 +157,7 @@ var app = builder.Build();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiting();
 app.UseMiddleware<DashboardAuditMiddleware>();
 
 app.MapHealthChecks("/health");

@@ -39,14 +39,9 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
     --no-restore
 
 # ============================================================
-# CURL STAGE (for healthchecks)
-# ============================================================
-FROM curlimages/curl:8.12.1 AS curl
-
-# ============================================================
 # RUNTIME STAGE (distroless chiseled)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra AS final
 WORKDIR /app
 EXPOSE 8080
 
@@ -59,14 +54,9 @@ ENV ASPNETCORE_URLS=http://+:8080 \
     DOTNET_ThreadPool_UnfairSemaphoreSpinCount=0
 
 COPY --from=build /app/publish .
-COPY --from=curl /usr/bin/curl /usr/bin/curl
+USER app
 
-# Non-root user
-RUN apt-get update && apt-get install -y curl && adduser --disabled-password --gecos '' appuser && mkdir -p /app/Certificates && chown -R appuser:appuser /app
-USER appuser
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD ["curl", "-f", "-s", "-o", "/dev/null", "http://localhost:8080/health"]
+# K8s probes handle health checks — no Docker HEALTHCHECK needed
 
 ENTRYPOINT ["dotnet", "PatientService.Api.dll"]
 

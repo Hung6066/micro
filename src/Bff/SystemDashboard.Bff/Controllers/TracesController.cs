@@ -1,13 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SystemDashboard.Bff.Aggregators;
+using SystemDashboard.Bff.Authorization;
 using SystemDashboard.Bff.Models;
 
 namespace SystemDashboard.Bff.Controllers;
 
 [ApiController]
 [Route("api/traces")]
-[Authorize]
+[Authorize(Roles = DashboardRoles.ReadOnly)]
 public sealed class TracesController : ControllerBase
 {
     private readonly ITracesAggregator _tracesAggregator;

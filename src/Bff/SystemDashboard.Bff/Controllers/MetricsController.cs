@@ -1,12 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SystemDashboard.Bff.Aggregators;
+using SystemDashboard.Bff.Authorization;
 
 namespace SystemDashboard.Bff.Controllers;
 
 [ApiController]
 [Route("api/metrics")]
-[Authorize]
+[Authorize(Roles = DashboardRoles.ReadOnly)]
 public sealed class MetricsController : ControllerBase
 {
     private readonly IMetricsAggregator _metricsAggregator;

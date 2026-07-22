@@ -12,7 +12,7 @@ COPY . .
 WORKDIR "/src/src/Bff/SystemDashboard.Bff"
 RUN dotnet publish "SystemDashboard.Bff.csproj" -c Release -o /app/publish --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-noble-chiseled AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra AS final
 WORKDIR /app
 EXPOSE 5700
 COPY --from=build /app/publish .
