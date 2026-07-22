@@ -76,9 +76,12 @@ spec:
             - name: ELASTICSEARCH_HOSTS
               value: http://elasticsearch:9200
             - name: ELASTICSEARCH_USERNAME
-              value: ""
+              value: "kibana_system"
             - name: ELASTICSEARCH_PASSWORD
-              value: ""
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-credentials
+                  key: kibana-password
           resources:
             requests:
               cpu: 250m
