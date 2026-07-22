@@ -11,4 +11,6 @@ public sealed class PrometheusOptions
 public interface IPrometheusQueryService
 {
     Task<List<MetricDataPoint>> QueryRangeAsync(string query, DateTime start, DateTime end, string step, CancellationToken ct = default);
+
+    Task<MetricDataPoint?> QueryAsync(string query, CancellationToken ct = default);
 }
