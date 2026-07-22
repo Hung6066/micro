@@ -1,32 +1,43 @@
-# Task 2 Report: Model Change — Nullable Metrics
+## Task 2 Report: Per-Service SLO Recording Rules
 
-## Status: ✅ Complete
+**Status:** Complete
+**Commit:** `cfbaeb4` — `feat(monitoring): add per-service SLO recording rules and burn rate alerts for patient/identity/appointment/clinical`
+**File:** `k8s/monitoring/prometheus-rules.yaml` (+167 lines)
 
-## Changes Made
+### What was done
 
-1. **File modified:** `src/Bff/SystemDashboard.Bff/Models/Resource.cs:33-34`
-2. **Change:** `CpuPercent` and `MemoryUsedMb` changed from `double` to `double?`
-3. **Impact:** Zero cascading changes — C# implicit conversion from `double` to `double?` handles all existing assignments. No other files touched.
+Added new rule group `his-hope.slo.per-service-completion` with **28 recording rules** (7 per service) for the 4 services that previously lacked per-service SLO rules:
 
-## Build Verification
+| Service | Job Label | Availability SLO | P99 Latency | Error Budget Target |
+|---|---|---|---|---|
+| patient-service | `patientservice` | 99.9% | < 500ms | 0.001 |
+| identity-service | `identityservice` | 99.95% | < 300ms | 0.0005 |
+| appointment-service | `appointmentservice` | 99.9% | < 1s | 0.001 |
+| clinical-service | `clinicalservice` | 99.99% | < 500ms | 0.0001 |
 
-- **Result:** Build did not fully succeed, but all errors are **pre-existing and unrelated** to this change:
-  - `LogsAggregator.cs:24` — `CancellationToken` vs `DateTime?` parameter mismatch
-  - `LogsAggregatorTests.cs:100` — same pre-existing issue
-- **Nullability warnings from this change:** Zero
-- The project `SystemDashboard.Bff.csproj` had dependencies that needed restore (used `--no-restore` per brief; dependencies built from source).
+Each service gets 7 recording rules:
+1. `slo:availability:<svc>:ratio_30d`
+2. `slo:availability:<svc>:ratio_7d`
+3. `slo:availability:<svc>:ratio_1h`
+4. `slo:latency_p99:<svc>:ratio_30d`
+5. `slo:error_budget_remaining:<svc>`
+6. `slo:burn_rate_1h:<svc>`
+7. `slo:burn_rate_6h:<svc>`
 
-## Commit
+Added **4 new burn rate alerts** to the existing `his-hope.slo.alerts` group:
+- `SLOErrorBudgetBurnCritical_Patient`
+- `SLOErrorBudgetBurnCritical_Identity`
+- `SLOErrorBudgetBurnCritical_Appointment`
+- `SLOErrorBudgetBurnCritical_Clinical`
 
-```
-cf17b9f feat(dashboard): make CpuPercent and MemoryUsedMb nullable for graceful degradation
-```
+Each fires when both 1h and 6h burn rates exceed 14.4x (critical threshold), with a 2m `for` duration.
 
-## Concerns
+### Verification
 
-- **Pre-existing build errors in LogsAggregator:** These block full build success. They predate this task and are unrelated to the nullable metrics model change.
-- **No test failures introduced** — no tests reference `CpuPercent` or `MemoryUsedMb` directly in a way that would break with nullability.
+- YAML syntax validated with PyYAML
+- Rule group count verified: 4 groups (recording_rules, per-service-completion, alerts, business-errors)
+- Record/alert counts confirmed: 18 + 28 records, 12 + 5 alerts
 
-## Report
+### Concerns
 
-This report file: `.superpowers/sdd/task-2-report.md`
+None. The new group uses the existing metric patterns (`http_server_request_duration_seconds_count` with `http_response_status_code!~"5.."` and `histogram_quantile`) consistent with the task brief.

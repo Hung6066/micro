@@ -1,8 +1,3 @@
-### Task 1: DashboardRoles Constants
-
-**Files:** Create `src/Bff/SystemDashboard.Bff/Authorization/DashboardRoles.cs`
-
-```csharp
 namespace SystemDashboard.Bff.Authorization;
 
 public static class DashboardRoles
@@ -13,9 +8,3 @@ public static class DashboardRoles
     public const string ReadOnly = "admin,operator,viewer";
     public const string Manage = "admin,operator";
 }
-```
-
-- [ ] Create file, build, commit: `feat(dashboard): add DashboardRoles authorization constants`
-
----
-

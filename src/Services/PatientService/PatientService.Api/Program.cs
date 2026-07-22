@@ -141,7 +141,7 @@ using (var scope = app.Services.CreateScope())
 
 // Middleware Pipeline (order matters)
 app.UseSecurityHeaders();
-// app.UseRateLimiting(); // TEMP DISABLED for debugging auth timeout
+app.UseRateLimiting();
 app.UseSerilogRequestLogging();
 app.UseHisHopePrometheus();
 
