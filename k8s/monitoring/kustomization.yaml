@@ -12,6 +12,7 @@ resources:
   - incident-response.yaml
   - jaeger.yaml
   - elasticsearch.yaml
+  - elasticsearch-secrets.yaml
   - kibana.yaml
   - servicemonitors.yaml
   - blackbox-exporter-config.yaml
