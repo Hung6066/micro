@@ -1,0 +1,77 @@
+- generic [ref=f4e2]:
+  - generic [ref=f4e3]:
+    - button "Toggle navigation" [ref=f4e4] [cursor=pointer]:
+      - img [ref=f4e5]: menu
+    - generic [ref=f4e8]: His.Hope Dashboard
+    - button "User menu" [ref=f4e9] [cursor=pointer]:
+      - img [ref=f4e10]: account_circle
+  - generic [ref=f4e13]:
+    - navigation [ref=f4e17]:
+      - link [ref=f4e18] [cursor=pointer]:
+        - /url: /resources
+        - img [ref=f4e19]: dns
+      - link [ref=f4e21] [cursor=pointer]:
+        - /url: /logs
+        - img [ref=f4e22]: article
+      - link [ref=f4e24] [cursor=pointer]:
+        - /url: /traces
+        - img [ref=f4e25]: timeline
+      - link [ref=f4e27] [cursor=pointer]:
+        - /url: /metrics
+        - img [ref=f4e28]: monitoring
+    - main [ref=f4e32]:
+      - generic [ref=f4e66]:
+        - generic [ref=f4e67]:
+          - heading "System Metrics" [level=1] [ref=f4e68]
+          - button "Refresh" [ref=f4e69]:
+            - img [ref=f4e70]: refresh
+        - generic [ref=f4e75]:
+          - generic [ref=f4e78]:
+            - img [ref=f4e80]: check_circle
+            - generic [ref=f4e81]:
+              - generic [ref=f4e82]: "8"
+              - generic [ref=f4e83]: Đang chạy
+          - generic [ref=f4e86]:
+            - img [ref=f4e88]: stop_circle
+            - generic [ref=f4e89]:
+              - generic [ref=f4e90]: "5"
+              - generic [ref=f4e91]: Đã dừng
+          - generic [ref=f4e94]:
+            - img [ref=f4e96]: warning
+            - generic [ref=f4e97]:
+              - generic [ref=f4e98]: "5"
+              - generic [ref=f4e99]: Suy giảm
+          - generic [ref=f4e102]:
+            - img [ref=f4e104]: dns
+            - generic [ref=f4e105]:
+              - generic [ref=f4e106]: "13"
+              - generic [ref=f4e107]: Tổng dịch vụ
+        - generic [ref=f4e109]:
+          - generic [ref=f4e110]:
+            - generic [ref=f4e113] [cursor=pointer]:
+              - generic: Service
+              - combobox "Service" [ref=f4e116]:
+                - generic [ref=f4e117]: Identity Service, Patient Service, Appointment Service
+            - generic [ref=f4e126] [cursor=pointer]:
+              - generic: Metric Type
+              - combobox "Metric Type" [ref=f4e129]:
+                - generic [ref=f4e130]: CPU
+            - generic [ref=f4e139] [cursor=pointer]:
+              - generic: Time Range
+              - combobox "Time Range" [ref=f4e142]:
+                - generic [ref=f4e143]: 1 hour
+            - button "Apply" [active] [ref=f4e150] [cursor=pointer]:
+              - img [ref=f4e151]: refresh
+          - generic [ref=f4e155]:
+            - generic [ref=f4e162]:
+              - text: identity-service
+              - img [ref=f4e163] [cursor=pointer]: close
+            - generic [ref=f4e156]:
+              - text: patient-service
+              - img [ref=f4e157] [cursor=pointer]: close
+            - generic [ref=f4e164]:
+              - text: appointment-service
+              - img [ref=f4e165] [cursor=pointer]: close
+        - generic [ref=f4e166]:
+          - img [ref=f4e167]: monitoring
+          - paragraph [ref=f4e168]: Select services and metric to view chart

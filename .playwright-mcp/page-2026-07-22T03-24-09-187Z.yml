@@ -1,0 +1,67 @@
+- generic [ref=f6e2]:
+  - generic [ref=f6e3]:
+    - button "Toggle navigation" [ref=f6e4] [cursor=pointer]:
+      - img [ref=f6e5]: menu
+    - generic [ref=f6e8]: His.Hope Dashboard
+    - button "User menu" [ref=f6e9] [cursor=pointer]:
+      - img [ref=f6e10]: account_circle
+  - generic [ref=f6e13]:
+    - navigation [ref=f6e17]:
+      - link [ref=f6e18] [cursor=pointer]:
+        - /url: /resources
+        - img [ref=f6e19]: dns
+      - link [ref=f6e21] [cursor=pointer]:
+        - /url: /logs
+        - img [ref=f6e22]: article
+      - link [ref=f6e24] [cursor=pointer]:
+        - /url: /traces
+        - img [ref=f6e25]: timeline
+      - link [active] [ref=f6e27] [cursor=pointer]:
+        - /url: /metrics
+        - img [ref=f6e28]: monitoring
+    - main [ref=f6e32]:
+      - generic [ref=f6e932]:
+        - generic [ref=f6e933]:
+          - heading "System Metrics" [level=1] [ref=f6e934]
+          - button "Refresh" [ref=f6e935]:
+            - img [ref=f6e936]: refresh
+        - generic [ref=f6e941]:
+          - generic [ref=f6e944]:
+            - img [ref=f6e946]: check_circle
+            - generic [ref=f6e947]:
+              - generic [ref=f6e948]: "8"
+              - generic [ref=f6e949]: Đang chạy
+          - generic [ref=f6e952]:
+            - img [ref=f6e954]: stop_circle
+            - generic [ref=f6e955]:
+              - generic [ref=f6e956]: "5"
+              - generic [ref=f6e957]: Đã dừng
+          - generic [ref=f6e960]:
+            - img [ref=f6e962]: warning
+            - generic [ref=f6e963]:
+              - generic [ref=f6e964]: "5"
+              - generic [ref=f6e965]: Suy giảm
+          - generic [ref=f6e968]:
+            - img [ref=f6e970]: dns
+            - generic [ref=f6e971]:
+              - generic [ref=f6e972]: "13"
+              - generic [ref=f6e973]: Tổng dịch vụ
+        - generic [ref=f6e975]:
+          - generic [ref=f6e976]:
+            - generic [ref=f6e979] [cursor=pointer]:
+              - generic: Service
+              - combobox "Service" [ref=f6e982]
+            - generic [ref=f6e992] [cursor=pointer]:
+              - generic: Metric Type
+              - combobox "Metric Type" [ref=f6e995]:
+                - generic [ref=f6e996]: CPU
+            - generic [ref=f6e1005] [cursor=pointer]:
+              - generic: Time Range
+              - combobox "Time Range" [ref=f6e1008]:
+                - generic [ref=f6e1009]: 1 hour
+            - button "Apply" [ref=f6e1016]:
+              - img [ref=f6e1017]: refresh
+          - generic [ref=f6e1021]: Select at least one service to view metrics
+        - generic [ref=f6e1023]:
+          - img [ref=f6e1024]: monitoring
+          - paragraph [ref=f6e1025]: Select services and metric to view chart

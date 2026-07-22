@@ -1,63 +1,60 @@
-### Task 4: End-to-end Playwright, build, and Docker verification
+### Task 4: ES Timestamp Filter (afterTimestamp)
 
 **Files:**
-- Create: `tests/e2e/specs/13-critical-alerts.spec.js`
-- Update only if needed: `tests/e2e/specs/07-lab.spec.js`
-- Update only if needed: `docker/docker-compose.yml`
+- Modify: `src/Bff/SystemDashboard.Bff/Services/IElasticsearchQueryService.cs:14-17`
+- Modify: `src/Bff/SystemDashboard.Bff/Services/ElasticsearchQueryService.cs:23-27` (signature) and request body (add range filter)
 
 **Interfaces:**
-- Consumes: the implemented Lab Service API, Angular UI, and Docker Compose stack.
-- Produces: end-to-end evidence that a rule can be created, a critical result can be recorded, realtime notification appears, and the alert can be acknowledged.
+- Consumes: (none)
+- Produces: `IElasticsearchQueryService.QueryLogsAsync` gains `DateTime? afterTimestamp = null` parameter
 
-- [ ] **Step 1: Write the failing Playwright flow**
+- [ ] **Step 1: Add afterTimestamp to interface**
 
-Create a spec that asserts:
-- a lab-admin or equivalent user can open the critical alert inbox,
-- a critical rule can be created,
-- recording a critical result shows a toast/badge update,
-- the alert can be acknowledged,
-- the audit/history panel shows the acknowledgment.
+```csharp
+// IElasticsearchQueryService.cs — new signature:
+Task<List<LogEntry>> QueryLogsAsync(
+    string? service = null, string? level = null,
+    int? from = null, int size = 100,
+    string? searchQuery = null,
+    DateTime? afterTimestamp = null,
+    CancellationToken ct = default);
+```
 
-Run:
-`npx playwright test tests/e2e/specs/13-critical-alerts.spec.js --workers=1`
+- [ ] **Step 2: Add afterTimestamp to implementation signature**
 
-Expected: fail until the feature is implemented.
+Change the method signature in `ElasticsearchQueryService.cs` (line 23-26) to match the interface.
 
-- [ ] **Step 2: Build and start the Docker stack**
+- [ ] **Step 3: Add range filter to ES query body**
 
-Run:
-`docker compose -f docker/docker-compose.yml build labservice frontend`
+In the `QueryLogsAsync` method body, inside the `mustClauses` list building section, add after the `searchQuery` clause (after line 39):
 
-Run:
-`docker compose -f docker/docker-compose.yml up -d postgres redis rabbitmq identityservice patientservice clinicalservice labservice apigateway frontend`
+```csharp
+if (afterTimestamp.HasValue)
+{
+    mustClauses.Add(new
+    {
+        range = new Dictionary<string, object>
+        {
+            ["@timestamp"] = new Dictionary<string, object>
+            {
+                ["gte"] = afterTimestamp.Value.ToString("o")
+            }
+        }
+    });
+}
+```
 
-Run:
-`docker compose -f docker/docker-compose.yml ps`
+- [ ] **Step 4: Build and verify**
 
-Expected: labservice, apigateway, and frontend become healthy and the app is reachable on `http://localhost:8081`.
+Run: `dotnet build src/Bff/SystemDashboard.Bff/SystemDashboard.Bff.csproj --no-restore`
+Expected: Build succeeded. Note: `LogStreamBackgroundService` will need updating in Task 9 to pass the new parameter.
 
-- [ ] **Step 3: Rerun backend, frontend, and Playwright checks**
+- [ ] **Step 5: Commit**
 
-Run:
-`dotnet test tests/Services/LabService/LabService.Domain.Tests/LabService.Domain.Tests.csproj -v normal`
-
-Run:
-`dotnet test tests/Services/LabService/LabService.Application.Tests/LabService.Application.Tests.csproj -v normal`
-
-Run:
-`dotnet test tests/Services/LabService/LabService.Integration.Tests/LabService.Integration.Tests.csproj -v normal`
-
-Run:
-`npm test -- --runInBand --testPathPattern=lab-critical-alert`
-
-Run:
-`npx playwright test tests/e2e/specs/13-critical-alerts.spec.js --workers=1`
-
-Expected: all pass.
-
-- [ ] **Step 4: Commit**
-
-Commit message: `test(lab): add end-to-end critical alert verification`
+```bash
+git add src/Bff/SystemDashboard.Bff/Services/IElasticsearchQueryService.cs src/Bff/SystemDashboard.Bff/Services/ElasticsearchQueryService.cs
+git commit -m "feat(dashboard): add afterTimestamp filter to Elasticsearch log queries"
+```
 
 ---
 

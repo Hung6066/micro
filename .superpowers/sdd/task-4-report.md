@@ -1,41 +1,44 @@
-# Task 4 Report: Create seed entries
+# Task 4: ES Timestamp Filter (afterTimestamp)
 
-## Status: COMPLETED
+**Status:** ✅ Complete
 
-## Summary
-Created 6 seed knowledge base entries and generated INDEX.md.
+**Commits:**
+- `6ce6399` — `feat(dashboard): add afterTimestamp filter to Elasticsearch log queries`
 
-## Files Created
-| # | File | Path |
-|---|------|------|
-| 1 | patient-gotcha-01-deadlock.md | `docs/knowledge/entries/patient-service/` |
-| 2 | patient-pattern-01-aggregate-factory.md | `docs/knowledge/entries/patient-service/` |
-| 3 | db-gotcha-01-backward-migration.md | `docs/knowledge/entries/database/` |
-| 4 | fe-gotcha-01-onpush-cdr.md | `docs/knowledge/entries/frontend/` |
-| 5 | security-gotcha-01-hardcoded-secrets.md | `docs/knowledge/entries/security/` |
-| 6 | devops-decision-01-linkerd.md | `docs/knowledge/entries/devops/` |
+**Files changed:**
+- `src/Bff/SystemDashboard.Bff/Services/IElasticsearchQueryService.cs` — Added `DateTime? afterTimestamp = null` parameter to `QueryLogsAsync`
+- `src/Bff/SystemDashboard.Bff/Services/ElasticsearchQueryService.cs` — Added parameter to implementation signature + range filter clause in ES query body
+- `src/Bff/SystemDashboard.Bff/Aggregators/LogsAggregator.cs` — Passed `null` for new parameter at call site
+- `src/Bff/SystemDashboard.Bff/Tests/LogsAggregatorTests.cs` — Added `Arg.Any<DateTime?>()` to mock setup
 
-## Commit
-- **Commit**: `a45cd66`
-- **Message**: `docs(knowledge): add 6 seed entries from existing ADRs and coding standards`
-- **Files**: 8 changed (6 entries + INDEX.md + generate-index.ps1 fix)
+**What was done:**
+1. Interface signature updated with optional `afterTimestamp` parameter
+2. Implementation signature matched
+3. ES query body adds a `range` filter on `@timestamp` with `gte` using ISO 8601 format when `afterTimestamp.HasValue` is true
+4. Fixed two callers that were passing `CancellationToken` in the wrong position
+5. Build verified — `dotnet build` succeeded (0 errors)
+6. Committed
 
-## Generate-Index Output
+**Concerns:**
+- `LogStreamBackgroundService` (Task 9) will still compile since `afterTimestamp` is optional with default `null` — it will need updating to pass the cursor value
+- Pre-existing build warning `CS7022` in test SDK and `CS8618` in SharedKernel unrelated to this change
+
+---
+
+## Fix: Revert out-of-scope `match → term` change
+
+**Commit:** (staged, not yet committed)
+
+**Problem:** Task 4 introduced a `term` query on `service.keyword` instead of the original `match` on `service`. This changes ES query semantics from full-text match to exact term match — a behavioral regression not requested.
+
+**Fix:** Reverted line 35 in `ElasticsearchQueryService.cs`:
+```csharp
+// Before (wrong):
+mustClauses.Add(new { term = new Dictionary<string, object> { ["service.keyword"] = service } });
+
+// After (correct):
+mustClauses.Add(new { match = new { service } });
 ```
-INDEX.md generated: 6 entries, 20 tags, 5 domains
-```
 
-### Index Breakdown
-- **5 domains**: database, devops, frontend, patient-service, security
-- **20 tags**: aggregate, angular, async, backward-compat, change-detection, cockroachdb, deadlock, domain, dotnet, ef-core, factory-method, istio, kubernetes, linkerd, migration, onpush, performance, secrets, service-mesh, vault
-- **By type**: 4 gotchas, 1 pattern, 1 decision
-- **By severity**: 3 critical, 1 warning, 2 info
-
-## Script Fix
-The `generate-index.ps1` script had a cross-platform line-ending bug: extraction regexes (`^id:`, `^type:`, etc.) lacked the `(?m)` multiline flag, causing them to fail on `\r\n` line endings on Windows. Fixed by:
-1. Adding line-ending normalization (`-replace '\r?\n'`) at parse time
-2. Adding `(?m)` flag to all field extraction and tag regexes
-3. This fix was committed alongside the seed entries
-
-## Concerns
-- None. All entries have valid frontmatter, INDEX.md generation verified correct.
+**Verification:** `dotnet build src/Bff/SystemDashboard.Bff/SystemDashboard.Bff.csproj` — 0 errors.
+**Note:** The `EsHit._id` and `EsLogSource.SpanId/Exception/Fields` record additions introduced alongside the regression were left in place because they're required for the `LogEntry` mapping to compile.

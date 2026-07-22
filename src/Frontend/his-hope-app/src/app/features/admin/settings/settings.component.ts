@@ -27,6 +27,9 @@ const CATEGORIES: CategoryConfig[] = [
   { key: 'system', label: 'Hệ thống', icon: 'settings_applications' },
   { key: 'clinical', label: 'Lâm sàng', icon: 'medical_services' },
   { key: 'billing', label: 'Thanh toán', icon: 'receipt' },
+  { key: 'appointment', label: 'Lịch hẹn', icon: 'calendar_today' },
+  { key: 'lab', label: 'Xét nghiệm', icon: 'biotech' },
+  { key: 'pharmacy', label: 'Dược', icon: 'medication' },
 ];
 
 @Component({

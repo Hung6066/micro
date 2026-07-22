@@ -55,6 +55,10 @@ public static class OpenTelemetryExtensions
                     };
                     options.RecordException = true;
                 })
+                .AddGrpcClientInstrumentation(options =>
+                {
+                    options.SuppressDownstreamInstrumentation = true;
+                })
                 .AddEntityFrameworkCoreInstrumentation(options =>
                 {
                     options.SetDbStatementForText = false;
@@ -65,7 +69,7 @@ public static class OpenTelemetryExtensions
                     options.Endpoint = new Uri(otlpEndpoint);
                     options.Protocol = OtlpExportProtocol.Grpc;
                 })
-                .SetSampler(new ParentBasedSampler(new TraceIdRatioBasedSampler(0.1))))
+                .SetSampler(new AlwaysOnSampler()))
             .WithMetrics(metrics => metrics
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()

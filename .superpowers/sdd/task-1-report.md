@@ -1,83 +1,31 @@
-# Task 1 Report: Create directory scaffold
-
-## What I implemented
-
-Created the `docs/knowledge/` directory scaffold for the His.Hope Agent Knowledge Base. This includes 15 directories organized into three categories:
-
-- **Capture** (1): `.capture` — for agent-captured knowledge artifacts
-- **Scripts** (1): `scripts` — for knowledge pipeline automation scripts
-- **Entries** (13): service-specific directories under `entries/`:
-  - `patient-service`, `identity-service`, `clinical-service`, `appointment-service`
-  - `lab-service`, `billing-service`, `pharmacy-service`
-  - `frontend`, `devops`, `security`, `database`, `ml-ai`, `data-platform`
-
-Each directory contains a `.gitkeep` placeholder so the empty directories are tracked by git.
-
-## Test results
-
-Verification command: `Get-ChildItem -Recurse -Directory docs/knowledge | Select-Object FullName`
-
-All 15 directories confirmed present:
-```
-D:\AI\micro\docs\knowledge\.capture
-D:\AI\micro\docs\knowledge\scripts
-D:\AI\micro\docs\knowledge\entries\appointment-service
-D:\AI\micro\docs\knowledge\entries\billing-service
-D:\AI\micro\docs\knowledge\entries\clinical-service
-D:\AI\micro\docs\knowledge\entries\data-platform
-D:\AI\micro\docs\knowledge\entries\database
-D:\AI\micro\docs\knowledge\entries\devops
-D:\AI\micro\docs\knowledge\entries\frontend
-D:\AI\micro\docs\knowledge\entries\identity-service
-D:\AI\micro\docs\knowledge\entries\lab-service
-D:\AI\micro\docs\knowledge\entries\ml-ai
-D:\AI\micro\docs\knowledge\entries\patient-service
-D:\AI\micro\docs\knowledge\entries\pharmacy-service
-D:\AI\micro\docs\knowledge\entries\security
-```
-
-## Files changed
-
-- `docs/knowledge/.capture/.gitkeep` (created)
-- `docs/knowledge/scripts/.gitkeep` (created)
-- `docs/knowledge/entries/appointment-service/.gitkeep` (created)
-- `docs/knowledge/entries/billing-service/.gitkeep` (created)
-- `docs/knowledge/entries/clinical-service/.gitkeep` (created)
-- `docs/knowledge/entries/data-platform/.gitkeep` (created)
-- `docs/knowledge/entries/database/.gitkeep` (created)
-- `docs/knowledge/entries/devops/.gitkeep` (created)
-- `docs/knowledge/entries/frontend/.gitkeep` (created)
-- `docs/knowledge/entries/identity-service/.gitkeep` (created)
-- `docs/knowledge/entries/lab-service/.gitkeep` (created)
-- `docs/knowledge/entries/ml-ai/.gitkeep` (created)
-- `docs/knowledge/entries/patient-service/.gitkeep` (created)
-- `docs/knowledge/entries/pharmacy-service/.gitkeep` (created)
-- `docs/knowledge/entries/security/.gitkeep` (created)
-
-## Self-review findings
-
-- All 15 directories match the task brief exactly
-- `.gitkeep` files present in every directory
-- Commit message matches specification
-- No concerns — this is a pure scaffolding task with no logic to validate
-
----
-
-# Task 1 Report: Lab critical alert backend
+# Task 1 Report: Cache Infrastructure (CacheKeys + CacheExtensions)
 
 ## Status
-Completed
+- [x] CacheKeys.cs created
+- [x] CacheExtensions.cs created
+- [x] Build verification attempted
+- [x] Committed
 
 ## Commits
-1920d33 `feat(lab): harden critical alert persistence`
+- `b6fc863` - `feat(dashboard): add cache infrastructure (CacheKeys + CacheExtensions)`
 
-## Test summary
-`dotnet test tests/Services/LabService/LabService.Domain.Tests/LabService.Domain.Tests.csproj --filter "CriticalAlertRuleTests|CriticalAlertTests" -v normal` ✅
-`dotnet test tests/Services/LabService/LabService.Application.Tests/LabService.Application.Tests.csproj --filter "CriticalAlertEvaluatorTests" -v normal` ✅
-`dotnet test tests/Services/LabService/LabService.Integration.Tests/LabService.Integration.Tests.csproj --filter "CriticalAlertPersistenceIntegrationTests" -v normal` ✅
+## Files Created
+| File | Lines | Description |
+|------|-------|-------------|
+| `src/Bff/SystemDashboard.Bff/Aggregators/CacheKeys.cs` | 15 | Static cache key factory with 6 methods |
+| `src/Bff/SystemDashboard.Bff/Aggregators/CacheExtensions.cs` | 17 | `GetOrCreateAsync<T>` extension for `IMemoryCache` |
+
+## Build Result
+Build has 3 pre-existing errors (unrelated to this task):
+1. `LogsAggregator.cs:24` — `CancellationToken` → `DateTime?` arg mismatch
+2. `LogsAggregatorTests.cs:100` — same
+3. `PrometheusQueryService.cs:77` — missing `PromInstantResponse` type
+
+Zero errors introduced by this task. My two files have no dependencies on the broken code.
 
 ## Concerns
-Existing LabService nullability warnings remain in pre-existing domain models; Task 1 added only additive alert model/persistence/evaluator wiring.
+- `Microsoft.Extensions.Caching.Memory` is not an explicit package reference; it relies on the ASP.NET Core shared framework being present. This is fine for a `Microsoft.NET.Sdk.Web` project but worth noting if this code is ever extracted.
+- Pre-existing build errors prevent a clean `dotnet build --no-restore` — these should be addressed before deeper work on the dashboard aggregators.
 
-## Report path
-`.superpowers/sdd/task-1-report.md`
+## Report
+This file: `.superpowers/sdd/task-1-report.md`

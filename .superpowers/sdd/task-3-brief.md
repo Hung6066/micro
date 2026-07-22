@@ -1,62 +1,99 @@
-### Task 3: Angular lab inbox, rule editor, and realtime client
+### Task 3: Prometheus Instant Query (QueryAsync)
 
 **Files:**
-- Modify: `src/Frontend/his-hope-app/package.json`
-- Create: `src/Frontend/his-hope-app/src/app/core/models/critical-alert.model.ts`
-- Create: `src/Frontend/his-hope-app/src/app/core/models/critical-alert-rule.model.ts`
-- Create: `src/Frontend/his-hope-app/src/app/core/models/critical-alert-audit.model.ts`
-- Create: `src/Frontend/his-hope-app/src/app/core/services/lab-critical-alert.service.ts`
-- Create: `src/Frontend/his-hope-app/src/app/core/services/lab-critical-alert-stream.service.ts`
-- Modify: `src/Frontend/his-hope-app/src/app/core/services/lab.service.ts`
-- Modify: `src/Frontend/his-hope-app/src/app/features/lab/lab.routes.ts`
-- Create: `src/Frontend/his-hope-app/src/app/features/lab/lab-critical-alerts/lab-critical-alerts.component.ts`
-- Create: `src/Frontend/his-hope-app/src/app/features/lab/lab-critical-alert-rule-form/lab-critical-alert-rule-form.component.ts`
-- Create: `src/Frontend/his-hope-app/src/app/features/lab/lab-critical-alert-detail/lab-critical-alert-detail.component.ts`
-- Modify: `src/Frontend/his-hope-app/src/app/features/lab/lab-order-list/lab-order-list.component.ts`
-- Modify: `src/Frontend/his-hope-app/src/app/features/lab/lab-order-detail/lab-order-detail.component.ts`
-- Test: `src/Frontend/his-hope-app/src/app/core/services/lab-critical-alert.service.spec.ts`
-- Test: `src/Frontend/his-hope-app/src/app/core/services/lab-critical-alert-stream.service.spec.ts`
-- Test: `src/Frontend/his-hope-app/src/app/features/lab/lab-critical-alerts/lab-critical-alerts.component.spec.ts`
-- Test: `src/Frontend/his-hope-app/src/app/features/lab/lab-critical-alert-rule-form/lab-critical-alert-rule-form.component.spec.ts`
-- Test: `src/Frontend/his-hope-app/src/app/features/lab/lab-order-detail/lab-order-detail.component.spec.ts`
+- Modify: `src/Bff/SystemDashboard.Bff/Services/IPrometheusQueryService.cs:13-14`
+- Modify: `src/Bff/SystemDashboard.Bff/Services/PrometheusQueryService.cs` (add method + response types)
 
 **Interfaces:**
-- Consumes: the new lab critical alert REST endpoints and the SignalR hub, plus `AuthService.getStoredAccessToken()` for socket authentication.
-- Produces: alert inbox UI, rule editor UI, realtime badge/toast updates, and alert-detail acknowledgment controls.
+- Consumes: (none)
+- Produces: `Task<MetricDataPoint?> QueryAsync(string query, CancellationToken ct = default)`
 
-- [ ] **Step 1: Write failing Jest tests for the alert services and components**
+- [ ] **Step 1: Add QueryAsync to IPrometheusQueryService**
 
-Create tests that assert:
-- the service calls the new alert endpoints,
-- the socket service subscribes to `criticalAlertCreated` and increments unread state,
-- the inbox renders open/acknowledged/resolved filters,
-- the rule form validates threshold fields,
-- the lab order detail page shows critical-state metadata and an acknowledge action.
+```csharp
+// Add after line 14 in IPrometheusQueryService.cs:
+    Task<MetricDataPoint?> QueryAsync(string query, CancellationToken ct = default);
+```
 
-Run:
-`npm test -- --runInBand --testPathPattern=lab-critical-alert`
+- [ ] **Step 2: Implement QueryAsync in PrometheusQueryService**
 
-Expected: fail because the new components, services, and SignalR client do not exist yet.
+Add the method to `PrometheusQueryService` class (before the `#region` or after `QueryRangeAsync`):
 
-- [ ] **Step 2: Implement the Angular feature**
+```csharp
+public async Task<MetricDataPoint?> QueryAsync(
+    string query, CancellationToken ct = default)
+{
+    try
+    {
+        var requestUri = $"/api/v1/query?query={Uri.EscapeDataString(query)}";
 
-Add the SignalR client dependency, create the alert models/services/components, wire the new lab route, and surface the alert badge and detail actions in the existing lab UI.
+        var response = await _httpClient.GetAsync(requestUri, ct);
+        response.EnsureSuccessStatusCode();
 
-Keep the styling aligned with the current Angular Material patterns; do not redesign the lab module shell.
+        var promResponse = await response.Content.ReadFromJsonAsync<PromInstantResponse>(ct);
+        var result = promResponse?.Data?.Result?.FirstOrDefault();
+        if (result?.Value is null)
+            return null;
 
-- [ ] **Step 3: Rerun the Jest suite and the Angular build**
+        var valElement = (JsonElement)result.Value[1];
+        return new MetricDataPoint
+        {
+            Timestamp = DateTimeOffset.FromUnixTimeSeconds(
+                ((JsonElement)result.Value[0]).GetInt64()).UtcDateTime,
+            Value = double.TryParse(valElement.GetString(),
+                NumberStyles.Any, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0.0
+        };
+    }
+    catch (Exception ex)
+    {
+        _logger.LogWarning(ex, "Failed to query Prometheus instant: {Query}", query);
+        return null;
+    }
+}
+```
 
-Run:
-`npm test -- --runInBand --testPathPattern=lab-critical-alert`
+Also add these private nested records inside `PrometheusQueryService` (after `PromResult` on line 93):
 
-Run:
-`npm run build`
+```csharp
+private sealed record PromInstantResponse
+{
+    [JsonPropertyName("status")]
+    public string? Status { get; init; }
 
-Expected: both pass.
+    [JsonPropertyName("data")]
+    public PromInstantData? Data { get; init; }
+}
+
+private sealed record PromInstantData
+{
+    [JsonPropertyName("resultType")]
+    public string? ResultType { get; init; }
+
+    [JsonPropertyName("result")]
+    public PromInstantResult[]? Result { get; init; }
+}
+
+private sealed record PromInstantResult
+{
+    [JsonPropertyName("metric")]
+    public Dictionary<string, string>? Metric { get; init; }
+
+    [JsonPropertyName("value")]
+    public List<object>? Value { get; init; }
+}
+```
+
+- [ ] **Step 3: Build and verify**
+
+Run: `dotnet build src/Bff/SystemDashboard.Bff/SystemDashboard.Bff.csproj --no-restore`
+Expected: Build succeeded.
 
 - [ ] **Step 4: Commit**
 
-Commit message: `feat(lab-ui): add critical alert inbox and realtime updates`
+```bash
+git add src/Bff/SystemDashboard.Bff/Services/IPrometheusQueryService.cs src/Bff/SystemDashboard.Bff/Services/PrometheusQueryService.cs
+git commit -m "feat(dashboard): add Prometheus instant query (QueryAsync) for single-value lookups"
+```
 
 ---
 

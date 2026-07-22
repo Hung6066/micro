@@ -108,14 +108,63 @@ describe('AdminService', () => {
     req.flush({ id: 'usr-001', username: 'admin', roles: ['admin'] });
   });
 
-  it('should get settings', () => {
-    const mockSettings = [{ key: 'hospital_name', value: 'His.Hope', type: 'text', label: 'Hospital Name', category: 'hospital' }];
+  it('should get settings and map API fields to UI model', () => {
+    // API returns `description` (not `label`) and no `type` — frontend must map
+    const apiResponse = [
+      { key: 'hospital.name', value: 'His.Hope', description: 'Tên bệnh viện', category: 'hospital', updatedAt: '2026-01-01T00:00:00Z', updatedBy: null },
+      { key: 'system.enableMfa', value: 'true', description: 'Bật MFA', category: 'system', updatedAt: '2026-01-01T00:00:00Z', updatedBy: null },
+      { key: 'clinical.maxDiagnosesPerEncounter', value: '10', description: 'Số chẩn đoán tối đa', category: 'clinical', updatedAt: '2026-01-01T00:00:00Z', updatedBy: null },
+    ];
     service.getSettings().subscribe((settings) => {
-      expect(settings.length).toBe(1);
+      expect(settings.length).toBe(3);
+      // description → label mapping
+      expect(settings[0].label).toBe('Tên bệnh viện');
+      // fallback when description is null
+      expect(settings[1].label).toBe('system.enableMfa');
+      // type inference
+      expect(settings[0].type).toBe('text');
+      expect(settings[1].type).toBe('boolean');
+      expect(settings[2].type).toBe('number');
+      // value parsing
+      expect(settings[0].value).toBe('His.Hope');
+      expect(settings[1].value).toBeTrue();
+      expect(settings[2].value).toBe(10);
     });
     const req = httpMock.expectOne(`${environment.apiUrl}/admin/settings`);
     expect(req.request.method).toBe('GET');
-    req.flush(mockSettings);
+    req.flush(apiResponse);
+  });
+
+  it('should get setting by key and map to UI model', () => {
+    const apiResponse = { key: 'hospital.name', value: 'BV His.Hope', description: 'Tên bệnh viện', category: 'hospital', updatedAt: '2026-01-01T00:00:00Z', updatedBy: 'usr-1' };
+    service.getSetting('hospital.name').subscribe((setting) => {
+      expect(setting.value).toBe('BV His.Hope');
+      expect(setting.label).toBe('Tên bệnh viện');
+      expect(setting.type).toBe('text');
+    });
+    const req = httpMock.expectOne(`${environment.apiUrl}/admin/settings/hospital.name`);
+    expect(req.request.method).toBe('GET');
+    req.flush(apiResponse);
+  });
+
+  it('should update setting', () => {
+    service.updateSetting('hospital.name', 'New Name').subscribe((setting) => {
+      // verify mapped response
+    });
+    const req = httpMock.expectOne(`${environment.apiUrl}/admin/settings/hospital.name`);
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ value: 'New Name' });
+    req.flush({ key: 'hospital.name', value: 'New Name', description: 'Tên bệnh viện', category: 'hospital', updatedAt: '2026-01-01T00:00:00Z', updatedBy: 'usr-1' });
+  });
+
+  it('should bulk update settings and convert values to strings', () => {
+    const data = [{ key: 'hospital.name', value: 'BV Mới' }, { key: 'system.enableMfa', value: true }];
+    service.bulkUpdateSettings(data).subscribe();
+    const req = httpMock.expectOne(`${environment.apiUrl}/admin/settings/bulk`);
+    expect(req.request.method).toBe('PUT');
+    // values must be strings for the backend
+    expect(req.request.body).toEqual({ settings: [{ key: 'hospital.name', value: 'BV Mới' }, { key: 'system.enableMfa', value: 'true' }] });
+    req.flush(null);
   });
 
   it('should get audit logs with params', () => {
@@ -180,32 +229,6 @@ describe('AdminService', () => {
     const req = httpMock.expectOne(`${environment.apiUrl}/admin/dashboard`);
     expect(req.request.method).toBe('GET');
     req.flush({ totalUsers: 10, activeRoles: 5, lastAuditEntry: new Date().toISOString(), systemHealth: 'healthy' });
-  });
-
-  it('should get setting by key', () => {
-    service.getSetting('hospital_name').subscribe((setting) => {
-      expect(setting.value).toBe('His.Hope');
-    });
-    const req = httpMock.expectOne(`${environment.apiUrl}/admin/settings/hospital_name`);
-    expect(req.request.method).toBe('GET');
-    req.flush({ key: 'hospital_name', value: 'His.Hope' });
-  });
-
-  it('should update setting', () => {
-    service.updateSetting('hospital_name', 'New Name').subscribe();
-    const req = httpMock.expectOne(`${environment.apiUrl}/admin/settings/hospital_name`);
-    expect(req.request.method).toBe('PUT');
-    expect(req.request.body).toEqual({ value: 'New Name' });
-    req.flush(null);
-  });
-
-  it('should bulk update settings', () => {
-    const data = [{ key: 'k1', value: 'v1' }];
-    service.bulkUpdateSettings(data).subscribe();
-    const req = httpMock.expectOne(`${environment.apiUrl}/admin/settings/bulk`);
-    expect(req.request.method).toBe('PUT');
-    expect(req.request.body).toEqual({ settings: data });
-    req.flush(null);
   });
 
   it('should get audit log by id', () => {

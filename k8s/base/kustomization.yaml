@@ -25,6 +25,10 @@ resources:
   - pharmacy-service.yaml
   - api-gateway.yaml
   - frontend.yaml
+  - systemdashboard-bff-deployment.yaml
+  - systemdashboard-bff-service.yaml
+  - dashboard-app-deployment.yaml
+  - dashboard-app-service.yaml
   - postgres.yaml
   - postgres-secret.yaml
   - rabbitmq.yaml

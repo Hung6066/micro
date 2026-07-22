@@ -31,7 +31,8 @@ using Serilog;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((context, config) =>
-    config.ReadFrom.Configuration(context.Configuration));
+    config.ReadFrom.Configuration(context.Configuration)
+                .Enrich.WithProperty("service", "patient-service"));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

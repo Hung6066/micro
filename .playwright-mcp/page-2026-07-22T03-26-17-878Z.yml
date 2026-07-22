@@ -1,0 +1,64 @@
+- generic [ref=f7e2]:
+  - generic [ref=f7e3]:
+    - button "Toggle navigation" [ref=f7e4] [cursor=pointer]:
+      - img [ref=f7e5]: menu
+    - generic [ref=f7e8]: His.Hope Dashboard
+    - button "User menu" [ref=f7e9] [cursor=pointer]:
+      - img [ref=f7e10]: account_circle
+  - generic [ref=f7e13]:
+    - navigation [ref=f7e17]:
+      - link [ref=f7e18] [cursor=pointer]:
+        - /url: /resources
+        - img [ref=f7e19]: dns
+      - link [ref=f7e21] [cursor=pointer]:
+        - /url: /logs
+        - img [ref=f7e22]: article
+      - link [ref=f7e24] [cursor=pointer]:
+        - /url: /traces
+        - img [ref=f7e25]: timeline
+      - link [ref=f7e27] [cursor=pointer]:
+        - /url: /metrics
+        - img [ref=f7e28]: monitoring
+    - main [ref=f7e32]:
+      - generic [ref=f7e33]:
+        - generic [ref=f7e34]:
+          - heading "System Logs" [level=1] [ref=f7e35]
+          - button "Refresh" [disabled]:
+            - img: refresh
+        - generic [ref=f7e37]:
+          - generic [ref=f7e38]:
+            - generic [ref=f7e41] [cursor=pointer]:
+              - generic: Service
+              - combobox "Service" [ref=f7e44]:
+                - generic [ref=f7e45]: All services
+            - generic [ref=f7e54]:
+              - generic: Search
+              - textbox "Search" [ref=f7e57]:
+                - /placeholder: Keywords...
+            - button "Search" [ref=f7e58]:
+              - img [ref=f7e59]: search
+          - generic [ref=f7e63]:
+            - listbox [ref=f7e65]:
+              - option [selected] [ref=f7e67] [cursor=pointer]
+              - option [ref=f7e71] [cursor=pointer]
+              - option [ref=f7e75] [cursor=pointer]
+              - option [ref=f7e79] [cursor=pointer]
+              - option [ref=f7e83] [cursor=pointer]
+            - generic [ref=f7e89]:
+              - switch "Theo dõi thời gian thực" [ref=f7e90] [cursor=pointer]
+              - generic [ref=f7e100] [cursor=pointer]: Theo dõi thời gian thực
+        - generic [ref=f7e103]:
+          - progressbar [ref=f7e105]
+          - table [ref=f7e120]:
+            - rowgroup [ref=f7e121]:
+              - row [ref=f7e122]:
+                - columnheader "Time" [ref=f7e123]
+                - columnheader "Level" [ref=f7e124]
+                - columnheader "Service" [ref=f7e125]
+                - columnheader "Message" [ref=f7e126]
+                - columnheader [ref=f7e127]
+            - rowgroup [ref=f7e128]:
+              - row [ref=f7e129]:
+                - cell [ref=f7e130]:
+                  - img [ref=f7e131]: article
+                  - paragraph [ref=f7e132]: Loading...

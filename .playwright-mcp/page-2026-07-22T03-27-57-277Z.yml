@@ -1,0 +1,85 @@
+- generic [ref=f7e1]:
+  - generic [ref=f7e2]:
+    - generic [ref=f7e3]:
+      - button "Toggle navigation" [ref=f7e4] [cursor=pointer]:
+        - img [ref=f7e5]: menu
+      - generic [ref=f7e8]: His.Hope Dashboard
+      - button "User menu" [ref=f7e9] [cursor=pointer]:
+        - img [ref=f7e10]: account_circle
+    - generic [ref=f7e13]:
+      - navigation [ref=f7e17]:
+        - link [ref=f7e18] [cursor=pointer]:
+          - /url: /resources
+          - img [ref=f7e19]: dns
+        - link [ref=f7e21] [cursor=pointer]:
+          - /url: /logs
+          - img [ref=f7e22]: article
+        - link [ref=f7e24] [cursor=pointer]:
+          - /url: /traces
+          - img [ref=f7e25]: timeline
+        - link [ref=f7e27] [cursor=pointer]:
+          - /url: /metrics
+          - img [ref=f7e28]: monitoring
+      - main [ref=f7e32]:
+        - generic [ref=f7e352]:
+          - generic [ref=f7e353]:
+            - heading "System Metrics" [level=1] [ref=f7e354]
+            - button "Refresh" [ref=f7e355]:
+              - img [ref=f7e356]: refresh
+          - generic [ref=f7e361]:
+            - generic [ref=f7e364]:
+              - img [ref=f7e366]: check_circle
+              - generic [ref=f7e367]:
+                - generic [ref=f7e368]: "8"
+                - generic [ref=f7e369]: Đang chạy
+            - generic [ref=f7e372]:
+              - img [ref=f7e374]: stop_circle
+              - generic [ref=f7e375]:
+                - generic [ref=f7e376]: "5"
+                - generic [ref=f7e377]: Đã dừng
+            - generic [ref=f7e380]:
+              - img [ref=f7e382]: warning
+              - generic [ref=f7e383]:
+                - generic [ref=f7e384]: "5"
+                - generic [ref=f7e385]: Suy giảm
+            - generic [ref=f7e388]:
+              - img [ref=f7e390]: dns
+              - generic [ref=f7e391]:
+                - generic [ref=f7e392]: "13"
+                - generic [ref=f7e393]: Tổng dịch vụ
+          - generic [ref=f7e395]:
+            - generic [ref=f7e396]:
+              - generic [ref=f7e399] [cursor=pointer]:
+                - generic: Service
+                - combobox "Service" [expanded] [active] [ref=f7e402]:
+                  - generic [ref=f7e403]: Identity Service
+              - generic [ref=f7e412] [cursor=pointer]:
+                - generic: Metric Type
+                - combobox "Metric Type" [ref=f7e415]:
+                  - generic [ref=f7e416]: CPU
+              - generic [ref=f7e425] [cursor=pointer]:
+                - generic: Time Range
+                - combobox "Time Range" [ref=f7e428]:
+                  - generic [ref=f7e429]: 1 hour
+              - button "Apply" [ref=f7e436]:
+                - img [ref=f7e437]: refresh
+            - generic [ref=f7e490]:
+              - text: identity-service
+              - img [ref=f7e491] [cursor=pointer]: close
+          - generic [ref=f7e492]:
+            - img [ref=f7e493]: monitoring
+            - paragraph [ref=f7e494]: Select services and metric to view chart
+  - listbox "Service" [ref=f7e448]:
+    - option "Identity Service" [selected] [ref=f7e449] [cursor=pointer]
+    - option "Patient Service" [ref=f7e452] [cursor=pointer]
+    - option "Appointment Service" [ref=f7e455] [cursor=pointer]
+    - option "Clinical Service" [ref=f7e458] [cursor=pointer]
+    - option "Lab Service" [ref=f7e461] [cursor=pointer]
+    - option "Billing Service" [ref=f7e464] [cursor=pointer]
+    - option "Pharmacy Service" [ref=f7e467] [cursor=pointer]
+    - option "Patient Bff" [ref=f7e470] [cursor=pointer]
+    - option "Clinical Bff" [ref=f7e473] [cursor=pointer]
+    - option "Lab Bff" [ref=f7e476] [cursor=pointer]
+    - option "Billing Bff" [ref=f7e479] [cursor=pointer]
+    - option "Pharmacy Bff" [ref=f7e482] [cursor=pointer]
+    - option "Dashboard Bff" [ref=f7e485] [cursor=pointer]

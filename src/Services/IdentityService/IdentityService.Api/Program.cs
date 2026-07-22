@@ -27,7 +27,8 @@ using StackExchange.Redis;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Host.UseSerilog((context, config) =>
-    config.ReadFrom.Configuration(context.Configuration));
+    config.ReadFrom.Configuration(context.Configuration)
+                .Enrich.WithProperty("service", "identity-service"));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -73,6 +74,18 @@ builder.Services.AddScoped<JwtTokenGenerator>();
 builder.Services.AddScoped<IIdentityService, His.Hope.IdentityService.Infrastructure.Services.IdentityService>();
 builder.Services.AddScoped<TotpService>();
 builder.Services.AddScoped<RecoveryCodeService>();
+
+// CORS for dashboard app (separate origin)
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.WithOrigins("http://localhost:8082", "http://localhost:4201")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
+});
 
 // SECURITY: Redis-backed refresh token store (replaces in-memory ConcurrentDictionary)
 builder.Services.AddSingleton<RedisRefreshTokenStore>();
@@ -127,6 +140,7 @@ app.UseSecurityHeaders();
 app.UseRateLimiting();
 app.UseSerilogRequestLogging();
 app.UseHisHopePrometheus();
+app.UseCors();
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();

@@ -1,0 +1,52 @@
+.app-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: 56px;
+}
+
+.app-title {
+  margin-left: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+.sidenav-container {
+  height: calc(100vh - 56px);
+}
+
+.app-sidenav {
+  width: 240px;
+  border-right: 1px solid var(--border-default, #EAEAEA);
+  background: var(--surface-white, #FFFFFF);
+}
+
+.app-sidenav .mat-mdc-list-item {
+  border-radius: 0;
+  border-left: 3px solid transparent;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.app-sidenav .active-link {
+  border-left-color: var(--color-primary, #2F6B4A);
+  background: rgba(47, 107, 74, 0.06);
+}
+
+.app-sidenav .mat-mdc-list-item:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.sidenav-content {
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.main-content {
+  max-width: 1200px;
+  margin: 0 auto;
+}

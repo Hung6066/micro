@@ -1,7 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
-import { catchError, retry } from 'rxjs/operators';
+import { catchError, map, retry } from 'rxjs/operators';
 import { environment } from '@env/environment';
 import { AdminUser, Role, PermissionGroup, Setting, AuditLog, AdminDashboardStats } from '@core/models/admin.model';
 import { PagedResult } from '@core/models/paged-result.model';
@@ -109,28 +109,70 @@ export class AdminService {
   // ─── Settings ───────────────────────────────────────────────────────────────
 
   getSettings(): Observable<Setting[]> {
-    return this.http.get<Setting[]>(`${this.baseUrl}/settings`).pipe(
+    return this.http.get<any[]>(`${this.baseUrl}/settings`).pipe(
+      map(settings => settings.map(s => ({
+        key: s.key,
+        value: this.parseValue(s.value),
+        type: this.inferType(s.key, s.value),
+        label: s.description || s.key,
+        category: s.category || 'general',
+      }))),
       retry(1),
       catchError(this.handleError),
     );
   }
 
   getSetting(key: string): Observable<Setting> {
-    return this.http.get<Setting>(`${this.baseUrl}/settings/${key}`).pipe(
+    return this.http.get<any>(`${this.baseUrl}/settings/${key}`).pipe(
+      map(s => ({
+        key: s.key,
+        value: this.parseValue(s.value),
+        type: this.inferType(s.key, s.value),
+        label: s.description || s.key,
+        category: s.category || 'general',
+      })),
       catchError(this.handleError),
     );
   }
 
   updateSetting(key: string, value: any): Observable<Setting> {
-    return this.http.put<Setting>(`${this.baseUrl}/settings/${key}`, { value }).pipe(
+    return this.http.put<any>(`${this.baseUrl}/settings/${key}`, { value: String(value) }).pipe(
+      map(s => ({
+        key: s.key,
+        value: this.parseValue(s.value),
+        type: this.inferType(s.key, s.value),
+        label: s.description || s.key,
+        category: s.category || 'general',
+      })),
       catchError(this.handleError),
     );
   }
 
   bulkUpdateSettings(data: { key: string; value: any }[]): Observable<void> {
-    return this.http.put<void>(`${this.baseUrl}/settings/bulk`, { settings: data }).pipe(
+    const body = data.map(d => ({ key: d.key, value: String(d.value) }));
+    return this.http.put<void>(`${this.baseUrl}/settings/bulk`, { settings: body }).pipe(
       catchError(this.handleError),
     );
+  }
+
+  /**
+   * Infer the UI type of a setting from its raw string value.
+   */
+  private inferType(key: string, value: string): Setting['type'] {
+    if (value === 'true' || value === 'false') return 'boolean';
+    if (/^-?\d+(\.\d+)?$/.test(value)) return 'number';
+    return 'text';
+  }
+
+  /**
+   * Parse a raw string value into the correct JS type for the UI.
+   */
+  private parseValue(value: string): any {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    if (/^-?\d+(\.\d+)?$/.test(value))
+      return value.includes('.') ? parseFloat(value) : parseInt(value, 10);
+    return value;
   }
 
   // ─── Audit Logs ─────────────────────────────────────────────────────────────

@@ -1,0 +1,45 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e3]:
+    - button "Toggle navigation" [ref=f1e4] [cursor=pointer]:
+      - img [ref=f1e5]: menu
+    - generic [ref=f1e8]: His.Hope Dashboard
+    - button "User menu" [ref=f1e9] [cursor=pointer]:
+      - img [ref=f1e10]: account_circle
+  - generic [ref=f1e13]:
+    - navigation [ref=f1e17]:
+      - link [ref=f1e18] [cursor=pointer]:
+        - /url: /resources
+        - img [ref=f1e19]: dns
+      - link [ref=f1e21] [cursor=pointer]:
+        - /url: /logs
+        - img [ref=f1e22]: article
+      - link [ref=f1e24] [cursor=pointer]:
+        - /url: /traces
+        - img [ref=f1e25]: timeline
+      - link [ref=f1e27] [cursor=pointer]:
+        - /url: /metrics
+        - img [ref=f1e28]: monitoring
+    - main [ref=f1e32]:
+      - generic [ref=f1e36]:
+        - generic [ref=f1e37]:
+          - generic [ref=f1e38]: His.Hope
+          - heading "Dashboard" [level=2] [ref=f1e39]
+          - paragraph [ref=f1e40]: Sign in to your account
+        - generic [ref=f1e41]:
+          - generic [ref=f1e44]:
+            - generic [ref=f1e45]:
+              - text: Username or Email
+              - generic [ref=f1e46]: "*"
+            - img [ref=f1e48]: person
+            - textbox "Username or Email" [ref=f1e50]:
+              - /placeholder: Enter your username
+              - text: admin
+          - generic [ref=f1e54]:
+            - generic [ref=f1e55]:
+              - text: Password
+              - generic [ref=f1e56]: "*"
+            - img [ref=f1e58]: lock
+            - textbox "Password" [ref=f1e60]:
+              - /placeholder: Enter your password
+              - text: Admin@123
+          - button "Sign In" [ref=f1e62]
