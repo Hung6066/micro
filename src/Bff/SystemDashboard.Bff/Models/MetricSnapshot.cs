@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using SystemDashboard.Bff.Serialization;
+
 namespace SystemDashboard.Bff.Models;
 
 public sealed record MetricSnapshot
@@ -25,6 +28,7 @@ public sealed record MetricSnapshot
 
 public sealed record MetricDataPoint
 {
+    [JsonConverter(typeof(UtcDateTimeConverter))]
     public DateTime Timestamp { get; init; }
     public double Value { get; init; }
     public Dictionary<string, string>? Labels { get; init; }
