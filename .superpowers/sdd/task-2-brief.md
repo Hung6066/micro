@@ -1,55 +1,41 @@
-### Task 2: Lab Service API, realtime hub, and alert endpoints
+### Task 2: Model Change — Nullable Metrics
 
 **Files:**
-- Modify: `src/Services/LabService/LabService.Api/Program.cs`
-- Create: `src/Services/LabService/LabService.Api/Hubs/LabCriticalAlertHub.cs`
-- Create: `src/Services/LabService/LabService.Api/Services/HttpCurrentUserContext.cs`
-- Create: `src/Services/LabService/LabService.Api/Services/CriticalAlertRealtimePublisher.cs`
-- Create: `src/Services/LabService/LabService.Api/Endpoints/CriticalAlertEndpoints.cs`
-- Modify: `src/Services/LabService/LabService.Application/UseCases/LabOrders/Commands/RecordLabResultCommand.cs`
-- Modify: `src/Services/LabService/LabService.Application/UseCases/LabOrders/Commands/RecordLabOrderResultCommand.cs`
-- Create: `src/Services/LabService/LabService.Application/UseCases/CriticalAlerts/Commands/AcknowledgeCriticalAlertCommand.cs`
-- Create: `src/Services/LabService/LabService.Application/UseCases/CriticalAlerts/Commands/ResolveCriticalAlertCommand.cs`
-- Create: `src/Services/LabService/LabService.Application/UseCases/CriticalAlerts/Queries/GetCriticalAlertsQuery.cs`
-- Create: `src/Services/LabService/LabService.Application/UseCases/CriticalAlerts/Queries/GetCriticalAlertRulesQuery.cs`
-- Create: `src/Services/LabService/LabService.Application/UseCases/CriticalAlerts/Commands/UpsertCriticalAlertRuleCommand.cs`
-- Create: `src/Services/LabService/LabService.Application/UseCases/CriticalAlerts/Commands/DeleteCriticalAlertRuleCommand.cs`
-- Create: `tests/Services/LabService/LabService.Integration.Tests/CriticalAlertEndpointsTests.cs`
+- Modify: `src/Bff/SystemDashboard.Bff/Models/Resource.cs:33-34`
 
 **Interfaces:**
-- Consumes: `ICurrentUserContext`, `CriticalAlertEvaluator`, `IHubContext<LabCriticalAlertHub>`, and the existing lab order/result command handlers.
-- Produces: alert rule CRUD endpoints, alert inbox endpoints, `criticalAlertCreated` / `criticalAlertUpdated` / `criticalAlertAcknowledged` / `criticalAlertResolved` socket events, and alert-aware result-recording behavior.
+- Consumes: (none)
+- Produces: `ServiceResource.CpuPercent` → `double?`, `ServiceResource.MemoryUsedMb` → `double?`
 
-- [ ] **Step 1: Write failing integration tests for the API and hub behavior**
+- [ ] **Step 1: Change CpuPercent and MemoryUsedMb to nullable**
 
-Create tests that assert:
-- alert rules can be created and listed,
-- recording a critical result creates exactly one persisted alert,
-- acknowledging an alert stores the actor and timestamp,
-- resolving an alert keeps audit history,
-- the realtime publisher emits the expected payload shape for open/acknowledged/resolved updates.
+Open `src/Bff/SystemDashboard.Bff/Models/Resource.cs`, find the `ServiceResource` record (lines 27-38). Change lines 33-34:
 
-Run:
-`dotnet test tests/Services/LabService/LabService.Integration.Tests/LabService.Integration.Tests.csproj --filter "CriticalAlertEndpointsTests" -v normal`
+```csharp
+// BEFORE:
+    public double CpuPercent { get; init; }
+    public double MemoryUsedMb { get; init; }
 
-Expected: fail because the endpoints, hub, and command handlers are missing.
+// AFTER:
+    public double? CpuPercent { get; init; }
+    public double? MemoryUsedMb { get; init; }
+```
 
-- [ ] **Step 2: Implement the API, hub, and command wiring**
+- [ ] **Step 2: Fix compile errors in ResourceAggregator.cs (nullability)**
 
-Wire `AddSignalR()` and map the hub in `Program.cs`, add the new endpoints, and update the result-recording command handlers so alert evaluation runs on every result save and publishes notifications after persistence succeeds.
+ResourceAggregator currently assigns `double` values to now-`double?` properties. This is fine — C# implicitly converts `double` to `double?`. No code changes needed in ResourceAggregator for this step (the actual aggregator refactor is Task 5).
 
-Use `Permission:lab.manage` for rule management and `Permission:lab.view` plus runtime ownership checks for acknowledgment and resolution.
+- [ ] **Step 3: Build and verify**
 
-- [ ] **Step 3: Rerun the integration tests**
-
-Run:
-`dotnet test tests/Services/LabService/LabService.Integration.Tests/LabService.Integration.Tests.csproj --filter "CriticalAlertEndpointsTests" -v normal`
-
-Expected: pass.
+Run: `dotnet build src/Bff/SystemDashboard.Bff/SystemDashboard.Bff.csproj --no-restore`
+Expected: Build succeeded, no nullability warnings (or only pre-existing ones).
 
 - [ ] **Step 4: Commit**
 
-Commit message: `feat(lab): add critical alert api and realtime hub`
+```bash
+git add src/Bff/SystemDashboard.Bff/Models/Resource.cs
+git commit -m "feat(dashboard): make CpuPercent and MemoryUsedMb nullable for graceful degradation"
+```
 
 ---
 

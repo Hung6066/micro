@@ -1,9 +1,11 @@
 import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { Resource } from '../../core/models/resource.model';
 import { ServiceStatusBadgeComponent } from '../service-status-badge/service-status-badge.component';
 
@@ -12,10 +14,12 @@ import { ServiceStatusBadgeComponent } from '../service-status-badge/service-sta
   standalone: true,
   imports: [
     CommonModule,
+    RouterModule,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
     MatDividerModule,
+    MatTooltipModule,
     ServiceStatusBadgeComponent,
   ],
   template: `
@@ -51,11 +55,11 @@ import { ServiceStatusBadgeComponent } from '../service-status-badge/service-sta
           </div>
           <div class="meta-item" *ngIf="resource.type === 'Service' || resource.type === 'service'">
             <span class="meta-label">CPU</span>
-            <span class="meta-value">—</span>
+            <span class="meta-value">{{ resource.cpuPercent != null ? (resource.cpuPercent | number:'1.1-1') + '%' : '—' }}</span>
           </div>
           <div class="meta-item" *ngIf="resource.type === 'Service' || resource.type === 'service'">
             <span class="meta-label">Memory</span>
-            <span class="meta-value">—</span>
+            <span class="meta-value">{{ resource.memoryUsedMb != null ? (resource.memoryUsedMb | number:'1.0-0') + ' MB' : '—' }}</span>
           </div>
         </div>
 
@@ -76,6 +80,32 @@ import { ServiceStatusBadgeComponent } from '../service-status-badge/service-sta
             <mat-icon>refresh</mat-icon>
             Restart
           </button>
+        </div>
+
+        <mat-divider *ngIf="resource.type === 'Service' || resource.type === 'service'"></mat-divider>
+
+        <!-- Quick links to Logs, Traces, Metrics -->
+        <div class="quick-links" *ngIf="resource.type === 'Service' || resource.type === 'service'"
+             (click)="$event.stopPropagation()">
+          <a mat-icon-button [routerLink]="['/logs']"
+             [queryParams]="{ service: resource.name }"
+             matTooltip="View logs"
+             aria-label="View logs">
+            <mat-icon>article</mat-icon>
+          </a>
+          <a mat-icon-button [routerLink]="['/traces']"
+             [queryParams]="{ service: resource.name }"
+             matTooltip="View traces"
+             aria-label="View traces">
+            <mat-icon>timeline</mat-icon>
+          </a>
+          <a mat-icon-button [routerLink]="['/metrics']"
+             [queryParams]="{ service: resource.name }"
+             matTooltip="View metrics"
+             aria-label="View metrics">
+            <mat-icon>monitoring</mat-icon>
+          </a>
+          <span class="quick-links-label">Logs, Traces, Metrics</span>
         </div>
       </mat-card-content>
     </mat-card>
@@ -183,6 +213,28 @@ import { ServiceStatusBadgeComponent } from '../service-status-badge/service-sta
       width: 16px;
       height: 16px;
       margin-right: 2px;
+    }
+    .quick-links {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding-top: 8px;
+    }
+    .quick-links a {
+      color: var(--text-muted, #A1A09B);
+    }
+    .quick-links a:hover {
+      color: var(--color-primary, #2F6B4A);
+    }
+    .quick-links mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+    }
+    .quick-links-label {
+      font-size: 11px;
+      color: var(--text-muted, #A1A09B);
+      margin-left: 4px;
     }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,

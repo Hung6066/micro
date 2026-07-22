@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SystemDashboard.Bff.Aggregators;
+using SystemDashboard.Bff.Models;
 
 namespace SystemDashboard.Bff.Controllers;
 
@@ -31,7 +32,10 @@ public sealed class TracesController : ControllerBase
             "Searching traces: service={Service}, from={From}, to={To}, minDurationMs={MinDurationMs}, limit={Limit}",
             service, from, to, minDurationMs, limit);
 
-        var traces = await _tracesAggregator.SearchTracesAsync(service ?? "", from, to, minDurationMs, limit, ct);
+        if (string.IsNullOrEmpty(service))
+            return Ok(Array.Empty<TraceSummary>());
+
+        var traces = await _tracesAggregator.SearchTracesAsync(service, from, to, minDurationMs, limit, ct);
         return Ok(traces);
     }
 

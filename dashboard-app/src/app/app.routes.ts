@@ -15,6 +15,5 @@ export const routes: Routes = [
   { path: 'traces/:traceId', component: TraceDetailComponent, canActivate: [authGuard] },
   { path: 'metrics', component: MetricsPageComponent, canActivate: [authGuard] },
   { path: 'auth/login', component: LoginComponent },
-  { path: 'auth/callback', component: LoginComponent },
   { path: '**', redirectTo: '/resources' },
 ];

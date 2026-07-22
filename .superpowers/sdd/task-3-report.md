@@ -1,43 +1,39 @@
-### Task 3 Report: generate-index.ps1
+# Task 3: Prometheus Instant Query (QueryAsync) — Report
 
-**Status:** Complete  
-**Commit:** `b9033fe` — `feat(knowledge): add generate-index.ps1 script for auto-generating INDEX.md`
+## Status
 
-**Test results:**
-- Script executed: `pwsh -File docs/knowledge/scripts/generate-index.ps1`
-- Empty entries directory handled correctly: warning emitted "No .md files found in ..."
-- Minimal INDEX.md created with placeholder message
+**Complete** ✅
 
-**Concerns:** None.
+## Changes
 
-**Report path:** `D:\AI\micro\.superpowers\sdd\task-3-report.md`
+### `IPrometheusQueryService.cs`
+- Added `Task<MetricDataPoint?> QueryAsync(string query, CancellationToken ct = default)` to the interface (line 15)
 
----
+### `PrometheusQueryService.cs`
+- Added `QueryAsync` method (lines 67-96) that calls Prometheus `/api/v1/query` (instant query) endpoint
+- Added 3 private sealed record types for deserialization:
+  - `PromInstantResponse` (lines 126-133)
+  - `PromInstantData` (lines 135-142)
+  - `PromInstantResult` (lines 144-151)
 
-### Task 3 Report: lab critical alerts
+## Design Notes
 
-**Status:** Complete  
-**Commit:** `060fc0c` — `feat(lab-ui): add critical alert inbox and realtime updates`
+- Follows same pattern as existing `QueryRangeAsync` — catches exceptions, logs warning, returns `null` on failure
+- Instant query response has `value` (single `[timestamp, "value"]` array) instead of `values` (array of arrays)
+- Uses `FirstOrDefault()` on results — instant queries typically return 0 or 1 result series
+- Reuses existing `MetricDataPoint` model for the return type
 
-**Test results:**
-- `npm test -- --runInBand --testPathPattern=lab-critical-alert` ✅
-- `npm run build` ✅
+## Commit
 
-**Concerns:** Build still emits pre-existing Angular warnings outside Task 3 scope.
+```
+202bb37 feat(dashboard): add Prometheus instant query (QueryAsync) for single-value lookups
+```
 
-**Report path:** `D:\AI\micro\.superpowers\sdd\task-3-report.md`
+## Build Verification
 
----
+- `dotnet build` — **succeeded**, 0 warnings, 0 errors
+- No existing tests for this method; no test run performed
 
-### Task 3 Follow-up Fix: lab critical value alert review
+## Concerns
 
-**Status:** Complete  
-**Commit:** `b9ad0ac` — `fix(lab-ui): clear stale critical alert state and wire rule save`
-
-**Test results:**
-- `npm test -- --runInBand --testPathPattern=lab-critical-alert` ✅
-- `npm run build` ✅
-
-**Concerns:** Build still emits pre-existing Angular warnings outside Task 3 scope.
-
-**Report path:** `D:\AI\micro\.superpowers\sdd\task-3-report.md`
+- None

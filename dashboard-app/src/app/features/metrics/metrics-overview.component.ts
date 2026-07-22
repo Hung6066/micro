@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectionStrategy, inject, OnDestroy } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, inject, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -123,6 +123,7 @@ import { Resource } from '../../core/models/resource.model';
 })
 export class MetricsOverviewComponent implements OnInit, OnDestroy {
   private readonly resourceService = inject(ResourceService);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroy$ = new Subject<void>();
 
   runningCount = 0;
@@ -155,6 +156,7 @@ export class MetricsOverviewComponent implements OnInit, OnDestroy {
       this.degradedCount = services.filter(
         r => r.status === 'Degraded' || r.healthStatus === 'Degraded' || r.healthStatus === 'Unhealthy'
       ).length;
+      this.cdr.markForCheck();
     });
   }
 }

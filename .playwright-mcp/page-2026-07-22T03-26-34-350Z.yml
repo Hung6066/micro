@@ -1,0 +1,88 @@
+- generic [ref=f7e2]:
+  - generic [ref=f7e3]:
+    - button "Toggle navigation" [ref=f7e4] [cursor=pointer]:
+      - img [ref=f7e5]: menu
+    - generic [ref=f7e8]: His.Hope Dashboard
+    - button "User menu" [ref=f7e9] [cursor=pointer]:
+      - img [ref=f7e10]: account_circle
+  - generic [ref=f7e13]:
+    - navigation [ref=f7e17]:
+      - link [ref=f7e18] [cursor=pointer]:
+        - /url: /resources
+        - img [ref=f7e19]: dns
+      - link [active] [ref=f7e21] [cursor=pointer]:
+        - /url: /logs
+        - img [ref=f7e22]: article
+      - link [ref=f7e24] [cursor=pointer]:
+        - /url: /traces
+        - img [ref=f7e25]: timeline
+      - link [ref=f7e27] [cursor=pointer]:
+        - /url: /metrics
+        - img [ref=f7e28]: monitoring
+    - main [ref=f7e32]:
+      - generic [ref=f7e228]:
+        - generic [ref=f7e229]:
+          - heading "System Logs" [level=1] [ref=f7e230]
+          - button "Refresh" [ref=f7e231]:
+            - img [ref=f7e232]: refresh
+        - generic [ref=f7e237]:
+          - generic [ref=f7e238]:
+            - generic [ref=f7e241] [cursor=pointer]:
+              - generic: Service
+              - combobox "Service" [ref=f7e244]:
+                - generic [ref=f7e245]: All services
+            - generic [ref=f7e254]:
+              - generic: Search
+              - textbox "Search" [ref=f7e257]:
+                - /placeholder: Keywords...
+            - button "Search" [ref=f7e258]:
+              - img [ref=f7e259]: search
+          - generic [ref=f7e263]:
+            - listbox [ref=f7e265]:
+              - option [selected] [ref=f7e267] [cursor=pointer]
+              - option [ref=f7e271] [cursor=pointer]
+              - option [ref=f7e275] [cursor=pointer]
+              - option [ref=f7e279] [cursor=pointer]
+              - option [ref=f7e283] [cursor=pointer]
+            - generic [ref=f7e289]:
+              - switch "Theo dõi thời gian thực" [ref=f7e290] [cursor=pointer]
+              - generic [ref=f7e300] [cursor=pointer]: Theo dõi thời gian thực
+        - table [ref=f7e304]:
+          - rowgroup [ref=f7e305]:
+            - row [ref=f7e306]:
+              - columnheader "Time" [ref=f7e307]
+              - columnheader "Level" [ref=f7e308]
+              - columnheader "Service" [ref=f7e309]
+              - columnheader "Message" [ref=f7e310]
+              - columnheader [ref=f7e311]
+          - rowgroup [ref=f7e312]:
+            - row [ref=f7e313] [cursor=pointer]:
+              - cell "22/07 15:44:37" [ref=f7e314]
+              - cell "Warning" [ref=f7e315]
+              - cell "patient-service" [ref=f7e317]
+              - cell "Slow query detected - GetPatients took 4500ms" [ref=f7e318]
+              - cell [ref=f7e319]:
+                - button [ref=f7e320]:
+                  - img [ref=f7e321]: expand_more
+            - row [ref=f7e324]:
+              - cell [ref=f7e325]
+            - row [ref=f7e326] [cursor=pointer]:
+              - cell "22/07 15:44:36" [ref=f7e327]
+              - cell "Information" [ref=f7e328]
+              - cell "identity-service" [ref=f7e330]
+              - cell "User admin logged in successfully" [ref=f7e331]
+              - cell [ref=f7e332]:
+                - button [ref=f7e333]:
+                  - img [ref=f7e334]: expand_more
+            - row [ref=f7e337]:
+              - cell [ref=f7e338]
+            - row [ref=f7e339] [cursor=pointer]:
+              - cell "22/07 15:39:37" [ref=f7e340]
+              - cell "Error" [ref=f7e341]
+              - cell "billing-service" [ref=f7e343]
+              - cell "Payment processing failed for invoice INV-2026-001" [ref=f7e344]
+              - cell [ref=f7e345]:
+                - button [ref=f7e346]:
+                  - img [ref=f7e347]: expand_more
+            - row [ref=f7e350]:
+              - cell [ref=f7e351]

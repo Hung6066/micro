@@ -140,6 +140,17 @@
         "code-review-graph": "allow"
       }
     },
+    "review": {
+      "description": "Code Review (PR) agent — reviews diffs and PRs for coding standards, security, performance, and spec compliance. Uses code-review-graph for graph-based impact analysis and risk scoring. Integrates with @code-review skill for two-axis (Standards + Spec) parallel review workflow.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow",
+      "mcp": {
+        "code-review-graph": "allow",
+        "github": "allow",
+        "filesystem": "allow",
+        "sequential-thinking": "allow"
+      }
+    },
     "git": {
       "description": "Git/GitHub integration agent — stage, commit (Conventional Commits), push, branch, PR. Commits ONLY after quality gate green-light from @orchestrator. Uses MCP: github for GitHub API operations (PRs, issues, search), filesystem for staging files.",
       "model": "opencode-go/deepseek-v4-flash",

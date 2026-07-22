@@ -191,7 +191,7 @@ services:
       Jwt__Issuer: his-hope-identity
       Jwt__Expiry: "08:00:00"
       Redis__ConnectionString: redis:6379
-      OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
+      Otlp__Endpoint: http://jaeger:4317
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -221,7 +221,7 @@ services:
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
       Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
-      OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
+      Otlp__Endpoint: http://jaeger:4317
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -253,7 +253,7 @@ services:
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
       Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
-      OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
+      Otlp__Endpoint: http://jaeger:4317
     depends_on:
       patientservice: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -285,7 +285,7 @@ services:
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
       Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
-      OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
+      Otlp__Endpoint: http://jaeger:4317
     depends_on:
       patientservice: { condition: service_healthy }
       appointmentservice: { condition: service_healthy }
@@ -318,7 +318,7 @@ services:
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
       Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
-      OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
+      Otlp__Endpoint: http://jaeger:4317
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -352,7 +352,7 @@ services:
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
       Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
-      OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
+      Otlp__Endpoint: http://jaeger:4317
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -384,7 +384,7 @@ services:
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
       Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
-      OTEL_EXPORTER_JAEGER_AGENT_HOST: jaeger
+      Otlp__Endpoint: http://jaeger:4317
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -444,10 +444,13 @@ services:
       - "5700:5700"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5700
       - Consul__Address=http://consul:8500
       - Elasticsearch__Url=http://elasticsearch:9200
       - Jaeger__QueryUrl=http://jaeger:16686
       - Prometheus__Url=http://prometheus:9090
+      - Jwt__Key=${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
+      - Jwt__Issuer=his-hope-identity
     depends_on:
       - consul
       - elasticsearch
@@ -455,6 +458,25 @@ services:
       - prometheus
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+
+  # Aspire Dashboard App (Angular)
+  dashboard-app:
+    build:
+      context: ../dashboard-app
+    container_name: his-hope-dashboard
+    ports:
+      - "8082:80"
+    environment:
+      - API_URL=http://systemdashboard-bff:5700
+    depends_on:
+      - systemdashboard-bff
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   # Temporal distributed workflow engine
   temporal:

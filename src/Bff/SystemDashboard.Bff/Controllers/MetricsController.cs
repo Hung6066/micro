@@ -25,6 +25,15 @@ public sealed class MetricsController : ControllerBase
         [FromQuery] string range = "1h",
         CancellationToken ct = default)
     {
+        // FE calls /api/metrics/service?service=xxx — when path is literally "service",
+        // use the query-param value instead
+        if (string.Equals(service, "service", StringComparison.OrdinalIgnoreCase))
+        {
+            var qs = HttpContext.Request.Query["service"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(qs))
+                service = qs;
+        }
+
         metrics ??= ["cpu", "memory"];
         _logger.LogInformation(
             "Getting metrics: service={Service}, metrics={Metrics}, range={Range}",

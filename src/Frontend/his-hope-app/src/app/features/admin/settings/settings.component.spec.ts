@@ -80,7 +80,7 @@ describe('SettingsComponent', () => {
   });
 
   it('should have categories', () => {
-    expect(component.categories.length).toBe(4);
+    expect(component.categories.length).toBe(7);
   });
 
   it('should pass a basic integrity check', () => {

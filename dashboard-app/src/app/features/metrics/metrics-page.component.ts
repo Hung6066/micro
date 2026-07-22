@@ -1,6 +1,7 @@
-import { Component, OnInit, ChangeDetectionStrategy, inject, OnDestroy, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, inject, OnDestroy, ViewChild, ElementRef, AfterViewInit, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,7 +11,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDividerModule } from '@angular/material/divider';
 import { BehaviorSubject, Subject, of, combineLatest } from 'rxjs';
-import { catchError, finalize, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs/operators';
+import { catchError, finalize, debounceTime, takeUntil } from 'rxjs/operators';
 import { MetricsService } from '../../core/services/metrics.service';
 import { ResourceService } from '../../core/services/resource.service';
 import { MetricSnapshot, MetricDataPoint } from '../../core/models/metric-snapshot.model';
@@ -295,6 +296,8 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private readonly metricsService = inject(MetricsService);
   private readonly resourceService = inject(ResourceService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroy$ = new Subject<void>();
 
   private readonly refreshTrigger = new BehaviorSubject<void>(undefined);
@@ -317,7 +320,6 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private readonly query$ = this.refreshTrigger.pipe(
     debounceTime(100),
-    distinctUntilChanged(),
   );
 
   ngOnInit(): void {
@@ -331,6 +333,13 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
       this.availableServices = resources.filter(
         r => r.type?.toLowerCase() === 'service'
       );
+      // Pre-select service from query param (Resource card quick-link)
+      const svc = this.route.snapshot.queryParamMap.get('service');
+      if (svc && !this.selectedServices.includes(svc)) {
+        this.selectedServices = [svc];
+        this.applyFilters();
+      }
+      this.cdr.markForCheck();
     });
   }
 
@@ -423,8 +432,6 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   private renderChart(allMetrics: MetricSnapshot[][]): void {
-    if (!this.chartCanvas) return;
-
     this.destroyChart();
 
     // Build datasets: one line per service
@@ -473,10 +480,19 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
 
     if (datasets.length === 0) {
       this.hasData = false;
+      this.cdr.markForCheck();
       return;
     }
 
     this.hasData = true;
+    this.cdr.markForCheck();
+
+    // Defer chart creation to next tick so *ngIf renders the canvas first
+    setTimeout(() => this.createChart(datasets), 0);
+  }
+
+  private createChart(datasets: { label: string; data: { x: string; y: number }[]; borderColor: string; backgroundColor: string; fill: boolean; tension: number; pointRadius: number; }[]): void {
+    if (!this.chartCanvas) return;
 
     const ctx = this.chartCanvas.nativeElement.getContext('2d');
     if (!ctx) return;
@@ -540,6 +556,7 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
         },
       },
     });
+    this.cdr.markForCheck();
   }
 
   private destroyChart(): void {

@@ -1,6 +1,7 @@
-import { Component, OnInit, ChangeDetectionStrategy, inject } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -10,8 +11,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
-import { BehaviorSubject, of, combineLatest } from 'rxjs';
-import { catchError, switchMap, finalize, debounceTime } from 'rxjs/operators';
+import { BehaviorSubject, of, combineLatest, interval, merge } from 'rxjs';
+import { catchError, switchMap, finalize, debounceTime, map } from 'rxjs/operators';
 import { LogsService } from '../../core/services/logs.service';
 import { LogEntry } from '../../core/models/log-entry.model';
 import { LogLevelFilterComponent } from '../../shared/log-level-filter/log-level-filter.component';
@@ -57,14 +58,13 @@ const PAGE_SIZE = 20;
             <mat-label>Service</mat-label>
             <mat-select [(ngModel)]="selectedService" (selectionChange)="onFilterChange()">
               <mat-option value="">All services</mat-option>
-              <mat-option value="ApiGateway">ApiGateway</mat-option>
-              <mat-option value="IdentityService">IdentityService</mat-option>
-              <mat-option value="PatientService">PatientService</mat-option>
-              <mat-option value="AppointmentService">AppointmentService</mat-option>
-              <mat-option value="ClinicalService">ClinicalService</mat-option>
-              <mat-option value="LabService">LabService</mat-option>
-              <mat-option value="PharmacyService">PharmacyService</mat-option>
-              <mat-option value="BillingService">BillingService</mat-option>
+              <mat-option value="identity-service">Identity Service</mat-option>
+              <mat-option value="patient-service">Patient Service</mat-option>
+              <mat-option value="appointment-service">Appointment Service</mat-option>
+              <mat-option value="clinical-service">Clinical Service</mat-option>
+              <mat-option value="lab-service">Lab Service</mat-option>
+              <mat-option value="billing-service">Billing Service</mat-option>
+              <mat-option value="pharmacy-service">Pharmacy Service</mat-option>
             </mat-select>
           </mat-form-field>
 
@@ -359,6 +359,8 @@ const PAGE_SIZE = 20;
 })
 export class LogsPageComponent implements OnInit {
   private readonly logsService = inject(LogsService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   private readonly refreshTrigger = new BehaviorSubject<void>(undefined);
   private readonly pageTrigger = new BehaviorSubject<number>(0);
@@ -380,7 +382,7 @@ export class LogsPageComponent implements OnInit {
   readonly displayedColumns = ['timestamp', 'level', 'service', 'message', 'expand'];
 
   private readonly queryParams$ = combineLatest([
-    this.refreshTrigger,
+    merge(this.refreshTrigger, interval(10000).pipe(map(() => void 0))),
     this.pageTrigger,
   ]).pipe(
     debounceTime(100),
@@ -419,7 +421,14 @@ export class LogsPageComponent implements OnInit {
         this.logs = [...this.logs, ...entries];
       }
       this.hasMore = entries.length >= PAGE_SIZE;
+      this.cdr.markForCheck();
     });
+
+    // Read service query param from Resource card quick-link
+    const serviceParam = this.route.snapshot.queryParamMap.get('service');
+    if (serviceParam) {
+      this.selectedService = serviceParam;
+    }
 
     // Initial load
     this.refresh();

@@ -17,11 +17,19 @@ export interface Resource {
   tags?: Record<string, string>;
   healthChecks?: HealthCheckResult[];
   lastUpdated?: Date;
+  cpuPercent?: number;
+  memoryUsedMb?: number;
 }
 
 export interface ServiceResource extends Resource {
   serviceType: string;
   instanceCount: number;
+  cpuPercent?: number;
+  memoryUsedMb?: number;
+  httpPort?: number;
+  grpcPort?: number;
+  uptime?: string;
+  databases?: string[];
   baseUrl?: string;
   isExternal: boolean;
 }

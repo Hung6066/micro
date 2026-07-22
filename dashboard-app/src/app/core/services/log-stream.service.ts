@@ -14,7 +14,9 @@ export class LogStreamService implements OnDestroy {
 
   constructor() {
     this.connection = new signalR.HubConnectionBuilder()
-      .withUrl(`${environment.wsUrl}/logshub`)
+      .withUrl(`${environment.wsUrl}/logshub`, {
+        accessTokenFactory: () => localStorage.getItem('access_token') ?? ''
+      })
       .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
       .configureLogging(signalR.LogLevel.Warning)
       .build();

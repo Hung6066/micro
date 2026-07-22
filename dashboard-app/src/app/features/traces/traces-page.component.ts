@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectionStrategy, inject, OnDestroy } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, inject, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -16,7 +16,7 @@ import { TracesService } from '../../core/services/traces.service';
 import { ResourceService } from '../../core/services/resource.service';
 import { TraceSummary } from '../../core/models/trace.model';
 import { Resource } from '../../core/models/resource.model';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 
 @Component({
   selector: 'app-traces-page',
@@ -228,6 +228,8 @@ export class TracesPageComponent implements OnInit, OnDestroy {
   private readonly tracesService = inject(TracesService);
   private readonly resourceService = inject(ResourceService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroy$ = new Subject<void>();
 
   private readonly refreshTrigger = new BehaviorSubject<void>(undefined);
@@ -271,6 +273,7 @@ export class TracesPageComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.query$.subscribe(traces => {
       this.traces = traces;
+      this.cdr.markForCheck();
     });
 
     // Load services for dropdown from ResourceService
@@ -281,7 +284,14 @@ export class TracesPageComponent implements OnInit, OnDestroy {
       this.availableServices = resources.filter(
         r => r.type?.toLowerCase() === 'service'
       );
+      this.cdr.markForCheck();
     });
+
+    // Read service query param from Resource card quick-link
+    const svc = this.route.snapshot.queryParamMap.get('service');
+    if (svc) {
+      this.selectedService = svc;
+    }
 
     this.refresh();
   }

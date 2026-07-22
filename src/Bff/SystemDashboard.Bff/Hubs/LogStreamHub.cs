@@ -24,6 +24,6 @@ public class LogStreamHub : Hub
 
     public async Task SendLogEntry(string serviceName, LogEntry entry)
     {
-        await Clients.Group(serviceName).SendAsync("LogReceived", entry);
+        await Clients.Group(serviceName).SendAsync("LogEntry", entry);
     }
 }

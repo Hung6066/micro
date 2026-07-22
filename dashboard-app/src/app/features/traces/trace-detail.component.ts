@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectionStrategy, inject, ElementRef, ViewChild, AfterViewInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, inject, ElementRef, ViewChild, AfterViewInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -550,6 +550,7 @@ const SERVICE_COLORS = [
 export class TraceDetailComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly tracesService = inject(TracesService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   private readonly destroy$ = new Subject<void>();
   private readonly traceId$ = new BehaviorSubject<string>('');
@@ -599,6 +600,7 @@ export class TraceDetailComponent implements OnInit, OnDestroy {
       this.trace = trace;
       this.expanded = {};
       this.computeTimeTicks(trace);
+      this.cdr.markForCheck();
     });
   }
 

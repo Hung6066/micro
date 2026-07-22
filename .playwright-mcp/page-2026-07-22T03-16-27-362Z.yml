@@ -1,0 +1,30 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - button "Toggle navigation" [ref=e4] [cursor=pointer]:
+      - img [ref=e5]: menu
+    - generic [ref=e8]: His.Hope Dashboard
+    - button "User menu" [ref=e9] [cursor=pointer]:
+      - img [ref=e10]: account_circle
+  - generic [ref=e13]:
+    - navigation [ref=e17]:
+      - link [ref=e18] [cursor=pointer]:
+        - /url: /resources
+        - img [ref=e19]: dns
+      - link [ref=e21] [cursor=pointer]:
+        - /url: /logs
+        - img [ref=e22]: article
+      - link [ref=e24] [cursor=pointer]:
+        - /url: /traces
+        - img [ref=e25]: timeline
+      - link [ref=e27] [cursor=pointer]:
+        - /url: /metrics
+        - img [ref=e28]: monitoring
+    - main [ref=e32]:
+      - generic [ref=e33]:
+        - generic [ref=e34]:
+          - heading "System Resources" [level=1] [ref=e35]
+          - button "Refresh" [disabled]:
+            - img: refresh
+        - generic [ref=e36]:
+          - progressbar [ref=e37]
+          - generic [ref=e52]: Loading resources...

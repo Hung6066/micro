@@ -32,7 +32,7 @@ public sealed class ElasticsearchQueryService : IElasticsearchQueryService
             var mustClauses = new List<object>();
 
             if (!string.IsNullOrWhiteSpace(service))
-                mustClauses.Add(new { term = new Dictionary<string, object> { ["service.keyword"] = service } });
+                mustClauses.Add(new { match = new { service } });
 
             if (!string.IsNullOrWhiteSpace(level))
                 mustClauses.Add(new { match = new { level } });

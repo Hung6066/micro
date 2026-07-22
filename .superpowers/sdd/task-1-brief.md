@@ -1,67 +1,69 @@
-### Task 1: Backend domain model, persistence, and alert evaluation
+### Task 1: Cache Infrastructure (CacheKeys + CacheExtensions)
 
 **Files:**
-- Create: `src/Services/LabService/LabService.Domain/Entities/CriticalAlertRule.cs`
-- Create: `src/Services/LabService/LabService.Domain/Entities/CriticalAlert.cs`
-- Create: `src/Services/LabService/LabService.Domain/Entities/CriticalAlertAuditEntry.cs`
-- Create: `src/Services/LabService/LabService.Domain/ValueObjects/CriticalAlertStatus.cs`
-- Create: `src/Services/LabService/LabService.Domain/ValueObjects/CriticalAlertTriggerType.cs`
-- Create: `src/Services/LabService/LabService.Domain/Repositories/ICriticalAlertRuleRepository.cs`
-- Create: `src/Services/LabService/LabService.Domain/Repositories/ICriticalAlertRepository.cs`
-- Create: `src/Services/LabService/LabService.Application/Common/Abstractions/ICurrentUserContext.cs`
-- Create: `src/Services/LabService/LabService.Application/DTOs/CriticalAlertDtos.cs`
-- Create: `src/Services/LabService/LabService.Application/Services/CriticalAlertEvaluator.cs`
-- Modify: `src/Services/LabService/LabService.Infrastructure/Persistence/LabDbContext.cs`
-- Create: `src/Services/LabService/LabService.Infrastructure/Persistence/Configurations/CriticalAlertRuleConfiguration.cs`
-- Create: `src/Services/LabService/LabService.Infrastructure/Persistence/Configurations/CriticalAlertConfiguration.cs`
-- Create: `src/Services/LabService/LabService.Infrastructure/Persistence/Configurations/CriticalAlertAuditEntryConfiguration.cs`
-- Create: `src/Services/LabService/LabService.Infrastructure/Persistence/Repositories/CriticalAlertRuleRepository.cs`
-- Create: `src/Services/LabService/LabService.Infrastructure/Persistence/Repositories/CriticalAlertRepository.cs`
-- Modify: `src/Services/LabService/LabService.Infrastructure/DependencyInjection.cs`
-- Test: `tests/Services/LabService/LabService.Domain.Tests/CriticalAlertRuleTests.cs`
-- Test: `tests/Services/LabService/LabService.Domain.Tests/CriticalAlertTests.cs`
-- Test: `tests/Services/LabService/LabService.Application.Tests/CriticalAlertEvaluatorTests.cs`
+- Create: `src/Bff/SystemDashboard.Bff/Aggregators/CacheKeys.cs`
+- Create: `src/Bff/SystemDashboard.Bff/Aggregators/CacheExtensions.cs`
 
 **Interfaces:**
-- Consumes: `LabOrder`, `LabTest`, `LabResult`, current-user identity (`sub`, `fullName` claims via `ICurrentUserContext`), and active `CriticalAlertRule` rows.
-- Produces: `CriticalAlertEvaluator.EvaluateAsync(...)`, `CriticalAlertEvaluator.ResolveAsync(...)`, `CriticalAlertRuleDto`, `CriticalAlertDto`, and `CriticalAlertAuditEntryDto`.
+- Produces: `CacheKeys` static class with `AllResources`, `ResourceByName(string)`, `Metrics(string,string,string)`, `Logs(string?,string?,int,string?)`, `TraceSearch(string)`, `TraceDetail(string)`; `CacheExtensions.GetOrCreateAsync<T>(IMemoryCache, string, Func<Task<T>>, TimeSpan)`
 
-- [ ] **Step 1: Write failing domain and evaluator tests**
+- [ ] **Step 1: Create CacheKeys.cs**
 
-Create tests that assert:
-- a critical flag creates a single open alert,
-- a threshold match creates a single open alert,
-- a second save of the same critical result updates the existing alert instead of duplicating it,
-- a correction to a noncritical value resolves the alert,
-- every state change writes an audit entry with actor information.
+```csharp
+// File: src/Bff/SystemDashboard.Bff/Aggregators/CacheKeys.cs
+namespace SystemDashboard.Bff.Aggregators;
 
-Run:
-`dotnet test tests/Services/LabService/LabService.Domain.Tests/LabService.Domain.Tests.csproj --filter "CriticalAlertRuleTests|CriticalAlertTests" -v normal`
+public static class CacheKeys
+{
+    public const string AllResources = "resources:all";
+    public static string ResourceByName(string name) => $"resources:{name}";
+    public static string Metrics(string service, string metrics, string range) =>
+        $"metrics:{service}:{metrics}:{range}";
+    public static string Logs(string? service, string? level, int size, string? searchQuery) =>
+        $"logs:{service ?? "*"}:{level ?? "*"}:{size}:{searchQuery ?? "*"}";
+    public static string TraceSearch(string service) => $"traces:search:{service}";
+    public static string TraceDetail(string traceId) => $"traces:{traceId}";
+}
+```
 
-Run:
-`dotnet test tests/Services/LabService/LabService.Application.Tests/LabService.Application.Tests.csproj --filter "CriticalAlertEvaluatorTests" -v normal`
+- [ ] **Step 2: Create CacheExtensions.cs**
 
-Expected: fail because the alert types and evaluator do not exist yet.
+```csharp
+// File: src/Bff/SystemDashboard.Bff/Aggregators/CacheExtensions.cs
+using Microsoft.Extensions.Caching.Memory;
 
-- [ ] **Step 2: Implement the alert model and evaluator**
+namespace SystemDashboard.Bff.Aggregators;
 
-Implement the new alert entities and value objects, wire them into `LabDbContext`, add repository implementations, and register the evaluator and current-user abstraction in dependency injection.
+public static class CacheExtensions
+{
+    public static async Task<T?> GetOrCreateAsync<T>(
+        this IMemoryCache cache,
+        string key,
+        Func<Task<T>> factory,
+        TimeSpan absoluteExpiration)
+    {
+        if (cache.TryGetValue(key, out T? cached) && cached is not null)
+            return cached;
 
-Keep the storage model additive and compatible with the existing `EnsureCreated` bootstrap path; do not introduce a migration system in this iteration.
+        var result = await factory();
+        if (result is not null)
+            cache.Set(key, result, absoluteExpiration);
+        return result;
+    }
+}
+```
 
-- [ ] **Step 3: Rerun the backend unit tests**
+- [ ] **Step 3: Build and verify compilation**
 
-Run:
-`dotnet test tests/Services/LabService/LabService.Domain.Tests/LabService.Domain.Tests.csproj --filter "CriticalAlertRuleTests|CriticalAlertTests" -v normal`
-
-Run:
-`dotnet test tests/Services/LabService/LabService.Application.Tests/LabService.Application.Tests.csproj --filter "CriticalAlertEvaluatorTests" -v normal`
-
-Expected: pass.
+Run: `dotnet build src/Bff/SystemDashboard.Bff/SystemDashboard.Bff.csproj --no-restore`
+Expected: Build succeeded.
 
 - [ ] **Step 4: Commit**
 
-Commit message: `feat(lab): add critical alert domain and evaluator`
+```bash
+git add src/Bff/SystemDashboard.Bff/Aggregators/CacheKeys.cs src/Bff/SystemDashboard.Bff/Aggregators/CacheExtensions.cs
+git commit -m "feat(dashboard): add cache infrastructure (CacheKeys + CacheExtensions)"
+```
 
 ---
 

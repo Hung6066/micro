@@ -23,15 +23,18 @@ public sealed class JaegerQueryService : IJaegerQueryService
     {
         try
         {
-            var uri = $"/api/traces?service={Uri.EscapeDataString(service)}&limit={limit}";
+            var query = $"limit={limit}";
+            if (!string.IsNullOrEmpty(service))
+                query += $"&service={Uri.EscapeDataString(service)}";
 
             if (from.HasValue)
-                uri += $"&start={ToUnixTimeMicroseconds(new DateTimeOffset(from.Value))}";
+                query += $"&start={ToUnixTimeMicroseconds(new DateTimeOffset(from.Value))}";
             if (to.HasValue)
-                uri += $"&end={ToUnixTimeMicroseconds(new DateTimeOffset(to.Value))}";
+                query += $"&end={ToUnixTimeMicroseconds(new DateTimeOffset(to.Value))}";
             if (minDurationMs.HasValue)
-                uri += $"&minDuration={minDurationMs.Value}ms";
+                query += $"&minDuration={minDurationMs.Value}ms";
 
+            var uri = $"/api/traces?{query}";
             var response = await _httpClient.GetAsync(uri, ct);
             response.EnsureSuccessStatusCode();
 
@@ -76,18 +79,25 @@ public sealed class JaegerQueryService : IJaegerQueryService
     private static TraceSummary MapToTraceSummary(JaegerTrace trace)
     {
         var rootSpan = trace.Spans?.FirstOrDefault(s => s.References is null || s.References.Count == 0);
-        var startTimeUs = trace.StartTimeUs > 0
-            ? trace.StartTimeUs
-            : trace.Spans?.Min(s => s.StartTime) ?? 0;
+        var startTimeUs = trace.StartTimeUs;
+
+        // Resolve process ID to actual service name
+        var rootService = "";
+        if (rootSpan?.ProcessId is not null && trace.Processes?.TryGetValue(rootSpan.ProcessId, out var proc) == true)
+            rootService = proc.ServiceName ?? "";
+
+        var durationUs = (trace.Spans?.Max(s => s.StartTime + s.Duration) ?? startTimeUs) - startTimeUs;
 
         return new TraceSummary
         {
             TraceId = trace.TraceId ?? "",
-            RootService = rootSpan?.ProcessId ?? trace.Processes?.FirstOrDefault().Key ?? "",
-            RootOperation = rootSpan?.OperationName ?? "",
-            DurationMs = ((trace.Spans?.Max(s => s.StartTime + s.Duration) ?? startTimeUs) - startTimeUs) / 1000,
+            RootService = rootService,
+            RootName = rootSpan?.OperationName ?? "",
+            DurationMs = durationUs / 1000,
             SpanCount = trace.Spans?.Count ?? 0,
-            StartTime = FromUnixTimeMicroseconds(startTimeUs).UtcDateTime
+            StartTime = FromUnixTimeMicroseconds(startTimeUs).UtcDateTime,
+            Status = "Ok",
+            HasErrors = trace.Spans?.Any(s => s.Tags?.Any(t => t.Key == "error" && t.Value?.ToString() == "true") == true) ?? false
         };
     }
 
@@ -95,36 +105,66 @@ public sealed class JaegerQueryService : IJaegerQueryService
     {
         var processes = trace.Processes?
             .Where(p => p.Key is not null)
-            .ToDictionary(
-                p => p.Key,
-                p => p.Value?.ServiceName ?? p.Key) ?? [];
+            .ToDictionary(p => p.Key, p => p.Value?.ServiceName ?? p.Key) ?? [];
 
-        var spans = trace.Spans?.Select(s => new TraceSpan
+        var startTimeUs = trace.StartTimeUs;
+        var endTimeUs = trace.Spans?.Max(s => s.StartTime + s.Duration) ?? startTimeUs;
+        var durationUs = endTimeUs - startTimeUs;
+
+        var spans = trace.Spans?.Select(s =>
         {
-            SpanId = s.SpanId ?? "",
-            OperationName = s.OperationName ?? "",
-            ProcessId = s.ProcessId ?? "",
-            StartTimeUs = s.StartTime,
-            DurationUs = s.Duration,
-            References = s.References?.Select(r => new TraceReference
+            var spanStart = FromUnixTimeMicroseconds(s.StartTime);
+            var spanEnd = FromUnixTimeMicroseconds(s.StartTime + s.Duration);
+
+            // Resolve parent span ID from references (first CHILD_OF)
+            var parentSpanId = s.References?
+                .FirstOrDefault(r => r.RefType == "CHILD_OF" || r.RefType == "FOLLOWS_FROM")
+                ?.SpanId;
+
+            // Resolve service name from process ID
+            var service = s.ProcessId is not null && processes.TryGetValue(s.ProcessId, out var svc)
+                ? svc
+                : s.ProcessId ?? "";
+
+            return new TraceSpanEx
             {
-                TraceId = r.TraceId ?? trace.TraceId ?? "",
-                SpanId = r.SpanId ?? "",
-                RefType = r.RefType ?? ""
-            }).ToList() ?? [],
-            Tags = s.Tags?.Where(t => t.Key is not null).ToDictionary(t => t.Key!, t => t.Value ?? "") ?? [],
-            Logs = s.Logs?.Select(l => new TraceLog
-            {
-                TimestampUs = l.Timestamp,
-                Fields = l.Fields?.Where(f => f.Key is not null).ToDictionary(f => f.Key!, f => (object)(f.Value ?? "")) ?? []
-            }).ToList() ?? []
+                SpanId = s.SpanId ?? "",
+                ParentSpanId = parentSpanId,
+                Name = s.OperationName ?? "",
+                Service = service,
+                StartTime = spanStart.UtcDateTime,
+                EndTime = spanEnd.UtcDateTime,
+                DurationMs = s.Duration / 1000.0,
+                Status = "Ok",
+                Attributes = s.Tags?
+                    .Where(t => t.Key is not null && t.Value is not null)
+                    .ToDictionary(t => t.Key!, t => t.Value?.ToString() ?? "") ?? null,
+                Events = s.Logs?.Select(l => new TraceSpanEvent
+                {
+                    Name = l.Fields?.FirstOrDefault(f => f.Key == "event")?.Value?.ToString()
+                           ?? l.Fields?.FirstOrDefault()?.Value?.ToString()
+                           ?? "log",
+                    Timestamp = FromUnixTimeMicroseconds(l.Timestamp).UtcDateTime,
+                    Attributes = l.Fields?.Where(f => f.Key is not null)
+                        .ToDictionary(f => f.Key!, f => f.Value?.ToString() ?? "")
+                }).ToList() ?? null
+            };
         }).ToList() ?? [];
+
+        var serviceNames = processes.Values.Distinct().OrderBy(x => x).ToList();
 
         return new TraceDetail
         {
             TraceId = trace.TraceId ?? "",
+            RootService = spans.FirstOrDefault()?.Service ?? serviceNames.FirstOrDefault() ?? "",
+            RootName = spans.FirstOrDefault()?.Name ?? "",
+            StartTime = FromUnixTimeMicroseconds(startTimeUs).UtcDateTime,
+            EndTime = FromUnixTimeMicroseconds(endTimeUs).UtcDateTime,
+            DurationMs = durationUs / 1000,
+            SpanCount = spans.Count,
+            Status = "Ok",
             Spans = spans,
-            Processes = processes
+            Services = serviceNames
         };
     }
 

@@ -22,7 +22,7 @@ public sealed class LogsController : ControllerBase
     public async Task<IActionResult> QueryLogs(
         [FromQuery] string? service,
         [FromQuery] string? level,
-        [FromQuery] DateTime? from,
+        [FromQuery] int? from,
         [FromQuery] int size = 100,
         [FromQuery] string? query = null,
         CancellationToken ct = default)
@@ -32,6 +32,7 @@ public sealed class LogsController : ControllerBase
             service, level, from, size, query);
 
         var logs = await _logsAggregator.QueryLogsAsync(service, level, from, size, query, ct);
-        return Ok(new { logs, total = logs.Count });
+        _logger.LogInformation("Returning {Count} log entries", logs.Count);
+        return Ok(logs);
     }
 }

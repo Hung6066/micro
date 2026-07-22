@@ -1,46 +1,63 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Router } from '@angular/router';
+import { BehaviorSubject, Observable, throwError } from 'rxjs';
+import { catchError, map, tap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+
+interface TokenResponse {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: string;
+  user: {
+    id: string;
+    username: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    fullName: string;
+    roles: string[];
+  };
+}
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly authUrl = `${environment.identityUrl}/auth`;
+  private readonly loginUrl = `${environment.identityUrl}/api/v1/auth/login`;
   private authenticatedSubject = new BehaviorSubject<boolean | null>(null);
 
   readonly isAuthenticated$: Observable<boolean | null> = this.authenticatedSubject.asObservable();
 
-  constructor(private readonly http: HttpClient) {
+  constructor(
+    private readonly http: HttpClient,
+    private readonly router: Router,
+  ) {
     this.authenticatedSubject.next(this.hasToken());
   }
 
   login(returnUrl?: string): void {
-    const redirectUri = returnUrl
-      ? `${window.location.origin}/auth/callback?returnUrl=${encodeURIComponent(returnUrl)}`
-      : `${window.location.origin}/auth/callback`;
-    window.location.href = `${this.authUrl}/login?redirectUri=${encodeURIComponent(redirectUri)}`;
+    this.router.navigate(['/auth/login'], { queryParams: returnUrl ? { returnUrl } : undefined });
+  }
+
+  loginWithCredentials(username: string, password: string): Observable<void> {
+    return this.http.post<TokenResponse>(this.loginUrl, { username, password }).pipe(
+      tap(response => {
+        localStorage.setItem('access_token', response.accessToken);
+        localStorage.setItem('refresh_token', response.refreshToken);
+        this.authenticatedSubject.next(true);
+      }),
+      map(() => undefined),
+      catchError(err => {
+        this.authenticatedSubject.next(false);
+        return throwError(() => err);
+      }),
+    );
   }
 
   logout(): void {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     this.authenticatedSubject.next(false);
-    window.location.href = `${this.authUrl}/logout?redirectUri=${encodeURIComponent(window.location.origin)}`;
-  }
-
-  handleCallback(): Observable<void> {
-    return this.http.get<{ accessToken: string; refreshToken?: string }>(`${this.authUrl}/token`, {
-      params: { code: this.getCodeFromUrl() },
-    }).pipe(
-      map(response => {
-        localStorage.setItem('access_token', response.accessToken);
-        if (response.refreshToken) {
-          localStorage.setItem('refresh_token', response.refreshToken);
-        }
-        this.authenticatedSubject.next(true);
-      })
-    );
+    this.router.navigate(['/auth/login']);
   }
 
   getToken(): string | null {
@@ -56,10 +73,5 @@ export class AuthService {
     } catch {
       return false;
     }
-  }
-
-  private getCodeFromUrl(): string {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('code') ?? '';
   }
 }
