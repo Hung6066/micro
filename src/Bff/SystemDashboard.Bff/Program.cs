@@ -22,6 +22,7 @@ builder.Services.Configure<DockerOptions>(builder.Configuration.GetSection(Docke
 builder.Services.Configure<KubernetesOptions>(builder.Configuration.GetSection(KubernetesOptions.SectionName));
 builder.Services.Configure<ElasticsearchOptions>(builder.Configuration.GetSection(ElasticsearchOptions.SectionName));
 builder.Services.Configure<PrometheusOptions>(builder.Configuration.GetSection(PrometheusOptions.SectionName));
+builder.Services.Configure<AlertManagerOptions>(builder.Configuration.GetSection(AlertManagerOptions.SectionName));
 builder.Services.Configure<JaegerOptions>(builder.Configuration.GetSection(JaegerOptions.SectionName));
 
 // JSON serialization
@@ -111,6 +112,16 @@ builder.Services.AddHttpClient<IJaegerQueryService, JaegerQueryService>((sp, cli
 .AddHttpMessageHandler(sp => new ResiliencePipelineHandler(
     sp.GetRequiredService<IResiliencePipelineFactory>(), "jaeger"));
 
+// AlertManager alert querying with retry + circuit breaker
+builder.Services.AddHttpClient<IAlertManagerService, AlertManagerService>((sp, client) =>
+{
+    var amOptions = sp.GetRequiredService<IOptions<AlertManagerOptions>>();
+    client.BaseAddress = new Uri(amOptions.Value.Url);
+    client.Timeout = TimeSpan.FromSeconds(15);
+})
+.AddHttpMessageHandler(sp => new ResiliencePipelineHandler(
+    sp.GetRequiredService<IResiliencePipelineFactory>(), "alertmanager"));
+
 // Logs aggregator
 builder.Services.AddSingleton<ILogsAggregator, LogsAggregator>();
 
@@ -144,6 +155,9 @@ builder.Services.AddSingleton<ILifecycleController, LifecycleController>();
 // Background service: polls ES for new logs and pushes via SignalR
 builder.Services.AddHostedService<LogStreamBackgroundService>();
 
+// Background service: polls Prometheus every 2s and pushes metrics via SignalR
+builder.Services.AddHostedService<MetricsBackgroundService>();
+
 // Rate limiting
 builder.Services.AddHisHopeRateLimiting(builder.Configuration);
 
@@ -163,6 +177,8 @@ app.UseMiddleware<DashboardAuditMiddleware>();
 app.MapHealthChecks("/health");
 app.MapControllers();
 app.MapHub<LogStreamHub>("/ws/logshub").RequireAuthorization();
+app.MapHub<AlertHub>("/ws/alerthub").RequireAuthorization();
+app.MapHub<MetricsHub>("/ws/metricshub").RequireAuthorization();
 
 app.Run();
 
