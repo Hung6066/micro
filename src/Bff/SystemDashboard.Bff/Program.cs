@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.Channels;
 using His.Hope.Infrastructure;
 using His.Hope.Infrastructure.Resilience;
 using His.Hope.Infrastructure.Security;
@@ -9,6 +10,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using SystemDashboard.Bff.Aggregators;
 using SystemDashboard.Bff.Hubs;
+using SystemDashboard.Bff.Middleware;
 using SystemDashboard.Bff.Models;
 using SystemDashboard.Bff.Services;
 
@@ -57,6 +59,11 @@ builder.Services.AddSignalR();
 
 // Health checks
 builder.Services.AddHealthChecks();
+
+// Dashboard audit channel + background writer
+builder.Services.AddSingleton(Channel.CreateUnbounded<AuditEvent>(
+    new UnboundedChannelOptions { SingleReader = true }));
+builder.Services.AddHostedService<AuditEventWriter>();
 
 // Memory cache for aggregator responses
 builder.Services.AddMemoryCache();
@@ -147,6 +154,7 @@ var app = builder.Build();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<DashboardAuditMiddleware>();
 
 app.MapHealthChecks("/health");
 app.MapControllers();
