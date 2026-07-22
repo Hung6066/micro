@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -23,7 +23,7 @@ import { ServiceStatusBadgeComponent } from '../service-status-badge/service-sta
     ServiceStatusBadgeComponent,
   ],
   template: `
-    <mat-card class="resource-card" (click)="onCardClick()">
+    <mat-card class="resource-card" [class.pulsing]="animating" (click)="onCardClick()">
       <mat-card-content>
         <div class="card-header">
           <div class="card-header-left">
@@ -111,10 +111,19 @@ import { ServiceStatusBadgeComponent } from '../service-status-badge/service-sta
     </mat-card>
   `,
   styles: [`
+    @keyframes pulse-live {
+      0% { border-color: var(--color-primary, #2F6B4A); box-shadow: 0 0 0 0 rgba(47, 107, 74, 0.3); }
+      50% { border-color: var(--color-primary, #2F6B4A); box-shadow: 0 0 0 6px rgba(47, 107, 74, 0.08); }
+      100% { border-color: var(--border-default, #EAEAEA); box-shadow: 0 0 0 0 rgba(47, 107, 74, 0); }
+    }
+
     .resource-card {
       cursor: pointer;
       transition: transform 150ms ease, border-color 150ms ease;
       user-select: none;
+    }
+    .resource-card.pulsing {
+      animation: pulse-live 600ms cubic-bezier(0.4, 0, 0.2, 1);
     }
     .resource-card:hover {
       border-color: var(--color-primary, #2F6B4A) !important;
@@ -239,12 +248,22 @@ import { ServiceStatusBadgeComponent } from '../service-status-badge/service-sta
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ResourceCardComponent {
+export class ResourceCardComponent implements OnChanges {
   @Input({ required: true }) resource!: Resource;
+  @Input() pulseTrigger?: number;
   @Output() cardClick = new EventEmitter<Resource>();
   @Output() start = new EventEmitter<Resource>();
   @Output() stop = new EventEmitter<Resource>();
   @Output() restart = new EventEmitter<Resource>();
+
+  animating = false;
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['pulseTrigger'] && !changes['pulseTrigger'].firstChange) {
+      this.animating = true;
+      setTimeout(() => (this.animating = false), 700);
+    }
+  }
 
   get typeIcon(): string {
     const t = this.resource.type?.toLowerCase() ?? '';

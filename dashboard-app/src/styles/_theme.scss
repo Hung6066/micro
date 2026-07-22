@@ -72,6 +72,40 @@ html {
 
 @include mat.table-density(-3);
 
+// ── Dark Theme ──
+$dashboard-dark-theme: mat.define-theme((
+  color: (
+    theme-type: dark,
+    primary: $clinical-green,
+    tertiary: mat.$blue-palette,
+  ),
+  typography: (
+    plain-family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif',
+    brand-family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif',
+    bold-weight: 700,
+    medium-weight: 500,
+    regular-weight: 400,
+  ),
+  density: (scale: -1),
+));
+
+body[data-theme="dark"] {
+  @include mat.all-component-colors($dashboard-dark-theme);
+  @include mat.system-level-colors($dashboard-dark-theme);
+}
+
+body[data-theme="dark"] {
+  --bg-warm: #161816;
+  --surface-white: #1E201E;
+  --text-primary: #E2E3DC;
+  --text-secondary: #90918C;
+  --text-muted: #6B6D68;
+  --border-default: #333533;
+  --border-light: #2A2D2A;
+  --color-primary: #7EBB8C;
+  --color-warn: #FFB4AB;
+}
+
 :root {
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
   --font-mono: "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, Monaco, monospace;

@@ -50,3 +50,30 @@
   max-width: 1200px;
   margin: 0 auto;
 }
+
+// ── Mobile responsive ──
+@media (max-width: 768px) {
+  .app-sidenav {
+    width: 100vw;
+    max-width: 100vw;
+  }
+
+  .sidenav-content {
+    padding: 16px;
+  }
+
+  .main-content {
+    max-width: 100%;
+  }
+}
+
+// ── Dark mode overrides for Material components ──
+:host-context(body[data-theme="dark"]) {
+  .app-sidenav .active-link {
+    background: rgba(126, 187, 140, 0.12);
+  }
+
+  .app-sidenav .mat-mdc-list-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+  }
+}

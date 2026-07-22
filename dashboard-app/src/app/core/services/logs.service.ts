@@ -16,6 +16,8 @@ export class LogsService {
     from?: string;
     size?: number;
     query?: string;
+    fromDate?: string;
+    toDate?: string;
   }): Observable<LogEntry[]> {
     let httpParams = new HttpParams();
     if (params) {
@@ -24,6 +26,8 @@ export class LogsService {
       if (params.from) httpParams = httpParams.set('from', params.from);
       if (params.size) httpParams = httpParams.set('size', params.size.toString());
       if (params.query) httpParams = httpParams.set('query', params.query);
+      if (params.fromDate) httpParams = httpParams.set('fromDate', params.fromDate);
+      if (params.toDate) httpParams = httpParams.set('toDate', params.toDate);
     }
     return this.http.get<LogEntry[]>(this.baseUrl, { params: httpParams });
   }

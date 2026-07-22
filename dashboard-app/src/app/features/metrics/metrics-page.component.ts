@@ -13,8 +13,10 @@ import { MatDividerModule } from '@angular/material/divider';
 import { BehaviorSubject, Subject, of, combineLatest } from 'rxjs';
 import { catchError, finalize, debounceTime, takeUntil } from 'rxjs/operators';
 import { MetricsService } from '../../core/services/metrics.service';
+import { MetricsStreamService } from '../../core/services/metrics-stream.service';
 import { ResourceService } from '../../core/services/resource.service';
 import { MetricSnapshot, MetricDataPoint } from '../../core/models/metric-snapshot.model';
+import { LiveMetricUpdate } from '../../core/models/live-metric-update.model';
 import { Resource } from '../../core/models/resource.model';
 import { MetricsOverviewComponent } from './metrics-overview.component';
 import { Chart, LineController, LineElement, PointElement, LinearScale, TimeScale, CategoryScale, Tooltip, Legend, Filler } from 'chart.js';
@@ -68,7 +70,10 @@ const SERVICE_COLORS = [
   ],
   template: `
     <div class="page-header">
-      <h1 class="page-title">System Metrics</h1>
+      <h1 class="page-title">
+        System Metrics
+        <span class="live-badge" *ngIf="liveConnected">● LIVE</span>
+      </h1>
       <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
         <mat-icon>refresh</mat-icon>
         Refresh
@@ -179,6 +184,23 @@ const SERVICE_COLORS = [
       font-weight: 600;
       color: #1A1A1A;
       margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .live-badge {
+      font-size: 11px;
+      font-weight: 600;
+      color: #2F6B4A;
+      background: #EDF3EC;
+      padding: 2px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.04em;
+      animation: live-pulse 2s ease-in-out infinite;
+    }
+    @keyframes live-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
     }
     .controls-card {
       margin-bottom: 16px;
@@ -295,10 +317,15 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
   @ViewChild('chartCanvas') chartCanvas!: ElementRef<HTMLCanvasElement>;
 
   private readonly metricsService = inject(MetricsService);
+  private readonly metricsStream = inject(MetricsStreamService);
   private readonly resourceService = inject(ResourceService);
   private readonly route = inject(ActivatedRoute);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroy$ = new Subject<void>();
+
+  liveConnected = false;
+  /** Latest live metric values keyed by service name. */
+  readonly latestLiveMetrics = new Map<string, LiveMetricUpdate>();
 
   private readonly refreshTrigger = new BehaviorSubject<void>(undefined);
 
@@ -324,6 +351,25 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
 
   ngOnInit(): void {
     this.currentMetric = METRIC_TYPES.find(m => m.key === this.selectedMetricType) ?? METRIC_TYPES[0];
+
+    // Connect to real-time metrics stream
+    this.metricsStream.connect().then(() => {
+      this.liveConnected = true;
+      this.cdr.markForCheck();
+      // Subscribe to all available services
+      const svcNames = this.availableServices.map(s => s.name);
+      if (svcNames.length > 0) {
+        this.metricsStream.subscribeMany(svcNames);
+      }
+    });
+
+    // Collect live metric updates
+    this.metricsStream.liveMetrics$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((update: LiveMetricUpdate) => {
+        this.latestLiveMetrics.set(update.serviceName, update);
+        this.cdr.markForCheck();
+      });
 
     // Load services from ResourceService
     this.resourceService.getAll().pipe(

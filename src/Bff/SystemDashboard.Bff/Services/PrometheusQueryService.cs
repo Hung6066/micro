@@ -64,6 +64,49 @@ public sealed class PrometheusQueryService : IPrometheusQueryService
         }
     }
 
+    public async Task<List<PrometheusSample>> QuerySamplesAsync(
+        string query, CancellationToken ct = default)
+    {
+        try
+        {
+            var requestUri = $"/api/v1/query?query={Uri.EscapeDataString(query)}";
+            var response = await _httpClient.GetAsync(requestUri, ct);
+            response.EnsureSuccessStatusCode();
+
+            var promResponse = await response.Content.ReadFromJsonAsync<PromInstantResponse>(ct);
+            if (promResponse?.Data?.Result is null || promResponse.Data.Result.Length == 0)
+                return [];
+
+            var samples = new List<PrometheusSample>(promResponse.Data.Result.Length);
+            foreach (var result in promResponse.Data.Result)
+            {
+                if (result.Value is null || result.Value.Count < 2)
+                    continue;
+
+                var tsElement = (JsonElement)result.Value[0];
+                var valElement = (JsonElement)result.Value[1];
+
+                if (!double.TryParse(valElement.GetString(), NumberStyles.Any,
+                        CultureInfo.InvariantCulture, out var parsed))
+                    continue;
+
+                samples.Add(new PrometheusSample
+                {
+                    Labels = result.Metric ?? [],
+                    Value = parsed,
+                    Timestamp = DateTimeOffset.FromUnixTimeSeconds(tsElement.GetInt64()).UtcDateTime,
+                });
+            }
+
+            return samples;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to query Prometheus samples: {Query}", query);
+            return [];
+        }
+    }
+
     public async Task<MetricDataPoint?> QueryAsync(
         string query, CancellationToken ct = default)
     {
