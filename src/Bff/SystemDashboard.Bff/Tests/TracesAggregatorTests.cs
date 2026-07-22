@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using SystemDashboard.Bff.Aggregators;
@@ -9,6 +11,7 @@ namespace SystemDashboard.Bff.Tests;
 
 public sealed class TracesAggregatorTests
 {
+    private readonly IMemoryCache _cache = new MemoryCache(new MemoryCacheOptions());
     [Fact]
     public async Task SearchTracesAsync_PassesParametersThrough()
     {
@@ -23,7 +26,7 @@ public sealed class TracesAggregatorTests
             {
                 TraceId = "trace-1",
                 RootService = "identity-service",
-                RootOperation = "POST /api/login",
+                RootName = "POST /api/login",
                 DurationMs = 150,
                 SpanCount = 3,
                 StartTime = DateTime.UtcNow
@@ -39,8 +42,9 @@ public sealed class TracesAggregatorTests
                 Arg.Any<CancellationToken>())
             .Returns(expectedTraces);
 
+        var cache = Substitute.For<IMemoryCache>();
         var logger = Substitute.For<ILogger<TracesAggregator>>();
-        var aggregator = new TracesAggregator(jaeger, logger);
+        var aggregator = new TracesAggregator(jaeger, logger, cache);
 
         // Act
         var results = await aggregator.SearchTracesAsync(
@@ -55,7 +59,7 @@ public sealed class TracesAggregatorTests
         var trace = results[0];
         Assert.Equal("trace-1", trace.TraceId);
         Assert.Equal("identity-service", trace.RootService);
-        Assert.Equal("POST /api/login", trace.RootOperation);
+        Assert.Equal("POST /api/login", trace.RootName);
         Assert.Equal(150, trace.DurationMs);
     }
 
@@ -64,31 +68,40 @@ public sealed class TracesAggregatorTests
     {
         // Arrange
         var jaeger = Substitute.For<IJaegerQueryService>();
+        var startTime = new DateTime(2024, 1, 1, 0, 0, 1, DateTimeKind.Utc);
+        var endTime = new DateTime(2024, 1, 1, 0, 0, 1, 50, DateTimeKind.Utc);
+
         var expectedDetail = new TraceDetail
         {
             TraceId = "trace-1",
+            RootService = "identity-service",
+            RootName = "HTTP GET /api/users",
+            StartTime = startTime,
+            EndTime = endTime,
+            DurationMs = 50,
+            SpanCount = 1,
             Spans =
             [
-                new TraceSpan
+                new TraceSpanEx
                 {
                     SpanId = "span-1",
-                    OperationName = "HTTP GET /api/users",
-                    ProcessId = "p1",
-                    StartTimeUs = 1000000,
-                    DurationUs = 50000
+                    ParentSpanId = null,
+                    Name = "HTTP GET /api/users",
+                    Service = "identity-service",
+                    StartTime = startTime,
+                    EndTime = endTime,
+                    DurationMs = 50.0
                 }
             ],
-            Processes = new Dictionary<string, string>
-            {
-                ["p1"] = "identity-service"
-            }
+            Services = ["identity-service"]
         };
 
         jaeger.GetTraceAsync("trace-1", default)
             .Returns(expectedDetail);
 
+        var cache = Substitute.For<IMemoryCache>();
         var logger = Substitute.For<ILogger<TracesAggregator>>();
-        var aggregator = new TracesAggregator(jaeger, logger);
+        var aggregator = new TracesAggregator(jaeger, logger, cache);
 
         // Act
         var result = await aggregator.GetTraceAsync("trace-1");
@@ -97,8 +110,9 @@ public sealed class TracesAggregatorTests
         Assert.NotNull(result);
         Assert.Equal("trace-1", result.TraceId);
         Assert.Single(result.Spans);
-        Assert.Equal("HTTP GET /api/users", result.Spans[0].OperationName);
-        Assert.Equal("identity-service", result.Processes["p1"]);
+        Assert.Equal("HTTP GET /api/users", result.Spans[0].Name);
+        Assert.Equal("identity-service", result.Spans[0].Service);
+        Assert.Equal("identity-service", result.Services[0]);
     }
 
     [Fact]
@@ -115,8 +129,9 @@ public sealed class TracesAggregatorTests
                 Arg.Any<CancellationToken>())
             .Returns<List<TraceSummary>>(_ => throw new HttpRequestException("Jaeger unavailable"));
 
+        var cache = Substitute.For<IMemoryCache>();
         var logger = Substitute.For<ILogger<TracesAggregator>>();
-        var aggregator = new TracesAggregator(jaeger, logger);
+        var aggregator = new TracesAggregator(jaeger, logger, cache);
 
         // Act
         var results = await aggregator.SearchTracesAsync("identity-service", null, null, null, 20);
