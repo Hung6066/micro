@@ -1,12 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SystemDashboard.Bff.Aggregators;
+using SystemDashboard.Bff.Authorization;
 
 namespace SystemDashboard.Bff.Controllers;
 
 [ApiController]
 [Route("api/logs")]
-[Authorize]
+[Authorize(Roles = DashboardRoles.ReadOnly)]
 public sealed class LogsController : ControllerBase
 {
     private readonly ILogsAggregator _logsAggregator;
