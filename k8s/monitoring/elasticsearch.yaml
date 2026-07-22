@@ -20,7 +20,7 @@ data:
     node.name: ${POD_NAME}
     network.host: 0.0.0.0
     discovery.type: single-node
-    xpack.security.enabled: false
+    xpack.security.enabled: true
     xpack.monitoring.collection.enabled: true
     indices.memory.index_buffer_size: 10%
 ---
@@ -133,7 +133,12 @@ spec:
             - name: discovery.type
               value: "single-node"
             - name: xpack.security.enabled
-              value: "false"
+              value: "true"
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-credentials
+                  key: elastic-password
           resources:
             requests:
               cpu: 500m
@@ -156,6 +161,22 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/bash
+                  - -c
+                  - |
+                    until curl -s http://localhost:9200/_cluster/health | grep -q '"status":"green\|yellow"'; do
+                      sleep 5
+                    done
+                    curl -X PUT "http://localhost:9200/_ilm/policy/his-hope-logs-policy" \
+                      -H "Content-Type: application/json" \
+                      --data-binary @/etc/elasticsearch/ilm-policy.json
+                    curl -X PUT "http://localhost:9200/_index_template/his-hope-logs-template" \
+                      -H "Content-Type: application/json" \
+                      --data-binary @/etc/elasticsearch/template.json
           volumeMounts:
             - name: elasticsearch-data
               mountPath: /usr/share/elasticsearch/data
@@ -164,11 +185,23 @@ spec:
               mountPath: /usr/share/elasticsearch/config/elasticsearch.yml
               subPath: elasticsearch.yml
               readOnly: true
+            - name: ilm-policy
+              mountPath: /etc/elasticsearch/ilm-policy.json
+              subPath: policy.json
+            - name: index-template
+              mountPath: /etc/elasticsearch/template.json
+              subPath: template.json
       volumes:
         - name: config
           configMap:
             name: elasticsearch-config
             defaultMode: 0644
+        - name: ilm-policy
+          configMap:
+            name: elasticsearch-ilm-policy
+        - name: index-template
+          configMap:
+            name: elasticsearch-index-template
   volumeClaimTemplates:
     - metadata:
         name: elasticsearch-data

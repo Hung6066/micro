@@ -89,3 +89,38 @@ spec:
             severity: warning
           annotations:
             summary: "BFF aggregation degraded rate > 10%"
+
+        # Dashboard availability
+        - alert: DashboardBffDown
+          expr: up{job="dashboard-bff"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            component: dashboard
+          annotations:
+            summary: "Dashboard BFF is down"
+
+        # Dashboard error rate
+        - alert: DashboardBffHighErrorRate
+          expr: |
+            rate(http_server_request_duration_seconds_count{
+              job="dashboard-bff",http_response_status_code=~"5.."}[5m])
+            / rate(http_server_request_duration_seconds_count{job="dashboard-bff"}[5m]) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+            component: dashboard
+          annotations:
+            summary: "Dashboard BFF error rate > 5%"
+
+        # Dashboard latency
+        - alert: DashboardBffHighLatency
+          expr: |
+            histogram_quantile(0.95,
+              rate(http_server_request_duration_seconds_bucket{job="dashboard-bff"}[5m])) > 1.0
+          for: 5m
+          labels:
+            severity: warning
+            component: dashboard
+          annotations:
+            summary: "Dashboard BFF p95 latency > 1s"
