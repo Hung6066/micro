@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using SystemDashboard.Bff.Models;
 using SystemDashboard.Bff.Services;
 
@@ -7,13 +8,36 @@ public sealed class MetricsAggregator : IMetricsAggregator
 {
     private readonly IPrometheusQueryService _prometheus;
     private readonly ILogger<MetricsAggregator> _logger;
+    private readonly IMemoryCache _cache;
 
     private static readonly Dictionary<string, string> MetricPromqlTemplates = new()
     {
-        ["cpu"] = "rate(process_cpu_seconds_total{service=\"{service}\"}[5m]) * 100",
-        ["memory"] = "process_working_set_bytes{service=\"{service}\"} / 1024 / 1024",
-        ["requests"] = "rate(http_requests_total{service=\"{service}\"}[5m])",
-        ["errors"] = "rate(http_requests_total{service=\"{service}\",status=~\"5..\"}[5m])"
+        ["cpu"] = "rate(process_cpu_time_seconds_total{job=\"{job}\"}[5m]) * 100",
+        ["memory"] = "process_memory_usage_bytes{job=\"{job}\"} / 1024 / 1024",
+        ["requests"] = "rate(http_server_request_duration_seconds_count{job=\"{job}\"}[5m])",
+        ["errors"] = "rate(http_server_request_duration_seconds_count{job=\"{job}\",http_response_status_code=~\"5..\"}[5m])"
+    };
+
+    private static readonly Dictionary<string, (string DisplayName, string Unit)> MetricConfig = new()
+    {
+        ["cpu"] = ("CPU", "%"),
+        ["memory"] = ("Memory", "MB"),
+        ["requests"] = ("Requests", "req/s"),
+        ["errors"] = ("Errors", "errors/min"),
+    };
+
+    /// <summary>
+    /// Maps kebab-case service names (e.g. "identity-service") to Prometheus job labels (e.g. "identityservice").
+    /// </summary>
+    private static readonly Dictionary<string, string> ServiceToJobMap = new()
+    {
+        ["identity-service"] = "identityservice",
+        ["patient-service"] = "patientservice",
+        ["appointment-service"] = "appointmentservice",
+        ["clinical-service"] = "clinicalservice",
+        ["lab-service"] = "labservice",
+        ["billing-service"] = "billingservice",
+        ["pharmacy-service"] = "pharmacyservice",
     };
 
     private static readonly Dictionary<string, (TimeSpan duration, string step)> RangeConfig = new()
@@ -25,65 +49,89 @@ public sealed class MetricsAggregator : IMetricsAggregator
         ["24h"] = (TimeSpan.FromHours(24), "1m")
     };
 
-    public MetricsAggregator(IPrometheusQueryService prometheus, ILogger<MetricsAggregator> logger)
+    public MetricsAggregator(
+        IPrometheusQueryService prometheus,
+        ILogger<MetricsAggregator> logger,
+        IMemoryCache cache)
     {
         _prometheus = prometheus;
         _logger = logger;
+        _cache = cache;
     }
+
+    private static TimeSpan GetMetricsTtl(string range) => range switch
+    {
+        "5m" => TimeSpan.FromSeconds(10),
+        "15m" => TimeSpan.FromSeconds(15),
+        "1h" => TimeSpan.FromSeconds(30),
+        "6h" => TimeSpan.FromSeconds(60),
+        "24h" => TimeSpan.FromSeconds(120),
+        _ => TimeSpan.FromSeconds(10)
+    };
 
     public async Task<List<MetricSnapshot>> GetMetricsAsync(
         string service, string[] metricNames, string range, CancellationToken ct = default)
     {
-        var results = new List<MetricSnapshot>();
+        var metricsKey = string.Join(",", metricNames.OrderBy(m => m));
+        var cacheKey = CacheKeys.Metrics(service, metricsKey, range);
 
-        if (!RangeConfig.TryGetValue(range, out var rangeConfig))
+        return await _cache.GetOrCreateAsync(cacheKey, async () =>
         {
-            _logger.LogWarning("Invalid range requested: {Range}. Using default 5m.", range);
-            rangeConfig = RangeConfig["5m"];
-        }
-
-        var end = DateTime.UtcNow;
-        var start = end - rangeConfig.duration;
-
-        foreach (var metricName in metricNames)
-        {
-            if (!MetricPromqlTemplates.TryGetValue(metricName, out var template))
+            if (!RangeConfig.TryGetValue(range, out var rangeConfig))
             {
-                _logger.LogWarning("Unknown metric name: {MetricName}", metricName);
-                continue;
+                _logger.LogWarning("Invalid range requested: {Range}. Using default 5m.", range);
+                rangeConfig = RangeConfig["5m"];
             }
 
-            var promql = template.Replace("{service}", service);
+            var end = DateTime.UtcNow;
+            var start = end - rangeConfig.duration;
 
-            try
+            var tasks = metricNames.Select(async metricName =>
             {
-                var dataPoints = await _prometheus.QueryRangeAsync(promql, start, end, rangeConfig.step, ct);
-                results.Add(new MetricSnapshot
+                if (!MetricPromqlTemplates.TryGetValue(metricName, out var template))
                 {
-                    Service = service,
-                    MetricName = metricName,
-                    DataPoints = dataPoints
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "MetricsAggregator failed to query metric {Metric} for {Service}",
-                    metricName, service);
-                results.Add(new MetricSnapshot
-                {
-                    Service = service,
-                    MetricName = metricName,
-                    DataPoints = []
-                });
-            }
-        }
+                    _logger.LogWarning("Unknown metric name: {MetricName}", metricName);
+                    return null;
+                }
 
-        return results;
+                var (displayName, unit) = MetricConfig.TryGetValue(metricName, out var cfg)
+                    ? cfg
+                    : (metricName, "");
+
+                var job = ServiceToJobMap.TryGetValue(service, out var mappedJob) ? mappedJob : service;
+                var promql = template.Replace("{job}", job);
+
+                try
+                {
+                    var dataPoints = await _prometheus.QueryRangeAsync(promql, start, end, rangeConfig.step, ct);
+                    var values = dataPoints.Select(dp => dp.Value).ToList();
+                    return new MetricSnapshot
+                    {
+                        Name = metricName,
+                        DisplayName = displayName,
+                        Unit = unit,
+                        CurrentValue = values.Count > 0 ? values[^1] : 0.0,
+                        PreviousValue = values.Count > 1 ? (double?)values[^2] : null,
+                        Min = values.Count > 0 ? (double?)values.Min() : null,
+                        Max = values.Count > 0 ? (double?)values.Max() : null,
+                        Avg = values.Count > 0 ? (double?)values.Average() : null,
+                        DataPoints = dataPoints
+                    };
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Metrics query failed: {Metric} for {Service}", metricName, service);
+                    return MetricSnapshot.Empty(metricName, displayName, unit);
+                }
+            });
+
+            var results = await Task.WhenAll(tasks);
+            return results.Where(r => r is not null).Cast<MetricSnapshot>().ToList();
+        }, GetMetricsTtl(range));
     }
 
     public Task<Dictionary<string, object>> GetSummaryAsync(CancellationToken ct = default)
     {
-        // v1: not yet implemented
         return Task.FromResult(new Dictionary<string, object>());
     }
 }
