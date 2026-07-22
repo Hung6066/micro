@@ -2,7 +2,8 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using His.Hope.Infrastructure;
 using His.Hope.Infrastructure.Resilience;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using His.Hope.Infrastructure.Security;
+using Microsoft.AspNetCore.Mvc;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -28,34 +29,37 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
-// JWT Authentication
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.Authority = builder.Configuration["Jwt:Authority"];
-        options.Audience = builder.Configuration["Jwt:Audience"];
-        options.RequireHttpsMetadata = false;
-    });
-
-builder.Services.AddAuthorization();
+// JWT Authentication (shared symmetric key validation used by all services)
+builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
 
 // CORS
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:4201")
+        policy.WithOrigins("http://localhost:4201", "http://localhost:8082")
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
     });
 });
 
+// Controllers
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+
 // SignalR
 builder.Services.AddSignalR();
 
 // Health checks
 builder.Services.AddHealthChecks();
+
+// Memory cache for aggregator responses
+builder.Services.AddMemoryCache();
 
 // Resilience policies (retry + circuit breaker for all outbound calls)
 builder.Services.AddResiliencePolicies();
@@ -103,6 +107,12 @@ builder.Services.AddHttpClient<IJaegerQueryService, JaegerQueryService>((sp, cli
 // Logs aggregator
 builder.Services.AddSingleton<ILogsAggregator, LogsAggregator>();
 
+// Named HttpClient for direct health checks (fallback when Consul has no data)
+builder.Services.AddHttpClient("health-check", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(3);
+});
+
 // Resource aggregator
 builder.Services.AddSingleton<IResourceAggregator, ResourceAggregator>();
 
@@ -124,6 +134,9 @@ builder.Services.AddSingleton<IServiceLifecycleService>(sp =>
 });
 builder.Services.AddSingleton<ILifecycleController, LifecycleController>();
 
+// Background service: polls ES for new logs and pushes via SignalR
+builder.Services.AddHostedService<LogStreamBackgroundService>();
+
 // OpenTelemetry
 builder.Services.AddOpenTelemetry()
     .WithTracing(tracing => tracing.AddAspNetCoreInstrumentation())
@@ -136,7 +149,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health");
-app.MapHub<LogStreamHub>("/ws/logs/stream").RequireAuthorization();
+app.MapControllers();
+app.MapHub<LogStreamHub>("/ws/logshub").RequireAuthorization();
 
 app.Run();
 
