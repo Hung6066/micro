@@ -1,4 +1,5 @@
 using System.Data;
+using System.Diagnostics.Metrics;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,21 +12,33 @@ using RabbitMQ.Client.Exceptions;
 
 namespace His.Hope.Infrastructure.Messaging;
 
-/// <summary>
-/// Consumes messages from the Dead Letter Queue (DLQ) and persists them to the
-/// dead_letter_messages database table for auditing and manual intervention.
-/// 
-/// Set up to use the same RabbitMQ connection settings as the event bus.
-/// </summary>
 public class DeadLetterConsumer<TDbContext> : BackgroundService
     where TDbContext : DbContext
 {
     private const string DlxExchangeName = "his-hope.dlx";
     private const string DlqQueueName = "his-hope.dlq";
+    private const string AutoReprocessCountHeader = "x-auto-reprocess-count";
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<DeadLetterConsumer<TDbContext>> _logger;
     private readonly ConnectionFactory _connectionFactory;
+    private readonly bool _autoReprocessEnabled;
+    private readonly int _maxRetryCount;
+    private readonly int _delayMinutes;
+    private readonly string _serviceName;
+
+    private static readonly Meter DlqMeter = new("His.Hope.Infrastructure.Messaging.DeadLetter", "1.0.0");
+    private static readonly Counter<int> AutoReprocessCounter = DlqMeter.CreateCounter<int>(
+        name: "hishop_dlq_auto_reprocess_total",
+        description: "Total number of DLQ auto-reprocess attempts");
+
+    private static string DeriveServiceName()
+    {
+        var name = typeof(TDbContext).Name;
+        return name.EndsWith("DbContext", StringComparison.Ordinal)
+            ? name[..^"DbContext".Length].ToLowerInvariant()
+            : name.ToLowerInvariant();
+    }
 
     public DeadLetterConsumer(
         IServiceScopeFactory scopeFactory,
@@ -34,10 +47,17 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
         int port,
         string userName,
         string password,
-        string virtualHost = "/")
+        string virtualHost = "/",
+        bool autoReprocessEnabled = false,
+        int maxRetryCount = 3,
+        int delayMinutes = 5)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _autoReprocessEnabled = autoReprocessEnabled;
+        _maxRetryCount = maxRetryCount;
+        _delayMinutes = delayMinutes;
+        _serviceName = DeriveServiceName();
 
         _connectionFactory = new ConnectionFactory
         {
@@ -137,20 +157,117 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
 
         // Extract retry count from x-death header if present (set by RabbitMQ when dead-lettered)
         var retryCount = 0;
+        Dictionary<string, object>? deathEntry = null;
         if (args.BasicProperties.Headers is { } headers &&
             headers.TryGetValue("x-death", out var deathVal) &&
             deathVal is List<object> deathList &&
             deathList.Count > 0 &&
-            deathList[0] is Dictionary<string, object> deathEntry &&
-            deathEntry.TryGetValue("count", out var countVal))
+            deathList[0] is Dictionary<string, object> entry)
         {
-            retryCount = Convert.ToInt32(countVal);
+            deathEntry = entry;
+            if (entry.TryGetValue("count", out var countVal))
+                retryCount = Convert.ToInt32(countVal);
         }
+
+        // Use our custom auto-reprocess count if present (tracks total reprocess attempts)
+        var autoReprocessCount = 0;
+        if (args.BasicProperties.Headers is { } h &&
+            h.TryGetValue(AutoReprocessCountHeader, out var arCount) &&
+            arCount is not null)
+        {
+            autoReprocessCount = Convert.ToInt32(arCount);
+        }
+
+        var effectiveCount = Math.Max(autoReprocessCount, retryCount);
 
         _logger.LogCritical(
             "DEAD LETTER MESSAGE - Exchange: {Exchange}, RoutingKey: {RoutingKey}, " +
-            "Type: {MessageType}, Id: {MessageId}, RetryCount: {RetryCount}, Body: {Body}",
-            exchange, routingKey, messageType, messageId, retryCount, messageBody);
+            "Type: {MessageType}, Id: {MessageId}, RetryCount: {RetryCount}, " +
+            "AutoReprocessCount: {AutoReprocessCount}, EffectiveCount: {EffectiveCount}, Body: {Body}",
+            exchange, routingKey, messageType, messageId, retryCount, autoReprocessCount, effectiveCount, messageBody);
+
+        // Auto-reprocess if enabled and under max retry count
+        if (_autoReprocessEnabled && effectiveCount < _maxRetryCount)
+        {
+            try
+            {
+                var originalExchange = deathEntry is not null
+                    ? GetDeathHeaderValue(deathEntry, "exchange")
+                    : null;
+                var originalRoutingKey = deathEntry is not null
+                    ? GetFirstDeathRoutingKey(deathEntry)
+                    : null;
+
+                // Copy original properties but strip x-death
+                var publishProps = channel.CreateBasicProperties();
+                publishProps.Persistent = true;
+                if (args.BasicProperties.Headers is { } srcHeaders)
+                {
+                    publishProps.Headers = new Dictionary<string, object>();
+                    foreach (var kvp in srcHeaders)
+                    {
+                        if (kvp.Key != "x-death")
+                            publishProps.Headers[kvp.Key] = kvp.Value;
+                    }
+                }
+
+                // Increment and set auto-reprocess count header
+                var newReprocessCount = effectiveCount + 1;
+                publishProps.Headers ??= new Dictionary<string, object>();
+                publishProps.Headers[AutoReprocessCountHeader] = newReprocessCount;
+
+                // Apply delay via per-message TTL
+                if (_delayMinutes > 0)
+                    publishProps.Expiration = (_delayMinutes * 60 * 1000).ToString();
+
+                channel.BasicPublish(
+                    exchange: originalExchange ?? "his-hope.events",
+                    routingKey: originalRoutingKey ?? "#",
+                    basicProperties: publishProps,
+                    body: args.Body);
+
+                channel.BasicAck(args.DeliveryTag, false);
+
+                AutoReprocessCounter.Add(1,
+                    new KeyValuePair<string, object?>("service", _serviceName),
+                    new KeyValuePair<string, object?>("status", "succeeded"));
+
+                _logger.LogWarning(
+                    "Auto-reprocessed dead letter message {MessageId} back to " +
+                    "exchange {Exchange} with routing key {RoutingKey} " +
+                    "(attempt {NewCount}/{MaxRetryCount})",
+                    messageId, originalExchange ?? "his-hope.events",
+                    originalRoutingKey ?? "#", newReprocessCount, _maxRetryCount);
+
+                return;
+            }
+            catch (Exception ex)
+            {
+                AutoReprocessCounter.Add(1,
+                    new KeyValuePair<string, object?>("service", _serviceName),
+                    new KeyValuePair<string, object?>("status", "failed"));
+
+                _logger.LogError(ex,
+                    "Failed to auto-reprocess dead letter message {MessageId}, " +
+                    "message will remain in DLQ", messageId);
+
+                channel.BasicNack(args.DeliveryTag, false, requeue: false);
+                return;
+            }
+        }
+
+        // Max retries exceeded — persist to dead_letter_messages table
+        if (_autoReprocessEnabled && effectiveCount >= _maxRetryCount)
+        {
+            AutoReprocessCounter.Add(1,
+                new KeyValuePair<string, object?>("service", _serviceName),
+                new KeyValuePair<string, object?>("status", "exceeded"));
+
+            _logger.LogWarning(
+                "Dead letter message {MessageId} exceeded max auto-reprocess count " +
+                "({EffectiveCount}/{MaxRetryCount}), persisting to database",
+                messageId, effectiveCount, _maxRetryCount);
+        }
 
         try
         {
@@ -168,13 +285,9 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
                     (@queue, @exchange, @routingKey, @body::jsonb, @messageType,
                      @error, @retryCount, @messageId, @occurredOn, @createdAt)";
 
-            var originalQueueName = args.RoutingKey;
-            if (args.BasicProperties.Headers is { } h &&
-                h.TryGetValue("x-death", out var deathVal2) &&
-                deathVal2 is List<object> deathList2 &&
-                deathList2.Count > 0 &&
-                deathList2[0] is Dictionary<string, object> deathEntry2 &&
-                deathEntry2.TryGetValue("queue", out var queueVal))
+            var originalQueueName = routingKey;
+            if (deathEntry is not null &&
+                deathEntry.TryGetValue("queue", out var queueVal))
             {
                 originalQueueName = queueVal?.ToString() ?? originalQueueName;
             }
@@ -201,13 +314,34 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
                 "Failed to persist dead letter message {MessageId} to database, " +
                 "message will remain in DLQ for retry", messageId);
 
-            // Nack without requeue to prevent infinite loop - message stays in DLQ
-            // If the consumer restarts, it will try again
             channel.BasicNack(args.DeliveryTag, false, requeue: false);
             return;
         }
 
         channel.BasicAck(args.DeliveryTag, false);
+    }
+
+    private static string? GetDeathHeaderValue(Dictionary<string, object> deathEntry, string key)
+    {
+        if (deathEntry.TryGetValue(key, out var val) && val is not null)
+        {
+            if (val is byte[] bytes)
+                return Encoding.UTF8.GetString(bytes);
+            return val.ToString();
+        }
+        return null;
+    }
+
+    private static string? GetFirstDeathRoutingKey(Dictionary<string, object> deathEntry)
+    {
+        if (deathEntry.TryGetValue("routing-keys", out var val) &&
+            val is List<object> keys && keys.Count > 0)
+        {
+            if (keys[0] is byte[] keyBytes)
+                return Encoding.UTF8.GetString(keyBytes);
+            return keys[0]?.ToString();
+        }
+        return null;
     }
 
     private static void AddParameter(IDbCommand cmd, string name, DbType type, object? value)
