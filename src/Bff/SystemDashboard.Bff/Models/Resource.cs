@@ -1,31 +1,40 @@
+using System.Text.Json.Serialization;
+
 namespace SystemDashboard.Bff.Models;
 
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
+[JsonDerivedType(typeof(ServiceResource), typeDiscriminator: "service")]
+[JsonDerivedType(typeof(DatabaseResource), typeDiscriminator: "database")]
+[JsonDerivedType(typeof(InfrastructureResource), typeDiscriminator: "infrastructure")]
 public abstract record Resource
 {
     public required string Name { get; init; }
+    public string DisplayName { get; init; } = string.Empty;
+    public string Status { get; init; } = "Unknown";
+    public string HealthStatus { get; init; } = "Unknown";
+    public string Type { get; init; } = "unknown";
+    public string? Version { get; init; }
+    public List<HealthCheckResult> HealthChecks { get; init; } = [];
 }
 
 public sealed record HealthCheckResult
 {
     public required string Name { get; init; }
-    public required string Status { get; init; } // "passing", "warning", or "critical"
+    public required string Status { get; init; }
     public string? Output { get; init; }
 }
 
 public sealed record ServiceResource : Resource
 {
-    public required string DisplayName { get; init; }
     public int? HttpPort { get; init; }
     public int? GrpcPort { get; init; }
-    public required string HealthStatus { get; init; }
     public TimeSpan Uptime { get; init; }
     public int Replicas { get; init; } = 1;
-    public double CpuPercent { get; init; }
-    public double MemoryUsedMb { get; init; }
+    public double? CpuPercent { get; init; }
+    public double? MemoryUsedMb { get; init; }
     public double MemoryLimitMb { get; init; }
     public List<string> Databases { get; init; } = [];
     public Dictionary<string, string> Environment { get; init; } = [];
-    public List<HealthCheckResult> HealthChecks { get; init; } = [];
 }
 
 public sealed record DatabaseResource : Resource
@@ -38,7 +47,6 @@ public sealed record DatabaseResource : Resource
 public sealed record InfrastructureResource : Resource
 {
     public required string Category { get; init; }
-    public required string Version { get; init; }
 }
 
 public sealed class ConsulOptions
