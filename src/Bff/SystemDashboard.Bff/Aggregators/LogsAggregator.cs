@@ -16,12 +16,12 @@ public sealed class LogsAggregator : ILogsAggregator
 
     public async Task<List<LogEntry>> QueryLogsAsync(
         string? service = null, string? level = null,
-        DateTime? from = null, int size = 100,
+        int? from = null, int size = 100,
         string? searchQuery = null, CancellationToken ct = default)
     {
         try
         {
-            return await _esService.QueryLogsAsync(service, level, from, size, searchQuery, ct);
+            return await _esService.QueryLogsAsync(service, level, from, size, searchQuery, null, ct);
         }
         catch (Exception ex)
         {

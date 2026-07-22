@@ -22,15 +22,17 @@ public sealed class ElasticsearchQueryService : IElasticsearchQueryService
 
     public async Task<List<LogEntry>> QueryLogsAsync(
         string? service = null, string? level = null,
-        DateTime? from = null, int size = 100,
-        string? searchQuery = null, CancellationToken ct = default)
+        int? from = null, int size = 100,
+        string? searchQuery = null,
+        DateTime? afterTimestamp = null,
+        CancellationToken ct = default)
     {
         try
         {
             var mustClauses = new List<object>();
 
             if (!string.IsNullOrWhiteSpace(service))
-                mustClauses.Add(new { match = new { service } });
+                mustClauses.Add(new { term = new Dictionary<string, object> { ["service.keyword"] = service } });
 
             if (!string.IsNullOrWhiteSpace(level))
                 mustClauses.Add(new { match = new { level } });
@@ -38,13 +40,19 @@ public sealed class ElasticsearchQueryService : IElasticsearchQueryService
             if (!string.IsNullOrWhiteSpace(searchQuery))
                 mustClauses.Add(new { query_string = new { query = searchQuery } });
 
-            var filterClauses = new List<object>();
-
-            if (from.HasValue)
-                filterClauses.Add(new { range = new Dictionary<string, object>
+            if (afterTimestamp.HasValue)
+            {
+                mustClauses.Add(new
                 {
-                    ["@timestamp"] = new { gte = from.Value.ToString("o") }
-                } });
+                    range = new Dictionary<string, object>
+                    {
+                        ["@timestamp"] = new Dictionary<string, object>
+                        {
+                            ["gte"] = afterTimestamp.Value.ToString("o")
+                        }
+                    }
+                });
+            }
 
             var requestBody = new
             {
@@ -53,7 +61,6 @@ public sealed class ElasticsearchQueryService : IElasticsearchQueryService
                     ["bool"] = new Dictionary<string, object?>
                     {
                         ["must"] = mustClauses.Count > 0 ? mustClauses : null,
-                        ["filter"] = filterClauses.Count > 0 ? filterClauses : null
                     }
                 },
                 sort = new[]
@@ -63,6 +70,7 @@ public sealed class ElasticsearchQueryService : IElasticsearchQueryService
                         ["@timestamp"] = new { order = "desc" }
                     }
                 },
+                from = from ?? 0,
                 size
             };
 
@@ -80,12 +88,15 @@ public sealed class ElasticsearchQueryService : IElasticsearchQueryService
                 .Where(h => h.Source is not null)
                 .Select(h => new LogEntry
                 {
+                    Id = h.Id,
                     Timestamp = h.Source!.Timestamp,
                     Level = h.Source.Level ?? "",
                     Service = h.Source.Service ?? "",
                     Message = h.Source.Message ?? "",
                     TraceId = h.Source.TraceId,
-                    Fields = h.Source.Fields
+                    SpanId = h.Source.SpanId,
+                    Exception = h.Source.Exception,
+                    Properties = h.Source.Fields
                 })
                 .ToList();
         }
@@ -111,6 +122,9 @@ public sealed class ElasticsearchQueryService : IElasticsearchQueryService
 
     private sealed record EsHit
     {
+        [JsonPropertyName("_id")]
+        public string? Id { get; init; }
+
         [JsonPropertyName("_source")]
         public EsLogSource? Source { get; init; }
     }
@@ -126,6 +140,11 @@ public sealed class ElasticsearchQueryService : IElasticsearchQueryService
 
         [JsonPropertyName("traceId")]
         public string? TraceId { get; init; }
+
+        [JsonPropertyName("spanId")]
+        public string? SpanId { get; init; }
+
+        public string? Exception { get; init; }
 
         public Dictionary<string, object>? Fields { get; init; }
     }

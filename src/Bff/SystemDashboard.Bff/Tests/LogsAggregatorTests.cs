@@ -29,7 +29,7 @@ public sealed class LogsAggregatorTests
         esService.QueryLogsAsync(
                 service: Arg.Is<string>(s => s == "identity-service"),
                 level: Arg.Is<string>(l => l == "Error"),
-                from: Arg.Any<DateTime?>(),
+                from: Arg.Any<int?>(),
                 size: Arg.Any<int>(),
                 searchQuery: Arg.Any<string?>(),
                 ct: Arg.Any<CancellationToken>())
@@ -57,12 +57,12 @@ public sealed class LogsAggregatorTests
     {
         // Arrange
         var esService = Substitute.For<IElasticsearchQueryService>();
-        var from = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var fromOffset = 50;
 
         esService.QueryLogsAsync(
                 service: Arg.Is<string?>(s => s == "patient-service"),
                 level: Arg.Is<string?>(l => l == "Warning"),
-                from: Arg.Is<DateTime?>(d => d == from),
+                from: Arg.Is<int?>(d => d == fromOffset),
                 size: Arg.Is<int>(s => s == 50),
                 searchQuery: Arg.Is<string?>(q => q == "timeout"),
                 ct: Arg.Any<CancellationToken>())
@@ -75,7 +75,7 @@ public sealed class LogsAggregatorTests
         var results = await aggregator.QueryLogsAsync(
             service: "patient-service",
             level: "Warning",
-            from: from,
+            from: fromOffset,
             size: 50,
             searchQuery: "timeout");
 
@@ -83,7 +83,7 @@ public sealed class LogsAggregatorTests
         Assert.Empty(results);
         // Verifies the ES service was called with exact parameters
         await esService.Received(1).QueryLogsAsync(
-            "patient-service", "Warning", from, 50, "timeout", default);
+            "patient-service", "Warning", fromOffset, 50, "timeout", default);
     }
 
     [Fact]
@@ -94,9 +94,10 @@ public sealed class LogsAggregatorTests
         esService.QueryLogsAsync(
                 Arg.Any<string?>(),
                 Arg.Any<string?>(),
-                Arg.Any<DateTime?>(),
+                Arg.Any<int?>(),
                 Arg.Any<int>(),
                 Arg.Any<string?>(),
+                Arg.Any<DateTime?>(),
                 Arg.Any<CancellationToken>())
             .Returns<List<LogEntry>>(_ => throw new HttpRequestException("ES unavailable"));
 

@@ -13,6 +13,8 @@ public interface IElasticsearchQueryService
 {
     Task<List<LogEntry>> QueryLogsAsync(
         string? service = null, string? level = null,
-        DateTime? from = null, int size = 100,
-        string? searchQuery = null, CancellationToken ct = default);
+        int? from = null, int size = 100,
+        string? searchQuery = null,
+        DateTime? afterTimestamp = null,
+        CancellationToken ct = default);
 }
