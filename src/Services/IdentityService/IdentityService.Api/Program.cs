@@ -51,6 +51,10 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
     "identity-service",
     builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379"));
 
+// Register SLO meter so OpenTelemetry collects custom identity metrics
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(m => m.AddMeter("His.Hope.Identity"));
+
 // Use in-memory distributed cache for token blacklist + refresh token storage in this service.
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSingleton<ICacheService, NoOpCacheService>();
@@ -256,6 +260,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseSecurityHeaders();
 app.UseRateLimiting();
+app.UseMiddleware<His.Hope.IdentityService.Api.Metrics.SloMiddleware>();
 app.UseSerilogRequestLogging();
 app.UseHisHopePrometheus();
 app.UseCors();
