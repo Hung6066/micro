@@ -16,6 +16,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<UserMfa> UserMfas => Set<UserMfa>();
     public DbSet<SecurityEvent> SecurityEvents => Set<SecurityEvent>();
+    public DbSet<ClientConsent> ClientConsents => Set<ClientConsent>();
 
     // OpenIddict entity sets
     public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication> OpenIddictApplications => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication>();
@@ -217,6 +218,21 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.HasIndex(e => e.EventType);
             entity.HasIndex(e => e.Severity);
             entity.HasIndex(e => e.Timestamp);
+        });
+
+        // ──────────────────────────────────────────────
+        // ClientConsent configuration
+        // ──────────────────────────────────────────────
+        builder.Entity<ClientConsent>(entity =>
+        {
+            entity.ToTable("openiddict_consents");
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.Id).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(c => c.ClientId).HasMaxLength(256).IsRequired();
+            entity.Property(c => c.Scopes).IsRequired();
+            entity.HasIndex(c => c.UserId);
+            entity.HasIndex(c => c.ClientId);
+            entity.HasIndex(c => new { c.UserId, c.ClientId }).IsUnique();
         });
 
         // Configure OpenIddict tables (snake_case naming)
