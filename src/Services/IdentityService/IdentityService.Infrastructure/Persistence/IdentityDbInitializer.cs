@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using OpenIddict.Abstractions;
 
 namespace His.Hope.IdentityService.Infrastructure.Persistence;
 
@@ -287,6 +288,69 @@ public static class IdentityDbInitializer
             logger.LogInformation("Admin user removed from Provider role.");
         }
 
+        // ──────────────────────────────────────────────
+        // Step 5: Seed OpenIddict Application (idempotent)
+        // ──────────────────────────────────────────────
+        logger.LogInformation("Seeding OIDC application...");
+
+        var appManager = scope.ServiceProvider.GetRequiredService<
+            OpenIddict.Abstractions.IOpenIddictApplicationManager>();
+
+        const string spaClientId = "his-hope-spa";
+        if (await appManager.FindByClientIdAsync(spaClientId, ct) is null)
+        {
+            await appManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+            {
+                ClientId = spaClientId,
+                ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Public,
+                DisplayName = "His.Hope SPA (BFF)",
+                RedirectUris = { new Uri("https://his-hope.local/api/auth/callback") },
+                PostLogoutRedirectUris = { new Uri("https://his-hope.local") },
+                Permissions =
+                {
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Authorization,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Token,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Logout,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.ResponseTypes.Code,
+                    "openid",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Email,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Profile,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Roles,
+                    "scope:hishop:permissions",
+                },
+                Requirements =
+                {
+                    OpenIddict.Abstractions.OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange,
+                }
+            }, ct);
+            logger.LogInformation("OIDC application '{ClientId}' created.", spaClientId);
+        }
+
+        // ──────────────────────────────────────────────
+        // Step 6: Seed OIDC Scopes (idempotent)
+        // ──────────────────────────────────────────────
+        logger.LogInformation("Seeding OIDC scopes...");
+
+        var scopeManager = scope.ServiceProvider.GetRequiredService<
+            OpenIddict.Abstractions.IOpenIddictScopeManager>();
+
+        var scopeNames = new[] { "hishop:permissions", "hishop:patients", "hishop:appointments", "hishop:clinical", "hishop:lab", "hishop:billing", "hishop:pharmacy", "hishop:admin" };
+        foreach (var scopeName in scopeNames)
+        {
+            if (await scopeManager.FindByNameAsync(scopeName, ct) is null)
+            {
+                await scopeManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictScopeDescriptor
+                {
+                    Name = scopeName,
+                    DisplayName = $"His.Hope - {scopeName.Replace("hishop:", "").ToUpperInvariant()}",
+                    Resources = { "his-hope-services" }
+                }, ct);
+            }
+        }
+
+        logger.LogInformation("OIDC scopes seeded successfully.");
         logger.LogInformation("Database seeding completed successfully.");
     }
 }

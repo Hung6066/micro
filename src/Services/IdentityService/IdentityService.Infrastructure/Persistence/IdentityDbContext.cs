@@ -3,6 +3,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using OpenIddictEntityFrameworkCore = OpenIddict.EntityFrameworkCore.Models;
 
 namespace His.Hope.IdentityService.Infrastructure.Persistence;
 
@@ -15,6 +16,12 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<UserMfa> UserMfas => Set<UserMfa>();
     public DbSet<SecurityEvent> SecurityEvents => Set<SecurityEvent>();
+
+    // OpenIddict entity sets
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication> OpenIddictApplications => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication>();
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization> OpenIddictAuthorizations => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization>();
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope> OpenIddictScopes => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope>();
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken> OpenIddictTokens => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken>();
 
     public IdentityDbContext(DbContextOptions<IdentityDbContext> options) : base(options) { }
 
@@ -211,5 +218,15 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.HasIndex(e => e.Severity);
             entity.HasIndex(e => e.Timestamp);
         });
+
+        // Configure OpenIddict tables (snake_case naming)
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication>(entity =>
+            entity.ToTable("openiddict_applications"));
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization>(entity =>
+            entity.ToTable("openiddict_authorizations"));
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope>(entity =>
+            entity.ToTable("openiddict_scopes"));
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken>(entity =>
+            entity.ToTable("openiddict_tokens"));
     }
 }
