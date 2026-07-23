@@ -1,5 +1,6 @@
 using System.Reflection;
 using FluentValidation;
+using His.Hope.IdentityService.Application.OpenIddict;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,6 +16,9 @@ public static class DependencyInjection
         });
 
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
+
+        services.AddScoped<CustomValidateAuthorizationRequest>();
+        services.AddScoped<CustomPopulateTokenClaims>();
 
         return services;
     }
