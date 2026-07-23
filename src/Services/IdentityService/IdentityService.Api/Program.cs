@@ -263,6 +263,7 @@ auth.MapPost("/login", async (LoginRequest request, IIdentityService identitySer
         return Results.Problem(ex.Message, statusCode: 401);
     }
 })
+.WithDeprecationNotice()
 .WithOpenApi()
 .AllowAnonymous();
 
@@ -293,6 +294,7 @@ auth.MapPost("/refresh", async (RefreshTokenRequest request, IIdentityService id
         return Results.Problem(ex.Message, statusCode: 401);
     }
 })
+.WithDeprecationNotice()
 .WithOpenApi()
 .AllowAnonymous();
 
@@ -321,6 +323,7 @@ auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpCon
 
     return Results.NoContent();
 })
+.WithDeprecationNotice()
 .WithOpenApi()
 .AllowAnonymous();
 
@@ -371,6 +374,7 @@ auth.MapPost("/internal/refresh", async (IConnectionMultiplexer redis, HttpConte
 
     return Results.Ok(new { refreshed = true });
 })
+.WithDeprecationNotice()
 .WithOpenApi();
 
 auth.MapGet("/verify", async (HttpContext httpContext) =>
@@ -508,3 +512,20 @@ file sealed class NoOpCacheService : ICacheService
 }
 
 file sealed record PermissionCheckRequest(string? Permission);
+
+// DEPRECATED: Legacy auth endpoints maintained for backward compatibility.
+// Migrate to OIDC /connect/authorize and /connect/token.
+// These will be removed in Release N+2.
+file static class LegacyEndpointFilter
+{
+    public static RouteHandlerBuilder WithDeprecationNotice(this RouteHandlerBuilder builder)
+    {
+        return builder.AddEndpointFilter(async (ctx, next) =>
+        {
+            ctx.HttpContext.Response.Headers["Deprecation"] = "true";
+            ctx.HttpContext.Response.Headers["Sunset"] = "Sat, 01 Jan 2028 00:00:00 GMT";
+            ctx.HttpContext.Response.Headers["Link"] = "</connect/authorize>; rel=\"successor-version\"";
+            return await next(ctx);
+        });
+    }
+}
