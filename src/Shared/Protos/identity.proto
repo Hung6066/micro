@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package his.hope.identity.v1;
+
+option csharp_namespace = "His.Hope.Identity.Grpc";
+
+service IdentityService {
+  rpc IntrospectToken (IntrospectRequest) returns (IntrospectResponse);
+  rpc GetUser (GetUserRequest) returns (GetUserResponse);
+  rpc CheckPermission (CheckPermissionRequest) returns (CheckPermissionResponse);
+  rpc CheckAnyPermission (CheckAnyPermissionRequest) returns (CheckAnyPermissionResponse);
+  rpc GetUserRoles (GetUserRolesRequest) returns (GetUserRolesResponse);
+  rpc RevokeUserTokens (RevokeUserTokensRequest) returns (RevokeUserTokensResponse);
+}
+
+message IntrospectRequest {
+  string token = 1;
+  string token_type_hint = 2;
+}
+
+message IntrospectResponse {
+  bool active = 1;
+  string sub = 2;
+  string client_id = 3;
+  int64 exp = 4;
+  int64 iat = 5;
+  string scope = 6;
+  repeated string permissions = 7;
+  repeated string roles = 8;
+  string username = 9;
+  string full_name = 10;
+  string license_number = 11;
+  string facility_id = 12;
+  repeated string amr = 13;
+  string jti = 14;
+}
+
+message GetUserRequest {
+  string user_id = 1;
+}
+
+message GetUserResponse {
+  string user_id = 1;
+  string username = 2;
+  string email = 3;
+  string full_name = 4;
+  bool is_active = 5;
+  bool mfa_enabled = 6;
+  repeated string roles = 7;
+  repeated string permissions = 8;
+  string facility_id = 9;
+}
+
+message CheckPermissionRequest {
+  string user_id = 1;
+  string permission_code = 2;
+}
+
+message CheckPermissionResponse {
+  bool has_permission = 1;
+}
+
+message CheckAnyPermissionRequest {
+  string user_id = 1;
+  repeated string permission_codes = 2;
+}
+
+message CheckAnyPermissionResponse {
+  bool has_any = 1;
+}
+
+message GetUserRolesRequest {
+  string user_id = 1;
+}
+
+message GetUserRolesResponse {
+  repeated string roles = 1;
+}
+
+message RevokeUserTokensRequest {
+  string user_id = 1;
+  string reason = 2;
+}
+
+message RevokeUserTokensResponse {
+  int32 tokens_revoked = 1;
+}

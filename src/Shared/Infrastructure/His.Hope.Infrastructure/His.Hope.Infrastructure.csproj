@@ -52,4 +52,7 @@
     <ProjectReference Include="..\..\EventBus\Src\His.Hope.EventBus\His.Hope.EventBus.csproj" />
     <ProjectReference Include="..\..\SharedKernel\Src\His.Hope.SharedKernel\His.Hope.SharedKernel.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Protobuf Include="..\..\..\Shared\Protos\identity.proto" GrpcServices="Client" Link="Protos\identity.proto" />
+  </ItemGroup>
 </Project>
