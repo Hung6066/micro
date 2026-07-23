@@ -4,5 +4,23 @@
     "secure": false,
     "logLevel": "debug",
     "changeOrigin": true
+  },
+  "/.well-known": {
+    "target": "http://localhost:5000",
+    "secure": false,
+    "logLevel": "debug",
+    "changeOrigin": true
+  },
+  "/connect": {
+    "target": "http://localhost:5000",
+    "secure": false,
+    "logLevel": "debug",
+    "changeOrigin": true
+  },
+  "/Account": {
+    "target": "http://localhost:5000",
+    "secure": false,
+    "logLevel": "debug",
+    "changeOrigin": true
   }
 }

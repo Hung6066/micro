@@ -4,6 +4,8 @@ using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Security.Authorization;
 using His.Hope.FhirGateway.Application;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,7 +26,29 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddFhirGatewayApplication();
 
 // SECURITY: Add JWT Bearer authentication with RSA public key validation
-builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = "http://identityservice:5001";
+        options.RequireHttpsMetadata = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) && context.Request.Path.StartsWithSegments("/hubs"))
+                    context.Token = accessToken;
+                return Task.CompletedTask;
+            }
+        };
+    });
+builder.Services.AddAuthorization();
 
 // SECURITY: Register permission-based authorization policies
 builder.Services.AddHisHopeAuthorization();

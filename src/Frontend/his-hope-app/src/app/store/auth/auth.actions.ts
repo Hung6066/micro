@@ -53,3 +53,19 @@ export const loadCurrentUserFailure = createAction(
 );
 
 export const clearError = createAction('[Auth] Clear Error');
+
+export const oidcLogin = createAction('[Auth] OIDC Login');
+
+export const oidcLoginSuccess = createAction(
+  '[Auth] OIDC Login Success',
+  props<{ isAuthenticated: boolean }>(),
+);
+
+export const oidcLoginFailure = createAction(
+  '[Auth] OIDC Login Failure',
+  props<{ error: string }>(),
+);
+
+export const oidcLogout = createAction('[Auth] OIDC Logout');
+
+export const oidcHandleCallback = createAction('[Auth] OIDC Handle Callback');

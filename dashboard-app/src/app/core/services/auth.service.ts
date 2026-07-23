@@ -1,77 +1,77 @@
-import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { BehaviorSubject, Observable, throwError } from 'rxjs';
-import { catchError, map, tap } from 'rxjs/operators';
-import { environment } from '../../../environments/environment';
-
-interface TokenResponse {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: string;
-  user: {
-    id: string;
-    username: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    fullName: string;
-    roles: string[];
-  };
-}
+import { Observable, ReplaySubject } from 'rxjs';
+import { map, take, tap } from 'rxjs/operators';
+import { OidcSecurityService } from 'angular-auth-oidc-client';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly loginUrl = `${environment.identityUrl}/api/v1/auth/login`;
-  private authenticatedSubject = new BehaviorSubject<boolean | null>(null);
+  private readonly oidcSecurityService = inject(OidcSecurityService);
+  private readonly router = inject(Router);
 
-  readonly isAuthenticated$: Observable<boolean | null> = this.authenticatedSubject.asObservable();
+  private authenticatedSubject = new ReplaySubject<boolean>(1);
+  private readonly checkAuthInit$ = new ReplaySubject<void>(1);
 
-  constructor(
-    private readonly http: HttpClient,
-    private readonly router: Router,
-  ) {
-    this.authenticatedSubject.next(this.hasToken());
+  readonly isAuthenticated$: Observable<boolean> = this.authenticatedSubject.asObservable();
+
+  constructor() {
+    this.oidcSecurityService.isAuthenticated$.subscribe(result => {
+      this.authenticatedSubject.next(result.isAuthenticated);
+    });
+
+    this.oidcSecurityService.checkAuth().pipe(take(1)).subscribe({
+      next: () => {
+        this.checkAuthInit$.next();
+        this.checkAuthInit$.complete();
+      },
+      error: () => {
+        this.checkAuthInit$.next();
+        this.checkAuthInit$.complete();
+      },
+    });
+  }
+
+  /** Wait for initial OIDC checkAuth to complete (used by guards) */
+  checkAuth(): Observable<void> {
+    return this.checkAuthInit$.asObservable();
   }
 
   login(returnUrl?: string): void {
-    this.router.navigate(['/auth/login'], { queryParams: returnUrl ? { returnUrl } : undefined });
+    if (returnUrl) {
+      localStorage.setItem('auth_return_url', returnUrl);
+    }
+    this.oidcLogin();
   }
 
-  loginWithCredentials(username: string, password: string): Observable<void> {
-    return this.http.post<TokenResponse>(this.loginUrl, { username, password }).pipe(
-      tap(response => {
-        localStorage.setItem('access_token', response.accessToken);
-        localStorage.setItem('refresh_token', response.refreshToken);
-        this.authenticatedSubject.next(true);
-      }),
-      map(() => undefined),
-      catchError(err => {
-        this.authenticatedSubject.next(false);
-        return throwError(() => err);
-      }),
-    );
+  oidcLogin(): void {
+    this.oidcSecurityService.authorize();
+  }
+
+  oidcLogout(): void {
+    this.oidcSecurityService.logoff().subscribe();
   }
 
   logout(): void {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    this.authenticatedSubject.next(false);
-    this.router.navigate(['/auth/login']);
+    localStorage.removeItem('auth_return_url');
+    this.oidcSecurityService.logoff().subscribe();
   }
 
-  getToken(): string | null {
-    return localStorage.getItem('access_token');
+  getAccessToken(): Observable<string> {
+    return this.oidcSecurityService.getAccessToken();
   }
 
-  private hasToken(): boolean {
-    const token = this.getToken();
-    if (!token) return false;
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload.exp * 1000 > Date.now();
-    } catch {
-      return false;
-    }
+  handleCallback(): Observable<boolean> {
+    return this.oidcSecurityService.checkAuth().pipe(
+      map(({ isAuthenticated }) => isAuthenticated),
+      tap(isAuthenticated => {
+        if (isAuthenticated) {
+          const returnUrl = localStorage.getItem('auth_return_url') ?? '/resources';
+          localStorage.removeItem('auth_return_url');
+          this.router.navigateByUrl(returnUrl);
+        } else {
+          this.router.navigate(['/auth/login']);
+        }
+      }),
+    );
   }
 }

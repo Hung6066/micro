@@ -1,0 +1,867 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e3]:
+    - button "Toggle navigation" [ref=f1e4] [cursor=pointer]:
+      - img [ref=f1e5]: menu
+    - generic [ref=f1e8]: His.Hope Dashboard
+    - button "Thông báo cảnh báo" [ref=f1e10] [cursor=pointer]:
+      - img [ref=f1e11]: notifications
+      - generic: "0"
+    - button "Toggle dark mode" [ref=f1e14] [cursor=pointer]:
+      - img [ref=f1e15]: brightness_6
+    - button "User menu" [ref=f1e18] [cursor=pointer]:
+      - img [ref=f1e19]: account_circle
+  - generic [ref=f1e22]:
+    - navigation [ref=f1e26]:
+      - link [ref=f1e27] [cursor=pointer]:
+        - /url: /resources
+        - img [ref=f1e28]: dns
+      - link [ref=f1e30] [cursor=pointer]:
+        - /url: /logs
+        - img [ref=f1e31]: article
+      - link [ref=f1e33] [cursor=pointer]:
+        - /url: /traces
+        - img [ref=f1e34]: timeline
+      - link [ref=f1e36] [cursor=pointer]:
+        - /url: /slo
+        - img [ref=f1e37]: speed
+      - link [ref=f1e39] [cursor=pointer]:
+        - /url: /metrics
+        - img [ref=f1e40]: monitoring
+    - main [ref=f1e44]:
+      - generic [ref=f1e45]:
+        - generic [ref=f1e46]:
+          - heading "System Resources" [level=1] [ref=f1e47]
+          - generic [ref=f1e48]:
+            - radiogroup "View mode" [ref=f1e49]:
+              - radio "Card view" [checked] [ref=f1e50] [cursor=pointer]:
+                - generic [ref=f1e53]:
+                  - img [ref=f1e54]: grid_view
+                  - text: Cards
+              - radio "Graph view" [ref=f1e55] [cursor=pointer]:
+                - generic [ref=f1e57]:
+                  - img [ref=f1e58]: hub
+                  - text: Graph
+            - button "Refresh" [ref=f1e59]:
+              - img [ref=f1e60]: refresh
+        - generic [ref=f1e64]:
+          - generic [ref=f1e65]:
+            - img [ref=f1e66]: dns
+            - heading "Services" [level=2] [ref=f1e67]
+            - generic [ref=f1e68]: "13"
+          - generic [ref=f1e69]:
+            - generic [ref=f1e72] [cursor=pointer]:
+              - generic [ref=f1e73]:
+                - generic [ref=f1e74]:
+                  - img [ref=f1e75]: dns
+                  - generic [ref=f1e76]:
+                    - generic [ref=f1e77]: Identity Service
+                    - generic [ref=f1e78]: service
+                - generic [ref=f1e79]: Đang chạy
+              - separator [ref=f1e83]
+              - generic [ref=f1e84]:
+                - generic [ref=f1e85]:
+                  - generic [ref=f1e86]: Health
+                  - generic [ref=f1e87]: Healthy
+                - generic [ref=f1e88]:
+                  - generic [ref=f1e89]: CPU
+                  - generic [ref=f1e90]: —
+                - generic [ref=f1e91]:
+                  - generic [ref=f1e92]: Memory
+                  - generic [ref=f1e93]: —
+              - separator [ref=f1e94]
+              - generic [ref=f1e95]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e96]:
+                  - img [ref=f1e97]: stop
+                - button "Restart" [ref=f1e101]:
+                  - img [ref=f1e102]: refresh
+              - separator [ref=f1e106]
+              - generic [ref=f1e107]:
+                - link "View logs" [ref=f1e108]:
+                  - /url: /logs?service=identity-service
+                  - img [ref=f1e109]: article
+                - link "View traces" [ref=f1e112]:
+                  - /url: /traces?service=identity-service
+                  - img [ref=f1e113]: timeline
+                - link "View metrics" [ref=f1e116]:
+                  - /url: /metrics?service=identity-service
+                  - img [ref=f1e117]: monitoring
+                - generic [ref=f1e120]: Logs, Traces, Metrics
+            - generic [ref=f1e123] [cursor=pointer]:
+              - generic [ref=f1e124]:
+                - generic [ref=f1e125]:
+                  - img [ref=f1e126]: dns
+                  - generic [ref=f1e127]:
+                    - generic [ref=f1e128]: Patient Service
+                    - generic [ref=f1e129]: service
+                - generic [ref=f1e130]: Đang chạy
+              - separator [ref=f1e134]
+              - generic [ref=f1e135]:
+                - generic [ref=f1e136]:
+                  - generic [ref=f1e137]: Health
+                  - generic [ref=f1e138]: Healthy
+                - generic [ref=f1e139]:
+                  - generic [ref=f1e140]: CPU
+                  - generic [ref=f1e141]: —
+                - generic [ref=f1e142]:
+                  - generic [ref=f1e143]: Memory
+                  - generic [ref=f1e144]: —
+              - separator [ref=f1e145]
+              - generic [ref=f1e146]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e147]:
+                  - img [ref=f1e148]: stop
+                - button "Restart" [ref=f1e152]:
+                  - img [ref=f1e153]: refresh
+              - separator [ref=f1e157]
+              - generic [ref=f1e158]:
+                - link "View logs" [ref=f1e159]:
+                  - /url: /logs?service=patient-service
+                  - img [ref=f1e160]: article
+                - link "View traces" [ref=f1e163]:
+                  - /url: /traces?service=patient-service
+                  - img [ref=f1e164]: timeline
+                - link "View metrics" [ref=f1e167]:
+                  - /url: /metrics?service=patient-service
+                  - img [ref=f1e168]: monitoring
+                - generic [ref=f1e171]: Logs, Traces, Metrics
+            - generic [ref=f1e174] [cursor=pointer]:
+              - generic [ref=f1e175]:
+                - generic [ref=f1e176]:
+                  - img [ref=f1e177]: dns
+                  - generic [ref=f1e178]:
+                    - generic [ref=f1e179]: Appointment Service
+                    - generic [ref=f1e180]: service
+                - generic [ref=f1e181]: Đang chạy
+              - separator [ref=f1e185]
+              - generic [ref=f1e186]:
+                - generic [ref=f1e187]:
+                  - generic [ref=f1e188]: Health
+                  - generic [ref=f1e189]: Healthy
+                - generic [ref=f1e190]:
+                  - generic [ref=f1e191]: CPU
+                  - generic [ref=f1e192]: —
+                - generic [ref=f1e193]:
+                  - generic [ref=f1e194]: Memory
+                  - generic [ref=f1e195]: —
+              - separator [ref=f1e196]
+              - generic [ref=f1e197]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e198]:
+                  - img [ref=f1e199]: stop
+                - button "Restart" [ref=f1e203]:
+                  - img [ref=f1e204]: refresh
+              - separator [ref=f1e208]
+              - generic [ref=f1e209]:
+                - link "View logs" [ref=f1e210]:
+                  - /url: /logs?service=appointment-service
+                  - img [ref=f1e211]: article
+                - link "View traces" [ref=f1e214]:
+                  - /url: /traces?service=appointment-service
+                  - img [ref=f1e215]: timeline
+                - link "View metrics" [ref=f1e218]:
+                  - /url: /metrics?service=appointment-service
+                  - img [ref=f1e219]: monitoring
+                - generic [ref=f1e222]: Logs, Traces, Metrics
+            - generic [ref=f1e225] [cursor=pointer]:
+              - generic [ref=f1e226]:
+                - generic [ref=f1e227]:
+                  - img [ref=f1e228]: dns
+                  - generic [ref=f1e229]:
+                    - generic [ref=f1e230]: Clinical Service
+                    - generic [ref=f1e231]: service
+                - generic [ref=f1e232]: Đang chạy
+              - separator [ref=f1e236]
+              - generic [ref=f1e237]:
+                - generic [ref=f1e238]:
+                  - generic [ref=f1e239]: Health
+                  - generic [ref=f1e240]: Healthy
+                - generic [ref=f1e241]:
+                  - generic [ref=f1e242]: CPU
+                  - generic [ref=f1e243]: —
+                - generic [ref=f1e244]:
+                  - generic [ref=f1e245]: Memory
+                  - generic [ref=f1e246]: —
+              - separator [ref=f1e247]
+              - generic [ref=f1e248]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e249]:
+                  - img [ref=f1e250]: stop
+                - button "Restart" [ref=f1e254]:
+                  - img [ref=f1e255]: refresh
+              - separator [ref=f1e259]
+              - generic [ref=f1e260]:
+                - link "View logs" [ref=f1e261]:
+                  - /url: /logs?service=clinical-service
+                  - img [ref=f1e262]: article
+                - link "View traces" [ref=f1e265]:
+                  - /url: /traces?service=clinical-service
+                  - img [ref=f1e266]: timeline
+                - link "View metrics" [ref=f1e269]:
+                  - /url: /metrics?service=clinical-service
+                  - img [ref=f1e270]: monitoring
+                - generic [ref=f1e273]: Logs, Traces, Metrics
+            - generic [ref=f1e276] [cursor=pointer]:
+              - generic [ref=f1e277]:
+                - generic [ref=f1e278]:
+                  - img [ref=f1e279]: dns
+                  - generic [ref=f1e280]:
+                    - generic [ref=f1e281]: Lab Service
+                    - generic [ref=f1e282]: service
+                - generic [ref=f1e283]: Đang chạy
+              - separator [ref=f1e287]
+              - generic [ref=f1e288]:
+                - generic [ref=f1e289]:
+                  - generic [ref=f1e290]: Health
+                  - generic [ref=f1e291]: Healthy
+                - generic [ref=f1e292]:
+                  - generic [ref=f1e293]: CPU
+                  - generic [ref=f1e294]: —
+                - generic [ref=f1e295]:
+                  - generic [ref=f1e296]: Memory
+                  - generic [ref=f1e297]: —
+              - separator [ref=f1e298]
+              - generic [ref=f1e299]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e300]:
+                  - img [ref=f1e301]: stop
+                - button "Restart" [ref=f1e305]:
+                  - img [ref=f1e306]: refresh
+              - separator [ref=f1e310]
+              - generic [ref=f1e311]:
+                - link "View logs" [ref=f1e312]:
+                  - /url: /logs?service=lab-service
+                  - img [ref=f1e313]: article
+                - link "View traces" [ref=f1e316]:
+                  - /url: /traces?service=lab-service
+                  - img [ref=f1e317]: timeline
+                - link "View metrics" [ref=f1e320]:
+                  - /url: /metrics?service=lab-service
+                  - img [ref=f1e321]: monitoring
+                - generic [ref=f1e324]: Logs, Traces, Metrics
+            - generic [ref=f1e327] [cursor=pointer]:
+              - generic [ref=f1e328]:
+                - generic [ref=f1e329]:
+                  - img [ref=f1e330]: dns
+                  - generic [ref=f1e331]:
+                    - generic [ref=f1e332]: Billing Service
+                    - generic [ref=f1e333]: service
+                - generic [ref=f1e334]: Đang chạy
+              - separator [ref=f1e338]
+              - generic [ref=f1e339]:
+                - generic [ref=f1e340]:
+                  - generic [ref=f1e341]: Health
+                  - generic [ref=f1e342]: Healthy
+                - generic [ref=f1e343]:
+                  - generic [ref=f1e344]: CPU
+                  - generic [ref=f1e345]: —
+                - generic [ref=f1e346]:
+                  - generic [ref=f1e347]: Memory
+                  - generic [ref=f1e348]: —
+              - separator [ref=f1e349]
+              - generic [ref=f1e350]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e351]:
+                  - img [ref=f1e352]: stop
+                - button "Restart" [ref=f1e356]:
+                  - img [ref=f1e357]: refresh
+              - separator [ref=f1e361]
+              - generic [ref=f1e362]:
+                - link "View logs" [ref=f1e363]:
+                  - /url: /logs?service=billing-service
+                  - img [ref=f1e364]: article
+                - link "View traces" [ref=f1e367]:
+                  - /url: /traces?service=billing-service
+                  - img [ref=f1e368]: timeline
+                - link "View metrics" [ref=f1e371]:
+                  - /url: /metrics?service=billing-service
+                  - img [ref=f1e372]: monitoring
+                - generic [ref=f1e375]: Logs, Traces, Metrics
+            - generic [ref=f1e378] [cursor=pointer]:
+              - generic [ref=f1e379]:
+                - generic [ref=f1e380]:
+                  - img [ref=f1e381]: dns
+                  - generic [ref=f1e382]:
+                    - generic [ref=f1e383]: Pharmacy Service
+                    - generic [ref=f1e384]: service
+                - generic [ref=f1e385]: Đang chạy
+              - separator [ref=f1e389]
+              - generic [ref=f1e390]:
+                - generic [ref=f1e391]:
+                  - generic [ref=f1e392]: Health
+                  - generic [ref=f1e393]: Healthy
+                - generic [ref=f1e394]:
+                  - generic [ref=f1e395]: CPU
+                  - generic [ref=f1e396]: —
+                - generic [ref=f1e397]:
+                  - generic [ref=f1e398]: Memory
+                  - generic [ref=f1e399]: —
+              - separator [ref=f1e400]
+              - generic [ref=f1e401]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e402]:
+                  - img [ref=f1e403]: stop
+                - button "Restart" [ref=f1e407]:
+                  - img [ref=f1e408]: refresh
+              - separator [ref=f1e412]
+              - generic [ref=f1e413]:
+                - link "View logs" [ref=f1e414]:
+                  - /url: /logs?service=pharmacy-service
+                  - img [ref=f1e415]: article
+                - link "View traces" [ref=f1e418]:
+                  - /url: /traces?service=pharmacy-service
+                  - img [ref=f1e419]: timeline
+                - link "View metrics" [ref=f1e422]:
+                  - /url: /metrics?service=pharmacy-service
+                  - img [ref=f1e423]: monitoring
+                - generic [ref=f1e426]: Logs, Traces, Metrics
+            - generic [ref=f1e429] [cursor=pointer]:
+              - generic [ref=f1e430]:
+                - generic [ref=f1e431]:
+                  - img [ref=f1e432]: dns
+                  - generic [ref=f1e433]:
+                    - generic [ref=f1e434]: Patient Bff
+                    - generic [ref=f1e435]: service
+                - generic [ref=f1e436]: Đã dừng
+              - separator [ref=f1e440]
+              - generic [ref=f1e441]:
+                - generic [ref=f1e442]:
+                  - generic [ref=f1e443]: Health
+                  - generic [ref=f1e444]: Unhealthy
+                - generic [ref=f1e445]:
+                  - generic [ref=f1e446]: CPU
+                  - generic [ref=f1e447]: —
+                - generic [ref=f1e448]:
+                  - generic [ref=f1e449]: Memory
+                  - generic [ref=f1e450]: —
+              - separator [ref=f1e451]
+              - generic [ref=f1e452]:
+                - button "Start" [ref=f1e453]:
+                  - img [ref=f1e454]: play_arrow
+                - button "Stop" [disabled]:
+                  - img: stop
+                - button "Restart" [ref=f1e458]:
+                  - img [ref=f1e459]: refresh
+              - separator [ref=f1e463]
+              - generic [ref=f1e464]:
+                - link "View logs" [ref=f1e465]:
+                  - /url: /logs?service=patient-bff
+                  - img [ref=f1e466]: article
+                - link "View traces" [ref=f1e469]:
+                  - /url: /traces?service=patient-bff
+                  - img [ref=f1e470]: timeline
+                - link "View metrics" [ref=f1e473]:
+                  - /url: /metrics?service=patient-bff
+                  - img [ref=f1e474]: monitoring
+                - generic [ref=f1e477]: Logs, Traces, Metrics
+            - generic [ref=f1e480] [cursor=pointer]:
+              - generic [ref=f1e481]:
+                - generic [ref=f1e482]:
+                  - img [ref=f1e483]: dns
+                  - generic [ref=f1e484]:
+                    - generic [ref=f1e485]: Clinical Bff
+                    - generic [ref=f1e486]: service
+                - generic [ref=f1e487]: Đã dừng
+              - separator [ref=f1e491]
+              - generic [ref=f1e492]:
+                - generic [ref=f1e493]:
+                  - generic [ref=f1e494]: Health
+                  - generic [ref=f1e495]: Unhealthy
+                - generic [ref=f1e496]:
+                  - generic [ref=f1e497]: CPU
+                  - generic [ref=f1e498]: —
+                - generic [ref=f1e499]:
+                  - generic [ref=f1e500]: Memory
+                  - generic [ref=f1e501]: —
+              - separator [ref=f1e502]
+              - generic [ref=f1e503]:
+                - button "Start" [ref=f1e504]:
+                  - img [ref=f1e505]: play_arrow
+                - button "Stop" [disabled]:
+                  - img: stop
+                - button "Restart" [ref=f1e509]:
+                  - img [ref=f1e510]: refresh
+              - separator [ref=f1e514]
+              - generic [ref=f1e515]:
+                - link "View logs" [ref=f1e516]:
+                  - /url: /logs?service=clinical-bff
+                  - img [ref=f1e517]: article
+                - link "View traces" [ref=f1e520]:
+                  - /url: /traces?service=clinical-bff
+                  - img [ref=f1e521]: timeline
+                - link "View metrics" [ref=f1e524]:
+                  - /url: /metrics?service=clinical-bff
+                  - img [ref=f1e525]: monitoring
+                - generic [ref=f1e528]: Logs, Traces, Metrics
+            - generic [ref=f1e531] [cursor=pointer]:
+              - generic [ref=f1e532]:
+                - generic [ref=f1e533]:
+                  - img [ref=f1e534]: dns
+                  - generic [ref=f1e535]:
+                    - generic [ref=f1e536]: Lab Bff
+                    - generic [ref=f1e537]: service
+                - generic [ref=f1e538]: Đã dừng
+              - separator [ref=f1e542]
+              - generic [ref=f1e543]:
+                - generic [ref=f1e544]:
+                  - generic [ref=f1e545]: Health
+                  - generic [ref=f1e546]: Unhealthy
+                - generic [ref=f1e547]:
+                  - generic [ref=f1e548]: CPU
+                  - generic [ref=f1e549]: —
+                - generic [ref=f1e550]:
+                  - generic [ref=f1e551]: Memory
+                  - generic [ref=f1e552]: —
+              - separator [ref=f1e553]
+              - generic [ref=f1e554]:
+                - button "Start" [ref=f1e555]:
+                  - img [ref=f1e556]: play_arrow
+                - button "Stop" [disabled]:
+                  - img: stop
+                - button "Restart" [ref=f1e560]:
+                  - img [ref=f1e561]: refresh
+              - separator [ref=f1e565]
+              - generic [ref=f1e566]:
+                - link "View logs" [ref=f1e567]:
+                  - /url: /logs?service=lab-bff
+                  - img [ref=f1e568]: article
+                - link "View traces" [ref=f1e571]:
+                  - /url: /traces?service=lab-bff
+                  - img [ref=f1e572]: timeline
+                - link "View metrics" [ref=f1e575]:
+                  - /url: /metrics?service=lab-bff
+                  - img [ref=f1e576]: monitoring
+                - generic [ref=f1e579]: Logs, Traces, Metrics
+            - generic [ref=f1e582] [cursor=pointer]:
+              - generic [ref=f1e583]:
+                - generic [ref=f1e584]:
+                  - img [ref=f1e585]: dns
+                  - generic [ref=f1e586]:
+                    - generic [ref=f1e587]: Billing Bff
+                    - generic [ref=f1e588]: service
+                - generic [ref=f1e589]: Đã dừng
+              - separator [ref=f1e593]
+              - generic [ref=f1e594]:
+                - generic [ref=f1e595]:
+                  - generic [ref=f1e596]: Health
+                  - generic [ref=f1e597]: Unhealthy
+                - generic [ref=f1e598]:
+                  - generic [ref=f1e599]: CPU
+                  - generic [ref=f1e600]: —
+                - generic [ref=f1e601]:
+                  - generic [ref=f1e602]: Memory
+                  - generic [ref=f1e603]: —
+              - separator [ref=f1e604]
+              - generic [ref=f1e605]:
+                - button "Start" [ref=f1e606]:
+                  - img [ref=f1e607]: play_arrow
+                - button "Stop" [disabled]:
+                  - img: stop
+                - button "Restart" [ref=f1e611]:
+                  - img [ref=f1e612]: refresh
+              - separator [ref=f1e616]
+              - generic [ref=f1e617]:
+                - link "View logs" [ref=f1e618]:
+                  - /url: /logs?service=billing-bff
+                  - img [ref=f1e619]: article
+                - link "View traces" [ref=f1e622]:
+                  - /url: /traces?service=billing-bff
+                  - img [ref=f1e623]: timeline
+                - link "View metrics" [ref=f1e626]:
+                  - /url: /metrics?service=billing-bff
+                  - img [ref=f1e627]: monitoring
+                - generic [ref=f1e630]: Logs, Traces, Metrics
+            - generic [ref=f1e633] [cursor=pointer]:
+              - generic [ref=f1e634]:
+                - generic [ref=f1e635]:
+                  - img [ref=f1e636]: dns
+                  - generic [ref=f1e637]:
+                    - generic [ref=f1e638]: Pharmacy Bff
+                    - generic [ref=f1e639]: service
+                - generic [ref=f1e640]: Đã dừng
+              - separator [ref=f1e644]
+              - generic [ref=f1e645]:
+                - generic [ref=f1e646]:
+                  - generic [ref=f1e647]: Health
+                  - generic [ref=f1e648]: Unhealthy
+                - generic [ref=f1e649]:
+                  - generic [ref=f1e650]: CPU
+                  - generic [ref=f1e651]: —
+                - generic [ref=f1e652]:
+                  - generic [ref=f1e653]: Memory
+                  - generic [ref=f1e654]: —
+              - separator [ref=f1e655]
+              - generic [ref=f1e656]:
+                - button "Start" [ref=f1e657]:
+                  - img [ref=f1e658]: play_arrow
+                - button "Stop" [disabled]:
+                  - img: stop
+                - button "Restart" [ref=f1e662]:
+                  - img [ref=f1e663]: refresh
+              - separator [ref=f1e667]
+              - generic [ref=f1e668]:
+                - link "View logs" [ref=f1e669]:
+                  - /url: /logs?service=pharmacy-bff
+                  - img [ref=f1e670]: article
+                - link "View traces" [ref=f1e673]:
+                  - /url: /traces?service=pharmacy-bff
+                  - img [ref=f1e674]: timeline
+                - link "View metrics" [ref=f1e677]:
+                  - /url: /metrics?service=pharmacy-bff
+                  - img [ref=f1e678]: monitoring
+                - generic [ref=f1e681]: Logs, Traces, Metrics
+            - generic [ref=f1e684] [cursor=pointer]:
+              - generic [ref=f1e685]:
+                - generic [ref=f1e686]:
+                  - img [ref=f1e687]: dns
+                  - generic [ref=f1e688]:
+                    - generic [ref=f1e689]: Dashboard Bff
+                    - generic [ref=f1e690]: service
+                - generic [ref=f1e691]: Đang chạy
+              - separator [ref=f1e695]
+              - generic [ref=f1e696]:
+                - generic [ref=f1e697]:
+                  - generic [ref=f1e698]: Health
+                  - generic [ref=f1e699]: Healthy
+                - generic [ref=f1e700]:
+                  - generic [ref=f1e701]: CPU
+                  - generic [ref=f1e702]: —
+                - generic [ref=f1e703]:
+                  - generic [ref=f1e704]: Memory
+                  - generic [ref=f1e705]: —
+              - separator [ref=f1e706]
+              - generic [ref=f1e707]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e708]:
+                  - img [ref=f1e709]: stop
+                - button "Restart" [ref=f1e713]:
+                  - img [ref=f1e714]: refresh
+              - separator [ref=f1e718]
+              - generic [ref=f1e719]:
+                - link "View logs" [ref=f1e720]:
+                  - /url: /logs?service=dashboard-bff
+                  - img [ref=f1e721]: article
+                - link "View traces" [ref=f1e724]:
+                  - /url: /traces?service=dashboard-bff
+                  - img [ref=f1e725]: timeline
+                - link "View metrics" [ref=f1e728]:
+                  - /url: /metrics?service=dashboard-bff
+                  - img [ref=f1e729]: monitoring
+                - generic [ref=f1e732]: Logs, Traces, Metrics
+        - generic [ref=f1e733]:
+          - generic [ref=f1e734]:
+            - img [ref=f1e735]: storage
+            - heading "Databases" [level=2] [ref=f1e736]
+            - generic [ref=f1e737]: "8"
+          - generic [ref=f1e738]:
+            - generic [ref=f1e741] [cursor=pointer]:
+              - generic [ref=f1e742]:
+                - generic [ref=f1e743]:
+                  - img [ref=f1e744]: storage
+                  - generic [ref=f1e745]:
+                    - generic [ref=f1e746]: Identity DB
+                    - generic [ref=f1e747]: database
+                - generic [ref=f1e748]: Đang chạy
+              - separator [ref=f1e752]
+              - generic [ref=f1e754]:
+                - generic [ref=f1e755]: Health
+                - generic [ref=f1e756]: Healthy
+              - separator [ref=f1e757]
+              - generic [ref=f1e758]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e759]:
+                  - img [ref=f1e760]: stop
+                - button "Restart" [ref=f1e764]:
+                  - img [ref=f1e765]: refresh
+            - generic [ref=f1e771] [cursor=pointer]:
+              - generic [ref=f1e772]:
+                - generic [ref=f1e773]:
+                  - img [ref=f1e774]: storage
+                  - generic [ref=f1e775]:
+                    - generic [ref=f1e776]: Patient DB
+                    - generic [ref=f1e777]: database
+                - generic [ref=f1e778]: Đang chạy
+              - separator [ref=f1e782]
+              - generic [ref=f1e784]:
+                - generic [ref=f1e785]: Health
+                - generic [ref=f1e786]: Healthy
+              - separator [ref=f1e787]
+              - generic [ref=f1e788]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e789]:
+                  - img [ref=f1e790]: stop
+                - button "Restart" [ref=f1e794]:
+                  - img [ref=f1e795]: refresh
+            - generic [ref=f1e801] [cursor=pointer]:
+              - generic [ref=f1e802]:
+                - generic [ref=f1e803]:
+                  - img [ref=f1e804]: storage
+                  - generic [ref=f1e805]:
+                    - generic [ref=f1e806]: Appointment DB
+                    - generic [ref=f1e807]: database
+                - generic [ref=f1e808]: Đang chạy
+              - separator [ref=f1e812]
+              - generic [ref=f1e814]:
+                - generic [ref=f1e815]: Health
+                - generic [ref=f1e816]: Healthy
+              - separator [ref=f1e817]
+              - generic [ref=f1e818]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e819]:
+                  - img [ref=f1e820]: stop
+                - button "Restart" [ref=f1e824]:
+                  - img [ref=f1e825]: refresh
+            - generic [ref=f1e831] [cursor=pointer]:
+              - generic [ref=f1e832]:
+                - generic [ref=f1e833]:
+                  - img [ref=f1e834]: storage
+                  - generic [ref=f1e835]:
+                    - generic [ref=f1e836]: Clinical DB
+                    - generic [ref=f1e837]: database
+                - generic [ref=f1e838]: Đang chạy
+              - separator [ref=f1e842]
+              - generic [ref=f1e844]:
+                - generic [ref=f1e845]: Health
+                - generic [ref=f1e846]: Healthy
+              - separator [ref=f1e847]
+              - generic [ref=f1e848]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e849]:
+                  - img [ref=f1e850]: stop
+                - button "Restart" [ref=f1e854]:
+                  - img [ref=f1e855]: refresh
+            - generic [ref=f1e861] [cursor=pointer]:
+              - generic [ref=f1e862]:
+                - generic [ref=f1e863]:
+                  - img [ref=f1e864]: storage
+                  - generic [ref=f1e865]:
+                    - generic [ref=f1e866]: Lab DB
+                    - generic [ref=f1e867]: database
+                - generic [ref=f1e868]: Đang chạy
+              - separator [ref=f1e872]
+              - generic [ref=f1e874]:
+                - generic [ref=f1e875]: Health
+                - generic [ref=f1e876]: Healthy
+              - separator [ref=f1e877]
+              - generic [ref=f1e878]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e879]:
+                  - img [ref=f1e880]: stop
+                - button "Restart" [ref=f1e884]:
+                  - img [ref=f1e885]: refresh
+            - generic [ref=f1e891] [cursor=pointer]:
+              - generic [ref=f1e892]:
+                - generic [ref=f1e893]:
+                  - img [ref=f1e894]: storage
+                  - generic [ref=f1e895]:
+                    - generic [ref=f1e896]: Billing DB
+                    - generic [ref=f1e897]: database
+                - generic [ref=f1e898]: Đang chạy
+              - separator [ref=f1e902]
+              - generic [ref=f1e904]:
+                - generic [ref=f1e905]: Health
+                - generic [ref=f1e906]: Healthy
+              - separator [ref=f1e907]
+              - generic [ref=f1e908]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e909]:
+                  - img [ref=f1e910]: stop
+                - button "Restart" [ref=f1e914]:
+                  - img [ref=f1e915]: refresh
+            - generic [ref=f1e921] [cursor=pointer]:
+              - generic [ref=f1e922]:
+                - generic [ref=f1e923]:
+                  - img [ref=f1e924]: storage
+                  - generic [ref=f1e925]:
+                    - generic [ref=f1e926]: Pharmacy DB
+                    - generic [ref=f1e927]: database
+                - generic [ref=f1e928]: Đang chạy
+              - separator [ref=f1e932]
+              - generic [ref=f1e934]:
+                - generic [ref=f1e935]: Health
+                - generic [ref=f1e936]: Healthy
+              - separator [ref=f1e937]
+              - generic [ref=f1e938]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e939]:
+                  - img [ref=f1e940]: stop
+                - button "Restart" [ref=f1e944]:
+                  - img [ref=f1e945]: refresh
+            - generic [ref=f1e951] [cursor=pointer]:
+              - generic [ref=f1e952]:
+                - generic [ref=f1e953]:
+                  - img [ref=f1e954]: storage
+                  - generic [ref=f1e955]:
+                    - generic [ref=f1e956]: Harness DB
+                    - generic [ref=f1e957]: database
+                - generic [ref=f1e958]: Đang chạy
+              - separator [ref=f1e962]
+              - generic [ref=f1e964]:
+                - generic [ref=f1e965]: Health
+                - generic [ref=f1e966]: Healthy
+              - separator [ref=f1e967]
+              - generic [ref=f1e968]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e969]:
+                  - img [ref=f1e970]: stop
+                - button "Restart" [ref=f1e974]:
+                  - img [ref=f1e975]: refresh
+        - generic [ref=f1e979]:
+          - generic [ref=f1e980]:
+            - img [ref=f1e981]: cloud
+            - heading "Infrastructure" [level=2] [ref=f1e982]
+            - generic [ref=f1e983]: "4"
+          - generic [ref=f1e984]:
+            - generic [ref=f1e987] [cursor=pointer]:
+              - generic [ref=f1e988]:
+                - generic [ref=f1e989]:
+                  - img [ref=f1e990]: cloud
+                  - generic [ref=f1e991]:
+                    - generic [ref=f1e992]: Redis
+                    - generic [ref=f1e993]: infrastructure
+                - generic [ref=f1e994]: Đang chạy
+              - separator [ref=f1e998]
+              - generic [ref=f1e999]:
+                - generic [ref=f1e1000]:
+                  - generic [ref=f1e1001]: Version
+                  - generic [ref=f1e1002]: "7.2"
+                - generic [ref=f1e1003]:
+                  - generic [ref=f1e1004]: Health
+                  - generic [ref=f1e1005]: Healthy
+              - separator [ref=f1e1006]
+              - generic [ref=f1e1007]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e1008]:
+                  - img [ref=f1e1009]: stop
+                - button "Restart" [ref=f1e1013]:
+                  - img [ref=f1e1014]: refresh
+            - generic [ref=f1e1020] [cursor=pointer]:
+              - generic [ref=f1e1021]:
+                - generic [ref=f1e1022]:
+                  - img [ref=f1e1023]: cloud
+                  - generic [ref=f1e1024]:
+                    - generic [ref=f1e1025]: RabbitMQ
+                    - generic [ref=f1e1026]: infrastructure
+                - generic [ref=f1e1027]: Đang chạy
+              - separator [ref=f1e1031]
+              - generic [ref=f1e1032]:
+                - generic [ref=f1e1033]:
+                  - generic [ref=f1e1034]: Version
+                  - generic [ref=f1e1035]: "3.13"
+                - generic [ref=f1e1036]:
+                  - generic [ref=f1e1037]: Health
+                  - generic [ref=f1e1038]: Healthy
+              - separator [ref=f1e1039]
+              - generic [ref=f1e1040]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e1041]:
+                  - img [ref=f1e1042]: stop
+                - button "Restart" [ref=f1e1046]:
+                  - img [ref=f1e1047]: refresh
+            - generic [ref=f1e1053] [cursor=pointer]:
+              - generic [ref=f1e1054]:
+                - generic [ref=f1e1055]:
+                  - img [ref=f1e1056]: cloud
+                  - generic [ref=f1e1057]:
+                    - generic [ref=f1e1058]: Elasticsearch
+                    - generic [ref=f1e1059]: infrastructure
+                - generic [ref=f1e1060]: Đang chạy
+              - separator [ref=f1e1064]
+              - generic [ref=f1e1065]:
+                - generic [ref=f1e1066]:
+                  - generic [ref=f1e1067]: Version
+                  - generic [ref=f1e1068]: "8.12"
+                - generic [ref=f1e1069]:
+                  - generic [ref=f1e1070]: Health
+                  - generic [ref=f1e1071]: Healthy
+              - separator [ref=f1e1072]
+              - generic [ref=f1e1073]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e1074]:
+                  - img [ref=f1e1075]: stop
+                - button "Restart" [ref=f1e1079]:
+                  - img [ref=f1e1080]: refresh
+            - generic [ref=f1e1086] [cursor=pointer]:
+              - generic [ref=f1e1087]:
+                - generic [ref=f1e1088]:
+                  - img [ref=f1e1089]: cloud
+                  - generic [ref=f1e1090]:
+                    - generic [ref=f1e1091]: API Gateway
+                    - generic [ref=f1e1092]: infrastructure
+                - generic [ref=f1e1093]: Đang chạy
+              - separator [ref=f1e1097]
+              - generic [ref=f1e1098]:
+                - generic [ref=f1e1099]:
+                  - generic [ref=f1e1100]: Version
+                  - generic [ref=f1e1101]: YARP 2.1
+                - generic [ref=f1e1102]:
+                  - generic [ref=f1e1103]: Health
+                  - generic [ref=f1e1104]: Healthy
+              - separator [ref=f1e1105]
+              - generic [ref=f1e1106]:
+                - button "Start" [disabled]:
+                  - img: play_arrow
+                - button "Stop" [ref=f1e1107]:
+                  - img [ref=f1e1108]: stop
+                - button "Restart" [ref=f1e1112]:
+                  - img [ref=f1e1113]: refresh
+        - generic [ref=f1e1118]:
+          - generic [ref=f1e1119]:
+            - heading "Health Timeline (24h)" [level=3] [ref=f1e1120]
+            - generic [ref=f1e1121]: 5 incidents
+          - img [ref=f1e1126]:
+            - generic [ref=f1e1127]: Identity Service
+            - generic [ref=f1e1131]: Patient Service
+            - generic [ref=f1e1135]: Appointment Service
+            - generic [ref=f1e1139]: Clinical Service
+            - generic [ref=f1e1143]: Lab Service
+            - generic [ref=f1e1147]: Billing Service
+            - generic [ref=f1e1151]: Pharmacy Service
+            - generic [ref=f1e1155]: Patient Bff
+            - generic [ref=f1e1159]: Clinical Bff
+            - generic [ref=f1e1163]: Lab Bff
+            - generic [ref=f1e1167]: Billing Bff
+            - generic [ref=f1e1171]: Pharmacy Bff
+            - generic [ref=f1e1175]: Dashboard Bff
+            - generic [ref=f1e1179]: Redis
+            - generic [ref=f1e1183]: RabbitMQ
+            - generic [ref=f1e1187]: Elasticsearch
+            - generic [ref=f1e1191]: API Gateway
+            - generic [ref=f1e1195]: Identity DB
+            - generic [ref=f1e1199]: Patient DB
+            - generic [ref=f1e1203]: Appointment DB
+            - generic [ref=f1e1207]: Clinical DB
+            - generic [ref=f1e1211]: Lab DB
+            - generic [ref=f1e1215]: Billing DB
+            - generic [ref=f1e1219]: Pharmacy DB
+            - generic [ref=f1e1223]: Harness DB
+            - generic [ref=f1e1227]:
+              - generic [ref=f1e1228]: 24h ago
+              - generic [ref=f1e1229]: 18h ago
+              - generic [ref=f1e1230]: 12h ago
+              - generic [ref=f1e1231]: 6h ago
+              - generic [ref=f1e1232]: Now
+          - generic [ref=f1e1233]:
+            - generic [ref=f1e1234]: Healthy
+            - generic [ref=f1e1236]: Degraded
+            - generic [ref=f1e1238]: Down
+            - generic [ref=f1e1240]: Unknown

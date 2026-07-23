@@ -33,6 +33,7 @@
     "@opentelemetry/exporter-trace-otlp-http": "^0.220.0",
     "@opentelemetry/sdk-trace-base": "^2.9.0",
     "@opentelemetry/sdk-trace-web": "^2.9.0",
+    "angular-auth-oidc-client": "^19.0.2",
     "date-fns": "^4.4.0",
     "material-icons": "^1.13.14",
     "rxjs": "~7.8.0",

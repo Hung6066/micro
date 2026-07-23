@@ -1,0 +1,21 @@
+- generic [ref=f13e1]:
+  - link "Chuyển đến nội dung chính" [ref=f13e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f13e5]:
+    - status [ref=f13e7]:
+      - generic [ref=f13e8]:
+        - img [ref=f13e9]: error_outline
+        - button [ref=f13e11] [cursor=pointer]:
+          - img [ref=f13e12]: close
+    - generic [ref=f13e17]:
+      - generic [ref=f13e19]:
+        - generic [ref=f13e20]: His.Hope
+        - generic [ref=f13e21]: Sign in to continue
+      - generic [ref=f13e23]:
+        - button "Sign in with His.Hope" [ref=f13e24]:
+          - img [ref=f13e25]: login
+        - separator [ref=f13e28]
+        - button "Continue with Google" [ref=f13e29]:
+          - img [ref=f13e30]: account_circle
+        - button "Continue with Microsoft" [ref=f13e33]:
+          - img [ref=f13e34]: workspaces

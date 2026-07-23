@@ -1,0 +1,8 @@
+- generic [ref=f9e1]:
+  - link "Chuyển đến nội dung chính" [ref=f9e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - status [ref=f9e7]:
+    - generic [ref=f9e8]:
+      - img [ref=f9e9]: error_outline
+      - button [ref=f9e11] [cursor=pointer]:
+        - img [ref=f9e12]: close

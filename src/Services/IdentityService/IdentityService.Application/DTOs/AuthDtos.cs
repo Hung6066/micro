@@ -42,7 +42,8 @@ public record UserDto(
     string FullName,
     string? LicenseNumber,
     string? Specialty,
-    IList<string> Roles);
+    IList<string> Roles,
+    IList<string>? Permissions = null);
 
 public record MfaEnrollResponse(
     string SecretKey,

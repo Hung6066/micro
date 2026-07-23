@@ -1,7 +1,7 @@
 import { inject, Injectable, NgZone, Injector } from '@angular/core';
 import { HttpInterceptor, HttpRequest, HttpHandler, HttpEvent, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError, of } from 'rxjs';
-import { catchError, retry } from 'rxjs/operators';
+import { catchError, retry, take } from 'rxjs/operators';
 import { Router } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AuthService } from '@core/services/auth.service';
@@ -60,7 +60,13 @@ export class ErrorInterceptor implements HttpInterceptor {
           case 401: {
             if (!req.url.includes('/auth/') && !req.url.includes('/dashboard/') && !req.url.includes('/patients/search')) {
               authService.clearStoredAccessToken();
-              this.router.navigate(['/auth/login']);
+              authService.isAuthenticated().pipe(take(1)).subscribe(isAuth => {
+                if (isAuth) {
+                  this.router.navigate(['/auth/login'], { queryParams: { reason: 'session_expired' } });
+                } else {
+                  this.router.navigate(['/auth/login']);
+                }
+              });
             }
             break;
           }

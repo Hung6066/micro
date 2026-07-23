@@ -1,4 +1,5 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+# BFF JWT validation: uses JWKS from Identity Service (2026-07-23) 
 WORKDIR /src
 COPY ["src/Bff/SystemDashboard.Bff/SystemDashboard.Bff.csproj", "src/Bff/SystemDashboard.Bff/"]
 COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/His.Hope.Infrastructure.csproj", "src/Shared/Infrastructure/His.Hope.Infrastructure/"]
@@ -10,7 +11,7 @@ COPY ["src/Shared/SharedKernel/Src/His.Hope.SharedKernel/His.Hope.SharedKernel.c
 RUN dotnet restore "src/Bff/SystemDashboard.Bff/SystemDashboard.Bff.csproj"
 COPY . .
 WORKDIR "/src/src/Bff/SystemDashboard.Bff"
-RUN dotnet publish "SystemDashboard.Bff.csproj" -c Release -o /app/publish --no-restore
+RUN dotnet publish "SystemDashboard.Bff.csproj" -c Release -o /app/publish 
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra AS final
 WORKDIR /app

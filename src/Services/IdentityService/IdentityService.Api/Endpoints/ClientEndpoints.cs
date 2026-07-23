@@ -4,7 +4,6 @@ using His.Hope.IdentityService.Infrastructure.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
-
 namespace His.Hope.IdentityService.Api.Endpoints;
 
 public static class ClientEndpoints
@@ -28,7 +27,7 @@ public static class ClientEndpoints
             .ToListAsync(ct);
 
         var response = clients.Select(a => new ClientResponse(
-            Id: a.Id,
+            Id: a.Id.ToString(),
             ClientId: a.ClientId ?? "",
             DisplayName: a.DisplayName ?? "",
             Type: a.ClientType ?? "public",
@@ -54,7 +53,7 @@ public static class ClientEndpoints
         if (client is null) return TypedResults.NotFound();
 
         return TypedResults.Ok(new ClientResponse(
-            Id: client.Id,
+            Id: client.Id.ToString(),
             ClientId: client.ClientId ?? "",
             DisplayName: client.DisplayName ?? "",
             Type: client.ClientType ?? "public",
@@ -129,7 +128,7 @@ public static class ClientEndpoints
         await db.SaveChangesAsync(ct);
 
         return TypedResults.Ok(new ClientResponse(
-            Id: client.Id,
+            Id: client.Id.ToString(),
             ClientId: client.ClientId ?? "",
             DisplayName: client.DisplayName ?? "",
             Type: client.ClientType ?? "public",

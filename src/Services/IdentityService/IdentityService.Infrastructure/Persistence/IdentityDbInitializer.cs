@@ -3,8 +3,11 @@ using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.SharedKernel.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using OpenIddict.Abstractions;
 
 namespace His.Hope.IdentityService.Infrastructure.Persistence;
@@ -31,11 +34,15 @@ public static class IdentityDbInitializer
         var context = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
+        var configuration = scope.ServiceProvider.GetService<IConfiguration>();
+        var hostEnvironment = scope.ServiceProvider.GetService<IHostEnvironment>();
         var loggerFactory = scope.ServiceProvider.GetRequiredService<ILoggerFactory>();
         var logger = loggerFactory.CreateLogger("IdentityDbInitializer");
         var ct = CancellationToken.None;
 
-        // Ensure database schema exists
+        // Use EnsureCreatedAsync() for backward compatibility with existing DBs.
+        // EF Core migrations are available for fresh deployments via:
+        //   dotnet ef database update
         await context.Database.EnsureCreatedAsync(ct);
 
         // ──────────────────────────────────────────────
@@ -240,18 +247,29 @@ public static class IdentityDbInitializer
         // ──────────────────────────────────────────────
         logger.LogInformation("Seeding admin user...");
 
-        const string adminUserName = "admin";
-        const string adminPassword = "Admin@123";
-        const string adminEmail = "admin@hishop.com";
+        var adminUser = await userManager.FindByNameAsync(AdminBootstrapConfiguration.DefaultUserName);
+        var adminBootstrap = ResolveAdminBootstrapConfiguration(
+            configuration,
+            hostEnvironment?.EnvironmentName,
+            adminUser is not null);
 
-        var adminUser = await userManager.FindByNameAsync(adminUserName);
-        if (adminUser is null)
+        if (adminBootstrap.SkipUserSeed)
+        {
+            logger.LogWarning(
+                "Admin bootstrap user was not created because Identity:BootstrapAdmin:Password is not configured. Configure it with a one-time secret when admin seeding is required.");
+        }
+
+        if (adminUser is null && adminBootstrap.SkipUserSeed)
+        {
+            logger.LogInformation("Admin user seed skipped.");
+        }
+        else if (adminUser is null)
         {
             adminUser = new User
             {
                 Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                UserName = adminUserName,
-                Email = adminEmail,
+                UserName = AdminBootstrapConfiguration.DefaultUserName,
+                Email = AdminBootstrapConfiguration.DefaultEmail,
                 FirstName = "Quản Trị",
                 LastName = "Viên",
                 IsActive = true,
@@ -259,7 +277,7 @@ public static class IdentityDbInitializer
                 CreatedAt = DateTime.UtcNow
             };
 
-            var result = await userManager.CreateAsync(adminUser, adminPassword);
+            var result = await userManager.CreateAsync(adminUser, adminBootstrap.Password!);
             if (!result.Succeeded)
             {
                 var errors = string.Join(", ", result.Errors.Select(e => e.Description));
@@ -275,18 +293,21 @@ public static class IdentityDbInitializer
             logger.LogInformation("Admin user already exists.");
         }
 
-        // Ensure admin user is in Admin role
-        if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
+        if (adminUser is not null && !adminBootstrap.SkipUserSeed)
         {
-            await userManager.AddToRoleAsync(adminUser, "Admin");
-            logger.LogInformation("Admin user assigned to Admin role.");
-        }
+            // Ensure admin user is in Admin role
+            if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
+            {
+                await userManager.AddToRoleAsync(adminUser, "Admin");
+                logger.LogInformation("Admin user assigned to Admin role.");
+            }
 
-        // Ensure admin user is NOT in Provider role (clean up if needed)
-        if (await userManager.IsInRoleAsync(adminUser, "Provider"))
-        {
-            await userManager.RemoveFromRoleAsync(adminUser, "Provider");
-            logger.LogInformation("Admin user removed from Provider role.");
+            // Ensure admin user is NOT in Provider role (clean up if needed)
+            if (await userManager.IsInRoleAsync(adminUser, "Provider"))
+            {
+                await userManager.RemoveFromRoleAsync(adminUser, "Provider");
+                logger.LogInformation("Admin user removed from Provider role.");
+            }
         }
 
         // ──────────────────────────────────────────────
@@ -305,8 +326,18 @@ public static class IdentityDbInitializer
                 ClientId = spaClientId,
                 ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Public,
                 DisplayName = "His.Hope SPA (BFF)",
-                RedirectUris = { new Uri("https://his-hope.local/api/auth/callback") },
-                PostLogoutRedirectUris = { new Uri("https://his-hope.local") },
+                RedirectUris =
+                {
+                    new Uri("http://localhost:4200/auth/callback"),
+                    new Uri("http://localhost:8081/auth/callback"),
+                    new Uri("https://his-hope.local/api/auth/callback"),
+                },
+                PostLogoutRedirectUris =
+                {
+                    new Uri("http://localhost:4200/auth/login"),
+                    new Uri("http://localhost:8081/auth/login"),
+                    new Uri("https://his-hope.local"),
+                },
                 Permissions =
                 {
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Authorization,
@@ -329,7 +360,87 @@ public static class IdentityDbInitializer
             logger.LogInformation("OIDC application '{ClientId}' created.", spaClientId);
         }
 
+        var dashboardClientId = "his-hope-dashboard";
+        if (await appManager.FindByClientIdAsync(dashboardClientId, ct) is null)
+        {
+            await appManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+            {
+                ClientId = dashboardClientId,
+                ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Public,
+                DisplayName = "His.Hope System Dashboard",
+                RedirectUris =
+                {
+                    new Uri("http://localhost:4201/auth/callback"),
+                    new Uri("http://localhost:8082/auth/callback"),
+                },
+                PostLogoutRedirectUris =
+                {
+                    new Uri("http://localhost:4201/auth/login"),
+                    new Uri("http://localhost:8082/auth/login"),
+                },
+                Permissions =
+                {
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Authorization,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Token,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Logout,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.ResponseTypes.Code,
+                    "openid",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Email,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Profile,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Roles,
+                },
+                Requirements =
+                {
+                    OpenIddict.Abstractions.OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange,
+                }
+            }, ct);
+            logger.LogInformation("OIDC application '{ClientId}' created.", dashboardClientId);
+        }
+
         // Seed M2M confidential clients for service-to-service auth
+        const string adminClientId = "his-hope-admin";
+        if (await appManager.FindByClientIdAsync(adminClientId, ct) is null)
+        {
+            await appManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+            {
+                ClientId = adminClientId,
+                ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Public,
+                DisplayName = "His.Hope Admin App",
+                RedirectUris =
+                {
+                    new Uri("http://localhost:8083/auth/callback"),
+                    new Uri("http://localhost:4202/auth/callback"),
+                },
+                PostLogoutRedirectUris =
+                {
+                    new Uri("http://localhost:8083/auth/login"),
+                    new Uri("http://localhost:4202/auth/login"),
+                },
+                Permissions =
+                {
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Authorization,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Token,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Logout,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.ResponseTypes.Code,
+                    "openid",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Email,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Profile,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Roles,
+                    "scope:hishop:permissions",
+                    "scope:hishop:admin",
+                },
+                Requirements =
+                {
+                    OpenIddict.Abstractions.OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange,
+                }
+            }, ct);
+            logger.LogInformation("OIDC application '{ClientId}' created.", adminClientId);
+        }
+
         var m2mClients = new[]
         {
             new { ClientId = "patient-service", DisplayName = "Patient Service (M2M)", Scopes = "hishop:patients hishop:appointments" },
@@ -391,5 +502,39 @@ public static class IdentityDbInitializer
 
         logger.LogInformation("OIDC scopes seeded successfully.");
         logger.LogInformation("Database seeding completed successfully.");
+    }
+
+    public static AdminBootstrapConfiguration ResolveAdminBootstrapConfiguration(
+        IConfiguration? configuration,
+        string? environmentName,
+        bool adminUserExists)
+    {
+        var password = configuration?["Identity:BootstrapAdmin:Password"]
+            ?? configuration?["IDENTITY_BOOTSTRAP_ADMIN_PASSWORD"];
+        var hasPassword = !string.IsNullOrWhiteSpace(password);
+
+        if (adminUserExists)
+        {
+            return new AdminBootstrapConfiguration(password, SkipUserSeed: false);
+        }
+
+        if (hasPassword)
+        {
+            return new AdminBootstrapConfiguration(password, SkipUserSeed: false);
+        }
+
+        if (string.Equals(environmentName, Environments.Production, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "Identity admin bootstrap requires configuration key 'Identity:BootstrapAdmin:Password' or 'IDENTITY_BOOTSTRAP_ADMIN_PASSWORD' in Production when the admin user does not exist.");
+        }
+
+        return new AdminBootstrapConfiguration(null, SkipUserSeed: true);
+    }
+
+    public sealed record AdminBootstrapConfiguration(string? Password, bool SkipUserSeed)
+    {
+        public const string DefaultUserName = "admin";
+        public const string DefaultEmail = "admin@hishop.com";
     }
 }

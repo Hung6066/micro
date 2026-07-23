@@ -1,28 +1,43 @@
 import { inject, Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
-import { catchError, map, retry, shareReplay, tap, distinctUntilChanged } from 'rxjs/operators';
+import { BehaviorSubject, Observable, of, throwError, ReplaySubject } from 'rxjs';
+import { catchError, map, retry, shareReplay, tap, distinctUntilChanged, take } from 'rxjs/operators';
+import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { LoginRequest, RegisterRequest, TokenResponse, User } from '@core/models/auth.model';
 import { environment } from '@env/environment';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly baseUrl = `${environment.apiUrl}/auth`;
-  private readonly accessTokenStorageKey = 'hishope_access_token';
 
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   currentUser$ = this.currentUserSubject.asObservable();
 
   private http = inject(HttpClient);
+  private oidcSecurityService = inject(OidcSecurityService);
   private currentUserLoad$?: Observable<User | null>;
+  private readonly checkAuthInit$ = new ReplaySubject<void>(1);
 
   constructor() {
-    const tokenUser = this.getUserFromStoredAccessToken();
-    if (tokenUser) {
-      this.currentUserSubject.next(tokenUser);
-    }
+    this.oidcSecurityService.checkAuth().pipe(take(1)).subscribe({
+      next: ({ isAuthenticated }) => {
+        if (isAuthenticated) this.loadUserFromOidc();
+        this.checkAuthInit$.next();
+        this.checkAuthInit$.complete();
+      },
+      error: () => {
+        this.checkAuthInit$.next();
+        this.checkAuthInit$.complete();
+      },
+    });
   }
 
+  /** Wait for initial OIDC checkAuth to complete (used by guards) */
+  checkAuth(): Observable<void> {
+    return this.checkAuthInit$.asObservable();
+  }
+
+  /** @deprecated Use oidcLogin() for OIDC-based authentication */
   login(request: LoginRequest): Observable<User> {
     return this.http.post<any>(`${this.baseUrl}/login`, request, { withCredentials: true }).pipe(
       tap((response) => {
@@ -38,6 +53,7 @@ export class AuthService {
     );
   }
 
+  /** @deprecated Use OIDC flows for registration */
   register(request: RegisterRequest): Observable<User> {
     return this.http.post<User>(`${this.baseUrl}/register`, request, { withCredentials: true }).pipe(
       tap((user) => this.currentUserSubject.next(user)),
@@ -45,6 +61,7 @@ export class AuthService {
     );
   }
 
+  /** @deprecated OIDC handles token refresh automatically */
   refreshToken(): Observable<User> {
     return this.http
       .post<TokenResponse>(`${this.baseUrl}/refresh`, {}, { withCredentials: true })
@@ -61,21 +78,62 @@ export class AuthService {
       );
   }
 
+  /** @deprecated Use oidcLogout() for OIDC-based logout */
   logout(): Observable<void> {
     return this.http.post<void>(`${this.baseUrl}/logout`, {}, { withCredentials: true }).pipe(
       tap(() => {
         this.currentUserSubject.next(null);
         this.clearStoredAccessToken();
+        this.permissionCache.clear();
       }),
       retry(1),
       catchError((error) => {
-        // Always clear local state on explicit logout, even if backend fails
         this.currentUserSubject.next(null);
         this.clearStoredAccessToken();
+        this.permissionCache.clear();
         return this.handleError(error);
       }),
     );
   }
+
+  // ─── OIDC Methods ─────────────────────────────────────────────────
+
+  oidcLogin(returnUrl?: string): void {
+    if (returnUrl) sessionStorage.setItem('oidc_returnUrl', returnUrl);
+    this.oidcSecurityService.authorize();
+  }
+
+  oidcLogout(): void {
+    this.oidcSecurityService.logoff().subscribe(() => {
+      this.currentUserSubject.next(null);
+      this.permissionCache.clear();
+    });
+  }
+
+  handleCallback(): Observable<boolean> {
+    return this.oidcSecurityService.checkAuth().pipe(
+      map(({ isAuthenticated }) => isAuthenticated),
+      tap((isAuth) => {
+        if (isAuth) this.loadUserFromOidc();
+      }),
+    );
+  }
+
+  isAuthenticated(): Observable<boolean> {
+    return this.oidcSecurityService.isAuthenticated$.pipe(
+      map(({ isAuthenticated }) => isAuthenticated),
+    );
+  }
+
+  getAccessToken(): Observable<string> {
+    return this.oidcSecurityService.getAccessToken();
+  }
+
+  getUserData(): Observable<any> {
+    return this.oidcSecurityService.userData$;
+  }
+
+  // ─── Backward-compatible Public API ────────────────────────────────
 
   getCurrentUser(): Observable<User> {
     const currentUser = this.currentUserSubject.value;
@@ -95,12 +153,7 @@ export class AuthService {
     if (this.currentUserSubject.value) {
       return of(true);
     }
-
-    return this.http.get<{ authenticated: boolean }>(`${this.baseUrl}/verify`, { withCredentials: true }).pipe(
-      map((res) => res.authenticated),
-      retry(1),
-      catchError(() => of(false)),
-    );
+    return this.isAuthenticated();
   }
 
   ensureCurrentUser(): Observable<User | null> {
@@ -108,38 +161,37 @@ export class AuthService {
     if (currentUser) {
       return of(currentUser);
     }
-
-    const tokenUser = this.getUserFromStoredAccessToken();
-    if (tokenUser) {
-      this.currentUserSubject.next(tokenUser);
-      return of(tokenUser);
-    }
-
-    return of(null);
+    return this.loadUserFromOidc();
   }
+
+  /** Retrieve the stored access token from OIDC */
+  getStoredAccessToken(): string | null {
+    let token: string | null = null;
+    this.oidcSecurityService.getAccessToken().pipe(take(1)).subscribe(t => token = t);
+    return token;
+  }
+
+  /** No-op: OIDC manages tokens */
+  storeAccessToken(_token: string): void {}
+
+  /** No-op: OIDC manages tokens */
+  clearStoredAccessToken(): void {}
 
   // ─── Role Methods ─────────────────────────────────────────────────
 
-  /** Extract roles from the current user object */
   getUserRoles(): string[] {
     const user = this.currentUserSubject.value;
     return user?.roles ?? [];
   }
 
-  /** Extract permissions from the current user object or JWT claims */
   getUserPermissions(): string[] {
     const user = this.currentUserSubject.value;
     if (user?.permissions && user.permissions.length > 0) {
       return user.permissions;
     }
-    const tokenUser = this.getUserFromStoredAccessToken();
-    if (tokenUser?.permissions?.length) {
-      return tokenUser.permissions;
-    }
     return [];
   }
 
-  /** Check if user has a specific role */
   hasRole(role: string | string[]): boolean {
     const userRoles = this.getUserRoles();
     if (typeof role === 'string') {
@@ -148,7 +200,6 @@ export class AuthService {
     return role.some((r) => userRoles.includes(r));
   }
 
-  /** Check if user has a specific permission */
   hasPermission(permission: string | string[]): boolean {
     const userPermissions = this.getUserPermissions();
     if (typeof permission === 'string') {
@@ -157,7 +208,6 @@ export class AuthService {
     return permission.every((p) => userPermissions.includes(p));
   }
 
-  /** Observable of current user roles, emits on change */
   getCurrentUserRoles(): Observable<string[]> {
     return this.currentUser$.pipe(
       map((user) => user?.roles ?? []),
@@ -165,44 +215,11 @@ export class AuthService {
     );
   }
 
-  // ─── Token Storage (Memory-only) ────────────────────────────────────
-  // JWT access token được mirror vào sessionStorage để survive hard reload.
-  // Memory vẫn là source of truth trong runtime; storage chỉ phục vụ hydrate.
-
-  private accessToken: string | null = null;
-
-  /** Store the JWT access token in memory only */
-  storeAccessToken(token: string): void {
-    this.accessToken = token;
-    this.writeStoredAccessToken(token);
-    this.currentUserLoad$ = undefined;
-  }
-
-  /** Retrieve the stored JWT access token from memory */
-  getStoredAccessToken(): string | null {
-    if (this.accessToken) {
-      return this.accessToken;
-    }
-
-    this.accessToken = this.readStoredAccessToken();
-    return this.accessToken;
-  }
-
-  /** Remove the stored JWT access token from memory */
-  clearStoredAccessToken(): void {
-    this.accessToken = null;
-    this.writeStoredAccessToken(null);
-    this.currentUserLoad$ = undefined;
-  }
-
   // ─── API-based Permission Check ─────────────────────────────────────
-  // Thay vì decode JWT client-side, check permission qua backend API.
-  // Cache kết quả trong memory với TTL 5 phút (riêng cho mỗi permission).
 
   private permissionCache = new Map<string, { granted: boolean; timestamp: number }>();
   private readonly PERMISSION_CACHE_TTL = 5 * 60 * 1000;
 
-  /** Check permission via backend API (không decode JWT local) */
   hasPermissionOnServer(permission: string): Observable<boolean> {
     const cached = this.permissionCache.get(permission);
     if (cached !== undefined && Date.now() - cached.timestamp < this.PERMISSION_CACHE_TTL) {
@@ -222,6 +239,24 @@ export class AuthService {
     );
   }
 
+  // ─── Private ───────────────────────────────────────────────────────
+
+  private loadUserFromOidc(): Observable<User | null> {
+    if (this.currentUserLoad$) return this.currentUserLoad$;
+
+    this.currentUserLoad$ = this.http.get<User>(`${this.baseUrl}/me`, { withCredentials: true }).pipe(
+      tap((user) => this.currentUserSubject.next(user)),
+      shareReplay(1),
+      retry(1),
+      catchError((err) => {
+        this.currentUserLoad$ = undefined;
+        return this.handleError(err);
+      }),
+    );
+
+    return this.currentUserLoad$;
+  }
+
   private handleError(error: HttpErrorResponse): Observable<never> {
     if (!environment.production) {
       let errorMessage = 'An unknown error occurred';
@@ -233,97 +268,5 @@ export class AuthService {
       console.error('[AuthService]', errorMessage);
     }
     return throwError(() => error);
-  }
-
-  private readStoredAccessToken(): string | null {
-    try {
-      return sessionStorage.getItem(this.accessTokenStorageKey);
-    } catch {
-      return null;
-    }
-  }
-
-  private writeStoredAccessToken(token: string | null): void {
-    try {
-      if (token) {
-        sessionStorage.setItem(this.accessTokenStorageKey, token);
-      } else {
-        sessionStorage.removeItem(this.accessTokenStorageKey);
-      }
-    } catch {
-      // noop
-    }
-  }
-
-  private getUserFromStoredAccessToken(): User | null {
-    const token = this.getStoredAccessToken();
-    if (!token) {
-      return null;
-    }
-
-    try {
-      const payload = this.decodeJwtPayload(token);
-      if (!payload) {
-        return null;
-      }
-
-      const roleClaimUri = 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role';
-      const roles = Array.isArray(payload['roles'])
-        ? payload['roles'] as string[]
-        : Array.isArray(payload[roleClaimUri])
-          ? payload[roleClaimUri] as string[]
-        : typeof payload['role'] === 'string'
-          ? [payload['role'] as string]
-          : typeof payload[roleClaimUri] === 'string'
-            ? [payload[roleClaimUri] as string]
-          : [];
-      const permissions = Array.isArray(payload['permissions'])
-        ? payload['permissions'] as string[]
-        : typeof payload['permissions'] === 'string'
-          ? (payload['permissions'] as string).split(',').map((permission: string) => permission.trim()).filter(Boolean)
-          : [];
-      const fullName = typeof payload['fullName'] === 'string'
-        ? payload['fullName'] as string
-        : typeof payload['unique_name'] === 'string'
-          ? payload['unique_name'] as string
-          : typeof payload['email'] === 'string'
-            ? payload['email'] as string
-            : '';
-      const nameParts = fullName.trim().split(/\s+/).filter(Boolean);
-      const firstName = typeof payload['firstName'] === 'string'
-        ? payload['firstName'] as string
-        : nameParts.slice(0, -1).join(' ') || fullName;
-      const lastName = typeof payload['lastName'] === 'string'
-        ? payload['lastName'] as string
-        : nameParts.length > 1
-          ? nameParts[nameParts.length - 1]
-          : '';
-
-      return {
-        id: typeof payload['sub'] === 'string' ? payload['sub'] as string : '',
-        username: typeof payload['unique_name'] === 'string' ? payload['unique_name'] as string : fullName,
-        email: typeof payload['email'] === 'string' ? payload['email'] as string : '',
-        firstName,
-        lastName,
-        fullName,
-        roles,
-        permissions,
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  private decodeJwtPayload(token: string): Record<string, unknown> | null {
-    const payload = token.split('.')[1];
-    if (!payload) {
-      return null;
-    }
-
-    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
-    const binary = atob(padded);
-    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-    return JSON.parse(new TextDecoder('utf-8').decode(bytes));
   }
 }

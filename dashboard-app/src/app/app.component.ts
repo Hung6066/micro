@@ -8,6 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { BehaviorSubject, Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { AuthService } from './core/services/auth.service';
 import { AlertPanelComponent } from './shared/alert-panel/alert-panel.component';
 import { AlertToastService } from './shared/alert-toast/alert-toast.service';
@@ -33,7 +34,7 @@ import { AlertToastService } from './shared/alert-toast/alert-toast.service';
 export class AppComponent {
   private readonly STORAGE_KEY = 'hishop-dark-mode';
 
-  readonly isAuthenticated$: Observable<boolean | null>;
+  readonly isAuthenticated$: Observable<boolean>;
 
   readonly isMobile$: Observable<boolean>;
   readonly isDarkMode$: Observable<boolean>;

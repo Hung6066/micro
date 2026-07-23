@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OpenIddict.Abstractions;
 using OpenIddict.Server;
@@ -38,13 +40,16 @@ public class CustomPopulateTokenClaims :
     IOpenIddictServerHandler<OpenIddictServerEvents.HandleTokenRequestContext>
 {
     private readonly UserManager<User> _userManager;
+    private readonly IApplicationDbContext _dbContext;
     private readonly ILogger<CustomPopulateTokenClaims> _logger;
 
     public CustomPopulateTokenClaims(
         UserManager<User> userManager,
+        IApplicationDbContext dbContext,
         ILogger<CustomPopulateTokenClaims> logger)
     {
         _userManager = userManager;
+        _dbContext = dbContext;
         _logger = logger;
     }
 
@@ -84,5 +89,16 @@ public class CustomPopulateTokenClaims :
         var facilityClaim = claims.FirstOrDefault(c => c.Type == "facility_id");
         if (facilityClaim is not null)
             identity.AddClaim(new Claim("facility_id", facilityClaim.Value));
+
+        var permissions = await _dbContext.RolePermissions
+            .Where(rp => roles.Contains(rp.Role.Name!))
+            .Select(rp => rp.PermissionCode)
+            .Distinct()
+            .ToListAsync();
+
+        if (permissions.Count > 0)
+        {
+            identity.AddClaim(new Claim("permissions", string.Join(",", permissions)));
+        }
     }
 }

@@ -1,0 +1,25 @@
+- generic [ref=f82e2]:
+  - generic [ref=f82e3]:
+    - heading "His.Hope" [level=1] [ref=f82e7]
+    - paragraph [ref=f82e8]: Hospital Information System
+  - generic [ref=f82e9]:
+    - generic [ref=f82e10]:
+      - heading "Sign in" [level=2] [ref=f82e11]
+      - paragraph [ref=f82e12]: Enter your credentials to access the system
+    - generic [ref=f82e13]:
+      - generic [ref=f82e14]:
+        - text: Email address
+        - textbox "Email address" [ref=f82e19]:
+          - /placeholder: you@hospital.vn
+          - text: admin
+      - generic [ref=f82e20]:
+        - text: Password
+        - textbox "Password" [ref=f82e25]:
+          - /placeholder: ••••••••
+          - text: Admin@123
+      - button "Sign in" [ref=f82e26]
+    - generic [ref=f82e30]: or continue with
+    - button "Continue with HisHope.BrowserOrApi" [ref=f82e33]
+  - generic [ref=f82e36]:
+    - strong [ref=f82e37]: His.Hope
+    - text: v1.0 • Bệnh viện His.Hope Protected by HIPAA-compliant security

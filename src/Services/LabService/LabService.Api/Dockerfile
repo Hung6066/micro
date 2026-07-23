@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 # ============================================================
 # BUILD STAGE
 # ============================================================
@@ -33,8 +31,8 @@ COPY ["src/Shared/Protos/", "Shared/Protos/"]
 
 RUN dotnet publish "Services/LabService/LabService.Api/LabService.Api.csproj" \
     -c Release \
-    -o /app/publish \
-    --no-restore
+    -o /app/publish
+    
 
 # ============================================================
 # RUNTIME STAGE (distroless chiseled)

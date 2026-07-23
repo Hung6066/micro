@@ -47,17 +47,10 @@ public class DatabaseAuditService : IAuditService
 
     public async Task LogPhiAccessAsync(PhiAuditEntry entry, CancellationToken ct = default)
     {
-        try
-        {
-            await WriteAuditLogAsync(entry);
-        }
-        catch
-        {
-            // Swallow exceptions - Serilog audit is the primary audit channel
-        }
+        await WriteAuditLogAsync(entry, ct);
     }
 
-    private async Task WriteAuditLogAsync(PhiAuditEntry entry)
+    private async Task WriteAuditLogAsync(PhiAuditEntry entry, CancellationToken ct = default)
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
@@ -76,6 +69,6 @@ public class DatabaseAuditService : IAuditService
             Timestamp = entry.Timestamp
         });
 
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(ct);
     }
 }

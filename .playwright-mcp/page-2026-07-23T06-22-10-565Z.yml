@@ -1,0 +1,30 @@
+- generic [ref=f7e1]:
+  - link "Chuyển đến nội dung chính" [ref=f7e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f7e5]:
+    - status [ref=f7e7]:
+      - generic [ref=f7e8]:
+        - img [ref=f7e9]: error_outline
+        - generic [ref=f7e37]:
+          - generic [ref=f7e38]: "[object Object]"
+          - generic [ref=f7e39]: "Ref: hh-mrx4j5xe-ykwbc3"
+        - generic [ref=f7e10]:
+          - button [ref=f7e40] [cursor=pointer]:
+            - img [ref=f7e41]: content_copy
+          - button [ref=f7e11] [cursor=pointer]:
+            - img [ref=f7e12]: close
+    - generic [ref=f7e17]:
+      - generic [ref=f7e19]:
+        - generic [ref=f7e20]: His.Hope
+        - generic [ref=f7e21]: Sign in to continue
+      - generic [ref=f7e23]:
+        - button "Sign in with His.Hope" [active] [ref=f7e24] [cursor=pointer]:
+          - img [ref=f7e25]: login
+        - separator [ref=f7e28]
+        - button "Continue with Google" [ref=f7e29]:
+          - img [ref=f7e30]: account_circle
+        - button "Continue with Microsoft" [ref=f7e33]:
+          - img [ref=f7e34]: workspaces
+  - generic [ref=f7e50]:
+    - generic [ref=f7e51]: An unexpected error occurred. Please try again.
+    - button "OK" [ref=f7e53]
