@@ -55,8 +55,14 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
 builder.Services.AddOpenTelemetry()
     .WithMetrics(m => m.AddMeter("His.Hope.Identity"));
 
-// Use in-memory distributed cache for token blacklist + refresh token storage in this service.
-builder.Services.AddDistributedMemoryCache();
+// Use Redis distributed cache for token blacklist + refresh token storage (shared across services).
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = builder.Configuration.GetConnectionString("Redis")
+        ?? builder.Configuration.GetValue<string>("Redis:ConnectionString")
+        ?? "localhost:6379";
+    options.InstanceName = "HisHope:";
+});
 builder.Services.AddSingleton<ICacheService, NoOpCacheService>();
 
 // IdentityService user-management requests do not use distributed locks, so keep
