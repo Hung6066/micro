@@ -1,0 +1,129 @@
+---
+# Role: canary-deploy — Progressive traffic shift with Linkerd
+# Usage: --extra-vars "service=patientservice version=v2.1.0"
+# Tags: canary
+
+- name: Validate input parameters
+  ansible.builtin.fail:
+    msg: "Missing required --extra-vars: service and version"
+  when: service is not defined or version is not defined
+
+- name: Get current deployment
+  ansible.builtin.shell: |
+    kubectl get deployment {{ service }} -n his-hope -o json
+  register: current_deploy
+  changed_when: false
+
+- name: Create canary deployment
+  ansible.builtin.shell: |
+    # Create canary deployment with new version
+    kubectl get deployment {{ service }} -n his-hope -o yaml | \
+      sed "s/name: {{ service }}/name: {{ service }}-canary/" | \
+      sed "s/app: {{ service }}/app: {{ service }}-canary/" | \
+      sed "s/image:.*/image: ghcr.io\/hishop\/{{ service }}:{{ version }}/" | \
+      kubectl apply -f -
+  register: canary_create
+
+- name: Wait for canary pods ready
+  ansible.builtin.shell: |
+    kubectl wait --for=condition=ready pod \
+      -l app={{ service }}-canary \
+      -n his-hope \
+      --timeout=120s
+
+- name: Create TrafficSplit ({{ canary_percent }}% → canary)
+  ansible.builtin.shell: |
+    cat <<EOF | kubectl apply -f -
+    apiVersion: split.smi-spec.io/v1alpha2
+    kind: TrafficSplit
+    metadata:
+      name: {{ service }}-split
+      namespace: his-hope
+    spec:
+      service: {{ service }}
+      backends:
+      - service: {{ service }}
+        weight: {{ 100 - canary_percent }}
+      - service: {{ service }}-canary
+        weight: {{ canary_percent }}
+    EOF
+
+- name: Monitor canary health for {{ canary_wait_minutes }} minutes
+  ansible.builtin.shell: |
+    end=$((SECONDS + {{ canary_wait_minutes * 60 }}))
+    PASS_COUNT=0
+    FAIL_COUNT=0
+    while [ $SECONDS -lt $end ]; do
+      # Check error rate
+      ERROR_RATE=$(curl -s "{{ canary_prometheus_url }}/api/v1/query" \
+        --data-urlencode "query=rate(http_server_request_duration_seconds_count{app=\"{{ service }}-canary\",http_response_status_code=~\"5..\"}[1m])" \
+        | jq -r '.data.result[0].value[1] // "0"')
+      
+      # Check latency p99
+      LATENCY=$(curl -s "{{ canary_prometheus_url }}/api/v1/query" \
+        --data-urlencode "query=histogram_quantile(0.99, rate(http_server_request_duration_seconds_bucket{app=\"{{ service }}-canary\"}[1m]))" \
+        | jq -r '.data.result[0].value[1] // "0"')
+      
+      if (( $(echo "$ERROR_RATE < {{ canary_error_threshold }}" | bc -l) )) && \
+         (( $(echo "$LATENCY < {{ canary_latency_p99_threshold }}" | bc -l) )); then
+        PASS_COUNT=$((PASS_COUNT + 1))
+      else
+        FAIL_COUNT=$((FAIL_COUNT + 1))
+      fi
+      
+      # Auto-rollback if 3 consecutive failures
+      if [ $FAIL_COUNT -ge 3 ]; then
+        echo "❌ CANARY FAILED — Rollback triggered"
+        kubectl delete trafficsplit {{ service }}-split -n his-hope
+        kubectl delete deployment {{ service }}-canary -n his-hope
+        exit 1
+      fi
+      
+      sleep 15
+    done
+    echo "✅ Canary passed ($PASS_COUNT/$((PASS_COUNT + FAIL_COUNT)) checks)"
+    exit 0
+  register: canary_result
+  changed_when: false
+
+- name: Promote canary to 100%
+  ansible.builtin.shell: |
+    # Update main deployment with canary version
+    kubectl set image deployment/{{ service }} \
+      {{ service }}=ghcr.io/hishop/{{ service }}:{{ version }} \
+      -n his-hope
+    
+    # Wait for rollout
+    kubectl rollout status deployment/{{ service }} -n his-hope --timeout=300s
+    
+    # Remove TrafficSplit
+    kubectl delete trafficsplit {{ service }}-split -n his-hope --ignore-not-found
+    
+    # Remove canary deployment
+    kubectl delete deployment {{ service }}-canary -n his-hope --ignore-not-found
+  when: canary_result.rc == 0
+
+- name: Canary complete — send Slack notification
+  ansible.builtin.uri:
+    url: "{{ slack_webhook }}"
+    method: POST
+    body_format: json
+    body:
+      text: "✅ Canary deploy {{ service }} {{ version }} → 100% promoted ({{ ansible_date_time.time }})"
+  when: slack_webhook | length > 0 and canary_result.rc == 0
+  ignore_errors: yes
+
+- name: Canary failed — send PagerDuty alert
+  ansible.builtin.uri:
+    url: "https://events.pagerduty.com/v2/enqueue"
+    method: POST
+    body_format: json
+    body:
+      routing_key: "{{ pagerduty_key }}"
+      event_action: trigger
+      payload:
+        summary: "CANARY FAILED: {{ service }} {{ version }} auto-rolled back"
+        severity: critical
+        source: ansible-canary-deploy
+  when: pagerduty_key | length > 0 and canary_result.rc != 0
+  ignore_errors: yes

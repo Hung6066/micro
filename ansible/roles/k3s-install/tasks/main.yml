@@ -1,0 +1,125 @@
+---
+# Role: k3s-install — K3s cluster deployment (single or multi-node)
+# Tags: k3s, staging
+
+# ─── Phase 1: Install K3s ───
+
+- name: Install K3s master
+  ansible.builtin.shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -s - server \
+      --disable traefik \
+      --write-kubeconfig-mode 644 \
+      --node-ip {{ k3s_node_ip }} \
+      --cluster-init 2>/dev/null || \
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -s - server \
+      --disable traefik \
+      --write-kubeconfig-mode 644 \
+      --node-ip {{ k3s_node_ip }}
+  when: k3s_role == "master"
+  register: k3s_master_install
+  changed_when: "'already installed' not in k3s_master_install.stdout"
+
+- name: Get K3s token from master
+  ansible.builtin.slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  register: k3s_token_raw
+  when: k3s_role == "master"
+
+- name: Save token to fact
+  ansible.builtin.set_fact:
+    k3s_cluster_token: "{{ k3s_token_raw.content | b64decode | trim }}"
+  when: k3s_role == "master"
+
+- name: Install K3s worker
+  ansible.builtin.shell: |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} K3S_URL=https://{{ hostvars['k3s-master'].ansible_host }}:6443 K3S_TOKEN={{ hostvars['k3s-master'].k3s_cluster_token }} sh -
+  when: k3s_role == "worker"
+  register: k3s_worker_install
+  changed_when: "'already installed' not in k3s_worker_install.stdout"
+
+- name: Wait for all nodes ready
+  ansible.builtin.shell: kubectl wait --for=condition=ready node --all --timeout=120s
+  when: k3s_role == "master"
+  changed_when: false
+
+# ─── Phase 2: Install Operators ───
+
+- name: Install cert-manager CRDs
+  ansible.builtin.shell: |
+    kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.yaml
+    kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=cert-manager -n cert-manager --timeout=120s
+  when: k3s_role == "master"
+
+- name: Install Linkerd CLI
+  ansible.builtin.shell: |
+    curl -sL https://run.linkerd.io/install | sh
+    export PATH=$PATH:$HOME/.linkerd2/bin
+    linkerd check --pre
+    linkerd install --crds | kubectl apply -f -
+    linkerd install | kubectl apply -f -
+    linkerd check
+  when: k3s_role == "master"
+
+- name: Install Prometheus Stack
+  ansible.builtin.shell: |
+    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts 2>/dev/null || true
+    helm repo update
+    helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
+      -n monitoring --create-namespace \
+      --set prometheus.prometheusSpec.ruleSelectorNilUsesHelmValues=false \
+      --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
+      --wait --timeout 300s
+  when: k3s_role == "master"
+
+# ─── Phase 3: Deploy His.Hope ───
+
+- name: Clone repository on master
+  git:
+    repo: "{{ repo_url }}"
+    dest: "{{ repo_dest }}"
+    branch: "{{ repo_branch }}"
+    update: yes
+  when: k3s_role == "master"
+
+- name: Deploy His.Hope with Kustomize (dev overlay)
+  ansible.builtin.shell: |
+    cd {{ repo_dest }}
+    kubectl create namespace his-hope --dry-run=client -o yaml | kubectl apply -f -
+    kubectl apply -k k8s/overlays/dev/
+  when: k3s_role == "master"
+  register: deploy_result
+
+- name: Wait for all His.Hope pods ready
+  ansible.builtin.shell: |
+    kubectl wait --for=condition=ready pod \
+      -l app.kubernetes.io/part-of=his-hope \
+      -n his-hope \
+      --timeout=600s
+  when: k3s_role == "master"
+  changed_when: false
+
+# ─── Phase 4: Verify ───
+
+- name: Display cluster status
+  ansible.builtin.shell: |
+    echo "=== Nodes ==="
+    kubectl get nodes -o wide
+    echo ""
+    echo "=== Pods (his-hope) ==="
+    kubectl get pods -n his-hope -o wide
+    echo ""
+    echo "=== Services ==="
+    kubectl get svc -n his-hope
+  when: k3s_role == "master"
+  register: cluster_status
+  changed_when: false
+
+- name: Show cluster summary
+  ansible.builtin.debug:
+    msg: |
+      {{ cluster_status.stdout }}
+
+      ✅ K3s deployment complete
+      🔗 Dashboard: kubectl port-forward -n his-hope svc/dashboard-app 8082:80
+      🔗 Grafana: kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
+  when: k3s_role == "master"

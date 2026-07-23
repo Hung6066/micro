@@ -1,0 +1,111 @@
+---
+# Role: health-check — Verify all services across environments
+# Tags: health-check, verify
+
+- name: Check Docker Compose services (local dev)
+  ansible.builtin.shell: |
+    cd {{ docker_compose_dir }}
+    echo "=== Docker Compose Status ==="
+    docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
+    echo ""
+    UNHEALTHY=$(docker compose ps --format json | grep -cv "healthy")
+    if [ "$UNHEALTHY" -gt 0 ]; then
+      echo "❌ $UNHEALTHY unhealthy services"
+      docker compose ps --format json | grep -v "healthy" | jq -r '.Service + ": " + .State'
+      exit 1
+    fi
+    echo "✅ All services healthy"
+  when: inventory_hostname == "localhost" or ansible_connection == "local"
+  register: compose_health
+  changed_when: false
+  ignore_errors: yes
+  tags: [docker]
+
+- name: Check K8s/GKE pods
+  ansible.builtin.shell: |
+    echo "=== Pod Status ==="
+    kubectl get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded 2>/dev/null | grep -v "No resources" || echo "✅ All pods Running"
+    echo ""
+    echo "=== Unhealthy Pods ==="
+    kubectl get pods -A -o json 2>/dev/null | jq -r '.items[] | select(.status.containerStatuses[]?.ready == false) | "\(.metadata.namespace)/\(.metadata.name)"' || echo "✅ All containers ready"
+  register: k8s_health
+  changed_when: false
+  ignore_errors: yes
+  tags: [k8s]
+
+- name: Health check endpoints
+  ansible.builtin.shell: |
+    FAILURES=0
+    for svc in {{ health_check_services | join(' ') }}; do
+      NAME=$(echo $svc | cut -d: -f1)
+      PORT=$(echo $svc | cut -d: -f2)
+      if curl -sf http://${NAME}:${PORT}/health > /dev/null 2>&1; then
+        echo "  ✅ $NAME:$PORT"
+      else
+        echo "  ❌ $NAME:$PORT — FAILED"
+        FAILURES=$((FAILURES + 1))
+      fi
+    done
+    if [ $FAILURES -gt 0 ]; then
+      echo ""
+      echo "❌ $FAILURES service(s) unhealthy"
+      exit 1
+    fi
+    echo ""
+    echo "✅ All {{ health_check_services | length }} services healthy"
+  register: endpoint_check
+  changed_when: false
+  retries: "{{ health_check_retries }}"
+  delay: "{{ health_check_delay }}"
+  until: endpoint_check.rc == 0
+
+- name: Check Prometheus targets
+  ansible.builtin.shell: |
+    PROM_URL="{{ canary_prometheus_url }}"
+    echo "=== Prometheus Targets ==="
+    curl -s $PROM_URL/api/v1/targets | jq -r '.data.activeTargets[] | "\(.labels.job): \(.health)"' | sort
+    echo ""
+    DOWN=$(curl -s $PROM_URL/api/v1/targets | jq '[.data.activeTargets[] | select(.health != "up")] | length')
+    if [ "$DOWN" -gt 0 ]; then
+      echo "❌ $DOWN targets DOWN"
+      curl -s $PROM_URL/api/v1/targets | jq '.data.activeTargets[] | select(.health != "up") | {job: .labels.job, error: .lastError}'
+    else
+      echo "✅ All Prometheus targets UP"
+    fi
+  register: prom_targets
+  changed_when: false
+  ignore_errors: yes
+  tags: [prometheus]
+
+- name: Check SLO data available
+  ansible.builtin.shell: |
+    PROM_URL="{{ canary_prometheus_url }}"
+    SLO_METRICS="slo:availability:ratio slo:latency:p99"
+    for m in $SLO_METRICS; do
+      COUNT=$(curl -s "$PROM_URL/api/v1/query?query=$m" | jq '.data.result | length')
+      echo "  $m: $COUNT series"
+    done
+  register: slo_check
+  changed_when: false
+  ignore_errors: yes
+  tags: [slo]
+
+- name: Display health check summary
+  ansible.builtin.debug:
+    msg:
+      - "============================="
+      - " His.Hope Health Check Report"
+      - "============================="
+      - "{{ endpoint_check.stdout }}"
+      - ""
+      - "{{ k8s_health.stdout | default('N/A (not K8s)') }}"
+      - ""
+      - "{{ prom_targets.stdout | default('N/A (Prometheus not reachable)') }}"
+      - ""
+      - "{{ slo_check.stdout | default('') }}"
+  tags: [always]
+
+- name: Fail if critical services down
+  ansible.builtin.fail:
+    msg: "❌ Health check FAILED — critical services unhealthy"
+  when: endpoint_check.rc != 0

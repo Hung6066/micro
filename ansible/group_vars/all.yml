@@ -1,0 +1,56 @@
+# His.Hope Ansible Variables
+
+# ─── Git ───
+repo_url: "https://github.com/Hung6066/micro.git"
+repo_branch: "main"
+repo_dest: "/opt/his-hope"
+
+# ─── Docker Compose (local dev) ───
+docker_compose_dir: "/opt/his-hope/docker"
+docker_compose_profile: "full"  # full | dashboard-only
+
+# ─── K3s ───
+k3s_version: "v1.29.4+k3s1"
+k3s_token: "{{ vault_k3s_token | default('his-hope-secret-token-change-me') }}"
+k3s_disable_traefik: true
+k3s_node_ip: "{{ ansible_default_ipv4.address }}"
+
+# ─── GKE ───
+gcp_project: "his-hope-prod"
+gcp_region: "us-east1"
+gcp_zone: "us-east1-b"
+gke_cluster_name: "his-hope-prod"
+gke_machine_type: "n2-standard-4"
+gke_min_nodes: 3
+gke_max_nodes: 20
+gke_num_nodes: 3
+
+# ─── Canary ───
+canary_percent: 10
+canary_wait_minutes: 5
+canary_prometheus_url: "http://prometheus:9090"
+canary_error_threshold: 1.0
+canary_latency_p99_threshold: 500
+
+# ─── Health Check ───
+health_check_retries: 30
+health_check_delay: 10
+health_check_services:
+  - identity-service:5001
+  - patient-service:5002
+  - appointment-service:5003
+  - clinical-service:5004
+  - lab-service:5010
+  - billing-service:5020
+  - pharmacy-service:5030
+  - apigateway:5000
+  - systemdashboard-bff:5700
+
+# ─── Database ───
+cockroach_backup_bucket: "gs://his-hope-backups"
+cockroach_db_name: "his_hope"
+db_migration_timeout: 300
+
+# ─── Notifications ───
+slack_webhook: "{{ vault_slack_webhook | default('') }}"
+pagerduty_key: "{{ vault_pagerduty_key | default('') }}"
