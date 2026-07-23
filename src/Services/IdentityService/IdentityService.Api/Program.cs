@@ -369,17 +369,56 @@ auth.MapPost("/refresh", async (RefreshTokenRequest request, IIdentityService id
 .AllowAnonymous();
 
 auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpContext,
-    IIdentityService identityService, CancellationToken ct) =>
+    IIdentityService identityService, IUserSessionTracker sessionTracker,
+    ITokenBlacklistService tokenBlacklist, ILogger<Program> logger, CancellationToken ct) =>
 {
-    await identityService.LogoutAsync(string.Empty, ct);
-
     var sessionId = httpContext.Request.Cookies["hishop_sid"];
+    string? refreshToken = null;
+    string? userId = null;
+
     if (!string.IsNullOrEmpty(sessionId))
     {
         var db = redis.GetDatabase();
-        await db.KeyDeleteAsync($"session:{sessionId}");
+        var sessionJson = await db.StringGetAsync($"session:{sessionId}");
+        if (sessionJson.HasValue)
+        {
+            var session = JsonSerializer.Deserialize<SessionData>(sessionJson!);
+            if (session is not null)
+            {
+                refreshToken = session.RefreshToken;
+                userId = session.UserId;
+            }
+        }
     }
 
+    // Revoke refresh token
+    if (!string.IsNullOrWhiteSpace(refreshToken))
+        await identityService.LogoutAsync(refreshToken, ct);
+
+    // Revoke ALL sessions for this user (cross-port logout)
+    if (!string.IsNullOrWhiteSpace(userId))
+    {
+        // Blacklist all user tokens at user level (checked by JWT validation)
+        await tokenBlacklist.RevokeAllUserTokensAsync(userId, ct);
+
+        // Delete all Redis sessions for this user
+        var sessions = await sessionTracker.GetUserSessionsAsync(userId);
+        if (sessions.Length > 0)
+        {
+            var db = redis.GetDatabase();
+            var keys = sessions.Select(s => (RedisKey)$"session:{s}").ToArray();
+            await db.KeyDeleteAsync(keys);
+        }
+
+        // Clean up the user session set
+        await sessionTracker.ClearUserSessionsAsync(userId);
+
+        logger.LogInformation(
+            "Cross-port logout: UserId={UserId}, sessions cleared={SessionCount}",
+            userId, sessions.Length);
+    }
+
+    // Clear cookies
     httpContext.Response.Cookies.Append("hishop_sid", "", new CookieOptions
     {
         HttpOnly = true, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Lax,
@@ -395,6 +434,7 @@ auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpCon
 })
 .WithDeprecationNotice()
 .WithOpenApi()
+.RequireRateLimiting("auth")
 .AllowAnonymous();
 
 // BFF internal: exchange session ID for new JWT (transparent refresh)
