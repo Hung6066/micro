@@ -3,7 +3,9 @@ using System.Text;
 using System.Text.Json;
 using His.Hope.Bff.Core.Authentication;
 using His.Hope.IdentityService.Api.Endpoints;
+using His.Hope.IdentityService.Api.Services;
 using His.Hope.IdentityService.Application;
+using His.Hope.IdentityService.Api.Services;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
@@ -91,7 +93,17 @@ builder.Services.AddCors(options =>
 // SECURITY: Redis-backed refresh token store (replaces in-memory ConcurrentDictionary)
 builder.Services.AddSingleton<RedisRefreshTokenStore>();
 
+// SECURITY: Binds tokens to (user_id, ip_hash, client_id) to prevent cross-IP replay attacks
+builder.Services.AddSingleton<TokenBindingService>();
+
 builder.Services.AddIdentityApplication();
+
+// gRPC services
+builder.Services.AddGrpc(options =>
+{
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+});
+builder.Services.AddGrpcReflection();
 
 // ─── Vault transit signing (development: ephemeral RSA) ───
 builder.Services.AddSingleton<IVaultKeyProvider, VaultKeyService>();
@@ -430,6 +442,14 @@ var audit = app.MapGroup("/api/v1").RequireAuthorization();
 audit.MapAuditLogEndpoints();
 
 app.MapHealthChecks("/health").AllowAnonymous();
+
+// gRPC endpoints
+app.MapGrpcService<His.Hope.IdentityService.Api.Services.GrpcIdentityService>();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapGrpcReflectionService();
+}
 
 // ─── OIDC Discovery: JWKS endpoint ───
 app.MapGet("/.well-known/jwks", async (IVaultKeyProvider vaultKeyProvider, CancellationToken ct) =>
