@@ -21,6 +21,7 @@ using His.Hope.Infrastructure.Security.Authorization;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using StackExchange.Redis;
 
@@ -91,6 +92,54 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton<RedisRefreshTokenStore>();
 
 builder.Services.AddIdentityApplication();
+
+// ─── Vault transit signing (development: ephemeral RSA) ───
+builder.Services.AddSingleton<IVaultKeyProvider, VaultKeyService>();
+builder.Services.AddHealthChecks().AddCheck<VaultHealthCheck>("vault-transit", tags: new[] { "startup" });
+
+// ─── OpenIddict OAuth2/OIDC Authorization Server ───
+var oidcConfig = builder.Configuration.GetSection("OpenIddict");
+
+builder.Services.AddOpenIddict()
+    .AddCore(options =>
+    {
+        options.UseEntityFrameworkCore()
+               .UseDbContext<IdentityDbContext>()
+               .ReplaceDefaultEntities<Guid>();
+    })
+    .AddServer(options =>
+    {
+        options.SetIssuer(new Uri(oidcConfig["Issuer"]!));
+
+        options.SetAuthorizationEndpointUris("/connect/authorize");
+        options.SetTokenEndpointUris("/connect/token");
+        options.SetLogoutEndpointUris("/connect/logout");
+        options.SetIntrospectionEndpointUris("/connect/introspect");
+
+        options.AllowAuthorizationCodeFlow()
+               .AllowRefreshTokenFlow()
+               .RequireProofKeyForCodeExchange();
+
+        options.SetAccessTokenLifetime(TimeSpan.Parse(oidcConfig["AccessTokenLifetime"]!));
+        options.SetRefreshTokenLifetime(TimeSpan.Parse(oidcConfig["RefreshTokenLifetime"]!));
+        options.SetAuthorizationCodeLifetime(TimeSpan.Parse(oidcConfig["AuthorizationCodeLifetime"]!));
+
+        // DEVELOPMENT: Add ephemeral RSA signing key
+        using var rsa = System.Security.Cryptography.RSA.Create(2048);
+        var devKey = new RsaSecurityKey(rsa) { KeyId = "dev-jwt-signing" };
+        options.AddSigningKey(devKey);
+
+        options.UseAspNetCore()
+               .EnableAuthorizationEndpointPassthrough()
+               .EnableTokenEndpointPassthrough()
+               .EnableLogoutEndpointPassthrough()
+               .EnableStatusCodePagesIntegration();
+    })
+    .AddValidation(options =>
+    {
+        options.UseLocalServer();
+        options.UseAspNetCore();
+    });
 
 // PHI Audit Service Configuration (HIPAA 164.312(b))
 var defaultAuditDescriptor = builder.Services.FirstOrDefault(
@@ -381,6 +430,15 @@ var audit = app.MapGroup("/api/v1").RequireAuthorization();
 audit.MapAuditLogEndpoints();
 
 app.MapHealthChecks("/health").AllowAnonymous();
+
+// ─── OIDC Discovery: JWKS endpoint ───
+app.MapGet("/.well-known/jwks", async (IVaultKeyProvider vaultKeyProvider, CancellationToken ct) =>
+{
+    var jwks = await vaultKeyProvider.GetJwksAsync(ct);
+    return Results.Ok(new { keys = jwks });
+})
+.AllowAnonymous();
+
 app.Run();
 
 // ─── BFF Helpers ─────────────────────────────────────────────────────
