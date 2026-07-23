@@ -2,6 +2,8 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using His.Hope.Bff.Core.Authentication;
 using His.Hope.IdentityService.Api.Endpoints;
 using His.Hope.IdentityService.Api.Services;
@@ -123,6 +125,18 @@ builder.Services.AddCors(options =>
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
+    });
+});
+
+// Configure rate limiting specifically for auth endpoints
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("auth", config =>
+    {
+        config.PermitLimit = 30;
+        config.Window = TimeSpan.FromMinutes(1);
+        config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        config.QueueLimit = 0;
     });
 });
 
@@ -308,6 +322,7 @@ auth.MapPost("/login", async (LoginRequest request, IIdentityService identitySer
 })
 .WithDeprecationNotice()
 .WithOpenApi()
+.RequireRateLimiting("auth")
 .AllowAnonymous();
 
 auth.MapPost("/register", async (RegisterRequest request, IIdentityService identityService, CancellationToken ct) =>
@@ -587,6 +602,13 @@ admin.MapPost("/ldap/sync", async (LdapSyncService syncService, CancellationToke
 {
     await syncService.SyncAsync(ct);
     return Results.Ok(new { message = "LDAP sync completed" });
+}).RequireAuthorization("Permission:admin.users.read");
+
+// Key rotation (admin only)
+admin.MapPost("/security/rotate-signing-key", async (VaultKeyService keyService, CancellationToken ct) =>
+{
+    await keyService.RotateKeyAsync(ct);
+    return Results.Ok(new { message = "Signing key rotated successfully" });
 }).RequireAuthorization("Permission:admin.users.read");
 
 var settings = app.MapGroup("/api/v1").RequireAuthorization();
