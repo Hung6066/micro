@@ -1,21 +1,17 @@
-### Task 1: DashboardRoles Constants
+### Task 1: Dark Mode + Mobile Responsive
 
-**Files:** Create `src/Bff/SystemDashboard.Bff/Authorization/DashboardRoles.cs`
+**Files:**
+- Modify `src/app/app.component.ts` — add theme toggle + media query
+- Modify `src/app/app.component.html` — dark mode toggle button in toolbar
+- Modify `src/app/app.component.scss` — responsive sidebar (collapse on mobile)
+- Modify `src/styles/_theme.scss` — dark theme variant
+- Modify `src/index.html` — class-based theme switching
 
-```csharp
-namespace SystemDashboard.Bff.Authorization;
-
-public static class DashboardRoles
-{
-    public const string Admin = "admin";
-    public const string Operator = "operator";
-    public const string Viewer = "viewer";
-    public const string ReadOnly = "admin,operator,viewer";
-    public const string Manage = "admin,operator";
-}
-```
-
-- [ ] Create file, build, commit: `feat(dashboard): add DashboardRoles authorization constants`
+**Implementation:**
+- CSS custom properties for colors (light + dark map)
+- `mat-sidenav` mode changes to `over` on mobile (<768px)
+- Toggle button in toolbar: `brightness_6` icon, persists to localStorage
+- Dark theme: dark backgrounds (#1a1a2e), muted text, reduced brightness on cards
 
 ---
 

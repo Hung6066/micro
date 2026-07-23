@@ -1,11 +1,10 @@
-### Task 5: NuGet Cache PVC + NuGet.config
+### Task 5: Service Dependency Graph
 
-**Files:**
-- Create `cicd/tekton/volumes/nuget-cache-pvc.yaml` — PVC 10Gi ReadWriteMany
-- Modify `cicd/tekton/tasks/dotnet-build.yaml` — change nuget-cache volume from `emptyDir` to `persistentVolumeClaim: claimName: nuget-cache-pvc`
-- Create `NuGet.config` at repo root — nuget.org source
-
-- [ ] Create 2 new + modify 1, commit: `feat(ci): add persistent NuGet cache PVC and NuGet.config`
+**Frontend only (no backend changes — data from existing resource API):**
+- Create `src/app/features/resources/dependency-graph.component.ts` — interactive SVG/Canvas graph
+- Add tab or toggle in resources page to switch between card view and graph view
+- Graph nodes: services (colored by health), databases, infra
+- Graph edges: derived from `databases[]` field on ServiceResource + known dependencies
 
 ---
 

@@ -84,3 +84,7 @@ Dashboard Phase 2 Task 10: complete (review clean)
 
 Dashboard Phase 2 Task 11: complete (review clean)
 
+## OIDC Upgrade Phase 1 (2026-07-23)
+
+BASE: 4a6fc31
+
