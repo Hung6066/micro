@@ -8,10 +8,8 @@ import { OidcSecurityService } from 'angular-auth-oidc-client';
 export class AuthService {
   private readonly oidcSecurityService = inject(OidcSecurityService);
   private readonly router = inject(Router);
-
   private authenticatedSubject = new ReplaySubject<boolean>(1);
   private readonly checkAuthInit$ = new ReplaySubject<void>(1);
-
   readonly isAuthenticated$: Observable<boolean> = this.authenticatedSubject.asObservable();
 
   private static readonly AUTH_CHANNEL = 'hishop_auth';
@@ -42,19 +40,12 @@ export class AuthService {
   }
 
   login(returnUrl?: string): void {
-    if (returnUrl) {
-      localStorage.setItem('auth_return_url', returnUrl);
-    }
+    if (returnUrl) localStorage.setItem('auth_return_url', returnUrl);
     this.oidcLogin();
   }
 
   oidcLogin(): void {
     this.oidcSecurityService.authorize();
-  }
-
-  oidcLogout(): void {
-    this.broadcastLogout();
-    this.oidcSecurityService.logoff().subscribe();
   }
 
   logout(): void {
@@ -72,7 +63,7 @@ export class AuthService {
       map(({ isAuthenticated }) => isAuthenticated),
       tap(isAuthenticated => {
         if (isAuthenticated) {
-          const returnUrl = localStorage.getItem('auth_return_url') ?? '/resources';
+          const returnUrl = localStorage.getItem('auth_return_url') ?? '/clients';
           localStorage.removeItem('auth_return_url');
           this.router.navigateByUrl(returnUrl);
         } else {
