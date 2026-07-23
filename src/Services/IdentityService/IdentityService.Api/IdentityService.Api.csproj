@@ -23,6 +23,6 @@
     <ProjectReference Include="..\IdentityService.Infrastructure\IdentityService.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Protobuf Include="..\..\..\Shared\Protos\identity.proto" GrpcServices="Server" Link="Protos\identity.proto" />
+    <Protobuf Include="..\..\..\Shared\Protos\identity.proto" GrpcServices="Both" Link="Protos\identity.proto" />
   </ItemGroup>
 </Project>
