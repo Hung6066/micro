@@ -112,6 +112,7 @@ builder.Services.AddScoped<IIdentityService, His.Hope.IdentityService.Infrastruc
 builder.Services.AddScoped<TotpService>();
 builder.Services.AddScoped<RecoveryCodeService>();
 builder.Services.AddScoped<IdentityBrokerService>();
+builder.Services.AddScoped<BulkUserImportService>();
 
 // CORS for dashboard app (separate origin)
 builder.Services.AddCors(options =>
@@ -132,6 +133,10 @@ builder.Services.AddSingleton<RedisRefreshTokenStore>();
 builder.Services.AddSingleton<TokenBindingService>();
 
 builder.Services.AddIdentityApplication();
+
+// LDAP Sync service (disabled by default)
+builder.Services.AddScoped<LdapSyncService>();
+builder.Services.AddHostedService<LdapBackgroundService>();
 
 // gRPC services
 builder.Services.AddGrpc(options =>
@@ -553,6 +558,7 @@ admin.MapRoleEndpoints();
 admin.MapSettingsEndpoints();
 admin.MapAuditLogEndpoints();
 admin.MapGroup("/clients").MapClientEndpoints();
+admin.MapBulkImportEndpoints();
 admin.MapGroup("/consents").RequireAuthorization("Permission:admin.users.read").MapGet("/", async (IdentityDbContext db, CancellationToken ct) =>
 {
     var totalConsents = await db.ClientConsents.CountAsync(ct);
@@ -576,11 +582,22 @@ admin.MapGet("/dashboard", async (IdentityDbContext db, CancellationToken ct) =>
     return Results.Ok(new { totalUsers, activeUsers, totalRoles, totalClients, activeConsents });
 }).RequireAuthorization("Permission:admin.users.read");
 
+// Manual LDAP sync trigger
+admin.MapPost("/ldap/sync", async (LdapSyncService syncService, CancellationToken ct) =>
+{
+    await syncService.SyncAsync(ct);
+    return Results.Ok(new { message = "LDAP sync completed" });
+}).RequireAuthorization("Permission:admin.users.read");
+
 var settings = app.MapGroup("/api/v1").RequireAuthorization();
 settings.MapSettingsEndpoints();
 
 var audit = app.MapGroup("/api/v1").RequireAuthorization();
 audit.MapAuditLogEndpoints();
+
+// HR webhook (requires API key - validated via middleware or API key header)
+var webhook = app.MapGroup("/api/v1");
+webhook.MapHrWebhookEndpoints();
 
 app.MapHealthChecks("/health").AllowAnonymous();
 
@@ -599,6 +616,9 @@ app.MapGet("/.well-known/jwks", async (IVaultKeyProvider vaultKeyProvider, Cance
     return Results.Ok(new { keys = jwks });
 })
 .AllowAnonymous();
+
+// ─── SCIM v2 Provisioning API (RFC 7643/7644) ───
+app.MapScimEndpoints();
 
 app.Run();
 
