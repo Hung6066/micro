@@ -21,6 +21,7 @@ using His.Hope.Infrastructure.Locking;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Security.Authorization;
 using MediatR;
+using OpenIddictEntityFrameworkCore = OpenIddict.EntityFrameworkCore.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -107,6 +108,8 @@ builder.Services.AddGrpcReflection();
 
 // ─── Vault transit signing (development: ephemeral RSA) ───
 builder.Services.AddSingleton<IVaultKeyProvider, VaultKeyService>();
+builder.Services.AddSingleton<VaultClientSecretStore>();
+builder.Services.AddSingleton<VaultClientSecretStore>();
 builder.Services.AddHealthChecks().AddCheck<VaultHealthCheck>("vault-transit", tags: new[] { "startup" });
 
 // ─── OpenIddict OAuth2/OIDC Authorization Server ───
@@ -130,6 +133,7 @@ builder.Services.AddOpenIddict()
 
         options.AllowAuthorizationCodeFlow()
                .AllowRefreshTokenFlow()
+               .AllowClientCredentialsFlow()
                .RequireProofKeyForCodeExchange();
 
         options.SetAccessTokenLifetime(TimeSpan.Parse(oidcConfig["AccessTokenLifetime"]!));
@@ -420,6 +424,9 @@ auth.MapMfaEndpoints();
 // SECURITY: Token revocation endpoints
 auth.MapTokenRevocationEndpoints();
 
+// User consent management
+auth.MapGroup("/consents").MapConsentEndpoints();
+
 // User management endpoints
 var secured = app.MapGroup("/api/v1/auth").RequireAuthorization();
 secured.MapUserEndpoints();
@@ -431,12 +438,28 @@ admin.MapUserEndpoints();
 admin.MapRoleEndpoints();
 admin.MapSettingsEndpoints();
 admin.MapAuditLogEndpoints();
+admin.MapGroup("/clients").MapClientEndpoints();
+admin.MapGroup("/consents").RequireAuthorization("Permission:admin.users.read").MapGet("/", async (IdentityDbContext db, CancellationToken ct) =>
+{
+    var totalConsents = await db.ClientConsents.CountAsync(ct);
+    var activeConsents = await db.ClientConsents.CountAsync(c => c.IsActive, ct);
+    var consents = await db.ClientConsents
+        .Where(c => c.IsActive)
+        .OrderByDescending(c => c.GrantedAt)
+        .Take(20)
+        .Select(c => new { c.Id, c.UserId, c.ClientId, Scopes = c.Scopes, c.GrantedAt, c.ExpiresAt })
+        .ToListAsync(ct);
+    return Results.Ok(new { totalConsents, activeConsents, recentConsents = consents });
+});
+
 admin.MapGet("/dashboard", async (IdentityDbContext db, CancellationToken ct) =>
 {
     var totalUsers = await db.Users.CountAsync(ct);
     var activeUsers = await db.Users.CountAsync(u => u.IsActive, ct);
     var totalRoles = await db.Roles.CountAsync(ct);
-    return Results.Ok(new { totalUsers, activeUsers, totalRoles });
+    var totalClients = await db.Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication>().CountAsync(ct);
+    var activeConsents = await db.ClientConsents.CountAsync(c => c.IsActive, ct);
+    return Results.Ok(new { totalUsers, activeUsers, totalRoles, totalClients, activeConsents });
 }).RequireAuthorization("Permission:admin.users.read");
 
 var settings = app.MapGroup("/api/v1").RequireAuthorization();
