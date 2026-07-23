@@ -68,6 +68,7 @@ builder.Services.AddSingleton<ICacheService, NoOpCacheService>();
 // IdentityService user-management requests do not use distributed locks, so keep
 // MediatR off Redis here to avoid an unnecessary IConnectionMultiplexer dependency.
 builder.Services.AddSingleton<ILockManager, NoOpLockManager>();
+builder.Services.AddSingleton<IUserSessionTracker, UserSessionTracker>();
 
 builder.Services.AddIdentityCore<User>(options =>
 {
