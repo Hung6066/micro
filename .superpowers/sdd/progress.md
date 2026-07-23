@@ -88,3 +88,24 @@ Dashboard Phase 2 Task 11: complete (review clean)
 
 BASE: 4a6fc31
 
+
+## OIDC Upgrade Phase 1 (2026-07-23)
+
+BASE: 4a6fc31
+Task 1: complete (commit 114fe55, packages)
+Task 2: complete (commit 984ae50, VaultKeyProvider)
+Task 3: complete (commit f8d8817, DB migration)
+Task 4: complete (commit 2628511 + 0ae86d2 + d8240f8, stores)
+Task 5: complete (commit 273c589, handlers)
+Tasks 6-7: complete (commit f4f024a, Program.cs + discovery)
+Task 8: complete (commit f91f3d6, identity.proto)
+Task 9: complete (commit with gRPC service)
+Task 10: complete (commit cf2e38f, gRPC client + token binding)
+Task 11: complete (commit ffffce0, remove hardcoded keys)
+Task 12: complete (GrpcPermissionHandler)
+Task 13: complete (BFF OIDC migration)
+Tasks 14-16: complete (commit b32cd47, integration tests)
+Tasks 17-18: complete (commit e245ea9, docs + deprecation)
+Task 19: complete (commit fb6faf9, K8s deployment)
+Task 20: complete (quality gate - 0 errors)
+

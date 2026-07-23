@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -22,6 +23,7 @@ using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Security.Authorization;
 using MediatR;
 using OpenIddictEntityFrameworkCore = OpenIddict.EntityFrameworkCore.Models;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -64,10 +66,41 @@ builder.Services.AddIdentityCore<User>(options =>
 })
 .AddRoles<His.Hope.IdentityService.Domain.Entities.Role>()
 .AddEntityFrameworkStores<IdentityDbContext>()
-.AddDefaultTokenProviders();
+    .AddDefaultTokenProviders();
+
+builder.Services.AddScoped<SignInManager<User>>();
 
 // SECURITY: JWT authentication with RSA public key validation
 builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
+
+// ─── External Identity Providers (Federation) ───
+var googleClientId = builder.Configuration["Authentication:Google:ClientId"];
+var googleClientSecret = builder.Configuration["Authentication:Google:ClientSecret"];
+if (!string.IsNullOrEmpty(googleClientId) && !string.IsNullOrEmpty(googleClientSecret))
+{
+    builder.Services.AddAuthentication()
+        .AddGoogle(options =>
+        {
+            options.ClientId = googleClientId;
+            options.ClientSecret = googleClientSecret;
+            options.SaveTokens = true;
+            options.SignInScheme = IdentityConstants.ExternalScheme;
+        });
+}
+
+var msClientId = builder.Configuration["Authentication:Microsoft:ClientId"];
+var msClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"];
+if (!string.IsNullOrEmpty(msClientId) && !string.IsNullOrEmpty(msClientSecret))
+{
+    builder.Services.AddAuthentication()
+        .AddMicrosoftAccount(options =>
+        {
+            options.ClientId = msClientId;
+            options.ClientSecret = msClientSecret;
+            options.SaveTokens = true;
+            options.SignInScheme = IdentityConstants.ExternalScheme;
+        });
+}
 
 // SECURITY: Token blacklist service for JWT revocation
 builder.Services.AddHisHopeTokenBlacklist();
@@ -78,6 +111,7 @@ builder.Services.AddScoped<JwtTokenGenerator>();
 builder.Services.AddScoped<IIdentityService, His.Hope.IdentityService.Infrastructure.Services.IdentityService>();
 builder.Services.AddScoped<TotpService>();
 builder.Services.AddScoped<RecoveryCodeService>();
+builder.Services.AddScoped<IdentityBrokerService>();
 
 // CORS for dashboard app (separate origin)
 builder.Services.AddCors(options =>
@@ -418,8 +452,88 @@ auth.MapPost("/check-permission", (PermissionCheckRequest request, HttpContext h
 .RequireAuthorization()
 .WithOpenApi();
 
+// External login challenge endpoint
+auth.MapGet("/external-login/{provider}", (string provider, HttpContext httpContext) =>
+{
+    var redirectUrl = $"/api/v1/auth/external-callback/{provider}";
+    var properties = new AuthenticationProperties { RedirectUri = redirectUrl };
+    properties.Items["LoginProvider"] = provider;
+    return Results.Challenge(properties, new[] { provider });
+})
+.AllowAnonymous();
+
+// External login callback (OIDC redirect handler)
+auth.MapGet("/external-callback/{provider}", async (
+    string provider, HttpContext httpContext,
+    SignInManager<User> signInManager, UserManager<User> userManager, CancellationToken ct) =>
+{
+    var result = await httpContext.AuthenticateAsync(IdentityConstants.ExternalScheme);
+    if (!result.Succeeded)
+        return Results.Redirect("/login?error=external_failed");
+
+    var externalPrincipal = result.Principal;
+    var email = externalPrincipal.FindFirstValue(ClaimTypes.Email);
+    var name = externalPrincipal.FindFirstValue(ClaimTypes.Name);
+    var providerKey = externalPrincipal.FindFirstValue(ClaimTypes.NameIdentifier);
+
+    if (string.IsNullOrEmpty(email))
+        return Results.Redirect("/login?error=no_email");
+
+    var user = await userManager.FindByEmailAsync(email);
+
+    if (user is null)
+    {
+        user = new User
+        {
+            UserName = email,
+            Email = email,
+            FirstName = name?.Split(' ').FirstOrDefault() ?? email,
+            LastName = name?.Split(' ').Skip(1).LastOrDefault() ?? "",
+            IsActive = true,
+            EmailConfirmed = true,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var createResult = await userManager.CreateAsync(user);
+        if (!createResult.Succeeded)
+            return Results.Redirect("/login?error=registration_failed");
+
+        await userManager.AddToRoleAsync(user, "Provider");
+    }
+
+    var existingLogins = await userManager.GetLoginsAsync(user);
+    if (!existingLogins.Any(l => l.LoginProvider == provider && l.ProviderKey == providerKey))
+    {
+        await userManager.AddLoginAsync(user, new UserLoginInfo(provider, providerKey!, provider));
+    }
+
+    await signInManager.SignInAsync(user, isPersistent: false);
+
+    var returnUrl = httpContext.Request.Query["returnUrl"].FirstOrDefault() ?? "/";
+    return Results.Redirect(returnUrl);
+})
+.AllowAnonymous();
+
+// List available external login providers
+auth.MapGet("/external-providers", (IConfiguration config) =>
+{
+    var providers = new List<object>();
+
+    if (!string.IsNullOrEmpty(config["Authentication:Google:ClientId"]))
+        providers.Add(new { provider = "Google", displayName = "Google", icon = "google" });
+
+    if (!string.IsNullOrEmpty(config["Authentication:Microsoft:ClientId"]))
+        providers.Add(new { provider = "Microsoft", displayName = "Microsoft", icon = "microsoft" });
+
+    return Results.Ok(new { providers });
+})
+.AllowAnonymous();
+
 // MFA endpoints
 auth.MapMfaEndpoints();
+
+// Account linking endpoints
+auth.MapGroup("/account").MapAccountLinkingEndpoints();
 
 // SECURITY: Token revocation endpoints
 auth.MapTokenRevocationEndpoints();
