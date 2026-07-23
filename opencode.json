@@ -132,6 +132,11 @@
       "model": "opencode-go/deepseek-v4-flash",
       "permission": "allow"
     },
+    "general": {
+      "description": "General-purpose agent for researching complex questions, executing multi-step tasks, and performing autonomous work across all domains. Delegates to specialists (@dotnet, @angular, @devops, etc.) when tasks cross into deep expertise. Use for multi-domain work, parallel task execution, or when no single specialist fits.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow"
+    },
     "explore": {
       "description": "Fast agent specialized for exploring codebases — find files by patterns, search code for keywords, answer questions about the codebase. Uses MCP: filesystem for file navigation and content search, code-review-graph for graph-based code intelligence.",
       "model": "opencode-go/deepseek-v4-flash",

@@ -1,0 +1,14 @@
+k3s_cluster:
+  hosts:
+    k3s-master:
+      ansible_host: 192.168.1.10
+      ansible_user: ubuntu
+      k3s_role: master
+    k3s-worker-1:
+      ansible_host: 192.168.1.11
+      ansible_user: ubuntu
+      k3s_role: worker
+    k3s-worker-2:
+      ansible_host: 192.168.1.12
+      ansible_user: ubuntu
+      k3s_role: worker

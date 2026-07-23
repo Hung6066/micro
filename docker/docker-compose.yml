@@ -144,14 +144,35 @@ services:
       - "9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./rules:/etc/prometheus/rules
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: his-hope-alertmanager
+    ports:
+      - "9093:9093"
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -449,6 +470,7 @@ services:
       - Elasticsearch__Url=http://elasticsearch:9200
       - Jaeger__QueryUrl=http://jaeger:16686
       - Prometheus__Url=http://prometheus:9090
+      - AlertManager__Url=http://alertmanager:9093
       - Jwt__Key=${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
       - Jwt__Issuer=his-hope-identity
     depends_on:
@@ -456,6 +478,8 @@ services:
       - elasticsearch
       - jaeger
       - prometheus
+      - alertmanager
+    restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 

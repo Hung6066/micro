@@ -67,15 +67,24 @@ public sealed class PrometheusQueryService : IPrometheusQueryService
     public async Task<List<PrometheusSample>> QuerySamplesAsync(
         string query, CancellationToken ct = default)
     {
+        var requestUri = $"/api/v1/query?query={Uri.EscapeDataString(query)}";
+        _logger.LogInformation("QuerySamples URI: {Uri}", requestUri);
+
         try
         {
-            var requestUri = $"/api/v1/query?query={Uri.EscapeDataString(query)}";
             var response = await _httpClient.GetAsync(requestUri, ct);
+            _logger.LogInformation("QuerySamples response status: {Status}", response.StatusCode);
             response.EnsureSuccessStatusCode();
 
-            var promResponse = await response.Content.ReadFromJsonAsync<PromInstantResponse>(ct);
+            var body = await response.Content.ReadAsStringAsync(ct);
+            _logger.LogInformation("QuerySamples body (first 200): {Body}", body[..Math.Min(body.Length, 200)]);
+
+            var promResponse = JsonSerializer.Deserialize<PromInstantResponse>(body, _jsonOptions);
             if (promResponse?.Data?.Result is null || promResponse.Data.Result.Length == 0)
+            {
+                _logger.LogInformation("QuerySamples no results for: {Query}", query);
                 return [];
+            }
 
             var samples = new List<PrometheusSample>(promResponse.Data.Result.Length);
             foreach (var result in promResponse.Data.Result)
@@ -89,6 +98,9 @@ public sealed class PrometheusQueryService : IPrometheusQueryService
                 if (!double.TryParse(valElement.GetString(), NumberStyles.Any,
                         CultureInfo.InvariantCulture, out var parsed))
                     continue;
+
+                _logger.LogInformation("QuerySamples parsed: metric={Metric}, val={Val}",
+                    string.Join(",", (result.Metric ?? []).Select(kv => $"{kv.Key}={kv.Value}")), parsed);
 
                 samples.Add(new PrometheusSample
                 {
@@ -106,6 +118,12 @@ public sealed class PrometheusQueryService : IPrometheusQueryService
             return [];
         }
     }
+
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+    };
 
     public async Task<MetricDataPoint?> QueryAsync(
         string query, CancellationToken ct = default)

@@ -396,6 +396,7 @@ public sealed class ActionExecutionResult
     public string? Error { get; set; }
     public ResourceState? BeforeState { get; set; }
     public ResourceState? AfterState { get; set; }
+    public List<string>? NotificationsSent { get; set; }
 }
 
 /// <summary>
@@ -571,13 +572,14 @@ internal sealed class CooldownManager
 
 internal sealed class RemediationEngine
 {
-    private readonly ILogger _logger;
+    private readonly Serilog.ILogger _logger;
     private readonly IKubernetes _k8s;
     private readonly CooldownManager _cooldownManager;
     private readonly SemaphoreSlim _globalThrottle;
     private readonly bool _dryRun;
+    private static readonly HttpClient _httpClient = new();
 
-    public RemediationEngine(ILogger logger, IKubernetes k8s, CooldownManager cooldownManager, int maxConcurrent, bool dryRun)
+    public RemediationEngine(Serilog.ILogger logger, IKubernetes k8s, CooldownManager cooldownManager, int maxConcurrent, bool dryRun)
     {
         _logger = logger;
         _k8s = k8s;
@@ -1095,25 +1097,180 @@ internal sealed class RemediationEngine
     }
 
     /// <summary>
-    /// Execute a notify action: log notification (pluggable to Slack/PagerDuty/etc).
+    /// Execute a notify action: send Slack, PagerDuty, and OpsGenie notifications via webhook.
     /// </summary>
-    private Task<ActionExecutionResult> ExecuteNotifyActionAsync(
+    private async Task<ActionExecutionResult> ExecuteNotifyActionAsync(
         RemediationPolicy policy, RemediationActionSpec action, AlertmanagerAlert alert, CancellationToken ct)
     {
         var channel = action.Params?.Channel ?? "default";
-        var message = action.Params?.Message ?? $"Remediation triggered for alert: {alert.Labels?.GetValueOrDefault("alertname", "unknown")}";
+        var alertName = alert.Labels is not null && alert.Labels.TryGetValue("alertname", out var an) ? an : "unknown";
+        var service = action.Target;
+        var severity = policy.Severity switch
+        {
+            SeverityLevel.P0 => "critical",
+            SeverityLevel.P1 => "error",
+            SeverityLevel.P2 => "warning",
+            SeverityLevel.P3 => "info",
+            _ => "info"
+        };
+        var message = action.Params?.Message ?? $"Remediation triggered for alert: {alertName}";
+        var description = message;
+        if (alert.Annotations is not null)
+        {
+            alert.Annotations.TryGetValue("description", out var desc);
+            alert.Annotations.TryGetValue("summary", out var summary);
+            description = desc ?? summary ?? message;
+        }
 
         _logger.Information(
-            "NOTIFY channel={Channel} target={Target} message={Message}",
-            channel, action.Target, message);
+            "NOTIFY channel={Channel} target={Target} alert={Alert} severity={Severity} message={Message}",
+            channel, service, alertName, severity, message);
 
-        // In production, this would call Slack/PagerDuty/OpsGenie webhook APIs.
-        // For now, we log and record as success.
+        var slackWebhook = Environment.GetEnvironmentVariable("SLACK_WEBHOOK_URL");
+        var pagerdutyKey = Environment.GetEnvironmentVariable("PAGERDUTY_ROUTING_KEY")
+                           ?? Environment.GetEnvironmentVariable("PAGERDUTY_INTEGRATION_KEY");
+        var opsgenieKey = Environment.GetEnvironmentVariable("OPSGENIE_API_KEY");
 
-        return Task.FromResult(new ActionExecutionResult
+        var notificationsSent = new List<string>();
+
+        // Slack
+        if (!string.IsNullOrEmpty(slackWebhook))
         {
-            Status = ActionResultStatus.Success
-        });
+            try
+            {
+                var slackPayload = new
+                {
+                    text = "",
+                    blocks = new object[]
+                    {
+                        new
+                        {
+                            type = "header",
+                            text = new { type = "plain_text", text = ":warning: Auto-Remediation Triggered" }
+                        },
+                        new
+                        {
+                            type = "section",
+                            fields = new object[]
+                            {
+                                new { type = "mrkdwn", text = $"*Alert:* {alertName}" },
+                                new { type = "mrkdwn", text = $"*Service:* {service}" },
+                                new { type = "mrkdwn", text = $"*Action:* {action.Type}" },
+                                new { type = "mrkdwn", text = $"*Severity:* {policy.Severity}" }
+                            }
+                        },
+                        new
+                        {
+                            type = "section",
+                            text = new { type = "mrkdwn", text = description }
+                        }
+                    }
+                };
+
+                var json = JsonSerializer.Serialize(slackPayload);
+                using var slackContent = new StringContent(json, Encoding.UTF8, "application/json");
+                var slackResponse = await _httpClient.PostAsync(slackWebhook, slackContent, ct);
+                slackResponse.EnsureSuccessStatusCode();
+                notificationsSent.Add("slack");
+                _logger.Information("Slack notification sent for alert {AlertName}", alertName);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to send Slack notification for alert {AlertName}", alertName);
+            }
+        }
+        else
+        {
+            _logger.Information("SLACK_WEBHOOK_URL not configured, skipping Slack notification");
+        }
+
+        // PagerDuty
+        if (!string.IsNullOrEmpty(pagerdutyKey))
+        {
+            try
+            {
+                var pdPayload = new
+                {
+                    routing_key = pagerdutyKey,
+                    event_action = "trigger",
+                    payload = new
+                    {
+                        summary = message,
+                        source = "remediation-operator",
+                        severity,
+                        component = service,
+                        group = alertName,
+                        @class = "auto-remediation"
+                    }
+                };
+
+                var json = JsonSerializer.Serialize(pdPayload);
+                using var pdContent = new StringContent(json, Encoding.UTF8, "application/json");
+                var pdResponse = await _httpClient.PostAsync("https://events.pagerduty.com/v2/enqueue", pdContent, ct);
+                pdResponse.EnsureSuccessStatusCode();
+                notificationsSent.Add("pagerduty");
+                _logger.Information("PagerDuty notification sent for alert {AlertName}", alertName);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to send PagerDuty notification for alert {AlertName}", alertName);
+            }
+        }
+        else
+        {
+            _logger.Information("PAGERDUTY_ROUTING_KEY not configured, skipping PagerDuty notification");
+        }
+
+        // OpsGenie (optional)
+        if (!string.IsNullOrEmpty(opsgenieKey))
+        {
+            try
+            {
+                var ogPayload = new
+                {
+                    message,
+                    alias = $"remediation-{alertName}-{DateTime.UtcNow:O}",
+                    description,
+                    priority = policy.Severity switch
+                    {
+                        SeverityLevel.P0 => "P1",
+                        SeverityLevel.P1 => "P2",
+                        SeverityLevel.P2 => "P3",
+                        SeverityLevel.P3 => "P4",
+                        _ => "P4"
+                    },
+                    source = "remediation-operator",
+                    details = new Dictionary<string, string>
+                    {
+                        ["alert"] = alertName,
+                        ["service"] = service,
+                        ["action"] = action.Type.ToString()
+                    }
+                };
+
+                var json = JsonSerializer.Serialize(ogPayload);
+                using var ogContent = new StringContent(json, Encoding.UTF8, "application/json");
+                var ogResponse = await _httpClient.PostAsync(
+                    $"https://api.opsgenie.com/v2/alerts", ogContent, ct);
+                ogResponse.EnsureSuccessStatusCode();
+                notificationsSent.Add("opsgenie");
+                _logger.Information("OpsGenie notification sent for alert {AlertName}", alertName);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to send OpsGenie notification for alert {AlertName}", alertName);
+            }
+        }
+        else
+        {
+            _logger.Information("OPSGENIE_API_KEY not configured, skipping OpsGenie notification");
+        }
+
+        return new ActionExecutionResult
+        {
+            Status = ActionResultStatus.Success,
+            NotificationsSent = notificationsSent.Count > 0 ? notificationsSent : null
+        };
     }
 
     /// <summary>

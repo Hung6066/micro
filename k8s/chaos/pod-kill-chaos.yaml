@@ -1,0 +1,53 @@
+# Pod Kill experiments — scheduled monthly full-chaos game day
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: pod-kill-game-day
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    chaos-mesh/experiment-type: pod-kill
+    chaos-mesh/schedule: game-day
+  annotations:
+    description: "Game Day: kills 50% of pods across all His.Hope services every Sunday at 2 AM. Recurs every 15 minutes during the 5-minute window for sustained chaos."
+    maintainer: "his-hope-sre@hishop.com"
+    game-day-scope: "monthly-full-chaos"
+    recovery-plan: "Kubernetes will reschedule killed pods; monitor recovery time, service availability, and gRPC circuit breaker activation"
+spec:
+  schedule: "0 2 * * 0"  # Every Sunday at 2 AM
+  historyLimit: 5
+  type: PodChaos
+  podChaos:
+    action: pod-kill
+    mode: fixed-percent
+    value: "50"
+    selector:
+      namespaces: [his-hope]
+      labelSelectors:
+        "app.kubernetes.io/part-of": "his-hope"
+    duration: "5m"
+    scheduler:
+      cron: "@every 15m"
+---
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: kill-identity-service-test
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    chaos-mesh/experiment-type: pod-kill
+    chaos-mesh/schedule: test
+  annotations:
+    description: "Ad-hoc test: kills a specific identity-service pod to verify StatefulSet recovery, session migration, and gRPC load balancer reconnection"
+    maintainer: "his-hope-sre@hishop.com"
+    game-day-scope: "manual-test"
+    recovery-plan: "identity-service-0 is a StatefulSet pod; verify it restarts with stable network identity and reconnects to CockroachDB and Redis"
+spec:
+  action: pod-kill
+  mode: one
+  selector:
+    namespaces: [his-hope]
+    pods:
+      his-hope: ["identity-service-0"]
+  duration: "30s"

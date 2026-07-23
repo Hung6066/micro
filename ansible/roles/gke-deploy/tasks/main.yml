@@ -1,0 +1,148 @@
+---
+# Role: gke-deploy — GKE Production deployment
+# Tags: gke, prod
+
+# ─── Phase 1: Cluster ───
+
+- name: Check if GKE cluster exists
+  ansible.builtin.shell: |
+    gcloud container clusters describe {{ gke_cluster_name }} --region {{ gcp_region }} --project {{ gcp_project }} 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
+  register: gke_exists
+  changed_when: false
+
+- name: Create GKE cluster
+  ansible.builtin.shell: |
+    gcloud container clusters create {{ gke_cluster_name }} \
+      --project {{ gcp_project }} \
+      --region {{ gcp_region }} \
+      --num-nodes {{ gke_num_nodes }} \
+      --machine-type {{ gke_machine_type }} \
+      --enable-autoscaling \
+      --min-nodes {{ gke_min_nodes }} \
+      --max-nodes {{ gke_max_nodes }} \
+      --enable-ip-alias \
+      --enable-network-policy \
+      --workload-pool={{ gcp_project }}.svc.id.goog \
+      --enable-master-authorized-networks \
+      --enable-private-nodes \
+      --master-authorized-networks 0.0.0.0/0 \
+      --labels environment=production,team=sre
+  when: "'NOT_FOUND' in gke_exists.stdout"
+  register: gke_create
+
+- name: Get GKE credentials
+  ansible.builtin.shell: |
+    gcloud container clusters get-credentials {{ gke_cluster_name }} \
+      --region {{ gcp_region }} \
+      --project {{ gcp_project }}
+  changed_when: false
+
+# ─── Phase 2: Operators ───
+
+- name: Install cert-manager
+  ansible.builtin.shell: |
+    helm repo add jetstack https://charts.jetstack.io 2>/dev/null || true
+    helm repo update
+    helm upgrade --install cert-manager jetstack/cert-manager \
+      -n cert-manager --create-namespace \
+      --set installCRDs=true \
+      --wait --timeout 300s
+
+- name: Install Linkerd with mTLS
+  ansible.builtin.shell: |
+    curl -sL https://run.linkerd.io/install | sh
+    export PATH=$PATH:$HOME/.linkerd2/bin
+    linkerd install --crds | kubectl apply -f -
+    linkerd install --ha | kubectl apply -f -
+    kubectl wait --for=condition=ready pod -l linkerd.io/control-plane-ns=linkerd -n linkerd --timeout=300s
+
+- name: Install Prometheus Operator
+  ansible.builtin.shell: |
+    helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
+      -n monitoring --create-namespace \
+      --set prometheus.prometheusSpec.retention=30d \
+      --set prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage=50Gi \
+      --set alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage=10Gi \
+      --set grafana.adminPassword="{{ vault_grafana_password | default('admin') }}" \
+      --wait --timeout 600s
+
+- name: Install Chaos Mesh (optional)
+  ansible.builtin.shell: |
+    helm repo add chaos-mesh https://charts.chaos-mesh.org 2>/dev/null || true
+    helm upgrade --install chaos-mesh chaos-mesh/chaos-mesh \
+      -n chaos-engineering --create-namespace \
+      --set chaosDaemon.runtime=containerd \
+      --set chaosDaemon.socketPath=/run/containerd/containerd.sock
+  when: enable_chaos | default(false)
+
+# ─── Phase 3: Deploy His.Hope ───
+
+- name: Clone repository
+  git:
+    repo: "{{ repo_url }}"
+    dest: "{{ repo_dest }}"
+    branch: "{{ repo_branch }}"
+    update: yes
+
+- name: Backup database before deploy
+  ansible.builtin.shell: |
+    kubectl exec -n his-hope cockroachdb-0 -- \
+      cockroach sql --execute="BACKUP DATABASE {{ cockroach_db_name }} INTO '{{ cockroach_backup_bucket }}/pre-deploy-{{ ansible_date_time.epoch }}'" 2>/dev/null || echo "Backup skipped (DB may not exist yet)"
+  ignore_errors: yes
+  changed_when: false
+
+- name: Deploy with Kustomize (production overlay)
+  ansible.builtin.shell: |
+    cd {{ repo_dest }}
+    kubectl create namespace his-hope --dry-run=client -o yaml | kubectl apply -f -
+    kubectl apply -k k8s/overlays/prod/
+  register: deploy_result
+
+- name: Wait for all pods ready
+  ansible.builtin.shell: |
+    timeout 600 kubectl wait --for=condition=ready pod \
+      -l app.kubernetes.io/part-of=his-hope \
+      -n his-hope \
+      --timeout=600s
+
+- name: Apply KEDA auto-scalers
+  ansible.builtin.shell: |
+    cd {{ repo_dest }}
+    kubectl apply -f k8s/autoscaling/
+
+- name: Apply network policies
+  ansible.builtin.shell: |
+    cd {{ repo_dest }}
+    kubectl apply -f k8s/base/network-policies.yaml
+
+# ─── Phase 4: Get Load Balancer IP ───
+
+- name: Wait for Load Balancer
+  ansible.builtin.shell: |
+    until kubectl get svc apigateway -n his-hope -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null | grep -q .; do
+      sleep 10
+    done
+    kubectl get svc apigateway -n his-hope -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+  register: lb_ip
+  changed_when: false
+
+# ─── Phase 5: Verify ───
+
+- name: Smoke test endpoints
+  ansible.builtin.uri:
+    url: "http://{{ lb_ip.stdout }}:5000/health"
+    return_content: yes
+  register: smoke
+  retries: 30
+  delay: 10
+  until: smoke.status == 200
+
+- name: Display deployment summary
+  ansible.builtin.debug:
+    msg:
+      - "✅ GKE Production deployment complete"
+      - "🌐 API Gateway: http://{{ lb_ip.stdout }}:5000"
+      - "📊 Grafana: kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80"
+      - "📋 Dashboard: kubectl port-forward -n his-hope svc/dashboard-app 8082:80"
+      - "🔄 Next: run canary deploy for service updates"
+      - "🔄 Rollback: ansible-playbook site.yml -t rollback --extra-vars service=<name>"

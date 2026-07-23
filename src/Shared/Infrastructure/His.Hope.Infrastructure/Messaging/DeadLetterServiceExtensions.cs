@@ -25,12 +25,17 @@ public static class DeadLetterServiceExtensions
         var password = configuration.GetValue("EventBus:Password", "admin")!;
         var virtualHost = configuration.GetValue("EventBus:VirtualHost", "/")!;
 
+        var autoReprocessEnabled = configuration.GetValue("DeadLetter:AutoReprocess:Enabled", false);
+        var maxRetryCount = configuration.GetValue("DeadLetter:AutoReprocess:MaxRetryCount", 3);
+        var delayMinutes = configuration.GetValue("DeadLetter:AutoReprocess:DelayMinutes", 5);
+
         services.AddHostedService<DeadLetterConsumer<TDbContext>>(sp =>
         {
             var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
             var logger = sp.GetRequiredService<ILogger<DeadLetterConsumer<TDbContext>>>();
             return new DeadLetterConsumer<TDbContext>(
-                scopeFactory, logger, hostName, port, userName, password, virtualHost);
+                scopeFactory, logger, hostName, port, userName, password, virtualHost,
+                autoReprocessEnabled, maxRetryCount, delayMinutes);
         });
 
         return services;

@@ -1,8 +1,14 @@
-### Task 4: Re-enable PatientService Rate Limiting
+### Task 4: Alert Notification Panel
 
-**Files:** Modify `src/Services/PatientService/PatientService.Api/Program.cs` — uncomment `app.UseRateLimiting();` (remove the TEMP DISABLED line)
+**Backend:**
+- Create `src/Bff/SystemDashboard.Bff/Controllers/AlertsController.cs` — GET `/api/alerts` queries Prometheus AlertManager API
+- Create `src/Bff/SystemDashboard.Bff/Hubs/AlertHub.cs` — pushes new/cleared alerts
 
-- [ ] Uncomment line, commit: `fix(patient): re-enable rate limiting middleware`
+**Frontend:**
+- Create `src/app/core/services/alert.service.ts` — polls `/api/alerts` every 15s or subscribes via SignalR
+- Create `src/app/shared/alert-panel/alert-panel.component.ts` — dropdown panel with list of active alerts
+- Create `src/app/shared/alert-toast/alert-toast.service.ts` — toast notifications for new alerts
+- Modify `app.component.html` — add bell icon with badge count in toolbar
 
 ---
 

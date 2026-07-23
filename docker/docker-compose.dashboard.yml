@@ -1,0 +1,56 @@
+services:
+  systemdashboard-bff:
+    image: his-hope-dashboard-bff:test
+    ports:
+      - "5700:5700"
+    environment:
+      - ASPNETCORE_URLS=http://+:5700
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Consul__Address=http://consul:8500
+      - Prometheus__Url=http://prometheus:9090
+      - Elasticsearch__Url=http://elasticsearch:9200
+      - Jaeger__QueryUrl=http://jaeger:16686
+      - Jwt__Key=SuperSecretKeyForDevEnvironmentOnly1234567890
+      - DOTNET_RUNNING_IN_CONTAINER=true
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5700/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      consul:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
+
+  dashboard-app:
+    image: his-hope-dashboard-app:test
+    ports:
+      - "5702:80"
+    environment:
+      - API_URL=http://localhost:5700
+    depends_on:
+      - systemdashboard-bff
+
+  consul:
+    image: hashicorp/consul:1.18
+    ports:
+      - "8500:8500"
+    command: agent -dev -client=0.0.0.0
+    healthcheck:
+      test: ["CMD", "consul", "info"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'

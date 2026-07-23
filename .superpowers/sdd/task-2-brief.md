@@ -1,16 +1,13 @@
-### Task 2: Apply RBAC to 5 Controllers + 1 Hub
+### Task 2: Real-time Metrics via SignalR
 
-**Files:** Modify 6 files — add `using SystemDashboard.Bff.Authorization;` and replace `[Authorize]` with `[Authorize(Roles = DashboardRoles.ReadOnly)]` or `[Authorize(Roles = DashboardRoles.Manage)]` per the spec.
+**Backend:**
+- Create `src/Bff/SystemDashboard.Bff/Hubs/MetricsHub.cs` — pushes MetricSnapshot on interval
+- Register in `Program.cs`: `app.MapHub<MetricsHub>("/ws/metricshub").RequireAuthorization();`
 
-Controllers to modify:
-- `Controllers/ResourcesController.cs` — GET: ReadOnly, POST (lifecycle): Manage
-- `Controllers/MetricsController.cs` — ReadOnly
-- `Controllers/LogsController.cs` — ReadOnly
-- `Controllers/TracesController.cs` — ReadOnly
-- `Controllers/EnvironmentController.cs` — ReadOnly
-- `Hubs/LogStreamHub.cs` — ReadOnly
-
-- [ ] Modify all 6 files, build, commit: `feat(dashboard): apply role-based authorization to dashboard endpoints`
+**Frontend:**
+- Create `src/app/core/services/metrics-stream.service.ts` — SignalR connection to `/ws/metricshub`
+- Modify `src/app/features/metrics/metrics-page.component.ts` — subscribe to real-time updates
+- Modify `src/app/features/resources/resources-page.component.ts` — live CPU/memory badges
 
 ---
 
