@@ -1,4 +1,5 @@
 using His.Hope.IdentityService.Domain.Entities;
+using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.SharedKernel.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -326,6 +327,44 @@ public static class IdentityDbInitializer
                 }
             }, ct);
             logger.LogInformation("OIDC application '{ClientId}' created.", spaClientId);
+        }
+
+        // Seed M2M confidential clients for service-to-service auth
+        var m2mClients = new[]
+        {
+            new { ClientId = "patient-service", DisplayName = "Patient Service (M2M)", Scopes = "hishop:patients hishop:appointments" },
+            new { ClientId = "lab-service", DisplayName = "Lab Service (M2M)", Scopes = "hishop:lab hishop:patients" },
+            new { ClientId = "pharmacy-service", DisplayName = "Pharmacy Service (M2M)", Scopes = "hishop:pharmacy hishop:patients" },
+            new { ClientId = "billing-service", DisplayName = "Billing Service (M2M)", Scopes = "hishop:billing hishop:patients" },
+            new { ClientId = "clinical-service", DisplayName = "Clinical Service (M2M)", Scopes = "hishop:clinical hishop:patients" },
+            new { ClientId = "appointment-service", DisplayName = "Appointment Service (M2M)", Scopes = "hishop:appointments hishop:patients" },
+        };
+
+        var vaultStore = scope.ServiceProvider.GetRequiredService<VaultClientSecretStore>();
+
+        foreach (var m2m in m2mClients)
+        {
+            if (await appManager.FindByClientIdAsync(m2m.ClientId, ct) is null)
+            {
+                var secret = vaultStore.GenerateSecret(m2m.ClientId);
+                await vaultStore.StoreSecretAsync(m2m.ClientId, secret, ct);
+
+                await appManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+                {
+                    ClientId = m2m.ClientId,
+                    ClientSecret = secret,
+                    ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Confidential,
+                    DisplayName = m2m.DisplayName,
+                    Permissions =
+                    {
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Token,
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Introspection,
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
+                    }
+                }, ct);
+
+                logger.LogInformation("M2M client '{ClientId}' created with scopes: {Scopes}", m2m.ClientId, m2m.Scopes);
+            }
         }
 
         // ──────────────────────────────────────────────
