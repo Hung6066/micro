@@ -103,6 +103,11 @@ public static class OidcSetup
                         sessionJson,
                         TimeSpan.FromHours(1));
 
+                    // Track this session in the user's session set for cross-port logout
+                    var userSessionsKey = $"HisHope:user_sessions:{subjectId}";
+                    await db.SetAddAsync(userSessionsKey, sessionId);
+                    await db.KeyExpireAsync(userSessionsKey, TimeSpan.FromDays(7));
+
                     ctx.Response.Cookies.Append(SessionCookieName, sessionId, new CookieOptions
                     {
                         HttpOnly = sessionOptions.HttpOnly,
