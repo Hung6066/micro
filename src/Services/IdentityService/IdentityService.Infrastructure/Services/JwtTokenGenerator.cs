@@ -22,7 +22,10 @@ public class JwtTokenGenerator
     public JwtTokenGenerator(IConfiguration configuration)
     {
         _configuration = configuration;
-        var key = configuration["Jwt:Key"] ?? "super-secret-key-his-hope-2024-at-least-32-chars!";
+        var key = configuration["Jwt:Key"]
+            ?? throw new InvalidOperationException(
+                "Jwt:Key is not configured. OpenIddict with Vault transit is required for production. " +
+                "Remove this JwtTokenGenerator dependency and migrate to OIDC /connect/token.");
         _signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
     }
 

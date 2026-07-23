@@ -23,7 +23,9 @@ public static class JwtAuthenticationExtensions
         {
             options.RequireHttpsMetadata = !configuration.GetValue<bool>("Jwt:AllowHttp", false);
 
-            var key = configuration["Jwt:Key"] ?? "super-secret-key-his-hope-2024-at-least-32-chars!";
+            var key = configuration["Jwt:Key"]
+                ?? throw new InvalidOperationException(
+                    "Jwt:Key is not configured. For OIDC flows, use gRPC introspection instead of local JWT validation.");
 
             options.TokenValidationParameters = new TokenValidationParameters
             {
