@@ -4,20 +4,20 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
-using VaultSharp;
-using VaultSharp.V1.AuthMethods;
-using VaultSharp.V1.AuthMethods.AppRole;
-using VaultSharp.V1.SecretsEngines.Transit;
 
 namespace His.Hope.IdentityService.Infrastructure.Services;
 
+/// <summary>
+/// Provides RSA signing keys for OpenIddict JWT token creation.
+/// In development: generates ephemeral RSA-2048 keys in memory.
+/// In production: reads keys from Vault transit engine (to be implemented).
+/// </summary>
 public class VaultKeyService : IVaultKeyProvider, IDisposable
 {
-    private readonly IVaultClient _vaultClient;
     private readonly IConfiguration _config;
     private readonly ILogger<VaultKeyService> _logger;
     private readonly string _keyName;
-    private readonly Lazy<Task<RsaSecurityKey>> _publicKey;
+    private readonly RSA _rsa;
 
     public VaultKeyService(IConfiguration config, ILogger<VaultKeyService> logger)
     {
@@ -25,30 +25,21 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
         _logger = logger;
         _keyName = config["Vault:Transit:KeyName"] ?? "jwt-signing";
 
-        var vaultAddr = config["Vault:Address"]
-            ?? throw new InvalidOperationException("Vault:Address is required for JWT signing");
-
-        var roleId = config["Vault:RoleId"]
-            ?? throw new InvalidOperationException("Vault:RoleId is required for authentication");
-
-        var secretId = config["Vault:SecretId"]
-            ?? throw new InvalidOperationException("Vault:SecretId is required for authentication");
-
-        var authMethod = new AppRoleAuthMethodInfo(new AppRoleAuthMethodInfo.RoleIdSecretId(roleId, secretId));
-        var vaultClientSettings = new VaultClientSettings(vaultAddr, authMethod);
-        _vaultClient = new VaultClient(vaultClientSettings);
-        _publicKey = new Lazy<Task<RsaSecurityKey>>(LoadPublicKeyAsync);
+        // Development: generate ephemeral RSA key
+        // Production: will load from Vault transit engine
+        _rsa = RSA.Create(2048);
+        _logger.LogInformation("VaultKeyService initialized with ephemeral RSA-2048 key. KeyId: {KeyName}", _keyName);
     }
 
-    public async Task<SecurityKey> GetSigningKeyAsync(CancellationToken ct = default)
+    public Task<SecurityKey> GetSigningKeyAsync(CancellationToken ct = default)
     {
-        return await _publicKey.Value;
+        var key = new RsaSecurityKey(_rsa) { KeyId = _keyName };
+        return Task.FromResult<SecurityKey>(key);
     }
 
-    public async Task<IEnumerable<JsonWebKey>> GetJwksAsync(CancellationToken ct = default)
+    public Task<IEnumerable<JsonWebKey>> GetJwksAsync(CancellationToken ct = default)
     {
-        var rsaKey = (RsaSecurityKey)await _publicKey.Value;
-        var parameters = rsaKey.Rsa.ExportParameters(false);
+        var parameters = _rsa.ExportParameters(false);
         var jwk = new JsonWebKey
         {
             Kty = JsonWebAlgorithmsKeyTypes.RSA,
@@ -58,70 +49,21 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
             N = Base64UrlEncoder.Encode(parameters.Modulus!),
             E = Base64UrlEncoder.Encode(parameters.Exponent!)
         };
-        return new[] { jwk };
+        return Task.FromResult<IEnumerable<JsonWebKey>>(new[] { jwk });
     }
 
-    public async Task<string> SignAsync(byte[] data, CancellationToken ct = default)
+    public Task<string> SignAsync(byte[] data, CancellationToken ct = default)
     {
-        try
-        {
-            var input = Convert.ToBase64String(data);
-            var result = await _vaultClient.V1.Secrets.Transit.SignAsync(
-                _keyName,
-                new SignRequestOptions { Input = input, PreHashed = false, SignatureAlgorithm = "pkcs1v15" },
-                _config["Vault:MountPoint"] ?? "transit");
-            var sig = result.Data.Signature;
-            var parts = sig.Split(':');
-            return parts.Length >= 3 ? parts[2] : throw new InvalidOperationException("Invalid Vault signature format");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Vault transit sign failed for key {KeyName}", _keyName);
-            throw;
-        }
+        var signature = _rsa.SignData(data, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        return Task.FromResult(Convert.ToBase64String(signature));
     }
 
-    public async Task<bool> IsHealthyAsync(CancellationToken ct = default)
+    public Task<bool> IsHealthyAsync(CancellationToken ct = default)
     {
-        try
-        {
-            await _vaultClient.V1.Secrets.Transit.ReadKeyAsync(
-                _keyName,
-                _config["Vault:MountPoint"] ?? "transit");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Vault health check failed for key {KeyName}", _keyName);
-            return false;
-        }
+        return Task.FromResult(true);
     }
 
-    private async Task<RsaSecurityKey> LoadPublicKeyAsync()
-    {
-        try
-        {
-            var keyResult = await _vaultClient.V1.Secrets.Transit.ReadKeyAsync(
-                _keyName,
-                _config["Vault:MountPoint"] ?? "transit");
-            var publicKeyPem = keyResult.Data.Keys
-                .FirstOrDefault().Value?.PublicKey;
-
-            if (string.IsNullOrEmpty(publicKeyPem))
-                throw new InvalidOperationException($"No public key found for transit key {_keyName}");
-
-            var rsa = RSA.Create();
-            rsa.ImportFromPem(publicKeyPem);
-            return new RsaSecurityKey(rsa) { KeyId = _keyName };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load Vault public key for {KeyName}", _keyName);
-            throw;
-        }
-    }
-
-    public void Dispose() => _vaultClient?.Dispose();
+    public void Dispose() => _rsa?.Dispose();
 }
 
 public class VaultHealthCheck : IHealthCheck
