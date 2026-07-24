@@ -3,6 +3,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using OpenIddictEntityFrameworkCore = OpenIddict.EntityFrameworkCore.Models;
 
 namespace His.Hope.IdentityService.Infrastructure.Persistence;
 
@@ -15,6 +16,13 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<UserMfa> UserMfas => Set<UserMfa>();
     public DbSet<SecurityEvent> SecurityEvents => Set<SecurityEvent>();
+    public DbSet<ClientConsent> ClientConsents => Set<ClientConsent>();
+
+    // OpenIddict entity sets
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication> OpenIddictApplications => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication>();
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization> OpenIddictAuthorizations => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization>();
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope> OpenIddictScopes => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope>();
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken> OpenIddictTokens => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken>();
 
     public IdentityDbContext(DbContextOptions<IdentityDbContext> options) : base(options) { }
 
@@ -211,5 +219,30 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.HasIndex(e => e.Severity);
             entity.HasIndex(e => e.Timestamp);
         });
+
+        // ──────────────────────────────────────────────
+        // ClientConsent configuration
+        // ──────────────────────────────────────────────
+        builder.Entity<ClientConsent>(entity =>
+        {
+            entity.ToTable("openiddict_consents");
+            entity.HasKey(c => c.Id);
+            entity.Property(c => c.Id).HasDefaultValueSql("gen_random_uuid()");
+            entity.Property(c => c.ClientId).HasMaxLength(256).IsRequired();
+            entity.Property(c => c.Scopes).IsRequired();
+            entity.HasIndex(c => c.UserId);
+            entity.HasIndex(c => c.ClientId);
+            entity.HasIndex(c => new { c.UserId, c.ClientId }).IsUnique();
+        });
+
+        // Configure OpenIddict tables (snake_case naming)
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication>(entity =>
+            entity.ToTable("openiddict_applications"));
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization>(entity =>
+            entity.ToTable("openiddict_authorizations"));
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope>(entity =>
+            entity.ToTable("openiddict_scopes"));
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken>(entity =>
+            entity.ToTable("openiddict_tokens"));
     }
 }

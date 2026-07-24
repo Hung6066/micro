@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Security.Cryptography.X509Certificates;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.EventBus.Abstractions;
@@ -26,6 +27,8 @@ using His.Hope.PatientService.Infrastructure.Persistence;
 using His.Hope.PatientService.Infrastructure.Projections;
 using MediatR;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -40,7 +43,62 @@ builder.Services.AddPatientApplication();
 builder.Services.AddPatientInfrastructure(builder.Configuration);
 
 // SECURITY: JWT Bearer authentication + permission-based authorization
-builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = "http://identityservice:5001";
+        options.RequireHttpsMetadata = false;
+        options.RefreshOnIssuerKeyNotFound = true;
+        options.RefreshInterval = TimeSpan.FromSeconds(30);
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
+            {
+                try
+                {
+                    using var client = new HttpClient();
+                    var jwksJson = client.GetStringAsync("http://identityservice:5001/.well-known/jwks").GetAwaiter().GetResult();
+                    var keySet = new JsonWebKeySet(jwksJson);
+                    return keySet.Keys;
+                }
+                catch { return Enumerable.Empty<SecurityKey>(); }
+            }
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) && context.Request.Path.StartsWithSegments("/hubs"))
+                    context.Token = accessToken;
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                logger.LogInformation("JWT validated for user: {User}", context.Principal?.Identity?.Name);
+                return Task.CompletedTask;
+            },
+            OnAuthenticationFailed = context =>
+            {
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                logger.LogWarning(context.Exception, "JWT auth FAILED for {Path}: {Message}", 
+                    context.Request.Path, context.Exception?.Message);
+                return Task.CompletedTask;
+            },
+            OnChallenge = context =>
+            {
+                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+                logger.LogWarning("JWT challenge for {Path}: {Error} {ErrorDesc}", 
+                    context.Request.Path, context.Error, context.ErrorDescription);
+                return Task.CompletedTask;
+            }
+        };
+    });
+builder.Services.AddAuthorization();
 builder.Services.AddHisHopeAuthorization();
 
 // Enterprise Infrastructure

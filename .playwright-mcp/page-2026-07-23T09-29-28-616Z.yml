@@ -1,0 +1,51 @@
+- generic [active] [ref=f1e1]:
+  - link "Chuyển đến nội dung chính" [ref=f1e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f1e4]:
+    - generic [ref=f1e8]:
+      - generic [ref=f1e9]: His.Hope
+      - generic [ref=f1e16]:
+        - img [ref=f1e18]: search
+        - combobox "Tìm bệnh nhân..." [ref=f1e20]
+      - navigation "Điều hướng chính" [ref=f1e21]:
+        - link [ref=f1e22] [cursor=pointer]:
+          - /url: /en/dashboard
+          - img [ref=f1e23]: dashboard
+        - link [ref=f1e25] [cursor=pointer]:
+          - /url: /en/patients
+          - img [ref=f1e26]: people
+        - link [ref=f1e28] [cursor=pointer]:
+          - /url: /en/appointments
+          - img [ref=f1e29]: calendar_today
+        - link [ref=f1e31] [cursor=pointer]:
+          - /url: /en/clinical
+          - img [ref=f1e32]: medical_services
+        - link [ref=f1e34] [cursor=pointer]:
+          - /url: /en/pharmacy
+          - img [ref=f1e35]: medication
+        - link [ref=f1e37] [cursor=pointer]:
+          - /url: /en/lab
+          - img [ref=f1e38]: biotech
+        - link [ref=f1e40] [cursor=pointer]:
+          - /url: /en/billing
+          - img [ref=f1e41]: receipt
+        - link [ref=f1e43] [cursor=pointer]:
+          - /url: /en/admin
+          - img [ref=f1e44]: settings
+    - generic [ref=f1e47]:
+      - status [ref=f1e49]:
+        - generic [ref=f1e50]:
+          - img [ref=f1e51]: error_outline
+          - button [ref=f1e53] [cursor=pointer]:
+            - img [ref=f1e54]: close
+      - generic [ref=f1e58]:
+        - generic [ref=f1e59]:
+          - generic [ref=f1e60]:
+            - heading "Xin chào, User" [level=1] [ref=f1e61]
+            - paragraph [ref=f1e62]: Tổng quan bệnh viện
+          - generic [ref=f1e63]:
+            - img [ref=f1e64]: calendar_today
+            - generic [ref=f1e65]: Thursday, 23/07/2026
+        - alert [ref=f1e66]:
+          - img [ref=f1e67]: error_outline
+          - generic [ref=f1e68]: Không thể tải dữ liệu tổng quan

@@ -2,6 +2,7 @@ using His.Hope.IdentityService.Application.UseCases.AuditLogs.Queries;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using MediatR;
+using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 using System.Text.Json;
 
@@ -13,6 +14,8 @@ namespace His.Hope.IdentityService.Api.Endpoints;
 /// </summary>
 public static class AuditLogEndpoints
 {
+    private const int MaxAuditEventsPerRequest = 100;
+
     public static RouteGroupBuilder MapAuditLogEndpoints(this RouteGroupBuilder group)
     {
         // POST /api/v1/audit/events - Client-side audit event ingestion
@@ -23,28 +26,23 @@ public static class AuditLogEndpoints
             CancellationToken ct) =>
         {
             if (request.Events is null || request.Events.Count == 0)
-                return Results.Accepted(value: new { accepted = 0 });
-
-            if (request.Events.Count > 100)
-                return Results.BadRequest(new { error = "Audit batch exceeds the 100 event limit" });
+                return Results.Accepted(value: new AuditEventsResponse(0, 0));
 
             var authenticatedUserId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                 ?? httpContext.User.FindFirst("sub")?.Value
                 ?? string.Empty;
             var userName = httpContext.User.Identity?.Name
                 ?? httpContext.User.FindFirst(ClaimTypes.Name)?.Value;
-            var ipAddress = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault()
-                ?? httpContext.Connection.RemoteIpAddress?.ToString();
+            var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString();
+            var userAgent = httpContext.Request.Headers.UserAgent.ToString();
+            var serverTimestamp = DateTime.UtcNow;
+            var acceptedEvents = request.Events.Take(MaxAuditEventsPerRequest).ToList();
 
-            foreach (var auditEvent in request.Events)
+            foreach (var auditEvent in acceptedEvents)
             {
-                var userId = string.IsNullOrWhiteSpace(auditEvent.UserId)
-                    ? authenticatedUserId
-                    : auditEvent.UserId.Trim();
-
                 db.AuditLogs.Add(new AuditLog
                 {
-                    UserId = Truncate(userId, 100),
+                    UserId = Truncate(authenticatedUserId, 100),
                     UserName = Truncate(userName, 200),
                     Action = Truncate(auditEvent.Action, 50),
                     ResourceType = "ClientAudit",
@@ -52,14 +50,15 @@ public static class AuditLogEndpoints
                         ?? ReadDetailString(auditEvent.Details, "patientId"), 100),
                     Details = Truncate(SerializeDetails(auditEvent), 2000),
                     IpAddress = Truncate(ipAddress, 50),
-                    UserAgent = Truncate(auditEvent.UserAgent
-                        ?? httpContext.Request.Headers.UserAgent.ToString(), 500),
-                    Timestamp = FromUnixMilliseconds(auditEvent.Timestamp)
+                    UserAgent = Truncate(userAgent, 500),
+                    Timestamp = serverTimestamp
                 });
             }
 
             await db.SaveChangesAsync(ct);
-            return Results.Accepted(value: new { accepted = request.Events.Count });
+            return Results.Accepted(value: new AuditEventsResponse(
+                acceptedEvents.Count,
+                Math.Max(0, request.Events.Count - acceptedEvents.Count)));
         }).RequireAuthorization();
 
         // GET /api/v1/audit-logs - Paginated audit log search
@@ -72,7 +71,7 @@ public static class AuditLogEndpoints
             string? resourceId = null,
             DateTime? dateFrom = null,
             DateTime? dateTo = null,
-            IMediator mediator = null!,
+            [FromServices] IMediator mediator = null!,
             CancellationToken ct = default) =>
         {
             var result = await mediator.Send(
@@ -84,7 +83,7 @@ public static class AuditLogEndpoints
         // GET /api/v1/audit-logs/{id} - Audit log detail
         group.MapGet("/audit-logs/{id:guid}", async (
             Guid id,
-            IMediator mediator = null!,
+            [FromServices] IMediator mediator = null!,
             CancellationToken ct = default) =>
         {
             var log = await mediator.Send(new GetAuditLogByIdQuery(id), ct);
@@ -92,18 +91,6 @@ public static class AuditLogEndpoints
         }).RequireAuthorization("Permission:admin.audit.read");
 
         return group;
-    }
-
-    private static DateTime FromUnixMilliseconds(long timestamp)
-    {
-        try
-        {
-            return DateTimeOffset.FromUnixTimeMilliseconds(timestamp).UtcDateTime;
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            return DateTime.UtcNow;
-        }
     }
 
     private static string SerializeDetails(ClientAuditEvent auditEvent)
@@ -136,6 +123,8 @@ public static class AuditLogEndpoints
 }
 
 public sealed record AuditEventsRequest(List<ClientAuditEvent>? Events);
+
+public sealed record AuditEventsResponse(int Accepted, int Dropped);
 
 public sealed record ClientAuditEvent(
     string Action,

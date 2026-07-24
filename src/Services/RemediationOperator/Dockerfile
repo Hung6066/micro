@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
     dotnet publish "Services/RemediationOperator/RemediationOperator.csproj" \
     -c Release \
     -o /app/publish \
-    --no-restore
+    
 
 # ============================================================
 # CURL STAGE (for healthchecks)

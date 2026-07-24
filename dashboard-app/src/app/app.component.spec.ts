@@ -13,7 +13,7 @@ describe('AppComponent', () => {
 
   beforeEach(async () => {
     authServiceStub = {
-      isAuthenticated$: new BehaviorSubject<boolean | null>(false),
+      isAuthenticated$: new BehaviorSubject<boolean>(false),
       login: jasmine.createSpy('login'),
       logout: jasmine.createSpy('logout'),
     };

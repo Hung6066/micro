@@ -84,7 +84,7 @@ public sealed class SessionAuthMiddleware
     internal static string ComputeHash(string input)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input ?? ""));
-        return Convert.ToHexString(bytes);
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 }
 

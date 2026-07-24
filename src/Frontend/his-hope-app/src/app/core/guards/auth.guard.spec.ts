@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
+import { ActivatedRouteSnapshot, Router, RouterStateSnapshot, UrlTree } from '@angular/router';
 import { of } from 'rxjs';
 import { AuthGuard } from './auth.guard';
 import { AuthService } from '@core/services/auth.service';
@@ -10,7 +10,7 @@ describe('AuthGuard', () => {
   let router: jasmine.SpyObj<Router>;
 
   beforeEach(() => {
-    const authSpy = jasmine.createSpyObj('AuthService', ['ensureCurrentUser']);
+    const authSpy = jasmine.createSpyObj('AuthService', ['isLoggedIn']);
     const routerSpy = jasmine.createSpyObj('Router', ['createUrlTree']);
 
     TestBed.configureTestingModule({
@@ -27,19 +27,19 @@ describe('AuthGuard', () => {
   });
 
   it('should allow activation for authenticated user', (done) => {
-    authService.ensureCurrentUser.and.returnValue(of({ id: 'usr-001' } as any));
+    authService.isLoggedIn.and.returnValue(of(true));
 
-    guard.canActivate({} as any, { url: '/dashboard' } as any).subscribe((result) => {
+    guard.canActivate({} as ActivatedRouteSnapshot, { url: '/dashboard' } as RouterStateSnapshot).subscribe((result) => {
       expect(result).toBeTrue();
       done();
     });
   });
 
   it('should redirect unauthenticated user to login', (done) => {
-    authService.ensureCurrentUser.and.returnValue(of(null));
-    router.createUrlTree.and.returnValue('/auth/login?returnUrl=%2Fdashboard' as any);
+    authService.isLoggedIn.and.returnValue(of(false));
+    router.createUrlTree.and.returnValue('/auth/login?returnUrl=%2Fdashboard' as unknown as UrlTree);
 
-    guard.canActivate({} as any, { url: '/dashboard' } as any).subscribe((result) => {
+    guard.canActivate({} as ActivatedRouteSnapshot, { url: '/dashboard' } as RouterStateSnapshot).subscribe((result) => {
       expect(router.createUrlTree).toHaveBeenCalledWith(['/auth/login'], {
         queryParams: { returnUrl: '/dashboard' },
       });
@@ -47,12 +47,14 @@ describe('AuthGuard', () => {
     });
   });
 
-  it('should wait for hydrated auth state before activating', (done) => {
-    authService.ensureCurrentUser.and.returnValue(of({ id: 'usr-001' } as any));
+  it('should preserve returnUrl in query params', (done) => {
+    authService.isLoggedIn.and.returnValue(of(false));
+    router.createUrlTree.and.returnValue('/auth/login?returnUrl=%2Fsettings' as unknown as UrlTree);
 
-    guard.canActivate({} as any, { url: '/dashboard' } as any).subscribe((result) => {
-      expect(result).toBeTrue();
-      expect(authService.ensureCurrentUser).toHaveBeenCalled();
+    guard.canActivate({} as ActivatedRouteSnapshot, { url: '/settings' } as RouterStateSnapshot).subscribe((result) => {
+      expect(router.createUrlTree).toHaveBeenCalledWith(['/auth/login'], {
+        queryParams: { returnUrl: '/settings' },
+      });
       done();
     });
   });

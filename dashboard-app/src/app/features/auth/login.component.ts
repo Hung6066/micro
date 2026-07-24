@@ -1,10 +1,7 @@
-import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
@@ -15,10 +12,7 @@ import { AuthService } from '../../core/services/auth.service';
   standalone: true,
   imports: [
     CommonModule,
-    ReactiveFormsModule,
     MatCardModule,
-    MatFormFieldModule,
-    MatInputModule,
     MatButtonModule,
     MatProgressSpinnerModule,
     MatIconModule,
@@ -33,37 +27,19 @@ import { AuthService } from '../../core/services/auth.service';
             <p class="subtitle">Sign in to your account</p>
           </div>
 
-          <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="login-form">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Username or Email</mat-label>
-              <input matInput formControlName="username" placeholder="Enter your username" autocomplete="username" />
-              <mat-icon matPrefix>person</mat-icon>
-              @if (loginForm.get('username')?.hasError('required') && loginForm.get('username')?.touched) {
-                <mat-error>Username is required</mat-error>
-              }
-            </mat-form-field>
-
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Password</mat-label>
-              <input matInput formControlName="password" type="password" placeholder="Enter your password" autocomplete="current-password" />
-              <mat-icon matPrefix>lock</mat-icon>
-              @if (loginForm.get('password')?.hasError('required') && loginForm.get('password')?.touched) {
-                <mat-error>Password is required</mat-error>
-              }
-            </mat-form-field>
-
-            @if (errorMessage) {
-              <div class="error-message">{{ errorMessage }}</div>
-            }
-
-            <button mat-raised-button color="primary" type="submit" class="full-width" [disabled]="loginForm.invalid || loading">
-              @if (loading) {
+          <div class="login-buttons">
+            <button mat-raised-button color="primary" class="full-width oidc-btn" (click)="oidcLogin()" [disabled]="checkingAuth">
+              @if (checkingAuth) {
                 <mat-spinner diameter="20" class="btn-spinner"></mat-spinner>
-              } @else {
-                Sign In
+              }
+              @if (!checkingAuth) {
+                <mat-icon>login</mat-icon>
+              }
+              @if (!checkingAuth) {
+                Sign in with His.Hope
               }
             </button>
-          </form>
+          </div>
         </mat-card-content>
       </mat-card>
     </div>
@@ -104,76 +80,45 @@ import { AuthService } from '../../core/services/auth.service';
       color: #A1A09B;
       margin: 0;
     }
-    .login-form {
+    .login-buttons {
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 12px;
     }
     .full-width {
       width: 100%;
     }
-    .error-message {
-      background: #FEF2F2;
-      color: #DC2626;
-      padding: 10px 14px;
-      border-radius: 6px;
-      font-size: 13px;
-      line-height: 1.4;
+    .oidc-btn {
+      height: 44px;
+      font-size: 15px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
     .btn-spinner {
       display: inline-block;
       margin: 0 auto;
     }
-    button[type="submit"] {
-      height: 44px;
-      font-size: 15px;
-      font-weight: 500;
-      margin-top: 4px;
-    }
   `],
-  changeDetection: ChangeDetectionStrategy.Default,
 })
 export class LoginComponent implements OnInit {
-  loginForm!: FormGroup;
-  loading = false;
-  errorMessage = '';
+  private readonly authService = inject(AuthService);
+  private readonly router = inject(Router);
 
-  constructor(
-    private readonly fb: FormBuilder,
-    private readonly authService: AuthService,
-    private readonly route: ActivatedRoute,
-    private readonly router: Router,
-  ) {}
+  checkingAuth = true;
 
   ngOnInit(): void {
-    this.loginForm = this.fb.group({
-      username: ['', Validators.required],
-      password: ['', Validators.required],
+    this.authService.isAuthenticated$.subscribe(isAuth => {
+      this.checkingAuth = false;
+      if (isAuth) {
+        this.router.navigate(['/resources']);
+      }
     });
   }
 
-  onSubmit(): void {
-    if (this.loginForm.invalid || this.loading) return;
-
-    const { username, password } = this.loginForm.value;
-    if (!username || !password) return;
-
-    this.loading = true;
-    this.errorMessage = '';
-    const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') ?? '/resources';
-
-    this.authService.loginWithCredentials(username, password).subscribe({
-      next: () => this.router.navigateByUrl(returnUrl),
-      error: (err) => {
-        this.loading = false;
-        if (err.status === 401) {
-          this.errorMessage = 'Invalid username or password.';
-        } else if (err.status === 0) {
-          this.errorMessage = 'Cannot connect to authentication service. Is the Identity service running?';
-        } else {
-          this.errorMessage = err.error?.detail ?? 'An error occurred during sign in.';
-        }
-      },
-    });
+  oidcLogin(): void {
+    this.authService.oidcLogin();
   }
 }

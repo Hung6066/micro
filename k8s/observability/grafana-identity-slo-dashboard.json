@@ -1,0 +1,47 @@
+{
+  "title": "His.Hope Identity Service — SLO Dashboard",
+  "uid": "his-hope-identity-slo",
+  "panels": [
+    {
+      "title": "Token Issue Rate (per minute)",
+      "targets": [{ "expr": "rate(identity_tokens_issued_total[1m])" }]
+    },
+    {
+      "title": "Token Issue P99 Latency (ms)",
+      "targets": [{ "expr": "histogram_quantile(0.99, rate(identity_tokens_issue_duration_ms_bucket[5m]))" }],
+      "thresholds": [{ "value": 50, "color": "green" }, { "value": 100, "color": "yellow" }, { "value": 200, "color": "red" }]
+    },
+    {
+      "title": "Login Success Rate (%)",
+      "targets": [{ "expr": "sum(rate(identity_logins_succeeded_total[5m])) / (sum(rate(identity_logins_succeeded_total[5m])) + sum(rate(identity_logins_failed_total[5m]))) * 100" }],
+      "thresholds": [{ "value": 99, "color": "green" }, { "value": 95, "color": "yellow" }, { "value": 90, "color": "red" }]
+    },
+    {
+      "title": "gRPC Introspection Rate (per minute)",
+      "targets": [{ "expr": "rate(identity_introspections_total[1m])" }]
+    },
+    {
+      "title": "Introspection P99 Latency (ms)",
+      "targets": [{ "expr": "histogram_quantile(0.99, rate(identity_introspection_duration_ms_bucket[5m]))" }],
+      "thresholds": [{ "value": 5, "color": "green" }, { "value": 10, "color": "yellow" }, { "value": 20, "color": "red" }]
+    },
+    {
+      "title": "Token Revocations (per minute)",
+      "targets": [{ "expr": "rate(identity_tokens_revoked_total[1m])" }]
+    },
+    {
+      "title": "Circuit Breaker State",
+      "targets": [{ "expr": "polly_circuitbreaker_state{service=\"identity\"}" }]
+    },
+    {
+      "title": "Vault Health",
+      "targets": [{ "expr": "healthcheck_status{name=\"vault-transit\"}" }]
+    }
+  ],
+  "sloTargets": {
+    "tokenIssueP99": "P99 < 50ms",
+    "introspectionP99": "P99 < 5ms",
+    "loginSuccessRate": "> 99%",
+    "availability": "99.9% uptime"
+  }
+}

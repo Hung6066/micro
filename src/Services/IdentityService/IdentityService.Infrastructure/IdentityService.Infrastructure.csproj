@@ -7,9 +7,14 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.4" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.4" />
+    <PackageReference Include="EFCore.NamingConventions" Version="8.0.3" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.2" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.1.2" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.4" />
+    <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="5.7.0" />
+    <PackageReference Include="VaultSharp" Version="1.13.0.1" />
+    <PackageReference Include="Novell.Directory.Ldap.NETStandard" Version="3.6.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\Shared\Infrastructure\His.Hope.Infrastructure\His.Hope.Infrastructure.csproj" />
