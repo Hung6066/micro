@@ -1,0 +1,98 @@
+- generic [active] [ref=f27e1]:
+  - link "Chuyển đến nội dung chính" [ref=f27e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f27e47]:
+    - status [ref=f27e49]:
+      - generic [ref=f27e50]:
+        - img [ref=f27e51]: error_outline
+        - button [ref=f27e53] [cursor=pointer]:
+          - img [ref=f27e54]: close
+    - generic [ref=f27e284]:
+      - generic [ref=f27e285]:
+        - generic [ref=f27e286]:
+          - heading "Xin chào, User" [level=1] [ref=f27e287]
+          - paragraph [ref=f27e288]: Tổng quan bệnh viện
+        - generic [ref=f27e289]:
+          - img [ref=f27e290]: calendar_today
+          - generic [ref=f27e291]: Friday, 24/07/2026
+      - generic [ref=f27e292]:
+        - generic [ref=f27e294]:
+          - img [ref=f27e296]: people
+          - generic [ref=f27e297]: Tổng bệnh nhân
+        - generic [ref=f27e300]:
+          - img [ref=f27e302]: calendar_today
+          - generic [ref=f27e303]: Lịch hẹn hôm nay
+        - generic [ref=f27e306]:
+          - img [ref=f27e308]: emergency
+          - generic [ref=f27e309]:
+            - generic [ref=f27e310]: "0"
+            - generic [ref=f27e311]: Điều trị đang mở
+        - generic [ref=f27e313]:
+          - img [ref=f27e315]: science
+          - generic [ref=f27e316]: Xét nghiệm chờ KQ
+        - generic [ref=f27e319]:
+          - img [ref=f27e321]: receipt
+          - generic [ref=f27e322]: Hóa đơn chưa TT
+        - generic [ref=f27e325]:
+          - img [ref=f27e327]: medication
+          - generic [ref=f27e328]: Thuốc sắp hết
+      - generic [ref=f27e330]:
+        - generic [ref=f27e333]:
+          - img [ref=f27e334]: search
+          - text: Tìm bệnh nhân
+        - generic [ref=f27e338]:
+          - generic: Nhập tên, số điện thoại hoặc mã bệnh nhân...
+          - combobox "Nhập tên, số điện thoại hoặc mã bệnh nhân..." [ref=f27e341]
+          - img [ref=f27e343]: search
+      - generic [ref=f27e345]:
+        - generic [ref=f27e346]:
+          - generic [ref=f27e348]:
+            - img [ref=f27e349]: history
+            - text: Bệnh nhân gần đây
+          - button "Xem tất cả" [ref=f27e350]
+        - button "Mở hồ sơ bệnh nhân Nguyen An" [ref=f27e355] [cursor=pointer]:
+          - generic [ref=f27e356]: "N"
+          - generic [ref=f27e357]:
+            - generic [ref=f27e358]: Nguyen An
+            - generic [ref=f27e359]: Male · 36 tuổi
+          - img [ref=f27e360]: chevron_right
+      - generic [ref=f27e361]:
+        - generic [ref=f27e362]:
+          - generic [ref=f27e364]:
+            - img [ref=f27e365]: history
+            - text: Lượt khám gần đây
+          - button "Xem tất cả" [ref=f27e366]
+        - generic [ref=f27e369]: Chưa có lượt khám nào
+      - generic [ref=f27e371]:
+        - generic [ref=f27e372]:
+          - generic [ref=f27e374]:
+            - img [ref=f27e375]: upcoming
+            - text: Lịch hẹn sắp tới
+          - button "Xem tất cả" [ref=f27e376]
+        - table [ref=f27e381]:
+          - rowgroup [ref=f27e382]:
+            - row [ref=f27e383]:
+              - columnheader "Ngày" [ref=f27e384]
+              - columnheader "Giờ" [ref=f27e385]
+              - columnheader "Bệnh nhân" [ref=f27e386]
+              - columnheader "Loại" [ref=f27e387]
+              - columnheader "Trạng thái" [ref=f27e388]
+          - rowgroup [ref=f27e389]:
+            - button "Mở lịch hẹn f0ca0d3d-dd0d-4cd8-8a6d-34224ce7322c" [ref=f27e390] [cursor=pointer]:
+              - cell "24/07" [ref=f27e391]
+              - cell "09:00:00" [ref=f27e392]
+              - cell "f0ca0d3d..." [ref=f27e393]
+              - cell "Follow-up" [ref=f27e394]
+              - cell "Scheduled" [ref=f27e395]
+            - button "Mở lịch hẹn fb7d3ed3-7778-49cc-aec6-75d997fa7d18" [ref=f27e397] [cursor=pointer]:
+              - cell "24/07" [ref=f27e398]
+              - cell "10:00:00" [ref=f27e399]
+              - cell "fb7d3ed3..." [ref=f27e400]
+              - cell "Consultation" [ref=f27e401]
+              - cell "Scheduled" [ref=f27e402]
+            - button "Mở lịch hẹn 46e46c69-75d5-4b47-a22b-9d5fd214f3f0" [ref=f27e404] [cursor=pointer]:
+              - cell "25/07" [ref=f27e405]
+              - cell "14:00:00" [ref=f27e406]
+              - cell "46e46c69..." [ref=f27e407]
+              - cell "Lab Results Review" [ref=f27e408]
+              - cell "Scheduled" [ref=f27e409]

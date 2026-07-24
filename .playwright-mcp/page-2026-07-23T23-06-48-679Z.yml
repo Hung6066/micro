@@ -1,0 +1,92 @@
+- generic [ref=f27e1]:
+  - link "Chuyển đến nội dung chính" [ref=f27e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f27e4]:
+    - generic [ref=f27e8]:
+      - generic [ref=f27e9]: His.Hope
+      - generic [ref=f27e16]:
+        - img [ref=f27e18]: search
+        - combobox "Tìm bệnh nhân..." [ref=f27e20]
+      - navigation "Điều hướng chính" [ref=f27e21]:
+        - link [ref=f27e22] [cursor=pointer]:
+          - /url: /en/dashboard
+          - img [ref=f27e23]: dashboard
+        - link [ref=f27e25] [cursor=pointer]:
+          - /url: /en/patients
+          - img [ref=f27e26]: people
+        - link [ref=f27e28] [cursor=pointer]:
+          - /url: /en/appointments
+          - img [ref=f27e29]: calendar_today
+        - link [ref=f27e31] [cursor=pointer]:
+          - /url: /en/clinical
+          - img [ref=f27e32]: medical_services
+        - link [ref=f27e34] [cursor=pointer]:
+          - /url: /en/pharmacy
+          - img [ref=f27e35]: medication
+        - link [ref=f27e37] [cursor=pointer]:
+          - /url: /en/lab
+          - img [ref=f27e38]: biotech
+        - link [ref=f27e40] [cursor=pointer]:
+          - /url: /en/billing
+          - img [ref=f27e41]: receipt
+        - link [active] [ref=f27e43] [cursor=pointer]:
+          - /url: /en/admin
+          - img [ref=f27e44]: settings
+      - generic [ref=f27e208]:
+        - generic [ref=f27e209]: Viên Quản Trị
+        - button "Đăng xuất" [ref=f27e211] [cursor=pointer]:
+          - img [ref=f27e212]: logout
+    - generic [ref=f27e47]:
+      - status [ref=f27e49]:
+        - generic [ref=f27e50]:
+          - img [ref=f27e51]: error_outline
+          - button [ref=f27e53] [cursor=pointer]:
+            - img [ref=f27e54]: close
+      - generic [ref=f27e215]:
+        - generic [ref=f27e216]:
+          - heading "Quản trị hệ thống" [level=1] [ref=f27e217]
+          - paragraph [ref=f27e218]: Tổng quan về hệ thống và điều hướng nhanh
+        - generic [ref=f27e219]:
+          - link "1 Người dùng Quản lý người dùng" [ref=f27e220] [cursor=pointer]:
+            - generic [ref=f27e221]:
+              - img [ref=f27e223]: people
+              - generic [ref=f27e224]:
+                - generic [ref=f27e225]: "1"
+                - generic [ref=f27e226]: Người dùng
+            - button "Quản lý người dùng" [ref=f27e228]
+          - link "0 Vai trò hoạt động Quản lý vai trò" [ref=f27e231] [cursor=pointer]:
+            - generic [ref=f27e232]:
+              - img [ref=f27e234]: admin_panel_settings
+              - generic [ref=f27e235]:
+                - generic [ref=f27e236]: "0"
+                - generic [ref=f27e237]: Vai trò hoạt động
+            - button "Quản lý vai trò" [ref=f27e239]
+          - link "Chưa có Nhật ký gần nhất Xem nhật ký" [ref=f27e242] [cursor=pointer]:
+            - generic [ref=f27e243]:
+              - img [ref=f27e245]: receipt_long
+              - generic [ref=f27e246]:
+                - generic [ref=f27e247]: Chưa có
+                - generic [ref=f27e248]: Nhật ký gần nhất
+            - button "Xem nhật ký" [ref=f27e250]
+          - link "Không xác định Trạng thái hệ thống Xem cài đặt" [ref=f27e253] [cursor=pointer]:
+            - generic [ref=f27e254]:
+              - img [ref=f27e256]: help
+              - generic [ref=f27e257]:
+                - generic [ref=f27e258]: Không xác định
+                - generic [ref=f27e259]: Trạng thái hệ thống
+            - button "Xem cài đặt" [ref=f27e261]
+        - generic [ref=f27e264]:
+          - heading "Truy cập nhanh" [level=2] [ref=f27e265]
+          - generic [ref=f27e266]:
+            - link "Quản lý người dùng" [ref=f27e267] [cursor=pointer]:
+              - /url: /en/admin/manage-users
+              - img [ref=f27e268]: people
+            - link "Vai trò & quyền" [ref=f27e271] [cursor=pointer]:
+              - /url: /en/admin/manage-roles
+              - img [ref=f27e272]: admin_panel_settings
+            - link "Cài đặt hệ thống" [ref=f27e275] [cursor=pointer]:
+              - /url: /en/admin/settings
+              - img [ref=f27e276]: settings
+            - link "Nhật ký truy cập" [ref=f27e279] [cursor=pointer]:
+              - /url: /en/admin/audit-logs
+              - img [ref=f27e280]: receipt_long

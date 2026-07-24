@@ -206,9 +206,10 @@ services:
       - "5001:5001"
       - "5012:5012"
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:5001
       ConnectionStrings__IdentityDb: Host=postgres;Database=identitydb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__Redis: redis:6379
       Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
       Jwt__Issuer: his-hope-identity
       Jwt__Expiry: "08:00:00"

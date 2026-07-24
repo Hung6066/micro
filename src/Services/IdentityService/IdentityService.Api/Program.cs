@@ -514,10 +514,12 @@ auth.MapPost("/refresh", async (RefreshTokenRequest? request, IIdentityService i
 .AllowAnonymous();
 
 auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpContext,
-    IIdentityService identityService, CancellationToken ct) =>
+    IIdentityService identityService, IUserSessionTracker sessionTracker,
+    ITokenBlacklistService tokenBlacklist, ILogger<Program> logger, CancellationToken ct) =>
 {
     var sessionId = httpContext.Request.Cookies["hishop_sid"];
     string? refreshToken = null;
+    string? userId = null;
     if (!string.IsNullOrEmpty(sessionId))
     {
         var db = redis.GetDatabase();
@@ -525,23 +527,72 @@ auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpCon
         if (sessionJson.HasValue)
         {
             var session = JsonSerializer.Deserialize<SessionData>(sessionJson!);
-            refreshToken = session?.RefreshToken;
+            if (session is not null)
+            {
+                refreshToken = session.RefreshToken;
+                userId = session.UserId;
+            }
         }
+
+        // Remove the current session immediately when present
         await db.KeyDeleteAsync($"session:{sessionId}");
     }
 
+    // Fallback for SPA flow: extract userId from JWT Bearer token (no BFF session cookie)
+    if (string.IsNullOrWhiteSpace(userId))
+    {
+        var authHeader = httpContext.Request.Headers.Authorization.ToString();
+        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            var jwt = authHeader["Bearer ".Length..];
+            userId = JwtPayloadParser.ExtractUserIdFromJwtPayload(jwt);
+            logger.LogDebug("Logout via JWT Bearer: UserId={UserId}", userId);
+        }
+    }
+
+    // Revoke refresh token
     if (!string.IsNullOrWhiteSpace(refreshToken))
         await identityService.LogoutAsync(refreshToken, ct);
 
+    // Revoke ALL sessions for this user (cross-port logout)
+    if (!string.IsNullOrWhiteSpace(userId))
+    {
+        // Blacklist all user tokens at user level (checked by JWT validation)
+        await tokenBlacklist.RevokeAllUserTokensAsync(userId, ct);
+
+        // Delete all Redis sessions for this user
+        var sessions = await sessionTracker.GetUserSessionsAsync(userId);
+        if (sessions.Length > 0)
+        {
+            var db = redis.GetDatabase();
+            var keys = sessions.Select(s => (RedisKey)$"session:{s}").ToArray();
+            await db.KeyDeleteAsync(keys);
+        }
+
+        // Clean up the user session set
+        await sessionTracker.ClearUserSessionsAsync(userId);
+
+        logger.LogInformation(
+            "Cross-port logout: UserId={UserId}, sessions cleared={SessionCount}",
+            userId, sessions.Length);
+    }
+
+    // Clear cookies
     httpContext.Response.Cookies.Append("hishop_sid", "", new CookieOptions
     {
-        HttpOnly = true, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Lax,
-        Path = "/api", Expires = DateTimeOffset.UnixEpoch
+        HttpOnly = true,
+        Secure = httpContext.Request.IsHttps,
+        SameSite = SameSiteMode.Lax,
+        Path = "/api",
+        Expires = DateTimeOffset.UnixEpoch
     });
     httpContext.Response.Cookies.Append("hishop_csrf", "", new CookieOptions
     {
-        HttpOnly = false, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Strict,
-        Path = "/", Expires = DateTimeOffset.UnixEpoch
+        HttpOnly = false,
+        Secure = httpContext.Request.IsHttps,
+        SameSite = SameSiteMode.Strict,
+        Path = "/",
+        Expires = DateTimeOffset.UnixEpoch
     });
 
     return Results.NoContent();
@@ -598,13 +649,19 @@ auth.MapPost("/internal/refresh", async (IConnectionMultiplexer redis, HttpConte
 
     httpContext.Response.Cookies.Append("hishop_sid", sessionId, new CookieOptions
     {
-        HttpOnly = true, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Lax,
-        Path = "/api", MaxAge = TimeSpan.FromHours(1)
+        HttpOnly = true,
+        Secure = httpContext.Request.IsHttps,
+        SameSite = SameSiteMode.Lax,
+        Path = "/api",
+        MaxAge = TimeSpan.FromHours(1)
     });
     httpContext.Response.Cookies.Append("hishop_csrf", session.CsrfToken, new CookieOptions
     {
-        HttpOnly = false, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Strict,
-        Path = "/", MaxAge = TimeSpan.FromHours(1)
+        HttpOnly = false,
+        Secure = httpContext.Request.IsHttps,
+        SameSite = SameSiteMode.Strict,
+        Path = "/",
+        MaxAge = TimeSpan.FromHours(1)
     });
 
     return Results.Ok(new { refreshed = true });
@@ -846,7 +903,7 @@ app.MapGet("/connect/authorize", async (
         ?? throw new InvalidOperationException("Authenticated user not found.");
 
     var principal = await signInManager.CreateUserPrincipalAsync(user);
-    
+
     // Ensure sub claim is set (OpenIddict requires it on the principal directly)
     principal.SetClaim(OpenIddictConstants.Claims.Subject, user.Id.ToString());
 
@@ -882,7 +939,7 @@ app.MapGet("/connect/authorize", async (
 app.MapGet("/Account/Login", async (HttpContext httpContext, SignInManager<User> signInManager) =>
 {
     var returnUrl = httpContext.Request.Query["returnUrl"].FirstOrDefault() ?? "/";
-    
+
     // If user is already authenticated, show already-signed-in page
     if (httpContext.User.Identity?.IsAuthenticated == true)
     {
@@ -924,19 +981,19 @@ app.MapGet("/Account/Login", async (HttpContext httpContext, SignInManager<User>
 app.MapGet("/Account/Logout", async (HttpContext httpContext) =>
 {
     var returnUrl = httpContext.Request.Query["returnUrl"].FirstOrDefault() ?? "/";
-    
+
     if (httpContext.User.Identity?.IsAuthenticated != true)
         return Results.Redirect("/Account/Login?returnUrl=" + System.Net.WebUtility.UrlEncode(returnUrl));
-    
+
     var userName = httpContext.User.Identity.Name ?? "User";
     var html = BuildLogoutPage(userName, returnUrl);
-    
+
     httpContext.Response.OnStarting(() =>
     {
         httpContext.Response.Headers.Remove("Content-Security-Policy");
         return Task.CompletedTask;
     });
-    
+
     return Results.Content(html, "text/html; charset=utf-8");
 })
 .AllowAnonymous();
@@ -1314,11 +1371,11 @@ app.MapGet("/connect/logout", async (HttpContext httpContext, SignInManager<User
 {
     // Sign out the cookie
     await signInManager.SignOutAsync();
-    
+
     var postLogoutUri = httpContext.Request.Query["post_logout_redirect_uri"].FirstOrDefault();
     if (!string.IsNullOrEmpty(postLogoutUri) && Uri.TryCreate(postLogoutUri, UriKind.Absolute, out _))
         return Results.Redirect(postLogoutUri);
-    
+
     return Results.Redirect("/Account/Login");
 }).AllowAnonymous();
 
@@ -1463,5 +1520,37 @@ file static class LegacyEndpointFilter
             ctx.HttpContext.Response.Headers["Link"] = "</connect/authorize>; rel=\"successor-version\"";
             return await next(ctx);
         });
+    }
+}
+
+// Helper: extract userId ("sub" claim) from JWT payload without full validation
+file static class JwtPayloadParser
+{
+    public static string? ExtractUserIdFromJwtPayload(string jwt)
+    {
+        try
+        {
+            var parts = jwt.Split('.');
+            if (parts.Length < 2) return null;
+
+            var payload = parts[1];
+            // Base64Url decode (handle padding)
+            payload = payload.Replace('-', '+').Replace('_', '/');
+            switch (payload.Length % 4)
+            {
+                case 2: payload += "=="; break;
+                case 3: payload += "="; break;
+            }
+
+            var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.TryGetProperty("sub", out var sub)
+                ? sub.GetString()
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

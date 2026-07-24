@@ -1,0 +1,52 @@
+- generic [ref=f27e1]:
+  - link "Chuyển đến nội dung chính" [ref=f27e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f27e4]:
+    - generic [ref=f27e8]:
+      - generic [ref=f27e9]: His.Hope
+      - generic [ref=f27e16]:
+        - img [ref=f27e18]: search
+        - combobox "Tìm bệnh nhân..." [ref=f27e20]
+      - navigation "Điều hướng chính" [ref=f27e21]:
+        - link [ref=f27e22] [cursor=pointer]:
+          - /url: /en/dashboard
+          - img [ref=f27e23]: dashboard
+        - link [ref=f27e25] [cursor=pointer]:
+          - /url: /en/patients
+          - img [ref=f27e26]: people
+        - link [ref=f27e28] [cursor=pointer]:
+          - /url: /en/appointments
+          - img [ref=f27e29]: calendar_today
+        - link [ref=f27e31] [cursor=pointer]:
+          - /url: /en/clinical
+          - img [ref=f27e32]: medical_services
+        - link [ref=f27e34] [cursor=pointer]:
+          - /url: /en/pharmacy
+          - img [ref=f27e35]: medication
+        - link [ref=f27e37] [cursor=pointer]:
+          - /url: /en/lab
+          - img [ref=f27e38]: biotech
+        - link [ref=f27e40] [cursor=pointer]:
+          - /url: /en/billing
+          - img [ref=f27e41]: receipt
+        - link [ref=f27e43] [cursor=pointer]:
+          - /url: /en/admin
+          - img [ref=f27e44]: settings
+    - generic [ref=f27e47]:
+      - status [ref=f27e49]:
+        - generic [ref=f27e50]:
+          - img [ref=f27e51]: error_outline
+          - button [ref=f27e53] [cursor=pointer]:
+            - img [ref=f27e54]: close
+      - generic [ref=f27e59]:
+        - generic [ref=f27e61]:
+          - generic [ref=f27e62]: His.Hope
+          - generic [ref=f27e63]: Sign in to continue
+        - generic [ref=f27e65]:
+          - button "Sign in with His.Hope" [ref=f27e66]:
+            - img [ref=f27e67]: login
+          - separator [ref=f27e70]
+          - button "Continue with Google" [ref=f27e71]:
+            - img [ref=f27e72]: account_circle
+          - button "Continue with Microsoft" [ref=f27e75]:
+            - img [ref=f27e76]: workspaces
