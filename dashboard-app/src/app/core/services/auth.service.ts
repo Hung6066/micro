@@ -13,7 +13,6 @@ export class AuthService {
   private readonly checkAuthInit$ = new ReplaySubject<void>(1);
 
   readonly isAuthenticated$: Observable<boolean> = this.authenticatedSubject.asObservable();
-
   private static readonly AUTH_CHANNEL = 'hishop_auth';
 
   constructor() {

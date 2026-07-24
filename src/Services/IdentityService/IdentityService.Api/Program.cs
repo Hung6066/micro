@@ -1,10 +1,13 @@
+using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using His.Hope.Bff.Core.Authentication;
+using His.Hope.IdentityService.Api.Configuration;
 using His.Hope.IdentityService.Api.Endpoints;
 using His.Hope.IdentityService.Api.Services;
 using His.Hope.IdentityService.Application;
@@ -24,7 +27,13 @@ using His.Hope.Infrastructure.Locking;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Security.Authorization;
 using MediatR;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using OpenIddictEntityFrameworkCore = OpenIddict.EntityFrameworkCore.Models;
+using OpenIddict.Abstractions;
+using OpenIddict.Server;
+using OpenIddict.Server.AspNetCore;
+using OpenIddict.Validation.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -70,21 +79,44 @@ builder.Services.AddSingleton<ICacheService, NoOpCacheService>();
 builder.Services.AddSingleton<ILockManager, NoOpLockManager>();
 builder.Services.AddSingleton<IUserSessionTracker, UserSessionTracker>();
 
-builder.Services.AddIdentityCore<User>(options =>
+builder.Services.AddIdentity<User, His.Hope.IdentityService.Domain.Entities.Role>(options =>
 {
     options.Password.RequireDigit = true;
     options.Password.RequiredLength = 8;
     options.Password.RequireNonAlphanumeric = true;
     options.User.RequireUniqueEmail = true;
 })
-.AddRoles<His.Hope.IdentityService.Domain.Entities.Role>()
 .AddEntityFrameworkStores<IdentityDbContext>()
     .AddDefaultTokenProviders();
 
-builder.Services.AddScoped<SignInManager<User>>();
-
 // SECURITY: JWT authentication with RSA public key validation
 builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
+
+// Policy scheme: use JWT for API calls (Authorization header), cookie for browser.
+// This allows both cookie-based browser sessions and JWT-based API auth to coexist.
+const string policyScheme = "HisHope.BrowserOrApi";
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultScheme = policyScheme;
+    options.DefaultAuthenticateScheme = policyScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultSignInScheme = IdentityConstants.ApplicationScheme;
+})
+.AddPolicyScheme(policyScheme, policyScheme, options =>
+{
+    options.ForwardDefaultSelector = context =>
+    {
+        // API calls with Bearer token → validate via OpenIddict (knows RSA keys)
+        if (context.Request.Headers.ContainsKey("Authorization"))
+            return OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
+        // Browser requests → cookie
+        return IdentityConstants.ApplicationScheme;
+    };
+});
+
+// SSO: share auth cookie across all localhost ports (8081, 8082, 8083, 4200, 4201, 4202)
+builder.Services.Configure<CookieAuthenticationOptions>(IdentityConstants.ApplicationScheme,
+    options => options.Cookie.Domain = "localhost");
 
 // ─── External Identity Providers (Federation) ───
 var googleClientId = builder.Configuration["Authentication:Google:ClientId"];
@@ -144,7 +176,23 @@ builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("auth", config =>
     {
-        config.PermitLimit = 30;
+        config.PermitLimit = 120;
+        config.Window = TimeSpan.FromMinutes(1);
+        config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        config.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter("audit-ingest", config =>
+    {
+        config.PermitLimit = 120;
+        config.Window = TimeSpan.FromMinutes(1);
+        config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        config.QueueLimit = 0;
+    });
+
+    options.AddFixedWindowLimiter("webhook", config =>
+    {
+        config.PermitLimit = 60;
         config.Window = TimeSpan.FromMinutes(1);
         config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         config.QueueLimit = 0;
@@ -174,17 +222,18 @@ builder.Services.AddGrpcReflection();
 builder.Services.AddSingleton<IVaultKeyProvider, VaultKeyService>();
 builder.Services.AddSingleton<VaultClientSecretStore>();
 builder.Services.AddSingleton<VaultClientSecretStore>();
-builder.Services.AddHealthChecks().AddCheck<VaultHealthCheck>("vault-transit", tags: new[] { "startup" });
+builder.Services.AddHealthChecks()
+    .AddCheck("vault-transit", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Vault not configured (dev mode)"), tags: new[] { "startup" });
 
 // ─── OpenIddict OAuth2/OIDC Authorization Server ───
 var oidcConfig = builder.Configuration.GetSection("OpenIddict");
+var oidcSecurity = OidcSecurityConfiguration.Resolve(builder.Configuration, builder.Environment);
 
 builder.Services.AddOpenIddict()
     .AddCore(options =>
     {
         options.UseEntityFrameworkCore()
-               .UseDbContext<IdentityDbContext>()
-               .ReplaceDefaultEntities<Guid>();
+               .UseDbContext<IdentityDbContext>();
     })
     .AddServer(options =>
     {
@@ -204,16 +253,40 @@ builder.Services.AddOpenIddict()
         options.SetRefreshTokenLifetime(TimeSpan.Parse(oidcConfig["RefreshTokenLifetime"]!));
         options.SetAuthorizationCodeLifetime(TimeSpan.Parse(oidcConfig["AuthorizationCodeLifetime"]!));
 
-        // DEVELOPMENT: Add ephemeral RSA signing key
-        using var rsa = System.Security.Cryptography.RSA.Create(2048);
-        var devKey = new RsaSecurityKey(rsa) { KeyId = "dev-jwt-signing" };
-        options.AddSigningKey(devKey);
+        if (oidcSecurity.SigningKey is not null)
+        {
+            options.AddSigningKey(oidcSecurity.SigningKey);
+        }
+        else
+        {
+            // Development only. Production fails fast in OidcSecurityConfiguration.
+            options.AddEphemeralSigningKey();
+            options.AddEphemeralEncryptionKey();
+        }
 
-        options.UseAspNetCore()
+        options.DisableAccessTokenEncryption();
+
+        var aspNetCoreOptions = options.UseAspNetCore()
                .EnableAuthorizationEndpointPassthrough()
-               .EnableTokenEndpointPassthrough()
                .EnableLogoutEndpointPassthrough()
                .EnableStatusCodePagesIntegration();
+
+        if (oidcSecurity.AllowInsecureHttp)
+        {
+            aspNetCoreOptions.DisableTransportSecurityRequirement();
+        }
+
+        options.AddEventHandler<OpenIddictServerEvents.HandleConfigurationRequestContext>(builder =>
+            builder.UseSingletonHandler<His.Hope.IdentityService.Api.Handlers.FixDiscoveryBaseUriHandler>()
+                .SetOrder(int.MaxValue - 200_000) // Before AttachIssuer
+                .SetType(OpenIddictServerHandlerType.Custom)
+                .Build());
+
+        options.AddEventHandler<OpenIddictServerEvents.HandleTokenRequestContext>(builder =>
+            builder.UseScopedHandler<His.Hope.IdentityService.Application.OpenIddict.CustomPopulateTokenClaims>()
+                .SetOrder(int.MaxValue - 100_000)
+                .SetType(OpenIddictServerHandlerType.Custom)
+                .Build());
     })
     .AddValidation(options =>
     {
@@ -255,6 +328,31 @@ var app = builder.Build();
 app.UseCorrelationId();
 app.UseGlobalExceptionHandler();
 
+// Trust forwarded headers from nginx/gateway so OpenIddict generates
+// correct public endpoint URLs in the OIDC discovery document.
+// SECURITY: In production, restrict KnownNetworks/KnownProxies to specific
+// gateway IP ranges instead of allowing all.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
+    ForwardLimit = null,
+};
+// DEV: Add Docker Compose bridge network range so the middleware trusts
+// forwarded headers from the gateway container. Default KnownNetworks
+// only includes loopback (127.0.0.0/8), which excludes Docker containers.
+// NOTE: Clearing KnownNetworks/KnownProxies entirely does NOT trust all
+// proxies — it trusts NONE, causing the middleware to skip all processing.
+forwardedHeadersOptions.KnownNetworks.Add(
+    new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+        IPAddress.Parse("172.16.0.0"), 12));
+// Also trust loopback for direct access (already in defaults, explicit to
+// avoid any ambiguity):
+forwardedHeadersOptions.KnownNetworks.Add(
+    new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
+        IPAddress.Parse("127.0.0.0"), 8));
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
+
 // SECURITY: Seed identity database with permissions, roles, and admin user
 His.Hope.IdentityService.Infrastructure.Persistence.IdentityDbInitializer.Initialize(
     app.Services);
@@ -272,6 +370,25 @@ app.UseSerilogRequestLogging();
 app.UseHisHopePrometheus();
 app.UseCors();
 app.UseRouting();
+
+// Check cookie auth for OIDC authorize BEFORE OpenIddict processes it
+// If no cookie → redirect to login (SSO + nice UX)
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/connect/authorize"))
+    {
+        var authResult = await context.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+        if (!authResult.Succeeded)
+        {
+            var returnUrl = Uri.EscapeDataString(
+                context.Request.PathBase + context.Request.Path + context.Request.QueryString);
+            context.Response.Redirect($"/Account/Login?ReturnUrl={returnUrl}");
+            return;
+        }
+    }
+    await next();
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.UsePhiAudit();
@@ -294,6 +411,7 @@ auth.MapPost("/login", async (LoginRequest request, IIdentityService identitySer
         {
             UserId = result.User.Id.ToString(),
             Jwt = result.AccessToken,
+            RefreshToken = result.RefreshToken,
             Permissions = permissions,
             CsrfToken = csrfToken,
             UserAgentHash = BffHelpers.ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
@@ -350,13 +468,39 @@ auth.MapPost("/register", async (RegisterRequest request, IIdentityService ident
     }
 })
 .WithOpenApi()
+.RequireRateLimiting("auth")
 .AllowAnonymous();
 
-auth.MapPost("/refresh", async (RefreshTokenRequest request, IIdentityService identityService, CancellationToken ct) =>
+auth.MapPost("/refresh", async (RefreshTokenRequest? request, IIdentityService identityService,
+    IConnectionMultiplexer redis, HttpContext httpContext, CancellationToken ct) =>
 {
     try
     {
+        if (request is null || string.IsNullOrWhiteSpace(request.AccessToken) || string.IsNullOrWhiteSpace(request.RefreshToken))
+        {
+            var session = await BffHelpers.GetSessionAsync(redis, httpContext);
+            if (session is null || session.IsExpired)
+                return Results.Unauthorized();
+
+            var validationError = BffHelpers.ValidateSessionBinding(httpContext, session, requireCsrf: true);
+            if (validationError is not null)
+                return validationError;
+
+            if (string.IsNullOrWhiteSpace(session.RefreshToken))
+                return Results.Unauthorized();
+
+            request = new RefreshTokenRequest(
+                session.Jwt,
+                session.RefreshToken,
+                IpAddress: httpContext.Connection.RemoteIpAddress?.ToString());
+        }
+
         var result = await identityService.RefreshTokenAsync(request, ct);
+
+        var sessionId = httpContext.Request.Cookies["hishop_sid"];
+        if (!string.IsNullOrWhiteSpace(sessionId))
+            await BffHelpers.ReplaceSessionTokensAsync(redis, httpContext, sessionId, result);
+
         return Results.Ok(result);
     }
     catch (UnauthorizedAccessException ex)
@@ -366,6 +510,7 @@ auth.MapPost("/refresh", async (RefreshTokenRequest request, IIdentityService id
 })
 .WithDeprecationNotice()
 .WithOpenApi()
+.RequireRateLimiting("auth")
 .AllowAnonymous();
 
 auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpContext,
@@ -375,7 +520,6 @@ auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpCon
     var sessionId = httpContext.Request.Cookies["hishop_sid"];
     string? refreshToken = null;
     string? userId = null;
-
     if (!string.IsNullOrEmpty(sessionId))
     {
         var db = redis.GetDatabase();
@@ -389,6 +533,9 @@ auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpCon
                 userId = session.UserId;
             }
         }
+
+        // Remove the current session immediately when present
+        await db.KeyDeleteAsync($"session:{sessionId}");
     }
 
     // Fallback for SPA flow: extract userId from JWT Bearer token (no BFF session cookie)
@@ -466,12 +613,23 @@ auth.MapPost("/internal/refresh", async (IConnectionMultiplexer redis, HttpConte
     if (session is null || session.IsExpired)
         return Results.Unauthorized();
 
+    var validationError = BffHelpers.ValidateSessionBinding(httpContext, session, requireCsrf: true);
+    if (validationError is not null)
+        return validationError;
+
+    if (string.IsNullOrWhiteSpace(session.RefreshToken))
+        return Results.Unauthorized();
+
     var refreshResult = await identityService.RefreshTokenAsync(
-        new RefreshTokenRequest(session.Jwt, ""), ct);
+        new RefreshTokenRequest(
+            session.Jwt,
+            session.RefreshToken,
+            IpAddress: httpContext.Connection.RemoteIpAddress?.ToString()), ct);
 
     session = session with
     {
         Jwt = refreshResult.AccessToken,
+        RefreshToken = refreshResult.RefreshToken,
         ExpiresAt = refreshResult.ExpiresAt,
         CsrfToken = Guid.NewGuid().ToString("N"),
         UserAgentHash = BffHelpers.ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
@@ -497,7 +655,8 @@ auth.MapPost("/internal/refresh", async (IConnectionMultiplexer redis, HttpConte
     return Results.Ok(new { refreshed = true });
 })
 .WithDeprecationNotice()
-.WithOpenApi();
+.WithOpenApi()
+.RequireRateLimiting("auth");
 
 auth.MapGet("/verify", async (HttpContext httpContext) =>
 {
@@ -679,15 +838,13 @@ var settings = app.MapGroup("/api/v1").RequireAuthorization();
 settings.MapSettingsEndpoints();
 
 var audit = app.MapGroup("/api/v1").RequireAuthorization();
-audit.MapAuditLogEndpoints();
+audit.MapAuditLogEndpoints().RequireRateLimiting("audit-ingest");
 
 // HR webhook (requires API key - validated via middleware or API key header)
 var webhook = app.MapGroup("/api/v1");
-webhook.MapHrWebhookEndpoints();
+webhook.MapHrWebhookEndpoints().RequireRateLimiting("webhook");
 
 app.MapHealthChecks("/health").AllowAnonymous();
-
-// gRPC endpoints
 app.MapGrpcService<His.Hope.IdentityService.Api.Services.GrpcIdentityService>();
 
 if (app.Environment.IsDevelopment())
@@ -706,12 +863,593 @@ app.MapGet("/.well-known/jwks", async (IVaultKeyProvider vaultKeyProvider, Cance
 // ─── SCIM v2 Provisioning API (RFC 7643/7644) ───
 app.MapScimEndpoints();
 
+// ─── OIDC Authorization Endpoint (passthrough handler) ───
+// OpenIddict validates the request and passes through. When the user is
+// authenticated (cookie), we sign in with the OpenIddict scheme to generate
+// the authorization code and redirect to the callback.
+app.MapGet("/connect/authorize", async (
+    HttpContext context,
+    SignInManager<User> signInManager,
+    UserManager<User> userManager,
+    IOpenIddictScopeManager scopeManager) =>
+{
+    // Access the OpenIddict server transaction to get the validated request
+    var feature = context.Features.Get<OpenIddictServerAspNetCoreFeature>();
+    var request = feature?.Transaction?.Request
+        ?? throw new InvalidOperationException("OpenIddict request not found.");
+
+    // User must be authenticated (cookie from earlier login)
+    if (context.User.Identity is not { IsAuthenticated: true })
+    {
+        return Results.Challenge(new AuthenticationProperties
+        {
+            RedirectUri = context.Request.Path + context.Request.QueryString
+        }, new[] { IdentityConstants.ApplicationScheme });
+    }
+
+    var user = await userManager.GetUserAsync(context.User)
+        ?? throw new InvalidOperationException("Authenticated user not found.");
+
+    var principal = await signInManager.CreateUserPrincipalAsync(user);
+    
+    // Ensure sub claim is set (OpenIddict requires it on the principal directly)
+    principal.SetClaim(OpenIddictConstants.Claims.Subject, user.Id.ToString());
+
+    principal.SetScopes(request.GetScopes());
+
+    var resources = new List<string>();
+    await foreach (var resource in scopeManager.ListResourcesAsync(principal.GetScopes()))
+        resources.Add(resource);
+    principal.SetResources(resources);
+
+    // Set claim destinations: required for OpenIddict to accept the principal
+    foreach (var claim in principal.Claims)
+    {
+        claim.SetDestinations(claim.Type switch
+        {
+            // Identity claims go to access + identity token
+            "name" or "given_name" or "family_name" or "email" => new[] {
+                OpenIddictConstants.Destinations.AccessToken,
+                OpenIddictConstants.Destinations.IdentityToken },
+            // Role claim goes to access token
+            "role" or ClaimTypes.Role => new[] {
+                OpenIddictConstants.Destinations.AccessToken },
+            _ => new[] { OpenIddictConstants.Destinations.AccessToken }
+        });
+    }
+
+    return Results.SignIn(principal,
+        properties: new AuthenticationProperties { RedirectUri = request.RedirectUri },
+        authenticationScheme: OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+});
+
+// ─── OIDC Login Page (server-rendered for authorization flow) ───
+app.MapGet("/Account/Login", async (HttpContext httpContext, SignInManager<User> signInManager) =>
+{
+    var returnUrl = httpContext.Request.Query["returnUrl"].FirstOrDefault() ?? "/";
+    
+    // If user is already authenticated, show already-signed-in page
+    if (httpContext.User.Identity?.IsAuthenticated == true)
+    {
+        var userName = httpContext.User.Identity.Name ?? "User";
+        var pageHtml = BuildAlreadySignedInPage(userName, returnUrl);
+        httpContext.Response.OnStarting(() =>
+        {
+            httpContext.Response.Headers.Remove("Content-Security-Policy");
+            return Task.CompletedTask;
+        });
+        return Results.Content(pageHtml, "text/html; charset=utf-8");
+    }
+
+    var externalSchemes = await signInManager.GetExternalAuthenticationSchemesAsync();
+    var externalProviders = externalSchemes
+        .Select(s => s.Name)
+        .Where(n => n != "HisHope.BrowserOrApi") // exclude internal forwarding scheme
+        .ToList();
+
+    var error = httpContext.Request.Query["error"].FirstOrDefault();
+    var errorMessage = error == "invalid_credentials" ? "Invalid email or password." : (error ?? "");
+    var hasError = !string.IsNullOrEmpty(error);
+    var encodedReturnUrl = System.Net.WebUtility.HtmlEncode(returnUrl);
+
+    var html = BuildLoginPage(hasError, errorMessage, encodedReturnUrl, externalProviders);
+
+    // Remove restrictive CSP on response flush — login page CSS is self-contained (SVG, no external fonts)
+    httpContext.Response.OnStarting(() =>
+    {
+        httpContext.Response.Headers.Remove("Content-Security-Policy");
+        return Task.CompletedTask;
+    });
+
+    return Results.Content(html, "text/html; charset=utf-8");
+})
+.AllowAnonymous();
+
+// Logout confirmation page
+app.MapGet("/Account/Logout", async (HttpContext httpContext) =>
+{
+    var returnUrl = httpContext.Request.Query["returnUrl"].FirstOrDefault() ?? "/";
+    
+    if (httpContext.User.Identity?.IsAuthenticated != true)
+        return Results.Redirect("/Account/Login?returnUrl=" + System.Net.WebUtility.UrlEncode(returnUrl));
+    
+    var userName = httpContext.User.Identity.Name ?? "User";
+    var html = BuildLogoutPage(userName, returnUrl);
+    
+    httpContext.Response.OnStarting(() =>
+    {
+        httpContext.Response.Headers.Remove("Content-Security-Policy");
+        return Task.CompletedTask;
+    });
+    
+    return Results.Content(html, "text/html; charset=utf-8");
+})
+.AllowAnonymous();
+
+static string BuildLoginPage(bool hasError, string errorMessage, string encodedReturnUrl, List<string> externalProviders)
+{
+    var errorBlock = hasError
+        ? $"<div class=\"mat-error\" role=\"alert\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z\"/></svg>{System.Net.WebUtility.HtmlEncode(errorMessage)}</div>"
+        : "";
+
+    var extBlock = "";
+    if (externalProviders.Count > 0)
+    {
+        var btns = string.Join("\n", externalProviders.Select(p =>
+            $"<form method=\"post\" action=\"/Account/ExternalLogin\"><input type=\"hidden\" name=\"provider\" value=\"{System.Net.WebUtility.HtmlEncode(p)}\" /><input type=\"hidden\" name=\"returnUrl\" value=\"{encodedReturnUrl}\" /><button type=\"submit\" class=\"mat-stroked-button\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z\"/></svg>{System.Net.WebUtility.HtmlEncode(p)}</button></form>"));
+        extBlock = $"<div class=\"external-section\">{btns}</div>";
+    }
+
+    return $@"<!DOCTYPE html>
+<html lang=""en"">
+<head>
+<meta charset=""utf-8""/>
+<meta name=""viewport"" content=""width=device-width, initial-scale=1""/>
+<title>Sign in — His.Hope HIS</title>
+<style>
+*,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
+html,body{{height:100%}}
+body{{
+  font-family:Roboto,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:14px;font-weight:400;line-height:1.5;
+  color:rgba(0,0,0,.87);background:#fafafa;
+  -webkit-font-smoothing:antialiased
+}}
+.login-page{{
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:16px;
+  background:linear-gradient(135deg,#3f51b5,#303f9f)
+}}
+.card{{
+  width:100%;max-width:400px;background:#fff;border-radius:4px;
+  box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12);
+  overflow:hidden;animation:card-in .3s cubic-bezier(.4,0,.2,1)
+}}
+@keyframes card-in{{from{{opacity:0;transform:translateY(24px) scale(.98)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
+.card-header{{
+  background:linear-gradient(135deg,#3f51b5,#303f9f);color:#fff;
+  padding:40px 24px 32px;text-align:center
+}}
+.card-header svg{{width:48px;height:48px;margin-bottom:12px;opacity:.9}}
+.card-header h1{{font-size:24px;font-weight:400;margin:0 0 4px;letter-spacing:.25px}}
+.card-header p{{font-size:14px;font-weight:300;opacity:.8;letter-spacing:.1px}}
+.card-body{{padding:24px}}
+.mat-error{{
+  display:flex;align-items:center;gap:10px;padding:12px 16px;margin-bottom:16px;
+  background:#fbe9e7;color:#d32f2f;border-radius:4px;font-size:13px;
+  border-left:3px solid #d32f2f;animation:shake .4s ease
+}}
+@keyframes shake{{
+0%,100%{{transform:translateX(0)}}20%{{transform:translateX(-8px)}}40%{{transform:translateX(8px)}}60%{{transform:translateX(-4px)}}80%{{transform:translateX(4px)}}
+}}
+.mat-error svg{{width:20px;height:20px;flex-shrink:0}}
+.field{{display:block;margin-bottom:20px;position:relative}}
+.field label{{
+  display:block;font-size:12px;font-weight:500;color:rgba(0,0,0,.6);
+  margin-bottom:6px;letter-spacing:.4px;text-transform:uppercase
+}}
+.field-inner{{position:relative}}
+.field-inner input{{
+  width:100%;height:48px;padding:0 12px 0 44px;
+  border:1px solid rgba(0,0,0,.12);border-radius:4px 4px 0 0;
+  font-family:inherit;font-size:16px;font-weight:400;color:rgba(0,0,0,.87);
+  background:rgba(0,0,0,.02);outline:none;
+  transition:border-color .2s,background .2s,box-shadow .2s
+}}
+.field-inner input::placeholder{{color:rgba(0,0,0,.38)}}
+.field-inner input:hover{{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.38)}}
+.field-inner input:focus{{
+  background:transparent;border-color:#3f51b5;border-width:2px;
+  padding:0 11px 0 43px;box-shadow:inset 0 -2px 0 #3f51b5
+}}
+.field-inner input:focus+.underline{{transform:scaleX(1)}}
+.underline{{
+  position:absolute;bottom:0;left:0;right:0;height:2px;
+  background:#3f51b5;transform:scaleX(0);
+  transition:transform .2s cubic-bezier(.4,0,.2,1)
+}}
+.field-icon{{
+  position:absolute;left:12px;top:50%;transform:translateY(-50%);
+  pointer-events:none;transition:color .2s
+}}
+.field-icon svg{{width:20px;height:20px;color:rgba(0,0,0,.38);display:block}}
+.field-inner input:focus~.field-icon svg{{color:#3f51b5}}
+.btn{{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;min-height:36px;padding:0 16px;border:none;border-radius:4px;
+  font-family:inherit;font-size:14px;font-weight:500;
+  letter-spacing:.75px;text-transform:uppercase;cursor:pointer;
+  background:#3f51b5;color:#fff;
+  box-shadow:0 3px 1px -2px rgba(0,0,0,.2),0 2px 2px 0 rgba(0,0,0,.14),0 1px 5px 0 rgba(0,0,0,.12);
+  transition:background .2s,box-shadow .2s;user-select:none
+}}
+.btn:hover{{background:#3949ab;box-shadow:0 2px 4px -1px rgba(0,0,0,.2),0 4px 5px 0 rgba(0,0,0,.14),0 1px 10px 0 rgba(0,0,0,.12)}}
+.btn:active{{background:#303f9f;box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12)}}
+.btn svg{{width:18px;height:18px}}
+.external-section{{margin-top:16px;display:flex;flex-direction:column;gap:8px}}
+.btn-outline{{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;min-height:36px;padding:0 16px;
+  border:1px solid rgba(0,0,0,.12);border-radius:4px;
+  font-family:inherit;font-size:14px;font-weight:500;
+  color:rgba(0,0,0,.87);background:transparent;cursor:pointer;
+  letter-spacing:.25px;transition:background .2s
+}}
+.btn-outline:hover{{background:rgba(0,0,0,.04)}}
+.btn-outline svg{{width:20px;height:20px;color:#757575}}
+.footer{{
+  text-align:center;padding:24px 0 0;font-size:12px;font-weight:400;
+  color:rgba(255,255,255,.7)
+}}
+.footer strong{{color:#fff;font-weight:500}}
+</style>
+</head>
+<body>
+<div class=""login-page"">
+  <div class=""card"">
+    <div class=""card-header"">
+      <svg viewBox=""0 0 24 24"" fill=""none"" stroke=""currentColor"" stroke-width=""1.5""><path d=""M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z""/></svg>
+      <h1>His.Hope</h1>
+      <p>Hospital Information System</p>
+    </div>
+    <div class=""card-body"">
+      {errorBlock}
+      <form method=""post"" action=""/Account/Login"" autocomplete=""off"">
+        <input type=""hidden"" name=""returnUrl"" value=""{encodedReturnUrl}""/>
+        <div class=""field"">
+          <label for=""email"">Email</label>
+          <div class=""field-inner"">
+            <input type=""email"" id=""email"" name=""email"" placeholder=""you@hospital.vn"" required autocomplete=""username""/>
+            <span class=""field-icon""><svg viewBox=""0 0 24 24"" fill=""currentColor""><path d=""M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z""/></svg></span>
+            <span class=""underline""></span>
+          </div>
+        </div>
+        <div class=""field"">
+          <label for=""password"">Password</label>
+          <div class=""field-inner"">
+            <input type=""password"" id=""password"" name=""password"" placeholder=""Enter your password"" required autocomplete=""current-password""/>
+            <span class=""field-icon""><svg viewBox=""0 0 24 24"" fill=""currentColor""><path d=""M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z""/></svg></span>
+            <span class=""underline""></span>
+          </div>
+        </div>
+        <button type=""submit"" class=""btn"">
+          <svg viewBox=""0 0 24 24"" fill=""currentColor""><path d=""M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z""/></svg>
+          SIGN IN
+        </button>
+      </form>
+      {extBlock}
+    </div>
+  </div>
+  <div class=""footer"">
+    <strong>His.Hope</strong> v1.0 &bull; HIPAA-Compliant Security
+  </div>
+</div>
+</body>
+</html>";
+}
+
+static string BuildAlreadySignedInPage(string userName, string returnUrl)
+{
+    var encodedReturnUrl = System.Net.WebUtility.HtmlEncode(returnUrl);
+    var encodedUserName = System.Net.WebUtility.HtmlEncode(userName);
+    return $@"<!DOCTYPE html>
+<html lang=""en"">
+<head>
+<meta charset=""utf-8""/>
+<meta name=""viewport"" content=""width=device-width, initial-scale=1""/>
+<title>Already signed in — His.Hope HIS</title>
+<style>
+*,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
+html,body{{height:100%}}
+body{{
+  font-family:Roboto,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:14px;font-weight:400;line-height:1.5;
+  color:rgba(0,0,0,.87);background:#fafafa;
+  -webkit-font-smoothing:antialiased
+}}
+.login-page{{
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:16px;
+  background:linear-gradient(135deg,#3f51b5,#303f9f)
+}}
+.card{{
+  width:100%;max-width:400px;background:#fff;border-radius:4px;
+  box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12);
+  overflow:hidden;animation:card-in .3s cubic-bezier(.4,0,.2,1)
+}}
+@keyframes card-in{{from{{opacity:0;transform:translateY(24px) scale(.98)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
+.card-header{{
+  background:linear-gradient(135deg,#3f51b5,#303f9f);color:#fff;
+  padding:40px 24px 32px;text-align:center
+}}
+.card-header svg{{width:48px;height:48px;margin-bottom:12px;opacity:.9}}
+.card-header h1{{font-size:24px;font-weight:400;margin:0 0 4px;letter-spacing:.25px}}
+.card-header p{{font-size:14px;font-weight:300;opacity:.8;letter-spacing:.1px}}
+.card-body{{padding:24px}}
+.btn{{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;min-height:36px;padding:0 16px;border:none;border-radius:4px;
+  font-family:inherit;font-size:14px;font-weight:500;
+  letter-spacing:.75px;text-transform:uppercase;cursor:pointer;text-decoration:none;
+  background:#3f51b5;color:#fff;
+  box-shadow:0 3px 1px -2px rgba(0,0,0,.2),0 2px 2px 0 rgba(0,0,0,.14),0 1px 5px 0 rgba(0,0,0,.12);
+  transition:background .2s,box-shadow .2s;user-select:none
+}}
+.btn:hover{{background:#3949ab;box-shadow:0 2px 4px -1px rgba(0,0,0,.2),0 4px 5px 0 rgba(0,0,0,.14),0 1px 10px 0 rgba(0,0,0,.12)}}
+.btn:active{{background:#303f9f;box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12)}}
+.btn svg{{width:18px;height:18px}}
+.footer{{
+  text-align:center;padding:24px 0 0;font-size:12px;font-weight:400;
+  color:rgba(255,255,255,.7)
+}}
+.footer strong{{color:#fff;font-weight:500}}
+</style>
+</head>
+<body>
+<div class=""login-page"">
+  <div class=""card"">
+    <div class=""card-header"">
+      <svg viewBox=""0 0 24 24"" fill=""none"" stroke=""currentColor"" stroke-width=""1.5""><path d=""M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z""/></svg>
+      <h1>His.Hope</h1>
+      <p>Hospital Information System</p>
+    </div>
+    <div class=""card-body"">
+      <p style=""margin-bottom:24px;font-size:15px;text-align:center;color:rgba(0,0,0,.87);line-height:1.6"">You are already signed in as<br><strong>{encodedUserName}</strong>.</p>
+      <a href=""{encodedReturnUrl}"" class=""btn""><svg viewBox=""0 0 24 24"" fill=""currentColor""><path d=""M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z""/></svg>GO TO DASHBOARD</a>
+      <div style=""text-align:center;margin-top:16px"">
+        <a href=""/Account/Logout?returnUrl={encodedReturnUrl}"" style=""color:#3f51b5;text-decoration:none;font-size:14px;font-weight:500;letter-spacing:.25px"">SIGN OUT</a>
+      </div>
+    </div>
+  </div>
+  <div class=""footer"">
+    <strong>His.Hope</strong> v1.0 &bull; HIPAA-Compliant Security
+  </div>
+</div>
+</body>
+</html>";
+}
+
+static string BuildLogoutPage(string userName, string returnUrl)
+{
+    var encodedReturnUrl = System.Net.WebUtility.HtmlEncode(returnUrl);
+    var encodedUserName = System.Net.WebUtility.HtmlEncode(userName);
+    return $@"<!DOCTYPE html>
+<html lang=""en"">
+<head>
+<meta charset=""utf-8""/>
+<meta name=""viewport"" content=""width=device-width, initial-scale=1""/>
+<title>Sign out — His.Hope HIS</title>
+<style>
+*,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
+html,body{{height:100%}}
+body{{
+  font-family:Roboto,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:14px;font-weight:400;line-height:1.5;
+  color:rgba(0,0,0,.87);background:#fafafa;
+  -webkit-font-smoothing:antialiased
+}}
+.login-page{{
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:16px;
+  background:linear-gradient(135deg,#3f51b5,#303f9f)
+}}
+.card{{
+  width:100%;max-width:400px;background:#fff;border-radius:4px;
+  box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12);
+  overflow:hidden;animation:card-in .3s cubic-bezier(.4,0,.2,1)
+}}
+@keyframes card-in{{from{{opacity:0;transform:translateY(24px) scale(.98)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
+.card-header{{
+  background:linear-gradient(135deg,#3f51b5,#303f9f);color:#fff;
+  padding:40px 24px 32px;text-align:center
+}}
+.card-header svg{{width:48px;height:48px;margin-bottom:12px;opacity:.9}}
+.card-header h1{{font-size:24px;font-weight:400;margin:0 0 4px;letter-spacing:.25px}}
+.card-header p{{font-size:14px;font-weight:300;opacity:.8;letter-spacing:.1px}}
+.card-body{{padding:24px}}
+.btn{{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;min-height:36px;padding:0 16px;border:none;border-radius:4px;
+  font-family:inherit;font-size:14px;font-weight:500;
+  letter-spacing:.75px;text-transform:uppercase;cursor:pointer;
+  background:#3f51b5;color:#fff;
+  box-shadow:0 3px 1px -2px rgba(0,0,0,.2),0 2px 2px 0 rgba(0,0,0,.14),0 1px 5px 0 rgba(0,0,0,.12);
+  transition:background .2s,box-shadow .2s;user-select:none
+}}
+.btn:hover{{background:#3949ab;box-shadow:0 2px 4px -1px rgba(0,0,0,.2),0 4px 5px 0 rgba(0,0,0,.14),0 1px 10px 0 rgba(0,0,0,.12)}}
+.btn:active{{background:#303f9f;box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12)}}
+.btn svg{{width:18px;height:18px}}
+.footer{{
+  text-align:center;padding:24px 0 0;font-size:12px;font-weight:400;
+  color:rgba(255,255,255,.7)
+}}
+.footer strong{{color:#fff;font-weight:500}}
+</style>
+</head>
+<body>
+<div class=""login-page"">
+  <div class=""card"">
+    <div class=""card-header"">
+      <svg viewBox=""0 0 24 24"" fill=""none"" stroke=""currentColor"" stroke-width=""1.5""><path d=""M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z""/></svg>
+      <h1>Sign out</h1>
+      <p>His.Hope Hospital Information System</p>
+    </div>
+    <div class=""card-body"">
+      <p style=""margin-bottom:24px;font-size:15px;text-align:center;color:rgba(0,0,0,.87);line-height:1.6"">You are signed in as<br><strong>{encodedUserName}</strong>.</p>
+      <form method=""post"" action=""/Account/Logout"">
+        <input type=""hidden"" name=""returnUrl"" value=""{encodedReturnUrl}""/>
+        <button type=""submit"" class=""btn""><svg viewBox=""0 0 24 24"" fill=""currentColor""><path d=""M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z""/></svg>SIGN OUT</button>
+      </form>
+      <div style=""text-align:center;margin-top:16px"">
+        <a href=""{encodedReturnUrl}"" style=""color:#3f51b5;text-decoration:none;font-size:14px;font-weight:500;letter-spacing:.25px"">Cancel</a>
+      </div>
+    </div>
+  </div>
+  <div class=""footer"">
+    <strong>His.Hope</strong> v1.0 &bull; HIPAA-Compliant Security
+  </div>
+</div>
+</body>
+</html>";
+}
+
+app.MapPost("/Account/Login", async (HttpContext httpContext, SignInManager<User> signInManager, UserManager<User> userManager) =>
+{
+    var form = await httpContext.Request.ReadFormAsync();
+    var email = form["email"].FirstOrDefault()?.Trim();
+    var password = form["password"].FirstOrDefault();
+    var returnUrl = form["returnUrl"].FirstOrDefault() ?? "/";
+
+    if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
+        return Results.Redirect($"/Account/Login?error=invalid_credentials&returnUrl={System.Net.WebUtility.UrlEncode(returnUrl)}");
+
+    // Determine if returnUrl is an absolute URL from this origin or a relative path
+    if (!returnUrl.StartsWith('/'))
+        returnUrl = "/";
+
+    var user = await userManager.FindByEmailAsync(email);
+    if (user == null)
+        return Results.Redirect($"/Account/Login?error=invalid_credentials&returnUrl={System.Net.WebUtility.UrlEncode(returnUrl)}");
+
+    var result = await signInManager.PasswordSignInAsync(user, password, isPersistent: false, lockoutOnFailure: false);
+    if (!result.Succeeded)
+        return Results.Redirect($"/Account/Login?error=invalid_credentials&returnUrl={System.Net.WebUtility.UrlEncode(returnUrl)}");
+
+    return Results.Redirect(returnUrl);
+})
+.AllowAnonymous();
+
+app.MapPost("/Account/ExternalLogin", async (HttpContext httpContext, SignInManager<User> signInManager) =>
+{
+    var form = await httpContext.Request.ReadFormAsync();
+    var provider = form["provider"].FirstOrDefault();
+    var returnUrl = form["returnUrl"].FirstOrDefault() ?? "/";
+
+    if (string.IsNullOrEmpty(provider))
+        return Results.Redirect($"/Account/Login?error=invalid_provider&returnUrl={System.Net.WebUtility.UrlEncode(returnUrl)}");
+
+    var redirectUrl = $"/Account/ExternalLoginCallback?returnUrl={System.Net.WebUtility.UrlEncode(returnUrl)}";
+    var properties = signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
+    return Results.Challenge(properties, [provider]);
+})
+.AllowAnonymous();
+
+// OIDC Logout endpoint (passthrough handler - Angular apps call oidcSecurityService.logoff())
+app.MapGet("/connect/logout", async (HttpContext httpContext, SignInManager<User> signInManager) =>
+{
+    // Sign out the cookie
+    await signInManager.SignOutAsync();
+    
+    var postLogoutUri = httpContext.Request.Query["post_logout_redirect_uri"].FirstOrDefault();
+    if (!string.IsNullOrEmpty(postLogoutUri) && Uri.TryCreate(postLogoutUri, UriKind.Absolute, out _))
+        return Results.Redirect(postLogoutUri);
+    
+    return Results.Redirect("/Account/Login");
+}).AllowAnonymous();
+
+// Logout endpoint (POST - server-rendered form)
+app.MapPost("/Account/Logout", async (HttpContext httpContext, SignInManager<User> signInManager) =>
+{
+    var form = await httpContext.Request.ReadFormAsync();
+    var returnUrl = form["returnUrl"].FirstOrDefault() ?? "/Account/Login";
+
+    if (!returnUrl.StartsWith('/'))
+        returnUrl = "/Account/Login";
+
+    await signInManager.SignOutAsync();
+    return Results.Redirect(returnUrl);
+});
+
 app.Run();
 
 // ─── BFF Helpers ─────────────────────────────────────────────────────
 
 file static class BffHelpers
 {
+    internal static async Task<SessionData?> GetSessionAsync(IConnectionMultiplexer redis, HttpContext httpContext)
+    {
+        var sessionId = httpContext.Request.Cookies["hishop_sid"];
+        if (string.IsNullOrWhiteSpace(sessionId))
+            return null;
+
+        var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
+        return sessionJson.HasValue
+            ? JsonSerializer.Deserialize<SessionData>(sessionJson!)
+            : null;
+    }
+
+    internal static IResult? ValidateSessionBinding(HttpContext httpContext, SessionData session, bool requireCsrf)
+    {
+        var userAgentHash = ComputeSha256(httpContext.Request.Headers.UserAgent.ToString());
+        if (!string.Equals(session.UserAgentHash, userAgentHash, StringComparison.Ordinal))
+            return Results.Unauthorized();
+
+        if (!requireCsrf)
+            return null;
+
+        var csrfHeader = httpContext.Request.Headers["X-CSRF-Token"].FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(csrfHeader) ||
+            !string.Equals(session.CsrfToken, csrfHeader, StringComparison.Ordinal))
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+        return null;
+    }
+
+    internal static async Task ReplaceSessionTokensAsync(
+        IConnectionMultiplexer redis,
+        HttpContext httpContext,
+        string sessionId,
+        TokenResponse tokenResponse)
+    {
+        var existing = await GetSessionAsync(redis, httpContext);
+        if (existing is null)
+            return;
+
+        var next = existing with
+        {
+            Jwt = tokenResponse.AccessToken,
+            RefreshToken = tokenResponse.RefreshToken,
+            ExpiresAt = tokenResponse.ExpiresAt,
+            CsrfToken = Guid.NewGuid().ToString("N"),
+            UserAgentHash = ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
+            IssuedAt = DateTimeOffset.UtcNow
+        };
+
+        await redis.GetDatabase().StringSetAsync(
+            $"session:{sessionId}",
+            JsonSerializer.Serialize(next),
+            TimeSpan.FromHours(1));
+
+        httpContext.Response.Cookies.Append("hishop_csrf", next.CsrfToken, new CookieOptions
+        {
+            HttpOnly = false,
+            Secure = httpContext.Request.IsHttps,
+            SameSite = SameSiteMode.Strict,
+            Path = "/",
+            MaxAge = TimeSpan.FromHours(1)
+        });
+    }
+
     internal static string ComputeSha256(string input)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input ?? ""));
