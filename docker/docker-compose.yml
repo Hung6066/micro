@@ -204,15 +204,27 @@ services:
     container_name: his-hope-identity
     ports:
       - "5001:5001"
+      - "5012:5012"
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:5001
       ConnectionStrings__IdentityDb: Host=postgres;Database=identitydb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__Redis: redis:6379
       Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
       Jwt__Issuer: his-hope-identity
       Jwt__Expiry: "08:00:00"
       Redis__ConnectionString: redis:6379
       Otlp__Endpoint: http://jaeger:4317
+      # ─── OpenIddict OIDC Configuration ───
+      OpenIddict__Issuer: ${OIDC_ISSUER:-http://localhost:5000}
+      OpenIddict__AccessTokenLifetime: ${OIDC_ACCESS_TOKEN_LIFETIME:-01:00:00}
+      OpenIddict__RefreshTokenLifetime: ${OIDC_REFRESH_TOKEN_LIFETIME:-7.00:00:00}
+      OpenIddict__AuthorizationCodeLifetime: ${OIDC_CODE_LIFETIME:-00:01:00}
+      # ─── Federation (optional) ───
+      Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
+      Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:-}
+      Authentication__Microsoft__ClientId: ${MS_CLIENT_ID:-}
+      Authentication__Microsoft__ClientSecret: ${MS_CLIENT_SECRET:-}
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -472,7 +484,7 @@ services:
       - Prometheus__Url=http://prometheus:9090
       - AlertManager__Url=http://alertmanager:9093
       - Jwt__Key=${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
-      - Jwt__Issuer=his-hope-identity
+      - Jwt__Issuer=http://localhost:5000
     depends_on:
       - consul
       - elasticsearch
@@ -482,6 +494,23 @@ services:
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+
+  # Admin App (Angular)
+  admin-app:
+    build:
+      context: ../admin-app
+    container_name: his-hope-admin
+    ports:
+      - "8083:80"
+    depends_on:
+      identityservice: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   # Aspire Dashboard App (Angular)
   dashboard-app:

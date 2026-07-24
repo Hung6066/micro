@@ -181,7 +181,7 @@ public class IdentityService : IIdentityService
             user.Id, string.Join(",", roles), permissions.Count, familyId, request.IpAddress);
 
         return new TokenResponse(
-            accessToken, refreshTokenValue, expiresAt, MapToDto(user, roles));
+            accessToken, refreshTokenValue, expiresAt, MapToDto(user, roles, permissions));
     }
 
     /// <summary>
@@ -264,7 +264,7 @@ public class IdentityService : IIdentityService
             "User registered: UserId={UserId}, Username={Username}",
             user.Id, request.Username);
 
-        return new TokenResponse(accessToken, refreshTokenValue, expiresAt, MapToDto(user, roles));
+        return new TokenResponse(accessToken, refreshTokenValue, expiresAt, MapToDto(user, roles, permissions));
     }
 
     public async Task<TokenResponse> RefreshTokenAsync(RefreshTokenRequest request,
@@ -348,7 +348,7 @@ public class IdentityService : IIdentityService
             "Token refreshed: UserId={UserId}, FamilyId={FamilyId}, Generation={Gen}",
             userId, newRecord.FamilyId, newRecord.Generation);
 
-        return new TokenResponse(accessToken, newRefreshTokenValue, expiresAt, MapToDto(user, roles));
+        return new TokenResponse(accessToken, newRefreshTokenValue, expiresAt, MapToDto(user, roles, permissions));
     }
 
     public async Task<UserDto> GetUserByIdAsync(Guid userId,
@@ -359,7 +359,8 @@ public class IdentityService : IIdentityService
             throw new KeyNotFoundException("User not found.");
 
         var roles = await _userManager.GetRolesAsync(user);
-        return MapToDto(user, roles);
+        var permissions = await GetPermissionsForRolesAsync(roles, cancellationToken);
+        return MapToDto(user, roles, permissions);
     }
 
     public async Task LogoutAsync(string refreshToken, CancellationToken cancellationToken = default)
@@ -368,10 +369,10 @@ public class IdentityService : IIdentityService
         _logger.LogInformation("User logout - refresh token revoked");
     }
 
-    private static UserDto MapToDto(User user, IList<string> roles) => new(
+    private static UserDto MapToDto(User user, IList<string> roles, IList<string>? permissions = null) => new(
         user.Id, user.UserName!, user.Email!,
         user.FirstName, user.LastName, user.MiddleName,
-        user.FullName, user.LicenseNumber, user.Specialty, roles);
+        user.FullName, user.LicenseNumber, user.Specialty, roles, permissions);
 
     // ─── Security Event Logging ─────────────────────────────────────
 

@@ -124,4 +124,33 @@ export class AuthEffects {
     ),
   );
 
+  oidcLogin$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(AuthActions.oidcLogin),
+      tap(() => this.authService.oidcLogin()),
+    ),
+    { dispatch: false },
+  );
+
+  oidcLogout$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(AuthActions.oidcLogout),
+      tap(() => this.authService.oidcLogout()),
+    ),
+    { dispatch: false },
+  );
+
+  oidcHandleCallback$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(AuthActions.oidcHandleCallback),
+      switchMap(() =>
+        this.authService.handleCallback().pipe(
+          map((isAuthenticated) => AuthActions.oidcLoginSuccess({ isAuthenticated })),
+          catchError((err) =>
+            of(AuthActions.oidcLoginFailure({ error: err.message || 'OIDC callback failed' })),
+          ),
+        ),
+      ),
+    ),
+  );
 }

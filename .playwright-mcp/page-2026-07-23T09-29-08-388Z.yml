@@ -1,0 +1,32 @@
+- generic [ref=f7e2]:
+  - generic [ref=f7e3]:
+    - button "Toggle navigation" [ref=f7e4] [cursor=pointer]:
+      - img [ref=f7e5]: menu
+    - generic [ref=f7e8]: His.Hope Admin
+    - button "User menu" [ref=f7e9] [cursor=pointer]:
+      - img [ref=f7e10]: account_circle
+  - generic [ref=f7e13]:
+    - navigation [ref=f7e17]:
+      - link [ref=f7e18] [cursor=pointer]:
+        - /url: /clients
+        - img [ref=f7e19]: vpn_key
+      - link [ref=f7e21] [cursor=pointer]:
+        - /url: /users
+        - img [ref=f7e22]: people
+      - link [ref=f7e24] [cursor=pointer]:
+        - /url: /roles
+        - img [ref=f7e25]: badge
+      - link [ref=f7e27] [cursor=pointer]:
+        - /url: /consents
+        - img [ref=f7e28]: checklist
+      - link [ref=f7e30] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=f7e31]: dashboard
+    - main [ref=f7e35]:
+      - generic [ref=f7e36]:
+        - generic [ref=f7e37]:
+          - heading "OIDC Clients" [level=1] [ref=f7e38]
+          - button "New Client" [ref=f7e39]:
+            - img [ref=f7e40]: add
+        - generic [ref=f7e45]:
+          - table

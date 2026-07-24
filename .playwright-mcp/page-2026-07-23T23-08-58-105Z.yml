@@ -1,0 +1,89 @@
+- generic [ref=f24e2]:
+  - generic [ref=f24e3]:
+    - button "Toggle navigation" [ref=f24e4] [cursor=pointer]:
+      - img [ref=f24e5]: menu
+    - generic [ref=f24e8]: His.Hope Dashboard
+    - button "Thông báo cảnh báo" [ref=f24e10] [cursor=pointer]:
+      - img [ref=f24e11]: notifications
+      - generic: "0"
+    - button "Toggle dark mode" [ref=f24e14] [cursor=pointer]:
+      - img [ref=f24e15]: brightness_6
+    - button "User menu" [ref=f24e18] [cursor=pointer]:
+      - img [ref=f24e19]: account_circle
+  - generic [ref=f24e22]:
+    - navigation [ref=f24e26]:
+      - link [ref=f24e27] [cursor=pointer]:
+        - /url: /resources
+        - img [ref=f24e28]: dns
+      - link [ref=f24e30] [cursor=pointer]:
+        - /url: /logs
+        - img [ref=f24e31]: article
+      - link [ref=f24e33] [cursor=pointer]:
+        - /url: /traces
+        - img [ref=f24e34]: timeline
+      - link [ref=f24e36] [cursor=pointer]:
+        - /url: /slo
+        - img [ref=f24e37]: speed
+      - link [ref=f24e39] [cursor=pointer]:
+        - /url: /metrics
+        - img [ref=f24e40]: monitoring
+    - main [ref=f24e44]:
+      - generic [ref=f24e45]:
+        - generic [ref=f24e46]:
+          - heading "System Logs" [level=1] [ref=f24e47]
+          - generic [ref=f24e48]:
+            - button "Refresh" [disabled]:
+              - img: refresh
+        - generic [ref=f24e49]:
+          - tablist [ref=f24e52]:
+            - generic [ref=f24e53]:
+              - tab "Search" [selected] [ref=f24e54] [cursor=pointer]
+              - tab "Stream" [ref=f24e57] [cursor=pointer]
+          - generic [ref=f24e60]:
+            - tabpanel "Search" [ref=f24e61]:
+              - generic [ref=f24e62]:
+                - generic [ref=f24e64]:
+                  - generic [ref=f24e65]:
+                    - generic [ref=f24e66]:
+                      - generic [ref=f24e67]: Time range
+                      - generic [ref=f24e70]:
+                        - button "5m" [ref=f24e71]
+                        - button "15m" [ref=f24e75]
+                        - button "1h" [ref=f24e79]
+                        - button "6h" [ref=f24e83]
+                        - button "24h" [ref=f24e87]
+                        - button "Custom" [ref=f24e91]
+                    - generic [ref=f24e97]:
+                      - generic: Service
+                      - combobox "Service" [ref=f24e100]
+                      - img [ref=f24e102]: search
+                  - generic [ref=f24e103]:
+                    - generic [ref=f24e106]:
+                      - generic: Full-text search
+                      - textbox "Full-text search" [ref=f24e109]:
+                        - /placeholder: Keywords, trace ID, message...
+                    - generic [ref=f24e110]:
+                      - generic [ref=f24e111]: Level
+                      - generic [ref=f24e112]:
+                        - button "Error" [ref=f24e113] [cursor=pointer]
+                        - button "Warn" [ref=f24e114] [cursor=pointer]
+                        - button "Info" [ref=f24e115] [cursor=pointer]
+                        - button "Debug" [ref=f24e116] [cursor=pointer]
+                    - button "Search" [ref=f24e117]:
+                      - img [ref=f24e118]: search
+                - generic [ref=f24e123]:
+                  - progressbar [ref=f24e125]
+                  - table [ref=f24e140]:
+                    - rowgroup [ref=f24e141]:
+                      - row [ref=f24e142]:
+                        - columnheader "Time" [ref=f24e143]
+                        - columnheader "Level" [ref=f24e144]
+                        - columnheader "Service" [ref=f24e145]
+                        - columnheader "Message" [ref=f24e146]
+                        - columnheader [ref=f24e147]
+                    - rowgroup [ref=f24e148]:
+                      - row [ref=f24e149]:
+                        - cell [ref=f24e150]:
+                          - img [ref=f24e151]: article
+                          - paragraph [ref=f24e152]: Loading...
+            - tabpanel [ref=f24e153]

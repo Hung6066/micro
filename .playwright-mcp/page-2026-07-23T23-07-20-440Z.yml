@@ -1,0 +1,31 @@
+- generic [ref=f21e2]:
+  - generic [ref=f21e3]:
+    - button "Toggle navigation" [ref=f21e4] [cursor=pointer]:
+      - img [ref=f21e5]: menu
+    - generic [ref=f21e8]: His.Hope Dashboard
+    - button "Thông báo cảnh báo" [ref=f21e10] [cursor=pointer]:
+      - img [ref=f21e11]: notifications
+      - generic: "0"
+    - button "Toggle dark mode" [ref=f21e14] [cursor=pointer]:
+      - img [ref=f21e15]: brightness_6
+    - button "User menu" [ref=f21e18] [cursor=pointer]:
+      - img [ref=f21e19]: account_circle
+  - generic [ref=f21e22]:
+    - navigation [ref=f21e26]:
+      - link [ref=f21e27] [cursor=pointer]:
+        - /url: /resources
+        - img [ref=f21e28]: dns
+      - link [ref=f21e30] [cursor=pointer]:
+        - /url: /logs
+        - img [ref=f21e31]: article
+      - link [ref=f21e33] [cursor=pointer]:
+        - /url: /traces
+        - img [ref=f21e34]: timeline
+      - link [ref=f21e36] [cursor=pointer]:
+        - /url: /slo
+        - img [ref=f21e37]: speed
+      - link [ref=f21e39] [cursor=pointer]:
+        - /url: /metrics
+        - img [ref=f21e40]: monitoring
+    - generic [ref=f21e43]:
+      - main

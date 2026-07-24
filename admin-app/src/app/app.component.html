@@ -1,0 +1,55 @@
+<mat-toolbar color="primary" class="app-toolbar">
+  <button mat-icon-button (click)="toggleSidenav()" aria-label="Toggle navigation">
+    <mat-icon>menu</mat-icon>
+  </button>
+  <span class="app-title">His.Hope Admin</span>
+  <span class="toolbar-spacer"></span>
+  <button mat-icon-button [matMenuTriggerFor]="userMenu" aria-label="User menu">
+    <mat-icon>account_circle</mat-icon>
+  </button>
+  <mat-menu #userMenu="matMenu">
+    <button mat-menu-item *ngIf="isAuthenticated$ | async" (click)="onLogout()">
+      <mat-icon>logout</mat-icon>
+      <span>Logout</span>
+    </button>
+    <button mat-menu-item *ngIf="!(isAuthenticated$ | async)" (click)="onLogin()">
+      <mat-icon>login</mat-icon>
+      <span>Login</span>
+    </button>
+  </mat-menu>
+</mat-toolbar>
+
+<mat-sidenav-container class="sidenav-container">
+  <mat-sidenav #sidenav
+    [mode]="(isMobile$ | async) ? 'over' : 'side'"
+    [opened]="sidenavOpened$ | async"
+    class="app-sidenav">
+    <mat-nav-list>
+      <a mat-list-item routerLink="/clients" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>vpn_key</mat-icon>
+        <span matListItemTitle>Clients</span>
+      </a>
+      <a mat-list-item routerLink="/users" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>people</mat-icon>
+        <span matListItemTitle>Users</span>
+      </a>
+      <a mat-list-item routerLink="/roles" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>badge</mat-icon>
+        <span matListItemTitle>Roles</span>
+      </a>
+      <a mat-list-item routerLink="/consents" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>checklist</mat-icon>
+        <span matListItemTitle>Consents</span>
+      </a>
+      <a mat-list-item routerLink="/dashboard" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>dashboard</mat-icon>
+        <span matListItemTitle>Dashboard</span>
+      </a>
+    </mat-nav-list>
+  </mat-sidenav>
+  <mat-sidenav-content class="sidenav-content">
+    <main class="main-content">
+      <router-outlet></router-outlet>
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>

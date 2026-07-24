@@ -37,17 +37,19 @@ COPY ["src/Shared/Protos/", "Shared/Protos/"]
 RUN --mount=type=cache,target=/root/.nuget/packages \
     dotnet publish "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj" \
     -c Release \
-    -o /app/publish \
-    --no-restore
+    -o /app/publish
 
 # ============================================================
 # RUNTIME STAGE (distroless chiseled)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy AS final
 WORKDIR /app
 EXPOSE 8080
+EXPOSE 5012
 
 # Runtime environment defaults
+# Port 8080: HTTP/REST + OIDC endpoints
+# Port 5012: gRPC (for service-to-service communication)
 ENV ASPNETCORE_URLS=http://+:8080 \
     ASPNETCORE_ENVIRONMENT=Production \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
@@ -55,9 +57,18 @@ ENV ASPNETCORE_URLS=http://+:8080 \
     DOTNET_GCHeapHardLimit=0x40000000 \
     DOTNET_ThreadPool_UnfairSemaphoreSpinCount=0
 
+# ─── OpenIddict OIDC Configuration ───
+ENV OpenIddict__Issuer=https://identity.his-hope.local \
+    OpenIddict__AccessTokenLifetime=01:00:00 \
+    OpenIddict__RefreshTokenLifetime=7.00:00:00 \
+    OpenIddict__AuthorizationCodeLifetime=00:01:00
+
+# Install curl for Docker HEALTHCHECK
 COPY --from=build /app/publish .
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 USER app
 
-# K8s probes handle health checks — no Docker HEALTHCHECK needed
+# Docker HEALTHCHECK uses curl (available in jammy base image)
 
 ENTRYPOINT ["dotnet", "IdentityService.Api.dll"]

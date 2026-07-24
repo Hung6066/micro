@@ -23,8 +23,10 @@ using His.Hope.Infrastructure.Security.Authorization;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.IntegrationEvents.Appointment;
 using His.Hope.PatientGrpc;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
@@ -38,8 +40,41 @@ builder.Host.UseSerilog((context, config) =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// SECURITY: Add JWT Bearer authentication with RSA public key validation
-builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
+// SECURITY: Add JWT Bearer authentication with OIDC JWKS key validation
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.Authority = "http://identityservice:5001";
+        options.RequireHttpsMetadata = false;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = false,
+            ValidateAudience = false,
+            ValidateLifetime = true,
+            IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
+            {
+                try
+                {
+                    using var client = new HttpClient();
+                    var jwksJson = client.GetStringAsync("http://identityservice:5001/.well-known/jwks").GetAwaiter().GetResult();
+                    var keySet = new JsonWebKeySet(jwksJson);
+                    return keySet.Keys;
+                }
+                catch { return Enumerable.Empty<SecurityKey>(); }
+            }
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken) && context.Request.Path.StartsWithSegments("/hubs"))
+                    context.Token = accessToken;
+                return Task.CompletedTask;
+            }
+        };
+    });
+builder.Services.AddAuthorization();
 
 // SECURITY: Register permission-based authorization policies
 builder.Services.AddHisHopeAuthorization();

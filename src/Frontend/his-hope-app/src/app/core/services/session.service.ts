@@ -143,7 +143,7 @@ export class SessionService {
 
   private forceLogout(reason: 'idle_timeout' | 'absolute_expiry'): void {
     this.stopTracking();
-    this.authService.clearStoredAccessToken();
+    this.authService.oidcLogout();
     this.router.navigate(['/auth/login'], {
       queryParams: { reason },
     });

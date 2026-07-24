@@ -1,0 +1,32 @@
+- generic [ref=f127e2]:
+  - generic [ref=f127e3]:
+    - button "Toggle navigation" [ref=f127e4] [cursor=pointer]:
+      - img [ref=f127e5]: menu
+    - generic [ref=f127e8]: His.Hope Admin
+    - button "User menu" [ref=f127e9] [cursor=pointer]:
+      - img [ref=f127e10]: account_circle
+  - generic [ref=f127e13]:
+    - navigation [ref=f127e17]:
+      - link [ref=f127e18] [cursor=pointer]:
+        - /url: /clients
+        - img [ref=f127e19]: vpn_key
+      - link [ref=f127e21] [cursor=pointer]:
+        - /url: /users
+        - img [ref=f127e22]: people
+      - link [ref=f127e24] [cursor=pointer]:
+        - /url: /roles
+        - img [ref=f127e25]: badge
+      - link [ref=f127e27] [cursor=pointer]:
+        - /url: /consents
+        - img [ref=f127e28]: checklist
+      - link [ref=f127e30] [cursor=pointer]:
+        - /url: /dashboard
+        - img [ref=f127e31]: dashboard
+    - main [ref=f127e35]:
+      - generic [ref=f127e39]:
+        - generic [ref=f127e40]:
+          - generic [ref=f127e41]: His.Hope
+          - heading "Admin" [level=2] [ref=f127e42]
+          - paragraph [ref=f127e43]: Sign in to manage OIDC resources
+        - button "Sign in with His.Hope" [ref=f127e45]:
+          - img [ref=f127e46]: login

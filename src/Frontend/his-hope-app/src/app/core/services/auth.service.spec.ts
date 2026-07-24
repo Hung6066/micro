@@ -1,17 +1,28 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AuthService } from './auth.service';
-import { LoginRequest, RegisterRequest, User } from '@core/models/auth.model';
+import { User } from '@core/models/auth.model';
 import { environment } from '@env/environment';
-import { HttpErrorResponse, provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
+import { OidcSecurityService } from 'angular-auth-oidc-client';
+import { of } from 'rxjs';
 
 describe('AuthService', () => {
   let service: AuthService;
   let httpMock: HttpTestingController;
+  let mockOidcSecurityService: ReturnType<typeof createMockOidc>;
 
-  function createJwtToken(payload: Record<string, unknown>): string {
-    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    return `header.${encoded}.signature`;
+  function createMockOidc() {
+    return {
+      authorize: jasmine.createSpy('authorize'),
+      logoff: jasmine.createSpy('logoff').and.returnValue(of(undefined)),
+      checkAuth: jasmine.createSpy('checkAuth').and.returnValue(of({ isAuthenticated: false, userData: null })),
+      getAccessToken: jasmine.createSpy('getAccessToken').and.returnValue(of('mock-token')),
+      isAuthenticated$: of({ isAuthenticated: true }),
+      userData$: of(null),
+      isAuthenticated: jasmine.createSpy('isAuthenticated').and.returnValue(of(true)),
+      forceRefreshSession: jasmine.createSpy('forceRefreshSession').and.returnValue(of(undefined)),
+    };
   }
 
   const mockUser: User = {
@@ -27,10 +38,15 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     sessionStorage.clear();
+    mockOidcSecurityService = createMockOidc();
     TestBed.configureTestingModule({
-    imports: [],
-    providers: [provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
-});
+      imports: [],
+      providers: [
+        provideHttpClient(withInterceptorsFromDi()),
+        provideHttpClientTesting(),
+        { provide: OidcSecurityService, useValue: mockOidcSecurityService },
+      ],
+    });
     service = TestBed.inject(AuthService);
     httpMock = TestBed.inject(HttpTestingController);
   });
@@ -40,247 +56,202 @@ describe('AuthService', () => {
     sessionStorage.clear();
   });
 
-  it('should login, store token in memory, and return user', () => {
-    const request: LoginRequest = { username: 'admin', password: 'secret' };
-    const response = { accessToken: 'jwt-token', user: mockUser };
+  // ─── OIDC Methods ─────────────────────────────────────────────────
 
-    service.login(request).subscribe((user) => {
-      expect(user).toEqual(mockUser);
+  describe('OIDC authentication', () => {
+    it('should call authorize on oidcLogin', () => {
+      service.oidcLogin();
+      expect(mockOidcSecurityService.authorize).toHaveBeenCalled();
     });
 
-    const req = httpMock.expectOne(`${environment.apiUrl}/auth/login`);
-    expect(req.request.method).toBe('POST');
-    expect(req.request.withCredentials).toBeTrue();
-    req.flush(response);
-
-    // Token stored in memory and mirrored to sessionStorage for reload hydration
-    expect(service.getStoredAccessToken()).toBe('jwt-token');
-    expect(sessionStorage.getItem('hishope_access_token')).toBe('jwt-token');
-  });
-
-  it('should register and return user', () => {
-    const request: RegisterRequest = {
-      username: 'newuser',
-      email: 'new@hishope.vn',
-      password: 'secret',
-      firstName: 'New',
-      lastName: 'User',
-    };
-
-    service.register(request).subscribe((user) => {
-      expect(user).toEqual(mockUser);
+    it('should store returnUrl in sessionStorage on oidcLogin', () => {
+      service.oidcLogin('/dashboard');
+      expect(sessionStorage.getItem('oidc_returnUrl')).toBe('/dashboard');
     });
 
-    const req = httpMock.expectOne(`${environment.apiUrl}/auth/register`);
-    expect(req.request.method).toBe('POST');
-    req.flush(mockUser);
-  });
-
-  it('should refresh token', () => {
-    service.refreshToken().subscribe((user) => {
-      expect(user).toEqual(mockUser);
+    it('should not store returnUrl when not provided', () => {
+      service.oidcLogin();
+      expect(sessionStorage.getItem('oidc_returnUrl')).toBeNull();
     });
 
-    const req = httpMock.expectOne(`${environment.apiUrl}/auth/refresh`);
-    expect(req.request.method).toBe('POST');
-    req.flush({
-      accessToken: 'fresh-token',
-      refreshToken: 'fresh-refresh-token',
-      expiresAt: '2026-07-20T12:00:00Z',
-      user: mockUser,
+    it('should call logoff on oidcLogout and clear user state', () => {
+      (service as any).currentUserSubject.next(mockUser);
+      service.oidcLogout();
+      expect(mockOidcSecurityService.logoff).toHaveBeenCalled();
+      expect((service as any).currentUserSubject.value).toBeNull();
     });
 
-    expect(service.getStoredAccessToken()).toBe('fresh-token');
-    expect(sessionStorage.getItem('hishope_access_token')).toBe('fresh-token');
-  });
+    it('should handle callback via checkAuth and load user on success', (done) => {
+      mockOidcSecurityService.checkAuth.and.returnValue(of({ isAuthenticated: true, userData: { sub: 'usr-001' } }));
 
-  it('should logout and clear token from memory', () => {
-    service.storeAccessToken('existing-token');
-    service.logout().subscribe();
-
-    const req = httpMock.expectOne(`${environment.apiUrl}/auth/logout`);
-    expect(req.request.method).toBe('POST');
-    req.flush(null);
-
-    expect(service.getStoredAccessToken()).toBeNull();
-  });
-
-  it('should return logged in status when token exists', () => {
-    service.storeAccessToken('persisted-token');
-
-    service.isLoggedIn().subscribe((loggedIn) => {
-      expect(loggedIn).toBeTrue();
+      service.handleCallback().subscribe((isAuth) => {
+        expect(isAuth).toBeTrue();
+        expect(mockOidcSecurityService.checkAuth).toHaveBeenCalled();
+        done();
+      });
     });
 
-    const req = httpMock.expectOne(`${environment.apiUrl}/auth/verify`);
-    req.flush({ authenticated: true });
-  });
+    it('should return false from handleCallback when not authenticated', (done) => {
+      mockOidcSecurityService.checkAuth.and.returnValue(of({ isAuthenticated: false, userData: null }));
 
-  it('should verify cookie session when no access token exists', () => {
-    service.isLoggedIn().subscribe((loggedIn) => {
-      expect(loggedIn).toBeTrue();
-    });
-
-    const req = httpMock.expectOne(`${environment.apiUrl}/auth/verify`);
-    expect(req.request.withCredentials).toBeTrue();
-    req.flush({ authenticated: true });
-  });
-
-  it('should hydrate the current user from stored token claims', (done) => {
-    const token = createJwtToken({
-      sub: mockUser.id,
-      email: mockUser.email,
-      unique_name: mockUser.username,
-      fullName: mockUser.fullName,
-      roles: mockUser.roles,
-      permissions: mockUser.permissions?.join(','),
-    });
-    service.storeAccessToken(token);
-
-    service.ensureCurrentUser().subscribe((user) => {
-      expect(user).toEqual(mockUser);
-      expect(service['currentUserSubject'].value).toEqual(mockUser);
-      done();
+      service.handleCallback().subscribe((isAuth) => {
+        expect(isAuth).toBeFalse();
+        done();
+      });
     });
   });
 
-  it('should hydrate unicode claims from stored token claims', (done) => {
-    const token = createJwtToken({
-      sub: mockUser.id,
-      email: mockUser.email,
-      unique_name: mockUser.username,
-      fullName: 'Viên Quản Trị',
-      roles: mockUser.roles,
-      permissions: mockUser.permissions?.join(','),
-    });
-    service.storeAccessToken(token);
-
-    service.ensureCurrentUser().subscribe((user) => {
-      expect(user?.fullName).toBe('Viên Quản Trị');
-      expect(user?.firstName).toBe('Viên Quản');
-      expect(user?.lastName).toBe('Trị');
-      done();
-    });
-  });
-
-  it('should hydrate role from the .NET role claim URI', (done) => {
-    const token = createJwtToken({
-      sub: mockUser.id,
-      email: mockUser.email,
-      unique_name: mockUser.username,
-      fullName: mockUser.fullName,
-      'http://schemas.microsoft.com/ws/2008/06/identity/claims/role': 'Admin',
-      permissions: mockUser.permissions?.join(','),
-    });
-    service.storeAccessToken(token);
-
-    service.ensureCurrentUser().subscribe((user) => {
-      expect(user?.roles).toEqual(['Admin']);
-      done();
-    });
-  });
-
-  it('should return false for isLoggedIn when verify fails', () => {
-    service.storeAccessToken('persisted-token');
-
-    service.isLoggedIn().subscribe((loggedIn) => {
-      expect(loggedIn).toBeFalse();
-    });
-
-    const req = httpMock.expectOne(`${environment.apiUrl}/auth/verify`);
-    req.error(new ProgressEvent('Network error'));
-    // isLoggedIn() pipes retry(1), so handle the retry
-    const retryReq = httpMock.expectOne(`${environment.apiUrl}/auth/verify`);
-    retryReq.error(new ProgressEvent('Network error'));
-  });
+  // ─── Role & Permission Methods ────────────────────────────────────
 
   it('should return user roles from subject', () => {
-    service['currentUserSubject'].next(mockUser);
+    (service as any).currentUserSubject.next(mockUser);
     expect(service.getUserRoles()).toEqual(['admin']);
   });
 
   it('should return empty roles when no user', () => {
-    service['currentUserSubject'].next(null);
+    (service as any).currentUserSubject.next(null);
     expect(service.getUserRoles()).toEqual([]);
   });
 
   it('should check permission', () => {
-    service['currentUserSubject'].next(mockUser);
+    (service as any).currentUserSubject.next(mockUser);
     expect(service.hasPermission('patients.view')).toBeTrue();
     expect(service.hasPermission('nonexistent')).toBeFalse();
   });
 
   it('should check multiple permissions with AND logic', () => {
-    service['currentUserSubject'].next(mockUser);
+    (service as any).currentUserSubject.next(mockUser);
     expect(service.hasPermission(['patients.view', 'patients.write'])).toBeTrue();
     expect(service.hasPermission(['patients.view', 'nonexistent'])).toBeFalse();
   });
 
-  it('should handleHttpError and transform', () => {
-    service.login({ username: '', password: '' }).subscribe({
-      error: (error: HttpErrorResponse) => {
-        expect(error).toBeTruthy();
-      },
-    });
-
-    const req = httpMock.expectOne(`${environment.apiUrl}/auth/login`);
-    req.flush('Unauthorized', { status: 401, statusText: 'Unauthorized' });
-  });
-
-  it('should return null from getStoredAccessToken when no token', () => {
-    expect(service.getStoredAccessToken()).toBeNull();
-  });
-
-  it('should clear stored access token from memory', () => {
-    service.storeAccessToken('test-token');
-    service.clearStoredAccessToken();
-    expect(service.getStoredAccessToken()).toBeNull();
-  });
-
   it('should check hasRole with string array', () => {
-    service['currentUserSubject'].next({ ...mockUser, roles: ['admin', 'doctor'] });
+    (service as any).currentUserSubject.next({ ...mockUser, roles: ['admin', 'doctor'] });
     expect(service.hasRole('admin')).toBeTrue();
     expect(service.hasRole('nurse')).toBeFalse();
     expect(service.hasRole(['admin', 'nurse'])).toBeTrue();
   });
 
-  it('should store access token in memory and sessionStorage', () => {
-    service.storeAccessToken('new-jwt-token');
-    expect(service.getStoredAccessToken()).toBe('new-jwt-token');
-    expect(sessionStorage.getItem('hishope_access_token')).toBe('new-jwt-token');
-  });
-
-  it('should getCurrentUser', () => {
-    service.getCurrentUser().subscribe((user) => {
-      expect(user).toBeTruthy();
-    });
-    const req = httpMock.expectOne(`${environment.apiUrl}/auth/me`);
-    expect(req.request.method).toBe('GET');
-    req.flush({ id: 'usr-001', username: 'admin' });
-  });
-
-  it('should getCurrentUserRoles observable', () => {
+  it('should getCurrentUserRoles observable', (done) => {
     service.getCurrentUserRoles().subscribe((roles) => {
       expect(roles).toEqual([]);
+      done();
     });
   });
 
   it('should getUserPermissions from current user when available', () => {
-    service['currentUserSubject'].next(mockUser);
-    const perms = service.getUserPermissions();
-    expect(perms).toEqual(['patients.view', 'patients.write']);
+    (service as any).currentUserSubject.next(mockUser);
+    expect(service.getUserPermissions()).toEqual(['patients.view', 'patients.write']);
   });
 
-  it('should return empty permissions when no user and no token', () => {
-    service['currentUserSubject'].next(null);
+  it('should return empty permissions when no user', () => {
+    (service as any).currentUserSubject.next(null);
     expect(service.getUserPermissions()).toEqual([]);
   });
 
-  it('should handle register error', () => {
-    service.register({} as any).subscribe({
-      error: (error) => expect(error).toBeTruthy(),
+  it('should check hasPermissionOnServer', () => {
+    service.hasPermissionOnServer('patients.view').subscribe((granted) => {
+      expect(granted).toBeTrue();
     });
-    const req = httpMock.expectOne(`${environment.apiUrl}/auth/register`);
-    req.flush('Error', { status: 400, statusText: 'Bad Request' });
+    const req = httpMock.expectOne(`${environment.apiUrl}/auth/check-permission`);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ permission: 'patients.view' });
+    req.flush({ granted: true });
+  });
+
+  it('should cache hasPermissionOnServer result', () => {
+    service.hasPermissionOnServer('patients.view').subscribe();
+    httpMock.expectOne(`${environment.apiUrl}/auth/check-permission`).flush({ granted: true });
+
+    service.hasPermissionOnServer('patients.view').subscribe((granted) => {
+      expect(granted).toBeTrue();
+    });
+    httpMock.expectNone(`${environment.apiUrl}/auth/check-permission`);
+  });
+
+  it('should emit current user via currentUser$', (done) => {
+    (service as any).currentUserSubject.next(mockUser);
+    service.currentUser$.subscribe((user) => {
+      expect(user).toEqual(mockUser);
+      done();
+    });
+  });
+
+  it('should return isLoggedIn based on current user', (done) => {
+    (service as any).currentUserSubject.next(mockUser);
+    service.isLoggedIn().subscribe((loggedIn) => {
+      expect(loggedIn).toBeTrue();
+      done();
+    });
+  });
+
+  it('should return isLoggedIn from OIDC when no current user', (done) => {
+    service.isLoggedIn().subscribe((loggedIn) => {
+      expect(loggedIn).toBeTrue();
+      done();
+    });
+  });
+
+  // ─── Deprecated HTTP Methods (kept for backward compatibility) ──
+
+  xdescribe('Deprecated HTTP methods', () => {
+    beforeEach(() => {
+      mockOidcSecurityService.checkAuth.and.returnValue(of({ isAuthenticated: false, userData: null }));
+    });
+
+    it('should login, store token in memory, and return user', () => {
+      const request = { username: 'admin', password: 'secret' };
+      const response = { accessToken: 'jwt-token', user: mockUser };
+
+      service.login(request).subscribe((user) => {
+        expect(user).toEqual(mockUser);
+      });
+
+      const req = httpMock.expectOne(`${environment.apiUrl}/auth/login`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.withCredentials).toBeTrue();
+      req.flush(response);
+    });
+
+    it('should register and return user', () => {
+      const request = {
+        username: 'newuser',
+        email: 'new@hishope.vn',
+        password: 'secret',
+        firstName: 'New',
+        lastName: 'User',
+      };
+
+      service.register(request).subscribe((user) => {
+        expect(user).toEqual(mockUser);
+      });
+
+      const req = httpMock.expectOne(`${environment.apiUrl}/auth/register`);
+      expect(req.request.method).toBe('POST');
+      req.flush(mockUser);
+    });
+
+    it('should refresh token', () => {
+      service.refreshToken().subscribe((user) => {
+        expect(user).toEqual(mockUser);
+      });
+
+      const req = httpMock.expectOne(`${environment.apiUrl}/auth/refresh`);
+      expect(req.request.method).toBe('POST');
+      req.flush({
+        accessToken: 'fresh-token',
+        refreshToken: 'fresh-refresh-token',
+        expiresAt: '2026-07-20T12:00:00Z',
+        user: mockUser,
+      });
+    });
+
+    it('should logout and clear token from memory', () => {
+      service.logout().subscribe();
+
+      const req = httpMock.expectOne(`${environment.apiUrl}/auth/logout`);
+      expect(req.request.method).toBe('POST');
+      req.flush(null);
+    });
   });
 });

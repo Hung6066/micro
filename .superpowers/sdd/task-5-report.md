@@ -1,20 +1,22 @@
-# Task 5 Report: UTC Timezone Converter + Model Changes
+# Task 5 Report: BroadcastChannel API for Cross-Tab SSO Logout
 
-**Status:** ✅ Complete
+**Status:** ✅ DONE
 
-## Steps
+**Commit:** `e4d4412`
 
-1. **Created** `src/Bff/SystemDashboard.Bff/Serialization/UtcDateTimeConverter.cs`
-   - `JsonConverter<DateTime>` that forces UTC kind on read and writes ISO 8601 "o" format with Z suffix.
+**File modified:** `src/Frontend/his-hope-app/src/app/core/services/auth.service.ts`
 
-2. **Modified** `src/Bff/SystemDashboard.Bff/Models/LogEntry.cs`
-   - Added `[JsonConverter(typeof(UtcDateTimeConverter))]` on `Timestamp` property.
-   - Added `using System.Text.Json.Serialization` and `using SystemDashboard.Bff.Serialization`.
+## Changes Applied
 
-3. **Modified** `src/Bff/SystemDashboard.Bff/Models/MetricSnapshot.cs`
-   - Added `[JsonConverter(typeof(UtcDateTimeConverter))]` on `MetricDataPoint.Timestamp` property.
-   - Added `using System.Text.Json.Serialization` and `using SystemDashboard.Bff.Serialization`.
+1. Added `Router` import
+2. Added `private router = inject(Router)` and `private static readonly AUTH_CHANNEL = 'hishop_auth'` class fields
+3. Added `initBroadcastChannel()` call in constructor
+4. Modified `logout()` to broadcast before calling API
+5. Modified `oidcLogout()` to broadcast before calling API
+6. Added `initBroadcastChannel()` and `broadcastLogout()` private methods
 
-4. **Build:** `dotnet build` — succeeded (0 errors).
+## Verification
 
-5. **Commit:** `ff8dcf4` — `feat(dashboard): add UTC timezone converter for LogEntry and MetricDataPoint timestamps`
+- Production build: ✅ (14.378 seconds, no errors)
+- Staged only `auth.service.ts`: ✅
+- Committed with message: `feat: add BroadcastChannel API for cross-tab SSO logout notification`

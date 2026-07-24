@@ -6,6 +6,8 @@ import { TracesPageComponent } from './features/traces/traces-page.component';
 import { TraceDetailComponent } from './features/traces/trace-detail.component';
 import { MetricsPageComponent } from './features/metrics/metrics-page.component';
 import { LoginComponent } from './features/auth/login.component';
+import { CallbackComponent } from './features/auth/callback.component';
+import { SilentRefreshComponent } from './features/auth/silent-refresh.component';
 import { SloPageComponent } from './features/slo/slo-page.component';
 
 export const routes: Routes = [
@@ -17,5 +19,7 @@ export const routes: Routes = [
   { path: 'metrics', component: MetricsPageComponent, canActivate: [authGuard] },
   { path: 'slo', component: SloPageComponent, canActivate: [authGuard] },
   { path: 'auth/login', component: LoginComponent },
+  { path: 'auth/callback', component: CallbackComponent },
+  { path: 'auth/silent-refresh', component: SilentRefreshComponent },
   { path: '**', redirectTo: '/resources' },
 ];

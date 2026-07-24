@@ -24,12 +24,13 @@ COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/", "Shared/Infrastructu
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBus/", "Shared/EventBus/Src/His.Hope.EventBus/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/", "Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
+COPY ["src/Shared/Protos/", "Shared/Protos/"]
 
 RUN --mount=type=cache,target=/root/.nuget/packages \
     dotnet publish "ApiGateway/ApiGateway.csproj" \
     -c Release \
-    -o /app/publish \
-    --no-restore
+    -o /app/publish
+
 
 # ============================================================
 # RUNTIME STAGE (distroless chiseled-extra)

@@ -5,6 +5,7 @@ import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideStore } from '@ngrx/store';
 import { provideEffects } from '@ngrx/effects';
 import { provideStoreDevtools } from '@ngrx/store-devtools';
+import { provideAuth, LogLevel } from 'angular-auth-oidc-client';
 
 import { routes } from './app.routes';
 import { authReducer } from '@store/auth/auth.reducer';
@@ -25,6 +26,27 @@ export const appConfig: ApplicationConfig = {
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
     provideHttpClient(withInterceptorsFromDi(), withInterceptors([authInterceptor, csrfInterceptor])),
+    provideAuth({
+      config: {
+        authority: environment.oidc.authority,
+        redirectUrl: environment.oidc.redirectUrl,
+        postLogoutRedirectUri: environment.oidc.postLogoutRedirectUri,
+        clientId: environment.oidc.clientId,
+        scope: environment.oidc.scope,
+        responseType: environment.oidc.responseType,
+        silentRenew: true,
+        useRefreshToken: true,
+        silentRenewUrl: environment.oidc.silentRenewUrl,
+        renewTimeBeforeTokenExpiresInSeconds: 120,
+        secureRoutes: [environment.apiUrl + '/'],
+        triggerAuthorizationResultEvent: true,
+        logLevel: environment.production ? LogLevel.None : LogLevel.Debug,
+        ignoreNonceAfterRefresh: true,
+        historyCleanupOff: true,
+        maxIdTokenIatOffsetAllowedInSeconds: environment.oidc.maxIdTokenIatOffsetInSeconds,
+        autoUserInfo: false,
+      },
+    }),
     provideAnimations(),
     provideStore({
       auth: authReducer,

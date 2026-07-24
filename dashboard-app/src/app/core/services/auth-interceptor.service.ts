@@ -1,34 +1,16 @@
-import { Injectable } from '@angular/core';
-import {
-  HttpInterceptor,
-  HttpRequest,
-  HttpHandler,
-  HttpEvent,
-} from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { HttpInterceptorFn } from '@angular/common/http';
+import { inject } from '@angular/core';
 import { AuthService } from './auth.service';
-import { environment } from '../../../environments/environment';
+import { switchMap } from 'rxjs/operators';
 
-@Injectable()
-export class AuthInterceptor implements HttpInterceptor {
-  constructor(private readonly authService: AuthService) {}
+export const authInterceptor: HttpInterceptorFn = (req, next) => {
+  if (!req.url.includes('/api/')) return next(req);
 
-  intercept(
-    req: HttpRequest<unknown>,
-    next: HttpHandler
-  ): Observable<HttpEvent<unknown>> {
-    // Don't add auth header for identity service calls (login is anonymous)
-    if (req.url.startsWith(environment.identityUrl)) {
-      return next.handle(req);
-    }
-
-    const token = this.authService.getToken();
-    if (token) {
-      const cloned = req.clone({
-        setHeaders: { Authorization: `Bearer ${token}` },
-      });
-      return next.handle(cloned);
-    }
-    return next.handle(req);
-  }
-}
+  const authService = inject(AuthService);
+  return authService.getAccessToken().pipe(
+    switchMap(token => {
+      if (!token) return next(req);
+      return next(req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }));
+    }),
+  );
+};

@@ -1,21 +1,15 @@
 import { inject } from '@angular/core';
-import { Router, type CanActivateFn } from '@angular/router';
-import { filter, map, take } from 'rxjs/operators';
 import { AuthService } from '../services/auth.service';
+import { OidcSecurityService } from 'angular-auth-oidc-client';
+import { filter, switchMap, tap } from 'rxjs/operators';
 
-export const authGuard: CanActivateFn = () => {
+export const authGuard = () => {
   const authService = inject(AuthService);
-  const router = inject(Router);
+  const oidcSecurityService = inject(OidcSecurityService);
 
-  return authService.isAuthenticated$.pipe(
-    filter((isAuth) => isAuth !== null),
-    take(1),
-    map(isAuthenticated => {
-      if (!isAuthenticated) {
-        router.navigate(['/auth/login'], { queryParams: { returnUrl: router.url } });
-        return false;
-      }
-      return true;
-    })
+  return authService.checkAuth().pipe(
+    switchMap(() => authService.isAuthenticated$),
+    tap(isAuth => { if (!isAuth) oidcSecurityService.authorize(); }),
+    filter(isAuth => isAuth),
   );
 };

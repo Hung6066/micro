@@ -1,0 +1,25 @@
+- generic [ref=f110e2]:
+  - generic [ref=f110e3]:
+    - generic [ref=f110e4]:
+      - text: local_hospital
+      - heading "His.Hope" [level=1] [ref=f110e5]
+      - paragraph [ref=f110e6]: Hospital Information System
+    - generic [ref=f110e8]:
+      - generic [ref=f110e9]:
+        - text: Email
+        - generic [ref=f110e10]:
+          - textbox "Email" [ref=f110e11]:
+            - /placeholder: you@hospital.vn
+            - text: admin
+          - text: email
+      - generic [ref=f110e12]:
+        - text: Password
+        - generic [ref=f110e13]:
+          - textbox "Password" [ref=f110e14]:
+            - /placeholder: Enter your password
+            - text: Admin@123
+          - text: lock
+      - button "login Sign in" [ref=f110e15]
+  - generic [ref=f110e16]:
+    - strong [ref=f110e17]: His.Hope
+    - text: v1.0 • HIPAA-Compliant Security

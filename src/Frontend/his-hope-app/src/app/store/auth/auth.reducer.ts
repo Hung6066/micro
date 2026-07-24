@@ -6,12 +6,14 @@ export interface AuthState {
   user: User | null;
   loading: boolean;
   error: string | null;
+  isOidcAuthenticated: boolean;
 }
 
 export const initialAuthState: AuthState = {
   user: null,
   loading: false,
   error: null,
+  isOidcAuthenticated: false,
 };
 
 export const authReducer = createReducer(
@@ -79,6 +81,16 @@ export const authReducer = createReducer(
   on(AuthActions.loadCurrentUserFailure, (state, { error }) => ({
     ...state,
     loading: false,
+    error,
+  })),
+
+  on(AuthActions.oidcLoginSuccess, (state, { isAuthenticated }) => ({
+    ...state,
+    isOidcAuthenticated: isAuthenticated,
+  })),
+  on(AuthActions.oidcLoginFailure, (state, { error }) => ({
+    ...state,
+    isOidcAuthenticated: false,
     error,
   })),
 

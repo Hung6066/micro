@@ -1,44 +1,28 @@
-# Task 4: ES Timestamp Filter (afterTimestamp)
+# Task 4 — Revoke-all sessions on logout
 
-**Status:** ✅ Complete
+**Status:** ✅ DONE
 
-**Commits:**
-- `6ce6399` — `feat(dashboard): add afterTimestamp filter to Elasticsearch log queries`
+## Files Modified
+- `src/Services/IdentityService/IdentityService.Api/Program.cs` — replaced old logout handler (lines ~516-552) with new cross-port revoke-all handler
 
-**Files changed:**
-- `src/Bff/SystemDashboard.Bff/Services/IElasticsearchQueryService.cs` — Added `DateTime? afterTimestamp = null` parameter to `QueryLogsAsync`
-- `src/Bff/SystemDashboard.Bff/Services/ElasticsearchQueryService.cs` — Added parameter to implementation signature + range filter clause in ES query body
-- `src/Bff/SystemDashboard.Bff/Aggregators/LogsAggregator.cs` — Passed `null` for new parameter at call site
-- `src/Bff/SystemDashboard.Bff/Tests/LogsAggregatorTests.cs` — Added `Arg.Any<DateTime?>()` to mock setup
-
-**What was done:**
-1. Interface signature updated with optional `afterTimestamp` parameter
-2. Implementation signature matched
-3. ES query body adds a `range` filter on `@timestamp` with `gte` using ISO 8601 format when `afterTimestamp.HasValue` is true
-4. Fixed two callers that were passing `CancellationToken` in the wrong position
-5. Build verified — `dotnet build` succeeded (0 errors)
-6. Committed
-
-**Concerns:**
-- `LogStreamBackgroundService` (Task 9) will still compile since `afterTimestamp` is optional with default `null` — it will need updating to pass the cursor value
-- Pre-existing build warning `CS7022` in test SDK and `CS8618` in SharedKernel unrelated to this change
-
----
-
-## Fix: Revert out-of-scope `match → term` change
-
-**Commit:** (staged, not yet committed)
-
-**Problem:** Task 4 introduced a `term` query on `service.keyword` instead of the original `match` on `service`. This changes ES query semantics from full-text match to exact term match — a behavioral regression not requested.
-
-**Fix:** Reverted line 35 in `ElasticsearchQueryService.cs`:
-```csharp
-// Before (wrong):
-mustClauses.Add(new { term = new Dictionary<string, object> { ["service.keyword"] = service } });
-
-// After (correct):
-mustClauses.Add(new { match = new { service } });
+## Build Result
+```
+dotnet build src/Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj
+→ 0 Error(s), 333 Warning(s)
+Time Elapsed: 00:00:14.89
 ```
 
-**Verification:** `dotnet build src/Bff/SystemDashboard.Bff/SystemDashboard.Bff.csproj` — 0 errors.
-**Note:** The `EsHit._id` and `EsLogSource.SpanId/Exception/Fields` record additions introduced alongside the regression were left in place because they're required for the `LogEntry` mapping to compile.
+All 333 warnings are pre-existing (gRPC generated type conflicts, nullability hints). No new warnings introduced.
+
+## Summary
+- Old handler: read single session → revoke one refresh token → delete one session → clear cookies
+- New handler: reads session → extracts userId → revokes refresh token + calls `tokenBlacklist.RevokeAllUserTokensAsync(userId)` + deletes **all** Redis sessions via `sessionTracker.GetUserSessionsAsync` + clears session set → clears cookies
+- Injects: `IUserSessionTracker`, `ITokenBlacklistService`, `ILogger<Program>`
+- Logs cross-port logout event with session count
+
+## Output Files
+- `task-4-logout-handler.cs` — new handler code (reference copy)
+- `task-4-report.md` — this file
+
+## Git Operations
+None. No commits or adds.

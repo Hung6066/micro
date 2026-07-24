@@ -19,7 +19,7 @@ public static class ScimEndpoints
 
     public static void MapScimEndpoints(this WebApplication app)
     {
-        var scim = app.MapGroup("/scim/v2").RequireAuthorization();
+        var scim = app.MapGroup("/scim/v2").RequireAuthorization("RequireRole:Admin");
 
         // Users
         scim.MapGet("/Users", GetUsers);
