@@ -391,6 +391,18 @@ auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpCon
         }
     }
 
+    // Fallback for SPA flow: extract userId from JWT Bearer token (no BFF session cookie)
+    if (string.IsNullOrWhiteSpace(userId))
+    {
+        var authHeader = httpContext.Request.Headers.Authorization.ToString();
+        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            var jwt = authHeader["Bearer ".Length..];
+            userId = JwtPayloadParser.ExtractUserIdFromJwtPayload(jwt);
+            logger.LogDebug("Logout via JWT Bearer: UserId={UserId}", userId);
+        }
+    }
+
     // Revoke refresh token
     if (!string.IsNullOrWhiteSpace(refreshToken))
         await identityService.LogoutAsync(refreshToken, ct);
@@ -758,5 +770,37 @@ file static class LegacyEndpointFilter
             ctx.HttpContext.Response.Headers["Link"] = "</connect/authorize>; rel=\"successor-version\"";
             return await next(ctx);
         });
+    }
+}
+
+// Helper: extract userId ("sub" claim) from JWT payload without full validation
+file static class JwtPayloadParser
+{
+    public static string? ExtractUserIdFromJwtPayload(string jwt)
+    {
+        try
+        {
+            var parts = jwt.Split('.');
+            if (parts.Length < 2) return null;
+
+            var payload = parts[1];
+            // Base64Url decode (handle padding)
+            payload = payload.Replace('-', '+').Replace('_', '/');
+            switch (payload.Length % 4)
+            {
+                case 2: payload += "=="; break;
+                case 3: payload += "="; break;
+            }
+
+            var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.TryGetProperty("sub", out var sub)
+                ? sub.GetString()
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }
