@@ -12,24 +12,28 @@ export class AuthService {
   private authenticatedSubject = new ReplaySubject<boolean>(1);
   private readonly checkAuthInit$ = new ReplaySubject<void>(1);
 
-  readonly isAuthenticated$: Observable<boolean> = this.authenticatedSubject.asObservable();
+  readonly isAuthenticated$: Observable<boolean> =
+    this.authenticatedSubject.asObservable();
   private static readonly AUTH_CHANNEL = 'hishop_auth';
 
   constructor() {
-    this.oidcSecurityService.isAuthenticated$.subscribe(result => {
+    this.oidcSecurityService.isAuthenticated$.subscribe((result) => {
       this.authenticatedSubject.next(result.isAuthenticated);
     });
 
-    this.oidcSecurityService.checkAuth().pipe(take(1)).subscribe({
-      next: () => {
-        this.checkAuthInit$.next();
-        this.checkAuthInit$.complete();
-      },
-      error: () => {
-        this.checkAuthInit$.next();
-        this.checkAuthInit$.complete();
-      },
-    });
+    this.oidcSecurityService
+      .checkAuth()
+      .pipe(take(1))
+      .subscribe({
+        next: () => {
+          this.checkAuthInit$.next();
+          this.checkAuthInit$.complete();
+        },
+        error: () => {
+          this.checkAuthInit$.next();
+          this.checkAuthInit$.complete();
+        },
+      });
 
     // Listen for cross-tab logout events
     this.initBroadcastChannel();
@@ -69,9 +73,10 @@ export class AuthService {
   handleCallback(): Observable<boolean> {
     return this.oidcSecurityService.checkAuth().pipe(
       map(({ isAuthenticated }) => isAuthenticated),
-      tap(isAuthenticated => {
+      tap((isAuthenticated) => {
         if (isAuthenticated) {
-          const returnUrl = localStorage.getItem('auth_return_url') ?? '/resources';
+          const returnUrl =
+            localStorage.getItem('auth_return_url') ?? '/resources';
           localStorage.removeItem('auth_return_url');
           this.router.navigateByUrl(returnUrl);
         } else {
@@ -92,7 +97,9 @@ export class AuthService {
           }
         }
       };
-    } catch { /* BroadcastChannel not supported */ }
+    } catch {
+      /* BroadcastChannel not supported */
+    }
   }
 
   private broadcastLogout(): void {
@@ -100,6 +107,8 @@ export class AuthService {
       const channel = new BroadcastChannel(AuthService.AUTH_CHANNEL);
       channel.postMessage({ type: 'LOGOUT' });
       channel.close();
-    } catch { /* BroadcastChannel not supported */ }
+    } catch {
+      /* BroadcastChannel not supported */
+    }
   }
 }

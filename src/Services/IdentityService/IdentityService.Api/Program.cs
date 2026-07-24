@@ -580,13 +580,19 @@ auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpCon
     // Clear cookies
     httpContext.Response.Cookies.Append("hishop_sid", "", new CookieOptions
     {
-        HttpOnly = true, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Lax,
-        Path = "/api", Expires = DateTimeOffset.UnixEpoch
+        HttpOnly = true,
+        Secure = httpContext.Request.IsHttps,
+        SameSite = SameSiteMode.Lax,
+        Path = "/api",
+        Expires = DateTimeOffset.UnixEpoch
     });
     httpContext.Response.Cookies.Append("hishop_csrf", "", new CookieOptions
     {
-        HttpOnly = false, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Strict,
-        Path = "/", Expires = DateTimeOffset.UnixEpoch
+        HttpOnly = false,
+        Secure = httpContext.Request.IsHttps,
+        SameSite = SameSiteMode.Strict,
+        Path = "/",
+        Expires = DateTimeOffset.UnixEpoch
     });
 
     return Results.NoContent();
@@ -643,13 +649,19 @@ auth.MapPost("/internal/refresh", async (IConnectionMultiplexer redis, HttpConte
 
     httpContext.Response.Cookies.Append("hishop_sid", sessionId, new CookieOptions
     {
-        HttpOnly = true, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Lax,
-        Path = "/api", MaxAge = TimeSpan.FromHours(1)
+        HttpOnly = true,
+        Secure = httpContext.Request.IsHttps,
+        SameSite = SameSiteMode.Lax,
+        Path = "/api",
+        MaxAge = TimeSpan.FromHours(1)
     });
     httpContext.Response.Cookies.Append("hishop_csrf", session.CsrfToken, new CookieOptions
     {
-        HttpOnly = false, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Strict,
-        Path = "/", MaxAge = TimeSpan.FromHours(1)
+        HttpOnly = false,
+        Secure = httpContext.Request.IsHttps,
+        SameSite = SameSiteMode.Strict,
+        Path = "/",
+        MaxAge = TimeSpan.FromHours(1)
     });
 
     return Results.Ok(new { refreshed = true });
@@ -891,7 +903,7 @@ app.MapGet("/connect/authorize", async (
         ?? throw new InvalidOperationException("Authenticated user not found.");
 
     var principal = await signInManager.CreateUserPrincipalAsync(user);
-    
+
     // Ensure sub claim is set (OpenIddict requires it on the principal directly)
     principal.SetClaim(OpenIddictConstants.Claims.Subject, user.Id.ToString());
 
@@ -927,7 +939,7 @@ app.MapGet("/connect/authorize", async (
 app.MapGet("/Account/Login", async (HttpContext httpContext, SignInManager<User> signInManager) =>
 {
     var returnUrl = httpContext.Request.Query["returnUrl"].FirstOrDefault() ?? "/";
-    
+
     // If user is already authenticated, show already-signed-in page
     if (httpContext.User.Identity?.IsAuthenticated == true)
     {
@@ -969,19 +981,19 @@ app.MapGet("/Account/Login", async (HttpContext httpContext, SignInManager<User>
 app.MapGet("/Account/Logout", async (HttpContext httpContext) =>
 {
     var returnUrl = httpContext.Request.Query["returnUrl"].FirstOrDefault() ?? "/";
-    
+
     if (httpContext.User.Identity?.IsAuthenticated != true)
         return Results.Redirect("/Account/Login?returnUrl=" + System.Net.WebUtility.UrlEncode(returnUrl));
-    
+
     var userName = httpContext.User.Identity.Name ?? "User";
     var html = BuildLogoutPage(userName, returnUrl);
-    
+
     httpContext.Response.OnStarting(() =>
     {
         httpContext.Response.Headers.Remove("Content-Security-Policy");
         return Task.CompletedTask;
     });
-    
+
     return Results.Content(html, "text/html; charset=utf-8");
 })
 .AllowAnonymous();
@@ -1359,11 +1371,11 @@ app.MapGet("/connect/logout", async (HttpContext httpContext, SignInManager<User
 {
     // Sign out the cookie
     await signInManager.SignOutAsync();
-    
+
     var postLogoutUri = httpContext.Request.Query["post_logout_redirect_uri"].FirstOrDefault();
     if (!string.IsNullOrEmpty(postLogoutUri) && Uri.TryCreate(postLogoutUri, UriKind.Absolute, out _))
         return Results.Redirect(postLogoutUri);
-    
+
     return Results.Redirect("/Account/Login");
 }).AllowAnonymous();
 
