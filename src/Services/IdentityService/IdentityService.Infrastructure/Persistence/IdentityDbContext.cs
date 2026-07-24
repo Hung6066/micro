@@ -18,11 +18,11 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<SecurityEvent> SecurityEvents => Set<SecurityEvent>();
     public DbSet<ClientConsent> ClientConsents => Set<ClientConsent>();
 
-    // OpenIddict entity sets
-    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication> OpenIddictApplications => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication>();
-    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization> OpenIddictAuthorizations => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization>();
-    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope> OpenIddictScopes => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope>();
-    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken> OpenIddictTokens => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken>();
+    // OpenIddict entity sets — use generic types matching OpenIddict 5.x EF Core stores
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication<Guid>> OpenIddictApplications => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication<Guid>>();
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization<Guid>> OpenIddictAuthorizations => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization<Guid>>();
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope<Guid>> OpenIddictScopes => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope<Guid>>();
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken<Guid>> OpenIddictTokens => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken<Guid>>();
 
     public IdentityDbContext(DbContextOptions<IdentityDbContext> options) : base(options) { }
 
@@ -236,13 +236,13 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
         });
 
         // Configure OpenIddict tables (snake_case naming)
-        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication>(entity =>
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication<Guid>>(entity =>
             entity.ToTable("openiddict_applications"));
-        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization>(entity =>
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization<Guid>>(entity =>
             entity.ToTable("openiddict_authorizations"));
-        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope>(entity =>
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope<Guid>>(entity =>
             entity.ToTable("openiddict_scopes"));
-        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken>(entity =>
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken<Guid>>(entity =>
             entity.ToTable("openiddict_tokens"));
     }
 }
