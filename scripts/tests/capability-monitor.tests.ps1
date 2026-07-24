@@ -238,3 +238,50 @@ Describe "Update-Registry" {
         $updated.agents."@angular".capabilities[0].id | Should -Be "ngrx-signals"
     }
 }
+
+Describe "Integration: Full Pipeline (Dry Run)" {
+
+    It "Processes a mock diff without creating PR (manual mode)" {
+        $mockDiff = @"
++ using StackExchange.Redis;
++ services.AddStackExchangeRedisCache(config => {
++     config.Configuration = "redis:6379";
++ });
++ using Polly;
++ var cb = Policy.Handle<HttpRequestException>()
++     .CircuitBreaker(3, TimeSpan.FromSeconds(30));
++ services.AddPolicyHandler(cb);
+"@
+
+        # Load rules (from the real rules file)
+        $rules = Load-JsonFile (Join-Path $PSScriptRoot "..\capability-rules.json")
+
+        # Create a temp registry copy
+        $tempRegistry = Join-Path $env:TEMP "test-agent-capabilities.json"
+        @"
+{
+  "version": "1",
+  "last_updated": "",
+  "agents": {}
+}
+"@ | Set-Content $tempRegistry
+
+        $registry = Load-JsonFile $tempRegistry
+
+        $detected = Detect-Capabilities -Diff $mockDiff -Rules $rules
+        $detected.Count | Should -BeGreaterThan 0
+
+        $newCapabilities = Compare-WithRegistry -Detected $detected -Registry $registry -Agent "@dotnet"
+        $newCapabilities.Count | Should -Be $detected.Count
+
+        $updated = Update-Registry -Registry $registry -Agent "@dotnet" -NewCapabilities $newCapabilities -Pr "999"
+        $updated.agents."@dotnet".capabilities.Count | Should -Be $detected.Count
+
+        # Verify no duplicates on second run
+        $detected2 = Detect-Capabilities -Diff $mockDiff -Rules $rules
+        $newCapabilities2 = Compare-WithRegistry -Detected $detected2 -Registry $updated -Agent "@dotnet"
+        $newCapabilities2.Count | Should -Be 0
+
+        Remove-Item $tempRegistry -ErrorAction SilentlyContinue
+    }
+}
