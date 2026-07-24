@@ -121,3 +121,5 @@ start-services-local.ps1
 test-grpc.csx
 
 .jest-cache/
+
+.playwright-mcp/
