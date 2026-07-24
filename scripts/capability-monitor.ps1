@@ -17,10 +17,8 @@
 #>
 
 param(
-    [Parameter(Mandatory=$true)]
     [string]$PrNumber,
 
-    [Parameter(Mandatory=$true)]
     [string]$AgentName,
 
     [ValidateSet("auto", "manual")]
@@ -49,12 +47,16 @@ function Load-JsonFile {
 
 function Detect-Capabilities {
     param([string]$Diff, $Rules)
+    $codeLines = $Diff -split "`n" | Where-Object {
+        $_ -match '^\+' -and $_ -notmatch '^\+\s*(//|#|<!--|/\*|\*)'
+    }
+    $code = $codeLines -join "`n"
     $detected = @()
     foreach ($rule in $Rules.rules) {
         $matchCount = 0
         $matchedPatterns = @()
         foreach ($pattern in $rule.patterns) {
-            if ($Diff -match $pattern) {
+            if ($code -match $pattern) {
                 $matchCount++
                 $matchedPatterns += $pattern
             }
@@ -115,7 +117,7 @@ function New-CapabilityPR {
     $body = @"
 ## New capabilities detected for $Agent
 
-Detected from PR $SourcePr:
+Detected from PR ${SourcePr}:
 
 $capList
 
@@ -144,6 +146,10 @@ $($Capabilities | ForEach-Object { "- $($_.id): $($_.evidence)" } | Out-String)
 
 # ========== MAIN ==========
 
+if ($MyInvocation.InvocationName -eq '.' -or -not $PrNumber -or -not $AgentName) {
+    return
+}
+
 try {
     $diff = Get-PrDiff -Pr $PrNumber
     $rules = Load-JsonFile (Join-Path $PSScriptRoot "capability-rules.json")
@@ -157,7 +163,7 @@ try {
         exit 0
     }
 
-    Write-Output "Detected $($newCapabilities.Count) new capabilities for $AgentName:"
+    Write-Output "Detected $($newCapabilities.Count) new capabilities for ${AgentName}:"
     $newCapabilities | ForEach-Object { Write-Output "  - $($_.id) ($($_.category))" }
 
     $registry = Update-Registry -Registry $registry -Agent $AgentName -NewCapabilities $newCapabilities -Pr $PrNumber

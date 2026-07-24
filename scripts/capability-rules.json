@@ -17,8 +17,8 @@
       "id": "circuit-breaker",
       "category": "resilience",
       "patterns": [
-        "Polly.*CircuitBreaker",
-        "AddPolicyHandler.*CircuitBreaker",
+        "CircuitBreaker",
+        "AddPolicyHandler",
         "ICircuitBreakerPolicy"
       ],
       "require_all": false,
