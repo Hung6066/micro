@@ -48,7 +48,7 @@ public static class ClientEndpoints
         string id, IdentityDbContext db, CancellationToken ct)
     {
         var client = await db.OpenIddictApplications
-            .FirstOrDefaultAsync(a => a.Id == id, ct);
+            .FirstOrDefaultAsync(a => a.Id.ToString() == id, ct);
 
         if (client is null) return TypedResults.NotFound();
 
@@ -118,7 +118,7 @@ public static class ClientEndpoints
         IdentityDbContext db, IOpenIddictApplicationManager appManager, CancellationToken ct)
     {
         var client = await db.OpenIddictApplications
-            .FirstOrDefaultAsync(a => a.Id == id, ct);
+            .FirstOrDefaultAsync(a => a.Id.ToString() == id, ct);
 
         if (client is null) return TypedResults.NotFound();
 
@@ -148,7 +148,7 @@ public static class ClientEndpoints
         VaultClientSecretStore vaultStore, CancellationToken ct)
     {
         var client = await db.OpenIddictApplications
-            .FirstOrDefaultAsync(a => a.Id == id, ct);
+            .FirstOrDefaultAsync(a => a.Id.ToString() == id, ct);
 
         if (client is null) return TypedResults.NotFound();
 
@@ -164,7 +164,7 @@ public static class ClientEndpoints
         VaultClientSecretStore vaultStore, CancellationToken ct)
     {
         var client = await db.OpenIddictApplications
-            .FirstOrDefaultAsync(a => a.Id == id, ct);
+            .FirstOrDefaultAsync(a => a.Id.ToString() == id, ct);
 
         if (client is null) return TypedResults.NotFound();
         if (client.ClientType != OpenIddictConstants.ClientTypes.Confidential)
