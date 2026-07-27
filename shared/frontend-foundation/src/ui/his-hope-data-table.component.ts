@@ -5,6 +5,7 @@ import { CommonModule } from '@angular/common';
 import { HostListener } from '@angular/core';
 import { HisHopeBulkAction, HisHopeBulkActionRequest, HisHopeBulkJob, HisHopeConflictResolution, HisHopeFilterGroup, HisHopeFilterOperator, HisHopePageQuery, HisHopeSort, HisHopeTableAnalysisRequest, HisHopeTableEditConflict, HisHopeTableEditSaveRequest, HisHopeTableEditState, HisHopeTableEditor, HisHopeTableEditorOption, HisHopeTableExportFormat, HisHopeTableExportRequest, HisHopeTableImportRequest, HisHopeTableSelectionScope, HisHopeTableSelectionState } from '../contracts/his-hope-ui-contracts';
 import { HisHopeTableEditorComponent } from './his-hope-table-editor.component';
+import { HisHopeStatusBadgeComponent } from './his-hope-status-badge.component';
 
 export type HisHopeDataTableDensity = 'comfortable' | 'compact';
 export type HisHopeDataTableSortDirection = 'asc' | 'desc';
@@ -28,6 +29,7 @@ export interface HisHopeDataTableColumn {
   pinned?: 'left' | 'right';
   sensitive?: boolean;
   exportable?: boolean;
+  status?: boolean;
   computed?: (row: Record<string, unknown>) => unknown;
 }
 
@@ -93,7 +95,7 @@ export class HisHopeDataTableCellDirective {
 @Component({
   selector: 'hh-data-table',
   standalone: true,
-  imports: [CommonModule, HisHopeTableEditorComponent],
+  imports: [CommonModule, HisHopeTableEditorComponent, HisHopeStatusBadgeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="hh-data-table" [class.hh-data-table--compact]="density() === 'compact'"
@@ -102,16 +104,21 @@ export class HisHopeDataTableCellDirective {
              [attr.aria-label]="label()" [attr.aria-busy]="loading()">
       @if (loading() && !rows().length) {
         <div class="hh-data-table__state" role="status" aria-live="polite">
-          <span class="hh-spinner" aria-hidden="true"></span>
+          <div class="hh-data-table__skeleton-list" aria-hidden="true">
+            @for (item of [1, 2, 3, 4]; track item) {
+              <div class="hh-data-table__skeleton-item"><span></span><span></span><span></span></div>
+            }
+          </div>
           <p>{{ loadingMessage() }}</p>
         </div>
-      } @else if (error()) {
+      } @else if (error() && !rows().length) {
         <div class="hh-data-table__state hh-data-table__state--error" role="alert">
           <span class="material-icons" aria-hidden="true">error_outline</span>
           <p>{{ error() }}</p>
           <button type="button" class="hh-button hh-button--secondary" (click)="retry.emit()">{{ retryLabel() }}</button>
         </div>
       } @else if (configuredColumns().length > 0) {
+        @if (error() && rows().length) { <div class="hh-data-table__stale-error" role="alert"><span class="material-icons" aria-hidden="true">error_outline</span><span>{{ error() }}</span><button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="retry.emit()">Retry</button></div> }
         @if (loading()) { <div class="hh-data-table__loading-overlay" role="status" aria-live="polite"><span class="hh-spinner" aria-hidden="true"></span>{{ loadingMessage() }}</div> }
         <div class="hh-data-table__toolbar">
           @if (searchable()) {
@@ -287,10 +294,11 @@ export class HisHopeDataTableCellDirective {
           </div>
           <div class="hh-data-table__mobile-list" aria-label="Mobile table list">
             @for (row of renderedRows(); track rowKeyValue(row)) {
-              <article class="hh-data-table__mobile-item" [class.hh-data-table__row--clickable]="rowClickable()"
-                       [attr.tabindex]="rowClickable() ? 0 : null" [attr.role]="rowClickable() ? 'button' : null"
-                       (click)="onRowClick(row)" (keydown.enter)="onRowClick(row)"
-                       (keydown.space)="$event.preventDefault(); onRowClick(row)">
+              <article class="hh-data-table__mobile-item" [class.hh-data-table__row--clickable]="rowClickable() || !!detailTemplate()"
+                       [attr.tabindex]="rowClickable() || !!detailTemplate() ? 0 : null" [attr.role]="rowClickable() || !!detailTemplate() ? 'button' : null"
+                       [attr.aria-expanded]="detailTemplate() ? isExpanded(row) : null"
+                       (click)="onMobileRowClick(row)" (keydown.enter)="onMobileRowClick(row)"
+                       (keydown.space)="$event.preventDefault(); onMobileRowClick(row)">
                 <header class="hh-data-table__mobile-item-header">
                   @if (selection()) { <input type="checkbox" [checked]="isSelected(row)" (click)="$event.stopPropagation()" (change)="toggleRow(row)" [attr.aria-label]="'Select row ' + rowKeyValue(row)" /> }
                   <strong>{{ mobileItemTitle(row) }}</strong>
@@ -311,6 +319,8 @@ export class HisHopeDataTableCellDirective {
                           @if (isEditing(row) && column.editable) {
                             <hh-table-editor [type]="column.editor ?? 'text'" [options]="column.options ?? []" [value]="draftValue(column.key)" [ariaLabel]="'Edit ' + column.label" [invalid]="!!editError(column.key)" [listId]="'hh-mobile-options-' + column.key" (valueChange)="updateDraftValue(column.key, $event)" />
                             @if (editError(column.key); as message) { <small class="hh-data-table__edit-error" role="alert">{{ message }}</small> }
+                          } @else if (column.status) {
+                            <hh-status-badge [status]="displayValue(row, column.key)" [label]="displayValue(row, column.key)" />
                           } @else {
                             {{ cellValue(row, column.key) }}
                           }
@@ -319,6 +329,9 @@ export class HisHopeDataTableCellDirective {
                     }
                   }
                 </dl>
+                @if (detailTemplate() && isExpanded(row)) {
+                  <div class="hh-data-table__mobile-detail" role="region"><ng-container *ngTemplateOutlet="detailTemplate()!.template; context: { $implicit: row, row: row }" /></div>
+                }
                 @if (isEditing(row)) {
                   <footer class="hh-data-table__mobile-item-actions">
                     @if (isSaving(row)) { <span class="hh-data-table__saving" role="status">Saving...</span> }
@@ -356,17 +369,21 @@ export class HisHopeDataTableCellDirective {
     :host { display: block; min-width: 0; }
     .hh-data-table { position: relative; overflow: visible; border: 1px solid var(--border-default); border-radius: var(--radius-card); background: var(--surface-white); }
     .hh-data-table__loading-overlay { position: absolute; inset: 0; z-index: 3; display: flex; justify-content: center; gap: 8px; padding-top: 72px; background: color-mix(in srgb, var(--surface-white) 72%, transparent); color: var(--text-secondary); pointer-events: none; }
+    .hh-data-table__stale-error { position: relative; z-index: 4; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid color-mix(in srgb, var(--color-danger) 25%, var(--border-light)); background: color-mix(in srgb, var(--color-danger) 8%, var(--surface-white)); color: var(--color-danger); font-size: var(--font-size-caption); }
+    .hh-data-table__stale-error span:nth-child(2) { flex: 1; }
     .hh-data-table__content { position: relative; z-index: 1; min-width: 0; overflow-x: auto; }
     .hh-data-table__content--virtualized { max-height: 560px; overflow: auto; }
     .hh-data-table__mobile-list { display: none; }
-    .hh-data-table__mobile-item { display: grid; gap: 14px; padding: 16px; border-bottom: 1px solid var(--border-light); background: var(--surface-white); }
+    .hh-data-table__mobile-item { display: grid; gap: 10px; min-height: 64px; box-sizing: border-box; padding: 12px 16px; border-bottom: 1px solid var(--border-light); background: var(--surface-white); }
     .hh-data-table__mobile-item:last-child { border-bottom: 0; }
     .hh-data-table__mobile-item-header { display: flex; align-items: center; gap: 10px; min-width: 0; }
-    .hh-data-table__mobile-item-header strong { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--text-primary); }
+    .hh-data-table__mobile-item-header strong { flex: 1; min-width: 0; overflow: hidden; color: var(--text-primary); text-overflow: ellipsis; white-space: nowrap; }
     .hh-data-table__mobile-fields { display: grid; gap: 10px; margin: 0; }
     .hh-data-table__mobile-fields > div { display: grid; grid-template-columns: minmax(96px, 38%) minmax(0, 1fr); gap: 12px; align-items: start; }
     .hh-data-table__mobile-fields dt { color: var(--text-secondary); font-size: var(--font-size-caption); font-weight: var(--font-weight-semibold); }
-    .hh-data-table__mobile-fields dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--text-primary); }
+    .hh-data-table__mobile-fields dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--text-primary); display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .hh-data-table__mobile-fields dd hh-status-badge { display: inline-flex; }
+    .hh-data-table__mobile-detail { padding: 12px; border-radius: var(--radius-input); background: var(--surface-subtle); color: var(--text-secondary); line-height: 1.5; }
     .hh-data-table__mobile-item-actions { display: flex; justify-content: flex-end; gap: 8px; }
     .hh-data-table__content table { width: 100%; min-width: 640px; table-layout: fixed; border-collapse: collapse; }
     .hh-data-table th, .hh-data-table td { box-sizing: border-box; padding: 12px 16px; border-bottom: 1px solid var(--border-light); color: var(--text-primary); overflow-wrap: anywhere; }
@@ -444,6 +461,12 @@ export class HisHopeDataTableCellDirective {
     .hh-data-table__state p { margin: 0; }
     .hh-data-table__state .material-icons { font-size: 40px; width: 40px; height: 40px; opacity: .65; }
     .hh-data-table__state--error { color: var(--color-danger); }
+    .hh-data-table__skeleton-list { display: grid; width: min(100%, 420px); gap: 10px; }
+    .hh-data-table__skeleton-item { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--border-light); border-radius: var(--radius-input); background: var(--surface-white); }
+    .hh-data-table__skeleton-item span { display: block; height: 10px; border-radius: 6px; background: linear-gradient(90deg, var(--surface-subtle), var(--border-light), var(--surface-subtle)); background-size: 200% 100%; animation: hh-skeleton-shimmer 1.3s linear infinite; }
+    .hh-data-table__skeleton-item span:first-child { width: 62%; height: 14px; }
+    .hh-data-table__skeleton-item span:last-child { width: 42%; }
+    @keyframes hh-skeleton-shimmer { to { background-position: -200% 0; } }
     .hh-data-table--compact .hh-data-table__state { min-height: 140px; padding: 24px 16px; }
     @media (max-width: 768px) {
       .hh-data-table { border-radius: var(--radius-input); }
@@ -880,6 +903,8 @@ export class HisHopeDataTableComponent {
   changePage(page: number): void { this.localPage.set(Math.max(1, Math.min(page, this.pageCount()))); this.pageChange.emit(this.localPage()); this.emitQuery(this.localPage(), this.pageSizeValue()); }
   changePageSize(event: Event): void { const size = Number((event.target as HTMLSelectElement).value); this.localPageSize.set(size); this.localPage.set(1); this.pageSizeChange.emit(size); this.pageChange.emit(1); this.emitQuery(1, size); }
   onRowClick(row: Record<string, unknown>): void { if (this.rowClickable()) this.rowClick.emit(row); }
+  onMobileRowClick(row: Record<string, unknown>): void { if (this.detailTemplate()) { this.toggleExpanded(row); return; } this.onRowClick(row); }
+  displayValue(row: Record<string, unknown>, key: string): string { return String(this.cellValue(row, key) ?? ''); }
   isEditing(row: Record<string, unknown>): boolean { return this.editingRowKey() === this.rowKeyValue(row); }
   isSaving(row: Record<string, unknown>): boolean { return this.savingRowKey() === this.rowKeyValue(row) || (this.editState()?.rowKey === this.rowKeyValue(row) && this.editState()?.status === 'saving'); }
   isDirty(row: Record<string, unknown>): boolean { return this.editState()?.rowKey === this.rowKeyValue(row) ? this.editState()?.dirty === true : JSON.stringify(this.draftRow()) !== JSON.stringify(row) && this.isEditing(row); }

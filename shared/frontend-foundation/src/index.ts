@@ -27,6 +27,7 @@ export * from './ui/his-hope-create-dialog-shell.component';
 export * from './ui/his-hope-toast.service';
 export * from './ui/his-hope-toast.component';
 export * from './ui/his-hope-navigation.component';
+export * from './ui/his-hope-mobile-list.component';
 export * from './theme/his-hope-theme.service';
 export * from './i18n/his-hope-i18n.service';
 export * from './i18n/his-hope-translate.pipe';

@@ -21,6 +21,27 @@ export interface HisHopePushCapability {
   unregister(): Promise<void>;
 }
 
+export interface HisHopeCameraCaptureOptions {
+  quality?: number;
+  allowEditing?: boolean;
+  width?: number;
+  height?: number;
+}
+
+export interface HisHopeCameraCapture {
+  readonly uri: string;
+  readonly format: string;
+}
+
+export interface HisHopeCameraCapability {
+  capture(options?: HisHopeCameraCaptureOptions): Promise<HisHopeCameraCapture | null>;
+}
+
+export interface HisHopeAppLifecycleCapability {
+  onResume(listener: () => void): Promise<() => void>;
+  onDeepLink(listener: (link: HisHopeDeepLink) => void): Promise<() => void>;
+}
+
 export interface HisHopeDeepLink {
   readonly path: string;
   readonly query: Readonly<Record<string, string>>;

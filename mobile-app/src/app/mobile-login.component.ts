@@ -13,6 +13,7 @@ import { MobileAuthService } from './core/auth.service';
         <p class="mobile-auth__eyebrow">His.Hope Mobile</p>
         <h1 id="mobile-login-title">Clinical access, protected.</h1>
         <p>Sign in with your hospital account to continue.</p>
+        @if (auth.loginError(); as message) { <p class="mobile-auth__error" role="alert">{{ message }}</p> }
         <button class="hh-button hh-button--primary" type="button" (click)="login()">Sign in securely</button>
       </section>
     </main>
@@ -24,10 +25,11 @@ import { MobileAuthService } from './core/auth.service';
     .mobile-auth__eyebrow { margin: 16px 0 0; color: var(--color-primary); font-size: var(--font-size-label); font-weight: var(--font-weight-semibold); letter-spacing: .08em; text-transform: uppercase; }
     h1 { margin: 0; color: var(--text-primary); font-size: clamp(28px, 8vw, 40px); line-height: 1.1; }
     p { margin: 0; color: var(--text-secondary); }
+    .mobile-auth__error { padding: 12px; border: 1px solid color-mix(in srgb, var(--color-danger) 32%, var(--border-default)); border-radius: var(--radius-input); background: color-mix(in srgb, var(--color-danger) 8%, var(--surface-white)); color: var(--color-danger); line-height: 1.45; }
     .hh-button { min-height: 48px; }
   `],
 })
 export class MobileLoginComponent {
-  private readonly auth = inject(MobileAuthService);
+  readonly auth = inject(MobileAuthService);
   login(): void { this.auth.login(); }
 }

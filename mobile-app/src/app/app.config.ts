@@ -14,6 +14,16 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withInterceptors([authInterceptor])),
     provideAuth({ config: {
       authority: environment.oidc.authority,
+      // The local gateway advertises localhost in discovery. That host is
+      // the emulator itself, so native clients must use the host alias for
+      // authorization, token, logout, and JWKS requests.
+      authWellknownEndpoints: {
+        authorizationEndpoint: `${environment.oidc.authority}/connect/authorize`,
+        tokenEndpoint: `${environment.oidc.authority}/connect/token`,
+        endSessionEndpoint: `${environment.oidc.authority}/connect/logout`,
+        revocationEndpoint: `${environment.oidc.authority}/connect/revoke`,
+        jwksUri: `${environment.oidc.authority}/.well-known/jwks`,
+      },
       redirectUrl: environment.oidc.redirectUrl,
       postLogoutRedirectUri: environment.oidc.postLogoutRedirectUri,
       clientId: environment.oidc.clientId,

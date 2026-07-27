@@ -183,7 +183,7 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
                 "http://localhost:8081", "http://localhost:8082", "http://localhost:8083",
                 "http://localhost:4200", "http://localhost:4201", "http://localhost:4202", "http://localhost:4300",
-                "https://localhost", "capacitor://localhost")
+                "https://localhost", "http://localhost", "capacitor://localhost")
             .WithHeaders("Authorization", "Content-Type", "X-CSRF-Token", "X-Correlation-ID")
             .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
             .AllowCredentials();

@@ -1,0 +1,43 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.7.2'
+        classpath 'com.google.gms:google-services:4.4.2'
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+apply from: "variables.gradle"
+
+// Keep Capacitor and third-party native plugins on one Kotlin runtime.
+// Older plugins request kotlin-stdlib-jdk7/jdk8 1.6.x or 1.8.x, which can
+// otherwise package the same JDK helper classes twice.
+ext.kotlin_version = '1.9.25'
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+
+    configurations.configureEach {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'org.jetbrains.kotlin') {
+                details.useVersion(rootProject.ext.kotlin_version)
+                details.because('Align Kotlin runtime modules to avoid duplicate classes')
+            }
+        }
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
