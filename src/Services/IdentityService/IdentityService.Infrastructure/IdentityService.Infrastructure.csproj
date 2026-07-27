@@ -6,7 +6,6 @@
     <RootNamespace>His.Hope.IdentityService.Infrastructure</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\Shared\Observability\His.Hope.Observability\His.Hope.Observability.csproj" />
     <ProjectReference Include="..\..\..\Shared\Persistence\His.Hope.Persistence\His.Hope.Persistence.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>

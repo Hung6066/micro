@@ -55,8 +55,7 @@
     <PackageReference Include="Unleash.Client" Version="4.1.0" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Contracts\His.Hope.Contracts\His.Hope.Contracts.csproj" />
-    <ProjectReference Include="..\..\EventBus\Src\His.Hope.EventBus\His.Hope.EventBus.csproj" />
+<ProjectReference Include="..\..\EventBus\Src\His.Hope.EventBus\His.Hope.EventBus.csproj" />
     <ProjectReference Include="..\..\SharedKernel\Src\His.Hope.SharedKernel\His.Hope.SharedKernel.csproj" />
     <ProjectReference Include="..\..\Messaging\His.Hope.Messaging.Redis\His.Hope.Messaging.Redis.csproj" />
     <ProjectReference Include="..\..\Messaging\His.Hope.Messaging.Sql\His.Hope.Messaging.Sql.csproj" />
