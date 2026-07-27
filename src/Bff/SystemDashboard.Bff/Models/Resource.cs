@@ -58,6 +58,7 @@ public sealed class ConsulOptions
 public sealed class DockerOptions
 {
     public const string SectionName = "Docker";
+    public bool Enabled { get; init; }
     public required string ComposeProjectName { get; init; }
 }
 

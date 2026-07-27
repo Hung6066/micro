@@ -1,3 +1,7 @@
+using His.Hope.AspNetCore;
+using His.Hope.Validation;
+using His.Hope.ServiceDefaults;
+using His.Hope.Observability;
 using System.Security.Cryptography.X509Certificates;
 using His.Hope.AppointmentGrpc;
 using His.Hope.AppointmentService.Api.GrpcServices;
@@ -17,21 +21,21 @@ using His.Hope.Infrastructure;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.Infrastructure.HealthChecks;
 using His.Hope.Infrastructure.Observability;
-using His.Hope.Infrastructure.Resilience;
 using His.Hope.Infrastructure.Security;
-using His.Hope.Infrastructure.Security.Authorization;
+using His.Hope.Authorization;
+using His.Hope.Resilience;
+using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.IntegrationEvents.Appointment;
 using His.Hope.PatientGrpc;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "AppointmentService");
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
@@ -40,41 +44,7 @@ builder.Host.UseSerilog((context, config) =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// SECURITY: Add JWT Bearer authentication with OIDC JWKS key validation
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.Authority = "http://identityservice:5001";
-        options.RequireHttpsMetadata = false;
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = false,
-            ValidateAudience = false,
-            ValidateLifetime = true,
-            IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
-            {
-                try
-                {
-                    using var client = new HttpClient();
-                    var jwksJson = client.GetStringAsync("http://identityservice:5001/.well-known/jwks").GetAwaiter().GetResult();
-                    var keySet = new JsonWebKeySet(jwksJson);
-                    return keySet.Keys;
-                }
-                catch { return Enumerable.Empty<SecurityKey>(); }
-            }
-        };
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(accessToken) && context.Request.Path.StartsWithSegments("/hubs"))
-                    context.Token = accessToken;
-                return Task.CompletedTask;
-            }
-        };
-    });
-builder.Services.AddAuthorization();
+His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
 
 // SECURITY: Register permission-based authorization policies
 builder.Services.AddHisHopeAuthorization();
@@ -86,7 +56,6 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
     builder.Configuration, "appointment-service",
     builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!);
 
-builder.Services.AddResiliencePolicies();
 builder.Services.AddGrpc(options =>
 {
     options.EnableDetailedErrors = builder.Environment.IsDevelopment();
@@ -105,8 +74,8 @@ builder.Services.AddGrpcClient<PatientGrpcService.PatientGrpcServiceClient>(o =>
 })
 .AddHttpMessageHandler(sp =>
 {
-    var factory = sp.GetRequiredService<IResiliencePipelineFactory>();
-    return new GrpcResilienceHandler(factory.GetGrpcPipeline("patient-grpc-client"));
+    var pipelines = sp.GetRequiredService<HisHopeResiliencePipelines>();
+    return new HisHopeResilienceHandler(pipelines.CreateHttp("patient-grpc-client"));
 });
 
 builder.Services.AddRabbitMQEventBus(options =>
@@ -165,6 +134,7 @@ using (var scope = app.Services.CreateScope())
     db.Database.EnsureCreated();
 }
 
+app.UseHisHopeServiceDefaults();
 app.UseSecurityHeaders();
 app.UseRateLimiting();
 app.UseSerilogRequestLogging();
@@ -307,6 +277,7 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
 }).AllowAnonymous();
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
+app.MapHisHopeHealthEndpoints();
 app.Run();
 
 static X509Certificate2 LoadServerCertificate(IConfiguration c) =>

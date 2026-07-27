@@ -15,6 +15,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { LabService } from '@core/services/lab.service';
 import { LabCriticalAlertStreamService } from '@core/services/lab-critical-alert-stream.service';
 import { LabOrder } from '@core/models/lab-order.model';
+import { HisHopeDataTableComponent } from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-lab-order-list',
@@ -23,6 +24,7 @@ import { LabOrder } from '@core/models/lab-order.model';
         CommonModule, RouterModule, ReactiveFormsModule,
         MatTableModule, MatFormFieldModule, MatInputModule, MatIconModule,
         MatSelectModule, MatProgressBarModule, MatPaginatorModule, MatButtonModule, MatSnackBarModule,
+        HisHopeDataTableComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
@@ -60,20 +62,9 @@ import { LabOrder } from '@core/models/lab-order.model';
         </mat-form-field>
       </div>
 
-      @if (loading) {
-      <div class="loading-shimmer">
-        <mat-progress-bar mode="indeterminate" aria-label="Đang tải"></mat-progress-bar>
-      </div>
-      }
-
-      @if (!loading && labOrders.length === 0) {
-      <div class="empty-state">
-        <mat-icon class="empty-icon">biotech</mat-icon>
-        <p>Không tìm thấy phiếu xét nghiệm nào.</p>
-      </div>
-      }
-
-      @if (!loading && labOrders.length > 0) {
+      <hh-data-table label="Phiếu xét nghiệm" [loading]="loading" [error]="error"
+                     [empty]="!loading && !error && labOrders.length === 0"
+                     emptyMessage="Không tìm thấy phiếu xét nghiệm nào." (retry)="loadLabOrders()">
       <mat-table [dataSource]="labOrders" class="mat-elevation-z2">
         <ng-container matColumnDef="id">
           <mat-header-cell *matHeaderCellDef>Mã phiếu</mat-header-cell>
@@ -132,13 +123,12 @@ import { LabOrder } from '@core/models/lab-order.model';
         <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
         <mat-row *matRowDef="let row; columns: displayedColumns;" (click)="viewDetail(row.id)" class="clickable-row"></mat-row>
       </mat-table>
-      }
-
       @if (!loading && totalCount > 0) {
       <mat-paginator [length]="totalCount" [pageSize]="pageSize" [pageSizeOptions]="[10, 20, 50]"
                      (page)="onPageChange($event)" [pageIndex]="page - 1" showFirstLastButtons>
       </mat-paginator>
       }
+      </hh-data-table>
     </div>
   `,
     styles: [`
@@ -167,6 +157,7 @@ export class LabOrderListComponent implements OnInit, OnDestroy {
   page = 1;
   pageSize = 20;
   loading = false;
+  error = '';
   searchControl = new FormControl('');
   statusControl = new FormControl('');
   private searchTerm = '';
@@ -230,6 +221,7 @@ export class LabOrderListComponent implements OnInit, OnDestroy {
   }
 
   loadLabOrders(): void {
+    this.error = '';
     this.loading = true;
     this.labService.searchLabOrders({
       searchTerm: this.searchTerm,
@@ -246,6 +238,7 @@ export class LabOrderListComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         },
         error: () => {
+          this.error = 'Không thể tải danh sách phiếu xét nghiệm.';
           this.loading = false;
           this.cdr.markForCheck();
         },

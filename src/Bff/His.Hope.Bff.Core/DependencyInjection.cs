@@ -3,6 +3,8 @@ using His.Hope.Bff.Core.Audit;
 using His.Hope.Bff.Core.Authentication;
 using His.Hope.Bff.Core.Resilience;
 using His.Hope.Bff.Core.Telemetry;
+using His.Hope.AspNetCore;
+using His.Hope.Observability;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
@@ -16,6 +18,10 @@ public static class DependencyInjection
     public static IServiceCollection AddBffCore(
         this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddHisHopeAspNetCore();
+        services.AddObservability(options =>
+            options.ServiceName = configuration["ServiceName"] ?? "His.Hope.Bff");
+
         var cookieOptions = configuration
             .GetSection(SessionCookieOptions.SectionName)
             .Get<SessionCookieOptions>() ?? new SessionCookieOptions();
@@ -36,6 +42,7 @@ public static class DependencyInjection
 
     public static IApplicationBuilder UseBffCoreMiddleware(this IApplicationBuilder builder)
     {
+        builder.UseHisHopeAspNetCore();
         builder.UseBffSessionAuth();
         builder.UseBffMetrics();
         builder.UseBffCsrfProtection();

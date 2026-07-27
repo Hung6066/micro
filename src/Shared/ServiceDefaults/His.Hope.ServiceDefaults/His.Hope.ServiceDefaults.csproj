@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>His.Hope.ServiceDefaults</RootNamespace>
+    <AssemblyName>His.Hope.ServiceDefaults</AssemblyName>
+    <PackageId>His.Hope.ServiceDefaults</PackageId>
+    <Version>1.0.0</Version>
+    <Description>Golden-path ASP.NET Core host defaults for His.Hope services.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\AspNetCore\His.Hope.AspNetCore\His.Hope.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\Validation\His.Hope.Validation\His.Hope.Validation.csproj" />
+    <ProjectReference Include="..\..\Observability\His.Hope.Observability\His.Hope.Observability.csproj" />
+    <ProjectReference Include="..\..\Resilience\His.Hope.Resilience\His.Hope.Resilience.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

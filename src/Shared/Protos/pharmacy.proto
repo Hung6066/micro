@@ -23,6 +23,9 @@ message PrescriptionSearchRequest {
   int32 page = 2;
   int32 page_size = 3;
   string patient_id = 4;
+  string sort = 5;
+  map<string, string> filters = 6;
+  string cursor = 7;
 }
 
 message PrescriptionListResponse {
@@ -30,6 +33,8 @@ message PrescriptionListResponse {
   int32 total_count = 2;
   int32 page = 3;
   int32 page_size = 4;
+  string next_cursor = 5;
+  string previous_cursor = 6;
 }
 
 message MedicationRequest {
@@ -74,6 +79,9 @@ message MedicationSearchRequest {
   string search_term = 1;
   int32 page = 2;
   int32 page_size = 3;
+  string sort = 4;
+  map<string, string> filters = 5;
+  string cursor = 6;
 }
 
 message MedicationListResponse {
@@ -81,6 +89,8 @@ message MedicationListResponse {
   int32 total_count = 2;
   int32 page = 3;
   int32 page_size = 4;
+  string next_cursor = 5;
+  string previous_cursor = 6;
 }
 
 message MedicationExistsRequest {

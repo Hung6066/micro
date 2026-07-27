@@ -4,13 +4,20 @@ import { AuthService } from './auth.service';
 import { switchMap } from 'rxjs/operators';
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  if (!req.url.includes('/api/')) return next(req);
+  if (!req.url.includes('/api/')) {
+    return next(req.clone({ withCredentials: true }));
+  }
 
   const authService = inject(AuthService);
   return authService.getAccessToken().pipe(
     switchMap(token => {
-      if (!token) return next(req);
-      return next(req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }));
+      const request = token
+        ? req.clone({
+            withCredentials: true,
+            setHeaders: { Authorization: `Bearer ${token}` },
+          })
+        : req.clone({ withCredentials: true });
+      return next(request);
     }),
   );
 };

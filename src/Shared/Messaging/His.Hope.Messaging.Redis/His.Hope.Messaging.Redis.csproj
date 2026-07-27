@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>His.Hope.Messaging.Redis</RootNamespace>
+    <AssemblyName>His.Hope.Messaging.Redis</AssemblyName>
+    <PackageId>His.Hope.Messaging.Redis</PackageId>
+    <Version>1.0.0</Version>
+    <Description>Durable Redis adapters for His.Hope idempotency and job contracts.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../His.Hope.Messaging.Abstractions/His.Hope.Messaging.Abstractions.csproj" />
+    <PackageReference Include="StackExchange.Redis" Version="2.7.27" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

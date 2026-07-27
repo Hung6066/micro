@@ -13,6 +13,7 @@ commonAnnotations:
 
 resources:
   - ../../base
+  - ../../security/gatekeeper-constraints.yaml
   - ../../vault/vault-statefulset.yaml
   - ../../vault/vault-agent-injector.yaml
   - ../../vault/vault-csi-provider.yaml

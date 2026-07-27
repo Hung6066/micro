@@ -1,81 +1,35 @@
 import { Component, OnInit, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { MatTableModule } from '@angular/material/table';
-import { MatCardModule } from '@angular/material/card';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatIconModule } from '@angular/material/icon';
-import { AdminApiService, Consent } from '../../core/services/admin-api.service';
+import { HisHopeDataTableComponent, HisHopeDataTableColumn, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeToolbarComponent, HisHopePageQuery } from '@his-hope/frontend-foundation';
+import { AdminApiService, AdminPageQuery, Consent } from '../../core/services/admin-api.service';
 import { catchError, finalize } from 'rxjs/operators';
 import { of } from 'rxjs';
 
 @Component({
-  selector: 'app-consents-page',
-  standalone: true,
-  imports: [CommonModule, MatTableModule, MatCardModule, MatProgressSpinnerModule, MatIconModule],
-  template: `
-    <div class="page-header">
-      <h1 class="page-title">User Consents</h1>
-    </div>
-    <mat-card>
-      <mat-card-content>
-        @if (loading) {
-          <div class="loading-state"><mat-spinner diameter="32"></mat-spinner></div>
-        } @else if (error) {
-          <div class="error-state">
-            <mat-icon>error</mat-icon>
-            <p>{{ error }}</p>
-            <button mat-stroked-button (click)="loadConsents()">Retry</button>
-          </div>
-        } @else {
-          <table mat-table [dataSource]="consents" class="mat-elevation-z0">
-            <ng-container matColumnDef="subject">
-              <th mat-header-cell *matHeaderCellDef>Subject</th>
-              <td mat-cell *matCellDef="let c">{{ c.subject }}</td>
-            </ng-container>
-            <ng-container matColumnDef="clientId">
-              <th mat-header-cell *matHeaderCellDef>Client ID</th>
-              <td mat-cell *matCellDef="let c">{{ c.clientId }}</td>
-            </ng-container>
-            <ng-container matColumnDef="scopes">
-              <th mat-header-cell *matHeaderCellDef>Scopes</th>
-              <td mat-cell *matCellDef="let c">{{ (c.scopes || []).join(', ') }}</td>
-            </ng-container>
-            <ng-container matColumnDef="created">
-              <th mat-header-cell *matHeaderCellDef>Created</th>
-              <td mat-cell *matCellDef="let c">{{ c.created | date:'medium' }}</td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-          </table>
-          @if (consents.length === 0) {
-            <div class="empty-state">
-              <mat-icon>checklist</mat-icon>
-              <p>No consents recorded.</p>
-            </div>
-          }
-        }
-      </mat-card-content>
-    </mat-card>
-  `,
+  selector: 'app-consents-page', standalone: true,
+  imports: [HisHopeDataTableComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeToolbarComponent],
+  template: `<hh-page-layout>
+    <hh-page-header hhPageHeader title="User Consents" subtitle="Review granted permissions and client scopes" />
+    <hh-toolbar hhPageToolbar label="Consent controls">
+      <span hhToolbarTitle>{{ totalItems }} consents</span>
+      <button hh-toolbar-actions type="button" class="hh-button hh-button--secondary" (click)="loadConsents()">
+        <span class="material-icons" aria-hidden="true">refresh</span>
+        Refresh
+      </button>
+    </hh-toolbar>
+    <hh-data-table label="User consents" [columns]="columns" [rows]="tableRows" [selection]="true" [loading]="loading" mode="server" [totalItems]="totalItems" [query]="query" [pageSize]="20" (queryChange)="onQueryChange($event)" [error]="error ?? ''"
+      [empty]="!loading && !error && tableRows.length === 0" emptyMessage="No consents recorded." (retry)="loadConsents()" />
+  </hh-page-layout>`,
 })
 export class ConsentsPageComponent implements OnInit {
   private readonly api = inject(AdminApiService);
   consents: Consent[] = [];
-  displayedColumns = ['subject', 'clientId', 'scopes', 'created'];
+  readonly columns: HisHopeDataTableColumn[] = [{ key: 'subject', label: 'Subject', sortable: true, responsivePriority: 1 }, { key: 'clientId', label: 'Client ID', responsivePriority: 2 }, { key: 'scopes', label: 'Scopes', responsivePriority: 3 }, { key: 'created', label: 'Created', sortable: true, responsivePriority: 2 }];
+  tableRows: Record<string, unknown>[] = [];
   loading = false;
   error: string | null = null;
-
+  totalItems = 0;
+  query: AdminPageQuery = { page: 1, pageSize: 20 };
   ngOnInit(): void { this.loadConsents(); }
-
-  loadConsents(): void {
-    this.loading = true;
-    this.error = null;
-    this.api.getConsents().pipe(
-      finalize(() => this.loading = false),
-      catchError(err => {
-        this.error = 'Failed to load consents.';
-        return of([]);
-      }),
-    ).subscribe(consents => this.consents = consents);
-  }
+  loadConsents(query = this.query): void { this.query = query; this.loading = true; this.error = null; this.api.getConsentsPage(query).pipe(finalize(() => this.loading = false), catchError(() => { this.error = 'Failed to load consents.'; return of({ items: [], totalCount: 0, page: query.page, pageSize: query.pageSize, totalPages: 0, hasNextPage: false, hasPreviousPage: false }); })).subscribe(result => { this.totalItems = result.totalCount; this.consents = result.items; this.tableRows = result.items.map(consent => ({ id: consent.id, subject: consent.subject, clientId: consent.clientId, scopes: (consent.scopes || []).join(', '), created: consent.created })); }); }
+  onQueryChange(query: HisHopePageQuery): void { this.loadConsents(query); }
 }

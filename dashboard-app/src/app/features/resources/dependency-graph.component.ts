@@ -317,7 +317,7 @@ const LAYER_PADDING = 80;
       transition: opacity 150ms ease;
     }
     :host ::ng-deep .node-group text.node-label {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+      font-family: var(--font-sans);
       font-size: 10px;
       fill: var(--text-primary, #1A1A1A);
       font-weight: 500;

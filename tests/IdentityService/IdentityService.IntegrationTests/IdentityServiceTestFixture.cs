@@ -1,0 +1,254 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Threading.Channels;
+using His.Hope.IdentityService.Domain.Entities;
+using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.IdentityService.Infrastructure.Services;
+using His.Hope.Infrastructure.Audit;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Testcontainers.PostgreSql;
+using Testcontainers.Redis;
+using Xunit;
+
+namespace His.Hope.IdentityService.IntegrationTests;
+
+public class IdentityServiceTestFixture : IAsyncLifetime
+{
+    private PostgreSqlContainer? _postgres;
+    private RedisContainer? _redis;
+    private WebApplication? _app;
+
+    public HttpClient AnonymousClient { get; private set; } = null!;
+    public string PostgresConnectionString => _postgres?.GetConnectionString() ?? "";
+
+    public async Task InitializeAsync()
+    {
+        _postgres = new PostgreSqlBuilder()
+            .WithImage("postgres:16-alpine")
+            .WithDatabase("hishopetest")
+            .WithUsername("testuser")
+            .WithPassword("testpass123!")
+            .WithCleanUp(true)
+            .Build();
+
+        _redis = new RedisBuilder()
+            .WithImage("redis:7-alpine")
+            .WithCleanUp(true)
+            .Build();
+
+        await Task.WhenAll(_postgres.StartAsync(), _redis.StartAsync());
+
+        var pgConnStr = _postgres.GetConnectionString();
+        var redisConnStr = _redis.GetConnectionString();
+
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            EnvironmentName = "Testing"
+        });
+
+        builder.WebHost.UseTestServer();
+        builder.Logging.ClearProviders();
+
+        // ─── Database ───
+        builder.Services.AddDbContext<IdentityDbContext>(options =>
+            options.UseNpgsql(pgConnStr));
+
+        // ─── ASP.NET Identity with SignInManager ───
+        builder.Services.AddIdentityCore<User>(options =>
+        {
+            options.Password.RequireDigit = true;
+            options.Password.RequiredLength = 8;
+            options.Password.RequireNonAlphanumeric = true;
+            options.User.RequireUniqueEmail = true;
+        })
+        .AddRoles<His.Hope.IdentityService.Domain.Entities.Role>()
+        .AddEntityFrameworkStores<IdentityDbContext>()
+        .AddDefaultTokenProviders()
+        .AddSignInManager()
+        .AddUserManager<UserManager<User>>();
+
+        builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
+            .AddCookie(IdentityConstants.ApplicationScheme, o =>
+            {
+                o.Cookie.HttpOnly = true;
+                o.Cookie.SameSite = SameSiteMode.Lax;
+                o.LoginPath = "/Account/Login";
+            });
+
+        builder.Services.AddAuthorization();
+
+        // ─── Audit (required by IdentityDbContext) ───
+        var auditChannel = Channel.CreateBounded<PhiAuditEntry>(new BoundedChannelOptions(100)
+        {
+            FullMode = BoundedChannelFullMode.DropWrite
+        });
+        builder.Services.AddSingleton(auditChannel);
+        builder.Services.AddSingleton<DatabaseAuditService>();
+        builder.Services.AddSingleton<IAuditService>(_ => new AuditService());
+
+        builder.Services.AddHealthChecks();
+
+        _app = builder.Build();
+
+        _app.UseAuthentication();
+        _app.UseAuthorization();
+        _app.MapHealthChecks("/health").AllowAnonymous();
+
+        // Seed test admin user
+        using (var scope = _app.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<His.Hope.IdentityService.Domain.Entities.Role>>();
+            var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            await db.Database.EnsureCreatedAsync();
+
+            if (!await roleManager.RoleExistsAsync("Admin"))
+            {
+                await roleManager.CreateAsync(new His.Hope.IdentityService.Domain.Entities.Role
+                {
+                    Name = "Admin",
+                    Description = "Test Admin",
+                    IsSystem = true,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            if (await userManager.FindByNameAsync("admin") is null)
+            {
+                var adminUser = new User
+                {
+                    Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                    UserName = "admin",
+                    Email = "admin@hishop.com",
+                    FirstName = "Test",
+                    LastName = "Admin",
+                    IsActive = true,
+                    EmailConfirmed = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                var result = await userManager.CreateAsync(adminUser, "Test@123456");
+                if (result.Succeeded)
+                    await userManager.AddToRoleAsync(adminUser, "Admin");
+            }
+        }
+
+        await _app.StartAsync();
+        AnonymousClient = _app.GetTestClient();
+    }
+
+    public async Task DisposeAsync()
+    {
+        AnonymousClient?.Dispose();
+        if (_app is not null)
+            await _app.DisposeAsync();
+        if (_postgres is not null)
+            await _postgres.DisposeAsync();
+        if (_redis is not null)
+            await _redis.DisposeAsync();
+    }
+
+    public SessionClient CreateSessionClient()
+    {
+        var client = _app!.GetTestClient();
+        return new SessionClient(client);
+    }
+
+    public async Task<SessionClient> CreateAuthenticatedSessionAsync()
+    {
+        var session = CreateSessionClient();
+        var response = await session.LoginAsync("admin@hishop.com", "Test@123456");
+        if (!response.IsSuccessStatusCode)
+        {
+            // Registration fallback
+            var regResponse = await session.InnerClient.PostAsJsonAsync("/api/v1/auth/register",
+                new { email = "test-user@test.test", password = "Test@123456", firstName = "Test", lastName = "User" });
+            if (regResponse.IsSuccessStatusCode)
+                await session.LoginAsync("test-user@test.test", "Test@123456");
+        }
+        return session;
+    }
+}
+
+[CollectionDefinition("IdentityServiceIntegration")]
+public class IdentityServiceIntegrationCollection : ICollectionFixture<IdentityServiceTestFixture>
+{
+}
+
+public class SessionClient : IDisposable
+{
+    private readonly HttpClient _client;
+    private readonly List<Cookie> _cookies = new();
+
+    public HttpClient InnerClient => _client;
+    public SessionClient(HttpClient client) => _client = client;
+
+    public async Task<HttpResponseMessage> LoginAsync(string email, string password)
+    {
+        var response = await _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password });
+        if (response.Headers.TryGetValues("Set-Cookie", out var setCookieHeaders))
+        {
+            _cookies.Clear();
+            foreach (var header in setCookieHeaders)
+            {
+                var parts = header.Split(';');
+                var nameValue = parts[0].Split('=', 2);
+                if (nameValue.Length == 2)
+                    _cookies.Add(new Cookie(nameValue[0].Trim(), nameValue[1].Trim(), "/"));
+            }
+        }
+        return response;
+    }
+
+    public string? GetCookieValue(string name) =>
+        _cookies.FirstOrDefault(c => c.Name == name)?.Value;
+
+    public async Task<HttpResponseMessage> PostWithCookiesAsync(string url, object? body = null)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, url);
+        foreach (var cookie in _cookies)
+            request.Headers.TryAddWithoutValidation("Cookie", $"{cookie.Name}={cookie.Value}");
+        var csrf = GetCookieValue("hishop_csrf");
+        if (csrf is not null)
+            request.Headers.Add("X-CSRF-Token", csrf);
+        if (body is not null)
+            request.Content = JsonContent.Create(body);
+        return await _client.SendAsync(request);
+    }
+
+    public async Task<HttpResponseMessage> GetWithCookiesAsync(string url)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        foreach (var cookie in _cookies)
+            request.Headers.TryAddWithoutValidation("Cookie", $"{cookie.Name}={cookie.Value}");
+        var csrf = GetCookieValue("hishop_csrf");
+        if (csrf is not null)
+            request.Headers.Add("X-CSRF-Token", csrf);
+        return await _client.SendAsync(request);
+    }
+
+    public void ApplySetCookieHeaders(HttpResponseMessage response)
+    {
+        if (response.Headers.TryGetValues("Set-Cookie", out var setCookieHeaders))
+        {
+            foreach (var header in setCookieHeaders)
+            {
+                var parts = header.Split(';');
+                var nameValue = parts[0].Split('=', 2);
+                if (nameValue.Length == 2)
+                {
+                    _cookies.RemoveAll(c => c.Name == nameValue[0].Trim());
+                    _cookies.Add(new Cookie(nameValue[0].Trim(), nameValue[1].Trim(), "/"));
+                }
+            }
+        }
+    }
+
+    public void Dispose() => _client.Dispose();
+}

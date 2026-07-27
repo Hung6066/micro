@@ -18,6 +18,7 @@ public class OutboxProcessor<TDbContext> : BackgroundService
     private readonly TimeSpan _pollingInterval = TimeSpan.FromSeconds(5);
     private readonly int _batchSize = 50;
     private readonly int _maxRetries = 3;
+    private readonly string _workerId = $"{Environment.MachineName}-{Environment.ProcessId}-{Guid.NewGuid():N}";
 
     public OutboxProcessor(
         IServiceScopeFactory scopeFactory,
@@ -54,22 +55,37 @@ public class OutboxProcessor<TDbContext> : BackgroundService
         var context = scope.ServiceProvider.GetRequiredService<TDbContext>();
         var eventBus = scope.ServiceProvider.GetRequiredService<IEventBus>();
 
-        var messages = await context.Set<OutboxMessage>()
+        var candidates = await context.Set<OutboxMessage>()
             .Where(m => m.Status == OutboxStatus.Pending &&
-                       (m.LockExpiresAt == null || m.LockExpiresAt < DateTime.UtcNow))
+                       (m.LockExpiresAt == null || m.LockExpiresAt < DateTime.UtcNow) &&
+                       (m.NextAttemptAt == null || m.NextAttemptAt <= DateTime.UtcNow))
             .OrderBy(m => m.OccurredOn)
             .Take(_batchSize)
             .ToListAsync(ct);
 
-        if (messages.Count == 0) return;
-
-        foreach (var message in messages)
+        var messages = new List<OutboxMessage>();
+        foreach (var candidate in candidates)
         {
-            message.Status = OutboxStatus.Processing;
-            message.LockExpiresAt = DateTime.UtcNow.AddMinutes(1);
+            var claimedUntil = DateTime.UtcNow.AddMinutes(1);
+            var claimed = await context.Set<OutboxMessage>()
+                .Where(m => m.Id == candidate.Id &&
+                            m.Status == OutboxStatus.Pending &&
+                            (m.LockExpiresAt == null || m.LockExpiresAt < DateTime.UtcNow) &&
+                            (m.NextAttemptAt == null || m.NextAttemptAt <= DateTime.UtcNow))
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(m => m.Status, OutboxStatus.Processing)
+                    .SetProperty(m => m.LockExpiresAt, claimedUntil)
+                    .SetProperty(m => m.ClaimedBy, _workerId), ct);
+            if (claimed == 1)
+            {
+                candidate.Status = OutboxStatus.Processing;
+                candidate.LockExpiresAt = claimedUntil;
+                candidate.ClaimedBy = _workerId;
+                messages.Add(candidate);
+            }
         }
 
-        await context.SaveChangesAsync(ct);
+        if (messages.Count == 0) return;
 
         foreach (var message in messages)
         {
@@ -115,7 +131,8 @@ public class OutboxProcessor<TDbContext> : BackgroundService
 
                 if (message.RetryCount >= _maxRetries)
                 {
-                    message.Status = OutboxStatus.Failed;
+                    message.Status = OutboxStatus.DeadLetter;
+                    message.DeadLetteredOn = DateTime.UtcNow;
                     _logger.LogError(ex, "Outbox message {Id} failed after {Retries} retries",
                         message.Id, _maxRetries);
                 }
@@ -123,6 +140,8 @@ public class OutboxProcessor<TDbContext> : BackgroundService
                 {
                     message.Status = OutboxStatus.Pending;
                     message.LockExpiresAt = null;
+                    message.ClaimedBy = null;
+                    message.NextAttemptAt = DateTime.UtcNow.AddSeconds(Math.Pow(2, message.RetryCount));
                     _logger.LogWarning(ex, "Outbox message {Id} retry {Retry}/{MaxRetries}",
                         message.Id, message.RetryCount, _maxRetries);
                 }
@@ -130,5 +149,19 @@ public class OutboxProcessor<TDbContext> : BackgroundService
         }
 
         await context.SaveChangesAsync(ct);
+    }
+
+    public static Task<int> RedriveAsync(TDbContext context, Guid messageId, CancellationToken ct = default)
+    {
+        return context.Set<OutboxMessage>()
+            .Where(m => m.Id == messageId && m.Status == OutboxStatus.DeadLetter)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(m => m.Status, OutboxStatus.Pending)
+                .SetProperty(m => m.RetryCount, 0)
+                .SetProperty(m => m.Error, (string?)null)
+                .SetProperty(m => m.DeadLetteredOn, (DateTime?)null)
+                .SetProperty(m => m.LockExpiresAt, (DateTime?)null)
+                .SetProperty(m => m.ClaimedBy, (string?)null)
+                .SetProperty(m => m.NextAttemptAt, (DateTime?)null), ct);
     }
 }

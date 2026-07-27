@@ -1,0 +1,26 @@
+name: His.Hope Policy Gate
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  policy-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: npm ci
+      - name: Run mandatory His.Hope policy gate
+        shell: pwsh
+        run: ./scripts/verify-his-hope-policy.ps1 -Ci

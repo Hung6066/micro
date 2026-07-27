@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "npx playwright test --config=playwright.config.js --project=chromium",
+    "test:shared-foundation": "npx playwright test --config=playwright.config.js --grep @shared-foundation",
     "test:headed": "npx playwright test --config=playwright.config.js --project=chromium --headed",
     "test:firefox": "npx playwright test --config=playwright.config.js --project=firefox",
     "test:debug": "npx playwright test --config=playwright.config.js --project=chromium --debug",
@@ -17,5 +18,8 @@
   "dependencies": {
     "@playwright/test": "^1.61.1",
     "playwright": "^1.61.1"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.12.1"
   }
 }

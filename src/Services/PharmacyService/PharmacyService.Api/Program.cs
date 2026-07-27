@@ -1,3 +1,7 @@
+using His.Hope.AspNetCore;
+using His.Hope.Validation;
+using His.Hope.ServiceDefaults;
+using His.Hope.Observability;
 using System.Security.Cryptography.X509Certificates;
 using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
@@ -8,9 +12,9 @@ using His.Hope.Infrastructure.Database;
 using His.Hope.Infrastructure.HealthChecks;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
-using His.Hope.Infrastructure.Resilience;
 using His.Hope.Infrastructure.Security;
-using His.Hope.Infrastructure.Security.Authorization;
+using His.Hope.Authorization;
+using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.IntegrationEvents.Pharmacy;
 using His.Hope.PharmacyService.Api.GrpcServices;
@@ -19,6 +23,7 @@ using His.Hope.PharmacyService.Application;
 using His.Hope.PharmacyService.Application.DTOs;
 using His.Hope.PharmacyService.Application.UseCases.Medications.Commands;
 using His.Hope.PharmacyService.Application.UseCases.Medications.Queries;
+using Microsoft.EntityFrameworkCore;
 using His.Hope.PharmacyService.Application.UseCases.Prescriptions.Commands;
 using His.Hope.PharmacyService.Application.UseCases.Prescriptions.Queries;
 using His.Hope.PharmacyService.Domain.Aggregates;
@@ -26,13 +31,12 @@ using His.Hope.PharmacyService.Infrastructure;
 using His.Hope.PharmacyService.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "PharmacyService");
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
@@ -43,41 +47,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddPharmacyApplication();
 builder.Services.AddPharmacyInfrastructure(builder.Configuration);
 
-// SECURITY: Add JWT Bearer authentication with RSA public key validation
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.Authority = "http://identityservice:5001";
-        options.RequireHttpsMetadata = false;
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = false,
-            ValidateAudience = false,
-            ValidateLifetime = true,
-            IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
-            {
-                try
-                {
-                    using var client = new HttpClient();
-                    var jwksJson = client.GetStringAsync("http://identityservice:5001/.well-known/jwks").GetAwaiter().GetResult();
-                    var keySet = new JsonWebKeySet(jwksJson);
-                    return keySet.Keys;
-                }
-                catch { return Enumerable.Empty<SecurityKey>(); }
-            }
-        };
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(accessToken) && context.Request.Path.StartsWithSegments("/hubs"))
-                    context.Token = accessToken;
-                return Task.CompletedTask;
-            }
-        };
-    });
-builder.Services.AddAuthorization();
+His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
 
 // SECURITY: Register permission-based authorization policies
 builder.Services.AddHisHopeAuthorization();
@@ -91,7 +61,6 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
 // TEMP: Replace Redis cache with a no-op cache to avoid StackExchange.Redis hang
 builder.Services.AddSingleton<ICacheService>(new NoOpCacheService());
 
-builder.Services.AddResiliencePolicies();
 builder.Services.AddOutbox<PharmacyDbContext>();
 
 builder.Services.AddGrpc(options =>
@@ -151,9 +120,25 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<PharmacyDbContext>();
     db.Database.EnsureCreated();
+    // Existing local databases may predate the durable outbox fields and
+    // stored ACTIVE prescriptions while the domain uses PRESCRIBED.
+    // Keep this idempotent compatibility step until all environments have
+    // applied the equivalent EF migration.
+    db.Database.ExecuteSqlRaw("""
+        ALTER TABLE "OutboxMessages"
+            ADD COLUMN IF NOT EXISTS claimed_by character varying(200),
+            ADD COLUMN IF NOT EXISTS next_attempt_at timestamp with time zone,
+            ADD COLUMN IF NOT EXISTS dead_lettered_on timestamp with time zone;
+        ALTER TABLE "Prescriptions" DROP CONSTRAINT IF EXISTS chk_prescriptions_status;
+        UPDATE "Prescriptions" SET status = 'PRESCRIBED' WHERE status = 'ACTIVE';
+        ALTER TABLE "Prescriptions"
+            ADD CONSTRAINT chk_prescriptions_status
+            CHECK (status IN ('PRESCRIBED', 'FILLED', 'CANCELLED', 'EXPIRED'));
+        """);
 }
 
 // Middleware Pipeline (order matters)
+app.UseHisHopeServiceDefaults();
 app.UseSecurityHeaders();
 app.UseRateLimiting();
 app.UseSerilogRequestLogging();
@@ -431,6 +416,7 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
+app.MapHisHopeHealthEndpoints();
 app.Run();
 
 static X509Certificate2 LoadServerCertificate(IConfiguration config)

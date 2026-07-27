@@ -29,6 +29,11 @@
       "@env/*": ["src/environments/*"],
       "@store/*": ["src/app/store/*"],
       "@testing/*": ["src/app/testing/*"]
+      ,"tslib": ["./node_modules/tslib"]
+      ,"@angular/*": ["./node_modules/@angular/*"]
+      ,"rxjs": ["./node_modules/rxjs"]
+      ,"rxjs/*": ["./node_modules/rxjs/*"]
+      ,"angular-auth-oidc-client": ["./node_modules/angular-auth-oidc-client"]
     }
   },
   "exclude": ["**/*.spec.ts", "**/*.d.ts"],

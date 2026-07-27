@@ -2,6 +2,8 @@ using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.UseCases.Roles.Commands;
 using His.Hope.IdentityService.Application.UseCases.Roles.Queries;
 using MediatR;
+using His.Hope.Infrastructure.Audit;
+using His.Hope.Contracts.Query;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -15,10 +17,26 @@ public static class RoleEndpoints
     {
         // GET /api/v1/auth/roles - List all roles
         group.MapGet("/roles", async (
+            int page = 1,
+            int pageSize = 20,
+            string? search = null,
+            string? sort = null,
             IMediator mediator = null!,
             CancellationToken ct = default) =>
         {
-            var roles = await mediator.Send(new GetRolesQuery(), ct);
+            QueryRequest normalized;
+            try
+            {
+                normalized = new QueryRequest(page, pageSize, search, sort)
+                    .Normalize(
+                        new HashSet<string>(["name", "description", "createdat"], StringComparer.OrdinalIgnoreCase),
+                        new HashSet<string>());
+            }
+            catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = [ex.Message] }); }
+            if (normalized.Search?.Length > 100)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["search"] = ["Search must be 100 characters or fewer."] });
+            var roles = await mediator.Send(
+                new GetRolesQuery(normalized.Page, normalized.PageSize, normalized.Search, normalized.Sort), ct);
             return Results.Ok(roles);
         }).RequireAuthorization("Permission:admin.roles.read");
 
@@ -36,12 +54,15 @@ public static class RoleEndpoints
         group.MapPost("/roles", async (
             CreateRoleRequest request,
             IMediator mediator = null!,
+            IAuditService audit = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
             try
             {
                 var role = await mediator.Send(
                     new CreateRoleCommand(request.Name, request.Description, request.Permissions), ct);
+                await AdminAudit.LogAsync(audit, http, "CREATE", "Role", role.Id.ToString(), ct);
                 return Results.Created($"/api/v1/auth/roles/{role.Id}", role);
             }
             catch (InvalidOperationException ex)
@@ -55,12 +76,15 @@ public static class RoleEndpoints
             Guid id,
             UpdateRoleRequest request,
             IMediator mediator = null!,
+            IAuditService audit = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
             try
             {
                 var role = await mediator.Send(
-                    new UpdateRoleCommand(id, request.Name, request.Description, request.Permissions), ct);
+                    new UpdateRoleCommand(id, request.Name, request.Description, request.Permissions, request.ConcurrencyToken), ct);
+                await AdminAudit.LogAsync(audit, http, "UPDATE", "Role", id.ToString(), ct);
                 return Results.Ok(role);
             }
             catch (KeyNotFoundException)
@@ -69,7 +93,7 @@ public static class RoleEndpoints
             }
             catch (InvalidOperationException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 400);
+                return Results.Problem(ex.Message, statusCode: ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? 409 : 400);
             }
         }).RequireAuthorization("Permission:admin.roles.write");
 
@@ -77,11 +101,14 @@ public static class RoleEndpoints
         group.MapDelete("/roles/{id:guid}", async (
             Guid id,
             IMediator mediator = null!,
+            IAuditService audit = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
             try
             {
                 await mediator.Send(new DeleteRoleCommand(id), ct);
+                await AdminAudit.LogAsync(audit, http, "DELETE", "Role", id.ToString(), ct);
                 return Results.NoContent();
             }
             catch (KeyNotFoundException)

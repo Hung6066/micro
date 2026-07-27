@@ -1,6 +1,7 @@
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -40,10 +41,8 @@ public static class IdentityDbInitializer
         var logger = loggerFactory.CreateLogger("IdentityDbInitializer");
         var ct = CancellationToken.None;
 
-        // Use EnsureCreatedAsync() for backward compatibility with existing DBs.
-        // EF Core migrations are available for fresh deployments via:
-        //   dotnet ef database update
-        await context.Database.EnsureCreatedAsync(ct);
+        var migrationRunner = scope.ServiceProvider.GetRequiredService<IMigrationRunner>();
+        await migrationRunner.MigrateAsync(ct);
 
         // ──────────────────────────────────────────────
         // Step 0: Clean up old/incorrect permission codes
@@ -317,128 +316,175 @@ public static class IdentityDbInitializer
 
         var appManager = scope.ServiceProvider.GetRequiredService<
             OpenIddict.Abstractions.IOpenIddictApplicationManager>();
+        var oidcClients = ResolveOidcClientUris(
+            configuration,
+            hostEnvironment?.EnvironmentName);
 
         const string spaClientId = "his-hope-spa";
-        if (await appManager.FindByClientIdAsync(spaClientId, ct) is null)
+        var existingSpaClient = await appManager.FindByClientIdAsync(spaClientId, ct);
+        if (existingSpaClient is null)
         {
-            await appManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+            var spaUris = oidcClients[spaClientId];
+            var descriptor = new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
             {
                 ClientId = spaClientId,
                 ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Public,
                 DisplayName = "His.Hope SPA (BFF)",
-                RedirectUris =
-                {
-                    new Uri("http://localhost:4200/auth/callback"),
-                    new Uri("http://localhost:8081/auth/callback"),
-                    new Uri("https://his-hope.local/api/auth/callback"),
-                },
-                PostLogoutRedirectUris =
-                {
-                    new Uri("http://localhost:4200/auth/login"),
-                    new Uri("http://localhost:8081/auth/login"),
-                    new Uri("https://his-hope.local"),
-                },
                 Permissions =
                 {
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Authorization,
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Token,
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Logout,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Revocation,
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.ResponseTypes.Code,
-                    "openid",
-                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Email,
-                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Profile,
-                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Roles,
-                    "scope:hishop:permissions",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "profile",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "email",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "roles",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "offline_access",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "hishop:permissions",
                 },
                 Requirements =
                 {
                     OpenIddict.Abstractions.OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange,
                 }
-            }, ct);
+            };
+            AddClientUris(descriptor, spaUris);
+            await appManager.CreateAsync(descriptor, ct);
             logger.LogInformation("OIDC application '{ClientId}' created.", spaClientId);
+        }
+        else
+        {
+            await UpdateClientUrisAsync(appManager, existingSpaClient, oidcClients[spaClientId], ct);
         }
 
         var dashboardClientId = "his-hope-dashboard";
-        if (await appManager.FindByClientIdAsync(dashboardClientId, ct) is null)
+        var existingDashboardClient = await appManager.FindByClientIdAsync(dashboardClientId, ct);
+        if (existingDashboardClient is null)
         {
-            await appManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+            var dashboardUris = oidcClients[dashboardClientId];
+            var descriptor = new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
             {
                 ClientId = dashboardClientId,
                 ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Public,
                 DisplayName = "His.Hope System Dashboard",
-                RedirectUris =
-                {
-                    new Uri("http://localhost:4201/auth/callback"),
-                    new Uri("http://localhost:8082/auth/callback"),
-                },
-                PostLogoutRedirectUris =
-                {
-                    new Uri("http://localhost:4201/auth/login"),
-                    new Uri("http://localhost:8082/auth/login"),
-                },
                 Permissions =
                 {
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Authorization,
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Token,
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Logout,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Revocation,
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.ResponseTypes.Code,
-                    "openid",
-                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Email,
-                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Profile,
-                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Roles,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "profile",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "email",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "roles",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "offline_access",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "hishop:permissions",
                 },
                 Requirements =
                 {
                     OpenIddict.Abstractions.OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange,
                 }
-            }, ct);
+            };
+            AddClientUris(descriptor, dashboardUris);
+            await appManager.CreateAsync(descriptor, ct);
             logger.LogInformation("OIDC application '{ClientId}' created.", dashboardClientId);
+        }
+        else
+        {
+            await UpdateClientUrisAsync(
+                appManager,
+                existingDashboardClient,
+                oidcClients[dashboardClientId],
+                ct);
         }
 
         // Seed M2M confidential clients for service-to-service auth
         const string adminClientId = "his-hope-admin";
-        if (await appManager.FindByClientIdAsync(adminClientId, ct) is null)
+        var existingAdminClient = await appManager.FindByClientIdAsync(adminClientId, ct);
+        if (existingAdminClient is null)
         {
-            await appManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+            var adminUris = oidcClients[adminClientId];
+            var descriptor = new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
             {
                 ClientId = adminClientId,
                 ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Public,
                 DisplayName = "His.Hope Admin App",
-                RedirectUris =
-                {
-                    new Uri("http://localhost:8083/auth/callback"),
-                    new Uri("http://localhost:4202/auth/callback"),
-                },
-                PostLogoutRedirectUris =
-                {
-                    new Uri("http://localhost:8083/auth/login"),
-                    new Uri("http://localhost:4202/auth/login"),
-                },
                 Permissions =
                 {
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Authorization,
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Token,
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Logout,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Revocation,
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
                     OpenIddict.Abstractions.OpenIddictConstants.Permissions.ResponseTypes.Code,
-                    "openid",
-                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Email,
-                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Profile,
-                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Scopes.Roles,
-                    "scope:hishop:permissions",
-                    "scope:hishop:admin",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "profile",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "email",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "roles",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "offline_access",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "hishop:permissions",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "hishop:admin",
                 },
                 Requirements =
                 {
                     OpenIddict.Abstractions.OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange,
                 }
-            }, ct);
+            };
+            AddClientUris(descriptor, adminUris);
+            await appManager.CreateAsync(descriptor, ct);
             logger.LogInformation("OIDC application '{ClientId}' created.", adminClientId);
+        }
+        else
+        {
+            await UpdateClientUrisAsync(appManager, existingAdminClient, oidcClients[adminClientId], ct);
+        }
+
+        const string mobileClientId = "his-hope-mobile";
+        var existingMobileClient = await appManager.FindByClientIdAsync(mobileClientId, ct);
+        if (existingMobileClient is null)
+        {
+            var mobileUris = oidcClients[mobileClientId];
+            var descriptor = new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+            {
+                ClientId = mobileClientId,
+                ClientType = OpenIddict.Abstractions.OpenIddictConstants.ClientTypes.Public,
+                DisplayName = "His.Hope Mobile Admin",
+                Permissions =
+                {
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Authorization,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Token,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Logout,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Revocation,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.RefreshToken,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.ResponseTypes.Code,
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "profile",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "email",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "roles",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "offline_access",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "hishop:permissions",
+                    OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "hishop:admin",
+                },
+                Requirements =
+                {
+                    OpenIddict.Abstractions.OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange,
+                }
+            };
+            AddClientUris(descriptor, mobileUris);
+            await appManager.CreateAsync(descriptor, ct);
+            logger.LogInformation("OIDC application '{ClientId}' created.", mobileClientId);
+        }
+        else
+        {
+            await UpdateClientUrisAsync(appManager, existingMobileClient, oidcClients[mobileClientId], ct);
         }
 
         var m2mClients = new[]
@@ -504,6 +550,106 @@ public static class IdentityDbInitializer
         logger.LogInformation("Database seeding completed successfully.");
     }
 
+    public static IReadOnlyDictionary<string, OidcClientUris> ResolveOidcClientUris(
+        IConfiguration? configuration,
+        string? environmentName)
+    {
+        var clientSections = configuration?
+            .GetSection("Authentication:OidcClients")
+            .GetChildren()
+            .ToArray() ?? [];
+
+        if (clientSections.Length == 0)
+        {
+            throw new InvalidOperationException(
+                "Identity OIDC client registrations require Authentication:OidcClients configuration.");
+        }
+
+        var clients = new Dictionary<string, OidcClientUris>(StringComparer.Ordinal);
+        foreach (var clientSection in clientSections)
+        {
+            var clientId = clientSection.Key;
+            var redirectUris = ReadUris(clientSection, "RedirectUris", clientId);
+            var postLogoutRedirectUris = ReadUris(clientSection, "PostLogoutRedirectUris", clientId);
+
+            if (string.Equals(environmentName, Environments.Production, StringComparison.OrdinalIgnoreCase))
+            {
+                ValidateProductionUris(clientId, redirectUris, postLogoutRedirectUris);
+            }
+
+            clients.Add(clientId, new OidcClientUris(redirectUris, postLogoutRedirectUris));
+        }
+
+        return clients;
+    }
+
+    private static Uri[] ReadUris(IConfiguration clientSection, string settingName, string clientId)
+    {
+        var values = clientSection
+            .GetSection(settingName)
+            .GetChildren()
+            .Select(child => child.Value)
+            .ToArray();
+
+        if (values.Length == 0 || values.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new InvalidOperationException(
+                $"Identity OIDC client '{clientId}' requires configured {settingName}.");
+        }
+
+        return values.Select(value => Uri.TryCreate(value, UriKind.Absolute, out var uri)
+                ? uri
+                : throw new InvalidOperationException(
+                    $"Identity OIDC client '{clientId}' contains an invalid {settingName} URI '{value}'."))
+            .ToArray();
+    }
+
+    private static void ValidateProductionUris(
+        string clientId,
+        IEnumerable<Uri> redirectUris,
+        IEnumerable<Uri> postLogoutRedirectUris)
+    {
+        foreach (var uri in redirectUris.Concat(postLogoutRedirectUris))
+        {
+            if (!uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+                uri.IsLoopback ||
+                uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"Identity OIDC client '{clientId}' contains a non-production redirect URI '{uri}'. Production registrations require HTTPS non-localhost URIs.");
+            }
+        }
+    }
+
+    private static void AddClientUris(
+        OpenIddict.Abstractions.OpenIddictApplicationDescriptor descriptor,
+        OidcClientUris uris)
+    {
+        foreach (var uri in uris.RedirectUris)
+        {
+            descriptor.RedirectUris.Add(uri);
+        }
+
+        foreach (var uri in uris.PostLogoutRedirectUris)
+        {
+            descriptor.PostLogoutRedirectUris.Add(uri);
+        }
+    }
+
+    private static async Task UpdateClientUrisAsync(
+        OpenIddict.Abstractions.IOpenIddictApplicationManager appManager,
+        object application,
+        OidcClientUris uris,
+        CancellationToken cancellationToken)
+    {
+        var descriptor = new OpenIddict.Abstractions.OpenIddictApplicationDescriptor();
+        await appManager.PopulateAsync(descriptor, application, cancellationToken);
+        descriptor.RedirectUris.Clear();
+        descriptor.PostLogoutRedirectUris.Clear();
+        AddClientUris(descriptor, uris);
+        await appManager.UpdateAsync(application, descriptor, cancellationToken);
+    }
+
     public static AdminBootstrapConfiguration ResolveAdminBootstrapConfiguration(
         IConfiguration? configuration,
         string? environmentName,
@@ -537,4 +683,8 @@ public static class IdentityDbInitializer
         public const string DefaultUserName = "admin";
         public const string DefaultEmail = "admin@hishop.com";
     }
+
+    public sealed record OidcClientUris(
+        IReadOnlyList<Uri> RedirectUris,
+        IReadOnlyList<Uri> PostLogoutRedirectUris);
 }

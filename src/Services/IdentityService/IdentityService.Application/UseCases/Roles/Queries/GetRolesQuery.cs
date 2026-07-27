@@ -6,9 +6,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace His.Hope.IdentityService.Application.UseCases.Roles.Queries;
 
-public record GetRolesQuery : IRequest<List<RoleDto>>;
+public record GetRolesQuery(int Page = 1, int PageSize = 20, string? Search = null, string? Sort = null) : IRequest<PagedResult<RoleDto>>;
 
-public class GetRolesQueryHandler : IRequestHandler<GetRolesQuery, List<RoleDto>>
+public class GetRolesQueryHandler : IRequestHandler<GetRolesQuery, PagedResult<RoleDto>>
 {
     private readonly IApplicationDbContext _context;
 
@@ -17,27 +17,58 @@ public class GetRolesQueryHandler : IRequestHandler<GetRolesQuery, List<RoleDto>
         _context = context;
     }
 
-    public async Task<List<RoleDto>> Handle(GetRolesQuery request, CancellationToken cancellationToken)
+    public async Task<PagedResult<RoleDto>> Handle(GetRolesQuery request, CancellationToken cancellationToken)
     {
-        var roles = await _context.Roles
-            .Include(r => r.RolePermissions)
-                .ThenInclude(rp => rp.Permission)
-            .OrderBy(r => r.Name)
+        var query = _context.Roles.AsNoTracking().AsQueryable();
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim();
+            query = query.Where(r => (r.Name ?? "").Contains(search) || (r.Description ?? "").Contains(search));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var sort = request.Sort?.Split(':', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var descending = sort?.Length > 1 && string.Equals(sort[1], "desc", StringComparison.OrdinalIgnoreCase);
+        query = (sort?.FirstOrDefault()?.ToLowerInvariant(), descending) switch
+        {
+            ("description", false) => query.OrderBy(r => r.Description),
+            ("description", true) => query.OrderByDescending(r => r.Description),
+            ("createdat", false) => query.OrderBy(r => r.CreatedAt),
+            ("createdat", true) => query.OrderByDescending(r => r.CreatedAt),
+            ("name", true) => query.OrderByDescending(r => r.Name),
+            _ => query.OrderBy(r => r.Name)
+        };
+
+        var roles = await query
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
             .ToListAsync(cancellationToken);
 
-        return roles.Select(r => new RoleDto(
+        var roleIds = roles.Select(role => role.Id).ToArray();
+        var rolePermissions = await _context.RolePermissions
+            .AsNoTracking()
+            .Where(rolePermission => roleIds.Contains(rolePermission.RoleId))
+            .Include(rolePermission => rolePermission.Permission)
+            .ToListAsync(cancellationToken);
+        var permissionsByRole = rolePermissions
+            .GroupBy(rolePermission => rolePermission.RoleId)
+            .ToDictionary(group => group.Key, group => group.ToList());
+
+        var items = roles.Select(r => new RoleDto(
             r.Id,
             r.Name!,
             r.Description,
             r.IsSystem,
             r.CreatedAt,
-            r.RolePermissions.Select(rp => new PermissionDto(
+            permissionsByRole.GetValueOrDefault(r.Id, new List<RolePermission>()).Select(rp => new PermissionDto(
                 rp.PermissionCode,
                 rp.Permission.Name,
                 rp.Permission.Group,
                 rp.Permission.Description,
                 rp.Permission.IsSystem
-            )).ToList()
+            )).ToList(),
+            r.ConcurrencyStamp
         )).ToList();
+        return new PagedResult<RoleDto>(items, totalCount, request.Page, request.PageSize);
     }
 }

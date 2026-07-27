@@ -290,7 +290,7 @@ import { LabOrder } from '@core/models/lab-order.model';
     .header h1 {
       font-size: 24px;
       font-weight: 600;
-      letter-spacing: -0.01em;
+      letter-spacing: 0;
     }
 
     .header-actions {

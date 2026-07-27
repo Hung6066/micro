@@ -14,7 +14,8 @@ public record GetAuditLogsQuery(
     string? ResourceType = null,
     string? ResourceId = null,
     DateTime? DateFrom = null,
-    DateTime? DateTo = null)
+    DateTime? DateTo = null,
+    string? Sort = null)
     : IRequest<PagedResult<AuditLogDto>>;
 
 public class GetAuditLogsQueryHandler
@@ -53,8 +54,19 @@ public class GetAuditLogsQueryHandler
 
         var totalCount = await query.CountAsync(cancellationToken);
 
+        var sort = request.Sort?.Split(':', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var descending = sort?.Length > 1 && string.Equals(sort[1], "desc", StringComparison.OrdinalIgnoreCase);
+        query = (sort?.FirstOrDefault()?.ToLowerInvariant(), descending) switch
+        {
+            ("action", false) => query.OrderBy(al => al.Action),
+            ("action", true) => query.OrderByDescending(al => al.Action),
+            ("resourcetype", false) => query.OrderBy(al => al.ResourceType),
+            ("resourcetype", true) => query.OrderByDescending(al => al.ResourceType),
+            ("timestamp", false) => query.OrderBy(al => al.Timestamp),
+            _ => query.OrderByDescending(al => al.Timestamp)
+        };
+
         var items = await query
-            .OrderByDescending(al => al.Timestamp)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
             .Select(al => new AuditLogDto(

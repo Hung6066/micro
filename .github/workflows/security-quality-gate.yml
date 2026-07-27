@@ -1,0 +1,108 @@
+name: Security Quality Gate
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  schedule:
+    - cron: '0 5 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  dotnet-security:
+    name: .NET restore and vulnerability gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore with dependency warnings as errors
+        run: dotnet restore His.Hope.sln -warnAsError:NU1605 -warnAsError:NU1901 -warnAsError:NU1902 -warnAsError:NU1903 -warnAsError:NU1904
+      - name: Build with dependency warnings as errors
+        run: dotnet build His.Hope.sln --no-restore --warnaserror:NU1605 --warnaserror:NU1901 --warnaserror:NU1902 --warnaserror:NU1903 --warnaserror:NU1904
+      - name: Dependency vulnerability report
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet list His.Hope.sln package --vulnerable --include-transitive
+
+  frontend-security:
+    name: Angular production dependency gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Audit production dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm audit --omit=dev --audit-level=high
+          (cd admin-app && npm audit --omit=dev --audit-level=high)
+          (cd dashboard-app && npm audit --omit=dev --audit-level=high)
+          (cd src/Frontend/his-hope-app && npm audit --omit=dev --audit-level=high)
+      - name: Build all Angular applications
+        run: |
+          npm run build:shared
+          npm --workspace admin-app run build -- --configuration production
+          npm --workspace dashboard-app run build -- --configuration production
+          npm --workspace his-hope-app run build
+
+  filesystem-security:
+    name: Repository and container security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: sarif
+          output: trivy-results.sarif
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: cyclonedx-json
+          artifact-name: his-hope-sbom.cdx.json
+          output-file: his-hope-sbom.cdx.json
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: his-hope-sbom
+          path: his-hope-sbom.cdx.json
+      - name: Verify SBOM artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s his-hope-sbom.cdx.json
+          node -e "const fs=require('fs'); const bom=JSON.parse(fs.readFileSync('his-hope-sbom.cdx.json','utf8')); if (bom.bomFormat !== 'CycloneDX' || !Array.isArray(bom.components)) process.exit(1);"
+      - name: Build and scan every repository container
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t dockerfiles < <(find . -type f -name Dockerfile -not -path './docs/*' -not -path './node_modules/*' | sort)
+          test "${#dockerfiles[@]}" -gt 0
+          for dockerfile in "${dockerfiles[@]}"; do
+            context="$(dirname "$dockerfile")"
+            image="his-hope-scan:$(echo "$dockerfile" | tr '/._' '---')"
+            docker build --file "$dockerfile" --tag "$image" "$context"
+            trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$image"
+          done

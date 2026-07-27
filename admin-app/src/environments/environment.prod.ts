@@ -1,8 +1,11 @@
 export const environment = {
   production: true,
   adminApiUrl: '/api/v1/admin',
+  authApiUrl: '/api/v1/auth',
   oidc: {
-    authority: window.location.origin,
+    authority: window.location.origin === 'http://localhost:8083' || window.location.origin === 'http://localhost:4202'
+      ? 'http://localhost:5000'
+      : window.location.origin,
     clientId: 'his-hope-admin',
     redirectUrl: window.location.origin + '/auth/callback',
     postLogoutRedirectUri: window.location.origin + '/auth/login',

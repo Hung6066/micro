@@ -4,6 +4,7 @@ using Xunit;
 
 namespace His.Hope.ApiGateway.Contract.Tests;
 
+[Trait("Category", "Contract")]
 public class GatewayRouteContractTests
 {
     private static readonly string GatewayConfigPath = FindGatewayConfigPath();

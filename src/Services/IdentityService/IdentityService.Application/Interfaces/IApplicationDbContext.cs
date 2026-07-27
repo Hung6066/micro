@@ -18,6 +18,7 @@ public interface IApplicationDbContext
     DbSet<Domain.Entities.User> Users { get; }
     DbSet<Role> Roles { get; }
     DbSet<IdentityUserRole<Guid>> UserRoles { get; }
+    DbSet<TableView> TableViews { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -11,7 +11,7 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.4" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.4" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.60.0" />
@@ -24,5 +24,12 @@
     <ProjectReference Include="..\LabService.Infrastructure\LabService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\Shared\EventBus\Src\His.Hope.EventBusRabbitMQ\His.Hope.EventBusRabbitMQ.csproj" />
     <ProjectReference Include="..\..\..\Shared\EventBus\Src\His.Hope.IntegrationEvents\His.Hope.IntegrationEvents.csproj" />
+    <ProjectReference Include="..\..\..\Shared\AspNetCore\His.Hope.AspNetCore\His.Hope.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Observability\His.Hope.Observability\His.Hope.Observability.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Messaging\His.Hope.Messaging.Abstractions\His.Hope.Messaging.Abstractions.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Validation\His.Hope.Validation\His.Hope.Validation.csproj" />
+    <ProjectReference Include="..\..\..\Shared\ServiceDefaults\His.Hope.ServiceDefaults\His.Hope.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Authorization\His.Hope.Authorization\His.Hope.Authorization.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Resilience\His.Hope.Resilience\His.Hope.Resilience.csproj" />
   </ItemGroup>
 </Project>

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>His.Hope.Messaging.RabbitMq</RootNamespace>
+    <AssemblyName>His.Hope.Messaging.RabbitMq</AssemblyName>
+    <PackageId>His.Hope.Messaging.RabbitMq</PackageId>
+    <Version>1.0.0</Version>
+    <Description>Durable RabbitMQ publisher adapter for His.Hope messaging contracts.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../His.Hope.Messaging.Abstractions/His.Hope.Messaging.Abstractions.csproj" />
+    <ProjectReference Include="../../EventBus/Src/His.Hope.EventBusRabbitMQ/His.Hope.EventBusRabbitMQ.csproj" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
+    <PackageReference Include="System.Text.Json" Version="8.0.6" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,10 @@
+{
+  "name": "his-hope-open-design",
+  "title": "His.Hope Clinical Operations",
+  "version": "1.0.0",
+  "description": "Shared design contract for the His.Hope clinical, operations, and identity administration apps.",
+  "category": "enterprise",
+  "license": "UNLICENSED",
+  "entry": "DESIGN.md",
+  "tokens": "tokens.css"
+}

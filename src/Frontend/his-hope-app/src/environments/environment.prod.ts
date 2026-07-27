@@ -8,7 +8,9 @@ export const environment = {
   otelCollectorUrl: '',
 
   oidc: {
-    authority: window.location.origin,
+    authority: window.location.origin === 'http://localhost:8081' || window.location.origin === 'http://localhost:4200'
+      ? 'http://localhost:5000'
+      : window.location.origin,
     clientId: 'his-hope-spa',
     redirectUrl: window.location.origin + '/auth/callback',
     postLogoutRedirectUri: window.location.origin + '/auth/login',

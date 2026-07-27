@@ -1,13 +1,21 @@
 FROM node:22-alpine AS build
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci
-COPY . .
+WORKDIR /workspace
+COPY shared/frontend-foundation/package.json shared/frontend-foundation/package-lock.json shared/frontend-foundation/ng-package.json ./shared/frontend-foundation/
+COPY shared/frontend-foundation/tsconfig.lib.json ./shared/frontend-foundation/
+COPY shared/frontend-foundation/README.md shared/frontend-foundation/CHANGELOG.md shared/frontend-foundation/COMPATIBILITY.md shared/frontend-foundation/LICENSE ./shared/frontend-foundation/
+COPY shared/frontend-foundation/docs ./shared/frontend-foundation/docs
+COPY shared/frontend-foundation/src ./shared/frontend-foundation/src
+RUN cd shared/frontend-foundation && npm ci --legacy-peer-deps --ignore-scripts && npm run build
+WORKDIR /workspace/dashboard-app
+COPY dashboard-app/package.json dashboard-app/package-lock.json ./
+RUN npm ci --legacy-peer-deps
+COPY shared /workspace/shared
+COPY dashboard-app .
 RUN rm -rf .angular/cache && npx ng build --configuration=production
 
 FROM nginx:alpine AS final
-COPY --from=build /app/dist/dashboard-app/browser /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /workspace/dashboard-app/dist/dashboard-app/browser /usr/share/nginx/html
+COPY dashboard-app/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD curl -sf http://127.0.0.1:80/ || exit 1

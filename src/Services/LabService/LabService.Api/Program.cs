@@ -1,3 +1,7 @@
+using His.Hope.AspNetCore;
+using His.Hope.Validation;
+using His.Hope.ServiceDefaults;
+using His.Hope.Observability;
 using System.Security.Cryptography.X509Certificates;
 using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
@@ -8,9 +12,9 @@ using His.Hope.Infrastructure.Database;
 using His.Hope.Infrastructure.HealthChecks;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
-using His.Hope.Infrastructure.Resilience;
 using His.Hope.Infrastructure.Security;
-using His.Hope.Infrastructure.Security.Authorization;
+using His.Hope.Authorization;
+using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.IntegrationEvents.Lab;
 using His.Hope.LabService.Api.GrpcServices;
@@ -26,14 +30,13 @@ using His.Hope.LabService.Application.UseCases.LabOrders.Queries;
 using His.Hope.LabService.Infrastructure;
 using His.Hope.LabService.Infrastructure.Persistence;
 using MediatR;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
-using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "LabService");
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
@@ -44,41 +47,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddLabApplication();
 builder.Services.AddLabInfrastructure(builder.Configuration);
 
-// SECURITY: Add JWT Bearer authentication with OIDC JWKS key validation
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.Authority = "http://identityservice:5001";
-        options.RequireHttpsMetadata = false;
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = false,
-            ValidateAudience = false,
-            ValidateLifetime = true,
-            IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
-            {
-                try
-                {
-                    using var client = new HttpClient();
-                    var jwksJson = client.GetStringAsync("http://identityservice:5001/.well-known/jwks").GetAwaiter().GetResult();
-                    var keySet = new JsonWebKeySet(jwksJson);
-                    return keySet.Keys;
-                }
-                catch { return Enumerable.Empty<SecurityKey>(); }
-            }
-        };
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(accessToken) && context.Request.Path.StartsWithSegments("/hubs"))
-                    context.Token = accessToken;
-                return Task.CompletedTask;
-            }
-        };
-    });
-builder.Services.AddAuthorization();
+His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
 
 // SECURITY: Register permission-based authorization policies
 builder.Services.AddHisHopeAuthorization();
@@ -92,7 +61,6 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
 // TEMP: Replace Redis cache with a no-op cache to avoid StackExchange.Redis hang
 builder.Services.AddSingleton<ICacheService>(new NoOpCacheService());
 
-builder.Services.AddResiliencePolicies();
 builder.Services.AddOutbox<LabDbContext>();
 
 builder.Services.AddGrpc(options =>
@@ -168,6 +136,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Middleware Pipeline (order matters)
+app.UseHisHopeServiceDefaults();
 app.UseSecurityHeaders();
 app.UseRateLimiting();
 app.UseSerilogRequestLogging();
@@ -381,6 +350,7 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
+app.MapHisHopeHealthEndpoints();
 app.Run();
 
 static X509Certificate2 LoadServerCertificate(IConfiguration config)

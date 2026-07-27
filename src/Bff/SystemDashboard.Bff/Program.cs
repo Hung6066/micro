@@ -1,15 +1,18 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
+using StackExchange.Redis;
 using His.Hope.Infrastructure;
-using His.Hope.Infrastructure.Resilience;
 using His.Hope.Infrastructure.Security;
+using His.Hope.AspNetCore;
+using His.Hope.Observability;
+using His.Hope.Observability.OpenTelemetry;
+using His.Hope.Resilience;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
-using OpenTelemetry;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Trace;
 using SystemDashboard.Bff.Aggregators;
 using SystemDashboard.Bff.Hubs;
 using SystemDashboard.Bff.Middleware;
@@ -17,6 +20,13 @@ using SystemDashboard.Bff.Models;
 using SystemDashboard.Bff.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddHisHopeAspNetCore();
+builder.Services.AddObservability(options => options.ServiceName = "SystemDashboard.Bff");
+builder.Services.AddHisHopeResilience(builder.Configuration);
+builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
+    ConnectionMultiplexer.Connect(
+        builder.Configuration["Redis:ConnectionString"] ?? "redis:6379"));
 
 // Configuration
 builder.Services.Configure<ConsulOptions>(builder.Configuration.GetSection(ConsulOptions.SectionName));
@@ -34,42 +44,25 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
-// JWT Authentication via Identity Service JWKS (OIDC RSA-signed tokens)
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.Authority = "http://identityservice:5001";
-        options.RequireHttpsMetadata = false;
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = false,
-            ValidateAudience = false,
-            ValidateLifetime = true,
-        };
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"];
-                var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) &&
-                    (path.StartsWithSegments("/hubs") || path.StartsWithSegments("/ws")))
-                    context.Token = accessToken;
-                return Task.CompletedTask;
-            }
-        };
-    });
-
-builder.Services.AddAuthorization();
+// Shared JWT/OIDC validation and authorization defaults.
+His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
 
 // CORS
 builder.Services.AddCors(options =>
 {
+    var allowedOrigins = builder.Configuration
+        .GetSection("Cors:AllowedOrigins")
+        .Get<string[]>() ?? [];
+    if (allowedOrigins.Length == 0)
+        throw new InvalidOperationException("Cors:AllowedOrigins must contain at least one explicit origin.");
+
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:4201", "http://localhost:8082")
-            .AllowAnyHeader()
-            .AllowAnyMethod()
+        policy.WithOrigins(allowedOrigins)
+            .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+            .WithHeaders("Accept", "Authorization", "Content-Type", "If-Match", "If-None-Match",
+                "X-Correlation-ID", "X-CSRF-Token", "X-Requested-With")
+            .WithExposedHeaders("ETag", "X-Correlation-ID")
             .AllowCredentials();
     });
 });
@@ -96,9 +89,6 @@ builder.Services.AddHostedService<AuditEventWriter>();
 // Memory cache for aggregator responses
 builder.Services.AddMemoryCache();
 
-// Resilience policies (retry + circuit breaker for all outbound calls)
-builder.Services.AddResiliencePolicies();
-
 // Consul service discovery with retry + circuit breaker
 builder.Services.AddHttpClient<IConsulDiscoveryService, ConsulDiscoveryService>(client =>
 {
@@ -106,8 +96,8 @@ builder.Services.AddHttpClient<IConsulDiscoveryService, ConsulDiscoveryService>(
     client.BaseAddress = new Uri(consulAddress);
     client.Timeout = TimeSpan.FromSeconds(10);
 })
-.AddHttpMessageHandler(sp => new ResiliencePipelineHandler(
-    sp.GetRequiredService<IResiliencePipelineFactory>(), "consul-discovery"));
+.AddHttpMessageHandler(sp => new HisHopeResilienceHandler(
+    sp.GetRequiredService<HisHopeResiliencePipelines>().CreateHttp("consul-discovery")));
 
 // Elasticsearch log querying with retry + circuit breaker
 builder.Services.AddHttpClient<IElasticsearchQueryService, ElasticsearchQueryService>((sp, client) =>
@@ -116,8 +106,8 @@ builder.Services.AddHttpClient<IElasticsearchQueryService, ElasticsearchQuerySer
     client.BaseAddress = new Uri(esOptions.Value.Url);
     client.Timeout = TimeSpan.FromSeconds(15);
 })
-.AddHttpMessageHandler(sp => new ResiliencePipelineHandler(
-    sp.GetRequiredService<IResiliencePipelineFactory>(), "elasticsearch"));
+.AddHttpMessageHandler(sp => new HisHopeResilienceHandler(
+    sp.GetRequiredService<HisHopeResiliencePipelines>().CreateHttp("elasticsearch")));
 
 // Prometheus metrics querying with retry + circuit breaker
 builder.Services.AddHttpClient<IPrometheusQueryService, PrometheusQueryService>((sp, client) =>
@@ -126,8 +116,8 @@ builder.Services.AddHttpClient<IPrometheusQueryService, PrometheusQueryService>(
     client.BaseAddress = new Uri(promOptions.Value.Url);
     client.Timeout = TimeSpan.FromSeconds(15);
 })
-.AddHttpMessageHandler(sp => new ResiliencePipelineHandler(
-    sp.GetRequiredService<IResiliencePipelineFactory>(), "prometheus"));
+.AddHttpMessageHandler(sp => new HisHopeResilienceHandler(
+    sp.GetRequiredService<HisHopeResiliencePipelines>().CreateHttp("prometheus")));
 
 // Jaeger trace querying with retry + circuit breaker
 builder.Services.AddHttpClient<IJaegerQueryService, JaegerQueryService>((sp, client) =>
@@ -136,8 +126,8 @@ builder.Services.AddHttpClient<IJaegerQueryService, JaegerQueryService>((sp, cli
     client.BaseAddress = new Uri(jaegerOptions.Value.QueryUrl);
     client.Timeout = TimeSpan.FromSeconds(15);
 })
-.AddHttpMessageHandler(sp => new ResiliencePipelineHandler(
-    sp.GetRequiredService<IResiliencePipelineFactory>(), "jaeger"));
+.AddHttpMessageHandler(sp => new HisHopeResilienceHandler(
+    sp.GetRequiredService<HisHopeResiliencePipelines>().CreateHttp("jaeger")));
 
 // AlertManager alert querying with retry + circuit breaker
 builder.Services.AddHttpClient<IAlertManagerService, AlertManagerService>((sp, client) =>
@@ -146,8 +136,8 @@ builder.Services.AddHttpClient<IAlertManagerService, AlertManagerService>((sp, c
     client.BaseAddress = new Uri(amOptions.Value.Url);
     client.Timeout = TimeSpan.FromSeconds(15);
 })
-.AddHttpMessageHandler(sp => new ResiliencePipelineHandler(
-    sp.GetRequiredService<IResiliencePipelineFactory>(), "alertmanager"));
+.AddHttpMessageHandler(sp => new HisHopeResilienceHandler(
+    sp.GetRequiredService<HisHopeResiliencePipelines>().CreateHttp("alertmanager")));
 
 // Logs aggregator
 builder.Services.AddSingleton<ILogsAggregator, LogsAggregator>();
@@ -170,12 +160,17 @@ builder.Services.AddSingleton<ITracesAggregator, TracesAggregator>();
 // Lifecycle services (Docker or Kubernetes based on config)
 builder.Services.AddSingleton<DockerLifecycleService>();
 builder.Services.AddSingleton<KubernetesLifecycleService>();
+builder.Services.AddSingleton<DisabledLifecycleService>();
 builder.Services.AddSingleton<IServiceLifecycleService>(sp =>
 {
     var k8s = sp.GetRequiredService<IOptions<KubernetesOptions>>();
-    return k8s.Value.Enabled
-        ? sp.GetRequiredService<KubernetesLifecycleService>()
-        : sp.GetRequiredService<DockerLifecycleService>();
+    if (k8s.Value.Enabled)
+        return sp.GetRequiredService<KubernetesLifecycleService>();
+
+    var docker = sp.GetRequiredService<IOptions<DockerOptions>>();
+    return docker.Value.Enabled
+        ? sp.GetRequiredService<DockerLifecycleService>()
+        : sp.GetRequiredService<DisabledLifecycleService>();
 });
 builder.Services.AddSingleton<ILifecycleController, LifecycleController>();
 
@@ -189,11 +184,65 @@ builder.Services.AddHostedService<MetricsBackgroundService>();
 builder.Services.AddHisHopeRateLimiting(builder.Configuration);
 
 // OpenTelemetry
-builder.Services.AddOpenTelemetry()
-    .WithTracing(tracing => tracing.AddAspNetCoreInstrumentation())
-    .WithMetrics(metrics => metrics.AddAspNetCoreInstrumentation());
+builder.Services.AddHisHopeOpenTelemetryExporters(builder.Configuration, "SystemDashboard.Bff");
 
 var app = builder.Build();
+
+app.UseHisHopeAspNetCore();
+
+// The three local apps share the Identity BFF session cookie.  Forward the
+// session JWT to this BFF when the browser did not send a Bearer token so
+// controller authorization works consistently across ports.
+app.Use(async (context, next) =>
+{
+    if (!context.Request.Headers.ContainsKey("Authorization") &&
+        context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
+        !string.IsNullOrWhiteSpace(sessionId))
+    {
+        var redis = context.RequestServices.GetRequiredService<IConnectionMultiplexer>();
+        var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
+        if (sessionJson.HasValue)
+        {
+            using var document = JsonDocument.Parse((string)sessionJson!);
+            if (document.RootElement.TryGetProperty("Jwt", out var jwtElement) &&
+                !string.IsNullOrWhiteSpace(jwtElement.GetString()))
+            {
+                var sessionJwt = jwtElement.GetString()!;
+                var sessionKey = context.RequestServices
+                    .GetRequiredService<IConfiguration>()["Jwt:SessionKey"];
+                if (!string.IsNullOrWhiteSpace(sessionKey))
+                {
+                    try
+                    {
+                        var principal = new JwtSecurityTokenHandler().ValidateToken(
+                            sessionJwt,
+                            new TokenValidationParameters
+                            {
+                                ValidateIssuer = true,
+                                ValidIssuer = "his-hope-identity",
+                                ValidateAudience = true,
+                                ValidAudience = "His.Hope",
+                                ValidateLifetime = true,
+                                ValidateIssuerSigningKey = true,
+                                IssuerSigningKey = new SymmetricSecurityKey(
+                                    Encoding.UTF8.GetBytes(sessionKey)),
+                                ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
+                                ClockSkew = TimeSpan.FromMinutes(1)
+                            },
+                            out _);
+                        context.User = principal;
+                    }
+                    catch (SecurityTokenException)
+                    {
+                        // Let the normal bearer handler issue the 401 challenge.
+                    }
+                }
+            }
+        }
+    }
+
+    await next();
+});
 
 app.UseCors();
 app.UseAuthentication();

@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.lib.json",
+  "compilerOptions": { "outDir": "./dist/storybook", "types": [], "rootDir": "." },
+  "files": ["src/storybook-main.ts", ".storybook/main.ts", ".storybook/preview.ts"]
+}

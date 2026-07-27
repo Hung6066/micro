@@ -243,9 +243,10 @@ const SERVICE_COLORS = [
       gap: 12px;
     }
     .page-title {
-      font-size: 20px;
-      font-weight: 600;
-      color: #1A1A1A;
+      font-size: var(--font-size-title, 24px);
+      line-height: 1.25;
+      font-weight: 700;
+      color: var(--text-primary);
       margin: 0;
     }
     .back-btn {
@@ -313,7 +314,7 @@ const SERVICE_COLORS = [
       font-weight: 500;
     }
     .field-value.mono {
-      font-family: 'Cascadia Mono', 'Consolas', monospace;
+      font-family: var(--font-mono);
       font-size: 12px;
       word-break: break-all;
     }
@@ -385,7 +386,7 @@ const SERVICE_COLORS = [
     .time-tick {
       font-size: 10px;
       color: #A1A09B;
-      font-family: 'Cascadia Mono', 'Consolas', monospace;
+      font-family: var(--font-mono);
     }
     .waterfall-label-row,
     .waterfall-bar-row {
@@ -431,7 +432,7 @@ const SERVICE_COLORS = [
     .label-duration {
       flex: 0 0 60px;
       text-align: right;
-      font-family: 'Cascadia Mono', 'Consolas', monospace;
+      font-family: var(--font-mono);
       font-size: 11px;
       color: #1A1A1A;
     }
@@ -509,7 +510,7 @@ const SERVICE_COLORS = [
     }
     .tag-value {
       color: #1A1A1A;
-      font-family: 'Cascadia Mono', 'Consolas', monospace;
+      font-family: var(--font-mono);
       font-size: 11px;
     }
     .events-list {
@@ -537,7 +538,7 @@ const SERVICE_COLORS = [
     .event-time {
       font-size: 11px;
       color: #A1A09B;
-      font-family: 'Cascadia Mono', 'Consolas', monospace;
+      font-family: var(--font-mono);
     }
     .event-attributes {
       display: flex;

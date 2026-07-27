@@ -8,8 +8,11 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const authService = inject(AuthService);
   return authService.getAccessToken().pipe(
     switchMap(token => {
-      if (!token) return next(req);
-      return next(req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }));
+      const request = req.clone({
+        withCredentials: true,
+        ...(token ? { setHeaders: { Authorization: `Bearer ${token}` } } : {}),
+      });
+      return next(request);
     }),
   );
 };

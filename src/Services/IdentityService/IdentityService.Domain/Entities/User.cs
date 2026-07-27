@@ -15,6 +15,17 @@ public class User : IdentityUser<Guid>
     public string? MiddleName { get; set; }
     public string? LicenseNumber { get; set; }
     public string? Specialty { get; set; }
+
+    /// <summary>
+    /// Tenant/facility identifier for multi-facility access control.
+    /// Users belong to a primary facility; cross-facility access requires explicit role grant.
+    /// Maps to facility_id claim in JWT tokens.
+    /// NOTE: Requires EF Core migration to add facility_id column to asp_net_users.
+    /// </summary>
+    // TODO: Remove [NotMapped] after running migration to add facility_id column
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string? FacilityId { get; set; }
+
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAt { get; set; }
@@ -28,6 +39,12 @@ public class User : IdentityUser<Guid>
 
     // SECURITY: Trusted devices for MFA skip
     public string? TrustedDeviceToken { get; set; }
+
+    // SECURITY: Password history (last 5 hashes, prevents reuse)
+    // NOTE: Requires EF Core migration to add column.
+    // TODO: Remove [NotMapped] after running migration.
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public List<string> PreviousPasswordHashes { get; set; } = new();
 
     public string FullName
     {

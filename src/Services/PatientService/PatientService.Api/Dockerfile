@@ -16,6 +16,7 @@ COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/*.csproj", "Shared/Infr
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBus/*.csproj", "Shared/EventBus/Src/His.Hope.EventBus/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/*.csproj", "Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/*.csproj", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
+COPY ["src/Shared/", "Shared/"]
 RUN dotnet restore "Services/PatientService/PatientService.Api/PatientService.Api.csproj"
 
 # --- Copy source and publish ---

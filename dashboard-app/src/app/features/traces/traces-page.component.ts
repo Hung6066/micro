@@ -145,9 +145,10 @@ import { ActivatedRoute, Router } from '@angular/router';
       margin-bottom: 24px;
     }
     .page-title {
-      font-size: 20px;
-      font-weight: 600;
-      color: #1A1A1A;
+      font-size: var(--font-size-title, 24px);
+      line-height: 1.25;
+      font-weight: 700;
+      color: var(--text-primary);
       margin: 0;
     }
     .filters-card {
@@ -172,7 +173,7 @@ import { ActivatedRoute, Router } from '@angular/router';
     }
     table { width: 100%; }
     .mono {
-      font-family: 'Cascadia Mono', 'Consolas', monospace;
+      font-family: var(--font-mono);
       font-size: 12px;
     }
     .trace-row {

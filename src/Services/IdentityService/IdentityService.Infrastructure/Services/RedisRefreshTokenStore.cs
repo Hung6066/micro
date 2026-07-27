@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
 
 namespace His.Hope.IdentityService.Infrastructure.Services;
 
@@ -11,6 +12,7 @@ public sealed class RedisRefreshTokenStore
 {
     private readonly IDistributedCache _cache;
     private readonly ILogger<RedisRefreshTokenStore> _logger;
+    private readonly IConnectionMultiplexer _redis;
     private readonly JsonSerializerOptions _jsonOptions;
 
     private const string TokenPrefix = "HisHope:refresh_token:";
@@ -19,9 +21,11 @@ public sealed class RedisRefreshTokenStore
 
     public RedisRefreshTokenStore(
         IDistributedCache cache,
+        IConnectionMultiplexer redis,
         ILogger<RedisRefreshTokenStore> logger)
     {
         _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+        _redis = redis ?? throw new ArgumentNullException(nameof(redis));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _jsonOptions = new JsonSerializerOptions
         {
@@ -68,6 +72,34 @@ public sealed class RedisRefreshTokenStore
             _logger.LogError(ex, "Failed to deserialize refresh token record");
             return null;
         }
+    }
+
+    /// <summary>
+    /// Atomically consumes a refresh token. Redis SET NX prevents two concurrent
+    /// refresh requests from both accepting the same token before IsUsed is persisted.
+    /// </summary>
+    public async Task<(RefreshTokenRecord? Record, bool WasReused)> ConsumeAsync(
+        string refreshToken, CancellationToken ct = default)
+    {
+        var record = await GetByTokenAsync(refreshToken, ct);
+        if (record is null)
+            return (null, false);
+
+        var ttl = record.ExpiresAt - DateTime.UtcNow;
+        if (ttl <= TimeSpan.Zero)
+            return (record, false);
+
+        var database = _redis.GetDatabase();
+        var claimed = await database.StringSetAsync(
+            BuildUsedKey(record.TokenHash), "1", ttl, When.NotExists);
+        if (claimed)
+            return (record, false);
+
+        _logger.LogWarning(
+            "Refresh token reuse detected atomically: FamilyId={FamilyId}, UserId={UserId}, Generation={Generation}",
+            record.FamilyId, record.UserId, record.Generation);
+        await RevokeFamilyAsync(record.FamilyId, ct);
+        return (record, true);
     }
 
     public async Task InvalidateAsync(string refreshToken, CancellationToken ct = default)
@@ -177,5 +209,6 @@ public sealed class RedisRefreshTokenStore
     public static string GenerateFamilyId() => Guid.NewGuid().ToString("N");
 
     private static string BuildTokenKey(string tokenHash) => TokenPrefix + tokenHash;
+    private static string BuildUsedKey(string tokenHash) => TokenPrefix + "used:" + tokenHash;
     private static string BuildFamilyKey(string familyId) => FamilyPrefix + familyId;
 }
