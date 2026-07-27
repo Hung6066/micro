@@ -64,6 +64,23 @@ For complete integration examples, API contracts, accessibility rules, theme/i18
 
 The package is versioned in `shared/frontend-foundation/package.json` and follows the API rules in [`COMPATIBILITY.md`](./COMPATIBILITY.md). Applications currently consume the workspace package source for local development; release builds must run `npm run release:check` before publishing the restricted package.
 
+## Mobile component set
+
+The mobile components are standalone, Ionic-inspired primitives with His.Hope tokens and no Ionic runtime dependency:
+
+- `hh-mobile-infinite-list`: feed semantics, load-more action, end state and loading skeleton.
+- `hh-mobile-refresher`: touch pull-to-refresh contract for native and mobile web shells.
+- `hh-mobile-searchbar`: 250ms debounced search, clear action and accessible label.
+- `hh-mobile-action-sheet`: bottom action menu with backdrop and Escape dismissal.
+- `hh-mobile-bottom-sheet`: detail/filter surface with safe-area padding and Escape dismissal.
+- `hh-mobile-segment`: accessible tab-like view switcher.
+- `hh-mobile-accordion`: compact expandable information section.
+- `hh-mobile-avatar`: image or initials avatar with accessible name.
+- `hh-mobile-date-time`: native date or datetime-local control with shared field styling.
+- `hh-mobile-otp`: numeric MFA/verification code input with auto-advance and paste handling.
+
+Import them from `@his-hope/frontend-foundation`. Sensitive healthcare actions belong in the action sheet or detail surface and must not use swipe-to-delete.
+
 ## Enterprise interaction primitives
 
 - `hh-confirm-dialog` provides `alertdialog` semantics, labelled description, focus trapping, Escape-to-cancel and focus restoration.

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added ten Ionic-inspired mobile primitives for list loading, refresh, search, sheets, segments, accordion, avatar, date/time and OTP flows.
 - Added centralized `HisHopePermissionService` for permission-aware controls.
 - Added vendor-neutral `HisHopePerformanceTelemetryService` for frontend performance metrics.
 - Added design-token lint enforcement to the foundation CI gates.

@@ -9,15 +9,19 @@ export interface MobileClient { id?: string; clientId: string; displayName: stri
 export interface MobileUser { id: string; userName: string; email: string; roles: string[]; isActive: boolean; }
 export interface MobileRole { id?: string; name: string; description?: string; }
 export interface MobileConsent { id: string; subject: string; clientId: string; scopes: string[]; created: string; }
+export interface MobileMfaEnrollment { secretKey: string; qrCodeUri: string; recoveryCodes: string[]; }
 export type MobileResource = 'clients' | 'users' | 'roles' | 'consents';
 
 @Injectable({ providedIn: 'root' })
 export class MobileAdminApiService {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = environment.adminApiUrl;
+  private readonly authApiUrl = this.baseUrl.replace(/\/admin$/, '/auth');
 
   getDashboard(): Observable<MobileDashboardStats> { return this.http.get<MobileDashboardStats>(`${this.baseUrl}/dashboard`); }
   getMyPermissions(): Observable<{ permissions: string[]; roles: string[] }> { return this.http.get<{ permissions: string[]; roles: string[] }>(`${this.baseUrl}/me/permissions`); }
+  enrollMfa(): Observable<MobileMfaEnrollment> { return this.http.post<MobileMfaEnrollment>(`${this.authApiUrl}/mfa/enroll`, {}); }
+  verifyMfa(code: string): Observable<{ status: string; requiresMfa: boolean }> { return this.http.post<{ status: string; requiresMfa: boolean }>(`${this.authApiUrl}/mfa/verify`, { code }); }
 
   getPage<T>(resource: MobileResource, query: HisHopePageQuery): Observable<HisHopePageResult<T>> {
     let params = new HttpParams().set('page', String(query.page)).set('pageSize', String(query.pageSize));

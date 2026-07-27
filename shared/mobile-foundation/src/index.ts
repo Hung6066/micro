@@ -42,6 +42,15 @@ export interface HisHopeAppLifecycleCapability {
   onDeepLink(listener: (link: HisHopeDeepLink) => void): Promise<() => void>;
 }
 
+/** Adapter boundary for Ionic or a future native pull-to-refresh plugin. */
+export interface HisHopeNativeRefreshEvent {
+  complete(): Promise<void>;
+}
+
+export interface HisHopeNativeRefreshCapability {
+  onRefresh(listener: (event: HisHopeNativeRefreshEvent) => void): Promise<() => void>;
+}
+
 export interface HisHopeDeepLink {
   readonly path: string;
   readonly query: Readonly<Record<string, string>>;

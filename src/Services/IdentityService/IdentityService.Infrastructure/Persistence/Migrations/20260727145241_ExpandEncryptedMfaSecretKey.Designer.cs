@@ -3,17 +3,20 @@ using System;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace His.Hope.IdentityService.Infrastructure.Migrations
+namespace His.Hope.IdentityService.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(IdentityDbContext))]
-    partial class IdentityDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260727145241_ExpandEncryptedMfaSecretKey")]
+    partial class ExpandEncryptedMfaSecretKey
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -593,8 +596,8 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
 
                     b.Property<string>("SecretKey")
                         .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
                         .HasColumnName("secret_key");
 
                     b.Property<DateTime>("UpdatedAt")

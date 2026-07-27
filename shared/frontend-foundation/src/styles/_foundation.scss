@@ -491,6 +491,8 @@ select,
 .hh-state small { margin: 0; }
 .hh-state--error { color: var(--color-danger, #B42318); }
 .hh-state--error mat-icon { opacity: .9; }
+.hh-state--offline { color: var(--text-secondary); background: color-mix(in srgb, var(--surface-muted) 55%, transparent); }
+.hh-state--forbidden { color: var(--color-danger, #B42318); background: color-mix(in srgb, var(--color-danger, #B42318) 6%, var(--surface-white)); }
 
 .hh-filter-toolbar {
   display: flex;

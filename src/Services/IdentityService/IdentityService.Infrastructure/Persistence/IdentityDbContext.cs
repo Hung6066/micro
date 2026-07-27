@@ -185,7 +185,10 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
         {
             entity.ToTable("user_mfa");
             entity.HasKey(m => m.UserId);
-            entity.Property(m => m.SecretKey).HasMaxLength(100).IsRequired();
+            // The value is encrypted before persistence, so its encoded form is
+            // longer than the raw TOTP secret. Keep enough room for key rotation
+            // and future encryption metadata without truncation failures.
+            entity.Property(m => m.SecretKey).HasMaxLength(512).IsRequired();
             entity.Property(m => m.IsEnabled).IsRequired().HasDefaultValue(false);
             entity.Property(m => m.EnrolledAt);
             entity.Property(m => m.RecoveryCodes);

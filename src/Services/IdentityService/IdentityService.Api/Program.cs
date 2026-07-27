@@ -372,6 +372,10 @@ builder.Services.AddOpenIddict()
     })
     .AddValidation(options =>
     {
+        // Keep API validation aligned with the public OIDC issuer used by the gateway.
+        // UseLocalServer shares signing keys, while SetIssuer prevents the internal
+        // container hostname from becoming the accepted token issuer.
+        options.SetIssuer(new Uri(oidcConfig["Issuer"]!));
         options.UseLocalServer();
         options.UseAspNetCore();
     });

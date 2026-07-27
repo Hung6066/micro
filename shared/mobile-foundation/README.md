@@ -14,6 +14,8 @@ Required production adapters:
 
 OIDC uses Authorization Code + PKCE in the system browser. Tokens must not be stored in web `localStorage` on native builds.
 
+Native refresh uses the `HisHopeNativeRefreshCapability` adapter contract. The shared Angular refresher keeps a browser/touch fallback; an Ionic `ion-refresher` or dedicated Capacitor plugin can implement the native contract without changing feature pages.
+
 ## Angular adapter
 
 `mobile-app/src/app/core/native-capability.service.ts` is the application adapter

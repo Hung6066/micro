@@ -341,6 +341,23 @@ export class HisHopeDataTableCellDirective {
               </article>
             }
           </div>
+          @if (mobileLoadMore()) {
+            <section class="hh-data-table__mobile-load-more" aria-live="polite">
+              <span>{{ mobileLoadedCount() }} of {{ mobileTotalLabel() }}</span>
+              @if (mobileLoadMoreError()) {
+                <span class="hh-data-table__mobile-load-more-error" role="alert">{{ mobileLoadMoreError() }}</span>
+                <button type="button" class="hh-button hh-button--secondary hh-button--small" [disabled]="mobileLoadingMore()" (click)="mobileLoadMoreRequested.emit()">Retry</button>
+              } @else if (mobileLoadingMore()) {
+                <div class="hh-data-table__mobile-load-more-skeleton" role="status" aria-label="Loading more records" aria-live="polite">
+                  <span></span><span></span>
+                </div>
+              } @else if (mobileHasMore()) {
+                <button type="button" class="hh-button hh-button--secondary" (click)="mobileLoadMoreRequested.emit()">Load more</button>
+              } @else if (mobileLoadedCount() > 0) {
+                <span class="hh-data-table__mobile-load-more-status">All records loaded</span>
+              }
+            </section>
+          }
            <nav class="hh-data-table__pagination" aria-label="Table pagination">
              @if (cursorPaging()) {
                <button type="button" class="hh-button hh-button--secondary" [disabled]="!previousCursor()" (click)="changeCursor(previousCursor())" aria-label="Previous page">Previous</button>
@@ -454,6 +471,12 @@ export class HisHopeDataTableCellDirective {
     .hh-data-table__select { text-align: center; }
     .hh-data-table__pagination { justify-content: flex-end; border-top: 1px solid var(--border-light); border-bottom: 0; font-size: var(--font-size-caption); color: var(--text-secondary); }
     .hh-data-table__pagination .hh-button { min-height: 32px; }
+    .hh-data-table__mobile-load-more { display: none; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 12px; padding: 12px 16px; border-top: 1px solid var(--border-light); color: var(--text-secondary); font-size: var(--font-size-caption); text-align: center; }
+    .hh-data-table__mobile-load-more-error { color: var(--color-danger); }
+    .hh-data-table__mobile-load-more-status { display: inline-flex; align-items: center; gap: 8px; }
+    .hh-data-table__mobile-load-more-skeleton { display: inline-flex; align-items: center; gap: 8px; width: min(100%, 220px); }
+    .hh-data-table__mobile-load-more-skeleton span { display: block; flex: 1; height: 8px; border-radius: 999px; background: linear-gradient(90deg, var(--surface-subtle), var(--border-light), var(--surface-subtle)); background-size: 200% 100%; animation: hh-skeleton-shimmer 1.3s linear infinite; }
+    .hh-data-table__mobile-load-more-skeleton span:last-child { flex: .55; }
     .hh-data-table__page-size { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); }
     .hh-data-table__page-size select { min-height: 32px; border: 1px solid var(--border-default); border-radius: var(--radius-input); background: var(--surface-white); color: var(--text-primary); padding: 0 8px; }
     .hh-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
@@ -475,6 +498,8 @@ export class HisHopeDataTableCellDirective {
       .hh-data-table__bulk-actions { display: flex; flex: 1 0 100%; flex-wrap: wrap; gap: 8px; }
       .hh-data-table__pagination > * { max-width: 100%; }
       .hh-data-table__pagination .hh-button { flex: 1 1 auto; }
+      .hh-data-table--mobile-list .hh-data-table__mobile-load-more { display: flex; }
+      .hh-data-table--mobile-list .hh-data-table__pagination { display: none; }
       .hh-data-table__columns-menu { right: auto; left: 0; width: min(240px, calc(100vw - 32px)); min-width: 0; }
       .hh-data-table__filters-menu { right: auto; left: 0; width: min(620px, calc(100vw - 32px)); min-width: 0; }
       .hh-data-table__filter-row { grid-template-columns: 1fr; }
@@ -522,6 +547,10 @@ export class HisHopeDataTableComponent {
   readonly totalItems = input<number | null>(null);
   readonly nextCursor = input<string | null>(null);
   readonly previousCursor = input<string | null>(null);
+  readonly mobileLoadMore = input(false);
+  readonly mobileHasMore = input(false);
+  readonly mobileLoadingMore = input(false);
+  readonly mobileLoadMoreError = input('');
   readonly exportable = input(false);
   readonly exportFormats = input<HisHopeTableExportFormat[]>(['csv']);
   readonly bulkActions = input<HisHopeBulkAction[]>([]);
@@ -571,6 +600,7 @@ export class HisHopeDataTableComponent {
   @Output() readonly exportRequested = new EventEmitter<HisHopeTableExportRequest>();
   @Output() readonly bulkActionRequested = new EventEmitter<HisHopeBulkActionRequest>();
   @Output() readonly queryChange = new EventEmitter<HisHopePageQuery>();
+  @Output() readonly mobileLoadMoreRequested = new EventEmitter<void>();
   @Output() readonly columnOrderChange = new EventEmitter<string[]>();
   @Output() readonly columnResizeChange = new EventEmitter<{ key: string; width: number }>();
   @Output() readonly rowEditSaveRequested = new EventEmitter<HisHopeTableEditSaveRequest>();
@@ -807,6 +837,8 @@ export class HisHopeDataTableComponent {
   onImportFile(event: Event): void { const file = (event.target as HTMLInputElement).files?.[0]; if (!file) return; const format = file.name.toLowerCase().endsWith('.xlsx') ? 'xlsx' : 'csv'; this.importRequested.emit({ format, file, columns: this.visibleColumns().map(column => column.key) }); (event.target as HTMLInputElement).value = ''; }
   requestAnalysis(operation: 'pivot' | 'aggregate' | 'formula'): void { this.analysisRequested.emit({ operation, query: this.query(), columns: this.visibleColumns().map(column => column.key) }); }
   totalRows(): number { return this.mode() === 'server' && this.totalItems() !== null ? this.totalItems()! : this.rows().length; }
+  mobileLoadedCount(): number { return this.rows().length; }
+  mobileTotalLabel(): number | string { return this.totalItems() === null ? this.rows().length : this.totalItems()!; }
   sortStates(): HisHopeDataTableSort[] { const value = this.sort() ?? this.localSort(); return !value ? [] : Array.isArray(value) ? value : [value]; }
   sortState(): HisHopeDataTableSort | null { return this.sortStates()[0] ?? null; }
   pageValue(): number { return this.page() > 1 ? this.page() : this.localPage(); }
