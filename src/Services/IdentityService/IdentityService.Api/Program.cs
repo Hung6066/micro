@@ -13,7 +13,6 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.WebUtilities;
 using His.Hope.Bff.Core.Authentication;
-using His.Hope.IdentityService.Api.Configuration;
 using His.Hope.IdentityService.Api.Endpoints;
 using His.Hope.IdentityService.Api.Jobs;
 using His.Hope.IdentityService.Api.Services;
@@ -36,13 +35,7 @@ using His.Hope.Infrastructure.Locking;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Authorization;
 using MediatR;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using OpenIddictEntityFrameworkCore = OpenIddict.EntityFrameworkCore.Models;
-using OpenIddict.Abstractions;
-using OpenIddict.Server;
-using OpenIddict.Server.AspNetCore;
-using OpenIddict.Validation.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -88,15 +81,18 @@ builder.Services.AddSingleton<ICacheService, NoOpCacheService>();
 builder.Services.AddSingleton<ILockManager, NoOpLockManager>();
 builder.Services.AddSingleton<IUserSessionTracker, UserSessionTracker>();
 
-builder.Services.AddIdentity<User, His.Hope.IdentityService.Domain.Entities.Role>(options =>
+builder.Services.AddIdentityCore<User>(options =>
 {
     options.Password.RequireDigit = true;
     options.Password.RequiredLength = 8;
     options.Password.RequireNonAlphanumeric = true;
     options.User.RequireUniqueEmail = true;
 })
+.AddRoles<His.Hope.IdentityService.Domain.Entities.Role>()
 .AddEntityFrameworkStores<IdentityDbContext>()
     .AddDefaultTokenProviders();
+
+builder.Services.AddScoped<SignInManager<User>>();
 
 // SECURITY: JWT authentication with RSA public key validation
 His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
@@ -195,23 +191,7 @@ builder.Services.AddRateLimiter(options =>
 {
     options.AddFixedWindowLimiter("auth", config =>
     {
-        config.PermitLimit = 120;
-        config.Window = TimeSpan.FromMinutes(1);
-        config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        config.QueueLimit = 0;
-    });
-
-    options.AddFixedWindowLimiter("audit-ingest", config =>
-    {
-        config.PermitLimit = 120;
-        config.Window = TimeSpan.FromMinutes(1);
-        config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        config.QueueLimit = 0;
-    });
-
-    options.AddFixedWindowLimiter("webhook", config =>
-    {
-        config.PermitLimit = 60;
+        config.PermitLimit = 30;
         config.Window = TimeSpan.FromMinutes(1);
         config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         config.QueueLimit = 0;
@@ -280,16 +260,18 @@ else
 {
     builder.Services.AddSingleton<IMfaSecretEncryptor, AesMfaSecretEncryptor>();
 }
+builder.Services.AddSingleton<VaultClientSecretStore>();
+builder.Services.AddHealthChecks().AddCheck<VaultHealthCheck>("vault-transit", tags: new[] { "startup" });
 
 // ─── OpenIddict OAuth2/OIDC Authorization Server ───
 var oidcConfig = builder.Configuration.GetSection("OpenIddict");
-var oidcSecurity = OidcSecurityConfiguration.Resolve(builder.Configuration, builder.Environment);
 
 builder.Services.AddOpenIddict()
     .AddCore(options =>
     {
         options.UseEntityFrameworkCore()
-               .UseDbContext<IdentityDbContext>();
+               .UseDbContext<IdentityDbContext>()
+               .ReplaceDefaultEntities<Guid>();
     })
     .AddServer(options =>
     {
@@ -347,28 +329,16 @@ builder.Services.AddOpenIddict()
         }
 
         options.DisableAccessTokenEncryption();
+        // DEVELOPMENT: Add ephemeral RSA signing key
+        using var rsa = System.Security.Cryptography.RSA.Create(2048);
+        var devKey = new RsaSecurityKey(rsa) { KeyId = "dev-jwt-signing" };
+        options.AddSigningKey(devKey);
 
-        var aspNetCoreOptions = options.UseAspNetCore()
+        options.UseAspNetCore()
                .EnableAuthorizationEndpointPassthrough()
+               .EnableTokenEndpointPassthrough()
                .EnableLogoutEndpointPassthrough()
                .EnableStatusCodePagesIntegration();
-
-        if (oidcSecurity.AllowInsecureHttp)
-        {
-            aspNetCoreOptions.DisableTransportSecurityRequirement();
-        }
-
-        options.AddEventHandler<OpenIddictServerEvents.HandleConfigurationRequestContext>(builder =>
-            builder.UseSingletonHandler<His.Hope.IdentityService.Api.Handlers.FixDiscoveryBaseUriHandler>()
-                .SetOrder(int.MaxValue - 200_000) // Before AttachIssuer
-                .SetType(OpenIddictServerHandlerType.Custom)
-                .Build());
-
-        options.AddEventHandler<OpenIddictServerEvents.HandleTokenRequestContext>(builder =>
-            builder.UseScopedHandler<His.Hope.IdentityService.Application.OpenIddict.CustomPopulateTokenClaims>()
-                .SetOrder(int.MaxValue - 100_000)
-                .SetType(OpenIddictServerHandlerType.Custom)
-                .Build());
     })
     .AddValidation(options =>
     {
@@ -464,31 +434,6 @@ app.UseStatusCodePages(async statusContext =>
 app.UseHisHopeServiceDefaults();
 app.UseGlobalExceptionHandler();
 
-// Trust forwarded headers from nginx/gateway so OpenIddict generates
-// correct public endpoint URLs in the OIDC discovery document.
-// SECURITY: In production, restrict KnownNetworks/KnownProxies to specific
-// gateway IP ranges instead of allowing all.
-var forwardedHeadersOptions = new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
-    ForwardLimit = null,
-};
-// DEV: Add Docker Compose bridge network range so the middleware trusts
-// forwarded headers from the gateway container. Default KnownNetworks
-// only includes loopback (127.0.0.0/8), which excludes Docker containers.
-// NOTE: Clearing KnownNetworks/KnownProxies entirely does NOT trust all
-// proxies — it trusts NONE, causing the middleware to skip all processing.
-forwardedHeadersOptions.KnownNetworks.Add(
-    new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
-        IPAddress.Parse("172.16.0.0"), 12));
-// Also trust loopback for direct access (already in defaults, explicit to
-// avoid any ambiguity):
-forwardedHeadersOptions.KnownNetworks.Add(
-    new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
-        IPAddress.Parse("127.0.0.0"), 8));
-forwardedHeadersOptions.KnownProxies.Clear();
-app.UseForwardedHeaders(forwardedHeadersOptions);
-
 // SECURITY: Seed identity database with permissions, roles, and admin user
 His.Hope.IdentityService.Infrastructure.Persistence.IdentityDbInitializer.Initialize(
     app.Services);
@@ -506,25 +451,6 @@ app.UseSerilogRequestLogging();
 app.UseHisHopePrometheus();
 app.UseCors();
 app.UseRouting();
-
-// Check cookie auth for OIDC authorize BEFORE OpenIddict processes it
-// If no cookie → redirect to login (SSO + nice UX)
-app.Use(async (context, next) =>
-{
-    if (context.Request.Path.StartsWithSegments("/connect/authorize"))
-    {
-        var authResult = await context.AuthenticateAsync(IdentityConstants.ApplicationScheme);
-        if (!authResult.Succeeded)
-        {
-            var returnUrl = Uri.EscapeDataString(
-                context.Request.PathBase + context.Request.Path + context.Request.QueryString);
-            context.Response.Redirect($"/Account/Login?ReturnUrl={returnUrl}");
-            return;
-        }
-    }
-    await next();
-});
-
 app.UseAuthentication();
 
 // Facility resolution: extracts facility_id from JWT, sets FacilityContext (before authorization)
@@ -561,7 +487,6 @@ auth.MapPost("/login", async (LoginRequest request, IIdentityService identitySer
         {
             UserId = result.User.Id.ToString(),
             Jwt = result.AccessToken,
-            RefreshToken = result.RefreshToken,
             Permissions = permissions,
             CsrfToken = csrfToken,
             UserAgentHash = BffHelpers.ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
@@ -625,39 +550,13 @@ auth.MapPost("/register", async (RegisterRequest request, IIdentityService ident
     }
 })
 .WithOpenApi()
-.RequireRateLimiting("auth")
 .AllowAnonymous();
 
-auth.MapPost("/refresh", async (RefreshTokenRequest? request, IIdentityService identityService,
-    IConnectionMultiplexer redis, HttpContext httpContext, CancellationToken ct) =>
+auth.MapPost("/refresh", async (RefreshTokenRequest request, IIdentityService identityService, CancellationToken ct) =>
 {
     try
     {
-        if (request is null || string.IsNullOrWhiteSpace(request.AccessToken) || string.IsNullOrWhiteSpace(request.RefreshToken))
-        {
-            var session = await BffHelpers.GetSessionAsync(redis, httpContext);
-            if (session is null || session.IsExpired)
-                return Results.Unauthorized();
-
-            var validationError = BffHelpers.ValidateSessionBinding(httpContext, session, requireCsrf: true);
-            if (validationError is not null)
-                return validationError;
-
-            if (string.IsNullOrWhiteSpace(session.RefreshToken))
-                return Results.Unauthorized();
-
-            request = new RefreshTokenRequest(
-                session.Jwt,
-                session.RefreshToken,
-                IpAddress: httpContext.Connection.RemoteIpAddress?.ToString());
-        }
-
         var result = await identityService.RefreshTokenAsync(request, ct);
-
-        var sessionId = httpContext.Request.Cookies["hishop_sid"];
-        if (!string.IsNullOrWhiteSpace(sessionId))
-            await BffHelpers.ReplaceSessionTokensAsync(redis, httpContext, sessionId, result);
-
         return Results.Ok(result);
     }
     catch (UnauthorizedAccessException ex)
@@ -667,7 +566,6 @@ auth.MapPost("/refresh", async (RefreshTokenRequest? request, IIdentityService i
 })
 .WithDeprecationNotice()
 .WithOpenApi()
-.RequireRateLimiting("auth")
 .AllowAnonymous();
 
 auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpContext,
@@ -678,6 +576,7 @@ auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpCon
     var sessionId = httpContext.Request.Cookies["hishop_sid"];
     string? refreshToken = null;
     string? userId = null;
+
     if (!string.IsNullOrEmpty(sessionId))
     {
         var db = redis.GetDatabase();
@@ -691,9 +590,6 @@ auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpCon
                 userId = session.UserId;
             }
         }
-
-        // Remove the current session immediately when present
-        await db.KeyDeleteAsync($"session:{sessionId}");
     }
 
     // Fallback for SPA flow: extract userId from JWT Bearer token (no BFF session cookie)
@@ -747,14 +643,13 @@ auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpCon
         SameSite = SameSiteMode.Lax,
         Path = "/",
         Expires = DateTimeOffset.UnixEpoch
+        HttpOnly = true, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Lax,
+        Path = "/api", Expires = DateTimeOffset.UnixEpoch
     });
     httpContext.Response.Cookies.Append("hishop_csrf", "", new CookieOptions
     {
-        HttpOnly = false,
-        Secure = httpContext.Request.IsHttps,
-        SameSite = SameSiteMode.Strict,
-        Path = "/",
-        Expires = DateTimeOffset.UnixEpoch
+        HttpOnly = false, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Strict,
+        Path = "/", Expires = DateTimeOffset.UnixEpoch
     });
 
     return Results.NoContent();
@@ -866,23 +761,12 @@ auth.MapPost("/internal/refresh", async (IConnectionMultiplexer redis, HttpConte
     if (session is null || session.IsExpired)
         return Results.Unauthorized();
 
-    var validationError = BffHelpers.ValidateSessionBinding(httpContext, session, requireCsrf: true);
-    if (validationError is not null)
-        return validationError;
-
-    if (string.IsNullOrWhiteSpace(session.RefreshToken))
-        return Results.Unauthorized();
-
     var refreshResult = await identityService.RefreshTokenAsync(
-        new RefreshTokenRequest(
-            session.Jwt,
-            session.RefreshToken,
-            IpAddress: httpContext.Connection.RemoteIpAddress?.ToString()), ct);
+        new RefreshTokenRequest(session.Jwt, ""), ct);
 
     session = session with
     {
         Jwt = refreshResult.AccessToken,
-        RefreshToken = refreshResult.RefreshToken,
         ExpiresAt = refreshResult.ExpiresAt,
         CsrfToken = Guid.NewGuid().ToString("N"),
         UserAgentHash = BffHelpers.ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
@@ -901,21 +785,19 @@ auth.MapPost("/internal/refresh", async (IConnectionMultiplexer redis, HttpConte
         SameSite = SameSiteMode.Lax,
         Path = "/",
         MaxAge = TimeSpan.FromHours(1)
+        HttpOnly = true, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Lax,
+        Path = "/api", MaxAge = TimeSpan.FromHours(1)
     });
     httpContext.Response.Cookies.Append("hishop_csrf", session.CsrfToken, new CookieOptions
     {
-        HttpOnly = false,
-        Secure = httpContext.Request.IsHttps,
-        SameSite = SameSiteMode.Strict,
-        Path = "/",
-        MaxAge = TimeSpan.FromHours(1)
+        HttpOnly = false, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Strict,
+        Path = "/", MaxAge = TimeSpan.FromHours(1)
     });
 
     return Results.Ok(new { refreshed = true });
 })
 .WithDeprecationNotice()
-.WithOpenApi()
-.RequireRateLimiting("auth");
+.WithOpenApi();
 
 auth.MapGet("/verify", async (HttpContext httpContext) =>
 {
@@ -1150,11 +1032,11 @@ var settings = app.MapGroup("/api/v1").RequireAuthorization();
 settings.MapSettingsEndpoints();
 
 var audit = app.MapGroup("/api/v1").RequireAuthorization();
-audit.MapAuditLogEndpoints().RequireRateLimiting("audit-ingest");
+audit.MapAuditLogEndpoints();
 
 // HR webhook (requires API key - validated via middleware or API key header)
 var webhook = app.MapGroup("/api/v1");
-webhook.MapHrWebhookEndpoints().RequireRateLimiting("webhook");
+webhook.MapHrWebhookEndpoints();
 
 // Frontend runtime error reports are best-effort telemetry. Keep the endpoint
 // available so a failed report never creates a secondary 404 in the client.
@@ -1165,6 +1047,9 @@ app.MapPost("/api/v1/errors", (HttpContext context, ILogger<Program> logger) =>
     return Results.NoContent();
 }).AllowAnonymous();
 
+app.MapHealthChecks("/health").AllowAnonymous();
+
+// gRPC endpoints
 app.MapGrpcService<His.Hope.IdentityService.Api.Services.GrpcIdentityService>();
 
 if (app.Environment.IsDevelopment())
@@ -2047,70 +1932,6 @@ app.Run();
 
 file static class BffHelpers
 {
-    internal static async Task<SessionData?> GetSessionAsync(IConnectionMultiplexer redis, HttpContext httpContext)
-    {
-        var sessionId = httpContext.Request.Cookies["hishop_sid"];
-        if (string.IsNullOrWhiteSpace(sessionId))
-            return null;
-
-        var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
-        return sessionJson.HasValue
-            ? JsonSerializer.Deserialize<SessionData>(sessionJson!)
-            : null;
-    }
-
-    internal static IResult? ValidateSessionBinding(HttpContext httpContext, SessionData session, bool requireCsrf)
-    {
-        var userAgentHash = ComputeSha256(httpContext.Request.Headers.UserAgent.ToString());
-        if (!string.Equals(session.UserAgentHash, userAgentHash, StringComparison.Ordinal))
-            return Results.Unauthorized();
-
-        if (!requireCsrf)
-            return null;
-
-        var csrfHeader = httpContext.Request.Headers["X-CSRF-Token"].FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(csrfHeader) ||
-            !string.Equals(session.CsrfToken, csrfHeader, StringComparison.Ordinal))
-            return Results.StatusCode(StatusCodes.Status403Forbidden);
-
-        return null;
-    }
-
-    internal static async Task ReplaceSessionTokensAsync(
-        IConnectionMultiplexer redis,
-        HttpContext httpContext,
-        string sessionId,
-        TokenResponse tokenResponse)
-    {
-        var existing = await GetSessionAsync(redis, httpContext);
-        if (existing is null)
-            return;
-
-        var next = existing with
-        {
-            Jwt = tokenResponse.AccessToken,
-            RefreshToken = tokenResponse.RefreshToken,
-            ExpiresAt = tokenResponse.ExpiresAt,
-            CsrfToken = Guid.NewGuid().ToString("N"),
-            UserAgentHash = ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
-            IssuedAt = DateTimeOffset.UtcNow
-        };
-
-        await redis.GetDatabase().StringSetAsync(
-            $"session:{sessionId}",
-            JsonSerializer.Serialize(next),
-            TimeSpan.FromHours(1));
-
-        httpContext.Response.Cookies.Append("hishop_csrf", next.CsrfToken, new CookieOptions
-        {
-            HttpOnly = false,
-            Secure = httpContext.Request.IsHttps,
-            SameSite = SameSiteMode.Strict,
-            Path = "/",
-            MaxAge = TimeSpan.FromHours(1)
-        });
-    }
-
     internal static string ComputeSha256(string input)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input ?? ""));
