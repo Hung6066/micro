@@ -1,14 +1,19 @@
+using His.Hope.AspNetCore;
+using His.Hope.Validation;
+using His.Hope.ServiceDefaults;
+using His.Hope.Observability;
 using His.Hope.Infrastructure;
 using His.Hope.Infrastructure.HealthChecks;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Security;
-using His.Hope.Infrastructure.Security.Authorization;
+using His.Hope.Authorization;
 using His.Hope.FhirGateway.Application;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "FhirGateway");
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration));
@@ -30,11 +35,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.Authority = "http://identityservice:5001";
-        options.RequireHttpsMetadata = false;
+        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
         options.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateIssuer = false,
-            ValidateAudience = false,
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "His.Hope.IdentityService",
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "His.Hope",
+            ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
             ValidateLifetime = true,
         };
         options.Events = new JwtBearerEvents
@@ -89,6 +97,7 @@ builder.WebHost.ConfigureKestrel(options =>
 var app = builder.Build();
 
 // Middleware Pipeline (order matters)
+app.UseHisHopeServiceDefaults();
 app.UseSecurityHeaders();
 app.UseSerilogRequestLogging();
 app.UseHisHopePrometheus();
@@ -134,4 +143,5 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
+app.MapHisHopeHealthEndpoints();
 app.Run();

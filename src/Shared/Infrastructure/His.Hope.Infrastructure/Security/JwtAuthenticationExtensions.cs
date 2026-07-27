@@ -14,6 +14,15 @@ public static class JwtAuthenticationExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        var symmetricKey = configuration["Jwt:Key"];
+        var useOidc = string.IsNullOrWhiteSpace(symmetricKey);
+
+        services.AddHttpClient("HisHopeJwtBackchannel", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(
+                configuration.GetValue("Jwt:BackchannelTimeoutSeconds", 10));
+        });
+
         services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -23,23 +32,42 @@ public static class JwtAuthenticationExtensions
         {
             options.RequireHttpsMetadata = !configuration.GetValue<bool>("Jwt:AllowHttp", false);
 
-            var key = configuration["Jwt:Key"]
-                ?? throw new InvalidOperationException(
-                    "Jwt:Key is not configured. For OIDC flows, use gRPC introspection instead of local JWT validation.");
-
-            options.TokenValidationParameters = new TokenValidationParameters
+            if (useOidc)
             {
-                ValidateIssuer = true,
-                ValidateAudience = !string.IsNullOrEmpty(configuration["Jwt:Audience"]),
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
-                ValidIssuer = configuration["Jwt:Issuer"],
-                ValidAudience = configuration["Jwt:Audience"],
-                IssuerSigningKey = new SymmetricSecurityKey(
-                    System.Text.Encoding.UTF8.GetBytes(key)),
-                ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 },
-                ClockSkew = TimeSpan.FromMinutes(configuration.GetValue("Jwt:ClockSkewMinutes", 1)),
-            };
+                var authority = configuration["Jwt:Authority"]
+                    ?? "http://identityservice:5001";
+
+                options.Authority = authority;
+                options.MetadataAddress = configuration["Jwt:MetadataAddress"]
+                    ?? $"{authority.TrimEnd('/')}/.well-known/openid-configuration";
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = configuration["Jwt:Issuer"] ?? "His.Hope.IdentityService",
+                    ValidAudience = configuration["Jwt:Audience"] ?? "His.Hope",
+                    ValidAlgorithms = new[] { SecurityAlgorithms.RsaSha256 },
+                    ClockSkew = TimeSpan.FromMinutes(configuration.GetValue("Jwt:ClockSkewMinutes", 1)),
+                };
+            }
+            else
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = !string.IsNullOrEmpty(configuration["Jwt:Audience"]),
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = configuration["Jwt:Issuer"],
+                    ValidAudience = configuration["Jwt:Audience"],
+                    IssuerSigningKey = new SymmetricSecurityKey(
+                        System.Text.Encoding.UTF8.GetBytes(symmetricKey!)),
+                    ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 },
+                    ClockSkew = TimeSpan.FromMinutes(configuration.GetValue("Jwt:ClockSkewMinutes", 1)),
+                };
+            }
 
             options.Events = new JwtBearerEvents
             {
@@ -148,6 +176,13 @@ public static class JwtAuthenticationExtensions
                 }
             };
         });
+
+        services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<IHttpClientFactory>((options, httpClientFactory) =>
+            {
+                if (useOidc)
+                    options.Backchannel = httpClientFactory.CreateClient("HisHopeJwtBackchannel");
+            });
 
         services.AddAuthorization();
 

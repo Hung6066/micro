@@ -1,8 +1,9 @@
 export const environment = {
   production: false,
   apiUrl: 'http://localhost:5700/api',
-  wsUrl: 'http://localhost:5700/ws',
+  wsUrl: '/ws',
   identityUrl: 'http://localhost:5001',
+  authApiUrl: 'http://localhost:5000/api/v1/auth',
   oidc: {
     authority: window.location.origin,
     clientId: 'his-hope-dashboard',

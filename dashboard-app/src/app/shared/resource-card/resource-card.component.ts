@@ -6,8 +6,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { HisHopeStatusBadgeComponent, HisHopeStatusTone } from '@his-hope/frontend-foundation';
 import { Resource } from '../../core/models/resource.model';
-import { ServiceStatusBadgeComponent } from '../service-status-badge/service-status-badge.component';
 
 @Component({
   selector: 'app-resource-card',
@@ -20,7 +20,7 @@ import { ServiceStatusBadgeComponent } from '../service-status-badge/service-sta
     MatIconModule,
     MatDividerModule,
     MatTooltipModule,
-    ServiceStatusBadgeComponent,
+    HisHopeStatusBadgeComponent,
   ],
   template: `
     <mat-card class="resource-card" [class.pulsing]="animating" (click)="onCardClick()">
@@ -35,7 +35,7 @@ import { ServiceStatusBadgeComponent } from '../service-status-badge/service-sta
               <span class="resource-type">{{ resource.type }}</span>
             </div>
           </div>
-          <app-service-status-badge [state]="resource.status"></app-service-status-badge>
+          <hh-status-badge [status]="resource.status" [label]="statusLabel(resource.status)" [tone]="statusTone(resource.status)" />
         </div>
 
         <mat-divider></mat-divider>
@@ -203,9 +203,9 @@ import { ServiceStatusBadgeComponent } from '../service-status-badge/service-sta
       font-weight: 500;
       color: var(--text-primary, #1A1A1A);
     }
-    .health-value.healthy { color: #2F6B4A; }
-    .health-value.unhealthy { color: #C25450; }
-    .health-value.degraded { color: #B6581C; }
+.health-value.healthy { color: var(--color-success); }
+.health-value.unhealthy { color: var(--color-danger); }
+.health-value.degraded { color: var(--color-warning); }
     .card-actions {
       display: flex;
       gap: 8px;
@@ -272,6 +272,9 @@ export class ResourceCardComponent implements OnChanges {
     if (t === 'infrastructure') return 'cloud';
     return 'device_hub';
   }
+
+  statusLabel(status: string): string { return ({ Running: 'Đang chạy', Healthy: 'Khỏe mạnh', Stopped: 'Đã dừng', Degraded: 'Suy giảm', Unhealthy: 'Mất sức khỏe', Unknown: 'Không xác định' } as Record<string, string>)[status] ?? status; }
+  statusTone(status: string): HisHopeStatusTone { if (status === 'Running' || status === 'Healthy') return 'success'; if (status === 'Degraded') return 'warning'; if (status === 'Stopped') return 'neutral'; return 'danger'; }
 
   onCardClick(): void {
     this.cardClick.emit(this.resource);

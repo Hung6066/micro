@@ -1,6 +1,7 @@
 using System.Reflection;
 using FluentValidation;
 using His.Hope.ClinicalService.Application.Common.Behaviours;
+using His.Hope.Validation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,11 +14,11 @@ public static class DependencyInjection
         services.AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
-            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehaviour<,>));
+            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(His.Hope.Validation.ValidationBehavior<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(LoggingBehaviour<,>));
         });
 
-        services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
+        services.AddHisHopeValidation(Assembly.GetExecutingAssembly());
         services.AddAutoMapper(_ => { }, Assembly.GetExecutingAssembly());
 
         return services;

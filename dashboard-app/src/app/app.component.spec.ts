@@ -52,14 +52,14 @@ describe('AppComponent', () => {
     expect(app['isDarkModeSubject'].value).toBe(initial);
   });
 
-  it('should set data-theme attribute on body', () => {
+  it('should set data-theme attribute on the document root', () => {
     const fixture = TestBed.createComponent(AppComponent);
     const app = fixture.componentInstance;
-    const body = document.body;
+    const root = document.documentElement;
     app.toggleTheme();
-    expect(body.getAttribute('data-theme')).toBe('dark');
+    expect(root.getAttribute('data-theme')).toBe('dark');
     app.toggleTheme();
-    expect(body.getAttribute('data-theme')).toBe('light');
+    expect(root.getAttribute('data-theme')).toBe('light');
   });
 
   it('should toggle sidenav on toggleSidenav()', () => {

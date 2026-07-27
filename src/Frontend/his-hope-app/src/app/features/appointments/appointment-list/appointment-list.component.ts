@@ -13,6 +13,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AppointmentService } from '@core/services/appointment.service';
 import { Appointment } from '@core/models/appointment.model';
+import { HisHopeDataTableComponent } from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-appointment-list',
@@ -21,6 +22,7 @@ import { Appointment } from '@core/models/appointment.model';
         CommonModule, RouterModule, ReactiveFormsModule,
         MatCardModule, MatFormFieldModule, MatInputModule, MatIconModule,
         MatTableModule, MatPaginatorModule, MatButtonModule, MatTooltipModule,
+        HisHopeDataTableComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
@@ -42,7 +44,9 @@ import { Appointment } from '@core/models/appointment.model';
         </mat-card-header>
 
         <mat-card-content>
-          @if (appointments.length > 0) {
+          <hh-data-table label="Appointments" [loading]="loading" [error]="error"
+                         [empty]="!loading && !error && appointments.length === 0"
+                         emptyMessage="No appointments found." (retry)="loadAppointments()">
           <div class="table-container">
             <table mat-table [dataSource]="appointments" class="appointment-table">
               <ng-container matColumnDef="scheduledDate">
@@ -99,9 +103,7 @@ import { Appointment } from '@core/models/appointment.model';
               showFirstLastButtons>
             </mat-paginator>
           </div>
-          } @else {
-          <p class="placeholder">{{ loading ? 'Loading...' : 'No appointments found.' }}</p>
-          }
+          </hh-data-table>
         </mat-card-content>
       </mat-card>
     </div>
@@ -128,6 +130,7 @@ export class AppointmentListComponent implements OnInit, OnDestroy {
   page = 1;
   pageSize = 20;
   loading = false;
+  error = '';
   searchControl = new FormControl('');
 
   constructor(
@@ -155,6 +158,7 @@ export class AppointmentListComponent implements OnInit, OnDestroy {
   }
 
   loadAppointments(): void {
+    this.error = '';
     this.loading = true;
     this.appointmentService.list(this.page, this.pageSize)
       .pipe(takeUntil(this.destroy$))
@@ -166,6 +170,7 @@ export class AppointmentListComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         },
         error: () => {
+          this.error = 'Unable to load appointments.';
           this.loading = false;
           this.cdr.markForCheck();
         },
@@ -173,6 +178,7 @@ export class AppointmentListComponent implements OnInit, OnDestroy {
   }
 
   searchAppointments(query: string): void {
+    this.error = '';
     this.loading = true;
     this.appointmentService.search(query, this.page, this.pageSize)
       .pipe(takeUntil(this.destroy$))
@@ -184,6 +190,7 @@ export class AppointmentListComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         },
         error: () => {
+          this.error = 'Unable to search appointments.';
           this.loading = false;
           this.cdr.markForCheck();
         },

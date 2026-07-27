@@ -2,6 +2,8 @@ using System.Net;
 using System.Text.Json;
 using FluentValidation;
 using His.Hope.ClinicalService.Application.Common.Exceptions;
+using His.Hope.Contracts;
+using His.Hope.Infrastructure.Contracts;
 using His.Hope.SharedKernel.Domain.Exceptions;
 using NotFoundException = His.Hope.SharedKernel.Domain.Exceptions.NotFoundException;
 
@@ -32,36 +34,43 @@ public class ExceptionHandlingMiddleware
 
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
-        context.Response.ContentType = "application/json";
         HttpStatusCode statusCode;
-        object response;
+        string title;
+        string? detail;
+        IDictionary<string, string[]>? errors = null;
 
         switch (exception)
         {
             case ValidationException validationEx:
                 statusCode = HttpStatusCode.BadRequest;
-                response = new { error = "Validation failed", details = validationEx.Errors };
+                title = "Bad Request";
+                detail = "Validation failed.";
+                errors = validationEx.Errors
+                    .GroupBy(error => error.PropertyName)
+                    .ToDictionary(group => group.Key, group => group.Select(error => error.ErrorMessage).ToArray());
                 break;
 
             case DomainException domainEx:
                 statusCode = HttpStatusCode.UnprocessableEntity;
-                response = new { error = domainEx.Message };
+                title = "Unprocessable Entity";
+                detail = domainEx.Message;
                 break;
 
             case NotFoundException notFoundEx:
                 statusCode = HttpStatusCode.NotFound;
-                response = new { error = notFoundEx.Message };
+                title = "Not Found";
+                detail = notFoundEx.Message;
                 break;
 
             default:
                 statusCode = HttpStatusCode.InternalServerError;
-                response = new { error = exception.Message, type = exception.GetType().Name, stackTrace = exception.StackTrace?.Substring(0, 500) };
+                title = "Internal Server Error";
+                detail = "An unexpected error occurred.";
                 break;
         }
 
         _logger.LogError(exception, "Request failed with {StatusCode}", statusCode);
-
-        context.Response.StatusCode = (int)statusCode;
-        await context.Response.WriteAsync(JsonSerializer.Serialize(response));
+        await context.WriteContractProblemAsync((int)statusCode, title, detail,
+            ApiErrorCodes.ForStatus((int)statusCode), errors);
     }
 }

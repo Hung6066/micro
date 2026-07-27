@@ -62,6 +62,9 @@ message PatientLabOrdersRequest {
   string patient_id = 1;
   int32 page = 2;
   int32 page_size = 3;
+  string sort = 4;
+  map<string, string> filters = 5;
+  string cursor = 6;
 }
 
 message LabOrderListResponse {
@@ -69,6 +72,8 @@ message LabOrderListResponse {
   int32 total_count = 2;
   int32 page = 3;
   int32 page_size = 4;
+  string next_cursor = 5;
+  string previous_cursor = 6;
 }
 
 message LabOrderExistsRequest {
@@ -83,4 +88,7 @@ message LabOrderSearchRequest {
   string search_term = 1;
   int32 page = 2;
   int32 page_size = 3;
+  string sort = 4;
+  map<string, string> filters = 5;
+  string cursor = 6;
 }

@@ -278,9 +278,10 @@ public class IdentityService : IIdentityService
         if (userId is null)
             throw new UnauthorizedAccessException("Invalid access token.");
 
-        // Token reuse detection
-        var (wasReused, familyId) = await _refreshTokenStore
-            .DetectReuseAsync(request.RefreshToken, cancellationToken);
+        // Atomically consume the token so concurrent refresh requests cannot both succeed.
+        var (existingRecord, wasReused) = await _refreshTokenStore
+            .ConsumeAsync(request.RefreshToken, cancellationToken);
+        var familyId = existingRecord?.FamilyId;
 
         if (wasReused)
         {
@@ -302,9 +303,6 @@ public class IdentityService : IIdentityService
                     "Security event detected. Please login again.");
         }
 
-        var existingRecord = await _refreshTokenStore
-            .GetByTokenAsync(request.RefreshToken, cancellationToken);
-
         if (existingRecord is null)
             throw new UnauthorizedAccessException("Invalid refresh token.");
 
@@ -321,9 +319,7 @@ public class IdentityService : IIdentityService
         if (user is null || !user.IsActive)
             throw new UnauthorizedAccessException("User not found or deactivated.");
 
-        // Token rotation: invalidate old, issue new
-        await _refreshTokenStore.InvalidateAsync(request.RefreshToken, cancellationToken);
-
+        // Token rotation: the old token was atomically consumed above; issue a new one.
         var roles = await _userManager.GetRolesAsync(user);
         var permissions = await GetPermissionsForRolesAsync(roles, cancellationToken);
         var (accessToken, expiresAt) = _tokenGenerator.GenerateAccessToken(user, roles, permissions);
@@ -367,6 +363,100 @@ public class IdentityService : IIdentityService
     {
         await _refreshTokenStore.RevokeAsync(refreshToken, cancellationToken);
         _logger.LogInformation("User logout - refresh token revoked");
+    }
+
+    public async Task<string> GeneratePasswordResetTokenAsync(string email)
+    {
+        var user = await _userManager.FindByEmailAsync(email);
+        if (user is null)
+            throw new KeyNotFoundException("User not found.");
+
+        return await _userManager.GeneratePasswordResetTokenAsync(user);
+    }
+
+    public async Task ResetPasswordAsync(string email, string token, string newPassword)
+    {
+        var user = await _userManager.FindByEmailAsync(email)
+            ?? throw new KeyNotFoundException("User not found.");
+
+        var hasher = new PasswordHasher<User>();
+        foreach (var oldHash in user.PreviousPasswordHashes)
+        {
+            var result = hasher.VerifyHashedPassword(user, oldHash, newPassword);
+            if (result == PasswordVerificationResult.Success)
+                throw new InvalidOperationException("Cannot reuse a recent password.");
+        }
+
+        var resetResult = await _userManager.ResetPasswordAsync(user, token, newPassword);
+        if (!resetResult.Succeeded)
+        {
+            var errors = string.Join(", ", resetResult.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"Password reset failed: {errors}");
+        }
+
+        user.LastPasswordChangedAt = DateTime.UtcNow;
+        user.PreviousPasswordHashes.Add(user.PasswordHash!);
+        if (user.PreviousPasswordHashes.Count > 5)
+            user.PreviousPasswordHashes = user.PreviousPasswordHashes.TakeLast(5).ToList();
+
+        await _userManager.UpdateAsync(user);
+        _logger.LogInformation("Password reset completed for UserId={UserId}", user.Id);
+    }
+
+    public async Task ChangePasswordAsync(Guid userId, string currentPassword, string newPassword)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString())
+            ?? throw new KeyNotFoundException("User not found.");
+
+        var checkResult = await _userManager.CheckPasswordAsync(user, currentPassword);
+        if (!checkResult)
+            throw new UnauthorizedAccessException("Current password is incorrect.");
+
+        var hasher = new PasswordHasher<User>();
+        foreach (var oldHash in user.PreviousPasswordHashes)
+        {
+            var result = hasher.VerifyHashedPassword(user, oldHash, newPassword);
+            if (result == PasswordVerificationResult.Success)
+                throw new InvalidOperationException("Cannot reuse a recent password.");
+        }
+
+        var changeResult = await _userManager.ChangePasswordAsync(user, currentPassword, newPassword);
+        if (!changeResult.Succeeded)
+        {
+            var errors = string.Join(", ", changeResult.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"Password change failed: {errors}");
+        }
+
+        user.LastPasswordChangedAt = DateTime.UtcNow;
+        user.PreviousPasswordHashes.Add(user.PasswordHash!);
+        if (user.PreviousPasswordHashes.Count > 5)
+            user.PreviousPasswordHashes = user.PreviousPasswordHashes.TakeLast(5).ToList();
+
+        await _userManager.UpdateAsync(user);
+        _logger.LogInformation("Password changed for UserId={UserId}", user.Id);
+    }
+
+    public async Task<string> GenerateEmailConfirmationTokenAsync(Guid userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString())
+            ?? throw new KeyNotFoundException("User not found.");
+
+        return await _userManager.GenerateEmailConfirmationTokenAsync(user);
+    }
+
+    public async Task ConfirmEmailAsync(string email, string token)
+    {
+        var user = await _userManager.FindByEmailAsync(email)
+            ?? throw new KeyNotFoundException("User not found.");
+
+        var result = await _userManager.ConfirmEmailAsync(user, token);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"Email confirmation failed: {errors}");
+        }
+
+        _logger.LogInformation("Email confirmed for UserId={UserId}", user.Id);
     }
 
     private static UserDto MapToDto(User user, IList<string> roles, IList<string>? permissions = null) => new(

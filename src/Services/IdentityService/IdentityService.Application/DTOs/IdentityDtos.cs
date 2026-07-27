@@ -18,7 +18,8 @@ public record UserDetailDto(
     bool IsActive,
     DateTime CreatedAt,
     DateTime? LastLoginAt,
-    IList<string> Roles);
+    IList<string> Roles,
+    string? ConcurrencyToken = null);
 
 public record CreateUserRequest(
     string Username,
@@ -38,7 +39,8 @@ public record UpdateUserRequest(
     string? Email,
     string? PhoneNumber,
     string? Role,
-    bool? IsActive);
+    bool? IsActive,
+    string? ConcurrencyToken = null);
 
 public record AssignRolesRequest(
     string[] RoleIds);
@@ -53,7 +55,8 @@ public record RoleDto(
     string? Description,
     bool IsSystem,
     DateTime CreatedAt,
-    List<PermissionDto>? Permissions);
+    List<PermissionDto>? Permissions,
+    string? ConcurrencyToken = null);
 
 public record CreateRoleRequest(
     string Name,
@@ -63,7 +66,8 @@ public record CreateRoleRequest(
 public record UpdateRoleRequest(
     string Name,
     string? Description,
-    string[]? Permissions);
+    string[]? Permissions,
+    string? ConcurrencyToken = null);
 
 public record PermissionDto(
     string Code,

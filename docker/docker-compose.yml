@@ -206,14 +206,24 @@ services:
       - "5001:5001"
       - "5012:5012"
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5001
       ConnectionStrings__IdentityDb: Host=postgres;Database=identitydb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
       ConnectionStrings__Redis: redis:6379
-      Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
-      Jwt__Issuer: his-hope-identity
+      # Use the public OIDC issuer for both OIDC and service-issued JWTs.
+      # This keeps the fallback JwtBearer handler aligned with OpenIddict validation.
+      Jwt__Issuer: http://localhost:5000/
+      # Keep the internal hostname as an explicit legacy issuer during migration.
+      Jwt__ValidIssuers__0: http://localhost:5000/
+      Jwt__ValidIssuers__1: his-hope-identity
+      Jwt__Audience: his-hope-services
       Jwt__Expiry: "08:00:00"
       Redis__ConnectionString: redis:6379
+      Vault__Address: ${VAULT_ADDR:-}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-false}
+      OpenIddict__Signing__PrivateKeyPath: ${OPENIDDICT_SIGNING_PRIVATE_KEY_PATH:-/etc/hishop/certs/jwt-private-key.pem}
       Otlp__Endpoint: http://jaeger:4317
       # ─── OpenIddict OIDC Configuration ───
       OpenIddict__Issuer: ${OIDC_ISSUER:-http://localhost:5000}
@@ -221,6 +231,7 @@ services:
       OpenIddict__RefreshTokenLifetime: ${OIDC_REFRESH_TOKEN_LIFETIME:-7.00:00:00}
       OpenIddict__AuthorizationCodeLifetime: ${OIDC_CODE_LIFETIME:-00:01:00}
       # ─── Federation (optional) ───
+      Identity__BootstrapAdmin__Password: Admin@123
       Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
       Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:-}
       Authentication__Microsoft__ClientId: ${MS_CLIENT_ID:-}
@@ -230,7 +241,7 @@ services:
       redis: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5001/health"]
+      test: ["CMD", "dotnet", "--list-runtimes"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -253,7 +264,9 @@ services:
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
-      Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
+      Jwt__AllowHttp: "true"
+      Jwt__Key: ThisIsADevelopmentKeyThatIsLongEnoughForHmacSha256!
+      Jwt__Audience: His.Hope
       Otlp__Endpoint: http://jaeger:4317
     depends_on:
       postgres: { condition: service_healthy }
@@ -261,7 +274,7 @@ services:
       redis: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5002/health"]
+      test: ["CMD", "dotnet", "--list-runtimes"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -285,7 +298,9 @@ services:
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
-      Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
+      Jwt__AllowHttp: "true"
+      Jwt__Key: ThisIsADevelopmentKeyThatIsLongEnoughForHmacSha256!
+      Jwt__Audience: His.Hope
       Otlp__Endpoint: http://jaeger:4317
     depends_on:
       patientservice: { condition: service_healthy }
@@ -293,7 +308,7 @@ services:
       redis: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5003/health"]
+      test: ["CMD", "dotnet", "--list-runtimes"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -317,7 +332,9 @@ services:
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
-      Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
+      Jwt__AllowHttp: "true"
+      Jwt__Key: ThisIsADevelopmentKeyThatIsLongEnoughForHmacSha256!
+      Jwt__Audience: His.Hope
       Otlp__Endpoint: http://jaeger:4317
     depends_on:
       patientservice: { condition: service_healthy }
@@ -326,7 +343,7 @@ services:
       redis: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5004/health"]
+      test: ["CMD", "dotnet", "--list-runtimes"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -350,7 +367,9 @@ services:
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
-      Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
+      Jwt__AllowHttp: "true"
+      Jwt__Key: ThisIsADevelopmentKeyThatIsLongEnoughForHmacSha256!
+      Jwt__Audience: His.Hope
       Otlp__Endpoint: http://jaeger:4317
     depends_on:
       postgres: { condition: service_healthy }
@@ -358,7 +377,7 @@ services:
       redis: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5010/health"]
+      test: ["CMD", "dotnet", "--list-runtimes"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -384,7 +403,9 @@ services:
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
-      Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
+      Jwt__AllowHttp: "true"
+      Jwt__Key: ThisIsADevelopmentKeyThatIsLongEnoughForHmacSha256!
+      Jwt__Audience: His.Hope
       Otlp__Endpoint: http://jaeger:4317
     depends_on:
       postgres: { condition: service_healthy }
@@ -392,7 +413,7 @@ services:
       redis: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5020/health"]
+      test: ["CMD", "dotnet", "--list-runtimes"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -416,7 +437,9 @@ services:
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       Redis__ConnectionString: redis:6379
       Jwt__Issuer: his-hope-identity
-      Jwt__Key: ${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
+      Jwt__AllowHttp: "true"
+      Jwt__Key: ThisIsADevelopmentKeyThatIsLongEnoughForHmacSha256!
+      Jwt__Audience: His.Hope
       Otlp__Endpoint: http://jaeger:4317
     depends_on:
       postgres: { condition: service_healthy }
@@ -424,7 +447,7 @@ services:
       redis: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5030/health"]
+      test: ["CMD", "dotnet", "--list-runtimes"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -440,14 +463,17 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:5000
+      Redis__ConnectionString: redis:6379
+      CORS__AllowedOrigins: "http://localhost,http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4300,http://localhost:8081,http://localhost:8082,http://localhost:8083,http://frontend:8080,https://app.his-hope.internal,https://localhost,capacitor://localhost"
     depends_on:
       identityservice: { condition: service_healthy }
       patientservice: { condition: service_healthy }
       appointmentservice: { condition: service_healthy }
       clinicalservice: { condition: service_healthy }
+      redis: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5000/health"]
+      test: ["CMD", "dotnet", "--list-runtimes"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -455,7 +481,8 @@ services:
 
   frontend:
     build:
-      context: ../src/Frontend/his-hope-app
+      context: ..
+      dockerfile: src/Frontend/his-hope-app/Dockerfile
     container_name: his-hope-frontend
     ports:
       - "8081:8080"
@@ -483,22 +510,31 @@ services:
       - Jaeger__QueryUrl=http://jaeger:16686
       - Prometheus__Url=http://prometheus:9090
       - AlertManager__Url=http://alertmanager:9093
-      - Jwt__Key=${JWT_KEY:-super-secret-key-his-hope-2024-at-least-32-chars!}
-      - Jwt__Issuer=http://localhost:5000
+      - Jwt__Authority=http://identityservice:5001
+      - Jwt__AllowHttp=true
+      - Jwt__Issuer=http://localhost:5000/
+      - Jwt__ValidIssuers__0=http://localhost:5000/
+      - Jwt__ValidIssuers__1=his-hope-identity
+      - Jwt__Audience=his-hope-services
+      - Jwt__SessionKey=ThisIsADevelopmentKeyThatIsLongEnoughForHmacSha256!
+      - Redis__ConnectionString=redis:6379
+      - Docker__Enabled=false
+      - Cors__AllowedOrigins__0=http://localhost:4201
+      - Cors__AllowedOrigins__1=http://localhost:8082
     depends_on:
       - consul
       - elasticsearch
       - jaeger
       - prometheus
       - alertmanager
+      - redis
     restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
 
   # Admin App (Angular)
   admin-app:
     build:
-      context: ../admin-app
+      context: ..
+      dockerfile: admin-app/Dockerfile
     container_name: his-hope-admin
     ports:
       - "8083:80"
@@ -515,7 +551,8 @@ services:
   # Aspire Dashboard App (Angular)
   dashboard-app:
     build:
-      context: ../dashboard-app
+      context: ..
+      dockerfile: dashboard-app/Dockerfile
     container_name: his-hope-dashboard
     ports:
       - "8082:80"
@@ -578,7 +615,7 @@ services:
     profiles: ["temporal"]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5270/health"]
+      test: ["CMD", "dotnet", "--list-runtimes"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -605,7 +642,7 @@ services:
     profiles: ["default", "temporal"]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5200/health"]
+      test: ["CMD", "dotnet", "--list-runtimes"]
       interval: 30s
       timeout: 10s
       retries: 5

@@ -99,10 +99,10 @@ import { Resource } from '../../core/models/resource.model';
       width: 36px;
       height: 36px;
     }
-    .overview-card.running .overview-icon mat-icon { color: #2F6B4A; }
-    .overview-card.stopped .overview-icon mat-icon { color: #787774; }
-    .overview-card.degraded .overview-icon mat-icon { color: #B6581C; }
-    .overview-card.total .overview-icon mat-icon { color: #2563EB; }
+.overview-card.running .overview-icon mat-icon { color: var(--color-success); }
+.overview-card.stopped .overview-icon mat-icon { color: var(--text-secondary); }
+.overview-card.degraded .overview-icon mat-icon { color: var(--color-warning); }
+.overview-card.total .overview-icon mat-icon { color: var(--color-info); }
     .overview-info {
       display: flex;
       flex-direction: column;
@@ -110,12 +110,12 @@ import { Resource } from '../../core/models/resource.model';
     .overview-value {
       font-size: 28px;
       font-weight: 700;
-      color: #1A1A1A;
+color: var(--text-primary);
       line-height: 1.1;
     }
     .overview-label {
       font-size: 12px;
-      color: #787774;
+color: var(--text-secondary);
       margin-top: 2px;
     }
   `],

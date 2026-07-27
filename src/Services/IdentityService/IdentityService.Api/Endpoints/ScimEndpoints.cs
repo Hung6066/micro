@@ -1,9 +1,11 @@
 using System.Text.Json;
+using System.Threading.RateLimiting;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
@@ -19,7 +21,7 @@ public static class ScimEndpoints
 
     public static void MapScimEndpoints(this WebApplication app)
     {
-        var scim = app.MapGroup("/scim/v2").RequireAuthorization("RequireRole:Admin");
+        var scim = app.MapGroup("/scim/v2").RequireAuthorization("RequireRole:Admin").RequireRateLimiting("scim");
 
         // Users
         scim.MapGet("/Users", GetUsers);

@@ -34,6 +34,13 @@ public class OutboxMessage
     public DateTime? LastRetryOn { get; set; }
 
     public DateTime? LockExpiresAt { get; set; }
+
+    [MaxLength(100)]
+    public string? ClaimedBy { get; set; }
+
+    public DateTime? NextAttemptAt { get; set; }
+
+    public DateTime? DeadLetteredOn { get; set; }
 }
 
 public static class OutboxStatus
@@ -42,5 +49,6 @@ public static class OutboxStatus
     public const string Processing = "Processing";
     public const string Completed = "Completed";
     public const string Failed = "Failed";
+    public const string DeadLetter = "DeadLetter";
     public const string Skipped = "Skipped";
 }

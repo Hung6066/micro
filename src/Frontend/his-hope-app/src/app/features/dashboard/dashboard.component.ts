@@ -20,6 +20,7 @@ import { ClinicalService } from '@core/services/clinical.service';
 import { Encounter } from '@core/models/encounter.model';
 import { Appointment } from '@core/models/appointment.model';
 import { Patient } from '@core/models/patient.model';
+import { HisHopeDataTableComponent, HisHopePageLayoutComponent } from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-dashboard',
@@ -28,9 +29,11 @@ import { Patient } from '@core/models/patient.model';
         CommonModule, RouterModule, ReactiveFormsModule,
         MatCardModule, MatInputModule, MatFormFieldModule, MatIconModule, MatButtonModule,
         MatProgressSpinnerModule, MatTableModule, MatChipsModule, MatAutocompleteModule,
+        HisHopeDataTableComponent, HisHopePageLayoutComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
+    <hh-page-layout density="dense">
     <div class="dashboard">
       <div class="welcome-section">
         <div>
@@ -224,39 +227,9 @@ import { Patient } from '@core/models/patient.model';
           <button mat-stroked-button size="small" routerLink="/clinical">Xem tất cả</button>
         </mat-card-header>
         <mat-card-content>
-          @if (recentEncounters.length === 0) {
-          <div class="section-empty">Chưa có lượt khám nào</div>
-          }
-          @if (recentEncounters.length > 0) {
-          <div class="table-scroll">
-            <table mat-table [dataSource]="recentEncounters" class="dashboard-table">
-              <ng-container matColumnDef="encounterDate">
-                <th mat-header-cell *matHeaderCellDef>Ngày</th>
-                <td mat-cell *matCellDef="let e">{{ e.encounterDate | date:'dd/MM HH:mm' }}</td>
-              </ng-container>
-              <ng-container matColumnDef="patientId">
-                <th mat-header-cell *matHeaderCellDef>Bệnh nhân</th>
-                <td mat-cell *matCellDef="let e">{{ e.patientId | slice:0:8 }}...</td>
-              </ng-container>
-              <ng-container matColumnDef="encounterType">
-                <th mat-header-cell *matHeaderCellDef>Loại</th>
-                <td mat-cell *matCellDef="let e">{{ e.encounterTypeName || e.encounterType }}</td>
-              </ng-container>
-              <ng-container matColumnDef="chiefComplaint">
-                <th mat-header-cell *matHeaderCellDef>Lý do</th>
-                <td mat-cell *matCellDef="let e">{{ e.chiefComplaint || '-' }}</td>
-              </ng-container>
-              <ng-container matColumnDef="status">
-                <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
-                <td mat-cell *matCellDef="let e">
-                  <span class="status-badge" [class]="'status-' + e.status.toLowerCase()">{{ e.statusName || e.status }}</span>
-                </td>
-              </ng-container>
-              <tr mat-header-row *matHeaderRowDef="['encounterDate','patientId','encounterType','chiefComplaint','status']"></tr>
-              <tr mat-row *matRowDef="let row; columns: ['encounterDate','patientId','encounterType','chiefComplaint','status'];" class="clickable-row" (click)="viewEncounter(row.id)" (keydown.enter)="viewEncounter(row.id)" (keydown.space)="$event.preventDefault(); viewEncounter(row.id)" tabindex="0" role="button" [attr.aria-label]="'Mở lượt khám ' + row.patientId"></tr>
-            </table>
-          </div>
-          }
+          <hh-data-table label="Lượt khám gần đây" density="compact" [columns]="encounterColumns" [rows]="encounterRows"
+                         [empty]="recentEncounters.length === 0" emptyMessage="Chưa có lượt khám nào"
+                         [rowClickable]="true" (rowClick)="viewEncounter(encounterFromRow($event).id)" />
         </mat-card-content>
       </mat-card>
       }
@@ -275,39 +248,9 @@ import { Patient } from '@core/models/patient.model';
           <button mat-stroked-button size="small" routerLink="/appointments">Xem tất cả</button>
         </mat-card-header>
         <mat-card-content>
-          @if (upcomingAppointments.length === 0) {
-          <div class="section-empty">Không có lịch hẹn nào</div>
-          }
-          @if (upcomingAppointments.length > 0) {
-          <div class="table-scroll">
-            <table mat-table [dataSource]="upcomingAppointments" class="dashboard-table">
-              <ng-container matColumnDef="scheduledDate">
-                <th mat-header-cell *matHeaderCellDef>Ngày</th>
-                <td mat-cell *matCellDef="let a">{{ a.scheduledDate | date:'dd/MM' }}</td>
-              </ng-container>
-              <ng-container matColumnDef="startTime">
-                <th mat-header-cell *matHeaderCellDef>Giờ</th>
-                <td mat-cell *matCellDef="let a">{{ a.startTime }}</td>
-              </ng-container>
-              <ng-container matColumnDef="patientId">
-                <th mat-header-cell *matHeaderCellDef>Bệnh nhân</th>
-                <td mat-cell *matCellDef="let a">{{ a.patientId | slice:0:8 }}...</td>
-              </ng-container>
-              <ng-container matColumnDef="type">
-                <th mat-header-cell *matHeaderCellDef>Loại</th>
-                <td mat-cell *matCellDef="let a">{{ a.typeName || a.type }}</td>
-              </ng-container>
-              <ng-container matColumnDef="status">
-                <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
-                <td mat-cell *matCellDef="let a">
-                  <span class="status-badge" [class]="'apt-status-' + a.status.toLowerCase()">{{ a.statusName || a.status }}</span>
-                </td>
-              </ng-container>
-              <tr mat-header-row *matHeaderRowDef="['scheduledDate','startTime','patientId','type','status']"></tr>
-              <tr mat-row *matRowDef="let row; columns: ['scheduledDate','startTime','patientId','type','status'];" class="clickable-row" (click)="viewAppointment(row.id)" (keydown.enter)="viewAppointment(row.id)" (keydown.space)="$event.preventDefault(); viewAppointment(row.id)" tabindex="0" role="button" [attr.aria-label]="'Mở lịch hẹn ' + row.patientId"></tr>
-            </table>
-          </div>
-          }
+          <hh-data-table label="Lịch hẹn sắp tới" density="compact" [columns]="appointmentColumns" [rows]="appointmentRows"
+                         [empty]="upcomingAppointments.length === 0" emptyMessage="Không có lịch hẹn nào"
+                         [rowClickable]="true" (rowClick)="viewAppointment(appointmentFromRow($event).id)" />
         </mat-card-content>
       </mat-card>
       }
@@ -315,12 +258,15 @@ import { Patient } from '@core/models/patient.model';
       <mat-card class="section-card"><mat-card-content><div class="section-empty">Đang tải...</div></mat-card-content></mat-card>
       }
     </div>
+    </hh-page-layout>
   `,
     styles: [`
     .dashboard {
-      max-width: var(--max-width-container, 1200px);
-      margin: 0 auto;
-      padding: 32px 24px;
+      width: 100%;
+      min-width: 0;
+      font-family: var(--font-sans);
+      font-size: var(--font-size-body, 14px);
+      line-height: 1.5;
     }
 
     .welcome-section {
@@ -333,10 +279,10 @@ import { Patient } from '@core/models/patient.model';
     }
 
     .welcome-section h1 {
-      font-size: 26px;
+      font-size: var(--font-size-title, 24px);
       font-weight: 600;
-      letter-spacing: -0.01em;
-      line-height: 1.3;
+      letter-spacing: 0;
+      line-height: 1.25;
     }
 
     .date-display {
@@ -453,6 +399,24 @@ import { Patient } from '@core/models/patient.model';
     .dashboard-search {
       width: 100%;
       max-width: 600px;
+      min-width: 0;
+    }
+
+    .dashboard-search .mat-mdc-form-field-infix,
+    .dashboard-search input {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    .dashboard-search input {
+      text-overflow: ellipsis;
+    }
+
+    .dashboard-search .mat-mdc-floating-label {
+      max-width: calc(100% - 32px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .search-result-item {
@@ -667,6 +631,45 @@ export class DashboardComponent implements OnInit, OnDestroy {
   loading = true;
   error: string | null = null;
 
+  readonly encounterColumns = [
+    { key: 'encounterDate', label: 'Ngày', sortable: true },
+    { key: 'patientId', label: 'Bệnh nhân' },
+    { key: 'encounterType', label: 'Loại' },
+    { key: 'chiefComplaint', label: 'Lý do' },
+    { key: 'status', label: 'Trạng thái' },
+  ];
+  readonly appointmentColumns = [
+    { key: 'scheduledDate', label: 'Ngày', sortable: true },
+    { key: 'startTime', label: 'Giờ', sortable: true },
+    { key: 'patientId', label: 'Bệnh nhân' },
+    { key: 'type', label: 'Loại' },
+    { key: 'status', label: 'Trạng thái' },
+  ];
+
+  get encounterRows(): Record<string, unknown>[] {
+    return this.recentEncounters.map(encounter => ({
+      id: encounter.id,
+      encounterDate: this.formatDate(encounter.encounterDate, true),
+      patientId: `${encounter.patientId.slice(0, 8)}...`,
+      encounterType: encounter.encounterTypeName || encounter.encounterType,
+      chiefComplaint: encounter.chiefComplaint || '-',
+      status: encounter.statusName || encounter.status,
+      entity: encounter,
+    }));
+  }
+
+  get appointmentRows(): Record<string, unknown>[] {
+    return this.upcomingAppointments.map(appointment => ({
+      id: appointment.id,
+      scheduledDate: this.formatDate(appointment.scheduledDate, false),
+      startTime: appointment.startTime,
+      patientId: `${appointment.patientId.slice(0, 8)}...`,
+      type: appointment.typeName || appointment.type,
+      status: appointment.statusName || appointment.status,
+      entity: appointment,
+    }));
+  }
+
   constructor(
     private authService: AuthService,
     private dashboardService: DashboardService,
@@ -772,6 +775,15 @@ export class DashboardComponent implements OnInit, OnDestroy {
 
   viewEncounter(id: string): void {
     this.router.navigate(['/clinical', id]);
+  }
+
+  encounterFromRow(row: Record<string, unknown>): Encounter { return row['entity'] as Encounter; }
+  appointmentFromRow(row: Record<string, unknown>): Appointment { return row['entity'] as Appointment; }
+  private formatDate(value: string | Date, includeTime: boolean): string {
+    const options: Intl.DateTimeFormatOptions = includeTime
+      ? { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }
+      : { day: '2-digit', month: '2-digit' };
+    return new Date(value).toLocaleDateString('vi-VN', options);
   }
 
   viewAppointment(id: string): void {

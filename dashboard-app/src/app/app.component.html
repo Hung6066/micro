@@ -2,11 +2,17 @@
   <button mat-icon-button (click)="toggleSidenav()" aria-label="Toggle navigation">
     <mat-icon>menu</mat-icon>
   </button>
-  <span class="app-title">His.Hope Dashboard</span>
+  <span class="app-title">{{ 'app.dashboard.title' | hhTranslate:'His.Hope Dashboard' }}</span>
+
+  <button mat-icon-button type="button" (click)="paletteOpen = true" aria-label="Open command palette">
+    <mat-icon>search</mat-icon>
+  </button>
 
   <span class="toolbar-spacer"></span>
 
   <app-alert-panel></app-alert-panel>
+
+  <hh-language-switcher></hh-language-switcher>
 
   <button mat-icon-button (click)="toggleTheme()" aria-label="Toggle dark mode">
     <mat-icon>brightness_6</mat-icon>
@@ -27,11 +33,15 @@
   </mat-menu>
 </mat-toolbar>
 
+<hh-offline-banner></hh-offline-banner>
+<hh-command-palette [open]="paletteOpen" [commands]="commands" (closed)="paletteOpen = false" (selected)="onCommand($event.id)" />
+
 <mat-sidenav-container class="sidenav-container">
   <mat-sidenav #sidenav
     [mode]="(isMobile$ | async) ? 'over' : 'side'"
     [opened]="sidenavOpened$ | async"
     class="app-sidenav">
+    <hh-brand caption="Operations workspace"></hh-brand>
     <mat-nav-list>
       <a mat-list-item routerLink="/resources" routerLinkActive="active-link">
         <mat-icon matListItemIcon>dns</mat-icon>
@@ -62,3 +72,4 @@
     </main>
   </mat-sidenav-content>
 </mat-sidenav-container>
+<hh-toast-outlet />

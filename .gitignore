@@ -88,7 +88,8 @@ coverage/
 ## Project-specific agent/tooling files
 .agents/
 .claude/
-.opencode/
+.opencode/node_modules/
+.opencode/.cache/
 opencode.json
 skills-lock.json
 
@@ -123,3 +124,5 @@ test-grpc.csx
 .jest-cache/
 
 .playwright-mcp/
+.npm-cache-foundation/
+

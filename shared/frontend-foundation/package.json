@@ -1,0 +1,68 @@
+{
+  "name": "@his-hope/frontend-foundation",
+  "version": "1.1.0",
+  "private": false,
+  "type": "module",
+  "description": "Shared UI, accessibility and interaction contracts for His.Hope Angular applications",
+  "main": "./dist/fesm2022/his-hope-frontend-foundation.mjs",
+  "module": "./dist/fesm2022/his-hope-frontend-foundation.mjs",
+  "types": "./dist/types/his-hope-frontend-foundation.d.ts",
+  "sass": "./dist/src/styles/_index.scss",
+  "exports": {
+    ".": {
+      "types": "./dist/types/his-hope-frontend-foundation.d.ts",
+      "default": "./dist/fesm2022/his-hope-frontend-foundation.mjs"
+    },
+    "./styles": "./dist/src/styles/_index.scss",
+    "./styles/*": "./dist/src/styles/*"
+  },
+  "peerDependencies": {
+    "@angular/common": "^21.0.0",
+    "@angular/core": "^21.0.0",
+    "@angular/router": "^21.0.0",
+    "angular-auth-oidc-client": "^19.0.0",
+    "rxjs": "^7.8.0"
+  },
+  "scripts": {
+    "storybook": "ng run frontend-foundation:storybook",
+    "build-storybook": "ng run frontend-foundation:build-storybook",
+    "build": "ng-packagr -p ng-package.json",
+    "prepare": "npm run build",
+    "pack:check": "npm pack --dry-run",
+    "release:check": "npm run build && npm run pack:check && npm run build-storybook"
+  },
+  "files": [
+    "dist",
+    "src/styles",
+    "docs",
+    "README.md",
+    "CHANGELOG.md",
+    "COMPATIBILITY.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "restricted"
+  },
+  "devDependencies": {
+    "@angular-devkit/architect": "^0.2102.18",
+    "@angular-devkit/build-angular": "^21.2.18",
+    "@angular/cli": "^21.2.18",
+    "@angular/common": "^21.2.18",
+    "@angular/compiler": "^21.2.18",
+    "@angular/compiler-cli": "^21.2.18",
+    "@angular/core": "^21.2.18",
+    "@angular/forms": "^21.2.18",
+    "@angular/platform-browser": "^21.2.18",
+    "@angular/platform-browser-dynamic": "^21.2.18",
+    "@angular/router": "^21.2.18",
+    "@storybook/addon-a11y": "^10.5.4",
+    "@storybook/angular": "^10.5.4",
+    "angular-auth-oidc-client": "^19.0.2",
+    "rxjs": "^7.8.1",
+    "storybook": "^10.5.4",
+    "ng-packagr": "^21.2.0",
+    "tslib": "^2.8.1",
+    "typescript": "^5.9.3",
+    "zone.js": "^0.15.1"
+  }
+}

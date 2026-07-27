@@ -219,9 +219,10 @@ function fmt(val: number, decimals = 2): string {
       margin-bottom: 24px;
     }
     .page-title {
-      font-size: 20px;
-      font-weight: 600;
-      color: #1A1A1A;
+      font-size: var(--font-size-title, 24px);
+      line-height: 1.25;
+      font-weight: 700;
+      color: var(--text-primary);
       margin: 0;
     }
 

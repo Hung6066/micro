@@ -17,12 +17,14 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<UserMfa> UserMfas => Set<UserMfa>();
     public DbSet<SecurityEvent> SecurityEvents => Set<SecurityEvent>();
     public DbSet<ClientConsent> ClientConsents => Set<ClientConsent>();
+    public DbSet<TableView> TableViews => Set<TableView>();
 
-    // OpenIddict entity sets — use generic types matching OpenIddict 5.x EF Core stores
-    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication<Guid>> OpenIddictApplications => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication<Guid>>();
-    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization<Guid>> OpenIddictAuthorizations => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization<Guid>>();
-    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope<Guid>> OpenIddictScopes => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope<Guid>>();
-    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken<Guid>> OpenIddictTokens => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken<Guid>>();
+    // OpenIddict entity sets — need BOTH non-generic (store uses these) and generic <Guid> (EF model)
+    // Non-generic sets are for OpenIddict 5.7.0 EF Core store access
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication> OpenIddictApplications => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication>();
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization> OpenIddictAuthorizations => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization>();
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope> OpenIddictScopes => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope>();
+    public DbSet<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken> OpenIddictTokens => Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken>();
 
     public IdentityDbContext(DbContextOptions<IdentityDbContext> options) : base(options) { }
 
@@ -73,6 +75,8 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(u => u.LockoutEnd);
             entity.Property(u => u.LastPasswordChangedAt);
             entity.Property(u => u.TrustedDeviceToken).HasMaxLength(256);
+            // TODO: Enable after running migration to add previous_password_hashes column
+            // entity.Property(u => u.PreviousPasswordHashes);
         });
 
         // ──────────────────────────────────────────────
@@ -181,7 +185,10 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
         {
             entity.ToTable("user_mfa");
             entity.HasKey(m => m.UserId);
-            entity.Property(m => m.SecretKey).HasMaxLength(100).IsRequired();
+            // The value is encrypted before persistence, so its encoded form is
+            // longer than the raw TOTP secret. Keep enough room for key rotation
+            // and future encryption metadata without truncation failures.
+            entity.Property(m => m.SecretKey).HasMaxLength(512).IsRequired();
             entity.Property(m => m.IsEnabled).IsRequired().HasDefaultValue(false);
             entity.Property(m => m.EnrolledAt);
             entity.Property(m => m.RecoveryCodes);
@@ -235,14 +242,24 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.HasIndex(c => new { c.UserId, c.ClientId }).IsUnique();
         });
 
+        builder.Entity<TableView>(entity =>
+        {
+            entity.ToTable("admin_table_views");
+            entity.HasKey(view => view.Id);
+            entity.Property(view => view.Resource).HasMaxLength(80).IsRequired();
+            entity.Property(view => view.Name).HasMaxLength(80).IsRequired();
+            entity.Property(view => view.PayloadJson).HasMaxLength(65536).IsRequired();
+            entity.HasIndex(view => new { view.UserId, view.Resource, view.Name }).IsUnique();
+        });
+
         // Configure OpenIddict tables (snake_case naming)
-        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication<Guid>>(entity =>
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication>(entity =>
             entity.ToTable("openiddict_applications"));
-        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization<Guid>>(entity =>
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreAuthorization>(entity =>
             entity.ToTable("openiddict_authorizations"));
-        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope<Guid>>(entity =>
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreScope>(entity =>
             entity.ToTable("openiddict_scopes"));
-        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken<Guid>>(entity =>
+        builder.Entity<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreToken>(entity =>
             entity.ToTable("openiddict_tokens"));
     }
 }

@@ -11,6 +11,14 @@ import { AuditService } from '@core/services/audit.service';
 import { RumService } from './monitoring/rum.service';
 import { SidebarComponent } from '@shared/components/sidebar/sidebar.component';
 import { ErrorBarComponent } from '@shared/components/error-bar/error-bar.component';
+import {
+  HisHopeI18nService,
+  HisHopeLanguageSwitcherComponent,
+  HisHopeOfflineBannerComponent,
+  HisHopeThemeService,
+  HisHopeToastComponent,
+  HisHopeWorkspaceHeaderComponent,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-root',
@@ -19,11 +27,12 @@ import { ErrorBarComponent } from '@shared/components/error-bar/error-bar.compon
         CommonModule, RouterModule,
         MatButtonModule, MatIconModule,
         MatSidenavModule,
-        SidebarComponent, ErrorBarComponent,
+        SidebarComponent, ErrorBarComponent, HisHopeLanguageSwitcherComponent, HisHopeOfflineBannerComponent, HisHopeWorkspaceHeaderComponent, HisHopeToastComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <mat-sidenav-container class="app-sidenav-container">
+      <hh-offline-banner></hh-offline-banner>
       @if (isLoggedIn) {
       <mat-sidenav #sidenav [mode]="sidenavMode" [opened]="isLoggedIn && sidenavOpened">
         <app-sidebar [sidenavOpened]="sidenavOpened"
@@ -37,27 +46,35 @@ import { ErrorBarComponent } from '@shared/components/error-bar/error-bar.compon
         </button>
         }
         <app-error-bar></app-error-bar>
+        @if (isLoggedIn) {
+        <hh-workspace-header />
+        }
+        <div class="language-switcher"><hh-language-switcher /></div>
         <div class="main-content" id="main-content">
           <router-outlet></router-outlet>
         </div>
       </mat-sidenav-content>
     </mat-sidenav-container>
+    <hh-toast-outlet />
   `,
     styles: [`
-    .app-sidenav-container { min-height: 100dvh; background: var(--bg-warm, #F7F6F3); }
-    .app-sidenav-container .mat-drawer-side { border-right: 1px solid var(--border-default, #EAEAEA); }
-    .main-content { min-height: 100dvh; padding: 0; position: relative; }
+    .app-sidenav-container { min-height: 100dvh; background: var(--bg-warm, #F2F6F3); }
+    .app-sidenav-container .mat-drawer-side { width: var(--shell-sidebar-width, 264px); border-right: 1px solid var(--border-default, #EAEAEA); }
+    .main-content { min-height: 100dvh; padding: 28px 32px; position: relative; max-width: var(--max-width-container, 1200px); width: 100%; margin: 0 auto; }
     .mobile-menu-button {
       position: fixed;
       top: 12px;
       left: 12px;
       z-index: 5;
-      background: var(--surface-white, #FFFFFF);
+      background: var(--color-primary, #2F6B4A);
       border: 1px solid var(--border-default, #EAEAEA);
       border-radius: 6px;
       color: var(--text-primary, #1A1A1A);
     }
     :host ::ng-deep .mat-drawer-inner-container { overflow-x: hidden; }
+    @media (max-width: 767.98px) {
+      .main-content { padding: 20px 16px; }
+    }
   `],
 })
 export class AppComponent implements OnInit, OnDestroy {
@@ -68,12 +85,13 @@ export class AppComponent implements OnInit, OnDestroy {
   isMobile = false;
 
   private authService = inject(AuthService);
+  private readonly theme = inject(HisHopeThemeService);
+  private readonly i18n = inject(HisHopeI18nService);
   private router = inject(Router);
   private auditService = inject(AuditService);
   private cdr = inject(ChangeDetectorRef);
   private rum = inject(RumService);
   private breakpointObserver = inject(BreakpointObserver);
-
   private previousUrl = '';
 
   toggleSidenav(): void {

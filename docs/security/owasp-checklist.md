@@ -27,7 +27,8 @@
 
 ## A06: Vulnerable Components
 - [x] NuGet packages pinned (no floating versions)
-- [x] OWASP Dependency Check in CI (recommended)
+- [x] Production frontend dependency audit in CI
+- [ ] Dev-tool dependency vulnerabilities fully remediated
 
 ## A07: Identification & Auth Failures
 - [x] Account lockout (5 attempts)
@@ -36,8 +37,9 @@
 - [x] External IdP federation with account linking
 
 ## A08: Software & Data Integrity
-- [x] NuGet package integrity (lock files)
-- [x] Container image signing (Cosign recommended)
+- [x] NuGet package integrity (restore/build dependency gates)
+- [x] SBOM generation and Trivy evidence in CI
+- [ ] Container image signing enforced at deployment admission
 
 ## A09: Security Logging & Monitoring
 - [x] Audit logs for all token operations

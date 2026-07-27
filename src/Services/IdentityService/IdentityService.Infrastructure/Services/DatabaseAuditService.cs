@@ -1,48 +1,36 @@
+using System.Threading.Channels;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.Infrastructure.Audit;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace His.Hope.IdentityService.Infrastructure.Services;
 
-/// <summary>
-/// PHI audit service that writes audit events to the AuditLogs table in the database.
-/// This complements the Serilog-based audit logging in the shared AuditService.
-///
-/// HIPAA Context (164.312(b)):
-///   Provides a queryable, persistent audit trail for compliance reporting.
-///   Records who accessed what PHI, when, and from where.
-///
-/// Thread Safety:
-///   Uses IServiceScopeFactory to create scoped DbContext instances,
-///   making this service safe for singleton registration used by the middleware.
-/// </summary>
 public class DatabaseAuditService : IAuditService
 {
+    private readonly ChannelWriter<PhiAuditEntry> _writer;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<DatabaseAuditService> _logger;
 
-    public DatabaseAuditService(IServiceScopeFactory scopeFactory)
+    public DatabaseAuditService(
+        Channel<PhiAuditEntry> channel,
+        IServiceScopeFactory scopeFactory,
+        ILogger<DatabaseAuditService> logger)
     {
+        _writer = channel.Writer;
         _scopeFactory = scopeFactory;
+        _logger = logger;
     }
 
     public void LogPhiAccess(PhiAuditEntry entry)
     {
-        // Synchronous call - write to DB in a background task
-        // to avoid blocking the request pipeline
-        Task.Run(async () =>
+        if (!_writer.TryWrite(entry))
         {
-            try
-            {
-                await WriteAuditLogAsync(entry);
-            }
-            catch
-            {
-                // SECURITY: Audit logging failures must never crash the application.
-                // The Serilog audit service in the base infrastructure still captures the event.
-                // Swallowing the exception ensures PHI access is never blocked by DB issues.
-            }
-        });
+            _logger.LogWarning(
+                "Audit channel full — dropping oldest audit event for {ResourceType}/{ResourceId}",
+                entry.ResourceType, entry.ResourceId);
+        }
     }
 
     public async Task LogPhiAccessAsync(PhiAuditEntry entry, CancellationToken ct = default)
@@ -59,7 +47,7 @@ public class DatabaseAuditService : IAuditService
         {
             Id = Guid.NewGuid(),
             UserId = entry.UserId,
-            UserName = null, // Could enrich from the user service if needed
+            UserName = null,
             Action = entry.Action,
             ResourceType = entry.ResourceType,
             ResourceId = entry.ResourceId,

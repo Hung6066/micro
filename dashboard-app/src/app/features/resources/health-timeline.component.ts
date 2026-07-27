@@ -50,13 +50,13 @@ interface TickMark {
 
 // ── Helpers ──
 const STATUS_COLORS: Record<string, string> = {
-  Healthy: '#2F6B4A',
-  Unhealthy: '#C25450',
-  Degraded: '#B6581C',
+Healthy: '#2F6B4A',
+Unhealthy: '#C25450',
+Degraded: '#B6581C',
 };
 
 function statusColor(s: string): string {
-  return STATUS_COLORS[s] ?? '#A1A09B';
+return STATUS_COLORS[s] ?? '#A1A09B';
 }
 
 function fmtDuration(ms: number): string {
@@ -285,12 +285,12 @@ function fmtTime(ts: number): string {
       font-size: 12px;
       font-weight: 500;
       fill: var(--text-primary, #1A1A1A);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: var(--font-sans);
     }
     .ht-axis {
       font-size: 10px;
       fill: var(--text-muted, #A1A09B);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: var(--font-sans);
     }
 
     /* Tooltip */

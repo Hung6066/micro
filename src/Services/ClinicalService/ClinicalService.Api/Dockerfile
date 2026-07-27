@@ -15,6 +15,7 @@ COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/*.csproj", "Shared/Infr
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBus/*.csproj", "Shared/EventBus/Src/His.Hope.EventBus/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/*.csproj", "Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/*.csproj", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
+COPY ["src/Shared/", "Shared/"]
 RUN dotnet restore "Services/ClinicalService/ClinicalService.Api/ClinicalService.Api.csproj"
 
 # --- Copy source and publish ---
@@ -52,7 +53,7 @@ ENV ASPNETCORE_URLS=http://+:8080 \
 COPY --from=build /app/publish .
 USER app
 
-# K8s probes handle health checks — no Docker HEALTHCHECK needed
+HEALTHCHECK NONE
 
 ENTRYPOINT ["dotnet", "ClinicalService.Api.dll"]
 

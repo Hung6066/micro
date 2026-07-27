@@ -1,25 +1,40 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
-import { ResourcesPageComponent } from './features/resources/resources-page.component';
-import { LogsPageComponent } from './features/logs/logs-page.component';
-import { TracesPageComponent } from './features/traces/traces-page.component';
-import { TraceDetailComponent } from './features/traces/trace-detail.component';
-import { MetricsPageComponent } from './features/metrics/metrics-page.component';
-import { LoginComponent } from './features/auth/login.component';
-import { CallbackComponent } from './features/auth/callback.component';
-import { SilentRefreshComponent } from './features/auth/silent-refresh.component';
-import { SloPageComponent } from './features/slo/slo-page.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: '/resources', pathMatch: 'full' },
-  { path: 'resources', component: ResourcesPageComponent, canActivate: [authGuard] },
-  { path: 'logs', component: LogsPageComponent, canActivate: [authGuard] },
-  { path: 'traces', component: TracesPageComponent, canActivate: [authGuard] },
-  { path: 'traces/:traceId', component: TraceDetailComponent, canActivate: [authGuard] },
-  { path: 'metrics', component: MetricsPageComponent, canActivate: [authGuard] },
-  { path: 'slo', component: SloPageComponent, canActivate: [authGuard] },
-  { path: 'auth/login', component: LoginComponent },
-  { path: 'auth/callback', component: CallbackComponent },
-  { path: 'auth/silent-refresh', component: SilentRefreshComponent },
+  {
+    path: 'resources',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/resources/resources-page.component').then(m => m.ResourcesPageComponent),
+  },
+  {
+    path: 'logs',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/logs/logs-page.component').then(m => m.LogsPageComponent),
+  },
+  {
+    path: 'traces',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/traces/traces-page.component').then(m => m.TracesPageComponent),
+  },
+  {
+    path: 'traces/:traceId',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/traces/trace-detail.component').then(m => m.TraceDetailComponent),
+  },
+  {
+    path: 'metrics',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/metrics/metrics-page.component').then(m => m.MetricsPageComponent),
+  },
+  {
+    path: 'slo',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/slo/slo-page.component').then(m => m.SloPageComponent),
+  },
+  { path: 'auth/login', loadComponent: () => import('./features/auth/login.component').then(m => m.LoginComponent) },
+  { path: 'auth/callback', loadComponent: () => import('./features/auth/callback.component').then(m => m.CallbackComponent) },
+  { path: 'auth/silent-refresh', loadComponent: () => import('./features/auth/silent-refresh.component').then(m => m.SilentRefreshComponent) },
   { path: '**', redirectTo: '/resources' },
 ];

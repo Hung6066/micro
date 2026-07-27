@@ -1,6 +1,7 @@
 export const environment = {
   production: false,
-  adminApiUrl: 'http://localhost:5001/api/v1/admin',
+  adminApiUrl: 'http://localhost:5000/api/v1/admin',
+  authApiUrl: 'http://localhost:5000/api/v1/auth',
   oidc: {
     authority: 'http://localhost:5000',
     clientId: 'his-hope-admin',

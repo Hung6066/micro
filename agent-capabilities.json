@@ -1,0 +1,54 @@
+{
+  "version": "1",
+  "last_updated": "2026-07-24",
+  "agents": {
+    "@dotnet": {
+      "capabilities": [
+        {
+          "id": "redis-caching",
+          "category": "infrastructure",
+          "detected_at": "2026-07-24",
+          "source_pr": "backfill",
+          "evidence": "StackExchange.Redis in 20+ files across Bff, Shared Infrastructure, and all Services; AddStackExchangeRedisCache in IdentityService.Api",
+          "confidence": "high"
+        },
+        {
+          "id": "circuit-breaker",
+          "category": "resilience",
+          "detected_at": "2026-07-24",
+          "source_pr": "backfill",
+          "evidence": "Polly.CircuitBreaker in BffResiliencePipeline.cs, ResilienceConfiguration.cs, CircuitBreakerBehavior.cs; AsyncCircuitBreakerPolicy in AgentHarness",
+          "confidence": "high"
+        },
+        {
+          "id": "grpc-client",
+          "category": "communication",
+          "detected_at": "2026-07-24",
+          "source_pr": "backfill",
+          "evidence": "Grpc.Net.ClientFactory in 6 BFF projects + Shared Infrastructure; AddGrpcClient in all BFF Program.cs files and IdentityService/AppointmentService; Grpc.Net.Client in 5 service projects",
+          "confidence": "high"
+        },
+        {
+          "id": "outbox-pattern",
+          "category": "reliability",
+          "detected_at": "2026-07-24",
+          "source_pr": "backfill",
+          "evidence": "OutboxMessage entity in all 7 service DbContexts (Appointment, Clinical, Lab, Pharmacy, Billing, Patient); OutboxProcessor, OutboxDbContextInterceptor, OutboxMessage class in Shared Infrastructure",
+          "confidence": "high"
+        }
+      ]
+    },
+    "@angular": {
+      "capabilities": [
+        {
+          "id": "material-dialog",
+          "category": "ui",
+          "detected_at": "2026-07-24",
+          "source_pr": "backfill",
+          "evidence": "MatDialog, MatDialogRef, MAT_DIALOG_DATA in 20+ components across patient-workspace (6 dialogs), admin (manage-users, manage-roles), and shared confirm-dialog",
+          "confidence": "high"
+        }
+      ]
+    }
+  }
+}

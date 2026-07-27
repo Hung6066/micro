@@ -4,26 +4,65 @@ using His.Hope.IdentityService.Infrastructure.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
+using His.Hope.Infrastructure.Audit;
+using Microsoft.IdentityModel.Tokens;
+using System.Security.Cryptography;
 namespace His.Hope.IdentityService.Api.Endpoints;
 
 public static class ClientEndpoints
 {
     public static RouteGroupBuilder MapClientEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet("/", GetClients);
-        group.MapGet("/{id}", GetClientById);
-        group.MapPost("/", CreateClient);
-        group.MapPut("/{id}", UpdateClient);
-        group.MapDelete("/{id}", DeleteClient);
-        group.MapPost("/{id}/rotate-secret", RotateSecret);
+        group.MapGet("/", GetClients).RequireAuthorization("Permission:admin.clients.read");
+        group.MapGet("/{id}", GetClientById).RequireAuthorization("Permission:admin.clients.read");
+        group.MapPost("/", CreateClient).RequireAuthorization("Permission:admin.clients.write");
+        group.MapPut("/{id}", UpdateClient).RequireAuthorization("Permission:admin.clients.write");
+        group.MapDelete("/{id}", DeleteClient).RequireAuthorization("Permission:admin.clients.write");
+        group.MapPost("/{id}/rotate-secret", RotateSecret).RequireAuthorization("Permission:admin.clients.write");
+        group.MapGet("/{id}/onboarding", GetOnboarding).RequireAuthorization("Permission:admin.clients.read");
         return group;
     }
 
-    private static async Task<Results<Ok<ClientListResponse>, ProblemHttpResult>> GetClients(
-        IdentityDbContext db, CancellationToken ct)
+    public static IEndpointRouteBuilder MapDynamicClientRegistration(this IEndpointRouteBuilder app)
     {
-        var clients = await db.OpenIddictApplications
-            .OrderBy(a => a.ClientId)
+        app.MapPost("/connect/register", RegisterDynamicClient).AllowAnonymous();
+        return app;
+    }
+
+    private static async Task<Results<Ok<PagedResult<ClientResponse>>, ValidationProblem>> GetClients(
+        int page = 1,
+        int pageSize = 20,
+        string? search = null,
+        string? sort = null,
+        IdentityDbContext db = null!,
+        CancellationToken ct = default)
+    {
+        if (page < 1 || pageSize is < 1 or > 100)
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["pageSize"] = ["pageSize must be between 1 and 100 and page must be at least 1."] });
+        if (search?.Length > 100)
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["search"] = ["Search must be 100 characters or fewer."] });
+
+        var query = db.OpenIddictApplications.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(a => (a.ClientId ?? "").Contains(term) || (a.DisplayName ?? "").Contains(term));
+        }
+
+        var totalCount = await query.CountAsync(ct);
+        var sortParts = sort?.Split(':', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var descending = sortParts?.Length > 1 && string.Equals(sortParts[1], "desc", StringComparison.OrdinalIgnoreCase);
+        query = (sortParts?.FirstOrDefault()?.ToLowerInvariant(), descending) switch
+        {
+            ("displayname", false) => query.OrderBy(a => a.DisplayName),
+            ("displayname", true) => query.OrderByDescending(a => a.DisplayName),
+            ("clientid", true) => query.OrderByDescending(a => a.ClientId),
+            _ => query.OrderBy(a => a.ClientId)
+        };
+
+        var clients = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync(ct);
 
         var response = clients.Select(a => new ClientResponse(
@@ -38,10 +77,11 @@ public static class ClientEndpoints
             IsActive: true,
             FacilityId: null,
             CreatedAt: DateTime.UtcNow,
-            LastUsedAt: null
+            LastUsedAt: null,
+            ConcurrencyToken: a.ConcurrencyToken
         )).ToList();
 
-        return TypedResults.Ok(new ClientListResponse(response, response.Count));
+        return TypedResults.Ok(new PagedResult<ClientResponse>(response, totalCount, page, pageSize));
     }
 
     private static async Task<Results<Ok<ClientResponse>, NotFound>> GetClientById(
@@ -64,7 +104,8 @@ public static class ClientEndpoints
             IsActive: true,
             FacilityId: null,
             CreatedAt: DateTime.UtcNow,
-            LastUsedAt: null
+            LastUsedAt: null,
+            ConcurrencyToken: client.ConcurrencyToken
         ));
     }
 
@@ -72,12 +113,18 @@ public static class ClientEndpoints
         CreateClientRequest request,
         IOpenIddictApplicationManager appManager,
         VaultClientSecretStore vaultStore,
+        IAuditService audit,
+        HttpContext http,
         CancellationToken ct)
     {
         if (await appManager.FindByClientIdAsync(request.ClientId, ct) is not null)
             return TypedResults.Problem("Client ID already exists", statusCode: 409);
 
-        var isConfidential = request.Type == "confidential";
+        var normalizedType = request.Type.Trim().ToLowerInvariant();
+        if (normalizedType is not ("public" or "confidential"))
+            return TypedResults.Problem("Client type must be public or confidential.", statusCode: 400);
+
+        var isConfidential = normalizedType == "confidential";
         var descriptor = new OpenIddictApplicationDescriptor
         {
             ClientId = request.ClientId,
@@ -86,6 +133,9 @@ public static class ClientEndpoints
                 ? OpenIddictConstants.ClientTypes.Confidential
                 : OpenIddictConstants.ClientTypes.Public,
         };
+
+        if (!string.IsNullOrWhiteSpace(request.Jwks))
+            descriptor.JsonWebKeySet = new JsonWebKeySet(request.Jwks);
 
         foreach (var perm in BuildPermissions(request))
             descriptor.Permissions.Add(perm);
@@ -107,25 +157,37 @@ public static class ClientEndpoints
         }
 
         await appManager.CreateAsync(descriptor, ct);
+        await AdminAudit.LogAsync(audit, http, "CREATE", "Client", request.ClientId, ct);
 
         return TypedResults.Created($"/api/v1/admin/clients/{request.ClientId}",
             new ClientSecretResponse(request.ClientId, secret ?? "",
-                secret is not null ? "Client secret generated. Store it securely - it will not be shown again." : ""));
+                secret is not null ? "Client secret generated. Store it securely - it will not be shown again." : "",
+                secret is not null ? "client_secret_basic" : "none"));
     }
 
     private static async Task<Results<Ok<ClientResponse>, NotFound, ProblemHttpResult>> UpdateClient(
         string id, UpdateClientRequest request,
-        IdentityDbContext db, IOpenIddictApplicationManager appManager, CancellationToken ct)
+        IdentityDbContext db, IOpenIddictApplicationManager appManager, HttpRequest httpRequest,
+        IAuditService audit, HttpContext http, CancellationToken ct)
     {
         var client = await db.OpenIddictApplications
             .FirstOrDefaultAsync(a => a.Id == id, ct);
 
         if (client is null) return TypedResults.NotFound();
 
+        var expectedToken = request.ConcurrencyToken
+            ?? httpRequest.Headers.IfMatch.FirstOrDefault()?.Trim('"');
+        if (!string.IsNullOrWhiteSpace(expectedToken) &&
+            !string.Equals(expectedToken, client.ConcurrencyToken, StringComparison.Ordinal))
+            return TypedResults.Problem("The client was changed by another request. Reload and try again.", statusCode: 409);
+
         if (request.DisplayName is not null)
             client.DisplayName = request.DisplayName;
 
+        client.ConcurrencyToken = Guid.NewGuid().ToString("N");
+
         await db.SaveChangesAsync(ct);
+        await AdminAudit.LogAsync(audit, http, "UPDATE", "Client", id, ct);
 
         return TypedResults.Ok(new ClientResponse(
             Id: client.Id.ToString(),
@@ -139,13 +201,14 @@ public static class ClientEndpoints
             IsActive: true,
             FacilityId: null,
             CreatedAt: DateTime.UtcNow,
-            LastUsedAt: null
+            LastUsedAt: null,
+            ConcurrencyToken: client.ConcurrencyToken
         ));
     }
 
     private static async Task<Results<NoContent, NotFound>> DeleteClient(
         string id, IdentityDbContext db, IOpenIddictApplicationManager appManager,
-        VaultClientSecretStore vaultStore, CancellationToken ct)
+        VaultClientSecretStore vaultStore, IAuditService audit, HttpContext http, CancellationToken ct)
     {
         var client = await db.OpenIddictApplications
             .FirstOrDefaultAsync(a => a.Id == id, ct);
@@ -156,12 +219,13 @@ public static class ClientEndpoints
             await vaultStore.RevokeSecretAsync(client.ClientId ?? "", ct);
 
         await appManager.DeleteAsync(client, ct);
+        await AdminAudit.LogAsync(audit, http, "DELETE", "Client", id, ct);
         return TypedResults.NoContent();
     }
 
     private static async Task<Results<Ok<ClientSecretResponse>, NotFound>> RotateSecret(
         string id, IdentityDbContext db, IOpenIddictApplicationManager appManager,
-        VaultClientSecretStore vaultStore, CancellationToken ct)
+        VaultClientSecretStore vaultStore, IAuditService audit, HttpContext http, CancellationToken ct)
     {
         var client = await db.OpenIddictApplications
             .FirstOrDefaultAsync(a => a.Id == id, ct);
@@ -173,9 +237,85 @@ public static class ClientEndpoints
         var newSecret = vaultStore.GenerateSecret(client.ClientId!);
         await vaultStore.StoreSecretAsync(client.ClientId!, newSecret, ct);
         await appManager.UpdateAsync(client, newSecret, ct);
+        await AdminAudit.LogAsync(audit, http, "ROTATE_SECRET", "Client", id, ct);
 
         return TypedResults.Ok(new ClientSecretResponse(client.ClientId!, newSecret,
-            "Client secret rotated. Store it securely - it will not be shown again."));
+            "Client secret rotated. Store it securely - it will not be shown again.", "client_secret_basic"));
+    }
+
+    private static async Task<Results<Ok<ClientOnboardingResponse>, NotFound>> GetOnboarding(
+        string id, IdentityDbContext db, IConfiguration configuration, CancellationToken ct)
+    {
+        var client = await db.OpenIddictApplications.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, ct);
+        if (client is null) return TypedResults.NotFound();
+
+        var issuer = (configuration["OpenIddict:Issuer"] ?? configuration["Oidc:Issuer"] ?? "http://localhost:8081").TrimEnd('/');
+        return TypedResults.Ok(new ClientOnboardingResponse(
+            client.ClientId ?? "",
+            client.DisplayName ?? client.ClientId ?? "",
+            issuer,
+            $"{issuer}/connect/authorize",
+            $"{issuer}/connect/token",
+            $"{issuer}/connect/jwks",
+            ParseGrantTypes(client.Permissions).ToArray(),
+            ParseScopes(client.Permissions).ToArray(),
+            client.ClientType == OpenIddictConstants.ClientTypes.Confidential ? "client_secret_basic" : "none"));
+    }
+
+    private static async Task<Results<Created<DynamicClientRegistrationResponse>, BadRequest<string>, UnauthorizedHttpResult, Conflict<string>>> RegisterDynamicClient(
+        DynamicClientRegistrationRequest request,
+        HttpContext httpContext,
+        IConfiguration configuration,
+        IOpenIddictApplicationManager appManager,
+        VaultClientSecretStore vaultStore,
+        CancellationToken ct)
+    {
+        var configuredToken = configuration["OpenIddict:DynamicRegistrationToken"] ?? configuration["Oidc:DynamicRegistrationToken"];
+        var suppliedToken = httpContext.Request.Headers["X-Registration-Token"].FirstOrDefault() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(configuredToken) ||
+            (configuredToken.StartsWith("${", StringComparison.Ordinal) && configuredToken.EndsWith('}')))
+            return TypedResults.Unauthorized();
+        if (!CryptographicOperations.FixedTimeEquals(
+                System.Text.Encoding.UTF8.GetBytes(configuredToken),
+                System.Text.Encoding.UTF8.GetBytes(suppliedToken)))
+            return TypedResults.Unauthorized();
+
+        if (string.IsNullOrWhiteSpace(request.ClientName) || request.RedirectUris is not { Length: > 0 })
+            return TypedResults.BadRequest("client_name and at least one redirect_uris entry are required.");
+        if (request.RedirectUris.Any(uri => !Uri.TryCreate(uri, UriKind.Absolute, out var parsed) || parsed.Scheme is not ("https" or "http")))
+            return TypedResults.BadRequest("redirect_uris must be absolute HTTPS URIs (HTTP is allowed only for local development).");
+
+        var clientId = $"partner_{Guid.NewGuid():N}";
+        var authMethod = request.TokenEndpointAuthMethod?.Trim().ToLowerInvariant() ?? "client_secret_basic";
+        var confidential = authMethod is "client_secret_basic" or "client_secret_post" or "private_key_jwt";
+        if (authMethod is not ("none" or "client_secret_basic" or "client_secret_post" or "private_key_jwt"))
+            return TypedResults.BadRequest("Unsupported token_endpoint_auth_method.");
+
+        var descriptor = new OpenIddictApplicationDescriptor
+        {
+            ClientId = clientId,
+            DisplayName = request.ClientName.Trim(),
+            ClientType = confidential ? OpenIddictConstants.ClientTypes.Confidential : OpenIddictConstants.ClientTypes.Public
+        };
+        var grants = request.GrantTypes is { Length: > 0 } ? request.GrantTypes : ["authorization_code", "refresh_token"];
+        var scopes = request.Scopes is { Length: > 0 } ? request.Scopes : ["openid", "profile", "email"];
+        foreach (var grant in grants)
+            foreach (var permission in BuildPermissions(new CreateClientRequest(clientId, request.ClientName, confidential ? "confidential" : "public", [grant], request.RedirectUris.ToList(), request.PostLogoutRedirectUris?.ToList(), scopes.ToList(), null, request.Jwks)))
+                descriptor.Permissions.Add(permission);
+        foreach (var uri in request.RedirectUris) descriptor.RedirectUris.Add(new Uri(uri));
+        foreach (var uri in request.PostLogoutRedirectUris ?? []) descriptor.PostLogoutRedirectUris.Add(new Uri(uri));
+        if (!string.IsNullOrWhiteSpace(request.Jwks)) descriptor.JsonWebKeySet = new JsonWebKeySet(request.Jwks);
+
+        string? secret = null;
+        if (confidential && authMethod.StartsWith("client_secret", StringComparison.Ordinal))
+        {
+            secret = vaultStore.GenerateSecret(clientId);
+            descriptor.ClientSecret = secret;
+            await vaultStore.StoreSecretAsync(clientId, secret, ct);
+        }
+        await appManager.CreateAsync(descriptor, ct);
+        return TypedResults.Created($"/connect/register/{clientId}", new DynamicClientRegistrationResponse(
+            clientId, secret, request.ClientName.Trim(), request.RedirectUris, grants, scopes, authMethod));
     }
 
     private static List<string> ParseGrantTypes(string? permissions)

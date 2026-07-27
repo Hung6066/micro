@@ -13,6 +13,7 @@ import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatButtonModule } from '@angular/material/button';
 import { BillingService } from '@core/services/billing.service';
 import { Invoice } from '@core/models/invoice.model';
+import { HisHopeDataTableComponent } from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-invoice-list',
@@ -21,6 +22,7 @@ import { Invoice } from '@core/models/invoice.model';
         CommonModule, RouterModule, ReactiveFormsModule,
         MatTableModule, MatFormFieldModule, MatInputModule, MatIconModule,
         MatSelectModule, MatProgressBarModule, MatPaginatorModule, MatButtonModule,
+        HisHopeDataTableComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
@@ -56,20 +58,9 @@ import { Invoice } from '@core/models/invoice.model';
         </mat-form-field>
       </div>
 
-      @if (loading) {
-      <div class="loading-shimmer">
-        <mat-progress-bar mode="indeterminate" aria-label="Đang tải"></mat-progress-bar>
-      </div>
-      }
-
-      @if (!loading && invoices.length === 0) {
-      <div class="empty-state">
-        <mat-icon class="empty-icon">receipt</mat-icon>
-        <p>Không tìm thấy hóa đơn nào.</p>
-      </div>
-      }
-
-      @if (!loading && invoices.length > 0) {
+      <hh-data-table label="Hóa đơn thanh toán" [loading]="loading" [error]="error"
+                     [empty]="!loading && !error && invoices.length === 0"
+                     emptyMessage="Không tìm thấy hóa đơn nào." (retry)="loadInvoices()">
       <div class="table-container">
         <mat-table [dataSource]="invoices" class="mat-elevation-z2">
           <ng-container matColumnDef="invoiceNumber">
@@ -132,13 +123,12 @@ import { Invoice } from '@core/models/invoice.model';
                    [attr.aria-label]="'Xem chi tiết hóa đơn ' + row.invoiceNumber"></mat-row>
         </mat-table>
       </div>
-      }
-
       @if (!loading && totalCount > 0) {
       <mat-paginator [length]="totalCount" [pageSize]="pageSize" [pageSizeOptions]="[10, 20, 50]"
                      (page)="onPageChange($event)" [pageIndex]="page - 1" showFirstLastButtons>
       </mat-paginator>
       }
+      </hh-data-table>
     </div>
   `,
     styles: [`
@@ -168,6 +158,7 @@ export class InvoiceListComponent implements OnInit, OnDestroy {
   page = 1;
   pageSize = 20;
   loading = false;
+  error = '';
   searchControl = new FormControl('');
   statusControl = new FormControl('');
   private searchTerm = '';
@@ -205,6 +196,7 @@ export class InvoiceListComponent implements OnInit, OnDestroy {
   }
 
   loadInvoices(): void {
+    this.error = '';
     this.loading = true;
     this.billingService.searchInvoices({
       searchTerm: this.searchTerm,
@@ -221,6 +213,7 @@ export class InvoiceListComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         },
         error: () => {
+          this.error = 'Không thể tải danh sách hóa đơn.';
           this.loading = false;
           this.cdr.markForCheck();
         },

@@ -1,0 +1,42 @@
+#!/bin/bash
+# Agent Capability Monitor — triggered on git merge
+# Only runs when code files in src/ or tests/ changed
+
+# Check if this is a merge commit
+MERGE_HEAD=$(git rev-parse MERGE_HEAD 2>/dev/null)
+if [ -z "$MERGE_HEAD" ]; then
+    exit 0
+fi
+
+# Only check if actual code changed (not just docs/config)
+CHANGED=$(git diff --name-only HEAD@{1} HEAD -- 'src/' 'tests/' 'scripts/' 2>/dev/null)
+if [ -z "$CHANGED" ]; then
+    exit 0
+fi
+
+# Extract PR number from merge commit message (GitHub format: "Merge pull request #123")
+PR_NUMBER=$(git log -1 --pretty=%B | grep -oP 'Merge pull request #\K\d+' | head -1)
+if [ -z "$PR_NUMBER" ]; then
+    # Try alternative format: "(#123)" at end of subject
+    PR_NUMBER=$(git log -1 --pretty=%B | grep -oP '\(#\K\d+' | head -1)
+fi
+if [ -z "$PR_NUMBER" ]; then
+    exit 0
+fi
+
+# Determine agent from PR author
+AUTHOR=$(git log -1 --pretty=%an)
+# Map common git users to agents (extend as needed)
+case "$AUTHOR" in
+    "dotnet-agent"|"dotnet") AGENT="@dotnet" ;;
+    "angular-agent"|"angular") AGENT="@angular" ;;
+    "devops-agent"|"devops") AGENT="@devops" ;;
+    "dba-agent"|"dba") AGENT="@dba" ;;
+    "security-agent"|"security") AGENT="@security" ;;
+    "qa-agent"|"qa") AGENT="@qa" ;;
+    *) exit 0 ;;  # unknown author — skip
+esac
+
+echo "Capability Monitor: checking PR #$PR_NUMBER for $AGENT..."
+
+pwsh -NoProfile -ExecutionPolicy Bypass -File "scripts/capability-monitor.ps1" -PrNumber "$PR_NUMBER" -AgentName "$AGENT"

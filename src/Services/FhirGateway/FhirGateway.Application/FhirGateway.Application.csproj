@@ -14,5 +14,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FhirGateway.Domain\FhirGateway.Domain.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Contracts\His.Hope.Contracts\His.Hope.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Validation\His.Hope.Validation\His.Hope.Validation.csproj" />
   </ItemGroup>
 </Project>

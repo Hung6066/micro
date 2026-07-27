@@ -1,8 +1,9 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
-import { Subject, Observable } from 'rxjs';
+import { Subject, Observable, firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { LogEntry } from '../models/log-entry.model';
+import { AuthService } from './auth.service';
 
 @Injectable({ providedIn: 'root' })
 export class LogStreamService implements OnDestroy {
@@ -12,10 +13,11 @@ export class LogStreamService implements OnDestroy {
 
   readonly logs$: Observable<LogEntry> = this.logSubject.asObservable();
 
-  constructor() {
+  constructor(private readonly authService: AuthService) {
     this.connection = new signalR.HubConnectionBuilder()
       .withUrl(`${environment.wsUrl}/logshub`, {
-        accessTokenFactory: () => localStorage.getItem('access_token') ?? ''
+        accessTokenFactory: () => firstValueFrom(this.authService.getAccessToken()),
+        withCredentials: true,
       })
       .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
       .configureLogging(signalR.LogLevel.Warning)

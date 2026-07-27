@@ -25,21 +25,11 @@ public class CompositeAuditService : IAuditService
 
     public void LogPhiAccess(PhiAuditEntry entry)
     {
-        // Always log to Serilog (fast, non-blocking)
+        // Log to Serilog (fast, non-blocking)
         _serilogAudit.LogPhiAccess(entry);
 
-        // Fire-and-forget database write (never blocks the request pipeline)
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await _databaseAudit.LogPhiAccessAsync(entry);
-            }
-            catch
-            {
-                // Silently handle - Serilog already captured the event
-            }
-        });
+        // Enqueue to the Channel-based durable background processor
+        _databaseAudit.LogPhiAccess(entry);
     }
 
     public async Task LogPhiAccessAsync(PhiAuditEntry entry, CancellationToken ct = default)

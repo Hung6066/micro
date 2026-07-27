@@ -1,19 +1,26 @@
 using System.Security.Cryptography.X509Certificates;
+using System.Text.Json;
 using System.Threading.RateLimiting;
 using His.Hope.Infrastructure.Idempotency;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Qos;
 using His.Hope.Infrastructure.Security;
+using His.Hope.AspNetCore;
+using His.Hope.Observability;
 using Serilog;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddHisHopeAspNetCore();
+builder.Services.AddObservability(options => options.ServiceName = "ApiGateway");
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration));
 
 // SECURITY: CORS configured with explicit allowed origins from configuration.
-// FIXED: Replaced AllowAnyOrigin() with specific origins - AllowAnyOrigin() is incompatible
-// with AllowCredentials() and is a security risk in healthcare applications.
+// CORS uses explicit configured origins and never falls back to a wildcard.
+// with credentials. Methods and headers are explicitly allowlisted.
 var allowedOrigins = builder.Configuration.GetValue<string>("CORS:AllowedOrigins", "")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
@@ -21,30 +28,27 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        if (allowedOrigins.Length > 0)
-        {
-            // SECURITY: Only allow specific origins that are explicitly configured.
-            // This prevents arbitrary cross-origin requests to the API gateway.
-            policy.WithOrigins(allowedOrigins)
-                  .AllowAnyMethod()
-                  .AllowAnyHeader()
-                  .WithExposedHeaders("Authorization")
-                  .AllowCredentials();  // Required for JWT bearer auth with cookies
-        }
-        else
-        {
-            // SECURITY: No origins configured - use permissive policy only in development
-            // This should NEVER happen in production
-            policy.AllowAnyOrigin()
-                  .AllowAnyMethod()
-                  .AllowAnyHeader()
-                  .WithExposedHeaders("Authorization");
-        }
+        if (allowedOrigins.Length == 0)
+            throw new InvalidOperationException("CORS:AllowedOrigins must contain at least one explicit origin.");
+
+        // SECURITY: only configured origins are allowed. Never fall back to a wildcard.
+        policy.WithOrigins(allowedOrigins)
+              .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+              .WithHeaders("Accept", "Authorization", "Content-Type", "If-Match", "If-None-Match",
+                  "X-Correlation-ID", "X-CSRF-Token", "X-Requested-With")
+              .WithExposedHeaders("Authorization", "ETag", "X-Correlation-ID")
+              .AllowCredentials();
     });
 });
 
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
+
+// BFF session bridge: keep access tokens server-side in Redis and attach the
+// current session JWT only to internal downstream proxy requests.
+var redisConnection = builder.Configuration["Redis:ConnectionString"] ?? "redis:6379";
+builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
+    ConnectionMultiplexer.Connect(redisConnection));
 
 builder.Services.AddGrpc();
 builder.Services.AddHealthChecks();
@@ -104,7 +108,28 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
+app.UseHisHopeAspNetCore();
+
 app.UseSecurityHeaders();
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/Account"))
+    {
+        context.Response.OnStarting(() =>
+        {
+            context.Response.Headers["Content-Security-Policy"] =
+                "default-src 'self'; " +
+                "script-src 'self'; " +
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+                "font-src 'self' https://fonts.gstatic.com; " +
+                "img-src 'self' data:; " +
+                "connect-src 'self' http://localhost:5000 http://localhost:8081 http://localhost:8082 http://localhost:8083";
+            return Task.CompletedTask;
+        });
+    }
+
+    await next();
+});
 app.UseCors();  // Must be after UseSecurityHeaders, before UseRateLimiter
 app.UseRateLimiter();
 app.UseSerilogRequestLogging();
@@ -116,6 +141,55 @@ app.UsePriorityHeader();
 app.UsePriorityAdmission();
 
 app.UseIdempotency();
+
+app.Use(async (context, next) =>
+{
+    var cookieBackedIdentityRoute =
+        // OIDC and server-rendered account endpoints must authenticate with
+        // the Identity application cookie. Injecting the BFF HMAC session JWT
+        // here makes Identity select JWT validation and breaks /connect/authorize.
+        context.Request.Path.StartsWithSegments("/connect") ||
+        context.Request.Path.StartsWithSegments("/Account") ||
+        context.Request.Path.StartsWithSegments("/api/v1/admin") ||
+        context.Request.Path.StartsWithSegments("/api/v1/settings") ||
+        context.Request.Path.StartsWithSegments("/api/v1/audit-logs") ||
+        context.Request.Path.StartsWithSegments("/api/v1/audit") ||
+        context.Request.Path.Equals("/api/v1/auth/me") ||
+        context.Request.Path.Equals("/api/v1/auth/check-permission") ||
+        context.Request.Path.Equals("/api/v1/auth/session-status");
+
+    var hasSessionCookie = context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
+        !string.IsNullOrWhiteSpace(sessionId);
+
+    // Identity's policy scheme intentionally selects its browser cookie when
+    // no bearer is present. Do not replace that cookie flow with the legacy
+    // HMAC session token on admin/settings/audit endpoints; those endpoints
+    // validate OIDC bearer tokens or the Identity application cookie.
+    if (cookieBackedIdentityRoute && hasSessionCookie)
+    {
+        context.Request.Headers.Remove("Authorization");
+    }
+    else if (hasSessionCookie)
+    {
+        var redis = context.RequestServices.GetRequiredService<IConnectionMultiplexer>();
+        var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
+        if (sessionJson.HasValue)
+        {
+            using var document = JsonDocument.Parse((string)sessionJson!);
+            if (document.RootElement.TryGetProperty("Jwt", out var jwtElement) &&
+                !string.IsNullOrWhiteSpace(jwtElement.GetString()))
+            {
+                // The BFF session is the authoritative browser session. It
+                // prevents an expired OIDC token in local storage from
+                // shadowing a valid server-side session on domain APIs.
+                context.Request.Headers.Authorization =
+                    $"Bearer {jwtElement.GetString()}";
+            }
+        }
+    }
+
+    await next();
+});
 
 app.MapReverseProxy();
 

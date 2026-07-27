@@ -8,7 +8,8 @@ public record CreateClientRequest(
     List<string>? RedirectUris,
     List<string>? PostLogoutRedirectUris,
     List<string> Scopes,
-    string? FacilityId);
+    string? FacilityId,
+    string? Jwks = null);
 
 public record UpdateClientRequest(
     string? DisplayName,
@@ -16,7 +17,8 @@ public record UpdateClientRequest(
     List<string>? RedirectUris,
     List<string>? PostLogoutRedirectUris,
     List<string>? Scopes,
-    bool? IsActive);
+    bool? IsActive,
+    string? ConcurrencyToken = null);
 
 public record ClientResponse(
     string Id,
@@ -30,13 +32,41 @@ public record ClientResponse(
     bool IsActive,
     string? FacilityId,
     DateTime CreatedAt,
-    DateTime? LastUsedAt);
-
-public record ClientListResponse(
-    List<ClientResponse> Clients,
-    int TotalCount);
+    DateTime? LastUsedAt,
+    string? ConcurrencyToken = null);
 
 public record ClientSecretResponse(
     string ClientId,
     string ClientSecret,
-    string Message);
+    string Message,
+    string? TokenEndpointAuthMethod = null);
+
+public record ClientOnboardingResponse(
+    string ClientId,
+    string DisplayName,
+    string Issuer,
+    string AuthorizationEndpoint,
+    string TokenEndpoint,
+    string JwksUri,
+    string[] GrantTypes,
+    string[] Scopes,
+    string TokenEndpointAuthMethod,
+    string? ClientSecret = null);
+
+public record DynamicClientRegistrationRequest(
+    string ClientName,
+    string[] RedirectUris,
+    string[]? PostLogoutRedirectUris,
+    string[]? GrantTypes,
+    string[]? Scopes,
+    string? TokenEndpointAuthMethod = null,
+    string? Jwks = null);
+
+public record DynamicClientRegistrationResponse(
+    string ClientId,
+    string? ClientSecret,
+    string ClientName,
+    string[] RedirectUris,
+    string[] GrantTypes,
+    string[] Scopes,
+    string TokenEndpointAuthMethod);

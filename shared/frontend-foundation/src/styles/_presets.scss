@@ -1,0 +1,292 @@
+// UX presets keep data contracts stable while allowing the product surface to change.
+// Activate with <html data-ui-preset="expo"> or ?ui=expo.
+[data-ui-preset="expo"] {
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --bg-warm: #FFFFFF;
+  --surface-white: #FFFFFF;
+  --surface-muted: #FAFAFA;
+  --text-primary: #171717;
+  --text-secondary: #60646C;
+  --text-muted: #8B9098;
+  --border-default: #F0F0F3;
+  --border-light: #F5F5F7;
+  --border-strong: #DCDEE0;
+  --color-primary: #000000;
+  --color-primary-deep: #171717;
+  --color-primary-hover: #1A1A1A;
+  --color-primary-soft: #F0F0F3;
+  --color-info: #0D74CE;
+  --color-focus: #0D74CE;
+  --shell-header-bg: #FFFFFF;
+  --shell-header-bg-hover: #F5F5F7;
+  --button-primary-bg: #000000;
+  --button-primary-hover: #1A1A1A;
+  --button-secondary-bg: #FFFFFF;
+  --button-secondary-hover: #F5F5F7;
+  --button-secondary-border: #DCDEE0;
+  --radius-card: 12px;
+  --radius-button: 8px;
+  --radius-input: 8px;
+  --max-width-container: 1200px;
+}
+
+[data-ui-preset="expo"] body {
+  background: var(--bg-warm);
+  color: var(--text-primary);
+}
+
+[data-ui-preset="expo"] .app-toolbar {
+  color: var(--text-primary) !important;
+  border-bottom: 1px solid var(--border-default);
+  box-shadow: none !important;
+}
+
+[data-ui-preset="expo"] .app-toolbar .mat-mdc-icon-button:hover {
+  background: var(--surface-muted) !important;
+}
+
+[data-ui-preset="expo"] .app-sidenav {
+  border-right-color: var(--border-default) !important;
+}
+
+[data-ui-preset="expo"] .app-sidenav .active-link {
+  color: var(--text-primary) !important;
+  background: var(--surface-muted) !important;
+  box-shadow: inset 2px 0 0 var(--color-primary);
+}
+
+[data-ui-preset="expo"] .hh-workspace-header {
+  background: var(--surface-white);
+  border-bottom-color: var(--border-default);
+}
+
+[data-ui-preset="expo"] .hh-workspace-header__eyebrow {
+  color: var(--text-secondary);
+}
+
+[data-ui-preset="expo"] .mat-mdc-card,
+[data-ui-preset="expo"] .hh-table-shell,
+[data-ui-preset="expo"] .hh-filter-toolbar {
+  border-color: var(--border-strong) !important;
+  box-shadow: 0 4px 12px rgba(23, 23, 23, .04) !important;
+}
+
+[data-ui-preset="expo"] .mat-mdc-raised-button.mat-primary,
+[data-ui-preset="expo"] .mat-mdc-unelevated-button.mat-primary,
+[data-ui-preset="expo"] .mat-mdc-raised-button.mat-accent,
+[data-ui-preset="expo"] .mat-mdc-unelevated-button.mat-accent {
+  --mdc-filled-button-container-color: #000000;
+  --mdc-protected-button-container-color: #000000;
+}
+
+[data-ui-preset="expo"] .mat-mdc-button.mat-primary,
+[data-ui-preset="expo"] a:not(.mat-mdc-button) {
+  color: var(--color-info);
+}
+
+[data-ui-preset="expo"] .mat-mdc-button,
+[data-ui-preset="expo"] .mat-mdc-raised-button,
+[data-ui-preset="expo"] .mat-mdc-stroked-button,
+[data-ui-preset="expo"] .mat-mdc-outlined-button,
+[data-ui-preset="expo"] .mat-mdc-unelevated-button {
+  font-weight: 500 !important;
+}
+
+[data-ui-preset="expo"] .hh-table-shell .mat-mdc-header-cell {
+  color: var(--text-secondary);
+  font-weight: 600;
+  letter-spacing: .06em;
+}
+
+[data-ui-preset="expo"] .hh-table-shell .mat-mdc-row:hover {
+  background: var(--surface-muted);
+}
+
+[data-ui-preset="expo"] .side-brand-caption,
+[data-ui-preset="expo"] .hh-workspace-header__eyebrow {
+  letter-spacing: .08em;
+}
+
+// Theme state must win over a product preset. Presets define the light surface;
+// the runtime theme owns the dark/high-contrast surface values.
+[data-ui-preset][data-theme="dark"] {
+  --bg-warm: #111815;
+  --surface-white: #18211C;
+  --surface-muted: #223029;
+  --surface-hover: #2B3A31;
+  --surface-pressed: #35483C;
+  --text-primary: #F1F7F2;
+  --text-secondary: #B8C8BE;
+  --text-muted: #91A198;
+  --border-default: #405249;
+  --border-light: #2B3A31;
+  --border-strong: #6D8377;
+  --color-primary: #66B58A;
+  --color-primary-deep: #B7E7C9;
+  --color-primary-hover: #8BC9A5;
+  --color-primary-soft: #1E4D37;
+  --shell-header-bg: #0D2C1F;
+  --shell-header-bg-hover: #164A34;
+  --button-primary-bg: #2F8B5B;
+  --button-primary-hover: #3FA66F;
+  --button-secondary-bg: #18211C;
+  --button-secondary-hover: #2B3A31;
+  --button-secondary-border: #6D8377;
+  --button-secondary-text: #F1F7F2;
+}
+
+[data-ui-preset][data-theme="dark"] .mat-mdc-raised-button.mat-primary,
+[data-ui-preset][data-theme="dark"] .mat-mdc-unelevated-button.mat-primary,
+[data-ui-preset][data-theme="dark"] .mat-mdc-raised-button.mat-accent,
+[data-ui-preset][data-theme="dark"] .mat-mdc-unelevated-button.mat-accent {
+  --mdc-filled-button-container-color: var(--button-primary-bg);
+  --mdc-protected-button-container-color: var(--button-primary-bg);
+}
+
+@media (max-width: 768px) {
+  [data-ui-preset="expo"] .sidenav-content { padding: 20px 16px !important; }
+}
+
+// Linear: precise, compact workspace with a dark neutral chrome and violet focus.
+[data-ui-preset="linear"] {
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --bg-warm: #F7F7F8;
+  --surface-white: #FFFFFF;
+  --surface-muted: #F0F0F2;
+  --text-primary: #1F1F23;
+  --text-secondary: #6E6E78;
+  --text-muted: #9B9BA3;
+  --border-default: #E4E4E8;
+  --border-light: #EEEEF1;
+  --border-strong: #D2D2D8;
+  --color-primary: #5E5CE6;
+  --color-primary-deep: #27264D;
+  --color-primary-hover: #4B49C7;
+  --color-primary-soft: #ECEBFF;
+  --color-focus: #5E5CE6;
+  --shell-header-bg: #1F1F23;
+  --shell-header-bg-hover: #2A2A30;
+  --button-primary-bg: #5E5CE6;
+  --button-primary-hover: #4B49C7;
+  --button-secondary-bg: #FFFFFF;
+  --button-secondary-hover: #F0F0F2;
+  --button-secondary-border: #D2D2D8;
+  --radius-card: 8px;
+  --radius-button: 6px;
+  --radius-input: 6px;
+  --shell-sidebar-width: 220px;
+  --control-height: 36px;
+}
+
+[data-ui-preset="linear"] .app-toolbar {
+  color: #FFFFFF !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,.08) !important;
+}
+[data-ui-preset="linear"] .app-sidenav .active-link {
+  color: var(--color-primary) !important;
+  background: var(--color-primary-soft) !important;
+  box-shadow: inset 2px 0 0 var(--color-primary);
+}
+[data-ui-preset="linear"] .mat-mdc-card,
+[data-ui-preset="linear"] .hh-table-shell,
+[data-ui-preset="linear"] .hh-filter-toolbar {
+  border-color: var(--border-default) !important;
+  box-shadow: 0 1px 2px rgba(31,31,35,.04) !important;
+}
+[data-ui-preset="linear"] .hh-toolbar { min-height: 36px; }
+[data-ui-preset="linear"] .app-toolbar {
+  height: 48px !important;
+  min-height: 48px !important;
+  padding: 0 16px !important;
+}
+[data-ui-preset="linear"] .sidenav-container,
+[data-ui-preset="linear"] .app-sidenav-container { height: calc(100dvh - 48px) !important; }
+[data-ui-preset="linear"] .hh-workspace-header { min-height: 60px; padding: 12px 24px; }
+[data-ui-preset="linear"] .sidenav-content { padding: 20px 24px !important; }
+[data-ui-preset="linear"] .main-content { max-width: 1440px; }
+[data-ui-preset="linear"] .app-sidenav .mat-mdc-list-item {
+  min-height: 36px;
+  margin: 1px 8px;
+  border-radius: 5px !important;
+}
+[data-ui-preset="linear"] hh-brand { padding: 16px 16px 12px !important; }
+[data-ui-preset="linear"] .mat-mdc-card-header { padding: 16px 16px 0; }
+[data-ui-preset="linear"] .mat-mdc-card-content { padding: 16px; }
+[data-ui-preset="linear"] .hh-table-shell .mat-mdc-cell,
+[data-ui-preset="linear"] .hh-table-shell .mat-mdc-header-cell { padding-left: 12px; padding-right: 12px; }
+[data-ui-preset="linear"] .mat-mdc-button,
+[data-ui-preset="linear"] .mat-mdc-raised-button,
+[data-ui-preset="linear"] .mat-mdc-stroked-button,
+[data-ui-preset="linear"] .mat-mdc-outlined-button,
+[data-ui-preset="linear"] .mat-mdc-unelevated-button { font-weight: 600 !important; }
+[data-ui-preset="linear"] .hh-table-shell .mat-mdc-header-cell { font-size: 11px; letter-spacing: .05em; }
+
+// Intercom: welcoming support workspace with blue actions and softer surfaces.
+[data-ui-preset="intercom"] {
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --bg-warm: #F5F9FC;
+  --surface-white: #FFFFFF;
+  --surface-muted: #EDF6FF;
+  --text-primary: #17324D;
+  --text-secondary: #5E7488;
+  --text-muted: #8AA0B2;
+  --border-default: #DCEAF5;
+  --border-light: #EAF3FA;
+  --border-strong: #BFD8EB;
+  --color-primary: #1677C8;
+  --color-primary-deep: #0D4777;
+  --color-primary-hover: #0F67AE;
+  --color-primary-soft: #E2F1FF;
+  --color-info: #1677C8;
+  --color-focus: #1677C8;
+  --shell-header-bg: #0D4777;
+  --shell-header-bg-hover: #0A3A63;
+  --button-primary-bg: #1677C8;
+  --button-primary-hover: #0F67AE;
+  --button-secondary-bg: #FFFFFF;
+  --button-secondary-hover: #EDF6FF;
+  --button-secondary-border: #BFD8EB;
+  --radius-card: 12px;
+  --radius-button: 8px;
+  --radius-input: 8px;
+  --shell-sidebar-width: 300px;
+  --control-height: 44px;
+}
+[data-ui-preset="intercom"] .app-sidenav .active-link {
+  color: var(--color-primary) !important;
+  background: var(--color-primary-soft) !important;
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+[data-ui-preset="intercom"] .mat-mdc-card,
+[data-ui-preset="intercom"] .hh-table-shell,
+[data-ui-preset="intercom"] .hh-filter-toolbar {
+  border-color: var(--border-default) !important;
+  box-shadow: 0 6px 18px rgba(22,119,200,.06) !important;
+}
+[data-ui-preset="intercom"] .mat-mdc-button,
+[data-ui-preset="intercom"] .mat-mdc-raised-button,
+[data-ui-preset="intercom"] .mat-mdc-stroked-button,
+[data-ui-preset="intercom"] .mat-mdc-outlined-button,
+[data-ui-preset="intercom"] .mat-mdc-unelevated-button { font-weight: 600 !important; }
+[data-ui-preset="intercom"] .hh-table-shell .mat-mdc-row:hover { background: #F4FAFF; }
+[data-ui-preset="intercom"] .app-toolbar {
+  height: 72px !important;
+  min-height: 72px !important;
+  padding: 0 28px !important;
+}
+[data-ui-preset="intercom"] .sidenav-container,
+[data-ui-preset="intercom"] .app-sidenav-container { height: calc(100dvh - 72px) !important; }
+[data-ui-preset="intercom"] .hh-workspace-header { min-height: 88px; padding: 24px 40px; }
+[data-ui-preset="intercom"] .sidenav-content { padding: 36px 40px !important; }
+[data-ui-preset="intercom"] .main-content { max-width: 1280px; }
+[data-ui-preset="intercom"] .app-sidenav .mat-mdc-list-item {
+  min-height: 48px;
+  margin: 4px 12px;
+  border-radius: 10px !important;
+}
+[data-ui-preset="intercom"] hh-brand { padding: 28px 24px 20px !important; }
+[data-ui-preset="intercom"] .mat-mdc-card-header { padding: 24px 24px 0; }
+[data-ui-preset="intercom"] .mat-mdc-card-content { padding: 24px; }
+[data-ui-preset="intercom"] .hh-table-shell .mat-mdc-cell,
+[data-ui-preset="intercom"] .hh-table-shell .mat-mdc-header-cell { padding-left: 20px; padding-right: 20px; }
+[data-ui-preset="intercom"] .hh-toolbar { min-height: 44px; margin-bottom: 24px; }

@@ -6,6 +6,10 @@
     <RootNamespace>His.Hope.Bff.Core</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Shared\AspNetCore\His.Hope.AspNetCore\His.Hope.AspNetCore.csproj" />
+    <ProjectReference Include="..\..\Shared\Contracts\His.Hope.Contracts\His.Hope.Contracts.csproj" />
+    <ProjectReference Include="..\..\Shared\Messaging\His.Hope.Messaging.Abstractions\His.Hope.Messaging.Abstractions.csproj" />
+    <ProjectReference Include="..\..\Shared\Observability\His.Hope.Observability\His.Hope.Observability.csproj" />
     <PackageReference Include="Yarp.ReverseProxy" Version="2.1.0" />
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.4" />
     <PackageReference Include="Polly.Core" Version="8.7.0" />
@@ -14,8 +18,8 @@
     <PackageReference Include="Grpc.Core" Version="2.46.6" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.4" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="8.0.4" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.1" />
     <PackageReference Include="StackExchange.Redis" Version="2.7.27" />
   </ItemGroup>

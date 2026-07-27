@@ -12,6 +12,7 @@ import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatButtonModule } from '@angular/material/button';
 import { PharmacyService } from '@core/services/pharmacy.service';
 import { Medication } from '@core/models/medication.model';
+import { HisHopeDataTableComponent } from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-medication-list',
@@ -20,6 +21,7 @@ import { Medication } from '@core/models/medication.model';
         CommonModule, RouterModule, ReactiveFormsModule,
         MatTableModule, MatFormFieldModule, MatInputModule, MatIconModule,
         MatProgressBarModule, MatPaginatorModule, MatButtonModule,
+        HisHopeDataTableComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
@@ -39,20 +41,9 @@ import { Medication } from '@core/models/medication.model';
         <mat-icon matPrefix>search</mat-icon>
       </mat-form-field>
 
-      @if (loading) {
-      <div class="loading-shimmer">
-        <mat-progress-bar mode="indeterminate" aria-label="Đang tải"></mat-progress-bar>
-      </div>
-      }
-
-      @if (!loading && medications.length === 0) {
-      <div class="empty-state">
-        <mat-icon class="empty-icon">medication</mat-icon>
-        <p>Không tìm thấy thuốc nào.</p>
-      </div>
-      }
-
-      @if (!loading && medications.length > 0) {
+      <hh-data-table label="Danh mục thuốc" [loading]="loading" [error]="error"
+                     [empty]="!loading && !error && medications.length === 0"
+                     emptyMessage="Không tìm thấy thuốc nào." (retry)="loadMedications()">
       <div class="table-container">
         <mat-table [dataSource]="medications" class="mat-elevation-z2">
           <ng-container matColumnDef="name">
@@ -104,13 +95,12 @@ import { Medication } from '@core/models/medication.model';
                    [attr.aria-label]="'Xem chi tiết thuốc ' + row.name"></mat-row>
         </mat-table>
       </div>
-      }
-
       @if (!loading && totalCount > 0) {
       <mat-paginator [length]="totalCount" [pageSize]="pageSize" [pageSizeOptions]="[10, 20, 50]"
                      (page)="onPageChange($event)" [pageIndex]="page - 1" showFirstLastButtons>
       </mat-paginator>
       }
+      </hh-data-table>
     </div>
   `,
     styles: [`
@@ -137,6 +127,7 @@ export class MedicationListComponent implements OnInit, OnDestroy {
   page = 1;
   pageSize = 20;
   loading = false;
+  error = '';
   searchControl = new FormControl('');
   private searchTerm = '';
 
@@ -168,6 +159,7 @@ export class MedicationListComponent implements OnInit, OnDestroy {
   }
 
   loadMedications(): void {
+    this.error = '';
     this.loading = true;
     this.pharmacyService.searchMedications({ searchTerm: this.searchTerm, page: this.page, pageSize: this.pageSize })
       .pipe(takeUntil(this.destroy$))
@@ -179,6 +171,7 @@ export class MedicationListComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         },
         error: () => {
+          this.error = 'Không thể tải danh mục thuốc.';
           this.loading = false;
           this.cdr.markForCheck();
         },

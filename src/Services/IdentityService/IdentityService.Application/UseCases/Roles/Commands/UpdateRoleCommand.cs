@@ -10,7 +10,8 @@ public record UpdateRoleCommand(
     Guid Id,
     string Name,
     string? Description,
-    string[]? Permissions)
+    string[]? Permissions,
+    string? ConcurrencyToken)
     : IRequest<RoleDto>;
 
 public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleDto>
@@ -29,10 +30,15 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
             .FirstOrDefaultAsync(r => r.Id == request.Id, cancellationToken)
             ?? throw new KeyNotFoundException("Role not found.");
 
+        if (!string.IsNullOrWhiteSpace(request.ConcurrencyToken) &&
+            !string.Equals(request.ConcurrencyToken, role.ConcurrencyStamp, StringComparison.Ordinal))
+            throw new InvalidOperationException("CONCURRENCY_CONFLICT: The role was changed by another request.");
+
         // Update role properties
         role.Name = request.Name;
         role.NormalizedName = request.Name.ToUpperInvariant();
         role.Description = request.Description;
+        role.ConcurrencyStamp = Guid.NewGuid().ToString("N");
 
         // Update permissions: replace all existing with new set
         _context.RolePermissions.RemoveRange(role.RolePermissions);
@@ -75,7 +81,8 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
                 rp.Permission.Group,
                 rp.Permission.Description,
                 rp.Permission.IsSystem
-            )).ToList()
+            )).ToList(),
+            updated.ConcurrencyStamp
         );
     }
 }
