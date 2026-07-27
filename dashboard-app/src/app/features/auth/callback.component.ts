@@ -1,7 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
-import { Router } from '@angular/router';
-import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   standalone: true,
@@ -12,14 +11,9 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
   </div>`,
 })
 export class CallbackComponent implements OnInit {
-  private oidc = inject(OidcSecurityService);
-  private router = inject(Router);
+  private authService = inject(AuthService);
 
   ngOnInit(): void {
-    this.oidc.checkAuth().subscribe(({ isAuthenticated }) => {
-      const returnUrl = localStorage.getItem('auth_return_url') ?? '/resources';
-      localStorage.removeItem('auth_return_url');
-      this.router.navigate(isAuthenticated ? [returnUrl] : ['/auth/login']);
-    });
+    this.authService.handleCallback().subscribe();
   }
 }

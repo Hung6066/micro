@@ -1,3 +1,7 @@
+using His.Hope.AspNetCore;
+using His.Hope.Validation;
+using His.Hope.ServiceDefaults;
+using His.Hope.Observability;
 using System.Security.Cryptography.X509Certificates;
 using His.Hope.ClinicalService.Api.GrpcServices;
 using His.Hope.ClinicalService.Api.Middleware;
@@ -13,23 +17,24 @@ using His.Hope.EventBusRabbitMQ.Abstractions;
 using His.Hope.EventBusRabbitMQ.Implementations;
 using His.Hope.Infrastructure;
 using His.Hope.Infrastructure.Caching;
+using His.Hope.Infrastructure.Contracts;
 using His.Hope.Infrastructure.HealthChecks;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
-using His.Hope.Infrastructure.Resilience;
 using His.Hope.Infrastructure.Security;
-using His.Hope.Infrastructure.Security.Authorization;
+using His.Hope.Authorization;
+using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.IntegrationEvents.Clinical;
+using His.Hope.Contracts.Query;
 using MediatR;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "ClinicalService");
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
@@ -37,44 +42,11 @@ builder.Host.UseSerilog((context, config) =>
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHisHopeContractProblemDetails();
 builder.Services.AddClinicalApplication();
 builder.Services.AddClinicalInfrastructure(builder.Configuration);
 
-// SECURITY: Add JWT Bearer authentication with RSA public key validation
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.Authority = "http://identityservice:5001";
-        options.RequireHttpsMetadata = false;
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = false,
-            ValidateAudience = false,
-            ValidateLifetime = true,
-            IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
-            {
-                try
-                {
-                    using var client = new HttpClient();
-                    var jwksJson = client.GetStringAsync("http://identityservice:5001/.well-known/jwks").GetAwaiter().GetResult();
-                    var keySet = new JsonWebKeySet(jwksJson);
-                    return keySet.Keys;
-                }
-                catch { return Enumerable.Empty<SecurityKey>(); }
-            }
-        };
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(accessToken) && context.Request.Path.StartsWithSegments("/hubs"))
-                    context.Token = accessToken;
-                return Task.CompletedTask;
-            }
-        };
-    });
-builder.Services.AddAuthorization();
+His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
 
 // SECURITY: Register permission-based authorization policies
 builder.Services.AddHisHopeAuthorization();
@@ -88,7 +60,6 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
 // TEMP: Replace Redis cache with a no-op cache to avoid StackExchange.Redis hang
 builder.Services.AddSingleton<ICacheService>(new NoOpCacheService());
 
-builder.Services.AddResiliencePolicies();
 
 builder.Services.AddGrpc(options =>
 {
@@ -161,6 +132,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Middleware Pipeline (order matters)
+app.UseHisHopeServiceDefaults();
 app.UseSecurityHeaders();
 app.UseRateLimiting();
 app.UseSerilogRequestLogging();
@@ -219,10 +191,24 @@ encounters.MapGet("/search", async (
     ICacheService cache,
     CancellationToken ct) =>
 {
-    var cacheKey = $"encounters:search:{q}:{page}:{pageSize}";
+    QueryRequest normalized;
+    try
+    {
+        normalized = new QueryRequest(page, pageSize, q)
+            .Normalize(
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = [ex.Message] });
+    }
+
+    var cacheKey = $"encounters:search:{normalized.Search}:{normalized.Page}:{normalized.PageSize}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
-        async () => await mediator.Send(new SearchEncountersQuery(q ?? "", page, pageSize), ct),
+        async () => await mediator.Send(
+            new SearchEncountersQuery(normalized.Search ?? "", normalized.Page, normalized.PageSize), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
 }).RequireAuthorization("Permission:clinical.view").WithOpenApi();
@@ -517,6 +503,7 @@ app.MapPost("/api/v1/errors", async (HttpRequest request, ILogger<Program> logge
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
+app.MapHisHopeHealthEndpoints();
 app.Run();
 
 static X509Certificate2 LoadServerCertificate(IConfiguration config)

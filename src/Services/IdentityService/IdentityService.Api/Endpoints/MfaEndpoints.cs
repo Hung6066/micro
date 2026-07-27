@@ -1,11 +1,17 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using His.Hope.Bff.Core.Authentication;
 using His.Hope.IdentityService.Application.DTOs;
+using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Application.Services;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using StackExchange.Redis;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -17,6 +23,7 @@ public static class MfaEndpoints
             HttpContext httpContext,
             TotpService totpService,
             RecoveryCodeService recoveryCodeService,
+            IMfaSecretEncryptor encryptor,
             IdentityDbContext db,
             UserManager<User> userManager,
             CancellationToken ct) =>
@@ -34,6 +41,7 @@ public static class MfaEndpoints
                 return Results.Problem("MFA is already enabled.", statusCode: 400);
 
             var secret = totpService.GenerateSecret();
+            var encryptedSecret = encryptor.Encrypt(secret);
             var qrUri = totpService.GenerateQrCodeUri(secret, user.Email!);
             var rawCodes = recoveryCodeService.GenerateCodes(8);
             var hashedCodes = rawCodes.Select(recoveryCodeService.HashCode).ToArray();
@@ -43,7 +51,7 @@ public static class MfaEndpoints
                 db.UserMfas.Add(new UserMfa
                 {
                     UserId = userId.Value,
-                    SecretKey = secret,
+                    SecretKey = encryptedSecret,
                     RecoveryCodes = hashedCodes,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
@@ -51,7 +59,7 @@ public static class MfaEndpoints
             }
             else
             {
-                existing.SecretKey = secret;
+                existing.SecretKey = encryptedSecret;
                 existing.RecoveryCodes = hashedCodes;
                 existing.BackupCodesUsed = 0;
                 existing.UpdatedAt = DateTime.UtcNow;
@@ -69,6 +77,8 @@ public static class MfaEndpoints
             HttpContext httpContext,
             TotpService totpService,
             JwtTokenGenerator tokenGenerator,
+            IMfaSecretEncryptor encryptor,
+            IConnectionMultiplexer redis,
             IdentityDbContext db,
             UserManager<User> userManager,
             CancellationToken ct) =>
@@ -85,7 +95,8 @@ public static class MfaEndpoints
             if (mfa is null)
                 return Results.Problem("MFA not enrolled. Enroll first.", statusCode: 400);
 
-            if (!totpService.VerifyCode(mfa.SecretKey, request.Code))
+            var decryptedSecret = encryptor.Decrypt(mfa.SecretKey);
+            if (!totpService.VerifyCode(decryptedSecret, request.Code))
                 return Results.Problem("Invalid TOTP code.", statusCode: 400);
 
             mfa.IsEnabled = true;
@@ -98,13 +109,51 @@ public static class MfaEndpoints
             var (accessToken, expiresAt) = tokenGenerator.GenerateAccessToken(
                 user, roles, permissions, amrValues: ["pwd", "otp"]);
 
-            var refreshToken = tokenGenerator.GenerateRefreshToken();
+            var refreshTokenValue = tokenGenerator.GenerateRefreshToken();
 
-            return Results.Ok(new MfaVerifyResponse(
-                accessToken, refreshToken, expiresAt,
-                MapToDto(user, roles)));
+            // SECURITY: BFF mode — store tokens in HttpOnly cookie session, not response body
+            var sessionId = Guid.NewGuid().ToString("N");
+            var csrfToken = Guid.NewGuid().ToString("N");
+            var sessionData = new SessionData
+            {
+                UserId = user.Id.ToString(),
+                Jwt = accessToken,
+                RefreshToken = refreshTokenValue,
+                Permissions = permissions.ToArray(),
+                CsrfToken = csrfToken,
+                UserAgentHash = ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
+                IssuedAt = DateTimeOffset.UtcNow,
+                ExpiresAt = expiresAt
+            };
+
+            var rdb = redis.GetDatabase();
+            await rdb.StringSetAsync(
+                $"session:{sessionId}",
+                JsonSerializer.Serialize(sessionData),
+                TimeSpan.FromHours(1));
+
+            httpContext.Response.Cookies.Append("hishop_sid", sessionId, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = httpContext.Request.IsHttps,
+                SameSite = SameSiteMode.Lax,
+                Path = "/api",
+                MaxAge = TimeSpan.FromHours(1)
+            });
+
+            httpContext.Response.Cookies.Append("hishop_csrf", csrfToken, new CookieOptions
+            {
+                HttpOnly = false,
+                Secure = httpContext.Request.IsHttps,
+                SameSite = SameSiteMode.Strict,
+                Path = "/",
+                MaxAge = TimeSpan.FromHours(1)
+            });
+
+            return Results.Ok(new { status = "ok", userId = user.Id, requiresMfa = false });
         })
         .RequireAuthorization()
+        .RequireRateLimiting("mfa")
         .WithOpenApi();
 
         group.MapPost("/mfa/recover", async (
@@ -147,6 +196,7 @@ public static class MfaEndpoints
             return Results.Ok(new { message = "MFA has been reset. Re-enroll to set up a new authenticator." });
         })
         .RequireAuthorization()
+        .RequireRateLimiting("mfa")
         .WithOpenApi();
 
         return group;
@@ -180,4 +230,10 @@ public static class MfaEndpoints
         user.Id, user.UserName!, user.Email!,
         user.FirstName, user.LastName, user.MiddleName,
         user.FullName, user.LicenseNumber, user.Specialty, roles);
+
+    private static string ComputeSha256(string input)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input ?? ""));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
 }

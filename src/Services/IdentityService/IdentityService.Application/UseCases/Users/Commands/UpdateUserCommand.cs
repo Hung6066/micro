@@ -13,7 +13,8 @@ public record UpdateUserCommand(
     string? Email,
     string? PhoneNumber,
     string? Role,
-    bool? IsActive)
+    bool? IsActive,
+    string? ConcurrencyToken)
     : IRequest<UserDetailDto>;
 
 public class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand, UserDetailDto>
@@ -31,6 +32,10 @@ public class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand, UserD
         var user = await _userManager.Users
             .FirstOrDefaultAsync(u => u.Id == request.Id, cancellationToken)
             ?? throw new KeyNotFoundException("User not found.");
+
+        if (!string.IsNullOrWhiteSpace(request.ConcurrencyToken) &&
+            !string.Equals(request.ConcurrencyToken, user.ConcurrencyStamp, StringComparison.Ordinal))
+            throw new InvalidOperationException("CONCURRENCY_CONFLICT: The user was changed by another request.");
 
         // Update properties if provided
         if (request.FirstName is not null)
@@ -78,6 +83,6 @@ public class UpdateUserCommandHandler : IRequestHandler<UpdateUserCommand, UserD
             user.Id, user.UserName!, user.Email!, user.PhoneNumber,
             user.FirstName, user.LastName, user.MiddleName,
             user.FullName, user.LicenseNumber, user.Specialty,
-            user.IsActive, user.CreatedAt, user.LastLoginAt, roles);
+            user.IsActive, user.CreatedAt, user.LastLoginAt, roles, user.ConcurrencyStamp);
     }
 }

@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import { CriticalAlert } from '@core/models/critical-alert.model';
 import { AuthService } from './auth.service';
@@ -18,7 +18,7 @@ export class LabCriticalAlertConnectionFactory {
   create(): LabCriticalAlertConnection {
     const connection = new HubConnectionBuilder()
       .withUrl('/hubs/lab-critical-alerts', {
-        accessTokenFactory: () => this.authService.getStoredAccessToken() ?? '',
+        accessTokenFactory: () => firstValueFrom(this.authService.getAccessToken()),
         withCredentials: true,
       })
       .withAutomaticReconnect()
@@ -34,23 +34,55 @@ export class LabCriticalAlertStreamService {
   private readonly connectionFactory = inject(LabCriticalAlertConnectionFactory);
   private connection?: LabCriticalAlertConnection;
   private latestCreatedHandler?: (payload: CriticalAlert) => void;
+  private connectInFlight?: Promise<void>;
 
   readonly unreadCount$ = new BehaviorSubject<number>(0);
   readonly latestAlert$ = new BehaviorSubject<CriticalAlert | null>(null);
 
   async connect(): Promise<void> {
-    if (this.connection) {
-      return;
+    if (this.connection || this.connectInFlight) {
+      return this.connectInFlight;
     }
 
-    this.connection = this.connectionFactory.create();
-    this.latestCreatedHandler = (alert: CriticalAlert) => {
-      this.latestAlert$.next(alert);
-      this.unreadCount$.next(this.unreadCount$.value + 1);
-    };
+    this.connectInFlight = this.startWithRetry();
+    try {
+      await this.connectInFlight;
+    } finally {
+      this.connectInFlight = undefined;
+    }
+  }
 
-    this.connection.on('criticalAlertCreated', this.latestCreatedHandler);
-    await this.connection.start();
+  private async startWithRetry(): Promise<void> {
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const connection = this.connectionFactory.create();
+      const handler = (alert: CriticalAlert) => {
+        this.latestAlert$.next(alert);
+        this.unreadCount$.next(this.unreadCount$.value + 1);
+      };
+      this.connection = connection;
+      this.latestCreatedHandler = handler;
+      connection.on('criticalAlertCreated', handler);
+
+      try {
+        await connection.start();
+        return;
+      } catch (error) {
+        lastError = error;
+        connection.off('criticalAlertCreated', handler);
+        await connection.stop().catch(() => undefined);
+        if (this.connection === connection) {
+          this.connection = undefined;
+          this.latestCreatedHandler = undefined;
+        }
+        if (attempt === 0) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+    }
+
+    throw lastError;
   }
 
   async disconnect(): Promise<void> {

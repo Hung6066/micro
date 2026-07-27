@@ -3,23 +3,29 @@ import { Router } from "@angular/router";
 import { HttpClient, HttpErrorResponse } from "@angular/common/http";
 import {
   BehaviorSubject,
+  EMPTY,
   Observable,
   of,
   throwError,
   ReplaySubject,
+  timer,
 } from "rxjs";
 import {
   catchError,
+  exhaustMap,
   map,
   retry,
   shareReplay,
+  switchMap,
   tap,
   distinctUntilChanged,
   take,
 } from "rxjs/operators";
 import { OidcSecurityService } from "angular-auth-oidc-client";
+import { HisHopeAuthCoordinator } from "@his-hope/frontend-foundation";
 import {
   LoginRequest,
+  LoginResponse,
   RegisterRequest,
   TokenResponse,
   User,
@@ -36,17 +42,43 @@ export class AuthService {
   private http = inject(HttpClient);
   private oidcSecurityService = inject(OidcSecurityService);
   private router = inject(Router);
+  private authCoordinator!: HisHopeAuthCoordinator;
   private static readonly AUTH_CHANNEL = "hishop_auth";
+  private static readonly SSO_LOGIN_IN_PROGRESS_KEY = "hishop_sso_login_in_progress_until";
   private currentUserLoad$?: Observable<User | null>;
   private readonly checkAuthInit$ = new ReplaySubject<void>(1);
+  private readonly sessionStatusUrl = `${environment.apiUrl}/auth/session-status`;
+  private lastAuthenticated = false;
+  private ssoLoginInProgress = false;
 
   constructor() {
+    this.authCoordinator = new HisHopeAuthCoordinator(
+      this.oidcSecurityService,
+      this.http,
+      this.router,
+      {
+        defaultReturnUrl: "/dashboard",
+        sessionStatusUrl: this.sessionStatusUrl,
+        sessionExchangeUrl: `${environment.apiUrl}/auth/session/exchange`,
+        logoutUrl: `${environment.apiUrl}/auth/logout`,
+      },
+    );
+
+    this.oidcSecurityService.isAuthenticated$.subscribe(({ isAuthenticated }) => {
+      this.lastAuthenticated = isAuthenticated;
+    });
+
     this.oidcSecurityService
       .checkAuth()
       .pipe(take(1))
       .subscribe({
         next: ({ isAuthenticated }) => {
-          if (isAuthenticated) this.loadUserFromOidc();
+          this.lastAuthenticated = isAuthenticated;
+          if (isAuthenticated) {
+            this.loadUserFromOidc()
+              .pipe(switchMap(() => this.ensureBffSession()), take(1))
+              .subscribe({ error: () => {} });
+          }
           this.checkAuthInit$.next();
           this.checkAuthInit$.complete();
         },
@@ -57,6 +89,7 @@ export class AuthService {
       });
 
     this.initBroadcastChannel();
+    this.startSsoSessionMonitor();
   }
 
   /** Wait for initial OIDC checkAuth to complete (used by guards) */
@@ -67,17 +100,14 @@ export class AuthService {
   /** @deprecated Use oidcLogin() for OIDC-based authentication */
   login(request: LoginRequest): Observable<User> {
     return this.http
-      .post<any>(`${this.baseUrl}/login`, request, { withCredentials: true })
+      .post<LoginResponse>(`${this.baseUrl}/login`, request, { withCredentials: true })
       .pipe(
-        tap((response) => {
-          if (response.accessToken) {
-            this.storeAccessToken(response.accessToken);
-          }
-          if (response.user) {
-            this.currentUserSubject.next(response.user);
-          }
+        switchMap(() => {
+          return this.http.get<User>(`${this.baseUrl}/me`, { withCredentials: true });
         }),
-        map((response) => response.user as User),
+        tap((user) => {
+          this.currentUserSubject.next(user);
+        }),
         catchError(this.handleError),
       );
   }
@@ -104,9 +134,6 @@ export class AuthService {
       )
       .pipe(
         tap((response) => {
-          if (response.accessToken) {
-            this.storeAccessToken(response.accessToken);
-          }
           this.currentUserSubject.next(response.user);
         }),
         map((response) => response.user),
@@ -117,7 +144,7 @@ export class AuthService {
 
   /** @deprecated Use oidcLogout() for OIDC-based logout */
   logout(): Observable<void> {
-    this.broadcastLogout();
+    this.markSsoLogout();
 
     return this.http
       .post<void>(`${this.baseUrl}/logout`, {}, { withCredentials: true })
@@ -126,13 +153,16 @@ export class AuthService {
           this.currentUserSubject.next(null);
           this.clearStoredAccessToken();
           this.permissionCache.clear();
+          this.redirectToCentralLogout();
         }),
         retry(1),
         catchError((error) => {
           this.currentUserSubject.next(null);
+          this.oidcSecurityService.logoffLocal();
           this.clearStoredAccessToken();
           this.permissionCache.clear();
-          return this.handleError(error);
+          this.redirectToCentralLogout();
+          return of(void 0);
         }),
       );
   }
@@ -140,25 +170,42 @@ export class AuthService {
   // ─── OIDC Methods ─────────────────────────────────────────────────
 
   oidcLogin(returnUrl?: string): void {
-    if (returnUrl) sessionStorage.setItem("oidc_returnUrl", returnUrl);
-    this.oidcSecurityService.authorize();
+    this.authCoordinator.login(returnUrl);
   }
 
   oidcLogout(): void {
+    this.markSsoLogout();
     this.broadcastLogout();
-    this.oidcSecurityService.logoff().subscribe(() => {
-      this.currentUserSubject.next(null);
-      this.permissionCache.clear();
-    });
+    this.authCoordinator.logout();
+    this.currentUserSubject.next(null);
+    this.permissionCache.clear();
+  }
+
+  trySsoLogin(returnUrl?: string): Observable<boolean> {
+    return this.authCoordinator.trySsoLogin(returnUrl);
   }
 
   handleCallback(): Observable<boolean> {
     return this.oidcSecurityService.checkAuth().pipe(
-      map(({ isAuthenticated }) => isAuthenticated),
-      tap((isAuth) => {
-        if (isAuth) this.loadUserFromOidc();
+      switchMap(({ isAuthenticated }) => {
+        if (!isAuthenticated) {
+          this.markSsoLogout();
+          this.ssoLoginInProgress = false;
+          return of(false);
+        }
+
+        return this.loadUserFromOidc().pipe(
+          switchMap(() => this.ensureBffSession()),
+          map(() => true),
+          catchError(() => of(true)),
+        );
       }),
     );
+  }
+
+  completeSsoLogin(): void {
+    sessionStorage.removeItem(AuthService.SSO_LOGIN_IN_PROGRESS_KEY);
+    this.ssoLoginInProgress = false;
   }
 
   isAuthenticated(): Observable<boolean> {
@@ -168,7 +215,7 @@ export class AuthService {
   }
 
   getAccessToken(): Observable<string> {
-    return this.oidcSecurityService.getAccessToken();
+    return this.authCoordinator.getAccessToken();
   }
 
   getUserData(): Observable<any> {
@@ -334,6 +381,7 @@ export class AuthService {
       channel.onmessage = (event: MessageEvent) => {
         if (event.data?.type === "LOGOUT") {
           this.currentUserSubject.next(null);
+          this.oidcSecurityService.logoffLocal();
           this.permissionCache.clear();
           if (!this.router.url.includes("/auth/login")) {
             this.router.navigate(["/auth/login"]);
@@ -353,5 +401,74 @@ export class AuthService {
     } catch {
       // BroadcastChannel not supported
     }
+  }
+
+  private ensureBffSession(): Observable<void> {
+    return this.http
+      .post<void>(`${this.baseUrl}/session/exchange`, {}, { withCredentials: true })
+      .pipe(
+        map(() => void 0),
+        catchError(() => of(void 0)),
+      );
+  }
+
+  private startSsoSessionMonitor(): void {
+    timer(2000, 2000).pipe(
+      exhaustMap(() => {
+        if (!this.lastAuthenticated) {
+          return EMPTY;
+        }
+        return this.getIdentitySessionStatus().pipe(catchError(() => EMPTY));
+      }),
+    ).subscribe((status) => {
+      if (!status.authenticated) {
+        this.forceLocalLogout();
+      }
+    });
+  }
+
+  private getIdentitySessionStatus(): Observable<{ authenticated: boolean; userName?: string }> {
+    return this.http.get<{ authenticated: boolean; userName?: string }>(
+      this.sessionStatusUrl,
+      { withCredentials: true },
+    );
+  }
+
+  private forceLocalLogout(): void {
+    this.markSsoLogout();
+    this.broadcastLogout();
+    this.currentUserSubject.next(null);
+    this.oidcSecurityService.logoffLocal();
+    this.permissionCache.clear();
+    this.currentUserLoad$ = undefined;
+    this.lastAuthenticated = false;
+    if (!this.router.url.includes("/auth/login")) {
+      this.router.navigate(["/auth/login"]);
+    }
+  }
+
+  private markSsoLogout(): void {
+    sessionStorage.setItem("hishop_sso_suppressed_until", String(Date.now() + 10000));
+  }
+
+  private isSsoSuppressed(): boolean {
+    const until = Number(sessionStorage.getItem("hishop_sso_suppressed_until") ?? 0);
+    return Date.now() < until;
+  }
+
+  private markSsoLoginInProgress(): void {
+    this.ssoLoginInProgress = true;
+    sessionStorage.setItem(AuthService.SSO_LOGIN_IN_PROGRESS_KEY, String(Date.now() + 120000));
+  }
+
+  private isSsoLoginInProgress(): boolean {
+    const until = Number(sessionStorage.getItem(AuthService.SSO_LOGIN_IN_PROGRESS_KEY) ?? 0);
+    return this.ssoLoginInProgress || Date.now() < until;
+  }
+
+  private redirectToCentralLogout(): void {
+    const postLogoutRedirectUri = `${window.location.origin}/auth/login`;
+    const logoutUrl = `${window.location.origin}/connect/logout?post_logout_redirect_uri=${encodeURIComponent(postLogoutRedirectUri)}`;
+    window.location.assign(logoutUrl);
   }
 }

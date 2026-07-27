@@ -1,3 +1,7 @@
+using His.Hope.AspNetCore;
+using His.Hope.Validation;
+using His.Hope.ServiceDefaults;
+using His.Hope.Observability;
 using System.Text.Json;
 using System.Security.Cryptography.X509Certificates;
 using His.Hope.Infrastructure.Caching;
@@ -10,9 +14,10 @@ using His.Hope.Infrastructure.Database;
 using His.Hope.Infrastructure.HealthChecks;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
-using His.Hope.Infrastructure.Resilience;
 using His.Hope.Infrastructure.Security;
-using His.Hope.Infrastructure.Security.Authorization;
+using His.Hope.Authorization;
+using His.Hope.Resilience;
+using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.IntegrationEvents.Patient;
 using His.Hope.PatientService.Api.GrpcServices;
@@ -27,11 +32,10 @@ using His.Hope.PatientService.Infrastructure.Persistence;
 using His.Hope.PatientService.Infrastructure.Projections;
 using MediatR;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "PatientService");
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
@@ -42,63 +46,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddPatientApplication();
 builder.Services.AddPatientInfrastructure(builder.Configuration);
 
-// SECURITY: JWT Bearer authentication + permission-based authorization
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.Authority = "http://identityservice:5001";
-        options.RequireHttpsMetadata = false;
-        options.RefreshOnIssuerKeyNotFound = true;
-        options.RefreshInterval = TimeSpan.FromSeconds(30);
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = false,
-            ValidateAudience = false,
-            ValidateLifetime = true,
-            IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
-            {
-                try
-                {
-                    using var client = new HttpClient();
-                    var jwksJson = client.GetStringAsync("http://identityservice:5001/.well-known/jwks").GetAwaiter().GetResult();
-                    var keySet = new JsonWebKeySet(jwksJson);
-                    return keySet.Keys;
-                }
-                catch { return Enumerable.Empty<SecurityKey>(); }
-            }
-        };
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(accessToken) && context.Request.Path.StartsWithSegments("/hubs"))
-                    context.Token = accessToken;
-                return Task.CompletedTask;
-            },
-            OnTokenValidated = context =>
-            {
-                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-                logger.LogInformation("JWT validated for user: {User}", context.Principal?.Identity?.Name);
-                return Task.CompletedTask;
-            },
-            OnAuthenticationFailed = context =>
-            {
-                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-                logger.LogWarning(context.Exception, "JWT auth FAILED for {Path}: {Message}", 
-                    context.Request.Path, context.Exception?.Message);
-                return Task.CompletedTask;
-            },
-            OnChallenge = context =>
-            {
-                var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-                logger.LogWarning("JWT challenge for {Path}: {Error} {ErrorDesc}", 
-                    context.Request.Path, context.Error, context.ErrorDescription);
-                return Task.CompletedTask;
-            }
-        };
-    });
-builder.Services.AddAuthorization();
+His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
 builder.Services.AddHisHopeAuthorization();
 
 // Enterprise Infrastructure
@@ -110,15 +58,14 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
 // TEMP: Replace Redis cache with a no-op cache to avoid StackExchange.Redis hang
 // TODO: Fix StackExchange.Redis async timeout properly
 builder.Services.AddSingleton<ICacheService>(new NoOpCacheService());
-builder.Services.AddResiliencePolicies();
 builder.Services.AddOutbox<PatientDbContext>();
 
 // Resilient HTTP client for outbound calls to internal services
 builder.Services.AddHttpClient("resilient-internal-client")
     .AddHttpMessageHandler(sp =>
     {
-        var factory = sp.GetRequiredService<IResiliencePipelineFactory>();
-        return new GrpcResilienceHandler(factory.GetPipeline("patient-http-internal"));
+        var pipelines = sp.GetRequiredService<HisHopeResiliencePipelines>();
+        return new HisHopeResilienceHandler(pipelines.CreateHttp("patient-http-internal"));
     });
 
 builder.Services.AddGrpc(options =>
@@ -198,6 +145,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Middleware Pipeline (order matters)
+app.UseHisHopeServiceDefaults();
 app.UseSecurityHeaders();
 app.UseRateLimiting();
 app.UseSerilogRequestLogging();
@@ -354,6 +302,7 @@ app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks
 
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
+app.MapHisHopeHealthEndpoints();
 app.Run();
 
 static X509Certificate2 LoadServerCertificate(IConfiguration config)

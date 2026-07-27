@@ -199,18 +199,21 @@ describe('AuthService', () => {
       mockOidcSecurityService.checkAuth.and.returnValue(of({ isAuthenticated: false, userData: null }));
     });
 
-    it('should login, store token in memory, and return user', () => {
+    it('should login via BFF session and load user from /me', () => {
       const request = { username: 'admin', password: 'secret' };
-      const response = { accessToken: 'jwt-token', user: mockUser };
 
       service.login(request).subscribe((user) => {
         expect(user).toEqual(mockUser);
       });
 
-      const req = httpMock.expectOne(`${environment.apiUrl}/auth/login`);
-      expect(req.request.method).toBe('POST');
-      expect(req.request.withCredentials).toBeTrue();
-      req.flush(response);
+      const loginReq = httpMock.expectOne(`${environment.apiUrl}/auth/login`);
+      expect(loginReq.request.method).toBe('POST');
+      expect(loginReq.request.withCredentials).toBeTrue();
+      loginReq.flush({ status: 'ok', userId: '123', requiresMfa: false });
+
+      const meReq = httpMock.expectOne(`${environment.apiUrl}/auth/me`);
+      expect(meReq.request.withCredentials).toBeTrue();
+      meReq.flush(mockUser);
     });
 
     it('should register and return user', () => {

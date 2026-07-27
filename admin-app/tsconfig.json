@@ -14,7 +14,14 @@
     "moduleResolution": "bundler",
     "importHelpers": true,
     "target": "ES2022",
-    "module": "ES2022"
+    "module": "ES2022",
+    "paths": {
+      "@angular/*": ["./node_modules/@angular/*"],
+      "angular-auth-oidc-client": ["./node_modules/angular-auth-oidc-client"],
+      "tslib": ["./node_modules/tslib"],
+      "rxjs": ["./node_modules/rxjs"],
+      "rxjs/*": ["./node_modules/rxjs/*"]
+    }
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,

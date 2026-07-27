@@ -1,0 +1,115 @@
+name: Platform Quality Gates
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  backend-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore with dependency gates
+        run: dotnet restore His.Hope.sln -warnAsError:NU1605 -warnAsError:NU1901 -warnAsError:NU1902 -warnAsError:NU1903 -warnAsError:NU1904
+      - name: Build Core and services
+        run: dotnet build His.Hope.sln --no-restore --warnaserror:NU1605 --warnaserror:NU1901 --warnaserror:NU1902 --warnaserror:NU1903 --warnaserror:NU1904
+      - name: Contract tests
+        shell: pwsh
+        run: ./scripts/run-contract-tests.ps1
+      - name: API platform convention gate
+        shell: pwsh
+        run: ./scripts/validate-api-platform-conventions.ps1
+
+  frontend-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run validate:foundation
+      - run: npm run lint:design-tokens
+      - run: npm run build:shared
+      - run: npm pack --workspace @his-hope/frontend-foundation --dry-run
+      - run: npm --workspace admin-app run build
+      - run: npm --workspace dashboard-app run build
+      - run: npm --workspace his-hope-app run build
+      - name: Authenticated accessibility, keyboard and visual checks
+        working-directory: tests/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          pwsh ../../scripts/verify-e2e-prerequisites.ps1
+          npm run test:shared-foundation -- --project=chromium
+        env:
+          E2E_AUTH_REQUIRED: 'true'
+          E2E_AUTH_PROBE_URL: ${{ secrets.E2E_AUTH_PROBE_URL }}
+          E2E_AUTH_TOKEN: ${{ secrets.E2E_AUTH_TOKEN }}
+
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: SCA audit
+        run: npm audit --audit-level=high
+      - name: SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: cyclonedx-json
+          artifact-name: his-hope-platform-sbom.cdx.json
+          output-file: his-hope-platform-sbom.cdx.json
+      - name: Verify SBOM artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s his-hope-platform-sbom.cdx.json
+          node -e "const fs=require('fs'); const bom=JSON.parse(fs.readFileSync('his-hope-platform-sbom.cdx.json','utf8')); if (bom.bomFormat !== 'CycloneDX' || !Array.isArray(bom.components)) process.exit(1);"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: his-hope-platform-sbom
+          path: his-hope-platform-sbom.cdx.json
+      - name: Trivy filesystem and configuration scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+      - name: Validate production Kubernetes release inputs
+        shell: pwsh
+        run: ./scripts/validate-k8s-release.ps1
+
+  openapi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check OpenAPI compatibility
+        shell: pwsh
+        run: |
+          $baseline = 'docs/openapi/identity-v1.json'
+          $current = 'artifacts/openapi/identity-v1.json'
+          if (-not (Test-Path $baseline)) {
+            throw "OpenAPI baseline is missing: $baseline"
+          }
+          if (-not (Test-Path $current)) {
+            throw "Generated OpenAPI document is missing: $current"
+          }
+          ./scripts/check-openapi-breaking.ps1 -Baseline $baseline -Current $current

@@ -38,12 +38,15 @@ export class CallbackComponent implements OnInit {
         if (isAuthenticated) {
           const returnUrl = sessionStorage.getItem('oidc_returnUrl');
           sessionStorage.removeItem('oidc_returnUrl');
+          this.authService.completeSsoLogin();
           this.router.navigateByUrl(returnUrl || '/dashboard');
         } else {
+          this.authService.completeSsoLogin();
           this.router.navigate(['/auth/login']);
         }
       },
       error: () => {
+        this.authService.completeSsoLogin();
         this.router.navigate(['/auth/login']);
       },
     });

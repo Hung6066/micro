@@ -1,0 +1,3 @@
+#!/bin/sh
+set -eu
+exec powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-his-hope-policy.ps1 -Staged

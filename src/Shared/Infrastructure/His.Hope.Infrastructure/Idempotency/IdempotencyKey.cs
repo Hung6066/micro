@@ -16,4 +16,5 @@ public class IdempotencyKey
     public string Status { get; set; } = "Processing";
     public DateTime CreatedAt { get; set; }
     public DateTime ExpiresAt { get; set; }
+    public DateTime? ProcessingLeaseExpiresAt { get; set; }
 }

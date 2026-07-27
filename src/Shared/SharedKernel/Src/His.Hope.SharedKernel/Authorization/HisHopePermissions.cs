@@ -103,6 +103,8 @@ public static class HisHopePermissions
         public const string SettingsRead = "admin.settings.read";
         public const string SettingsWrite = "admin.settings.write";
         public const string AuditRead = "admin.audit.read";
+        public const string ClientsRead = "admin.clients.read";
+        public const string ClientsWrite = "admin.clients.write";
     }
 
     // ──────────────────────────────────────────────
@@ -153,6 +155,7 @@ public static class HisHopePermissions
         Admin.UsersRead, Admin.UsersWrite, Admin.RolesRead, Admin.RolesWrite,
         Admin.PermissionsRead, Admin.PermissionsWrite,
         Admin.SettingsRead, Admin.SettingsWrite, Admin.AuditRead,
+        Admin.ClientsRead, Admin.ClientsWrite,
 
         // Reports
         Reports.View, Reports.Export, Reports.Manage,
@@ -223,6 +226,8 @@ public static class HisHopePermissions
         new(Admin.SettingsRead, "Xem cấu hình", "Quản trị", "Xem cấu hình hệ thống"),
         new(Admin.SettingsWrite, "Cập nhật cấu hình", "Quản trị", "Thay đổi cấu hình hệ thống"),
         new(Admin.AuditRead, "Xem nhật ký", "Quản trị", "Xem nhật ký kiểm toán"),
+        new(Admin.ClientsRead, "Xem OIDC clients", "Quản trị", "Xem ứng dụng đã đăng ký"),
+        new(Admin.ClientsWrite, "Quản lý OIDC clients", "Quản trị", "Tạo, sửa, xóa và xoay secret ứng dụng"),
 
         // Reports
         new(Reports.View, "Xem báo cáo", "Báo cáo", "Xem báo cáo thống kê"),

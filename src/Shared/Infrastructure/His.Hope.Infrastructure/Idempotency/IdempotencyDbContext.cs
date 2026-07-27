@@ -75,6 +75,9 @@ public class IdempotencyDbContext : DbContext
                 .HasColumnName("expires_at")
                 .HasDefaultValueSql("now() + INTERVAL '24 hours'");
 
+            entity.Property(e => e.ProcessingLeaseExpiresAt)
+                .HasColumnName("processing_lease_expires_at");
+
             entity.HasIndex(e => e.ExpiresAt)
                 .HasDatabaseName("idx_idempotency_expires")
                 .IsDescending();

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>His.Hope.Messaging</RootNamespace>
+    <PackageId>His.Hope.Messaging</PackageId>
+    <Version>1.0.0</Version>
+    <Description>Default in-memory stores for His.Hope messaging contracts.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <ProjectReference Include="..\His.Hope.Messaging.Abstractions\His.Hope.Messaging.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

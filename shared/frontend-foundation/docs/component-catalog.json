@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "package": "@his-hope/frontend-foundation",
+  "version": "1.0.0",
+  "designSource": "D:/AI/micro/DESIGN.md",
+  "tokens": "D:/AI/micro/shared/frontend-foundation/src/styles/_tokens.scss",
+  "components": [
+    {
+      "selector": "hh-data-table",
+      "source": "src/ui/his-hope-data-table.component.ts",
+      "purpose": "Client or server paged data table with sorting, selection, inline edit, export and bulk contracts",
+      "inputs": ["columns", "rows", "mode", "query", "totalItems", "selectionScope", "selectionState", "inlineEdit", "bulkActions", "exportable"],
+      "outputs": ["queryChange", "selectionChange", "selectionStateChange", "bulkActionRequested", "exportRequested", "rowEditSaveRequested", "rowEditUndo"],
+      "states": ["loading", "empty", "error", "permission", "saving", "dirty"],
+      "accessibility": ["table caption", "scope-col headers", "keyboard sorting", "row selection labels", "error role alert"],
+      "adapterBoundary": "The consuming feature owns API fetch, authorization, export file generation and persistence."
+    },
+    {
+      "selector": "hh-form-field",
+      "source": "src/ui/his-hope-form-field.component.ts",
+      "purpose": "Persistent label, hint, validation and required field wrapper",
+      "inputs": ["controlId", "label", "hint", "error", "required"],
+      "outputs": [],
+      "states": ["default", "focused", "invalid", "disabled"],
+      "accessibility": ["label association", "describedby hint/error", "required marker"],
+      "adapterBoundary": "The consuming feature owns form control state and submit behavior."
+    },
+    {
+      "selector": "hh-confirm-dialog",
+      "source": "src/ui/his-hope-confirm-dialog.component.ts",
+      "purpose": "Destructive action confirmation",
+      "inputs": ["open", "title", "message", "confirmLabel", "cancelLabel"],
+      "outputs": ["confirmed", "cancelled"],
+      "states": ["open", "closed"],
+      "accessibility": ["modal focus trap", "Escape", "focus restore", "labelledby", "describedby"]
+    },
+    {
+      "selector": "hh-permission-button",
+      "source": "src/ui/his-hope-navigation.component.ts",
+      "purpose": "Permission-aware action affordance",
+      "inputs": ["requiredPermission", "requiredPermissions", "permissionMode", "permissions", "showDenied"],
+      "outputs": ["clicked"],
+      "states": ["allowed", "denied", "disabled"],
+      "accessibility": ["unique denied description", "aria-disabled"]
+    },
+    {
+      "selector": "hh-language-switcher",
+      "source": "src/i18n/his-hope-language-switcher.component.ts",
+      "purpose": "Locale selection with icon and keyboard navigation",
+      "inputs": ["locales"],
+      "outputs": ["localeChange"],
+      "states": ["closed", "open", "selected"],
+      "accessibility": ["listbox option semantics", "Arrow/Home/End", "Escape", "trigger restore"]
+    },
+    {
+      "selector": "hh-state / hh-skeleton / hh-status-badge",
+      "source": "src/ui",
+      "purpose": "Consistent loading, empty, error, unavailable and semantic status feedback",
+      "inputs": ["kind", "message", "tone", "label"],
+      "outputs": [],
+      "states": ["loading", "empty", "error", "permission", "success", "warning"],
+      "accessibility": ["text state", "role status/alert", "color is not the only signal"]
+    }
+  ],
+  "rules": {
+    "featurePagesMustUseTokens": true,
+    "featurePagesMustUseI18nForVisibleCopy": true,
+    "serverAuthorizationIsRequired": true,
+    "requiredChecks": ["npm run build:shared", "npm run storybook:build", "npm run test:a11y"]
+  }
+}

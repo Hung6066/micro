@@ -27,6 +27,32 @@ public class OidcSecurityConfigurationTests
     }
 
     [Fact]
+    public void Resolve_ProductionWithoutPersistentEncryptionKey_Throws()
+    {
+        var signingKeyPath = WriteRsaPrivateKey();
+
+        try
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["OpenIddict:AllowInsecureHttp"] = "false",
+                    ["OpenIddict:Signing:PrivateKeyPath"] = signingKeyPath
+                })
+                .Build();
+
+            var ex = Assert.Throws<InvalidOperationException>(() =>
+                OidcSecurityConfiguration.Resolve(configuration, new TestHostEnvironment("Production")));
+
+            Assert.Contains("production encryption requires a persistent RSA key", ex.Message);
+        }
+        finally
+        {
+            File.Delete(signingKeyPath);
+        }
+    }
+
+    [Fact]
     public void Resolve_DevelopmentWithoutPersistentSigningKey_UsesEphemeralDevelopmentKeys()
     {
         var configuration = new ConfigurationBuilder().Build();
@@ -38,24 +64,30 @@ public class OidcSecurityConfigurationTests
         Assert.True(options.UseEphemeralDevelopmentKeys);
         Assert.True(options.AllowInsecureHttp);
         Assert.Null(options.SigningKey);
+        Assert.Null(options.EncryptionKey);
     }
 
     [Fact]
     public void Resolve_ProductionWithPrivateKey_LoadsPersistentSigningKey()
     {
         var keyPath = Path.Combine(Path.GetTempPath(), $"oidc-signing-{Guid.NewGuid():N}.pem");
+        var encryptionKeyPath = Path.Combine(Path.GetTempPath(), $"oidc-encryption-{Guid.NewGuid():N}.pem");
 
         try
         {
             using var rsa = RSA.Create(2048);
             File.WriteAllText(keyPath, rsa.ExportRSAPrivateKeyPem());
+            using var encryptionRsa = RSA.Create(2048);
+            File.WriteAllText(encryptionKeyPath, encryptionRsa.ExportRSAPrivateKeyPem());
 
             var configuration = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["OpenIddict:AllowInsecureHttp"] = "false",
                     ["OpenIddict:Signing:PrivateKeyPath"] = keyPath,
-                    ["OpenIddict:Signing:KeyId"] = "test-key"
+                    ["OpenIddict:Signing:KeyId"] = "test-key",
+                    ["OpenIddict:Encryption:PrivateKeyPath"] = encryptionKeyPath,
+                    ["OpenIddict:Encryption:KeyId"] = "test-encryption-key"
                 })
                 .Build();
 
@@ -67,12 +99,22 @@ public class OidcSecurityConfigurationTests
             Assert.False(options.UseEphemeralDevelopmentKeys);
             Assert.False(options.AllowInsecureHttp);
             Assert.Equal("test-key", signingKey.KeyId);
+            var encryptionKey = Assert.IsType<RsaSecurityKey>(options.EncryptionKey);
+            Assert.Equal("test-encryption-key", encryptionKey.KeyId);
         }
         finally
         {
-            if (File.Exists(keyPath))
-                File.Delete(keyPath);
+            File.Delete(keyPath);
+            File.Delete(encryptionKeyPath);
         }
+    }
+
+    private static string WriteRsaPrivateKey()
+    {
+        var keyPath = Path.Combine(Path.GetTempPath(), $"oidc-signing-{Guid.NewGuid():N}.pem");
+        using var rsa = RSA.Create(2048);
+        File.WriteAllText(keyPath, rsa.ExportRSAPrivateKeyPem());
+        return keyPath;
     }
 
     private sealed class TestHostEnvironment : IHostEnvironment

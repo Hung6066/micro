@@ -9,8 +9,13 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.60.0" />
+    <PackageReference Include="StackExchange.Redis" Version="2.7.27" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Shared\AspNetCore\His.Hope.AspNetCore\His.Hope.AspNetCore.csproj" />
+    <ProjectReference Include="..\Shared\Contracts\His.Hope.Contracts\His.Hope.Contracts.csproj" />
+    <ProjectReference Include="..\Shared\Messaging\His.Hope.Messaging.Abstractions\His.Hope.Messaging.Abstractions.csproj" />
+    <ProjectReference Include="..\Shared\Observability\His.Hope.Observability\His.Hope.Observability.csproj" />
     <ProjectReference Include="..\Shared\Infrastructure\His.Hope.Infrastructure\His.Hope.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

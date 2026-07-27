@@ -491,7 +491,7 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
       margin: 0;
       font-size: 22px;
       font-weight: 600;
-      letter-spacing: -0.01em;
+      letter-spacing: 0;
     }
 
     .patient-meta {

@@ -37,6 +37,11 @@ Thumbs.db
 # --- Documentation (large files) ---
 **/*.md
 !README.md
+!shared/frontend-foundation/README.md
+!shared/frontend-foundation/CHANGELOG.md
+!shared/frontend-foundation/COMPATIBILITY.md
+!shared/frontend-foundation/LICENSE
+!shared/frontend-foundation/docs/**
 
 # --- Test & Coverage ---
 **/TestResults/
@@ -56,6 +61,8 @@ Thumbs.db
 **/*.log
 **/logs/
 **/Logs/
+!dashboard-app/src/app/features/logs/
+!dashboard-app/src/app/features/logs/**
 
 # --- Temp files ---
 **/tmp/

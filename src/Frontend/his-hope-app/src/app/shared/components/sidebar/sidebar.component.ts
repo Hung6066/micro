@@ -15,6 +15,7 @@ import { AuthService } from '@core/services/auth.service';
 import { PatientService } from '@core/services/patient.service';
 import { User } from '@core/models/auth.model';
 import { Patient } from '@core/models/patient.model';
+import { HisHopeBrandComponent } from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-sidebar',
@@ -23,14 +24,12 @@ import { Patient } from '@core/models/patient.model';
         CommonModule, RouterModule, ReactiveFormsModule,
         MatListModule, MatIconModule, MatBadgeModule, MatTooltipModule,
         MatButtonModule, MatFormFieldModule, MatInputModule, MatAutocompleteModule,
+        HisHopeBrandComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="sidebar-header">
-      <div class="brand">
-        <span class="logo-mark" aria-hidden="true"></span>
-        <span class="logo-text">His.Hope</span>
-      </div>
+      <hh-brand></hh-brand>
       <button mat-icon-button class="hide-desktop close-btn" (click)="toggle.emit()"
         aria-label="Đóng menu điều hướng">
         <mat-icon>close</mat-icon>
@@ -115,6 +114,8 @@ import { Patient } from '@core/models/patient.model';
       display: flex;
       flex-direction: column;
       height: 100%;
+      width: 264px;
+      font-family: var(--font-sans);
       background: var(--surface-white, #FFFFFF);
       border-right: 1px solid var(--border-default, #EAEAEA);
     }
@@ -124,53 +125,11 @@ import { Patient } from '@core/models/patient.model';
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 16px 16px 12px;
+      padding: 22px 20px 16px;
       flex-shrink: 0;
     }
 
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .logo-mark {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      border-radius: 7px;
-      background: var(--color-primary, #2F6B4A);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
-      flex-shrink: 0;
-    }
-
-    .logo-mark::before,
-    .logo-mark::after {
-      content: '';
-      position: absolute;
-      border-radius: 2px;
-      background: #FFFFFF;
-    }
-
-    .logo-mark::before {
-      width: 14px;
-      height: 4px;
-    }
-
-    .logo-mark::after {
-      width: 4px;
-      height: 14px;
-    }
-
-    .logo-text {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--text-primary, #1A1A1A);
-      letter-spacing: -0.01em;
-    }
+    :host :not(.material-icons):not(.mat-icon) { font-family: inherit; }
 
     .close-btn {
       color: var(--text-secondary, #787774);
@@ -233,19 +192,15 @@ import { Patient } from '@core/models/patient.model';
     }
 
     .sidebar-nav a.active {
-      background: rgba(47, 107, 74, 0.06);
+      background: #EAF3ED;
+      box-shadow: inset 3px 0 0 var(--color-primary, #2F6B4A);
       color: var(--color-primary, #2F6B4A);
     }
 
     .sidebar-nav a.active::before {
       content: '';
       position: absolute;
-      left: -8px;
-      top: 8px;
-      bottom: 8px;
-      width: 3px;
-      background: var(--color-primary, #2F6B4A);
-      border-radius: 0 3px 3px 0;
+      display: none;
     }
 
     .sidebar-nav ::ng-deep .mat-icon {
@@ -381,12 +336,10 @@ export class SidebarComponent implements OnInit, OnDestroy {
       .subscribe({
         complete: () => {
           this.loggingOut = false;
-          this.router.navigate(['/auth/login']);
           this.cdr.detectChanges();
         },
         error: () => {
           this.loggingOut = false;
-          this.router.navigate(['/auth/login']);
           this.cdr.detectChanges();
         },
       });

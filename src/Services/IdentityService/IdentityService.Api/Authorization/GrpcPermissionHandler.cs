@@ -1,5 +1,5 @@
 using His.Hope.Identity.Grpc;
-using His.Hope.Infrastructure.Security.Authorization.Requirements;
+using His.Hope.Authorization.Requirements;
 using Microsoft.AspNetCore.Authorization;
 
 namespace His.Hope.IdentityService.Api.Authorization;

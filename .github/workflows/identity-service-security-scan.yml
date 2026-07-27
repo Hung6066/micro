@@ -1,0 +1,25 @@
+name: Identity Service Security Scan
+on:
+  push:
+    paths:
+      - 'src/Services/IdentityService/**'
+  pull_request:
+    paths:
+      - 'src/Services/IdentityService/**'
+  schedule:
+    - cron: '0 9 * * 1'
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore with security audit
+        run: dotnet restore src/Services/IdentityService/IdentityService.Api/ --audit
+      - name: Build
+        run: dotnet build src/Services/IdentityService/IdentityService.Api/ --no-restore
+      - name: Check for known vulnerable packages
+        run: dotnet list src/Services/IdentityService/IdentityService.Api/ package --vulnerable

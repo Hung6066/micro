@@ -17,6 +17,7 @@ import { ResourceCardComponent } from '../../shared/resource-card/resource-card.
 import { ResourceDetailComponent } from './resource-detail.component';
 import { HealthTimelineComponent } from './health-timeline.component';
 import { DependencyGraphComponent } from './dependency-graph.component';
+import { HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent } from '@his-hope/frontend-foundation';
 
 interface GroupedResources {
   services: Resource[];
@@ -36,14 +37,16 @@ interface GroupedResources {
     MatProgressSpinnerModule,
     MatDialogModule,
     MatButtonToggleModule,
+    HisHopePageHeaderComponent,
+    HisHopePageLayoutComponent,
+    HisHopeStateComponent,
     ResourceCardComponent,
     DependencyGraphComponent,
     HealthTimelineComponent,
   ],
   template: `
-    <div class="page-header">
-      <h1 class="page-title">System Resources</h1>
-      <div class="page-header-actions">
+    <hh-page-layout>
+    <hh-page-header hhPageHeader title="System Resources">
         <mat-button-toggle-group
           [value]="viewMode()"
           (change)="viewMode.set($event.value)"
@@ -62,24 +65,22 @@ interface GroupedResources {
           <mat-icon>refresh</mat-icon>
           Refresh
         </button>
-      </div>
-    </div>
+    </hh-page-header>
 
     <!-- Loading spinner -->
-    <div class="loading-state" *ngIf="(loading$ | async) && !(error$ | async)">
-      <mat-spinner diameter="32"></mat-spinner>
-      <span style="margin-top: 12px;">Loading resources...</span>
-    </div>
+    <hh-state
+      *ngIf="(loading$ | async) && !(error$ | async)"
+      kind="loading"
+      message="Loading resources...">
+    </hh-state>
 
     <!-- Error state -->
-    <div class="error-state" *ngIf="error$ | async as err">
-      <mat-icon class="error-icon">error_outline</mat-icon>
-      <p class="error-message">{{ err }}</p>
+    <hh-state *ngIf="error$ | async as err" kind="error" icon="error_outline" [message]="err">
       <button mat-raised-button color="primary" (click)="refresh()">
         <mat-icon>refresh</mat-icon>
         Retry
       </button>
-    </div>
+    </hh-state>
 
     <!-- Card view -->
     <ng-container *ngIf="viewMode() === 'cards'">
@@ -149,10 +150,7 @@ interface GroupedResources {
         </section>
 
         <!-- Empty state when loaded with no data -->
-        <div class="empty-state" *ngIf="grouped.total === 0">
-          <mat-icon>inventory_2</mat-icon>
-          <p>No resources found</p>
-        </div>
+        <hh-state *ngIf="grouped.total === 0" icon="inventory_2" message="No resources found"></hh-state>
       </ng-container>
     </ng-container>
 
@@ -168,13 +166,9 @@ interface GroupedResources {
 
     <!-- Health Timeline — always visible -->
     <app-health-timeline></app-health-timeline>
+    </hh-page-layout>
   `,
   styles: [`
-    .page-header-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
     .view-toggle {
       border: 1px solid var(--border-default, #EAEAEA);
       border-radius: 6px;
@@ -195,25 +189,6 @@ interface GroupedResources {
       height: 16px;
       margin-right: 4px;
     }
-    .loading-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 64px 24px;
-      color: var(--text-secondary, #787774);
-    }
-    .error-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 48px 24px;
-      text-align: center;
-      background: #FDEBEC;
-      border: 1px solid #F5C6C4;
-      border-radius: 8px;
-      gap: 12px;
-    }
     .loading-overlay {
       display: flex;
       align-items: center;
@@ -222,17 +197,6 @@ interface GroupedResources {
       padding: 8px;
       font-size: 13px;
       color: var(--text-secondary, #787774);
-    }
-    .error-icon {
-      font-size: 40px;
-      width: 40px;
-      height: 40px;
-      color: #C25450;
-    }
-    .error-message {
-      font-size: 14px;
-      color: #C25450;
-      max-width: 400px;
     }
     .resource-group {
       margin-bottom: 32px;
@@ -267,24 +231,6 @@ interface GroupedResources {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
       gap: 16px;
-    }
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 48px 24px;
-      color: var(--text-muted, #A1A09B);
-      text-align: center;
-    }
-    .empty-state mat-icon {
-      font-size: 48px;
-      width: 48px;
-      height: 48px;
-      margin-bottom: 16px;
-      opacity: 0.4;
-    }
-    .empty-state p {
-      font-size: 14px;
     }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,

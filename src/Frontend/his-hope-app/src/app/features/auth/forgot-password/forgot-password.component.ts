@@ -20,7 +20,7 @@ import { RouterModule } from '@angular/router';
   styles: [`
     .auth-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100dvh; padding: 24px; text-align: center; background: var(--bg-warm, #F7F6F3); }
     .auth-placeholder mat-icon { font-size: 64px; width: 64px; height: 64px; color: var(--color-primary, #2F6B4A); margin-bottom: 16px; }
-    .auth-placeholder h1 { margin: 0 0 8px 0; font-size: 28px; line-height: 1.1; letter-spacing: -0.02em; }
+    .auth-placeholder h1 { margin: 0 0 8px 0; font-size: var(--font-size-title, 24px); line-height: 1.25; letter-spacing: 0; font-weight: 700; }
     .auth-placeholder p { color: var(--text-secondary, #787774); margin: 0 0 24px 0; max-width: 28rem; }
   `],
 })

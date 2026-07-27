@@ -1,6 +1,8 @@
-import { Component, OnInit, ChangeDetectionStrategy, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { EMPTY, Subject, timer } from 'rxjs';
+import { exhaustMap, takeUntil } from 'rxjs/operators';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -76,27 +78,39 @@ import { AuthService } from '@core/services/auth.service';
       height: 24px;
     }
     mat-card-header { flex-direction: column; align-items: center; text-align: center; margin-bottom: 24px; }
-    mat-card-title { font-size: 28px; line-height: 1.1; letter-spacing: -0.02em; }
+    mat-card-title { font-size: var(--font-size-title, 24px); line-height: 1.25; letter-spacing: 0; font-weight: 700; }
     mat-card-subtitle { color: var(--text-secondary, #787774); }
     mat-card-content { padding-top: 0; display: flex; flex-direction: column; gap: 16px; }
     .full-width { width: 100%; }
-    .oidc-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 20px 16px; font-size: 15px; }
+    .oidc-btn { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: var(--button-height, 40px); padding: 0 16px; font-size: var(--button-font-size, 14px); font-weight: var(--button-font-weight, 600); letter-spacing: 0; }
     .divider { margin: 4px 0; }
     .divider span { background: #fff; padding: 0 12px; color: var(--text-secondary, #787774); font-size: 13px; }
   `],
 })
-export class LoginComponent implements OnInit {
+export class LoginComponent implements OnInit, OnDestroy {
   private authService = inject(AuthService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+  private readonly destroy$ = new Subject<void>();
 
   ngOnInit(): void {
-    this.authService.isLoggedIn().pipe().subscribe(isAuth => {
+    this.authService.isLoggedIn().pipe(takeUntil(this.destroy$)).subscribe(isAuth => {
       if (isAuth) {
         const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
         this.router.navigateByUrl(returnUrl || '/dashboard');
       }
     });
+
+    timer(1500, 5000).pipe(
+      exhaustMap(() => {
+        if (!this.router.url.includes('/auth/login')) {
+          return EMPTY;
+        }
+        const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') || undefined;
+        return this.authService.trySsoLogin(returnUrl);
+      }),
+      takeUntil(this.destroy$),
+    ).subscribe();
   }
 
   signIn(): void {
@@ -114,5 +128,10 @@ export class LoginComponent implements OnInit {
     const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') || undefined;
     if (returnUrl) sessionStorage.setItem('oidc_returnUrl', returnUrl);
     this.authService.oidcLogin(returnUrl);
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 }

@@ -2,6 +2,8 @@ using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.UseCases.Users.Commands;
 using His.Hope.IdentityService.Application.UseCases.Users.Queries;
 using MediatR;
+using His.Hope.Infrastructure.Audit;
+using His.Hope.Contracts.Query;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -20,11 +22,39 @@ public static class UserEndpoints
             string? search = null,
             string? role = null,
             bool? isActive = null,
+            string? sort = null,
             IMediator mediator = null!,
             CancellationToken ct = default) =>
         {
+            QueryRequest normalized;
+            try
+            {
+                normalized = new QueryRequest(
+                    page,
+                    pageSize,
+                    search,
+                    sort,
+                    Filters: new Dictionary<string, string?>
+                    {
+                        ["role"] = role,
+                        ["isActive"] = isActive?.ToString()
+                    })
+                    .Normalize(
+                        new HashSet<string>(["username", "email", "isactive", "createdat"], StringComparer.OrdinalIgnoreCase),
+                        new HashSet<string>(["role", "isActive"], StringComparer.OrdinalIgnoreCase));
+            }
+            catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = [ex.Message] }); }
+            if (normalized.Search?.Length > 100 || normalized.Filters["role"]?.Length > 100)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["search"] = ["Search and role filters must be 100 characters or fewer."] });
+
             var result = await mediator.Send(
-                new GetUsersQuery(page, pageSize, search, role, isActive), ct);
+                new GetUsersQuery(
+                    normalized.Page,
+                    normalized.PageSize,
+                    normalized.Search,
+                    normalized.Filters["role"],
+                    isActive,
+                    normalized.Sort), ct);
             return Results.Ok(result);
         }).RequireAuthorization("Permission:admin.users.read");
 
@@ -42,6 +72,8 @@ public static class UserEndpoints
         group.MapPost("/users", async (
             CreateUserRequest request,
             IMediator mediator = null!,
+            IAuditService audit = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
             try
@@ -53,6 +85,7 @@ public static class UserEndpoints
                     request.PhoneNumber, request.Role);
 
                 var user = await mediator.Send(command, ct);
+                await AdminAudit.LogAsync(audit, http, "CREATE", "User", user.Id.ToString(), ct);
                 return Results.Created($"/api/v1/auth/users/{user.Id}", user);
             }
             catch (InvalidOperationException ex)
@@ -66,15 +99,18 @@ public static class UserEndpoints
             Guid id,
             UpdateUserRequest request,
             IMediator mediator = null!,
+            IAuditService audit = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
             try
             {
                 var command = new UpdateUserCommand(
                     id, request.FirstName, request.LastName, request.Email,
-                    request.PhoneNumber, request.Role, request.IsActive);
+                    request.PhoneNumber, request.Role, request.IsActive, request.ConcurrencyToken);
 
                 var user = await mediator.Send(command, ct);
+                await AdminAudit.LogAsync(audit, http, "UPDATE", "User", id.ToString(), ct);
                 return Results.Ok(user);
             }
             catch (KeyNotFoundException)
@@ -83,7 +119,7 @@ public static class UserEndpoints
             }
             catch (InvalidOperationException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 400);
+                return Results.Problem(ex.Message, statusCode: ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? 409 : 400);
             }
         }).RequireAuthorization("Permission:admin.users.write");
 
@@ -91,11 +127,14 @@ public static class UserEndpoints
         group.MapPut("/users/{id:guid}/deactivate", async (
             Guid id,
             IMediator mediator = null!,
+            IAuditService audit = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
             try
             {
                 await mediator.Send(new DeactivateUserCommand(id), ct);
+                await AdminAudit.LogAsync(audit, http, "DEACTIVATE", "User", id.ToString(), ct);
                 return Results.NoContent();
             }
             catch (KeyNotFoundException)
@@ -108,11 +147,14 @@ public static class UserEndpoints
         group.MapPut("/users/{id:guid}/activate", async (
             Guid id,
             IMediator mediator = null!,
+            IAuditService audit = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
             try
             {
                 await mediator.Send(new ActivateUserCommand(id), ct);
+                await AdminAudit.LogAsync(audit, http, "ACTIVATE", "User", id.ToString(), ct);
                 return Results.NoContent();
             }
             catch (KeyNotFoundException)

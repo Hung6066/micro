@@ -1,85 +1,100 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatTableModule } from '@angular/material/table';
-import { MatCardModule } from '@angular/material/card';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatIconModule } from '@angular/material/icon';
-import { AdminApiService, User } from '../../core/services/admin-api.service';
+import { HisHopeBulkAction, HisHopeBulkActionRequest, HisHopeDataTableComponent, HisHopeDataTableColumn, HisHopeDataTableDetailDirective, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeTableExportRequest, HisHopeToolbarComponent } from '@his-hope/frontend-foundation';
+import { AdminApiService, AdminPageQuery, AdminPageResult, User } from '../../core/services/admin-api.service';
+import { HisHopePageQuery } from '@his-hope/frontend-foundation';
 import { catchError, finalize } from 'rxjs/operators';
+import { Subscription } from 'rxjs';
 import { of } from 'rxjs';
 
 @Component({
   selector: 'app-users-page',
   standalone: true,
-  imports: [CommonModule, MatTableModule, MatCardModule, MatProgressSpinnerModule, MatIconModule],
+  imports: [CommonModule, HisHopeDataTableComponent, HisHopeDataTableDetailDirective, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeToolbarComponent],
   template: `
-    <div class="page-header">
-      <h1 class="page-title">Users</h1>
-    </div>
-    <mat-card>
-      <mat-card-content>
-        @if (loading) {
-          <div class="loading-state"><mat-spinner diameter="32"></mat-spinner></div>
-        } @else if (error) {
-          <div class="error-state">
-            <mat-icon>error</mat-icon>
-            <p>{{ error }}</p>
-            <button mat-stroked-button (click)="loadUsers()">Retry</button>
-          </div>
-        } @else {
-          <table mat-table [dataSource]="users" class="mat-elevation-z0">
-            <ng-container matColumnDef="id">
-              <th mat-header-cell *matHeaderCellDef>ID</th>
-              <td mat-cell *matCellDef="let u">{{ u.id | slice:0:8 }}...</td>
-            </ng-container>
-            <ng-container matColumnDef="userName">
-              <th mat-header-cell *matHeaderCellDef>Username</th>
-              <td mat-cell *matCellDef="let u">{{ u.userName }}</td>
-            </ng-container>
-            <ng-container matColumnDef="email">
-              <th mat-header-cell *matHeaderCellDef>Email</th>
-              <td mat-cell *matCellDef="let u">{{ u.email }}</td>
-            </ng-container>
-            <ng-container matColumnDef="roles">
-              <th mat-header-cell *matHeaderCellDef>Roles</th>
-              <td mat-cell *matCellDef="let u">{{ (u.roles || []).join(', ') }}</td>
-            </ng-container>
-            <ng-container matColumnDef="isActive">
-              <th mat-header-cell *matHeaderCellDef>Active</th>
-              <td mat-cell *matCellDef="let u">{{ u.isActive ? 'Yes' : 'No' }}</td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-          </table>
-          @if (users.length === 0) {
-            <div class="empty-state">
-              <mat-icon>people_outline</mat-icon>
-              <p>No users found.</p>
-            </div>
-          }
-        }
-      </mat-card-content>
-    </mat-card>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader title="Users" subtitle="Manage identity accounts and access roles" />
+      <hh-toolbar hhPageToolbar label="User controls">
+        <span hhToolbarTitle>{{ tableRows.length }} users</span>
+        <button hh-toolbar-actions type="button" class="hh-icon-button" (click)="loadUsers()" aria-label="Refresh users" title="Refresh users">
+          <span class="material-icons" aria-hidden="true">refresh</span>
+        </button>
+      </hh-toolbar>
+      <hh-data-table label="Users" [columns]="columns" [rows]="tableRows" [selection]="true" [loading]="loading"
+        mode="server" [totalItems]="totalItems" [query]="query" [pageSize]="20" (queryChange)="onQueryChange($event)"
+        [error]="error ?? ''" [empty]="!loading && !error && tableRows.length === 0"
+        [exportable]="true" [bulkActions]="bulkActions" [filterBuilder]="true" [virtualizeColumns]="true" [expandedRowKeys]="expandedRowKeys" viewStorageKey="admin.users" viewName="default" [serverBackedView]="true" [savedView]="savedView"
+        (rowExpandChange)="toggleRowExpand($event)"
+        (viewSaveRequested)="saveView($event)" (viewResetRequested)="resetView($event)" emptyMessage="No users found."
+        (bulkActionRequested)="onBulkAction($event)" (exportRequested)="onExport($event)" (retry)="loadUsers()">
+        <ng-template hhDataTableDetail let-row>
+          <div class="hh-data-table-detail">{{ row['email'] }} · {{ row['roles'] }} · {{ row['isActive'] }}</div>
+        </ng-template>
+      </hh-data-table>
+    </hh-page-layout>
   `,
 })
 export class UsersPageComponent implements OnInit {
   private readonly api = inject(AdminApiService);
   users: User[] = [];
-  displayedColumns = ['id', 'userName', 'email', 'roles', 'isActive'];
+  readonly columns: HisHopeDataTableColumn[] = [
+    { key: 'id', label: 'ID', responsivePriority: 3, pinned: 'left' }, { key: 'userName', label: 'Username', sortable: true, responsivePriority: 1, pinned: 'left' },
+    { key: 'email', label: 'Email', sortable: true, responsivePriority: 2 }, { key: 'roles', label: 'Roles', responsivePriority: 3 }, { key: 'isActive', label: 'Active', responsivePriority: 2, pinned: 'right' },
+  ];
+  tableRows: Record<string, unknown>[] = [];
   loading = false;
   error: string | null = null;
+  totalItems = 0;
+  query: AdminPageQuery = { page: 1, pageSize: 20 };
+  savedView: any = null;
+  expandedRowKeys: string[] = [];
+  private pageRequest?: Subscription;
+  readonly bulkActions: HisHopeBulkAction[] = [
+    { id: 'activate', label: 'Activate selected', icon: 'person_add' },
+    { id: 'deactivate', label: 'Deactivate selected', icon: 'person_off', tone: 'danger' },
+  ];
 
-  ngOnInit(): void { this.loadUsers(); }
+  ngOnInit(): void { this.loadServerView(); this.loadUsers(); }
 
-  loadUsers(): void {
+  loadServerView(): void { this.api.getTableViews('users').subscribe(views => { const view = views.find(item => item.name === 'default') ?? views[0]; if (view) this.savedView = JSON.parse(view.payloadJson); }); }
+  saveView(event: { name: string; payload: unknown }): void { this.api.saveTableView('users', event.name, event.payload).subscribe(); }
+  resetView(event: { name: string }): void {
+    this.savedView = null;
+    this.api.deleteTableView('users', event.name).subscribe({ error: () => this.loadServerView() });
+  }
+  toggleRowExpand(event: { rowKey: string; expanded: boolean }): void { this.expandedRowKeys = event.expanded ? [...this.expandedRowKeys, event.rowKey] : this.expandedRowKeys.filter(key => key !== event.rowKey); }
+
+  loadUsers(query = this.query): void {
+    this.pageRequest?.unsubscribe();
+    this.query = query;
     this.loading = true;
     this.error = null;
-    this.api.getUsers().pipe(
-      finalize(() => this.loading = false),
-      catchError(err => {
-        this.error = 'Failed to load users.';
-        return of([]);
-      }),
-    ).subscribe(users => this.users = users);
+    this.pageRequest = this.api.getUsersPage(query).pipe(finalize(() => this.loading = false), catchError(() => { this.error = 'Failed to load users.'; return of<AdminPageResult<User>>({ items: [], totalCount: 0, page: query.page, pageSize: query.pageSize, totalPages: 0, hasNextPage: false, hasPreviousPage: false }); }))
+      .subscribe(result => {
+        this.totalItems = result.totalCount;
+        this.users = result.items;
+        this.tableRows = result.items.map(user => ({ id: user.id, userName: user.userName, email: user.email, roles: (user.roles || []).join(', '), isActive: user.isActive ? 'Yes' : 'No' }));
+      });
+  }
+
+  onQueryChange(query: HisHopePageQuery): void { this.loadUsers(query); }
+
+  onBulkAction(request: HisHopeBulkActionRequest): void {
+    this.loading = true;
+    this.api.bulkUsers(request).pipe(finalize(() => this.loading = false), catchError(() => {
+      this.error = 'Failed to update selected users.';
+      return of(null);
+    })).subscribe(result => { if (result) this.loadUsers(this.query); });
+  }
+
+  onExport(request: HisHopeTableExportRequest): void {
+    this.api.exportTable('users', request).subscribe(blob => {
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `users-${new Date().toISOString().slice(0, 10)}.${request.format}`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    });
   }
 }

@@ -5,6 +5,7 @@ namespace His.Hope.IdentityService.Infrastructure.Services;
 public interface IUserSessionTracker
 {
     Task AddSessionAsync(string userId, string sessionId);
+    Task RemoveSessionAsync(string userId, string sessionId);
     Task<string[]> GetUserSessionsAsync(string userId);
     Task ClearUserSessionsAsync(string userId);
 }
@@ -31,6 +32,12 @@ public sealed class UserSessionTracker : IUserSessionTracker
         var key = UserSessionsPrefix + userId;
         var members = await _db.SetMembersAsync(key);
         return members.Select(m => m.ToString()).ToArray();
+    }
+
+    public async Task RemoveSessionAsync(string userId, string sessionId)
+    {
+        var key = UserSessionsPrefix + userId;
+        await _db.SetRemoveAsync(key, sessionId);
     }
 
     public async Task ClearUserSessionsAsync(string userId)

@@ -1,6 +1,8 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
+import { Subject, timer } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -90,8 +92,10 @@ import { AuthService } from '../../core/services/auth.service';
     }
     .oidc-btn {
       height: 44px;
-      font-size: 15px;
-      font-weight: 500;
+      min-height: var(--button-height, 40px);
+      font-size: var(--button-font-size, 14px);
+      font-weight: var(--button-font-weight, 600);
+      letter-spacing: 0;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -103,22 +107,32 @@ import { AuthService } from '../../core/services/auth.service';
     }
   `],
 })
-export class LoginComponent implements OnInit {
+export class LoginComponent implements OnInit, OnDestroy {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly destroy$ = new Subject<void>();
 
   checkingAuth = true;
 
   ngOnInit(): void {
-    this.authService.isAuthenticated$.subscribe(isAuth => {
+    this.authService.isAuthenticated$.pipe(takeUntil(this.destroy$)).subscribe(isAuth => {
       this.checkingAuth = false;
       if (isAuth) {
         this.router.navigate(['/resources']);
       }
     });
+
+    timer(0, 3000).pipe(takeUntil(this.destroy$)).subscribe(() => {
+      this.authService.trySsoLogin().pipe(takeUntil(this.destroy$)).subscribe();
+    });
   }
 
   oidcLogin(): void {
     this.authService.oidcLogin();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 }

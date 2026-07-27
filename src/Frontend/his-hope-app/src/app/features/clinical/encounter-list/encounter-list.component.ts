@@ -13,6 +13,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ClinicalService } from '@core/services/clinical.service';
 import { Encounter } from '@core/models/encounter.model';
+import { HisHopeDataTableComponent } from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-encounter-list',
@@ -21,6 +22,7 @@ import { Encounter } from '@core/models/encounter.model';
         CommonModule, RouterModule, ReactiveFormsModule,
         MatCardModule, MatFormFieldModule, MatInputModule, MatIconModule,
         MatTableModule, MatPaginatorModule, MatButtonModule, MatTooltipModule,
+        HisHopeDataTableComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
@@ -42,7 +44,9 @@ import { Encounter } from '@core/models/encounter.model';
         </mat-card-header>
 
         <mat-card-content>
-          @if (encounters.length > 0) {
+          <hh-data-table label="Clinical encounters" [loading]="loading" [error]="error"
+                         [empty]="!loading && !error && encounters.length === 0"
+                         emptyMessage="No encounters found." (retry)="loadEncounters()">
           <div class="table-container">
             <table mat-table [dataSource]="encounters" class="encounter-table">
               <ng-container matColumnDef="encounterDate">
@@ -99,9 +103,7 @@ import { Encounter } from '@core/models/encounter.model';
               showFirstLastButtons>
             </mat-paginator>
           </div>
-          } @else {
-          <p class="placeholder">{{ loading ? 'Loading...' : 'No encounters found.' }}</p>
-          }
+          </hh-data-table>
         </mat-card-content>
       </mat-card>
     </div>
@@ -128,6 +130,7 @@ export class EncounterListComponent implements OnInit, OnDestroy {
   page = 1;
   pageSize = 20;
   loading = false;
+  error = '';
   searchControl = new FormControl('');
 
   constructor(
@@ -155,6 +158,7 @@ export class EncounterListComponent implements OnInit, OnDestroy {
   }
 
   loadEncounters(): void {
+    this.error = '';
     this.loading = true;
     this.clinicalService.list(this.page, this.pageSize)
       .pipe(takeUntil(this.destroy$))
@@ -166,6 +170,7 @@ export class EncounterListComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         },
         error: () => {
+          this.error = 'Unable to load clinical encounters.';
           this.loading = false;
           this.cdr.markForCheck();
         },
@@ -173,6 +178,7 @@ export class EncounterListComponent implements OnInit, OnDestroy {
   }
 
   searchEncounters(query: string): void {
+    this.error = '';
     this.loading = true;
     this.clinicalService.search(query, this.page, this.pageSize)
       .pipe(takeUntil(this.destroy$))
@@ -184,6 +190,7 @@ export class EncounterListComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         },
         error: () => {
+          this.error = 'Unable to search clinical encounters.';
           this.loading = false;
           this.cdr.markForCheck();
         },

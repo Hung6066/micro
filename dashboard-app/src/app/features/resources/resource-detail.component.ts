@@ -6,8 +6,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatChipsModule } from '@angular/material/chips';
+import { HisHopeStatusBadgeComponent, HisHopeStatusTone } from '@his-hope/frontend-foundation';
 import { Resource, HealthCheckResult } from '../../core/models/resource.model';
-import { ServiceStatusBadgeComponent } from '../../shared/service-status-badge/service-status-badge.component';
 
 @Component({
   selector: 'app-resource-detail',
@@ -20,7 +20,7 @@ import { ServiceStatusBadgeComponent } from '../../shared/service-status-badge/s
     MatIconModule,
     MatDividerModule,
     MatChipsModule,
-    ServiceStatusBadgeComponent,
+    HisHopeStatusBadgeComponent,
   ],
   template: `
     <div class="detail-overlay">
@@ -32,7 +32,7 @@ import { ServiceStatusBadgeComponent } from '../../shared/service-status-badge/s
             <span class="detail-subtitle">{{ resource.type }}</span>
           </div>
         </div>
-        <app-service-status-badge [state]="resource.status"></app-service-status-badge>
+        <hh-status-badge [status]="resource.status" [label]="statusLabel(resource.status)" [tone]="statusTone(resource.status)" />
       </div>
 
       <mat-divider></mat-divider>
@@ -195,8 +195,8 @@ import { ServiceStatusBadgeComponent } from '../../shared/service-status-badge/s
       font-weight: 500;
       color: var(--text-primary, #1A1A1A);
     }
-    .text-green { color: #2F6B4A; }
-    .text-red { color: #C25450; }
+.text-green { color: var(--color-success); }
+.text-red { color: var(--color-danger); }
     .endpoint-list {
       display: flex;
       flex-direction: column;
@@ -238,9 +238,9 @@ import { ServiceStatusBadgeComponent } from '../../shared/service-status-badge/s
       background: var(--text-muted, #A1A09B);
       flex-shrink: 0;
     }
-    .health-dot.pass { background: #2F6B4A; }
-    .health-dot.fail { background: #C25450; }
-    .health-dot.warn { background: #B6581C; }
+.health-dot.pass { background: var(--color-success); }
+.health-dot.fail { background: var(--color-danger); }
+.health-dot.warn { background: var(--color-warning); }
     .health-info {
       display: flex;
       flex-direction: column;
@@ -289,6 +289,9 @@ export class ResourceDetailComponent {
   ) {
     this.resource = data.resource;
   }
+
+  statusLabel(status: string): string { return ({ Running: 'Đang chạy', Healthy: 'Khỏe mạnh', Stopped: 'Đã dừng', Degraded: 'Suy giảm', Unhealthy: 'Mất sức khỏe', Unknown: 'Không xác định' } as Record<string, string>)[status] ?? status; }
+  statusTone(status: string): HisHopeStatusTone { if (status === 'Running' || status === 'Healthy') return 'success'; if (status === 'Degraded') return 'warning'; if (status === 'Stopped') return 'neutral'; return 'danger'; }
 
   get endpoints(): string[] {
     const r = this.resource as unknown as Record<string, unknown>;

@@ -1,6 +1,8 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using His.Hope.IdentityService.Application.Interfaces;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
@@ -12,58 +14,92 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
     private readonly IConfiguration _config;
     private readonly ILogger<VaultKeyService> _logger;
     private readonly string _keyName;
-    private readonly string _keyId;
-    private readonly RSA _rsa;
+    private readonly string? _signingPath;
+    private readonly bool _production;
     private readonly bool _useVault;
+    private readonly ConcurrentDictionary<string, (RSA Rsa, RsaSecurityKey Key, DateTimeOffset RetireAt)> _activeKeys = new();
+    private string _currentKeyId = string.Empty;
+    private int _keyVersion;
+    private readonly Timer _cleanupTimer;
+    private bool _disposed;
 
-    public VaultKeyService(IConfiguration config, ILogger<VaultKeyService> logger)
+    private const int OverlapMinutes = 120;
+    private const string KeyIdFormat = "{0}:{1}:v{2}";
+
+    public VaultKeyService(IConfiguration config, ILogger<VaultKeyService> logger, IHostEnvironment environment)
     {
         _config = config;
         _logger = logger;
+        _production = environment.IsProduction();
         _keyName = config["Vault:Transit:KeyName"] ?? "jwt-signing";
 
         var vaultAddr = config["Vault:Address"];
-        _useVault = !string.IsNullOrEmpty(vaultAddr);
+        _useVault = config.GetValue("Vault:EnableTransit", environment.IsProduction());
+
+        var signingPath = FirstConfigured(
+            config["OpenIddict:Signing:PrivateKeyPath"],
+            config["Jwt:RsaPrivateKeyPath"]);
+        _signingPath = signingPath;
+        if (_production && (string.IsNullOrWhiteSpace(signingPath) || !File.Exists(signingPath)))
+            throw new InvalidOperationException("Production signing requires a persistent RSA key supplied by Vault Agent/KMS at OpenIddict:Signing:PrivateKeyPath.");
+
+        var version = Interlocked.Increment(ref _keyVersion);
+        var keyId = string.Format(KeyIdFormat, _useVault ? "vault" : "dev", _keyName, version);
+        var rsa = RSA.Create();
+        if (!string.IsNullOrWhiteSpace(signingPath) && File.Exists(signingPath))
+            rsa.ImportFromPem(File.ReadAllText(signingPath));
+        else
+            rsa.KeySize = 2048;
+        var key = new RsaSecurityKey(rsa) { KeyId = keyId };
+
+        _activeKeys[keyId] = (rsa, key, DateTimeOffset.MaxValue);
+        _currentKeyId = keyId;
+
+        _cleanupTimer = new Timer(_ => CleanupExpiredKeys(), null, TimeSpan.FromMinutes(15), TimeSpan.FromMinutes(15));
 
         if (_useVault)
         {
-            _keyId = $"vault:{_keyName}";
-            _rsa = RSA.Create(2048);
-            _logger.LogInformation("VaultKeyService: Vault transit mode configured for key '{KeyName}' at {Address}",
+            _logger.LogInformation("VaultKeyService: Vault-backed persistent signing key configured for '{KeyName}' at {Address}",
                 _keyName, vaultAddr);
         }
         else
         {
-            _keyId = $"dev:{_keyName}:{Guid.NewGuid():N}"[..20];
-            _rsa = RSA.Create(2048);
-            _logger.LogInformation("VaultKeyService: Development mode — ephemeral RSA-2048 key (KeyId: {KeyId})", _keyId);
+            _logger.LogInformation("VaultKeyService: Development mode — ephemeral RSA-2048 key (KeyId: {KeyId})", keyId);
         }
     }
 
     public Task<SecurityKey> GetSigningKeyAsync(CancellationToken ct = default)
     {
-        var key = new RsaSecurityKey(_rsa) { KeyId = _keyId };
-        return Task.FromResult<SecurityKey>(key);
+        if (_activeKeys.TryGetValue(_currentKeyId, out var entry))
+            return Task.FromResult<SecurityKey>(entry.Key);
+        throw new InvalidOperationException("No active signing key available.");
     }
 
     public Task<IEnumerable<JsonWebKey>> GetJwksAsync(CancellationToken ct = default)
     {
-        var parameters = _rsa.ExportParameters(false);
-        var jwk = new JsonWebKey
+        var jwks = new List<JsonWebKey>();
+        foreach (var kvp in _activeKeys)
         {
-            Kty = JsonWebAlgorithmsKeyTypes.RSA,
-            Alg = SecurityAlgorithms.RsaSha256,
-            Use = "sig",
-            Kid = _keyId,
-            N = Base64UrlEncoder.Encode(parameters.Modulus!),
-            E = Base64UrlEncoder.Encode(parameters.Exponent!)
-        };
-        return Task.FromResult<IEnumerable<JsonWebKey>>(new[] { jwk });
+            var parameters = kvp.Value.Rsa.ExportParameters(false);
+            jwks.Add(new JsonWebKey
+            {
+                Kty = JsonWebAlgorithmsKeyTypes.RSA,
+                Alg = SecurityAlgorithms.RsaSha256,
+                Use = "sig",
+                Kid = kvp.Key,
+                N = Base64UrlEncoder.Encode(parameters.Modulus!),
+                E = Base64UrlEncoder.Encode(parameters.Exponent!)
+            });
+        }
+        return Task.FromResult<IEnumerable<JsonWebKey>>(jwks);
     }
 
     public Task<string> SignAsync(byte[] data, CancellationToken ct = default)
     {
-        var signature = _rsa.SignData(data, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        if (!_activeKeys.TryGetValue(_currentKeyId, out var entry))
+            throw new InvalidOperationException("No active signing key available.");
+
+        var signature = entry.Rsa.SignData(data, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         return Task.FromResult(Convert.ToBase64String(signature));
     }
 
@@ -85,16 +121,51 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
             }
         }
 
-        return true;
+        return _activeKeys.Count > 0;
     }
 
     public async Task RotateKeyAsync(CancellationToken ct = default)
     {
+        var prefix = _useVault ? "vault" : "dev";
+        var newVersion = Interlocked.Increment(ref _keyVersion);
+        var newKeyId = string.Format(KeyIdFormat, prefix, _keyName, newVersion);
+
+        if (_production)
+        {
+            if (string.IsNullOrWhiteSpace(_signingPath) || !File.Exists(_signingPath))
+                throw new InvalidOperationException("Production signing rotation requires the Vault Agent/KMS key file to be present.");
+
+            var rotatedKey = RSA.Create();
+            rotatedKey.ImportFromPem(File.ReadAllText(_signingPath));
+            ActivateRotatedKey(rotatedKey, newKeyId);
+            _logger.LogInformation("Signing key reloaded from the persistent Vault Agent/KMS path {Path}", _signingPath);
+            return;
+        }
+
+        var rsa = RSA.Create(2048);
+        var key = new RsaSecurityKey(rsa) { KeyId = newKeyId };
+
+        if (!string.IsNullOrEmpty(_currentKeyId) && _activeKeys.TryGetValue(_currentKeyId, out var oldEntry))
+        {
+            _activeKeys[_currentKeyId] = (oldEntry.Rsa, oldEntry.Key, DateTimeOffset.UtcNow.AddMinutes(OverlapMinutes));
+            _logger.LogInformation("Key {OldId} retired, will be removed after {Minutes}min overlap",
+                _currentKeyId, OverlapMinutes);
+        }
+
+        _activeKeys[newKeyId] = (rsa, key, DateTimeOffset.MaxValue);
+        _currentKeyId = newKeyId;
+
+        _logger.LogInformation("New signing key activated: {KeyId}", newKeyId);
+
         if (_useVault)
         {
+            var vaultToken = FirstConfigured(_config["Vault:Token"], _config["VAULT_TOKEN"]);
+            if (string.IsNullOrWhiteSpace(vaultToken))
+                throw new InvalidOperationException("Vault transit requires Vault:Token or VAULT_TOKEN.");
             try
             {
                 using var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Add("X-Vault-Token", vaultToken);
                 var vaultAddr = _config["Vault:Address"]!;
                 var content = new StringContent(
                     System.Text.Json.JsonSerializer.Serialize(new { }),
@@ -110,15 +181,49 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
                 throw;
             }
         }
-        else
+    }
+
+    private void ActivateRotatedKey(RSA rsa, string keyId)
+    {
+        var key = new RsaSecurityKey(rsa) { KeyId = keyId };
+        if (!string.IsNullOrEmpty(_currentKeyId) && _activeKeys.TryGetValue(_currentKeyId, out var oldEntry))
+            _activeKeys[_currentKeyId] = (oldEntry.Rsa, oldEntry.Key, DateTimeOffset.UtcNow.AddMinutes(OverlapMinutes));
+        _activeKeys[keyId] = (rsa, key, DateTimeOffset.MaxValue);
+        _currentKeyId = keyId;
+    }
+
+    public void CleanupExpiredKeys()
+    {
+        var now = DateTimeOffset.UtcNow;
+        foreach (var kvp in _activeKeys)
         {
-            var oldKeyId = _keyId;
-            _rsa.ImportParameters(_rsa.ExportParameters(true));
-            _logger.LogInformation("Dev key regenerated (prev: {OldId})", oldKeyId);
+            if (kvp.Key == _currentKeyId)
+                continue;
+
+            if (kvp.Value.RetireAt <= now && _activeKeys.TryRemove(kvp.Key, out var entry))
+            {
+                entry.Rsa.Dispose();
+                _logger.LogInformation("Cleaned up expired key: {KeyId}", kvp.Key);
+            }
         }
     }
 
-    public void Dispose() => _rsa?.Dispose();
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+        _cleanupTimer?.Dispose();
+        foreach (var kvp in _activeKeys)
+        {
+            kvp.Value.Rsa.Dispose();
+        }
+        _activeKeys.Clear();
+    }
+
+    private static string? FirstConfigured(params string?[] values) => values.FirstOrDefault(value =>
+        !string.IsNullOrWhiteSpace(value) && !(value.StartsWith("${", StringComparison.Ordinal) && value.EndsWith('}')));
 }
 
 public class VaultHealthCheck : IHealthCheck

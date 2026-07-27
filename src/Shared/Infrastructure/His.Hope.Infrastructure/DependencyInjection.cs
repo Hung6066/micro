@@ -11,6 +11,10 @@ using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.Infrastructure.Qos;
 using His.Hope.Infrastructure.Resilience;
+using His.Hope.Messaging.RabbitMq;
+using His.Hope.Messaging.Redis;
+using His.Hope.Messaging.Sql;
+using His.Hope.Observability.OpenTelemetry;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -27,7 +31,7 @@ public static class DependencyInjection
         string serviceName,
         string redisConnectionString = "localhost:6379")
     {
-        services.AddHisHopeOpenTelemetry(configuration, serviceName);
+        services.AddHisHopeOpenTelemetryExporters(configuration, serviceName);
 
         // Register hybrid cache (L1 in-memory + L2 Redis) with stampede prevention.
         // Replaces the basic distributed (L2-only) cache.
@@ -35,6 +39,16 @@ public static class DependencyInjection
         // Uses default settings matching the health check's ConnectionMultiplexer
         services.AddSingleton<IConnectionMultiplexer>(sp =>
             ConnectionMultiplexer.Connect(redisConnectionString));
+        services.AddHisHopeRedisMessaging();
+        services.AddHisHopeRabbitMqMessaging(configuration);
+
+        if (configuration.GetValue<bool>("Messaging:Sql:Enabled"))
+        {
+            var messagingConnection = configuration.GetConnectionString("Messaging")
+                ?? configuration.GetConnectionString("DefaultConnection")
+                ?? throw new InvalidOperationException("Messaging SQL is enabled but no Messaging or DefaultConnection connection string exists.");
+            services.AddHisHopeSqlMessaging(options => options.UseNpgsql(messagingConnection));
+        }
 
         services.AddHisHopeHybridCaching(redisConnectionString);
 

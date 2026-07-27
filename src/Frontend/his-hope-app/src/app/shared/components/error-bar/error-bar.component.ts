@@ -18,7 +18,7 @@ import { clearError, ErrorPayload } from '@store/error/error.actions';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (error$ | async; as error) {
-    <div class="error-bar" [class]="'error-bar--' + getSeverity(error.code)" role="status" aria-live="polite">
+    <div class="error-bar" [class]="'error-bar--' + getSeverity(error.code)" role="alert" aria-live="assertive">
       <div class="error-bar__content">
         <mat-icon class="error-bar__icon">{{ getIcon(error.code) }}</mat-icon>
         <div class="error-bar__text">
@@ -34,12 +34,13 @@ import { clearError, ErrorPayload } from '@store/error/error.actions';
           <button
             mat-icon-button
             [matTooltip]="'Copy Reference ID'"
+            aria-label="Copy reference ID"
             (click)="copyCorrelationId(error.correlationId)"
           >
             <mat-icon>content_copy</mat-icon>
           </button>
           }
-          <button mat-icon-button (click)="dismiss()">
+          <button mat-icon-button (click)="dismiss()" aria-label="Dismiss error">
             <mat-icon>close</mat-icon>
           </button>
         </div>

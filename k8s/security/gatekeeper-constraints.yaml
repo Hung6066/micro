@@ -237,8 +237,9 @@ spec:
 # Constraint: K8sRequireImageSignature
 # ---------------------------------------------------------------------------
 # Applies the signature requirement to the his-hope namespace.
-# NOTE: This constraint requires an ExternalData provider to function.
-# Deploy Ratify or a custom cosign-verify provider before enabling.
+# The production overlay installs this constraint with deny enforcement. The
+# Gatekeeper ExternalData provider (Ratify or the approved cosign verifier) is
+# a mandatory cluster prerequisite.
 # ---------------------------------------------------------------------------
 apiVersion: constraints.gatekeeper.sh/v1beta1
 kind: K8sRequireImageSignature
@@ -249,7 +250,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/component: admission-control
 spec:
-  enforcementAction: warn
+  enforcementAction: deny
   match:
     kinds:
       - apiGroups: [""]

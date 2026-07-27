@@ -15,4 +15,7 @@ public interface IVaultKeyProvider
 
     /// <summary>Checks Vault connectivity and key existence. Returns false if unhealthy.</summary>
     Task<bool> IsHealthyAsync(CancellationToken ct = default);
+
+    /// <summary>Rotates the signing key. Keeps the previous key for overlap period.</summary>
+    Task RotateKeyAsync(CancellationToken ct = default);
 }

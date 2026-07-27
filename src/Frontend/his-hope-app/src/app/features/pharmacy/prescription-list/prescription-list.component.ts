@@ -13,6 +13,7 @@ import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatButtonModule } from '@angular/material/button';
 import { PharmacyService } from '@core/services/pharmacy.service';
 import { Prescription, PrescriptionStatus } from '@core/models/prescription.model';
+import { HisHopeDataTableComponent } from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-prescription-list',
@@ -21,6 +22,7 @@ import { Prescription, PrescriptionStatus } from '@core/models/prescription.mode
         CommonModule, RouterModule, ReactiveFormsModule,
         MatTableModule, MatFormFieldModule, MatInputModule, MatIconModule,
         MatSelectModule, MatProgressBarModule, MatPaginatorModule, MatButtonModule,
+        HisHopeDataTableComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
@@ -54,20 +56,9 @@ import { Prescription, PrescriptionStatus } from '@core/models/prescription.mode
         </mat-form-field>
       </div>
 
-      @if (loading) {
-      <div class="loading-shimmer">
-        <mat-progress-bar mode="indeterminate" aria-label="Đang tải"></mat-progress-bar>
-      </div>
-      }
-
-      @if (!loading && prescriptions.length === 0) {
-      <div class="empty-state">
-        <mat-icon class="empty-icon">description</mat-icon>
-        <p>Không tìm thấy đơn thuốc nào.</p>
-      </div>
-      }
-
-      @if (!loading && prescriptions.length > 0) {
+      <hh-data-table label="Danh sách đơn thuốc" [loading]="loading" [error]="error"
+                     [empty]="!loading && !error && prescriptions.length === 0"
+                     emptyMessage="Không tìm thấy đơn thuốc nào." (retry)="loadPrescriptions()">
       <div class="table-container">
         <mat-table [dataSource]="prescriptions" class="mat-elevation-z2">
           <ng-container matColumnDef="id">
@@ -124,13 +115,12 @@ import { Prescription, PrescriptionStatus } from '@core/models/prescription.mode
                    [attr.aria-label]="'Xem chi tiết đơn thuốc ' + row.medicationName"></mat-row>
         </mat-table>
       </div>
-      }
-
       @if (!loading && totalCount > 0) {
       <mat-paginator [length]="totalCount" [pageSize]="pageSize" [pageSizeOptions]="[10, 20, 50]"
                      (page)="onPageChange($event)" [pageIndex]="page - 1" showFirstLastButtons>
       </mat-paginator>
       }
+      </hh-data-table>
     </div>
   `,
     styles: [`
@@ -159,6 +149,7 @@ export class PrescriptionListComponent implements OnInit, OnDestroy {
   page = 1;
   pageSize = 20;
   loading = false;
+  error = '';
   searchControl = new FormControl('');
   statusControl = new FormControl('');
   private searchTerm = '';
@@ -196,6 +187,7 @@ export class PrescriptionListComponent implements OnInit, OnDestroy {
   }
 
   loadPrescriptions(): void {
+    this.error = '';
     this.loading = true;
     this.pharmacyService.searchPrescriptions({
       searchTerm: this.searchTerm,
@@ -212,6 +204,7 @@ export class PrescriptionListComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         },
         error: () => {
+          this.error = 'Không thể tải danh sách đơn thuốc.';
           this.loading = false;
           this.cdr.markForCheck();
         },

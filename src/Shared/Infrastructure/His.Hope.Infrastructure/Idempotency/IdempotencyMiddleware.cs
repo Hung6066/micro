@@ -111,7 +111,9 @@ public class IdempotencyMiddleware
 
         if (existing != null)
         {
-            if (existing.Status == "Processing")
+            if (existing.Status == "Processing" &&
+                existing.ProcessingLeaseExpiresAt is not null &&
+                existing.ProcessingLeaseExpiresAt > DateTime.UtcNow)
             {
                 // First request is still being processed – second concurrent request must wait
                 _logger.LogWarning(
@@ -125,6 +127,22 @@ public class IdempotencyMiddleware
                     """{"error":"Request is still being processed","status":"Processing"}""",
                     Encoding.UTF8);
                 return;
+            }
+
+            if (existing.Status == "Processing")
+            {
+                var reclaimed = await dbContext.IdempotencyKeys
+                    .Where(k => k.IdempotencyKeyValue == idempotencyKey &&
+                                k.Status == "Processing" &&
+                                (k.ProcessingLeaseExpiresAt == null || k.ProcessingLeaseExpiresAt <= DateTime.UtcNow))
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(k => k.ProcessingLeaseExpiresAt, DateTime.UtcNow.AddMinutes(5)));
+                if (reclaimed == 0)
+                {
+                    context.Response.StatusCode = (int)HttpStatusCode.Conflict;
+                    context.Response.Headers["Retry-After"] = "5";
+                    return;
+                }
             }
 
             if (existing.Status == "Completed")
@@ -182,7 +200,8 @@ public class IdempotencyMiddleware
             RequestHash = requestHash,
             Status = "Processing",
             CreatedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddHours(24)
+            ExpiresAt = DateTime.UtcNow.AddHours(24),
+            ProcessingLeaseExpiresAt = DateTime.UtcNow.AddMinutes(5)
         };
 
         dbContext.IdempotencyKeys.Add(record);
@@ -231,6 +250,7 @@ public class IdempotencyMiddleware
             // The downstream pipeline threw – mark the record as Failed so the
             // client can retry with confidence the server state wasn't committed.
             record.Status = "Failed";
+            record.ProcessingLeaseExpiresAt = null;
             record.ResponseStatusCode = 500;
             record.ResponseBody = null;
 
@@ -267,6 +287,7 @@ public class IdempotencyMiddleware
 
         // Update the idempotency record to Completed
         record.Status = "Completed";
+        record.ProcessingLeaseExpiresAt = null;
         record.ResponseStatusCode = context.Response.StatusCode;
         record.ResponseBody = responseBody;
 

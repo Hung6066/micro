@@ -1,8 +1,8 @@
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Domain.Entities;
 using MediatR;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using His.Hope.IdentityService.Application.Interfaces;
 
 namespace His.Hope.IdentityService.Application.UseCases.Users.Queries;
 
@@ -14,22 +14,23 @@ public record GetUsersQuery(
     int PageSize = 20,
     string? Search = null,
     string? Role = null,
-    bool? IsActive = null)
+    bool? IsActive = null,
+    string? Sort = null)
     : IRequest<PagedResult<UserDetailDto>>;
 
 public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, PagedResult<UserDetailDto>>
 {
-    private readonly UserManager<User> _userManager;
+    private readonly IApplicationDbContext _context;
 
-    public GetUsersQueryHandler(UserManager<User> userManager)
+    public GetUsersQueryHandler(IApplicationDbContext context)
     {
-        _userManager = userManager;
+        _context = context;
     }
 
     public async Task<PagedResult<UserDetailDto>> Handle(GetUsersQuery request,
         CancellationToken cancellationToken)
     {
-        IQueryable<User> query = _userManager.Users;
+        IQueryable<User> query = _context.Users.AsNoTracking();
 
         // Apply search filter across name fields
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -49,27 +50,51 @@ public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, PagedResult<U
             query = query.Where(u => u.IsActive == request.IsActive.Value);
         }
 
+        // Resolve the role filter before counting and paging so the API contract
+        // remains truthful for server-side pagination.
+        if (!string.IsNullOrWhiteSpace(request.Role))
+        {
+            var roleName = request.Role.Trim();
+            query = query.Where(user => _context.UserRoles
+                .Where(userRole => userRole.UserId == user.Id)
+                .Join(_context.Roles, userRole => userRole.RoleId, role => role.Id, (_, role) => role.Name)
+                .Any(name => name == roleName));
+        }
+
         // Get total count before pagination
         var totalCount = await query.CountAsync(cancellationToken);
 
-        // Apply pagination
+        var sort = request.Sort?.Split(':', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var descending = sort?.Length > 1 && string.Equals(sort[1], "desc", StringComparison.OrdinalIgnoreCase);
+        query = (sort?.FirstOrDefault()?.ToLowerInvariant(), descending) switch
+        {
+            ("username", false) => query.OrderBy(u => u.UserName),
+            ("username", true) => query.OrderByDescending(u => u.UserName),
+            ("email", false) => query.OrderBy(u => u.Email),
+            ("email", true) => query.OrderByDescending(u => u.Email),
+            ("isactive", false) => query.OrderBy(u => u.IsActive),
+            ("isactive", true) => query.OrderByDescending(u => u.IsActive),
+            ("createdat", false) => query.OrderBy(u => u.CreatedAt),
+            _ => query.OrderByDescending(u => u.CreatedAt)
+        };
+
         var users = await query
-            .OrderByDescending(u => u.CreatedAt)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
             .ToListAsync(cancellationToken);
 
-        // Role filtering done in-memory after pagination for simplicity
-        var userDtos = new List<UserDetailDto>();
-        foreach (var user in users)
-        {
-            var roles = await _userManager.GetRolesAsync(user);
-
-            if (string.IsNullOrWhiteSpace(request.Role) || roles.Contains(request.Role, StringComparer.OrdinalIgnoreCase))
-            {
-                userDtos.Add(MapToDto(user, roles));
-            }
-        }
+        var userIds = users.Select(user => user.Id).ToArray();
+        var roleRows = await _context.UserRoles
+            .Where(userRole => userIds.Contains(userRole.UserId))
+            .Join(_context.Roles, userRole => userRole.RoleId, role => role.Id,
+                (userRole, role) => new { userRole.UserId, RoleName = role.Name! })
+            .ToListAsync(cancellationToken);
+        var rolesByUser = roleRows
+            .GroupBy(row => row.UserId)
+            .ToDictionary(group => group.Key, group => (IList<string>)group.Select(row => row.RoleName).ToList());
+        var userDtos = users
+            .Select(user => MapToDto(user, rolesByUser.GetValueOrDefault(user.Id) ?? Array.Empty<string>()))
+            .ToList();
 
         return new PagedResult<UserDetailDto>(userDtos, totalCount, request.Page, request.PageSize);
     }
@@ -78,5 +103,5 @@ public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, PagedResult<U
         user.Id, user.UserName!, user.Email!, user.PhoneNumber,
         user.FirstName, user.LastName, user.MiddleName,
         user.FullName, user.LicenseNumber, user.Specialty,
-        user.IsActive, user.CreatedAt, user.LastLoginAt, roles);
+        user.IsActive, user.CreatedAt, user.LastLoginAt, roles, user.ConcurrencyStamp);
 }

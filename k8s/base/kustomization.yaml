@@ -27,6 +27,7 @@ resources:
   - frontend.yaml
   - systemdashboard-bff-deployment.yaml
   - systemdashboard-bff-service.yaml
+  - systemdashboard-bff-rbac.yaml
   - dashboard-app-deployment.yaml
   - dashboard-app-service.yaml
   - postgres.yaml

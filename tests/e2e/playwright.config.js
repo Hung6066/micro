@@ -36,5 +36,21 @@ module.exports = defineConfig({
         },
       },
     },
+    {
+      name: 'mobile',
+      use: {
+        ...devices['iPhone 12'],
+        browserName: 'chromium',
+        launchOptions: { args: ['--no-sandbox', '--disable-setuid-sandbox'] },
+      },
+    },
+    {
+      name: 'tablet',
+      use: {
+        ...devices['iPad Mini'],
+        browserName: 'chromium',
+        launchOptions: { args: ['--no-sandbox', '--disable-setuid-sandbox'] },
+      },
+    },
   ],
 });

@@ -1,10 +1,11 @@
 import { Injectable, OnDestroy, NgZone } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, BehaviorSubject, interval, Subject } from 'rxjs';
-import { switchMap, tap, catchError, map, shareReplay, takeUntil, filter, startWith } from 'rxjs/operators';
+import { Observable, BehaviorSubject, interval, Subject, firstValueFrom } from 'rxjs';
+import { switchMap, tap, catchError, map, shareReplay, take, takeUntil, filter, startWith } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { Alert } from '../models/alert.model';
 import * as signalR from '@microsoft/signalr';
+import { AuthService } from './auth.service';
 
 @Injectable({ providedIn: 'root' })
 export class AlertService implements OnDestroy {
@@ -28,14 +29,23 @@ export class AlertService implements OnDestroy {
   private previousAlertKeys = new Set<string>();
   private hubConnection?: signalR.HubConnection;
 
-  constructor(private readonly http: HttpClient, private readonly zone: NgZone) {
+  constructor(
+    private readonly http: HttpClient,
+    private readonly zone: NgZone,
+    private readonly authService: AuthService,
+  ) {
     // Start polling
-    interval(15_000)
+    this.authService.isAuthenticated$
       .pipe(
-        startWith(0),
-        switchMap(() => this.fetchAlerts()),
-        tap(alerts => this.detectNewAlerts(alerts)),
-        catchError(() => []),
+        filter(Boolean),
+        switchMap(() =>
+          interval(15_000).pipe(
+            startWith(0),
+            switchMap(() => this.fetchAlerts()),
+            tap(alerts => this.detectNewAlerts(alerts)),
+            catchError(() => []),
+          ),
+        ),
         takeUntil(this.destroy$),
       )
       .subscribe(alerts => this.activeAlertsSubject.next(alerts));
@@ -49,8 +59,10 @@ export class AlertService implements OnDestroy {
       map(alerts => alerts.filter(a => a.severity === 'warning' && a.status === 'firing').length),
     );
 
-    // Optionally connect via SignalR for real-time updates
-    this.tryConnectSignalR();
+    // Optionally connect via SignalR for real-time updates after OIDC has a token.
+    this.authService.isAuthenticated$
+      .pipe(filter(Boolean), take(1), takeUntil(this.destroy$))
+      .subscribe(() => this.tryConnectSignalR());
   }
 
   private fetchAlerts(): Observable<Alert[]> {
@@ -84,7 +96,10 @@ export class AlertService implements OnDestroy {
   private tryConnectSignalR(): void {
     try {
       this.hubConnection = new signalR.HubConnectionBuilder()
-        .withUrl(this.wsUrl)
+        .withUrl(this.wsUrl, {
+          accessTokenFactory: () => firstValueFrom(this.authService.getAccessToken()),
+          withCredentials: true,
+        })
         .withAutomaticReconnect()
         .build();
 

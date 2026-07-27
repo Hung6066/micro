@@ -1,0 +1,51 @@
+{
+  "name": "@his-hope/mobile-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "prestart": "node -e \"require('fs').rmSync('.angular/cache',{recursive:true,force:true})\"",
+    "start": "ng serve --port 4300",
+    "build": "ng build --configuration production",
+    "test": "ng test --watch=false",
+    "cap:sync": "cap sync",
+    "cap:android": "cap open android",
+    "cap:ios": "cap open ios"
+  },
+  "dependencies": {
+    "@angular/animations": "^21.2.18",
+    "@angular/common": "^21.2.18",
+    "@angular/compiler": "^21.2.18",
+    "@angular/core": "^21.2.18",
+    "@angular/forms": "^21.2.18",
+    "@angular/platform-browser": "^21.2.18",
+    "@angular/platform-browser-dynamic": "^21.2.18",
+    "@angular/router": "^21.2.18",
+    "@aparajita/capacitor-secure-storage": "^7.1.6",
+    "@capacitor/android": "^7.6.8",
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/browser": "^7.0.5",
+    "@capacitor/camera": "^7.0.5",
+    "@capacitor/core": "^7.4.4",
+    "@capacitor/ios": "^7.6.8",
+    "@capacitor/push-notifications": "^7.0.7",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/material-symbols-rounded": "^5.3.1",
+    "@his-hope/frontend-foundation": "1.1.0",
+    "@his-hope/mobile-foundation": "0.1.0",
+    "@types/qrcode": "^1.5.6",
+    "angular-auth-oidc-client": "^19.0.2",
+    "capacitor-native-biometric": "^4.2.2",
+    "material-icons": "^1.13.14",
+    "qrcode": "^1.5.4",
+    "rxjs": "^7.8.1",
+    "tslib": "^2.8.1",
+    "zone.js": "^0.15.1"
+  },
+  "devDependencies": {
+    "@angular-devkit/build-angular": "^21.2.18",
+    "@angular/cli": "^21.2.18",
+    "@angular/compiler-cli": "^21.2.18",
+    "@capacitor/cli": "^7.4.4",
+    "typescript": "^5.9.3"
+  }
+}

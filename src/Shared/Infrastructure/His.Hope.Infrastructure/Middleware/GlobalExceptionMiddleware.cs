@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using FluentValidation;
+using His.Hope.Contracts;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.SharedKernel.Domain.Exceptions;
 using Microsoft.AspNetCore.Http;
@@ -63,6 +64,7 @@ public class GlobalExceptionMiddleware
             instance = context.Request.GetDisplayUrl(),
             traceId = Activity.Current?.TraceId.ToString() ?? "unknown",
             correlationId = CorrelationContext.CurrentId,
+            errorCode = ApiErrorCodes.ForStatus(statusCode),
             timestamp = DateTime.UtcNow.ToString("o")
         };
 

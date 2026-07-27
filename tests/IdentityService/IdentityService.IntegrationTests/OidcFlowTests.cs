@@ -20,6 +20,10 @@ public class OidcFlowTests
     {
         var response = await _client.GetAsync("/.well-known/openid-configuration");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("/connect/revoke", document.RootElement
+            .GetProperty("revocation_endpoint").GetString());
     }
 
     [Fact]

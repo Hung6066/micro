@@ -24,6 +24,12 @@ export interface TokenResponse {
   user: User;
 }
 
+export interface LoginResponse {
+  status: string;
+  userId: string;
+  requiresMfa: boolean;
+}
+
 export interface User {
   id: string;
   username: string;

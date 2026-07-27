@@ -1,6 +1,7 @@
 import { Component, ChangeDetectionStrategy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { Router } from '@angular/router';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatListModule } from '@angular/material/list';
@@ -12,6 +13,7 @@ import { map } from 'rxjs/operators';
 import { AuthService } from './core/services/auth.service';
 import { AlertPanelComponent } from './shared/alert-panel/alert-panel.component';
 import { AlertToastService } from './shared/alert-toast/alert-toast.service';
+import { HisHopeBrandComponent, HisHopeCommandPaletteComponent, HisHopeLanguageSwitcherComponent, HisHopeOfflineBannerComponent, HisHopeThemeService, HisHopeToastComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-root',
@@ -26,14 +28,18 @@ import { AlertToastService } from './shared/alert-toast/alert-toast.service';
     MatButtonModule,
     MatMenuModule,
     AlertPanelComponent,
+    HisHopeBrandComponent,
+    HisHopeCommandPaletteComponent,
+    HisHopeOfflineBannerComponent,
+    HisHopeTranslatePipe,
+    HisHopeLanguageSwitcherComponent,
+    HisHopeToastComponent,
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent {
-  private readonly STORAGE_KEY = 'hishop-dark-mode';
-
   readonly isAuthenticated$: Observable<boolean>;
 
   readonly isMobile$: Observable<boolean>;
@@ -41,14 +47,23 @@ export class AppComponent {
   readonly sidenavOpened$ = new BehaviorSubject<boolean>(true);
 
   private readonly isMobileSubject = new BehaviorSubject<boolean>(window.innerWidth <= 768);
-  private readonly isDarkModeSubject = new BehaviorSubject<boolean>(this.getInitialTheme());
+  private readonly isDarkModeSubject = new BehaviorSubject<boolean>(false);
 
   private readonly alertToast = inject(AlertToastService);
+  private readonly themeService = inject(HisHopeThemeService);
+  private readonly router = inject(Router);
+  paletteOpen = false;
+  readonly commands = [
+    { id: 'resources', label: 'Open resources', keywords: ['services', 'health'] },
+    { id: 'logs', label: 'Open logs', keywords: ['audit'] },
+    { id: 'traces', label: 'Open traces', keywords: ['telemetry'] },
+  ];
 
   constructor(private readonly authService: AuthService) {
     this.isAuthenticated$ = this.authService.isAuthenticated$;
     this.isMobile$ = this.isMobileSubject.asObservable();
     this.isDarkMode$ = this.isDarkModeSubject.asObservable();
+    this.isDarkModeSubject.next(this.themeService.resolvedTheme() === 'dark');
 
     // Listen for viewport width changes
     const mediaQuery = window.matchMedia('(max-width: 768px)');
@@ -60,25 +75,12 @@ export class AppComponent {
     handleChange(mediaQuery);
     mediaQuery.addEventListener('change', handleChange as (e: MediaQueryListEvent) => void);
 
-    // Apply initial theme
-    this.applyTheme(this.isDarkModeSubject.value);
-  }
-
-  private getInitialTheme(): boolean {
-    const stored = localStorage.getItem(this.STORAGE_KEY);
-    if (stored !== null) return stored === 'true';
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
 
   toggleTheme(): void {
     const next = !this.isDarkModeSubject.value;
     this.isDarkModeSubject.next(next);
-    this.applyTheme(next);
-    localStorage.setItem(this.STORAGE_KEY, String(next));
-  }
-
-  private applyTheme(dark: boolean): void {
-    document.body.setAttribute('data-theme', dark ? 'dark' : 'light');
+    this.themeService.setTheme(next ? 'dark' : 'light');
   }
 
   toggleSidenav(): void {
@@ -92,4 +94,6 @@ export class AppComponent {
   onLogin(): void {
     this.authService.login();
   }
+
+  onCommand(id: string): void { this.router.navigate(['/', id]); }
 }
