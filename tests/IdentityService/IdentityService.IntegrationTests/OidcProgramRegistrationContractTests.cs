@@ -8,10 +8,12 @@ public sealed class OidcProgramRegistrationContractTests
     [Fact]
     public void OpenIddictServerRegistration_ExposesRevocationAndSingleUseReferenceRefreshTokens()
     {
-        var program = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "IdentityService.Program.cs"));
+        var registration = File.ReadAllText(Path.Combine(
+            AppContext.BaseDirectory,
+            "IdentityServiceRegistrationExtensions.cs"));
 
-        program.Should().Contain("options.SetRevocationEndpointUris(\"/connect/revoke\")");
-        program.Should().Contain("options.UseReferenceRefreshTokens()");
-        program.Should().Contain("options.SetRefreshTokenReuseLeeway(TimeSpan.Zero)");
+        registration.Should().Contain("options.SetRevocationEndpointUris(\"/connect/revoke\")");
+        registration.Should().Contain("options.UseReferenceRefreshTokens()");
+        registration.Should().Contain("options.SetRefreshTokenReuseLeeway(TimeSpan.Zero)");
     }
 }

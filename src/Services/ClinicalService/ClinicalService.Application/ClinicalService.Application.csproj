@@ -15,5 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ClinicalService.Domain\ClinicalService.Domain.csproj" />
     <ProjectReference Include="..\..\..\Shared\SharedKernel\Src\His.Hope.SharedKernel\His.Hope.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Contracts\His.Hope.Contracts\His.Hope.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Validation\His.Hope.Validation\His.Hope.Validation.csproj" />
     </ItemGroup>
 </Project>

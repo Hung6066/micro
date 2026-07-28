@@ -18,6 +18,8 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<SecurityEvent> SecurityEvents => Set<SecurityEvent>();
     public DbSet<ClientConsent> ClientConsents => Set<ClientConsent>();
     public DbSet<TableView> TableViews => Set<TableView>();
+    public DbSet<MobileDeviceRegistration> MobileDeviceRegistrations => Set<MobileDeviceRegistration>();
+    public DbSet<MobileTelemetryEvent> MobileTelemetryEvents => Set<MobileTelemetryEvent>();
 
     // OpenIddict entity sets — need BOTH non-generic (store uses these) and generic <Guid> (EF model)
     // Non-generic sets are for OpenIddict 5.7.0 EF Core store access
@@ -250,6 +252,34 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(view => view.Name).HasMaxLength(80).IsRequired();
             entity.Property(view => view.PayloadJson).HasMaxLength(65536).IsRequired();
             entity.HasIndex(view => new { view.UserId, view.Resource, view.Name }).IsUnique();
+        });
+
+        builder.Entity<MobileDeviceRegistration>(entity =>
+        {
+            entity.ToTable("mobile_device_registrations");
+            entity.HasKey(device => device.Id);
+            entity.Property(device => device.UserId).HasMaxLength(200).IsRequired();
+            entity.Property(device => device.Platform).HasMaxLength(20).IsRequired();
+            entity.Property(device => device.TokenHash).HasMaxLength(128).IsRequired();
+            entity.Property(device => device.TokenCiphertext).HasMaxLength(8192).IsRequired();
+            entity.HasIndex(device => new { device.UserId, device.Platform, device.TokenHash }).IsUnique();
+            entity.HasIndex(device => new { device.UserId, device.RevokedAt });
+        });
+
+        builder.Entity<MobileTelemetryEvent>(entity =>
+        {
+            entity.ToTable("mobile_telemetry_events");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.EventType).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.Name).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.Message).HasMaxLength(2000);
+            entity.Property(item => item.Stack).HasMaxLength(8000);
+            entity.Property(item => item.Route).HasMaxLength(500);
+            entity.Property(item => item.AppVersion).HasMaxLength(50).IsRequired();
+            entity.Property(item => item.Platform).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.MetadataJson).HasMaxLength(8000);
+            entity.Property(item => item.CorrelationId).HasMaxLength(128);
+            entity.HasIndex(item => new { item.EventType, item.CreatedAt });
         });
 
         // Configure OpenIddict tables (snake_case naming)

@@ -1,4 +1,9 @@
-import { resolveMobileApiOrigin, resolveMobileRedirectUri } from '../app/core/mobile-runtime';
+import {
+  resolveMobileApiOrigin,
+  resolveMobileRedirectUri,
+  resolveMobileSentryDsn,
+  resolveMobileSentryEnvironment,
+} from '../app/core/mobile-runtime';
 
 const apiOrigin = resolveMobileApiOrigin();
 
@@ -12,5 +17,16 @@ redirectUrl: resolveMobileRedirectUri('/auth/callback'),
 postLogoutRedirectUri: resolveMobileRedirectUri('/auth/logout-callback'),
     scope: 'openid profile email roles hishop:permissions offline_access',
     secureRoutes: ['/api/v1/'],
+  },
+  appVersion: '0.1.0',
+  // Configure the GlitchTip project DSN through the release environment.
+  sentryDsn: resolveMobileSentryDsn(''),
+  sentryEnvironment: resolveMobileSentryEnvironment('development'),
+  // Local emulator builds do not ship google-services.json. Calling the
+  // Capacitor push plugin without Firebase initialization terminates the app.
+  pushNotificationsEnabled: false,
+  security: {
+    // Release builds must replace these with the production SPKI hashes.
+    certificatePins: [{ host: 'api.his-hope.example', sha256Spki: 'sha256/REPLACE_IN_RELEASE' }],
   },
 };

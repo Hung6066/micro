@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+ (API 31) backup/transfer rules. Secure storage (Keystore) is
+     excluded from OS backups by the platform already; this excludes everything
+     else too since the app has no user data worth restoring outside the account. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+    </device-transfer>
+</data-extraction-rules>

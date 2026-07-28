@@ -15,7 +15,9 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="..\..\AspNetCore\His.Hope.AspNetCore\His.Hope.AspNetCore.csproj" />
     <ProjectReference Include="..\..\Observability\His.Hope.Observability\His.Hope.Observability.csproj" />
-    </ItemGroup>
+    <ProjectReference Include="..\..\Resilience\His.Hope.Resilience\His.Hope.Resilience.csproj" />
+    <ProjectReference Include="..\..\Validation\His.Hope.Validation\His.Hope.Validation.csproj" />
+  </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
   </ItemGroup>

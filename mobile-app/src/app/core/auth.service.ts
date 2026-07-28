@@ -1,15 +1,19 @@
+import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { BehaviorSubject, Observable, catchError, filter, map, of, take, tap } from 'rxjs';
 import { NativeCapabilityService } from './native-capability.service';
+import { environment } from '../../environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class MobileAuthService {
   private readonly oidc = inject(OidcSecurityService);
+  private readonly http = inject(HttpClient);
   private readonly native = inject(NativeCapabilityService);
   readonly isAuthenticated$ = this.oidc.isAuthenticated$.pipe(map(state => state.isAuthenticated));
   readonly userData$ = this.oidc.userData$;
   readonly loginError = signal('');
+  readonly loginInProgress = signal(false);
   private readonly authState = new BehaviorSubject<boolean | null>(null);
   private callbackInProgress = false;
 
@@ -36,10 +40,10 @@ export class MobileAuthService {
     );
   }
 
-  completeCallback(): Observable<boolean> {
+  completeCallback(callbackUrl?: string): Observable<boolean> {
     this.callbackInProgress = true;
-    const callbackUrl = this.native.consumeAuthCallbackUrl();
-    return this.oidc.checkAuth(callbackUrl ?? undefined).pipe(
+    const nativeCallbackUrl = this.native.consumeAuthCallbackUrl();
+    return this.oidc.checkAuth(callbackUrl ?? nativeCallbackUrl ?? undefined).pipe(
       map(result => result.isAuthenticated),
       tap(isAuthenticated => {
         this.callbackInProgress = false;
@@ -54,16 +58,31 @@ export class MobileAuthService {
     );
   }
   login(): void {
+    if (this.loginInProgress()) return;
     this.loginError.set('');
+    this.loginInProgress.set(true);
     // authorize() loads discovery before creating the PKCE URL. This is
     // required on a cold native start where no discovery is cached yet.
-    try {
-      this.oidc.authorize(undefined, {
-        urlHandler: url => { void this.native.openAuthBrowser(url); },
-      });
-    } catch (error) {
-      this.loginError.set(this.describeError(error, 'Unable to reach the identity service.'));
-    }
+    // The OIDC library subscribes internally and exposes no error callback;
+    // preflight discovery here so network/CORS failures become actionable UI.
+    this.http.get(`${environment.oidc.authority}/.well-known/openid-configuration`).pipe(
+      take(1),
+      catchError(error => {
+        this.loginInProgress.set(false);
+        this.loginError.set(this.describeError(error, 'Unable to reach the identity service.'));
+        return of(null);
+      }),
+    ).subscribe(discovery => {
+      if (!discovery) return;
+      try {
+        this.oidc.authorize(undefined, {
+          urlHandler: url => { void this.native.openAuthBrowser(url); },
+        });
+      } catch (error) {
+        this.loginInProgress.set(false);
+        this.loginError.set(this.describeError(error, 'Unable to start secure sign-in.'));
+      }
+    });
   }
   async unlockWithBiometric(): Promise<boolean> { return this.native.authenticateBiometric(); }
   logout(): void { void this.native.secureRemove('his-hope.mobile.session'); this.oidc.logoff().subscribe(); }

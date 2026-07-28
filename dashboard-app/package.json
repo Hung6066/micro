@@ -6,7 +6,8 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "lint": "ng lint"
   },
   "private": true,
   "dependencies": {
@@ -34,6 +35,10 @@
     "@angular-devkit/build-angular": "^21.2.18",
     "@angular/cli": "^21.2.18",
     "@angular/compiler-cli": "^21.2.18",
+    "@angular-eslint/builder": "^21.0.0",
+    "angular-eslint": "^21.0.0",
+    "eslint": "^9.17.0",
+    "typescript-eslint": "^8.18.0",
     "@types/jasmine": "~5.1.0",
     "jasmine-core": "~5.6.0",
     "karma": "~6.4.0",

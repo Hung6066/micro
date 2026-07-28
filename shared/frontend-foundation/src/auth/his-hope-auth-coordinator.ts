@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { EMPTY, Observable, ReplaySubject, of, timer } from 'rxjs';
 import { catchError, exhaustMap, finalize, map, switchMap, take, tap } from 'rxjs/operators';
@@ -187,7 +187,15 @@ export class HisHopeAuthCoordinator {
   private exchangeBffSession(): Observable<void> {
     return this.http.post<void>(this.sessionExchangeUrl, {}, { withCredentials: true }).pipe(
       map(() => void 0),
-      catchError(() => of(void 0)),
+      catchError((error: unknown) => {
+        // A restarted Identity service can invalidate development tokens (or
+        // a revoked session can reach this path). Never leave the UI marked
+        // authenticated while every API request is guaranteed to return 401.
+        if (error instanceof HttpErrorResponse && error.status === 401) {
+          this.forceLocalLogout();
+        }
+        return of(void 0);
+      }),
     );
   }
 

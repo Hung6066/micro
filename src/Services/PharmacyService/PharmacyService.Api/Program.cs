@@ -58,9 +58,6 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
     "pharmacy-service",
     builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379"));
 
-// TEMP: Replace Redis cache with a no-op cache to avoid StackExchange.Redis hang
-builder.Services.AddSingleton<ICacheService>(new NoOpCacheService());
-
 builder.Services.AddOutbox<PharmacyDbContext>();
 
 builder.Services.AddGrpc(options =>
@@ -115,9 +112,11 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
-// Auto-create database on startup
-using (var scope = app.Services.CreateScope())
+// Development-only convenience for a local empty database. Production schema is
+// owned by the external CockroachDB migration workflow.
+if (app.Environment.IsDevelopment())
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<PharmacyDbContext>();
     db.Database.EnsureCreated();
     // Existing local databases may predate the durable outbox fields and
@@ -487,13 +486,5 @@ public record CreatePrescriptionRequest(
 
 public record CancelPrescriptionRequest(string Reason);
 
-file sealed class NoOpCacheService : ICacheService
-{
-    public Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class => Task.FromResult<T?>(null);
-    public Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => factory();
-    public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => Task.CompletedTask;
-    public Task RemoveAsync(string key, CancellationToken ct = default) => Task.CompletedTask;
-    public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default) => Task.CompletedTask;
-}
 
 

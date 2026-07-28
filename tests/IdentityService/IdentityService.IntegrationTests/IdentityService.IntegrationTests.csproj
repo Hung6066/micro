@@ -28,6 +28,9 @@
     <Content Include="..\..\..\src\Services\IdentityService\IdentityService.Api\Program.cs"
              Link="IdentityService.Program.cs"
              CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\..\src\Services\IdentityService\IdentityService.Api\Composition\IdentityServiceRegistrationExtensions.cs"
+             Link="IdentityServiceRegistrationExtensions.cs"
+             CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\..\src\Services\IdentityService\IdentityService.Api\appsettings.Production.json"
              Link="IdentityService.appsettings.Production.json"
              CopyToOutputDirectory="PreserveNewest" />

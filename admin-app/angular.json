@@ -36,7 +36,7 @@
                 }
               ],
               "budgets": [
-                { "type": "initial", "maximumWarning": "1.5MB", "maximumError": "2MB" },
+                { "type": "initial", "maximumWarning": "700kB", "maximumError": "1MB" },
                 { "type": "anyComponentStyle", "maximumWarning": "8kB", "maximumError": "16kB" }
               ],
               "outputHashing": "all"
@@ -70,6 +70,10 @@
             "styles": ["src/styles.scss"],
             "scripts": []
           }
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {}
         }
       }
     }

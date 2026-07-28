@@ -1,0 +1,42 @@
+name: Mobile Release Gate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-mobile-release:
+    name: Prepare, validate and build mobile release
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Prepare production mobile configuration
+        env:
+          HISHOPE_API_HOST: ${{ secrets.HISHOPE_API_HOST }}
+          HISHOPE_API_ORIGIN: ${{ secrets.HISHOPE_API_ORIGIN }}
+          HISHOPE_API_SPKI: ${{ secrets.HISHOPE_API_SPKI }}
+        run: npm run prepare:mobile-release
+
+      - name: Validate production mobile configuration
+        run: npm run validate:mobile-release
+
+      - name: Build mobile web artifact
+        run: npm --workspace @his-hope/mobile-app run build
+
+      - name: Upload mobile web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: his-hope-mobile-web
+          path: mobile-app/dist/mobile-app

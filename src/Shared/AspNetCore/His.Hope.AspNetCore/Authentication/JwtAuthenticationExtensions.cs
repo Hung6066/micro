@@ -13,6 +13,7 @@ public sealed class JwtAuthenticationOptions
     public string? Key { get; set; }
     public string? Authority { get; set; }
     public string? MetadataAddress { get; set; }
+    public string? PublicKeyPath { get; set; }
     public string? Issuer { get; set; }
     public string[] ValidIssuers { get; set; } = [];
     public string? Audience { get; set; }
@@ -33,6 +34,7 @@ public static class JwtAuthenticationExtensions
             Key = configuration["Jwt:Key"],
             Authority = configuration["Jwt:Authority"],
             MetadataAddress = configuration["Jwt:MetadataAddress"],
+            PublicKeyPath = configuration["Jwt:RsaPublicKeyPath"],
             Issuer = configuration["Jwt:Issuer"],
             ValidIssuers = configuration.GetSection("Jwt:ValidIssuers").Get<string[]>() ?? [],
             Audience = configuration["Jwt:Audience"],
@@ -100,8 +102,9 @@ public static class JwtAuthenticationExtensions
         };
     }
 
-    private static TokenValidationParameters CreateOidcValidationParameters(JwtAuthenticationOptions settings) =>
-        new()
+    private static TokenValidationParameters CreateOidcValidationParameters(JwtAuthenticationOptions settings)
+    {
+        var parameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
             ValidateAudience = true,
@@ -117,6 +120,16 @@ public static class JwtAuthenticationExtensions
             ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
             ClockSkew = TimeSpan.FromMinutes(Math.Max(0, settings.ClockSkewMinutes))
         };
+
+        if (!string.IsNullOrWhiteSpace(settings.PublicKeyPath) && File.Exists(settings.PublicKeyPath))
+        {
+            var rsa = RSA.Create();
+            rsa.ImportFromPem(File.ReadAllText(settings.PublicKeyPath));
+            parameters.IssuerSigningKey = new RsaSecurityKey(rsa);
+        }
+
+        return parameters;
+    }
 
     private static TokenValidationParameters CreateSymmetricValidationParameters(JwtAuthenticationOptions settings) =>
         new()

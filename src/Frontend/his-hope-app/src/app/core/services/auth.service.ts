@@ -215,7 +215,14 @@ export class AuthService {
   }
 
   getAccessToken(): Observable<string> {
-    return this.authCoordinator.getAccessToken();
+    // API requests and SignalR can start while the OIDC callback is still
+    // being processed. Waiting for checkAuth prevents an empty token from
+    // being sent during that short window and falling back to a legacy BFF
+    // session token with a different signing contract.
+    return this.checkAuth().pipe(
+      take(1),
+      switchMap(() => this.authCoordinator.getAccessToken()),
+    );
   }
 
   getUserData(): Observable<any> {

@@ -29,6 +29,8 @@
     "build": "ng-packagr -p ng-package.json",
     "prepare": "npm run build",
     "pack:check": "npm pack --dry-run",
+    "test": "ng test",
+    "lint": "ng lint",
     "release:check": "npm run build && npm run pack:check && npm run build-storybook"
   },
   "files": [
@@ -46,6 +48,7 @@
   "devDependencies": {
     "@angular-devkit/architect": "^0.2102.18",
     "@angular-devkit/build-angular": "^21.2.18",
+    "@angular-eslint/builder": "^21.4.0",
     "@angular/cli": "^21.2.18",
     "@angular/common": "^21.2.18",
     "@angular/compiler": "^21.2.18",
@@ -58,11 +61,14 @@
     "@storybook/addon-a11y": "^10.5.4",
     "@storybook/angular": "^10.5.4",
     "angular-auth-oidc-client": "^19.0.2",
+    "angular-eslint": "^21.4.0",
+    "eslint": "^9.39.5",
+    "ng-packagr": "^21.2.0",
     "rxjs": "^7.8.1",
     "storybook": "^10.5.4",
-    "ng-packagr": "^21.2.0",
     "tslib": "^2.8.1",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.65.0",
     "zone.js": "^0.15.1"
   }
 }

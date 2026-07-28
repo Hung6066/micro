@@ -19,5 +19,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />
+    <ProjectReference Include="..\..\Contracts\His.Hope.Contracts\His.Hope.Contracts.csproj" />
   </ItemGroup>
 </Project>

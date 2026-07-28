@@ -1,12 +1,16 @@
-import type { CapacitorConfig } from '@capacitor/cli';
+import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
-  appId: 'com.hishope.mobile',
-  appName: 'His.Hope Mobile',
-  webDir: 'dist/mobile-app/browser',
+  appId: "com.hishope.mobile",
+  appName: "His.Hope Mobile",
+  webDir: "dist/mobile-app/browser",
   bundledWebRuntime: false,
-  // Local Identity Service runs on HTTP. Set CAPACITOR_ANDROID_SCHEME=https in production CI.
-  server: { androidScheme: process.env['CAPACITOR_ANDROID_SCHEME'] === 'https' ? 'https' : 'http' },
+  // Default to https; set CAPACITOR_ANDROID_SCHEME=http only for local emulator
+  // debugging against a plain-HTTP dev backend.
+  server: {
+    androidScheme:
+      process.env["CAPACITOR_ANDROID_SCHEME"] === "http" ? "http" : "https",
+  },
 };
 
 export default config;

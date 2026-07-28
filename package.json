@@ -18,7 +18,16 @@
     "validate:foundation": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-shared-foundation.ps1",
     "lint:design-tokens": "node scripts/validate-design-tokens.mjs",
     "policy:gate": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-his-hope-policy.ps1 -Ci",
-    "hooks:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-git-hooks.ps1"
+    "validate:mobile-release": "node scripts/validate-mobile-release.mjs",
+    "prepare:mobile-release": "node scripts/prepare-mobile-release.mjs",
+    "hooks:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-git-hooks.ps1",
+    "lint:foundation": "npm --workspace @his-hope/frontend-foundation run lint",
+    "lint:mobile-foundation": "npm --workspace @his-hope/mobile-foundation run lint",
+    "lint:admin": "npm --workspace admin-app run lint",
+    "lint:dashboard": "npm --workspace dashboard-app run lint",
+    "lint:mobile": "npm --workspace @his-hope/mobile-app run lint",
+    "lint": "npm run lint:foundation && npm run lint:mobile-foundation && npm run lint:admin && npm run lint:dashboard && npm run lint:mobile",
+    "test:mobile-foundation": "npm --workspace @his-hope/mobile-foundation run test"
   },
   "devDependencies": {
     "@angular/localize": "^21.2.18"

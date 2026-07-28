@@ -1,14 +1,15 @@
-import { inject } from '@angular/core';
-import { AuthService } from '../services/auth.service';
-import { OidcSecurityService } from 'angular-auth-oidc-client';
-import { filter, switchMap, tap } from 'rxjs/operators';
+import { inject } from "@angular/core";
+import { Router, UrlTree } from "@angular/router";
+import { Observable, map, switchMap } from "rxjs";
+import { AuthService } from "../services/auth.service";
 
-export const authGuard = () => {
+// Must resolve to true|UrlTree on every path — a guard observable that never
+// emits for the unauthenticated case leaves the router navigation hanging.
+export const authGuard = (): Observable<boolean | UrlTree> => {
   const authService = inject(AuthService);
-  const oidcSecurityService = inject(OidcSecurityService);
+  const router = inject(Router);
   return authService.checkAuth().pipe(
     switchMap(() => authService.isAuthenticated$),
-    tap(isAuth => { if (!isAuth) oidcSecurityService.authorize(); }),
-    filter(isAuth => isAuth),
+    map((isAuth) => (isAuth ? true : router.parseUrl("/auth/login"))),
   );
 };

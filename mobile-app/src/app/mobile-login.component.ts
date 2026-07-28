@@ -14,7 +14,9 @@ import { MobileAuthService } from './core/auth.service';
         <h1 id="mobile-login-title">Clinical access, protected.</h1>
         <p>Sign in with your hospital account to continue.</p>
         @if (auth.loginError(); as message) { <p class="mobile-auth__error" role="alert">{{ message }}</p> }
-        <button class="hh-button hh-button--primary" type="button" (click)="login()">Sign in securely</button>
+        <button class="hh-button hh-button--primary" type="button" [disabled]="auth.loginInProgress()" (click)="login()">
+          {{ auth.loginInProgress() ? 'Connecting securely...' : 'Sign in securely' }}
+        </button>
       </section>
     </main>
   `,

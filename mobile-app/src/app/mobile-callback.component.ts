@@ -1,5 +1,5 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { HisHopeStateComponent } from '@his-hope/frontend-foundation';
 import { catchError, of, take } from 'rxjs';
 import { MobileAuthService } from './core/auth.service';
@@ -22,11 +22,23 @@ import { MobileAuthService } from './core/auth.service';
 })
 export class MobileCallbackComponent implements OnInit {
   private readonly auth = inject(MobileAuthService);
+  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   readonly status = signal<'loading' | 'success' | 'error'>('loading');
 
   ngOnInit(): void {
-    this.auth.completeCallback().pipe(
+    // Native deep-link delivery and Angular navigation are separate async
+    // operations. If the in-memory handoff was consumed during a cold start,
+    // reconstruct the registered custom-scheme callback from route params.
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries(this.route.snapshot.queryParams)) {
+      query.set(key, value);
+    }
+    const callbackUrl = query.toString()
+      ? `hishope://auth/callback?${query.toString()}`
+      : undefined;
+
+    this.auth.completeCallback(callbackUrl).pipe(
       take(1),
       catchError(() => of(false)),
     ).subscribe(isAuthenticated => {
@@ -35,7 +47,7 @@ export class MobileCallbackComponent implements OnInit {
         return;
       }
       this.status.set('success');
-      setTimeout(() => void this.router.navigateByUrl('/admin/dashboard'), 450);
+      setTimeout(() => void this.router.navigateByUrl('/admin/dashboard', { replaceUrl: true }), 450);
     });
   }
 }

@@ -44,7 +44,10 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
             throw new InvalidOperationException("Production signing requires a persistent RSA key supplied by Vault Agent/KMS at OpenIddict:Signing:PrivateKeyPath.");
 
         var version = Interlocked.Increment(ref _keyVersion);
-        var keyId = string.Format(KeyIdFormat, _useVault ? "vault" : "dev", _keyName, version);
+        // The public JWKS endpoint must expose the same key id as OpenIddict.
+        // Keeping a second, synthetic id here makes clients receive a key set
+        // that cannot validate the access tokens issued by the server.
+        var keyId = config["OpenIddict:Signing:KeyId"] ?? "jwt-signing";
         var rsa = RSA.Create();
         if (!string.IsNullOrWhiteSpace(signingPath) && File.Exists(signingPath))
             rsa.ImportFromPem(File.ReadAllText(signingPath));

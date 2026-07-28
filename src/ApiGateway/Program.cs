@@ -134,6 +134,35 @@ app.UseCors();  // Must be after UseSecurityHeaders, before UseRateLimiter
 app.UseRateLimiter();
 app.UseSerilogRequestLogging();
 
+// YARP forwards OIDC responses from the container network. Rewrite absolute
+// IdentityService redirects to the public gateway origin before they reach a
+// browser; Docker hostnames must never be exposed to SPA clients.
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.StartsWithSegments("/connect") ||
+        context.Request.Path.StartsWithSegments("/Account"))
+    {
+        context.Response.OnStarting(() =>
+        {
+            if (context.Response.Headers.TryGetValue("Location", out var location))
+            {
+                var publicOrigin = $"{context.Request.Scheme}://{context.Request.Host}".TrimEnd('/');
+                context.Response.Headers.Location = location.ToString()
+                    .Replace("http://identityservice:5001", publicOrigin, StringComparison.OrdinalIgnoreCase)
+                    .Replace("http://identityservice:5000", publicOrigin, StringComparison.OrdinalIgnoreCase)
+                    // OpenIddict uses its configured issuer when creating the
+                    // login redirect. Keep the host selected by the caller so
+                    // native clients do not receive a localhost URL.
+                    .Replace("http://localhost:5000", publicOrigin, StringComparison.OrdinalIgnoreCase);
+            }
+
+            return Task.CompletedTask;
+        });
+    }
+
+    await next();
+});
+
 // QoS: Resolve X-Priority header (P0–P4, default P1) and store in HttpContext.Items
 app.UsePriorityHeader();
 
@@ -156,6 +185,7 @@ app.Use(async (context, next) =>
         context.Request.Path.StartsWithSegments("/api/v1/audit") ||
         context.Request.Path.Equals("/api/v1/auth/me") ||
         context.Request.Path.Equals("/api/v1/auth/check-permission") ||
+        context.Request.Path.Equals("/api/v1/auth/session/exchange") ||
         context.Request.Path.Equals("/api/v1/auth/session-status");
 
     var hasSessionCookie = context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
@@ -169,7 +199,8 @@ app.Use(async (context, next) =>
     {
         context.Request.Headers.Remove("Authorization");
     }
-    else if (hasSessionCookie)
+    else if (hasSessionCookie &&
+             !context.Request.Headers.ContainsKey("Authorization"))
     {
         var redis = context.RequestServices.GetRequiredService<IConnectionMultiplexer>();
         var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
@@ -179,9 +210,10 @@ app.Use(async (context, next) =>
             if (document.RootElement.TryGetProperty("Jwt", out var jwtElement) &&
                 !string.IsNullOrWhiteSpace(jwtElement.GetString()))
             {
-                // The BFF session is the authoritative browser session. It
-                // prevents an expired OIDC token in local storage from
-                // shadowing a valid server-side session on domain APIs.
+                // Use the server session only when the caller did not provide
+                // an OIDC bearer token. A valid bearer must pass through to
+                // downstream services; replacing it with the legacy BFF JWT
+                // makes OIDC-signed requests fail at service boundaries.
                 context.Request.Headers.Authorization =
                     $"Bearer {jwtElement.GetString()}";
             }

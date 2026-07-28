@@ -25,6 +25,13 @@ using Microsoft.AspNetCore.Http;
 public sealed class FixDiscoveryBaseUriHandler
     : IOpenIddictServerHandler<OpenIddictServerEvents.HandleConfigurationRequestContext>
 {
+    private readonly IConfiguration _configuration;
+
+    public FixDiscoveryBaseUriHandler(IConfiguration configuration)
+    {
+        _configuration = configuration;
+    }
+
     /// <summary>
     /// Gets the default descriptor definition assigned to this handler.
     /// </summary>
@@ -63,7 +70,11 @@ public sealed class FixDiscoveryBaseUriHandler
             forwardedHosts.Count <= 0 ||
             string.IsNullOrEmpty(forwardedHosts[0]))
         {
-            // No X-Forwarded-Host header — nothing to fix.
+            var issuer = _configuration["OpenIddict:Issuer"];
+            if (Uri.TryCreate(issuer, UriKind.Absolute, out var issuerUri))
+            {
+                context.BaseUri = new Uri($"{issuerUri.Scheme}://{issuerUri.Authority}{request.PathBase}", UriKind.Absolute);
+            }
             return default;
         }
 

@@ -99,6 +99,7 @@ skills-lock.json
 *.cert
 *.key
 !docker/dev-certs/
+.runtime/
 
 ## Proto generated code
 **/Protos/Generated/
