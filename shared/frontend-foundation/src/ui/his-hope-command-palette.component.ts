@@ -1,24 +1,26 @@
 import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, Output, ViewChild, effect, input, signal } from '@angular/core';
+import { HisHopeTranslatePipe } from '../i18n/his-hope-translate.pipe';
 
 export interface HisHopeCommand { id: string; label: string; description?: string; keywords?: string[]; disabled?: boolean; }
 
 @Component({
   selector: 'hh-command-palette',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (open()) {
       <div class="hh-command-backdrop" (click)="close()"></div>
        <section #panel class="hh-command" role="dialog" aria-modal="true" [attr.aria-labelledby]="titleId">
-         <h2 [id]="titleId" class="hh-visually-hidden">Command palette</h2>
-        <input #queryInput type="search" [value]="query()" (input)="query.set($any($event.target).value)" placeholder="Search commands..." aria-label="Search commands" autofocus />
-        <div role="listbox" aria-label="Commands">
+         <h2 [id]="titleId" class="hh-visually-hidden">{{ 'common.commandPalette' | hhTranslate }}</h2>
+        <input #queryInput type="search" [value]="query()" (input)="query.set($any($event.target).value)" [placeholder]="'common.searchCommands' | hhTranslate" [attr.aria-label]="'common.searchCommands' | hhTranslate" autofocus />
+        <div role="listbox" [attr.aria-label]="'common.commands' | hhTranslate">
           @for (command of filteredCommands(); track command.id) {
             <button type="button" role="option" [disabled]="command.disabled" (click)="choose(command)">
               <strong>{{ command.label }}</strong>
               @if (command.description) { <small>{{ command.description }}</small> }
             </button>
-          } @empty { <p class="hh-command__empty">No commands found.</p> }
+          } @empty { <p class="hh-command__empty">{{ 'common.noCommands' | hhTranslate }}</p> }
         </div>
       </section>
     }

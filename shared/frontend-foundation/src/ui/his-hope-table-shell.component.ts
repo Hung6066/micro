@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { HisHopeTranslatePipe } from '../i18n/his-hope-translate.pipe';
 
 @Component({
   selector: 'hh-table-shell',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="hh-table-shell" [attr.aria-label]="label()">
+    <section class="hh-table-shell" [attr.aria-label]="label() | hhTranslate">
       <div class="hh-table-shell__content"><ng-content /></div>
     </section>
   `,
@@ -25,5 +27,5 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   `],
 })
 export class HisHopeTableShellComponent {
-  readonly label = input('Data table');
+  readonly label = input('common.dataTable');
 }

@@ -6,6 +6,7 @@ import { HostListener } from '@angular/core';
 import { HisHopeBulkAction, HisHopeBulkActionRequest, HisHopeBulkJob, HisHopeConflictResolution, HisHopeFilterGroup, HisHopeFilterOperator, HisHopePageQuery, HisHopeSort, HisHopeTableAnalysisRequest, HisHopeTableEditConflict, HisHopeTableEditSaveRequest, HisHopeTableEditState, HisHopeTableEditor, HisHopeTableEditorOption, HisHopeTableExportFormat, HisHopeTableExportRequest, HisHopeTableImportRequest, HisHopeTableSelectionScope, HisHopeTableSelectionState } from '../contracts/his-hope-ui-contracts';
 import { HisHopeTableEditorComponent } from './his-hope-table-editor.component';
 import { HisHopeStatusBadgeComponent } from './his-hope-status-badge.component';
+import { HisHopeTranslatePipe } from '../i18n/his-hope-translate.pipe';
 
 export type HisHopeDataTableDensity = 'comfortable' | 'compact';
 export type HisHopeDataTableSortDirection = 'asc' | 'desc';
@@ -95,13 +96,13 @@ export class HisHopeDataTableCellDirective {
 @Component({
   selector: 'hh-data-table',
   standalone: true,
-  imports: [CommonModule, HisHopeTableEditorComponent, HisHopeStatusBadgeComponent],
+  imports: [CommonModule, HisHopeTableEditorComponent, HisHopeStatusBadgeComponent, HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="hh-data-table" [class.hh-data-table--compact]="density() === 'compact'"
              [class.hh-data-table--mobile-list]="mobilePresentation() !== 'table'"
              [class.hh-data-table--sticky-header]="stickyHeader()" [class.hh-data-table--sticky-footer]="stickyFooter()"
-             [attr.aria-label]="label()" [attr.aria-busy]="loading()">
+             [attr.aria-label]="label() | hhTranslate" [attr.aria-busy]="loading()">
       @if (loading() && !rows().length) {
         <div class="hh-data-table__state" role="status" aria-live="polite">
           <div class="hh-data-table__skeleton-list" aria-hidden="true">
@@ -109,23 +110,23 @@ export class HisHopeDataTableCellDirective {
               <div class="hh-data-table__skeleton-item"><span></span><span></span><span></span></div>
             }
           </div>
-          <p>{{ loadingMessage() }}</p>
+          <p>{{ loadingMessage() | hhTranslate }}</p>
         </div>
       } @else if (error() && !rows().length) {
         <div class="hh-data-table__state hh-data-table__state--error" role="alert">
           <span class="material-icons" aria-hidden="true">error_outline</span>
           <p>{{ error() }}</p>
-          <button type="button" class="hh-button hh-button--secondary" (click)="retry.emit()">{{ retryLabel() }}</button>
+          <button type="button" class="hh-button hh-button--secondary" (click)="retry.emit()">{{ retryLabel() | hhTranslate }}</button>
         </div>
       } @else if (configuredColumns().length > 0) {
-        @if (error() && rows().length) { <div class="hh-data-table__stale-error" role="alert"><span class="material-icons" aria-hidden="true">error_outline</span><span>{{ error() }}</span><button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="retry.emit()">Retry</button></div> }
-        @if (loading()) { <div class="hh-data-table__loading-overlay" role="status" aria-live="polite"><span class="hh-spinner" aria-hidden="true"></span>{{ loadingMessage() }}</div> }
+        @if (error() && rows().length) { <div class="hh-data-table__stale-error" role="alert"><span class="material-icons" aria-hidden="true">error_outline</span><span>{{ error() | hhTranslate }}</span><button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="retry.emit()">{{ 'common.retry' | hhTranslate }}</button></div> }
+        @if (loading()) { <div class="hh-data-table__loading-overlay" role="status" aria-live="polite"><span class="hh-spinner" aria-hidden="true"></span>{{ loadingMessage() | hhTranslate }}</div> }
         <div class="hh-data-table__toolbar">
           @if (searchable()) {
             <div class="hh-data-table__search" role="search">
               <span class="material-icons" aria-hidden="true">search</span>
-              <input type="search" [value]="searchValue()" [placeholder]="searchPlaceholder()" [attr.aria-label]="searchPlaceholder()" (input)="onSearchInput($event)" />
-              @if (searchValue()) { <button type="button" class="hh-icon-button" aria-label="Clear search" title="Clear search" (click)="clearSearch()"><span class="material-icons" aria-hidden="true">close</span></button> }
+              <input type="search" [value]="searchValue()" [placeholder]="searchPlaceholder() | hhTranslate" [attr.aria-label]="searchPlaceholder() | hhTranslate" (input)="onSearchInput($event)" />
+              @if (searchValue()) { <button type="button" class="hh-icon-button" [attr.aria-label]="'common.clearSearch' | hhTranslate" [attr.title]="'common.clearSearch' | hhTranslate" (click)="clearSearch()"><span class="material-icons" aria-hidden="true">close</span></button> }
             </div>
           }
           <span class="hh-data-table__selection" aria-live="polite">{{ selectionCount() }} selected</span>
@@ -139,11 +140,11 @@ export class HisHopeDataTableCellDirective {
           }
           @if (exportable()) {
             <label class="hh-data-table__export">Export as
-              <select [value]="exportFormat()" (change)="changeExportFormat($event)" aria-label="Export format">
+              <select [value]="exportFormat()" (change)="changeExportFormat($event)" [attr.aria-label]="'common.exportFormat' | hhTranslate">
                 @for (format of exportFormats(); track format) { <option [value]="format">{{ format.toUpperCase() }}</option> }
               </select>
             </label>
-            <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="requestExport()">Export</button>
+            <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="requestExport()">{{ 'table.export' | hhTranslate }}</button>
             @if (exportJob(); as job) {
               <span class="hh-data-table__bulk-job" role="status">Export {{ job.status }} {{ job.processed }}/{{ job.total }}</span>
               @if (job.status === 'queued' || job.status === 'running') { <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="exportJobCancelled.emit(job.jobId)">Cancel export</button> }
@@ -203,7 +204,7 @@ export class HisHopeDataTableCellDirective {
             </div>
           }
           <details class="hh-data-table__columns">
-            <summary>Columns</summary>
+            <summary>{{ 'common.columns' | hhTranslate }}</summary>
             <div class="hh-data-table__columns-menu">
               @for (column of configuredColumns(); track column.key) {
                 @if (column.hideable !== false) {
@@ -214,13 +215,13 @@ export class HisHopeDataTableCellDirective {
           </details>
         </div>
         @if (!rows().length) {
-          <div class="hh-data-table__state" role="status"><span class="material-icons" aria-hidden="true">{{ emptyIcon() }}</span><p>{{ emptyMessage() }}</p></div>
+          <div class="hh-data-table__state" role="status"><span class="material-icons" aria-hidden="true">{{ emptyIcon() }}</span><p>{{ emptyMessage() | hhTranslate }}</p></div>
         } @else {
           <div class="hh-data-table__content" [class.hh-data-table__content--virtualized]="virtualize()" (scroll)="onVirtualScroll($event)">
             <table>
-              <caption class="hh-visually-hidden">{{ label() }}</caption>
+              <caption class="hh-visually-hidden">{{ label() | hhTranslate }}</caption>
               <thead><tr>
-                @if (selection()) { <th scope="col" class="hh-data-table__select"><input type="checkbox" [checked]="allVisibleSelected()" (change)="toggleAll()" aria-label="Select all rows" /></th> }
+                @if (selection()) { <th scope="col" class="hh-data-table__select"><input type="checkbox" [checked]="allVisibleSelected()" (change)="toggleAll()" [attr.aria-label]="'common.selectAllRows' | hhTranslate" /></th> }
                 @if (virtualizeColumns() && columnVirtualLeadingWidth() > 0) { <th class="hh-data-table__column-spacer" [style.width.px]="columnVirtualLeadingWidth()" aria-hidden="true"></th> }
                 @for (column of renderedColumns(); track column.key) {
                   <th scope="col" [style.text-align]="column.align ?? 'start'" [style.width.px]="columnWidth(column)" [class.hh-data-table__cell--pin-left]="column.pinned === 'left'" [class.hh-data-table__cell--pin-right]="column.pinned === 'right'" [style.left.px]="pinnedOffset(column, 'left')" [style.right.px]="pinnedOffset(column, 'right')" [attr.draggable]="column.reorderable !== false" (dragstart)="beginColumnDrag(column.key)" (dragover)="$event.preventDefault()" (drop)="dropColumn(column.key)">
@@ -236,7 +237,7 @@ export class HisHopeDataTableCellDirective {
                   </th>
                 }
                 @if (virtualizeColumns() && columnVirtualTrailingWidth() > 0) { <th class="hh-data-table__column-spacer" [style.width.px]="columnVirtualTrailingWidth()" aria-hidden="true"></th> }
-                @if (inlineEdit()) { <th scope="col" class="hh-data-table__edit-actions">Edit</th> }
+                @if (inlineEdit()) { <th scope="col" class="hh-data-table__edit-actions">{{ 'common.edit' | hhTranslate }}</th> }
               </tr></thead>
               <tbody>
                 @if (virtualize() && virtualStart() > 0) { <tr aria-hidden="true"><td [attr.colspan]="visibleColumns().length + (selection() ? 1 : 0) + (inlineEdit() ? 1 : 0)" [style.height.px]="virtualStart() * virtualRowHeight()"></td></tr> }
@@ -266,19 +267,19 @@ export class HisHopeDataTableCellDirective {
                         @if (isEditing(row)) {
                           @if (isSaving(row)) { <span class="hh-data-table__saving" role="status">Saving...</span> }
                           @if (editErrorMessage(); as message) { <small class="hh-data-table__save-error" role="alert">{{ message }}</small> }
-                          @if (editErrorMessage()) { <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="retryEditSave(); $event.stopPropagation()">Retry</button> }
+                          @if (editErrorMessage()) { <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="retryEditSave(); $event.stopPropagation()">{{ 'common.retry' | hhTranslate }}</button> }
                           @if (editConflict(); as conflict) {
                             <small class="hh-data-table__save-error" role="alert">{{ conflict.message }}</small>
-                            <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="resolveConflict('latest'); $event.stopPropagation()">Use latest</button>
-                            <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="resolveConflict('mine'); $event.stopPropagation()">Keep mine</button>
-                            @if (conflict.mergeableFields?.length) { <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="resolveConflict('merge'); $event.stopPropagation()">Merge</button> }
+                            <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="resolveConflict('latest'); $event.stopPropagation()">{{ 'common.useLatest' | hhTranslate }}</button>
+                            <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="resolveConflict('mine'); $event.stopPropagation()">{{ 'common.keepMine' | hhTranslate }}</button>
+                            @if (conflict.mergeableFields?.length) { <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="resolveConflict('merge'); $event.stopPropagation()">{{ 'common.merge' | hhTranslate }}</button> }
                           }
                           <span class="hh-data-table__dirty" [class.hh-data-table__dirty--visible]="isDirty(row)">{{ isDirty(row) ? 'Unsaved changes' : '' }}</span>
-                          <button type="button" class="hh-button hh-button--primary hh-button--small" [disabled]="hasEditErrors() || isSaving(row)" (click)="saveEdit(row); $event.stopPropagation()">Save</button>
-                          <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="cancelEdit(); $event.stopPropagation()">Cancel</button>
-                          @if (lastEdit(); as transaction) { <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="undoEdit(transaction); $event.stopPropagation()">Undo</button> }
+                          <button type="button" class="hh-button hh-button--primary hh-button--small" [disabled]="hasEditErrors() || isSaving(row)" (click)="saveEdit(row); $event.stopPropagation()">{{ 'common.save' | hhTranslate }}</button>
+                          <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="cancelEdit(); $event.stopPropagation()">{{ 'common.cancel' | hhTranslate }}</button>
+                          @if (lastEdit(); as transaction) { <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="undoEdit(transaction); $event.stopPropagation()">{{ 'common.undo' | hhTranslate }}</button> }
                         } @else {
-                          <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="startEdit(row); $event.stopPropagation()">Edit</button>
+                          <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="startEdit(row); $event.stopPropagation()">{{ 'common.edit' | hhTranslate }}</button>
                         }
                         </div>
                       </td>
@@ -304,9 +305,9 @@ export class HisHopeDataTableCellDirective {
                   <strong>{{ mobileItemTitle(row) }}</strong>
                   @if (inlineEdit()) {
                     @if (isEditing(row)) {
-                      <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="cancelEdit(); $event.stopPropagation()">Cancel</button>
+                      <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="cancelEdit(); $event.stopPropagation()">{{ 'common.cancel' | hhTranslate }}</button>
                     } @else {
-                      <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="startEdit(row); $event.stopPropagation()">Edit</button>
+                      <button type="button" class="hh-button hh-button--secondary hh-button--small" (click)="startEdit(row); $event.stopPropagation()">{{ 'common.edit' | hhTranslate }}</button>
                     }
                   }
                 </header>
@@ -335,7 +336,7 @@ export class HisHopeDataTableCellDirective {
                 @if (isEditing(row)) {
                   <footer class="hh-data-table__mobile-item-actions">
                     @if (isSaving(row)) { <span class="hh-data-table__saving" role="status">Saving...</span> }
-                    <button type="button" class="hh-button hh-button--primary hh-button--small" [disabled]="hasEditErrors() || isSaving(row)" (click)="saveEdit(row); $event.stopPropagation()">Save</button>
+                    <button type="button" class="hh-button hh-button--primary hh-button--small" [disabled]="hasEditErrors() || isSaving(row)" (click)="saveEdit(row); $event.stopPropagation()">{{ 'common.save' | hhTranslate }}</button>
                   </footer>
                 }
               </article>
@@ -345,14 +346,14 @@ export class HisHopeDataTableCellDirective {
             <section class="hh-data-table__mobile-load-more" aria-live="polite">
               <span>{{ mobileLoadedCount() }} of {{ mobileTotalLabel() }}</span>
               @if (mobileLoadMoreError()) {
-                <span class="hh-data-table__mobile-load-more-error" role="alert">{{ mobileLoadMoreError() }}</span>
-                <button type="button" class="hh-button hh-button--secondary hh-button--small" [disabled]="mobileLoadingMore()" (click)="mobileLoadMoreRequested.emit()">Retry</button>
+                <span class="hh-data-table__mobile-load-more-error" role="alert">{{ mobileLoadMoreError() | hhTranslate }}</span>
+                <button type="button" class="hh-button hh-button--secondary hh-button--small" [disabled]="mobileLoadingMore()" (click)="mobileLoadMoreRequested.emit()">{{ 'common.retry' | hhTranslate }}</button>
               } @else if (mobileLoadingMore()) {
                 <div class="hh-data-table__mobile-load-more-skeleton" role="status" aria-label="Loading more records" aria-live="polite">
                   <span></span><span></span>
                 </div>
               } @else if (mobileHasMore()) {
-                <button type="button" class="hh-button hh-button--secondary" (click)="mobileLoadMoreRequested.emit()">Load more</button>
+                <button type="button" class="hh-button hh-button--secondary" (click)="mobileLoadMoreRequested.emit()">{{ 'common.loadMore' | hhTranslate }}</button>
               } @else if (mobileLoadedCount() > 0) {
                 <span class="hh-data-table__mobile-load-more-status">All records loaded</span>
               }
@@ -360,22 +361,22 @@ export class HisHopeDataTableCellDirective {
           }
            <nav class="hh-data-table__pagination" aria-label="Table pagination">
              @if (cursorPaging()) {
-               <button type="button" class="hh-button hh-button--secondary" [disabled]="!previousCursor()" (click)="changeCursor(previousCursor())" aria-label="Previous page">Previous</button>
+               <button type="button" class="hh-button hh-button--secondary" [disabled]="!previousCursor()" (click)="changeCursor(previousCursor())" [attr.aria-label]="'common.previousPage' | hhTranslate">{{ 'common.previousPage' | hhTranslate }}</button>
                <span>Cursor page</span>
-               <button type="button" class="hh-button hh-button--secondary" [disabled]="!nextCursor()" (click)="changeCursor(nextCursor())" aria-label="Next page">Next</button>
+               <button type="button" class="hh-button hh-button--secondary" [disabled]="!nextCursor()" (click)="changeCursor(nextCursor())" [attr.aria-label]="'common.nextPage' | hhTranslate">{{ 'common.nextPage' | hhTranslate }}</button>
              } @else {
              <label class="hh-data-table__page-size">Rows <select [value]="pageSizeValue()" (change)="changePageSize($event)"><option [value]="10">10</option><option [value]="20">20</option><option [value]="50">50</option></select></label>
              <span>{{ pageStart() }}-{{ pageEnd() }} of {{ totalRows() }}</span>
-             <button type="button" class="hh-button hh-button--secondary" [disabled]="pageValue() <= 1" (click)="changePage(pageValue() - 1)" aria-label="Previous page">Previous</button>
+             <button type="button" class="hh-button hh-button--secondary" [disabled]="pageValue() <= 1" (click)="changePage(pageValue() - 1)" [attr.aria-label]="'common.previousPage' | hhTranslate">{{ 'common.previousPage' | hhTranslate }}</button>
              <span aria-current="page">Page {{ pageValue() }} of {{ pageCount() }}</span>
-             <button type="button" class="hh-button hh-button--secondary" [disabled]="pageValue() >= pageCount()" (click)="changePage(pageValue() + 1)" aria-label="Next page">Next</button>
+             <button type="button" class="hh-button hh-button--secondary" [disabled]="pageValue() >= pageCount()" (click)="changePage(pageValue() + 1)" [attr.aria-label]="'common.nextPage' | hhTranslate">{{ 'common.nextPage' | hhTranslate }}</button>
              }
            </nav>
         }
       } @else if (empty()) {
         <div class="hh-data-table__state" role="status">
           <span class="material-icons" aria-hidden="true">{{ emptyIcon() }}</span>
-          <p>{{ emptyMessage() }}</p>
+          <p>{{ emptyMessage() | hhTranslate }}</p>
         </div>
       } @else {
         <div class="hh-data-table__content"><ng-content /></div>
@@ -522,14 +523,14 @@ export class HisHopeDataTableCellDirective {
   `],
 })
 export class HisHopeDataTableComponent {
-  readonly label = input('Data table');
+  readonly label = input('common.dataTable');
   readonly loading = input(false);
-  readonly loadingMessage = input('Loading data...');
+  readonly loadingMessage = input('table.loading');
   readonly empty = input(false);
-  readonly emptyMessage = input('No data available.');
+  readonly emptyMessage = input('table.empty');
   readonly emptyIcon = input('inbox');
   readonly error = input('');
-  readonly retryLabel = input('Retry');
+  readonly retryLabel = input('common.retry');
   readonly density = input<HisHopeDataTableDensity>('comfortable');
   readonly mobilePresentation = input<HisHopeDataTableMobilePresentation>('auto');
   readonly columns = input<HisHopeDataTableColumn[]>([]);
@@ -562,7 +563,7 @@ export class HisHopeDataTableComponent {
   readonly stickyFooter = input(false);
   readonly keyboardNavigation = input(true);
   readonly searchable = input(true);
-  readonly searchPlaceholder = input('Search table...');
+  readonly searchPlaceholder = input('common.searchTable');
   readonly filterBuilder = input(false);
   readonly filterGroups = input<HisHopeFilterGroup[]>([]);
   readonly viewStorageKey = input('');

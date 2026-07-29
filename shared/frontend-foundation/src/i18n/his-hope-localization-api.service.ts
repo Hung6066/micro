@@ -12,7 +12,7 @@ interface LocalizationResponse {
   values?: Record<string, string>;
 }
 
-@Injectable()
+@Injectable({ providedIn: "root" })
 export class HisHopeLocalizationApiService {
   private readonly apiUrl: string;
 

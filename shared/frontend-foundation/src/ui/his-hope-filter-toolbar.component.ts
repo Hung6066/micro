@@ -1,18 +1,20 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, OnDestroy, Output, input } from '@angular/core';
+import { HisHopeTranslatePipe } from '../i18n/his-hope-translate.pipe';
 
 @Component({
   selector: 'hh-filter-toolbar',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="hh-filter-toolbar" [attr.aria-label]="label()">
+    <section class="hh-filter-toolbar" [attr.aria-label]="label() | hhTranslate">
       @if (searchPlaceholder()) {
         <label class="hh-filter-toolbar__search">
           <span class="material-icons" aria-hidden="true">search</span>
-          <input type="search" [value]="query" [placeholder]="searchPlaceholder()"
-                 [attr.aria-label]="searchLabel()" (input)="onSearch($event)" />
+          <input type="search" [value]="query" [placeholder]="searchPlaceholder() | hhTranslate"
+                 [attr.aria-label]="searchLabel() | hhTranslate" (input)="onSearch($event)" />
           @if (query) {
-            <button type="button" class="hh-filter-toolbar__clear" (click)="clearSearch()" [attr.aria-label]="clearLabel()">
+            <button type="button" class="hh-filter-toolbar__clear" (click)="clearSearch()" [attr.aria-label]="clearLabel() | hhTranslate">
               <span class="material-icons" aria-hidden="true">close</span>
             </button>
           }
@@ -20,7 +22,7 @@ import { ChangeDetectionStrategy, Component, EventEmitter, OnDestroy, Output, in
       }
       <div class="hh-filter-toolbar__controls"><ng-content /></div>
       @if (resultCount() !== null) {
-        <span class="hh-filter-toolbar__count">{{ resultCount() }} results</span>
+        <span class="hh-filter-toolbar__count">{{ resultCount() }} {{ 'common.results' | hhTranslate }}</span>
       }
     </section>
   `,
@@ -35,11 +37,11 @@ import { ChangeDetectionStrategy, Component, EventEmitter, OnDestroy, Output, in
   `],
 })
 export class HisHopeFilterToolbarComponent implements OnDestroy {
-  readonly label = input('Filters');
+  readonly label = input('common.filters');
   readonly resultCount = input<number | null>(null);
   readonly searchPlaceholder = input('');
-  readonly searchLabel = input('Search');
-  readonly clearLabel = input('Clear search');
+  readonly searchLabel = input('common.search');
+  readonly clearLabel = input('common.clearSearch');
   readonly debounceMs = input(250);
   @Output() readonly searchChanged = new EventEmitter<string>();
   query = '';

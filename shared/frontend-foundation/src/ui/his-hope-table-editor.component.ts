@@ -1,19 +1,21 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, forwardRef, input, Output } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { HisHopeTableEditor, HisHopeTableEditorOption } from '../contracts/his-hope-ui-contracts';
+import { HisHopeTranslatePipe } from '../i18n/his-hope-translate.pipe';
 
 @Component({
   selector: 'hh-table-editor',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => HisHopeTableEditorComponent), multi: true }],
   template: `
     @if (type() === 'select') {
-      <select class="hh-data-table__edit-input" [value]="displayValue()" [disabled]="disabled" (change)="changed($event)" (blur)="touched()" [attr.aria-label]="ariaLabel()" [attr.aria-invalid]="invalid() ? 'true' : null">
+        <select class="hh-data-table__edit-input" [value]="displayValue()" [disabled]="disabled" (change)="changed($event)" (blur)="touched()" [attr.aria-label]="ariaLabel() | hhTranslate" [attr.aria-invalid]="invalid() ? 'true' : null">
         @for (option of options(); track option.value) { <option [value]="option.value" [disabled]="option.disabled">{{ option.label }}</option> }
       </select>
     } @else {
-      <input class="hh-data-table__edit-input" [type]="type() === 'number' ? 'number' : type() === 'date' ? 'date' : 'text'" [value]="displayValue()" [disabled]="disabled" (input)="changed($event)" (blur)="touched()" [attr.list]="type() === 'autocomplete' ? listId() : null" [attr.aria-label]="ariaLabel()" [attr.aria-invalid]="invalid() ? 'true' : null" />
+      <input class="hh-data-table__edit-input" [type]="type() === 'number' ? 'number' : type() === 'date' ? 'date' : 'text'" [value]="displayValue()" [disabled]="disabled" (input)="changed($event)" (blur)="touched()" [attr.list]="type() === 'autocomplete' ? listId() : null" [attr.aria-label]="ariaLabel() | hhTranslate" [attr.aria-invalid]="invalid() ? 'true' : null" />
       @if (type() === 'autocomplete') { <datalist [id]="listId()">@for (option of options(); track option.value) { <option [value]="option.value">{{ option.label }}</option> }</datalist> }
     }
   `,
@@ -28,7 +30,7 @@ import { HisHopeTableEditor, HisHopeTableEditorOption } from '../contracts/his-h
 export class HisHopeTableEditorComponent implements ControlValueAccessor {
   readonly type = input<HisHopeTableEditor>('text');
   readonly options = input<HisHopeTableEditorOption[]>([]);
-  readonly ariaLabel = input('Edit value');
+  readonly ariaLabel = input('common.editValue');
   readonly invalid = input(false);
   readonly listId = input('hh-table-editor-options');
   readonly value = input('');

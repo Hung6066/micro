@@ -1,6 +1,7 @@
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 
-const diff = execFileSync('git', ['diff', '--unified=0', '--', 'mobile-app/src/app', 'admin-app/src/app'], { encoding: 'utf8' });
+const diffResult = spawnSync('git', ['diff', '--unified=0', '--', 'mobile-app/src/app', 'admin-app/src/app'], { encoding: 'utf8' });
+const diff = diffResult.stdout ?? '';
 let file = '';
 const violations = [];
 

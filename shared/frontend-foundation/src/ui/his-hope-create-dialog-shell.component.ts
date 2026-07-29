@@ -1,18 +1,20 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { HisHopeTranslatePipe } from '../i18n/his-hope-translate.pipe';
 
 @Component({
   selector: 'hh-create-dialog-shell',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="hh-create-dialog-shell">
       <header class="hh-create-dialog-shell__header">
-        <h2 class="hh-create-dialog-shell__title">{{ title() }}</h2>
+        <h2 class="hh-create-dialog-shell__title">{{ title() | hhTranslate }}</h2>
         @if (subtitle()) {
-          <p class="hh-create-dialog-shell__subtitle">{{ subtitle() }}</p>
+          <p class="hh-create-dialog-shell__subtitle">{{ subtitle() | hhTranslate }}</p>
         }
       </header>
-      <section class="hh-create-dialog-shell__content" aria-label="Form content">
+      <section class="hh-create-dialog-shell__content" [attr.aria-label]="'common.formContent' | hhTranslate">
         <ng-content select="[hhCreateDialogContent]" />
       </section>
       <footer class="hh-create-dialog-shell__footer">

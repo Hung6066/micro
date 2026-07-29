@@ -6,7 +6,7 @@ import { hisHopeViVN } from "./dictionaries/vi-vn";
 
 export type HisHopeLocale = string;
 
-@Injectable()
+@Injectable({ providedIn: "root" })
 export class HisHopeI18nService {
   readonly locale = signal<HisHopeLocale>("vi-VN");
   readonly timeZone = signal<string>("Asia/Ho_Chi_Minh");

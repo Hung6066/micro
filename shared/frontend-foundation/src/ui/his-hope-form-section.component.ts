@@ -1,8 +1,10 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { HisHopeTranslatePipe } from '../i18n/his-hope-translate.pipe';
 
 @Component({
   selector: 'hh-form-section',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     '[class.hh-form-section--span-2]': 'span() === 2',
@@ -10,10 +12,10 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   template: `
     <fieldset class="hh-form-section">
       @if (title()) {
-        <legend class="hh-form-section__title">{{ title() }}</legend>
+        <legend class="hh-form-section__title">{{ title() | hhTranslate }}</legend>
       }
       @if (description()) {
-        <p class="hh-form-section__description">{{ description() }}</p>
+        <p class="hh-form-section__description">{{ description() | hhTranslate }}</p>
       }
       <div class="hh-form-section__content"><ng-content /></div>
     </fieldset>

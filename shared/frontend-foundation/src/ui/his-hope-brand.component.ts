@@ -1,16 +1,18 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { HisHopeTranslatePipe } from '../i18n/his-hope-translate.pipe';
 
 @Component({
   selector: 'hh-brand',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="brand" aria-label="His.Hope">
       <span class="brand-mark" aria-hidden="true"><span></span></span>
-      <span class="brand-name">His.Hope</span>
+      <span class="brand-name">{{ 'app.name' | hhTranslate }}</span>
     </div>
     @if (caption()) {
-      <div class="brand-caption">{{ caption() }}</div>
+      <div class="brand-caption">{{ caption() | hhTranslate }}</div>
     }
   `,
   styles: [`

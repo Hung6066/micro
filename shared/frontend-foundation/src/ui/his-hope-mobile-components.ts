@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, OnChanges, QueryList, SimpleChanges, ViewChildren, input, output } from '@angular/core';
+import { HisHopeTranslatePipe } from '../i18n/his-hope-translate.pipe';
 
 function focusableElements(host: HTMLElement): HTMLElement[] {
   return Array.from(host.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
@@ -7,11 +8,12 @@ function focusableElements(host: HTMLElement): HTMLElement[] {
 @Component({
   selector: 'hh-mobile-infinite-list',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<div class="hh-mobile-infinite-list" role="feed" [attr.aria-label]="label()"><ng-content /></div>
-    @if (loading()) { <div class="hh-mobile-infinite-list__loading" role="status" aria-live="polite"><span class="hh-mobile-skeleton"></span><span class="hh-mobile-skeleton hh-mobile-skeleton--short"></span></div> }
-    @if (!loading() && hasMore()) { <button type="button" class="hh-mobile-button" (click)="requestLoadMore()">{{ loadMoreLabel() }}</button> }
-    @if (!loading() && !hasMore() && loadedCount() > 0) { <p class="hh-mobile-list-end">{{ endLabel() }}</p> }`,
+  template: `<div class="hh-mobile-infinite-list" role="feed" [attr.aria-label]="label() | hhTranslate"><ng-content /></div>
+    @if (loading()) { <div class="hh-mobile-infinite-list__loading" role="status" aria-live="polite"><span class="hh-mobile-skeleton" [attr.aria-label]="'common.loading' | hhTranslate"></span><span class="hh-mobile-skeleton hh-mobile-skeleton--short"></span></div> }
+    @if (!loading() && hasMore()) { <button type="button" class="hh-mobile-button" (click)="requestLoadMore()">{{ loadMoreLabel() | hhTranslate }}</button> }
+    @if (!loading() && !hasMore() && loadedCount() > 0) { <p class="hh-mobile-list-end">{{ endLabel() | hhTranslate }}</p> }`,
   styles: [`:host{display:block}.hh-mobile-infinite-list{display:grid;gap:0}.hh-mobile-infinite-list__loading{display:grid;gap:8px;padding:16px}.hh-mobile-skeleton{display:block;height:12px;border-radius:999px;background:linear-gradient(90deg,var(--surface-subtle),var(--border-light),var(--surface-subtle));background-size:200% 100%;animation:hh-mobile-shimmer 1.2s linear infinite}.hh-mobile-skeleton--short{width:62%}.hh-mobile-button{display:block;width:100%;min-height:44px;margin-top:12px;border:1px solid var(--border-default);border-radius:var(--radius-control);background:var(--surface-white);color:var(--color-primary);font:inherit;font-weight:var(--font-weight-semibold)}.hh-mobile-list-end{margin:12px 0;color:var(--text-muted);font-size:12px;text-align:center}@keyframes hh-mobile-shimmer{to{background-position:-200% 0}}`],
 })
 export class HisHopeMobileInfiniteListComponent {
@@ -23,8 +25,9 @@ export class HisHopeMobileInfiniteListComponent {
 @Component({
   selector: 'hh-mobile-refresher',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<div class="hh-mobile-refresher" (pointerdown)="start($event)" (pointermove)="move($event)" (pointerup)="end()" (pointercancel)="end()"><div class="hh-mobile-refresher__indicator" [style.height.px]="distance" [attr.aria-hidden]="distance === 0 ? 'true' : null"><span [style.transform]="'rotate(' + (ready ? 180 : 0) + 'deg)'">&#8595;</span>{{ ready ? releaseLabel() : pullLabel() }}</div><ng-content /></div>`,
+  template: `<div class="hh-mobile-refresher" (pointerdown)="start($event)" (pointermove)="move($event)" (pointerup)="end()" (pointercancel)="end()"><div class="hh-mobile-refresher__indicator" [style.height.px]="distance" [attr.aria-hidden]="distance === 0 ? 'true' : null"><span [style.transform]="'rotate(' + (ready ? 180 : 0) + 'deg)'">&#8595;</span>{{ (ready ? releaseLabel() : pullLabel()) | hhTranslate }}</div><ng-content /></div>`,
   styles: [`:host{display:block}.hh-mobile-refresher{touch-action:pan-y}.hh-mobile-refresher__indicator{display:flex;align-items:center;justify-content:center;gap:8px;overflow:hidden;color:var(--text-secondary);font-size:12px}.hh-mobile-refresher__indicator span{display:inline-block;font-size:18px;transition:transform .16s ease}`],
 })
 export class HisHopeMobileRefresherComponent {
@@ -38,8 +41,9 @@ export class HisHopeMobileRefresherComponent {
 @Component({
   selector: 'hh-mobile-searchbar',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<label class="hh-mobile-searchbar"><span class="material-icons" aria-hidden="true">search</span><input #search type="search" [value]="value()" [placeholder]="placeholder()" [attr.aria-label]="label()" (input)="onInput(search.value)" /><button type="button" class="hh-mobile-searchbar__clear" [hidden]="!value()" [attr.aria-label]="clearLabel()" (click)="clear(search)">×</button></label>`,
+  template: `<label class="hh-mobile-searchbar"><span class="material-icons" aria-hidden="true">search</span><input #search type="search" [value]="value()" [placeholder]="placeholder() | hhTranslate" [attr.aria-label]="label() | hhTranslate" (input)="onInput(search.value)" /><button type="button" class="hh-mobile-searchbar__clear" [hidden]="!value()" [attr.aria-label]="clearLabel() | hhTranslate" (click)="clear(search)">×</button></label>`,
   styles: [`:host{display:block}.hh-mobile-searchbar{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border:1px solid var(--border-default);border-radius:var(--radius-control);background:var(--surface-white);color:var(--text-secondary)}.hh-mobile-searchbar:focus-within{border-color:var(--color-primary);outline:3px solid color-mix(in srgb,var(--color-primary) 20%,transparent)}input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:var(--text-primary);font:inherit}.hh-mobile-searchbar__clear{width:32px;height:32px;border:0;background:transparent;color:var(--text-secondary);font-size:22px}`],
 })
 export class HisHopeMobileSearchbarComponent {
@@ -52,8 +56,9 @@ export class HisHopeMobileSearchbarComponent {
 @Component({
   selector: 'hh-mobile-action-sheet',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `@if (open()) { <div class="hh-mobile-overlay" role="presentation" (click)="close.emit()"><section class="hh-mobile-sheet" role="dialog" aria-modal="true" [attr.aria-label]="label()" (click)="$event.stopPropagation()"><div class="hh-mobile-sheet__handle"></div><h2>{{ label() }}</h2><ng-content /><button type="button" class="hh-mobile-sheet__cancel" (click)="close.emit()">{{ cancelLabel() }}</button></section></div>}`,
+  template: `@if (open()) { <div class="hh-mobile-overlay" role="presentation" (click)="close.emit()"><section class="hh-mobile-sheet" role="dialog" aria-modal="true" [attr.aria-label]="label() | hhTranslate" (click)="$event.stopPropagation()"><div class="hh-mobile-sheet__handle"></div><h2>{{ label() | hhTranslate }}</h2><ng-content /><button type="button" class="hh-mobile-sheet__cancel" (click)="close.emit()">{{ cancelLabel() | hhTranslate }}</button></section></div>}`,
   styles: [`:host{display:contents}.hh-mobile-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:flex-end;background:color-mix(in srgb,#000 38%,transparent)}.hh-mobile-sheet{display:grid;gap:8px;width:100%;max-height:80dvh;overflow:auto;padding:12px 16px calc(16px + env(safe-area-inset-bottom));border-radius:20px 20px 0 0;background:var(--surface-white);color:var(--text-primary);box-shadow:0 -10px 30px color-mix(in srgb,#000 20%,transparent)}.hh-mobile-sheet__handle{width:36px;height:4px;margin:0 auto 8px;border-radius:99px;background:var(--border-default)}h2{margin:0 0 4px;font-size:18px}.hh-mobile-sheet__cancel{min-height:44px;margin-top:8px;border:1px solid var(--border-default);border-radius:var(--radius-control);background:var(--surface-white);font:inherit;font-weight:var(--font-weight-semibold)}`],
 })
 export class HisHopeMobileActionSheetComponent implements OnChanges {
@@ -82,8 +87,9 @@ export class HisHopeMobileActionSheetComponent implements OnChanges {
 @Component({
   selector: 'hh-mobile-bottom-sheet',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `@if (open()) { <div class="hh-mobile-overlay" role="presentation" (click)="close.emit()"><section class="hh-mobile-bottom-sheet" role="dialog" aria-modal="true" [attr.aria-label]="label()" (click)="$event.stopPropagation()"><header><h2>{{ label() }}</h2><button type="button" class="hh-mobile-icon-button" [attr.aria-label]="closeLabel()" (click)="close.emit()">×</button></header><div class="hh-mobile-bottom-sheet__content"><ng-content /></div></section></div>}`,
+  template: `@if (open()) { <div class="hh-mobile-overlay" role="presentation" (click)="close.emit()"><section class="hh-mobile-bottom-sheet" role="dialog" aria-modal="true" [attr.aria-label]="label() | hhTranslate" (click)="$event.stopPropagation()"><header><h2>{{ label() | hhTranslate }}</h2><button type="button" class="hh-mobile-icon-button" [attr.aria-label]="closeLabel() | hhTranslate" (click)="close.emit()">×</button></header><div class="hh-mobile-bottom-sheet__content"><ng-content /></div></section></div>}`,
   styles: [`:host{display:contents}.hh-mobile-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:flex-end;background:color-mix(in srgb,#000 38%,transparent)}.hh-mobile-bottom-sheet{width:100%;max-height:90dvh;overflow:auto;border-radius:20px 20px 0 0;background:var(--surface-white);box-shadow:0 -10px 30px color-mix(in srgb,#000 20%,transparent)}header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;border-bottom:1px solid var(--border-light)}h2{margin:0;font-size:18px}.hh-mobile-icon-button{width:40px;height:40px;border:1px solid var(--border-default);border-radius:50%;background:transparent;font-size:24px}.hh-mobile-bottom-sheet__content{padding:16px calc(16px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))}`],
 })
 export class HisHopeMobileBottomSheetComponent implements OnChanges {
@@ -112,8 +118,9 @@ export class HisHopeMobileBottomSheetComponent implements OnChanges {
 @Component({
   selector: 'hh-mobile-segment',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<div class="hh-mobile-segment" role="tablist" [attr.aria-label]="label()">@for (option of options(); track option.value) { <button type="button" role="tab" [attr.aria-selected]="option.value === value()" [class.is-active]="option.value === value()" (click)="valueChange.emit(option.value)">{{ option.label }}</button> }</div>`,
+  template: `<div class="hh-mobile-segment" role="tablist" [attr.aria-label]="label() | hhTranslate">@for (option of options(); track option.value) { <button type="button" role="tab" [attr.aria-selected]="option.value === value()" [class.is-active]="option.value === value()" (click)="valueChange.emit(option.value)">{{ option.label | hhTranslate }}</button> }</div>`,
   styles: [`:host{display:block}.hh-mobile-segment{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:4px;border-radius:var(--radius-control);background:var(--surface-subtle)}button{min-height:40px;border:0;border-radius:var(--radius-control);background:transparent;color:var(--text-secondary);font:inherit}button.is-active{background:var(--surface-white);color:var(--color-primary);font-weight:var(--font-weight-semibold);box-shadow:var(--shadow-control)}`],
 })
 export class HisHopeMobileSegmentComponent {
@@ -123,8 +130,9 @@ export class HisHopeMobileSegmentComponent {
 @Component({
   selector: 'hh-mobile-accordion',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<section class="hh-mobile-accordion"><button type="button" [attr.aria-expanded]="open" (click)="open = !open"><span>{{ title() }}</span><span aria-hidden="true">{{ open ? '−' : '+' }}</span></button>@if (open) { <div class="hh-mobile-accordion__content"><ng-content /></div>}</section>`,
+  template: `<section class="hh-mobile-accordion"><button type="button" [attr.aria-expanded]="open" (click)="open = !open"><span>{{ title() | hhTranslate }}</span><span aria-hidden="true">{{ open ? '−' : '+' }}</span></button>@if (open) { <div class="hh-mobile-accordion__content"><ng-content /></div>}</section>`,
   styles: [`:host{display:block}.hh-mobile-accordion{border-bottom:1px solid var(--border-light)}button{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:52px;padding:12px 0;border:0;background:transparent;color:var(--text-primary);font:inherit;font-weight:var(--font-weight-semibold);text-align:left}.hh-mobile-accordion__content{padding:0 0 16px;color:var(--text-secondary);line-height:1.5}`],
 })
 export class HisHopeMobileAccordionComponent {
@@ -134,8 +142,9 @@ export class HisHopeMobileAccordionComponent {
 @Component({
   selector: 'hh-mobile-avatar',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<span class="hh-mobile-avatar" [class.hh-mobile-avatar--image]="src()" [attr.aria-label]="label()">@if (src()) { <img [src]="src()" [alt]="label()" /> } @else { {{ initials() }} }</span>`,
+  template: `<span class="hh-mobile-avatar" [class.hh-mobile-avatar--image]="src()" [attr.aria-label]="label() | hhTranslate">@if (src()) { <img [src]="src()" [alt]="label() | hhTranslate" /> } @else { {{ initials() }} }</span>`,
   styles: [`:host{display:inline-flex}.hh-mobile-avatar{display:grid;place-items:center;width:40px;height:40px;overflow:hidden;border-radius:50%;background:var(--color-primary-soft);color:var(--color-primary);font-weight:var(--font-weight-semibold)}img{width:100%;height:100%;object-fit:cover}`],
 })
 export class HisHopeMobileAvatarComponent {
@@ -145,8 +154,9 @@ export class HisHopeMobileAvatarComponent {
 @Component({
   selector: 'hh-mobile-date-time',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<label class="hh-mobile-field"><span>{{ label() }}</span><input [type]="mode()" [value]="value()" [min]="min() || null" [max]="max() || null" (input)="valueChange.emit($any($event.target).value)" /></label>`,
+  template: `<label class="hh-mobile-field"><span>{{ label() | hhTranslate }}</span><input [type]="mode()" [value]="value()" [min]="min() || null" [max]="max() || null" (input)="valueChange.emit($any($event.target).value)" /></label>`,
   styles: [`:host{display:block}.hh-mobile-field{display:grid;gap:6px;color:var(--text-secondary);font-size:12px;font-weight:var(--font-weight-semibold)}input{box-sizing:border-box;width:100%;min-height:44px;padding:0 12px;border:1px solid var(--border-default);border-radius:var(--radius-control);background:var(--surface-white);color:var(--text-primary);font:inherit;font-size:16px}`],
 })
 export class HisHopeMobileDateTimeComponent {
@@ -156,8 +166,9 @@ export class HisHopeMobileDateTimeComponent {
 @Component({
   selector: 'hh-mobile-otp',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `<div class="hh-mobile-otp" role="group" [attr.aria-label]="label()">@for (digit of digits; track $index) { <input #otpInput inputmode="numeric" autocomplete="one-time-code" maxlength="1" [value]="digit" [attr.aria-label]="label() + ' ' + ($index + 1)" (input)="update($index, $any($event.target).value)" (keydown.backspace)="backspace($index)" (paste)="paste($event)" /> }</div>`,
+  template: `<div class="hh-mobile-otp" role="group" [attr.aria-label]="label() | hhTranslate">@for (digit of digits; track $index) { <input #otpInput inputmode="numeric" autocomplete="one-time-code" maxlength="1" [value]="digit" [attr.aria-label]="(label() | hhTranslate) + ' ' + ($index + 1)" (input)="update($index, $any($event.target).value)" (keydown.backspace)="backspace($index)" (paste)="paste($event)" /> }</div>`,
   styles: [`:host{display:block}.hh-mobile-otp{display:flex;justify-content:center;gap:8px}.hh-mobile-otp input{width:44px;height:52px;box-sizing:border-box;border:1px solid var(--border-default);border-radius:var(--radius-control);background:var(--surface-white);color:var(--text-primary);font:inherit;font-size:22px;text-align:center}.hh-mobile-otp input:focus{border-color:var(--color-primary);outline:3px solid color-mix(in srgb,var(--color-primary) 20%,transparent)}`],
 })
 export class HisHopeMobileOtpComponent {

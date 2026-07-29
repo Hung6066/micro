@@ -1,9 +1,11 @@
 import { DOCUMENT } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, HostListener, Output, effect, inject, input } from '@angular/core';
+import { HisHopeTranslatePipe } from '../i18n/his-hope-translate.pipe';
 
 @Component({
   selector: 'hh-confirm-dialog',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (open()) {
@@ -12,11 +14,11 @@ import { ChangeDetectionStrategy, Component, EventEmitter, HostListener, Output,
                  [attr.aria-labelledby]="titleId" [attr.aria-describedby]="messageId"
                  (click)="$event.stopPropagation()">
           <div class="hh-dialog__icon material-icons" aria-hidden="true">warning_amber</div>
-          <h2 [id]="titleId">{{ title() }}</h2>
-          <p [id]="messageId">{{ message() }}</p>
+          <h2 [id]="titleId">{{ title() | hhTranslate }}</h2>
+          <p [id]="messageId">{{ message() | hhTranslate }}</p>
           <div class="hh-dialog__actions">
-            <button type="button" class="hh-button hh-button--secondary" (click)="cancel()">{{ cancelLabel() }}</button>
-            <button type="button" class="hh-button hh-button--danger" (click)="confirm()">{{ confirmLabel() }}</button>
+            <button type="button" class="hh-button hh-button--secondary" (click)="cancel()">{{ cancelLabel() | hhTranslate }}</button>
+            <button type="button" class="hh-button hh-button--danger" (click)="confirm()">{{ confirmLabel() | hhTranslate }}</button>
           </div>
         </section>
       </div>
@@ -25,10 +27,10 @@ import { ChangeDetectionStrategy, Component, EventEmitter, HostListener, Output,
 })
 export class HisHopeConfirmDialogComponent {
   readonly open = input(false);
-  readonly title = input('Confirm action');
-  readonly message = input('Are you sure you want to continue?');
-  readonly confirmLabel = input('Confirm');
-  readonly cancelLabel = input('Cancel');
+  readonly title = input('common.confirmAction');
+  readonly message = input('common.confirmContinue');
+  readonly confirmLabel = input('common.yes');
+  readonly cancelLabel = input('common.cancel');
   readonly titleId = `hh-dialog-title-${Math.random().toString(36).slice(2)}`;
   readonly messageId = `hh-dialog-message-${Math.random().toString(36).slice(2)}`;
   readonly dialogId = `hh-dialog-${Math.random().toString(36).slice(2)}`;

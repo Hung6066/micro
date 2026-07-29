@@ -1,10 +1,12 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, signal } from '@angular/core';
+import { HisHopeTranslatePipe } from '../i18n/his-hope-translate.pipe';
 
 @Component({
   selector: 'hh-offline-banner',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `@if (!online()) { <div class="hh-offline" role="alert">You are offline. Changes will not be saved until the connection is restored.</div> }`,
+  template: `@if (!online()) { <div class="hh-offline" role="alert">{{ 'state.offline' | hhTranslate }}</div> }`,
   styles: [`.hh-offline { position: sticky; top: 0; z-index: 100; padding: 10px 16px; background: var(--surface-warning); color: var(--text-primary); font-size: var(--font-size-body); text-align: center; }`],
 })
 export class HisHopeOfflineBannerComponent implements OnDestroy {
