@@ -6,6 +6,7 @@ import {
   HisHopeMobileIconComponent,
   HisHopePermissionService,
   HisHopeThemeService,
+  HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation";
 import { MobileAuthService } from "./core/auth.service";
 import { NativeCapabilityService } from "./core/native-capability.service";
@@ -24,11 +25,12 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
     HisHopeLanguageSwitcherComponent,
     HisHopeMobileIconComponent,
     MobilePinComponent,
+    HisHopeTranslatePipe,
   ],
   template: `
     <main class="mobile-shell">
       <header class="mobile-shell__header">
-        <hh-brand caption="Identity administration" />
+        <hh-brand [caption]="'admin.identityAdministration' | hhTranslate" />
         <div class="header-actions">
           <hh-language-switcher />
           <div class="header-menu">
@@ -38,7 +40,7 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
               (click)="menuOpen = !menuOpen"
               [attr.aria-expanded]="menuOpen"
               aria-haspopup="menu"
-              aria-label="Open account menu"
+              [attr.aria-label]="'mobile.openAccountMenu' | hhTranslate"
             >
               <hh-mobile-icon name="more" />
             </button>
@@ -50,8 +52,7 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
                     role="menuitem"
                     (click)="menuOpen = false; unlock()"
                   >
-                    <hh-mobile-icon name="biometric" size="small" />Unlock with
-                    biometrics
+                    <hh-mobile-icon name="biometric" size="small" />{{ 'mobile.unlockBiometrics' | hhTranslate }}
                   </button>
                 }
                 <button
@@ -59,7 +60,7 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
                   role="menuitem"
                   (click)="menuOpen = false; toggleTheme()"
                 >
-                  <hh-mobile-icon name="theme" size="small" />Switch theme
+                  <hh-mobile-icon name="theme" size="small" />{{ 'mobile.switchTheme' | hhTranslate }}
                 </button>
                 <button
                   class="header-menu__danger"
@@ -67,7 +68,7 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
                   role="menuitem"
                   (click)="menuOpen = false; logout()"
                 >
-                    <hh-mobile-icon name="logout" size="small" />Sign out
+                    <hh-mobile-icon name="logout" size="small" />{{ 'admin.logout' | hhTranslate }}
                   </button>
                 @if (native.isNative) {
                   <app-mobile-pin />
@@ -78,37 +79,37 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
         </div>
       </header>
       <section class="mobile-shell__content"><router-outlet /></section>
-      <nav class="mobile-shell__nav" aria-label="Admin navigation">
+      <nav class="mobile-shell__nav" [attr.aria-label]="'mobile.adminNavigation' | hhTranslate">
         <a
           routerLink="/admin/dashboard"
           routerLinkActive="active"
           ariaCurrentWhenActive="page"
-          ><hh-mobile-icon name="home" size="small" /><span>Home</span></a
+          ><hh-mobile-icon name="home" size="small" /><span>{{ 'admin.dashboard' | hhTranslate }}</span></a
         >
         <a
           routerLink="/admin/clients"
           routerLinkActive="active"
           ariaCurrentWhenActive="page"
-          ><hh-mobile-icon name="clients" size="small" /><span>Clients</span></a
+          ><hh-mobile-icon name="clients" size="small" /><span>{{ 'admin.clients' | hhTranslate }}</span></a
         >
         <a
           routerLink="/admin/users"
           routerLinkActive="active"
           ariaCurrentWhenActive="page"
-          ><hh-mobile-icon name="users" size="small" /><span>Users</span></a
+          ><hh-mobile-icon name="users" size="small" /><span>{{ 'admin.users' | hhTranslate }}</span></a
         >
         <a
           routerLink="/admin/roles"
           routerLinkActive="active"
           ariaCurrentWhenActive="page"
-          ><hh-mobile-icon name="roles" size="small" /><span>Roles</span></a
+          ><hh-mobile-icon name="roles" size="small" /><span>{{ 'admin.roles' | hhTranslate }}</span></a
         >
         <a
           routerLink="/admin/consents"
           routerLinkActive="active"
           ariaCurrentWhenActive="page"
           ><hh-mobile-icon name="consents" size="small" /><span
-            >Consents</span
+            >{{ 'admin.consents' | hhTranslate }}</span
           ></a
         >
       </nav>
@@ -117,21 +118,21 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
           class="lock-overlay"
           role="dialog"
           aria-modal="true"
-          aria-label="Session locked"
+          [attr.aria-label]="'mobile.sessionLocked' | hhTranslate"
         >
           <hh-mobile-icon name="biometric" size="large" />
-          <h2>Session locked</h2>
-          <p>Unlock to continue where you left off.</p>
+          <h2>{{ 'mobile.sessionLocked' | hhTranslate }}</h2>
+          <p>{{ 'mobile.unlockContinue' | hhTranslate }}</p>
           <button
             class="hh-button hh-button--primary"
             type="button"
             (click)="attemptUnlock()"
           >
-            Unlock
+            {{ 'mobile.unlock' | hhTranslate }}
           </button>
           @if (unlockFailed) {
             <p class="lock-overlay__error">
-              Unlock failed. Try again or sign out.
+              {{ 'mobile.unlockFailed' | hhTranslate }}
             </p>
           }
           <button
@@ -139,7 +140,7 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
             type="button"
             (click)="logout()"
           >
-            Sign out instead
+            {{ 'mobile.signOutInstead' | hhTranslate }}
           </button>
         </div>
       }

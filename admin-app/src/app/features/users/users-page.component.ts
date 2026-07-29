@@ -1,6 +1,6 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { HisHopeBulkAction, HisHopeBulkActionRequest, HisHopeDataTableComponent, HisHopeDataTableColumn, HisHopeDataTableDetailDirective, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeTableExportRequest, HisHopeToolbarComponent } from '@his-hope/frontend-foundation';
+import { HisHopeBulkAction, HisHopeBulkActionRequest, HisHopeDataTableComponent, HisHopeDataTableColumn, HisHopeDataTableDetailDirective, HisHopeI18nService, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeTableExportRequest, HisHopeToolbarComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { AdminApiService, AdminPageQuery, AdminPageResult, User } from '../../core/services/admin-api.service';
 import { HisHopePageQuery } from '@his-hope/frontend-foundation';
 import { catchError, finalize } from 'rxjs/operators';
@@ -10,12 +10,12 @@ import { of } from 'rxjs';
 @Component({
   selector: 'app-users-page',
   standalone: true,
-  imports: [CommonModule, HisHopeDataTableComponent, HisHopeDataTableDetailDirective, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeToolbarComponent],
+  imports: [CommonModule, HisHopeDataTableComponent, HisHopeDataTableDetailDirective, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeToolbarComponent, HisHopeTranslatePipe],
   template: `
     <hh-page-layout>
-      <hh-page-header hhPageHeader title="Users" subtitle="Manage identity accounts and access roles" />
-      <hh-toolbar hhPageToolbar label="User controls">
-        <span hhToolbarTitle>{{ tableRows.length }} users</span>
+      <hh-page-header hhPageHeader [title]="'admin.pageUsers' | hhTranslate" [subtitle]="'admin.usersSubtitle' | hhTranslate" />
+      <hh-toolbar hhPageToolbar [label]="'admin.users' | hhTranslate">
+        <span hhToolbarTitle>{{ tableRows.length }} {{ 'admin.users' | hhTranslate }}</span>
         <button hh-toolbar-actions type="button" class="hh-icon-button" (click)="loadUsers()" aria-label="Refresh users" title="Refresh users">
           <span class="material-icons" aria-hidden="true">refresh</span>
         </button>
@@ -25,7 +25,7 @@ import { of } from 'rxjs';
         [error]="error ?? ''" [empty]="!loading && !error && tableRows.length === 0"
         [exportable]="true" [bulkActions]="bulkActions" [filterBuilder]="true" [virtualizeColumns]="true" [expandedRowKeys]="expandedRowKeys" viewStorageKey="admin.users" viewName="default" [serverBackedView]="true" [savedView]="savedView"
         (rowExpandChange)="toggleRowExpand($event)"
-        (viewSaveRequested)="saveView($event)" (viewResetRequested)="resetView($event)" emptyMessage="No users found."
+        (viewSaveRequested)="saveView($event)" (viewResetRequested)="resetView($event)" [emptyMessage]="'admin.noUsers' | hhTranslate"
         (bulkActionRequested)="onBulkAction($event)" (exportRequested)="onExport($event)" (retry)="loadUsers()">
         <ng-template hhDataTableDetail let-row>
           <div class="hh-data-table-detail">{{ row['email'] }} · {{ row['roles'] }} · {{ row['isActive'] }}</div>
@@ -36,11 +36,12 @@ import { of } from 'rxjs';
 })
 export class UsersPageComponent implements OnInit {
   private readonly api = inject(AdminApiService);
+  private readonly i18n = inject(HisHopeI18nService);
   users: User[] = [];
-  readonly columns: HisHopeDataTableColumn[] = [
-    { key: 'id', label: 'ID', responsivePriority: 3, pinned: 'left' }, { key: 'userName', label: 'Username', sortable: true, responsivePriority: 1, pinned: 'left' },
-    { key: 'email', label: 'Email', sortable: true, responsivePriority: 2 }, { key: 'roles', label: 'Roles', responsivePriority: 3 }, { key: 'isActive', label: 'Active', responsivePriority: 2, pinned: 'right' },
-  ];
+  get columns(): HisHopeDataTableColumn[] { this.i18n.locale(); return [
+    { key: 'id', label: this.i18n.t('admin.id'), responsivePriority: 3, pinned: 'left' }, { key: 'userName', label: this.i18n.t('admin.username'), sortable: true, responsivePriority: 1, pinned: 'left' },
+    { key: 'email', label: this.i18n.t('admin.email'), sortable: true, responsivePriority: 2 }, { key: 'roles', label: this.i18n.t('admin.roles'), responsivePriority: 3 }, { key: 'isActive', label: this.i18n.t('admin.active'), responsivePriority: 2, pinned: 'right' },
+  ]; }
   tableRows: Record<string, unknown>[] = [];
   loading = false;
   error: string | null = null;
@@ -49,10 +50,10 @@ export class UsersPageComponent implements OnInit {
   savedView: any = null;
   expandedRowKeys: string[] = [];
   private pageRequest?: Subscription;
-  readonly bulkActions: HisHopeBulkAction[] = [
-    { id: 'activate', label: 'Activate selected', icon: 'person_add' },
-    { id: 'deactivate', label: 'Deactivate selected', icon: 'person_off', tone: 'danger' },
-  ];
+  get bulkActions(): HisHopeBulkAction[] { this.i18n.locale(); return [
+    { id: 'activate', label: this.i18n.t('admin.activateSelected'), icon: 'person_add' },
+    { id: 'deactivate', label: this.i18n.t('admin.deactivateSelected'), icon: 'person_off', tone: 'danger' },
+  ]; }
 
   ngOnInit(): void { this.loadServerView(); this.loadUsers(); }
 

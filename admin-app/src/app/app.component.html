@@ -1,28 +1,28 @@
 <mat-toolbar color="primary" class="app-toolbar">
-  <button mat-icon-button (click)="toggleSidenav()" aria-label="Toggle navigation">
+  <button mat-icon-button (click)="toggleSidenav()" [attr.aria-label]="'mobile.adminNavigation' | hhTranslate">
     <mat-icon>menu</mat-icon>
   </button>
   <span class="app-brand-mark" aria-hidden="true">+</span>
   <span class="app-title">{{ 'app.admin.title' | hhTranslate:'His.Hope Admin' }}</span>
   <span class="toolbar-spacer"></span>
   <hh-language-switcher></hh-language-switcher>
-  <button mat-icon-button type="button" (click)="paletteOpen = true" aria-label="Open command palette">
+  <button mat-icon-button type="button" (click)="paletteOpen = true" [attr.aria-label]="'admin.openCommandPalette' | hhTranslate">
     <mat-icon>search</mat-icon>
   </button>
-  <button mat-icon-button type="button" (click)="toggleTheme()" aria-label="Toggle theme">
+  <button mat-icon-button type="button" (click)="toggleTheme()" [attr.aria-label]="'admin.toggleTheme' | hhTranslate">
     <mat-icon>brightness_6</mat-icon>
   </button>
-  <button mat-icon-button [matMenuTriggerFor]="userMenu" aria-label="User menu">
+  <button mat-icon-button [matMenuTriggerFor]="userMenu" [attr.aria-label]="'admin.userMenu' | hhTranslate">
     <mat-icon>account_circle</mat-icon>
   </button>
   <mat-menu #userMenu="matMenu">
     <button mat-menu-item *ngIf="isAuthenticated$ | async" (click)="onLogout()">
       <mat-icon>logout</mat-icon>
-      <span>Logout</span>
+      <span>{{ 'admin.logout' | hhTranslate }}</span>
     </button>
     <button mat-menu-item *ngIf="!(isAuthenticated$ | async)" (click)="onLogin()">
       <mat-icon>login</mat-icon>
-      <span>Login</span>
+      <span>{{ 'admin.login' | hhTranslate }}</span>
     </button>
   </mat-menu>
 </mat-toolbar>
@@ -35,31 +35,31 @@
     [mode]="(isMobile$ | async) ? 'over' : 'side'"
     [opened]="sidenavOpened$ | async"
     class="app-sidenav">
-    <hh-brand caption="Identity administration"></hh-brand>
+    <hh-brand [caption]="'admin.identityAdministration' | hhTranslate"></hh-brand>
     <mat-nav-list>
       <a mat-list-item routerLink="/clients" routerLinkActive="active-link">
         <mat-icon matListItemIcon>vpn_key</mat-icon>
-        <span matListItemTitle>Clients</span>
+        <span matListItemTitle>{{ 'admin.clients' | hhTranslate }}</span>
       </a>
       <a mat-list-item routerLink="/users" routerLinkActive="active-link">
         <mat-icon matListItemIcon>people</mat-icon>
-        <span matListItemTitle>Users</span>
+        <span matListItemTitle>{{ 'admin.users' | hhTranslate }}</span>
       </a>
       <a mat-list-item routerLink="/roles" routerLinkActive="active-link">
         <mat-icon matListItemIcon>badge</mat-icon>
-        <span matListItemTitle>Roles</span>
+        <span matListItemTitle>{{ 'admin.roles' | hhTranslate }}</span>
       </a>
       <a mat-list-item routerLink="/consents" routerLinkActive="active-link">
         <mat-icon matListItemIcon>checklist</mat-icon>
-        <span matListItemTitle>Consents</span>
+        <span matListItemTitle>{{ 'admin.consents' | hhTranslate }}</span>
       </a>
       <a mat-list-item routerLink="/security-providers" routerLinkActive="active-link">
         <mat-icon matListItemIcon>security</mat-icon>
-        <span matListItemTitle>Security providers</span>
+        <span matListItemTitle>{{ 'admin.securityProviders' | hhTranslate }}</span>
       </a>
       <a mat-list-item routerLink="/dashboard" routerLinkActive="active-link">
         <mat-icon matListItemIcon>dashboard</mat-icon>
-        <span matListItemTitle>Dashboard</span>
+        <span matListItemTitle>{{ 'admin.dashboard' | hhTranslate }}</span>
       </a>
     </mat-nav-list>
   </mat-sidenav>

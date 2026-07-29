@@ -35,7 +35,7 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(allowedOrigins)
               .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
               .WithHeaders("Accept", "Authorization", "DPoP", "Content-Type", "If-Match", "If-None-Match",
-                  "X-Correlation-ID", "X-CSRF-Token", "X-Requested-With")
+                  "X-Correlation-ID", "X-CSRF-Token", "X-Requested-With", "X-Timezone", "X-Currency")
               .WithExposedHeaders("Authorization", "ETag", "X-Correlation-ID")
               .AllowCredentials();
     });

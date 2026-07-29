@@ -281,6 +281,9 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.HasIndex(translation => translation.Locale);
         });
 
+        builder.Entity<LocalizationResource>().HasData(LocalizationSeedData.Resources);
+        builder.Entity<LocalizationTranslation>().HasData(LocalizationSeedData.Translations);
+
         builder.Entity<MobileDeviceRegistration>(entity =>
         {
             entity.ToTable("mobile_device_registrations");

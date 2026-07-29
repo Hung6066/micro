@@ -1,21 +1,21 @@
 import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { HisHopeBrandComponent, HisHopeThemeService } from '@his-hope/frontend-foundation';
+import { HisHopeBrandComponent, HisHopeThemeService, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { MobileAuthService } from './core/auth.service';
 
 @Component({
   standalone: true,
-  imports: [HisHopeBrandComponent],
+  imports: [HisHopeBrandComponent, HisHopeTranslatePipe],
   template: `
     <main class="mobile-auth">
       <section class="mobile-auth__card" aria-labelledby="mobile-login-title">
         <hh-brand />
         <p class="mobile-auth__eyebrow">His.Hope Mobile</p>
-        <h1 id="mobile-login-title">Clinical access, protected.</h1>
-        <p>Sign in with your hospital account to continue.</p>
+        <h1 id="mobile-login-title">{{ 'mobile.clinicalAccess' | hhTranslate }}</h1>
+        <p>{{ 'mobile.signInContinue' | hhTranslate }}</p>
         @if (auth.loginError(); as message) { <p class="mobile-auth__error" role="alert">{{ message }}</p> }
         <button class="hh-button hh-button--primary" type="button" [disabled]="auth.loginInProgress()" (click)="login()">
-          {{ auth.loginInProgress() ? 'Connecting securely...' : 'Sign in securely' }}
+          {{ auth.loginInProgress() ? ('mobile.connecting' | hhTranslate) : ('mobile.signInSecurely' | hhTranslate) }}
         </button>
       </section>
     </main>

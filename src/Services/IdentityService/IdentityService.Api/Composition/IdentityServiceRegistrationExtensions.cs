@@ -282,7 +282,7 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
                         "http://localhost:8081", "http://localhost:8082", "http://localhost:8083",
                         "http://localhost:4200", "http://localhost:4201", "http://localhost:4202", "http://localhost:4300",
                         "https://localhost", "http://localhost", "capacitor://localhost")
-                    .WithHeaders("Authorization", "DPoP", "Content-Type", "X-CSRF-Token", "X-Correlation-ID")
+                    .WithHeaders("Authorization", "DPoP", "Content-Type", "X-CSRF-Token", "X-Correlation-ID", "Accept-Language", "X-Timezone", "X-Currency")
                     .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                     .AllowCredentials();
             });

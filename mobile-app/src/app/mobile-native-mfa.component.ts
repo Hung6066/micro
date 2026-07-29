@@ -1,20 +1,20 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
-import { HisHopeStateComponent } from '@his-hope/frontend-foundation';
+import { HisHopeStateComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { MobileAdminApiService } from './core/admin-api.service';
 import { NativeCapabilityService } from './core/native-capability.service';
 
 @Component({
   standalone: true,
-  imports: [HisHopeStateComponent],
+  imports: [HisHopeStateComponent, HisHopeTranslatePipe],
   template: `
     @if (status() === 'loading') {
-      <hh-state kind="loading" message="Approve sign-in with this device..." />
+      <hh-state kind="loading" [message]="'mobile.approveSignIn' | hhTranslate" />
     } @else if (status() === 'success') {
-      <hh-state kind="empty" message="Sign-in approved. Return to the browser to continue." />
+      <hh-state kind="empty" [message]="'mobile.signInApproved' | hhTranslate" />
     } @else {
-      <hh-state kind="error" message="Native MFA approval failed. Return to the browser and use TOTP fallback." />
+      <hh-state kind="error" [message]="'mobile.nativeApprovalFailed' | hhTranslate" />
     }
   `,
 })

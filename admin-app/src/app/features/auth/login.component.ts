@@ -8,25 +8,26 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../core/services/auth.service';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatButtonModule, MatProgressSpinnerModule, MatIconModule],
+  imports: [CommonModule, MatCardModule, MatButtonModule, MatProgressSpinnerModule, MatIconModule, HisHopeTranslatePipe],
   template: `
     <div class="login-container">
       <mat-card class="login-card">
         <mat-card-content>
           <div class="login-header">
             <div class="logo">His.Hope</div>
-            <h2>Admin</h2>
-            <p class="subtitle">Sign in to manage OIDC resources</p>
+            <h2>{{ 'admin.adminLogin' | hhTranslate }}</h2>
+            <p class="subtitle">{{ 'admin.signInManageOidc' | hhTranslate }}</p>
           </div>
           <div class="login-buttons">
             <button mat-raised-button color="primary" class="full-width" (click)="oidcLogin()" [disabled]="checkingAuth">
               @if (checkingAuth) { <mat-spinner diameter="20" class="btn-spinner"></mat-spinner> }
               @if (!checkingAuth) { <mat-icon>login</mat-icon> }
-              @if (!checkingAuth) { Sign in with His.Hope }
+              @if (!checkingAuth) { {{ 'admin.signInHisHope' | hhTranslate }} }
             </button>
           </div>
         </mat-card-content>

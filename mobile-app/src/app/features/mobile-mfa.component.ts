@@ -1,6 +1,6 @@
 import { ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { HisHopeMobileIconComponent, HisHopeMobileOtpComponent, HisHopeStateComponent, HisHopeToolbarComponent } from '@his-hope/frontend-foundation';
+import { HisHopeI18nService, HisHopeMobileIconComponent, HisHopeMobileOtpComponent, HisHopeStateComponent, HisHopeToolbarComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { catchError, finalize, firstValueFrom, of } from 'rxjs';
 import QRCode from 'qrcode';
 import { MobileAdminApiService, MobileMfaEnrollment } from '../core/admin-api.service';
@@ -8,47 +8,47 @@ import { NativeCapabilityService } from '../core/native-capability.service';
 
 @Component({
   standalone: true,
-  imports: [RouterLink, HisHopeMobileIconComponent, HisHopeMobileOtpComponent, HisHopeStateComponent, HisHopeToolbarComponent],
+  imports: [RouterLink, HisHopeMobileIconComponent, HisHopeMobileOtpComponent, HisHopeStateComponent, HisHopeToolbarComponent, HisHopeTranslatePipe],
   template: `
     <section class="mfa-page">
-      <hh-toolbar label="MFA controls"><a hhToolbarTitle routerLink="/admin/dashboard">MFA security</a></hh-toolbar>
-      @if (loading) { <hh-state kind="loading" message="Loading MFA setup..." /> }
-      @else if (error) { <hh-state kind="error" [message]="error"><button type="button" class="hh-button hh-button--secondary" (click)="loadMfaStatus()"><hh-mobile-icon name="refresh" />Retry</button></hh-state> }
+      <hh-toolbar [label]="'mobile.mfaControls' | hhTranslate"><a hhToolbarTitle routerLink="/admin/dashboard">{{ 'mobile.mfaSecurity' | hhTranslate }}</a></hh-toolbar>
+      @if (loading) { <hh-state kind="loading" [message]="'mobile.loadingMfa' | hhTranslate" /> }
+      @else if (error) { <hh-state kind="error" [message]="error"><button type="button" class="hh-button hh-button--secondary" (click)="loadMfaStatus()"><hh-mobile-icon name="refresh" />{{ 'common.retry' | hhTranslate }}</button></hh-state> }
       @else if (!enrollment && !mfaEnabled) {
-        <section class="mfa-card" aria-labelledby="mfa-title"><p class="eyebrow">IDENTITY SECURITY</p><h1 id="mfa-title">Authenticator app</h1><p>Use an authenticator app to add a second verification step to your hospital account.</p><button type="button" class="hh-button hh-button--primary" (click)="enroll()"><hh-mobile-icon name="mfa" />Start MFA setup</button><a routerLink="/admin/dashboard" class="mfa-cancel">Cancel</a></section>
+        <section class="mfa-card" aria-labelledby="mfa-title"><p class="eyebrow">{{ 'mobile.identitySecurity' | hhTranslate }}</p><h1 id="mfa-title">{{ 'mobile.authenticatorApp' | hhTranslate }}</h1><p>{{ 'mobile.mfaDescription' | hhTranslate }}</p><button type="button" class="hh-button hh-button--primary" (click)="enroll()"><hh-mobile-icon name="mfa" />{{ 'mobile.startMfa' | hhTranslate }}</button><a routerLink="/admin/dashboard" class="mfa-cancel">{{ 'common.cancel' | hhTranslate }}</a></section>
       }
       @else {
         <section class="mfa-card" aria-labelledby="mfa-title">
-          <p class="eyebrow">IDENTITY SECURITY</p><h1 id="mfa-title">Authenticator app</h1>
+          <p class="eyebrow">{{ 'mobile.identitySecurity' | hhTranslate }}</p><h1 id="mfa-title">{{ 'mobile.authenticatorApp' | hhTranslate }}</h1>
           @if (enrollment) {
-            <p>Scan this QR code in your authenticator app, then enter the six-digit code to enable MFA.</p>
+            <p>{{ 'mobile.scanQr' | hhTranslate }}</p>
             <div class="mfa-qr" aria-labelledby="mfa-qr-title">
-              <div class="mfa-qr__heading"><hh-mobile-icon name="qr" /><strong id="mfa-qr-title">Scan setup code</strong></div>
-              @if (qrDataUrl) { <img class="mfa-qr__image" [src]="qrDataUrl" alt="QR code for His.Hope MFA setup" /> }
+              <div class="mfa-qr__heading"><hh-mobile-icon name="qr" /><strong id="mfa-qr-title">{{ 'mobile.scanSetupCode' | hhTranslate }}</strong></div>
+              @if (qrDataUrl) { <img class="mfa-qr__image" [src]="qrDataUrl" [alt]="'mobile.qrAlt' | hhTranslate" /> }
               @else if (qrError) { <p class="mfa-qr__error" role="alert"><hh-mobile-icon name="error" />{{ qrError }}</p> }
-              @else { <div class="mfa-qr__loading" role="status"><hh-mobile-icon name="refresh" />Preparing secure setup code...</div> }
+              @else { <div class="mfa-qr__loading" role="status"><hh-mobile-icon name="refresh" />{{ 'mobile.preparingQr' | hhTranslate }}</div> }
             </div>
-            <p class="mfa-secret"><strong><hh-mobile-icon name="key" />Manual key</strong><code>{{ enrollment.secretKey }}</code></p>
-            <details><summary><hh-mobile-icon name="link" />Authenticator URI</summary><code class="mfa-codes">{{ enrollment.qrCodeUri }}</code></details>
+            <p class="mfa-secret"><strong><hh-mobile-icon name="key" />{{ 'mobile.manualKey' | hhTranslate }}</strong><code>{{ enrollment.secretKey }}</code></p>
+            <details><summary><hh-mobile-icon name="link" />{{ 'mobile.authenticatorUri' | hhTranslate }}</summary><code class="mfa-codes">{{ enrollment.qrCodeUri }}</code></details>
           } @else {
-            <p>MFA is already enabled for this account. You can register this mobile device for native approval without creating a new TOTP secret.</p>
+            <p>{{ 'mobile.mfaAlreadyEnabled' | hhTranslate }}</p>
           }
           <div class="mfa-passkey">
-            <p><strong>Native device authenticator</strong></p>
-            <p>Register this Android or iOS device as the primary MFA approval. TOTP remains available as a fallback.</p>
+            <p><strong>{{ 'mobile.nativeAuthenticator' | hhTranslate }}</strong></p>
+            <p>{{ 'mobile.nativeDescription' | hhTranslate }}</p>
             <button type="button" class="hh-button hh-button--secondary" (click)="registerDevicePasskey()" [disabled]="loading">
-              <hh-mobile-icon name="verified" />Use this device for MFA
+              <hh-mobile-icon name="verified" />{{ 'mobile.useDeviceMfa' | hhTranslate }}
             </button>
             @if (passkeyError) { <p class="mfa-qr__error" role="alert"><hh-mobile-icon name="error" />{{ passkeyError }}</p> }
             @if (passkeyStatus) { <p class="mfa-success" role="status">{{ passkeyStatus }}</p> }
           </div>
           @if (enrollment) {
-            <hh-mobile-otp label="Authenticator code" (completed)="verify($event)" />
+            <hh-mobile-otp [label]="'mobile.authenticatorCode' | hhTranslate" (completed)="verify($event)" />
             @if (status) { <p class="mfa-success" role="status"><hh-mobile-icon name="verified" />{{ status }}</p> }
-            <details><summary><hh-mobile-icon name="key" />Recovery codes</summary><p>Store these codes securely. Each code can be used once.</p><code class="mfa-codes">{{ enrollment.recoveryCodes.join('\\n') }}</code></details>
+            <details><summary><hh-mobile-icon name="key" />{{ 'mobile.recoveryCodes' | hhTranslate }}</summary><p>{{ 'mobile.recoveryDescription' | hhTranslate }}</p><code class="mfa-codes">{{ enrollment.recoveryCodes.join('\\n') }}</code></details>
           } @else if (mfaEnabled) {
-            <p>Use the authenticator code configured on your computer if native passkey registration is unavailable.</p>
-            <hh-mobile-otp label="Authenticator code (fallback)" (completed)="verify($event)" />
+            <p>{{ 'mobile.fallbackDescription' | hhTranslate }}</p>
+            <hh-mobile-otp [label]="'mobile.authenticatorFallback' | hhTranslate" (completed)="verify($event)" />
             @if (status) { <p class="mfa-success" role="status"><hh-mobile-icon name="verified" />{{ status }}</p> }
           }
         </section>
@@ -61,6 +61,7 @@ export class MobileMfaComponent implements OnInit {
   private readonly api = inject(MobileAdminApiService);
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly native = inject(NativeCapabilityService);
+  private readonly i18n = inject(HisHopeI18nService);
   enrollment: MobileMfaEnrollment | null = null;
   loading = false;
   error = '';
@@ -82,7 +83,7 @@ export class MobileMfaComponent implements OnInit {
       const mfa = await firstValueFrom(this.api.getMfaStatus());
       this.mfaEnabled = mfa.enabled;
     } catch {
-      this.error = 'Unable to load MFA status.';
+      this.error = this.i18n.t('mobile.mfaLoadFailed');
     } finally {
       this.loading = false;
       this.changeDetector.detectChanges();
@@ -97,7 +98,7 @@ export class MobileMfaComponent implements OnInit {
     this.qrError = '';
     this.api.enrollMfa().pipe(
       finalize(() => { this.loading = false; this.changeDetector.detectChanges(); }),
-      catchError(() => { this.error = 'Unable to start MFA setup.'; return of(null); }),
+      catchError(() => { this.error = this.i18n.t('mobile.mfaSetupFailed'); return of(null); }),
     ).subscribe(value => {
       this.enrollment = value;
       if (value) void this.renderQrCode(value.qrCodeUri);
@@ -112,7 +113,7 @@ export class MobileMfaComponent implements OnInit {
         color: { dark: '#10251d', light: '#ffffff' },
       });
     } catch {
-      this.qrError = 'The QR code could not be generated. Use the manual key below.';
+      this.qrError = this.i18n.t('mobile.qrFailed');
     } finally {
       this.changeDetector.detectChanges();
     }
@@ -124,8 +125,8 @@ export class MobileMfaComponent implements OnInit {
     this.error = '';
     this.api.verifyMfa(code).pipe(
       finalize(() => { this.loading = false; this.changeDetector.detectChanges(); }),
-      catchError(() => { this.error = 'The authenticator code is invalid or expired.'; return of(null); }),
-    ).subscribe(value => { if (value?.status === 'ok') this.status = 'MFA enabled successfully.'; this.changeDetector.detectChanges(); });
+      catchError(() => { this.error = this.i18n.t('mobile.codeInvalid'); return of(null); }),
+    ).subscribe(value => { if (value?.status === 'ok') this.status = this.i18n.t('mobile.mfaEnabled'); this.changeDetector.detectChanges(); });
   }
 
   async registerDevicePasskey(): Promise<void> {
@@ -135,15 +136,15 @@ export class MobileMfaComponent implements OnInit {
     this.passkeyError = '';
     try {
       if (!await this.native.nativePasskeySupported()) {
-        throw new Error('This device does not support native passkeys. Use the TOTP fallback.');
+        throw new Error(this.i18n.t('mobile.nativeUnsupported'));
       }
       const options = await firstValueFrom(this.api.registerPasskeyOptions());
       const response = await this.native.registerNativePasskey(options);
       const result = await firstValueFrom(this.api.completePasskeyRegistration(response));
-      if (!result.registered) throw new Error('The passkey was not registered.');
-      this.passkeyStatus = 'This device is registered for MFA approval.';
+      if (!result.registered) throw new Error(this.i18n.t('mobile.deviceRegistrationFailed'));
+      this.passkeyStatus = this.i18n.t('mobile.deviceRegistered');
     } catch (value) {
-      this.passkeyError = this.errorMessage(value, 'Unable to register this device for MFA.');
+      this.passkeyError = this.errorMessage(value, this.i18n.t('mobile.deviceRegistrationFailed'));
     } finally {
       this.loading = false;
       this.changeDetector.detectChanges();

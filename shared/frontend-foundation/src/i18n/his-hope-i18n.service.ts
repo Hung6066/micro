@@ -1,20 +1,20 @@
 import { DOCUMENT, isPlatformBrowser } from "@angular/common";
-import { Injectable, PLATFORM_ID, inject, signal } from "@angular/core";
+import { Inject, Injectable, PLATFORM_ID, signal } from "@angular/core";
 import { HisHopeTranslationDictionary } from "../contracts/his-hope-ui-contracts";
 import { hisHopeEn } from "./dictionaries/en";
 import { hisHopeViVN } from "./dictionaries/vi-vn";
 
 export type HisHopeLocale = string;
 
-@Injectable({ providedIn: "root" })
+@Injectable()
 export class HisHopeI18nService {
   readonly locale = signal<HisHopeLocale>("vi-VN");
   readonly timeZone = signal<string>("Asia/Ho_Chi_Minh");
   readonly currency = signal<string>("VND");
   private dictionary: HisHopeTranslationDictionary = hisHopeViVN;
   private readonly remoteDictionaries: Record<string, Record<string, string>> = {};
-  private readonly document = inject(DOCUMENT);
-  private readonly platformId = inject(PLATFORM_ID);
+  private readonly document: Document;
+  private readonly platformId: object;
   private syncChannel?: BroadcastChannel;
 
   readonly dictionaries: Record<string, HisHopeTranslationDictionary> = {
@@ -22,7 +22,9 @@ export class HisHopeI18nService {
     en: hisHopeEn,
   };
 
-  constructor() {
+  constructor(@Inject(DOCUMENT) document: Document, @Inject(PLATFORM_ID) platformId: object) {
+    this.document = document;
+    this.platformId = platformId;
     if (isPlatformBrowser(this.platformId) && "BroadcastChannel" in window) {
       this.syncChannel = new BroadcastChannel("his-hope-preferences");
       this.syncChannel.onmessage = ({ data }) => {

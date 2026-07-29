@@ -67,3 +67,9 @@ Accept-Language: en-US
 ```
 
 The endpoint returns the requested locale first and falls back to `vi-VN`. Domain text entered by a patient or clinician is not automatically translated and remains in its original language. Each business service that owns translatable reference data should add the same catalog pattern to its own database rather than creating cross-service foreign keys.
+
+The IdentityService migration `SeedMobileAdminLocalization` seeds the baseline mobile-admin catalog for `vi-VN` and `en-US`, including navigation, common actions, MFA/passkey states, and LDAP/SAML provider labels. Clients should use the stable keys (for example `mobile.nav.home` and `mobile.mfa.createPasskey`) rather than embedding translated text in feature code.
+
+## UI text boundary
+
+New UI text in `mobile-app` and `admin-app` must be added to the dictionaries exported by `@his-hope/frontend-foundation` and rendered through `HisHopeTranslatePipe` or `HisHopeI18nService`. The repository gate is `npm run validate:i18n`; it rejects newly added hardcoded labels, messages, titles, placeholders, and visible template text in those apps. Technical identifiers, routes, API values, permission codes, and domain data are not translated.

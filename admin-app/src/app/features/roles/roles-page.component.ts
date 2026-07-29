@@ -1,5 +1,5 @@
 import { Component, OnInit, inject } from '@angular/core';
-import { HisHopeBulkAction, HisHopeBulkActionRequest, HisHopeDataTableComponent, HisHopeDataTableColumn, HisHopeDataTableDetailDirective, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeTableExportRequest, HisHopeToolbarComponent, HisHopePageQuery } from '@his-hope/frontend-foundation';
+import { HisHopeBulkAction, HisHopeBulkActionRequest, HisHopeDataTableComponent, HisHopeDataTableColumn, HisHopeDataTableDetailDirective, HisHopeI18nService, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeTableExportRequest, HisHopeToolbarComponent, HisHopePageQuery, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { AdminApiService, AdminPageQuery, Role } from '../../core/services/admin-api.service';
 import { catchError, finalize } from 'rxjs/operators';
 import { of, Subscription } from 'rxjs';
@@ -7,26 +7,26 @@ import { of, Subscription } from 'rxjs';
 @Component({
   selector: 'app-roles-page',
   standalone: true,
-  imports: [HisHopeDataTableComponent, HisHopeDataTableDetailDirective, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeToolbarComponent],
+  imports: [HisHopeDataTableComponent, HisHopeDataTableDetailDirective, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeToolbarComponent, HisHopeTranslatePipe],
   template: `
     <hh-page-layout>
-      <hh-page-header hhPageHeader title="Roles" subtitle="Define reusable access policies for the hospital workspace" />
-      <hh-toolbar hhPageToolbar label="Role controls">
-        <span hhToolbarTitle>{{ totalItems }} roles</span>
+      <hh-page-header hhPageHeader [title]="'admin.pageRoles' | hhTranslate" [subtitle]="'admin.rolesSubtitle' | hhTranslate" />
+      <hh-toolbar hhPageToolbar [label]="'admin.roles' | hhTranslate">
+        <span hhToolbarTitle>{{ totalItems }} {{ 'admin.roles' | hhTranslate }}</span>
         <button hh-toolbar-actions type="button" class="hh-button hh-button--secondary" (click)="loadRoles()">
           <span class="material-icons" aria-hidden="true">refresh</span>
-          Refresh
+          {{ 'admin.refresh' | hhTranslate }}
         </button>
       </hh-toolbar>
-      <hh-data-table label="Roles" [columns]="columns" [rows]="tableRows" [selection]="true" [loading]="loading" mode="server"
+      <hh-data-table [label]="'admin.roles' | hhTranslate" [columns]="columns" [rows]="tableRows" [selection]="true" [loading]="loading" mode="server"
         [totalItems]="totalItems" [query]="query" [pageSize]="20" (queryChange)="onQueryChange($event)"
         [error]="error ?? ''" [empty]="!loading && !error && tableRows.length === 0" [exportable]="true"
         [bulkActions]="bulkActions" [filterBuilder]="true" [virtualizeColumns]="true" [expandedRowKeys]="expandedRowKeys" viewStorageKey="admin.roles" viewName="default" [serverBackedView]="true" [savedView]="savedView"
         (rowExpandChange)="toggleRowExpand($event)"
         (viewSaveRequested)="saveView($event)" (viewResetRequested)="resetView($event)" (bulkActionRequested)="onBulkAction($event)" (exportRequested)="onExport($event)"
-        emptyMessage="No roles found." (retry)="loadRoles()">
+        [emptyMessage]="'admin.noRoles' | hhTranslate" (retry)="loadRoles()">
         <ng-template hhDataTableDetail let-row>
-          <div class="hh-data-table-detail">{{ row['description'] || 'No description' }}</div>
+          <div class="hh-data-table-detail">{{ row['description'] || ('admin.noDescription' | hhTranslate) }}</div>
         </ng-template>
       </hh-data-table>
     </hh-page-layout>
@@ -34,8 +34,9 @@ import { of, Subscription } from 'rxjs';
 })
 export class RolesPageComponent implements OnInit {
   private readonly api = inject(AdminApiService);
+  private readonly i18n = inject(HisHopeI18nService);
   roles: Role[] = [];
-  readonly columns: HisHopeDataTableColumn[] = [{ key: 'name', label: 'Name', sortable: true, responsivePriority: 1, pinned: 'left' }, { key: 'description', label: 'Description', responsivePriority: 2 }];
+  get columns(): HisHopeDataTableColumn[] { this.i18n.locale(); return [{ key: 'name', label: this.i18n.t('admin.name'), sortable: true, responsivePriority: 1, pinned: 'left' }, { key: 'description', label: this.i18n.t('admin.description'), responsivePriority: 2 }]; }
   tableRows: Record<string, unknown>[] = [];
   loading = false;
   error: string | null = null;
@@ -44,7 +45,7 @@ export class RolesPageComponent implements OnInit {
   savedView: any = null;
   expandedRowKeys: string[] = [];
   private pageRequest?: Subscription;
-  readonly bulkActions: HisHopeBulkAction[] = [{ id: 'delete', label: 'Delete selected', tone: 'danger' }];
+  get bulkActions(): HisHopeBulkAction[] { this.i18n.locale(); return [{ id: 'delete', label: this.i18n.t('admin.deleteSelected'), tone: 'danger' }]; }
 
   ngOnInit(): void { this.loadServerView(); this.loadRoles(); }
 

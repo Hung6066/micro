@@ -6,7 +6,7 @@ describe("HisHopeI18nService", () => {
 
   beforeEach(() => {
     localStorage.removeItem("hh-locale");
-    TestBed.configureTestingModule({});
+    TestBed.configureTestingModule({ providers: [HisHopeI18nService] });
     service = TestBed.inject(HisHopeI18nService);
   });
 

@@ -4,27 +4,27 @@ import { MatButtonModule } from '@angular/material/button';
 import { AdminApiService, DashboardStats } from '../../core/services/admin-api.service';
 import { catchError, finalize } from 'rxjs/operators';
 import { of } from 'rxjs';
-import { HisHopeMetricCardComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent } from '@his-hope/frontend-foundation';
+import { HisHopeI18nService, HisHopeMetricCardComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-dashboard-page',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, HisHopeMetricCardComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent],
+  imports: [CommonModule, MatButtonModule, HisHopeMetricCardComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTranslatePipe],
   template: `
     <hh-page-layout>
-      <hh-page-header hhPageHeader title="Admin Dashboard" subtitle="Identity administration overview" />
+      <hh-page-header hhPageHeader [title]="'admin.dashboardTitle' | hhTranslate" [subtitle]="'admin.dashboardSubtitle' | hhTranslate" />
       @if (loading) {
-        <hh-state kind="loading" message="Loading dashboard..." />
+        <hh-state kind="loading" [message]="'admin.loadingDashboard' | hhTranslate" />
       } @else if (error) {
         <hh-state kind="error" icon="error" [message]="error">
-          <button mat-stroked-button type="button" (click)="loadDashboardStats()">Retry</button>
+          <button mat-stroked-button type="button" (click)="loadDashboardStats()">{{ 'common.retry' | hhTranslate }}</button>
         </hh-state>
       } @else if (stats) {
         <div class="stats-grid">
-          <hh-metric-card icon="vpn_key" label="Clients" [value]="stats.totalClients" link="/clients" action="Manage clients" />
-          <hh-metric-card icon="people" label="Users" [value]="stats.totalUsers" link="/users" action="Manage users" />
-          <hh-metric-card icon="badge" label="Roles" [value]="stats.totalRoles" link="/roles" action="Manage roles" tone="info" />
-          <hh-metric-card icon="checklist" label="Consents" [value]="stats.totalConsents" link="/consents" action="Review consents" tone="warning" />
+          <hh-metric-card icon="vpn_key" [label]="'admin.clients' | hhTranslate" [value]="stats.totalClients" link="/clients" [action]="'admin.manageClients' | hhTranslate" />
+          <hh-metric-card icon="people" [label]="'admin.users' | hhTranslate" [value]="stats.totalUsers" link="/users" [action]="'admin.manageUsers' | hhTranslate" />
+          <hh-metric-card icon="badge" [label]="'admin.roles' | hhTranslate" [value]="stats.totalRoles" link="/roles" [action]="'admin.manageRoles' | hhTranslate" tone="info" />
+          <hh-metric-card icon="checklist" [label]="'admin.consents' | hhTranslate" [value]="stats.totalConsents" link="/consents" [action]="'admin.reviewConsents' | hhTranslate" tone="warning" />
         </div>
       }
     </hh-page-layout>
@@ -37,6 +37,7 @@ import { HisHopeMetricCardComponent, HisHopePageHeaderComponent, HisHopePageLayo
 })
 export class DashboardPageComponent implements OnInit {
   private readonly api = inject(AdminApiService);
+  private readonly i18n = inject(HisHopeI18nService);
   stats: DashboardStats | null = null;
   loading = false;
   error: string | null = null;
@@ -49,7 +50,7 @@ export class DashboardPageComponent implements OnInit {
     this.api.getDashboardStats().pipe(
       finalize(() => this.loading = false),
       catchError(() => {
-        this.error = 'Failed to load dashboard data.';
+        this.error = this.i18n.t('admin.dashboardLoadFailed');
         return of(null);
       }),
     ).subscribe(stats => this.stats = stats);

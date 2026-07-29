@@ -11,7 +11,7 @@ import { BehaviorSubject, Observable, of } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
 import { AuthService } from './core/services/auth.service';
 import { AdminApiService } from './core/services/admin-api.service';
-import { HisHopeBrandComponent, HisHopeCommandPaletteComponent, HisHopeLanguageSwitcherComponent, HisHopeOfflineBannerComponent, HisHopePermissionService, HisHopeThemeService, HisHopeToastComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
+import { HisHopeBrandComponent, HisHopeCommandPaletteComponent, HisHopeI18nService, HisHopeLanguageSwitcherComponent, HisHopeOfflineBannerComponent, HisHopePermissionService, HisHopeThemeService, HisHopeToastComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-root',
@@ -41,18 +41,20 @@ export class AppComponent {
   readonly isMobile$: Observable<boolean>;
   readonly sidenavOpened$ = new BehaviorSubject<boolean>(true);
   paletteOpen = false;
-  readonly commands = [
-    { id: 'clients', label: 'Open clients', keywords: ['oidc', 'applications'] },
-    { id: 'users', label: 'Open users', keywords: ['accounts'] },
-    { id: 'roles', label: 'Open roles', keywords: ['permissions'] },
-  ];
+  private readonly i18n: HisHopeI18nService;
+  get commands() { this.i18n.locale(); return [
+    { id: 'clients', label: this.i18n.t('admin.openClients'), keywords: ['oidc', 'applications'] },
+    { id: 'users', label: this.i18n.t('admin.openUsers'), keywords: ['accounts'] },
+    { id: 'roles', label: this.i18n.t('admin.openRoles'), keywords: ['permissions'] },
+  ]; }
   private readonly isMobileSubject = new BehaviorSubject<boolean>(window.innerWidth <= 768);
   private readonly router = inject(Router);
   private readonly themeService = inject(HisHopeThemeService);
   private readonly adminApi = inject(AdminApiService);
   private readonly permissionService = inject(HisHopePermissionService);
 
-  constructor() {
+  constructor(i18n: HisHopeI18nService) {
+    this.i18n = i18n;
     this.isAuthenticated$ = this.authService.isAuthenticated$;
     this.isMobile$ = this.isMobileSubject.asObservable();
     this.isAuthenticated$.pipe(

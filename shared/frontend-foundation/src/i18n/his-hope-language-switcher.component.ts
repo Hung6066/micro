@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, Output, QueryList, ViewChildren, inject, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, Output, QueryList, ViewChildren, input, signal } from '@angular/core';
 import { HisHopeI18nService, HisHopeLocale } from './his-hope-i18n.service';
 import { HisHopeLocalizationApiService } from './his-hope-localization-api.service';
 
@@ -51,8 +51,7 @@ export class HisHopeLanguageSwitcherComponent {
     { code: 'vi-VN', label: 'Tiếng Việt', icon: 'VN' },
     { code: 'en', label: 'English', icon: 'EN' },
   ]);
-  readonly i18n = inject(HisHopeI18nService);
-  readonly localizationApi = inject(HisHopeLocalizationApiService);
+  constructor(readonly i18n: HisHopeI18nService, readonly localizationApi: HisHopeLocalizationApiService) {}
   readonly open = signal(false);
   readonly triggerId = `hh-language-trigger-${Math.random().toString(36).slice(2, 9)}`;
   readonly menuId = `hh-language-menu-${Math.random().toString(36).slice(2, 9)}`;
