@@ -253,7 +253,7 @@ public class HisHopeSecurityPlugin: CAPPlugin, CAPBridgedPlugin {
                 "type": "public-key",
                 "response": [
                     "clientDataJSON": base64Url(registration.rawClientDataJSON),
-                    "attestationObject": base64Url(registration.rawAttestationObject)
+                    "attestationObject": registration.rawAttestationObject.map(base64Url) ?? ""
                 ]
             ]])
         } else if let assertion = credential as? ASAuthorizationPlatformPublicKeyCredentialAssertion {
