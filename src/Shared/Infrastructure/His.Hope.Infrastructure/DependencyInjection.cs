@@ -11,6 +11,7 @@ using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.Infrastructure.Qos;
 using His.Hope.Infrastructure.Resilience;
+using His.Hope.Infrastructure.Security;
 using His.Hope.Messaging.RabbitMq;
 using His.Hope.Messaging.Redis;
 using His.Hope.Messaging.Sql;
@@ -51,6 +52,7 @@ public static class DependencyInjection
         }
 
         services.AddHisHopeHybridCaching(redisConnectionString);
+        services.AddSingleton<DpopResourceProofValidator>();
 
         // Register cache warmup background service.
         // Individual services register their IWarmupTask implementations

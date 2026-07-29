@@ -21,6 +21,7 @@ public interface IApplicationDbContext
     DbSet<TableView> TableViews { get; }
     DbSet<MobileDeviceRegistration> MobileDeviceRegistrations { get; }
     DbSet<MobileTelemetryEvent> MobileTelemetryEvents { get; }
+    DbSet<PushNotificationOutbox> PushNotificationOutbox { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

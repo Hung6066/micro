@@ -16,6 +16,11 @@ public sealed class OidcProductionConfigurationContractTests
         configuration.GetValue<bool>("OpenIddict:AllowInsecureHttp").Should().BeFalse();
         configuration["OpenIddict:Encryption:PrivateKeyPath"].Should().NotBeNullOrWhiteSpace();
         configuration["OpenIddict:Encryption:KeyId"].Should().NotBeNullOrWhiteSpace();
+        configuration.GetSection("Dpop:RequiredClientIds").Get<string[]>()
+            .Should().Contain("his-hope-mobile");
+        configuration["Passkeys:RpId"].Should().Be("his-hope.vn");
+        configuration.GetSection("Passkeys:Origins").Get<string[]>()
+            .Should().Contain(new[] { "https://his-hope.vn", "https://dashboard.his-hope.vn", "https://admin.his-hope.vn" });
 
         var clients = IdentityDbInitializer.ResolveOidcClientUris(configuration, "Production");
 

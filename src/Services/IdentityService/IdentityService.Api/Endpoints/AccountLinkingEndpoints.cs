@@ -10,6 +10,7 @@ public static class AccountLinkingEndpoints
 {
     public static RouteGroupBuilder MapAccountLinkingEndpoints(this RouteGroupBuilder group)
     {
+        group.RequireAuthorization();
         group.MapGet("/linked-accounts", GetLinkedAccounts);
         group.MapDelete("/linked-accounts/{provider}", UnlinkAccount);
         group.MapGet("/link/{provider}", ChallengeLink);

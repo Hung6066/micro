@@ -9,7 +9,10 @@ export type HisHopeLocale = string;
 @Injectable({ providedIn: "root" })
 export class HisHopeI18nService {
   readonly locale = signal<HisHopeLocale>("vi-VN");
+  readonly timeZone = signal<string>("Asia/Ho_Chi_Minh");
+  readonly currency = signal<string>("VND");
   private dictionary: HisHopeTranslationDictionary = hisHopeViVN;
+  private readonly remoteDictionaries: Record<string, Record<string, string>> = {};
   private readonly document = inject(DOCUMENT);
   private readonly platformId = inject(PLATFORM_ID);
   private syncChannel?: BroadcastChannel;
@@ -28,6 +31,7 @@ export class HisHopeI18nService {
       };
     }
     this.restore();
+    this.restoreRegionalPreferences();
   }
 
   setLocale(locale: HisHopeLocale, broadcast = true): void {
@@ -40,6 +44,25 @@ export class HisHopeI18nService {
       localStorage.setItem("hh-locale", locale);
       if (broadcast) this.syncChannel?.postMessage({ type: "locale", locale });
     }
+  }
+
+  registerTranslations(locale: string, translations: Record<string, string>): void {
+    this.remoteDictionaries[locale] = { ...this.remoteDictionaries[locale], ...translations };
+  }
+
+  apiLocale(): string { return this.locale() === "en" ? "en-US" : this.locale(); }
+
+  setTimeZone(timeZone: string): void {
+    if (!timeZone.trim()) return;
+    this.timeZone.set(timeZone);
+    if (isPlatformBrowser(this.platformId)) localStorage.setItem("hh-timezone", timeZone);
+  }
+
+  setCurrency(currency: string): void {
+    const normalized = currency.trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(normalized)) return;
+    this.currency.set(normalized);
+    if (isPlatformBrowser(this.platformId)) localStorage.setItem("hh-currency", normalized);
   }
 
   registerLocale(
@@ -77,6 +100,8 @@ export class HisHopeI18nService {
     fallback = key,
     params: Record<string, string | number> = {},
   ): string {
+    const remoteValue = this.remoteDictionaries[this.apiLocale()]?.[key];
+    if (remoteValue) return this.interpolate(remoteValue, params);
     const value = key
       .split(".")
       .reduce<unknown>(
@@ -104,7 +129,15 @@ export class HisHopeI18nService {
     options?: Intl.DateTimeFormatOptions,
   ): string {
     const date = value instanceof Date ? value : new Date(value);
-    return new Intl.DateTimeFormat(this.locale(), options).format(date);
+    return new Intl.DateTimeFormat(this.apiLocale(), { timeZone: this.timeZone(), ...options }).format(date);
+  }
+
+  formatCurrency(value: number, currency = this.currency()): string {
+    return new Intl.NumberFormat(this.apiLocale(), { style: "currency", currency }).format(value);
+  }
+
+  formatDateTime(value: Date | number | string, options: Intl.DateTimeFormatOptions = {}): string {
+    return this.formatDate(value, { dateStyle: "medium", timeStyle: "short", ...options });
   }
 
   /** Picks the plural-form key ("one"/"other"/...) via `Intl.PluralRules`, then
@@ -137,5 +170,14 @@ export class HisHopeI18nService {
     if (!isPlatformBrowser(this.platformId)) return;
     this.document.documentElement.lang = locale;
     this.document.documentElement.dataset["locale"] = locale;
+  }
+
+
+  private restoreRegionalPreferences(): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    const timeZone = localStorage.getItem("hh-timezone") || Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const currency = localStorage.getItem("hh-currency");
+    if (timeZone) this.timeZone.set(timeZone);
+    if (currency && /^[A-Z]{3}$/i.test(currency)) this.currency.set(currency.toUpperCase());
   }
 }

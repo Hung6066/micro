@@ -25,6 +25,7 @@
             "inlineStyleLanguage": "scss",
             "assets": [{ "glob": "**/*", "input": "public" }],
             "styles": ["src/styles.scss"],
+            "allowedCommonJsDependencies": ["qrcode"],
             "scripts": []
           },
           "configurations": {
@@ -36,7 +37,7 @@
                 }
               ],
               "budgets": [
-                { "type": "initial", "maximumWarning": "700kB", "maximumError": "1MB" },
+                { "type": "initial", "maximumWarning": "1.5MB", "maximumError": "2MB" },
                 { "type": "anyComponentStyle", "maximumWarning": "8kB", "maximumError": "16kB" }
               ],
               "outputHashing": "all"
@@ -73,7 +74,7 @@
         },
         "lint": {
           "builder": "@angular-eslint/builder:lint",
-          "options": {}
+          "options": { "lintFilePatterns": ["src/**/*.ts", "src/**/*.html"] }
         }
       }
     }

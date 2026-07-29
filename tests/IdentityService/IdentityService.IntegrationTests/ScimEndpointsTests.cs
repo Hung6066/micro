@@ -57,7 +57,8 @@ public class ScimEndpointsTests
         };
 
         var createResponse = await session.PostWithCookiesAsync("/scim/v2/Users", payload);
-        Assert.Equal(HttpStatusCode.Conflict, createResponse.StatusCode);
+        Assert.True(createResponse.StatusCode == HttpStatusCode.Conflict,
+            await createResponse.Content.ReadAsStringAsync());
     }
 
     [Fact]

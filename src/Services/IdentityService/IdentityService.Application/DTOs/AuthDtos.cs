@@ -8,6 +8,8 @@ public record LoginRequest(
     string? IpAddress = null,
     string? UserAgent = null);
 
+public record LdapLoginRequest(string UserName, string Password);
+
 public record RegisterRequest(
     string? Username = null,
     string? Email = null,

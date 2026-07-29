@@ -24,7 +24,7 @@ public class PatientGrpcServiceImpl : PatientGrpcService.PatientGrpcServiceBase
     public override async Task<PatientResponse> GetPatient(PatientRequest request,
         ServerCallContext context)
     {
-        var patientId = PatientId.From(Guid.Parse(request.Id));
+        var patientId = PatientId.From(ParseGuidOrThrow(request.Id, "Patient id"));
         var patient = await _patientRepository.GetByIdAsync(patientId);
 
         if (patient is null)
@@ -52,11 +52,26 @@ public class PatientGrpcServiceImpl : PatientGrpcService.PatientGrpcServiceBase
     public override async Task<PatientExistsResponse> CheckPatientExists(
         PatientExistsRequest request, ServerCallContext context)
     {
-        var patientId = PatientId.From(Guid.Parse(request.Id));
+        var patientId = PatientId.From(ParseGuidOrThrow(request.Id, "Patient id"));
         var exists = await _patientRepository.ExistsAsync(patientId);
 
         return new PatientExistsResponse { Exists = exists };
     }
+
+    private static Guid ParseGuidOrThrow(string value, string fieldName)
+    {
+        if (Guid.TryParse(value, out var parsed))
+            return parsed;
+
+        throw new RpcException(new Status(StatusCode.InvalidArgument, $"{fieldName} must be a valid GUID."));
+    }
+
+    private static DateTime AsUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
 
     private static PatientResponse MapToResponse(Domain.Aggregates.Patient patient) =>
         new()
@@ -66,13 +81,13 @@ public class PatientGrpcServiceImpl : PatientGrpcService.PatientGrpcServiceBase
             FirstName = patient.Name.FirstName,
             LastName = patient.Name.LastName,
             MiddleName = patient.Name.MiddleName ?? string.Empty,
-            DateOfBirth = patient.DateOfBirth.ToTimestamp(),
+            DateOfBirth = AsUtc(patient.DateOfBirth).ToTimestamp(),
             GenderCode = patient.Gender.Code,
             GenderName = patient.Gender.Name,
             Phone = patient.ContactInfo.Phone,
             Email = patient.ContactInfo.Email ?? string.Empty,
             IsActive = patient.IsActive,
-            CreatedAt = patient.CreatedAt.ToTimestamp(),
-            UpdatedAt = patient.UpdatedAt?.ToTimestamp()
+            CreatedAt = AsUtc(patient.CreatedAt).ToTimestamp(),
+            UpdatedAt = patient.UpdatedAt is { } updatedAt ? AsUtc(updatedAt).ToTimestamp() : null
         };
 }

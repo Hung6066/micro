@@ -66,6 +66,7 @@ spec:
             runAsGroup: 1654
           image: his-hope/clinical-service:latest
           imagePullPolicy: Always
+          volumeMounts: []
           ports:
             - name: http
               containerPort: 5005

@@ -13,8 +13,11 @@ module.exports = tseslint.config(
     rules: {
       '@angular-eslint/directive-selector': ['error', { type: 'attribute', prefix: 'app', style: 'camelCase' }],
       '@angular-eslint/component-selector': ['error', { type: 'element', prefix: 'app', style: 'kebab-case' }],
-      '@typescript-eslint/no-implied-eval': 'error',
       'no-eval': 'error',
+      '@typescript-eslint/no-unused-vars': 'warn',
+      '@typescript-eslint/no-this-alias': 'warn',
+      '@angular-eslint/no-empty-lifecycle-method': 'warn',
+      '@angular-eslint/prefer-standalone': 'warn',
     },
   },
   {

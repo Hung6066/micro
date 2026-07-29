@@ -20,12 +20,14 @@ import { GlobalErrorHandler } from '@core/errors/global-error-handler';
 
 import { environment } from '@env/environment';
 import { mockServiceProviders } from '@core/services/mock/mock-providers';
+import { HIS_HOPE_LOCALIZATION_API_URL, hisHopeInternationalizationInterceptor } from '@his-hope/frontend-foundation';
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    { provide: HIS_HOPE_LOCALIZATION_API_URL, useValue: environment.apiUrl },
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    provideHttpClient(withInterceptorsFromDi(), withInterceptors([authInterceptor, csrfInterceptor])),
+    provideHttpClient(withInterceptorsFromDi(), withInterceptors([hisHopeInternationalizationInterceptor, authInterceptor, csrfInterceptor])),
     provideAuth({
       config: {
         authority: environment.oidc.authority,

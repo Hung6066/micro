@@ -64,6 +64,9 @@
     <ProjectReference Include="..\..\Observability\His.Hope.Observability.OpenTelemetry\His.Hope.Observability.OpenTelemetry.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Infrastructure.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <Protobuf Include="..\..\..\Shared\Protos\identity.proto" GrpcServices="Client" Link="Protos\identity.proto" />
   </ItemGroup>
 </Project>

@@ -21,6 +21,10 @@ public static class ScimEndpoints
 
     public static void MapScimEndpoints(this WebApplication app)
     {
+        var scimMetadata = app.MapGroup("/scim/v2");
+        scimMetadata.MapGet("/ServiceProviderConfig", GetServiceProviderConfig).AllowAnonymous();
+        scimMetadata.MapGet("/ResourceTypes", GetResourceTypes).AllowAnonymous();
+
         var scim = app.MapGroup("/scim/v2").RequireAuthorization("RequireRole:Admin").RequireRateLimiting("scim");
 
         // Users
@@ -37,9 +41,6 @@ public static class ScimEndpoints
         scim.MapGet("/Groups/{id}", GetGroup);
         scim.MapDelete("/Groups/{id}", DeleteGroup);
 
-        // ServiceProviderConfig
-        scim.MapGet("/ServiceProviderConfig", GetServiceProviderConfig);
-        scim.MapGet("/ResourceTypes", GetResourceTypes);
     }
 
     // ─── Users ───
@@ -94,8 +95,14 @@ public static class ScimEndpoints
             : await userManager.CreateAsync(user);
 
         if (!result.Succeeded)
+        {
+            var errors = result.Errors.ToArray();
+            var duplicateEmail = errors.Any(error =>
+                error.Code.Equals("DuplicateEmail", StringComparison.OrdinalIgnoreCase));
             return TypedResults.Problem(
-                string.Join(", ", result.Errors.Select(e => e.Description)), statusCode: 400);
+                string.Join(", ", errors.Select(e => e.Description)),
+                statusCode: duplicateEmail ? 409 : 400);
+        }
 
         if (request.Roles is not null)
             foreach (var role in request.Roles)

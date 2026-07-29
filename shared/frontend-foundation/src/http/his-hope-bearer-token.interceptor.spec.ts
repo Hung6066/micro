@@ -99,4 +99,27 @@ describe("createHisHopeBearerTokenInterceptor", () => {
     expect(req.request.withCredentials).toBeFalse();
     req.flush({});
   });
+
+  it("supports the DPoP authorization scheme for sender-constrained tokens", () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(
+          withInterceptors([
+            createHisHopeBearerTokenInterceptor(() => of("proof-bound-token"), {
+              tokenType: "DPoP",
+              withCredentials: false,
+            }),
+          ]),
+        ),
+        provideHttpClientTesting(),
+      ],
+    });
+    httpMock = TestBed.inject(HttpTestingController);
+    http = TestBed.inject(HttpClient);
+
+    http.get("/api/v1/clients").subscribe();
+    const req = httpMock.expectOne("/api/v1/clients");
+    expect(req.request.headers.get("Authorization")).toBe("DPoP proof-bound-token");
+    req.flush({});
+  });
 });

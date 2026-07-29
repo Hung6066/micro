@@ -10,7 +10,7 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence;
 
 public class PharmacyDbContext : DbContext, IUnitOfWork
 {
-    private readonly IMediator _mediator;
+    private readonly IMediator? _mediator;
 
     public DbSet<Medication> Medications => Set<Medication>();
     public DbSet<Prescription> Prescriptions => Set<Prescription>();
@@ -18,7 +18,7 @@ public class PharmacyDbContext : DbContext, IUnitOfWork
 
     public PharmacyDbContext(
         DbContextOptions<PharmacyDbContext> options,
-        IMediator mediator)
+        IMediator? mediator = null)
         : base(options)
     {
         _mediator = mediator;
@@ -73,7 +73,8 @@ public class PharmacyDbContext : DbContext, IUnitOfWork
 
         foreach (var domainEvent in domainEvents)
         {
-            await _mediator.Publish(domainEvent, cancellationToken);
+            if (_mediator is not null)
+                await _mediator.Publish(domainEvent, cancellationToken);
         }
 
         return result;

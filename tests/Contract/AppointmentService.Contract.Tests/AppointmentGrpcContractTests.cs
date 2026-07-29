@@ -36,7 +36,7 @@ public class AppointmentGrpcContractTests
         var response = await _service.GetAppointment(request, new TestServerCallContext());
 
         response.Should().NotBeNull();
-        response.Id.Should().Be(appointmentId.Value.ToString());
+        response.Id.Should().Be(appointment.Id.ToString());
         response.PatientId.Should().Be(appointment.PatientId.ToString());
         response.ProviderId.Should().Be(appointment.ProviderId.ToString());
         response.StatusCode.Should().Be("SCHEDULED");

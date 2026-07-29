@@ -11,6 +11,8 @@ The project-wide visual contract lives in [`DESIGN.md`](../../DESIGN.md). Read i
 - `src/styles/_foundation.scss`: reset, component states, tables, forms and responsive utilities.
 - `src/ui/`: small standalone primitives used by feature pages.
 - `src/auth/` and `src/http/`: shared cross-app behavior and response normalization.
+- `src/security/`: browser passkey support detection/registration/assertion and
+  provider-neutral security contracts used by Angular applications.
 
 ## Create a new page
 
@@ -63,6 +65,30 @@ For complete integration examples, API contracts, accessibility rules, theme/i18
 - `hh-drawer`, `hh-popover`, `hh-tabs`, `hh-breadcrumb` and `hh-permission-button` provide shared shell/action contracts for feature modules.
 
 The package is versioned in `shared/frontend-foundation/package.json` and follows the API rules in [`COMPATIBILITY.md`](./COMPATIBILITY.md). Applications currently consume the workspace package source for local development; release builds must run `npm run release:check` before publishing the restricted package.
+
+## OIDC and security boundary
+
+This package is a client-side seam, not an identity provider and not an
+authorization decision point. Angular applications use the shared auth
+coordinator/interceptors for OIDC Authorization Code + PKCE, while the
+Identity Service remains authoritative for tokens, sessions, MFA, roles and
+permissions.
+
+The exported security contracts are intentionally provider-neutral:
+
+- `HisHopeBrowserPasskeyClient` wraps WebAuthn capability detection,
+  registration and authentication. The application supplies the server's
+  creation/request options and sends the resulting credential response back to
+  the Identity Service.
+- `HisHopePasskeyClient` and the provider contracts describe passkey, MFA,
+  LDAP/AD and SAML operations without coupling the foundation to a domain page.
+- SAML/LDAP are login mechanisms at the Identity Service boundary; Angular
+  receives the resulting OIDC session/code flow and must not process a
+  federation-specific assertion or token.
+
+Feature pages must not call `navigator.credentials`, provider URLs, or token
+endpoints directly. Keep those calls in an application adapter and compose the
+shared loading, error, retry and forbidden states for the UI.
 
 ## Mobile component set
 

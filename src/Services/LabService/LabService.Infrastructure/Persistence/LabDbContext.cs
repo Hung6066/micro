@@ -10,7 +10,7 @@ namespace His.Hope.LabService.Infrastructure.Persistence;
 
 public class LabDbContext : DbContext, IUnitOfWork
 {
-    private readonly IMediator _mediator;
+    private readonly IMediator? _mediator;
 
     public DbSet<LabOrder> LabOrders => Set<LabOrder>();
     public DbSet<CriticalAlertRule> CriticalAlertRules => Set<CriticalAlertRule>();
@@ -20,7 +20,7 @@ public class LabDbContext : DbContext, IUnitOfWork
 
     public LabDbContext(
         DbContextOptions<LabDbContext> options,
-        IMediator mediator)
+        IMediator? mediator = null)
         : base(options)
     {
         _mediator = mediator;
@@ -62,7 +62,8 @@ public class LabDbContext : DbContext, IUnitOfWork
 
         foreach (var domainEvent in domainEvents)
         {
-            await _mediator.Publish(domainEvent, cancellationToken);
+            if (_mediator is not null)
+                await _mediator.Publish(domainEvent, cancellationToken);
         }
 
         return result;

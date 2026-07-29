@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: identity-service
+          env:
+            - name: OpenIddict__Signing__PrivateKeyPath
+              value: "/mnt/secrets-store/jwt_private_key"
+            - name: OpenIddict__Encryption__PrivateKeyPath
+              value: "/mnt/secrets-store/oidc_encryption_private_key"
+            - name: Jwt__RsaEncryptionPrivateKeyPath
+              value: "/mnt/secrets-store/oidc_encryption_private_key"
+            - name: Saml2__IdPMetadata
+              valueFrom:
+                secretKeyRef:
+                  name: identity-service-security
+                  key: Saml2__IdPMetadata
+            - name: Ldap__Server
+              valueFrom:
+                secretKeyRef:
+                  name: identity-service-security
+                  key: Ldap__Server
+            - name: Ldap__BindDn
+              valueFrom:
+                secretKeyRef:
+                  name: identity-service-security
+                  key: Ldap__BindDn
+            - name: Ldap__BindPassword
+              valueFrom:
+                secretKeyRef:
+                  name: identity-service-security
+                  key: Ldap__BindPassword
+            - name: Ldap__SearchBase
+              valueFrom:
+                secretKeyRef:
+                  name: identity-service-security
+                  key: Ldap__SearchBase
+            - name: PushProviders__FirebaseCredentialsJson
+              valueFrom:
+                secretKeyRef:
+                  name: identity-service-security
+                  key: PushProviders__FirebaseCredentialsJson
+            - name: PushProviders__ApnsKeyId
+              valueFrom:
+                secretKeyRef:
+                  name: identity-service-security
+                  key: PushProviders__ApnsKeyId
+            - name: PushProviders__ApnsTeamId
+              valueFrom:
+                secretKeyRef:
+                  name: identity-service-security
+                  key: PushProviders__ApnsTeamId
+            - name: PushProviders__ApnsPrivateKey
+              valueFrom:
+                secretKeyRef:
+                  name: identity-service-security
+                  key: PushProviders__ApnsPrivateKey
+            - name: PushProviders__ApnsBundleId
+              valueFrom:
+                secretKeyRef:
+                  name: identity-service-security
+                  key: PushProviders__ApnsBundleId
+          volumeMounts:
+            - name: identity-service-secrets
+              mountPath: /mnt/secrets-store
+              readOnly: true
+      volumes:
+        - name: identity-service-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: identity-service-secrets

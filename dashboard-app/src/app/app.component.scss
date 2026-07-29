@@ -3,8 +3,19 @@ hh-brand {
   padding: 22px 22px 18px;
 }
 
+.sidenav-container { max-width: 100vw; overflow-x: hidden; }
+.sidenav-content { min-width: 0; overflow-x: hidden; }
+
 @media (max-width: 768px) {
   .sidenav-content { padding: 16px !important; }
+}
+
+@media (max-width: 600px) {
+  .app-toolbar { gap: 0; overflow: hidden; padding-inline: 4px; }
+  .app-toolbar .app-title,
+  .app-toolbar app-alert-panel,
+  .app-toolbar hh-language-switcher,
+  .app-toolbar .toolbar-spacer { display: none; }
 }
 
 :host-context(html[data-theme="dark"]) {

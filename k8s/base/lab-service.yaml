@@ -52,6 +52,7 @@ spec:
         seccompProfile:
           type: Localhost
           localhostProfile: his-hope-dotnet-strict.json
+      volumes: []
       containers:
         - name: lab-service
           image: his-hope/lab-service:latest
@@ -83,6 +84,7 @@ spec:
                 secretKeyRef:
                   name: postgres-secret
                   key: lab_connection_string
+          volumeMounts: []
           resources:
             requests:
               cpu: 512m

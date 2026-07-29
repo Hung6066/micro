@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Threading.Channels;
+using His.Hope.IdentityService.Api.Composition;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.Infrastructure.Audit;
+using His.Hope.ServiceDefaults;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
@@ -12,6 +14,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
@@ -56,50 +59,34 @@ public class IdentityServiceTestFixture : IAsyncLifetime
         builder.WebHost.UseTestServer();
         builder.Logging.ClearProviders();
 
-        // ─── Database ───
-        builder.Services.AddDbContext<IdentityDbContext>(options =>
-            options.UseNpgsql(pgConnStr));
-
-        // ─── ASP.NET Identity with SignInManager ───
-        builder.Services.AddIdentityCore<User>(options =>
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
-            options.Password.RequireDigit = true;
-            options.Password.RequiredLength = 8;
-            options.Password.RequireNonAlphanumeric = true;
-            options.User.RequireUniqueEmail = true;
-        })
-        .AddRoles<His.Hope.IdentityService.Domain.Entities.Role>()
-        .AddEntityFrameworkStores<IdentityDbContext>()
-        .AddDefaultTokenProviders()
-        .AddSignInManager()
-        .AddUserManager<UserManager<User>>();
-
-        builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
-            .AddCookie(IdentityConstants.ApplicationScheme, o =>
-            {
-                o.Cookie.HttpOnly = true;
-                o.Cookie.SameSite = SameSiteMode.Lax;
-                o.LoginPath = "/Account/Login";
-            });
-
-        builder.Services.AddAuthorization();
-
-        // ─── Audit (required by IdentityDbContext) ───
-        var auditChannel = Channel.CreateBounded<PhiAuditEntry>(new BoundedChannelOptions(100)
-        {
-            FullMode = BoundedChannelFullMode.DropWrite
+            ["ConnectionStrings:IdentityDb"] = pgConnStr,
+            ["ConnectionStrings:Redis"] = redisConnStr,
+            ["Redis:ConnectionString"] = redisConnStr,
+            ["OpenIddict:Issuer"] = "http://localhost",
+            ["OpenIddict:AccessTokenLifetime"] = "01:00:00",
+            ["OpenIddict:RefreshTokenLifetime"] = "7.00:00:00",
+            ["OpenIddict:AuthorizationCodeLifetime"] = "00:01:00",
+            ["OpenIddict:AllowInsecureHttp"] = "true",
+            ["Jwt:Issuer"] = "http://localhost:5001",
+            ["Jwt:Audience"] = "His.Hope",
+            ["Jwt:Key"] = "integration-test-signing-key-32-bytes-long!",
+            ["RateLimiting:AuthPermitLimit"] = "120",
+            ["RateLimiting:MaxRequestsPerIp"] = "1000",
+            ["Vault:EnableTransit"] = "false",
+            ["Vault:RequireVault"] = "false",
+            ["Identity:BootstrapAdmin:Password"] = "Test@123456"
+            , ["Authentication:Google:ClientId"] = "integration-google-client"
+            , ["Authentication:Google:ClientSecret"] = "integration-google-secret"
         });
-        builder.Services.AddSingleton(auditChannel);
-        builder.Services.AddSingleton<DatabaseAuditService>();
-        builder.Services.AddSingleton<IAuditService>(_ => new AuditService());
-
-        builder.Services.AddHealthChecks();
+        builder.AddIdentityService();
 
         _app = builder.Build();
 
-        _app.UseAuthentication();
-        _app.UseAuthorization();
-        _app.MapHealthChecks("/health").AllowAnonymous();
+        _app.UseIdentityServicePipeline();
+        _app.MapIdentityServiceEndpoints();
+        _app.MapHisHopeHealthEndpoints();
 
         // Seed test admin user
         using (var scope = _app.Services.CreateScope())
@@ -187,6 +174,7 @@ public class SessionClient : IDisposable
     private readonly List<Cookie> _cookies = new();
 
     public HttpClient InnerClient => _client;
+    public string? RateLimitKey { get; set; }
     public SessionClient(HttpClient client) => _client = client;
 
     public async Task<HttpResponseMessage> LoginAsync(string email, string password)
@@ -217,6 +205,8 @@ public class SessionClient : IDisposable
         var csrf = GetCookieValue("hishop_csrf");
         if (csrf is not null)
             request.Headers.Add("X-CSRF-Token", csrf);
+        if (RateLimitKey is not null)
+            request.Headers.Add("X-RateLimit-Key", RateLimitKey);
         if (body is not null)
             request.Content = JsonContent.Create(body);
         return await _client.SendAsync(request);

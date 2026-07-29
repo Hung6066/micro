@@ -1,12 +1,23 @@
 package com.hishope.mobile;
 
 import android.os.Build;
+import android.os.CancellationSignal;
 import android.util.Base64;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import androidx.credentials.CredentialManager;
+import androidx.credentials.CreateCredentialRequest;
+import androidx.credentials.CreateCredentialResponse;
+import androidx.credentials.CreatePublicKeyCredentialRequest;
+import androidx.credentials.CreatePublicKeyCredentialResponse;
+import androidx.credentials.GetCredentialRequest;
+import androidx.credentials.GetCredentialResponse;
+import androidx.credentials.GetPublicKeyCredentialOption;
+import androidx.credentials.exceptions.CreateCredentialException;
+import androidx.credentials.exceptions.GetCredentialException;
 import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -29,12 +40,15 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @CapacitorPlugin(name = "HisHopeSecurity")
 public final class HisHopeSecurityPlugin extends Plugin {
     private static final String PREFS = "his_hope_security";
     private static final String PIN_HASH = "pin_hash";
     private static final String PIN_SALT = "pin_salt";
+    private final ExecutorService credentialExecutor = Executors.newSingleThreadExecutor();
 
     @PluginMethod
     public void deviceSecurity(PluginCall call) {
@@ -99,6 +113,52 @@ public final class HisHopeSecurityPlugin extends Plugin {
     public void clearAppPin(PluginCall call) {
         getContext().getSharedPreferences(PREFS, 0).edit().remove(PIN_HASH).remove(PIN_SALT).apply();
         call.resolve();
+    }
+
+    @PluginMethod
+    public void isPasskeySupported(PluginCall call) {
+        boolean supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M;
+        call.resolve(new JSObject().put("supported", supported));
+    }
+
+    @PluginMethod
+    public void createPasskey(PluginCall call) {
+        String requestJson = call.getString("requestJson", "");
+        if (requestJson.isBlank()) { call.reject("Passkey creation options are required"); return; }
+        CredentialManager manager = CredentialManager.create(getContext());
+        CreateCredentialRequest request = new CreatePublicKeyCredentialRequest(requestJson);
+        manager.createCredentialAsync(getActivity(), request, new CancellationSignal(), credentialExecutor,
+                new androidx.credentials.CredentialManagerCallback<CreateCredentialResponse, CreateCredentialException>() {
+                    @Override public void onResult(CreateCredentialResponse result) {
+                        if (!(result instanceof CreatePublicKeyCredentialResponse response)) { call.reject("Credential Manager returned an unsupported credential"); return; }
+                        call.resolve(new JSObject().put("responseJson", response.getRegistrationResponseJson()));
+                    }
+                    @Override public void onError(CreateCredentialException error) {
+                        String detail = error.getMessage();
+                        if (detail != null && detail.toLowerCase(java.util.Locale.ROOT).contains("cannot be validated")) {
+                            call.reject("Passkey registration failed: Android cannot validate the RP domain. Configure Digital Asset Links for the passkey domain.", detail);
+                            return;
+                        }
+                        call.reject("Passkey registration failed", detail);
+                    }
+                });
+    }
+
+    @PluginMethod
+    public void authenticatePasskey(PluginCall call) {
+        String requestJson = call.getString("requestJson", "");
+        if (requestJson.isBlank()) { call.reject("Passkey request options are required"); return; }
+        CredentialManager manager = CredentialManager.create(getContext());
+        GetPublicKeyCredentialOption option = new GetPublicKeyCredentialOption(requestJson);
+        GetCredentialRequest request = new GetCredentialRequest.Builder().addCredentialOption(option).build();
+        manager.getCredentialAsync(getActivity(), request, new CancellationSignal(), credentialExecutor,
+                new androidx.credentials.CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
+                    @Override public void onResult(GetCredentialResponse result) {
+                        if (!(result.getCredential() instanceof androidx.credentials.PublicKeyCredential credential)) { call.reject("Credential Manager returned an unsupported credential"); return; }
+                        call.resolve(new JSObject().put("responseJson", credential.getAuthenticationResponseJson()));
+                    }
+                    @Override public void onError(GetCredentialException error) { call.reject("Passkey authentication failed", error.getMessage()); }
+                });
     }
 
     @PluginMethod

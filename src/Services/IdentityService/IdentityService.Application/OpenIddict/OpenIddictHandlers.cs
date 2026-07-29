@@ -83,7 +83,13 @@ public class CustomPopulateTokenClaims :
 
         identity.AddClaim(new Claim("scope", "hishop:permissions"));
 
-        identity.AddClaim(new Claim("amr", user.TwoFactorEnabled ? "mfa" : "pwd"));
+        // The authentication cookie is the source of truth for the methods
+        // actually completed. OidcLoginCompletionService adds "otp" only
+        // after a successful MFA challenge. Do not infer "mfa" merely because
+        // the account is enrolled: that would misrepresent an unchallenged
+        // login and could weaken downstream step-up policy decisions.
+        if (!identity.FindAll("amr").Any())
+            identity.AddClaim(new Claim("amr", "pwd"));
 
         var claims = await _userManager.GetClaimsAsync(user);
         var facilityClaim = claims.FirstOrDefault(c => c.Type == "facility_id");

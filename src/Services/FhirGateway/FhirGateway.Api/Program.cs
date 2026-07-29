@@ -8,8 +8,6 @@ using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Authorization;
 using His.Hope.FhirGateway.Application;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -30,32 +28,10 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddFhirGatewayApplication();
 
-// SECURITY: Add JWT Bearer authentication with RSA public key validation
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.Authority = "http://identityservice:5001";
-        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "His.Hope.IdentityService",
-            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "His.Hope",
-            ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
-            ValidateLifetime = true,
-        };
-        options.Events = new JwtBearerEvents
-        {
-            OnMessageReceived = context =>
-            {
-                var accessToken = context.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(accessToken) && context.Request.Path.StartsWithSegments("/hubs"))
-                    context.Token = accessToken;
-                return Task.CompletedTask;
-            }
-        };
-    });
+// SECURITY: Use the shared OIDC/JWT configuration so encrypted access tokens
+// can be decrypted at the resource boundary and DPoP bindings are enforced
+// consistently with the other APIs.
+builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
 builder.Services.AddAuthorization();
 
 // SECURITY: Register permission-based authorization policies
@@ -111,7 +87,9 @@ if (app.Environment.IsDevelopment())
 app.UseCors("AllowFrontend");
 
 // SECURITY: Authentication & Authorization middleware
+app.UseDpopAuthorizationSchemeNormalization();
 app.UseAuthentication();
+app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
 
 app.MapControllers();

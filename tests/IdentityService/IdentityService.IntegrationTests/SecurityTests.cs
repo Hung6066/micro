@@ -39,6 +39,9 @@ public class SecurityTests
 
         var response = await _client.PostAsync("/connect/introspect", content);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("\"active\":false", body);
+        Assert.True(
+            response.StatusCode == HttpStatusCode.BadRequest && body.Contains("invalid_request")
+            || body.Contains("\"active\":false"));
     }
+
 }

@@ -9,6 +9,8 @@ using His.Hope.IdentityService.Application.Services;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
+using His.Hope.Infrastructure.Security;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
@@ -19,6 +21,34 @@ public static class MfaEndpoints
 {
     public static RouteGroupBuilder MapMfaEndpoints(this RouteGroupBuilder group)
     {
+        group.MapGet("/mfa/status", async (
+            HttpContext httpContext,
+            IdentityDbContext db,
+            CancellationToken ct) =>
+        {
+            var userId = GetUserId(httpContext);
+            if (userId is null) return Results.Unauthorized();
+
+            var mfa = await db.UserMfas
+                .AsNoTracking()
+                .SingleOrDefaultAsync(item => item.UserId == userId.Value, ct);
+
+            var browserAuthentication = await httpContext.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+            var completedMfa = HasCompletedMfa(httpContext.User) ||
+                (browserAuthentication.Succeeded && browserAuthentication.Principal is not null &&
+                 HasCompletedMfa(browserAuthentication.Principal));
+
+            return Results.Ok(new
+            {
+                enabled = mfa?.IsEnabled == true,
+                requiresMfa = mfa?.IsEnabled == true && !completedMfa,
+                enrolledAt = mfa?.EnrolledAt,
+                recoveryCodesRemaining = mfa?.RecoveryCodes.Length ?? 0
+            });
+        })
+        .RequireAuthorization()
+        .WithOpenApi();
+
         group.MapPost("/mfa/enroll", async (
             HttpContext httpContext,
             TotpService totpService,
@@ -79,6 +109,7 @@ public static class MfaEndpoints
             JwtTokenGenerator tokenGenerator,
             IMfaSecretEncryptor encryptor,
             IConnectionMultiplexer redis,
+            ITokenBlacklistService tokenBlacklist,
             IdentityDbContext db,
             UserManager<User> userManager,
             CancellationToken ct) =>
@@ -102,7 +133,13 @@ public static class MfaEndpoints
             mfa.IsEnabled = true;
             mfa.EnrolledAt = DateTime.UtcNow;
             mfa.UpdatedAt = DateTime.UtcNow;
+            user.TwoFactorEnabled = true;
             await db.SaveChangesAsync(ct);
+
+            // Tokens issued before MFA enrollment must not keep an MFA-free
+            // session alive in Angular/mobile. The fresh token below is issued
+            // after this timestamp and carries amr=pwd,otp.
+            await tokenBlacklist.RevokeAllUserTokensAsync(user.Id.ToString(), ct);
 
             var roles = await userManager.GetRolesAsync(user);
             var permissions = await GetPermissionsForRoles(roles, db, ct);
@@ -188,6 +225,7 @@ public static class MfaEndpoints
             mfa.RecoveryCodes = [.. codes];
             mfa.BackupCodesUsed++;
             mfa.IsEnabled = false;
+            user.TwoFactorEnabled = false;
             mfa.EnrolledAt = null;
             mfa.UpdatedAt = DateTime.UtcNow;
 
@@ -208,6 +246,13 @@ public static class MfaEndpoints
                     ?? httpContext.User.FindFirst("sub");
         return claim is not null && Guid.TryParse(claim.Value, out var id) ? id : null;
     }
+
+    private static bool HasCompletedMfa(ClaimsPrincipal principal) =>
+        principal.Claims
+            .SelectMany(claim => claim.Value.Trim('[', ']').Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Any(value =>
+                string.Equals(value.Trim('"'), "otp", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(value.Trim('"'), "passkey", StringComparison.OrdinalIgnoreCase));
 
     private static async Task<List<string>> GetPermissionsForRoles(
         IList<string> roleNames, IdentityDbContext db, CancellationToken ct)

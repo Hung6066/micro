@@ -14,6 +14,8 @@ public sealed class JwtAuthenticationOptions
     public string? Authority { get; set; }
     public string? MetadataAddress { get; set; }
     public string? PublicKeyPath { get; set; }
+    public string? EncryptionPrivateKey { get; set; }
+    public string? EncryptionPrivateKeyPath { get; set; }
     public string? Issuer { get; set; }
     public string[] ValidIssuers { get; set; } = [];
     public string? Audience { get; set; }
@@ -35,6 +37,8 @@ public static class JwtAuthenticationExtensions
             Authority = configuration["Jwt:Authority"],
             MetadataAddress = configuration["Jwt:MetadataAddress"],
             PublicKeyPath = configuration["Jwt:RsaPublicKeyPath"],
+            EncryptionPrivateKey = configuration["Jwt:RsaEncryptionPrivateKey"],
+            EncryptionPrivateKeyPath = configuration["Jwt:RsaEncryptionPrivateKeyPath"],
             Issuer = configuration["Jwt:Issuer"],
             ValidIssuers = configuration.GetSection("Jwt:ValidIssuers").Get<string[]>() ?? [],
             Audience = configuration["Jwt:Audience"],
@@ -44,7 +48,9 @@ public static class JwtAuthenticationExtensions
         };
         configure?.Invoke(options);
 
-        var useOidc = string.IsNullOrWhiteSpace(options.Key);
+        // Configuration templates intentionally contain ${...} markers. They
+        // must never activate the legacy HMAC branch in production.
+        var useOidc = string.IsNullOrWhiteSpace(options.Key) || options.Key.Contains("${", StringComparison.Ordinal);
         services.AddHttpClient("HisHopeJwtBackchannel", client =>
         {
             client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.BackchannelTimeoutSeconds));
@@ -128,7 +134,25 @@ public static class JwtAuthenticationExtensions
             parameters.IssuerSigningKey = new RsaSecurityKey(rsa);
         }
 
+        var encryptionRsa = LoadRsaPrivateKey(settings.EncryptionPrivateKey, settings.EncryptionPrivateKeyPath);
+        if (encryptionRsa is not null)
+            parameters.TokenDecryptionKey = new RsaSecurityKey(encryptionRsa);
+
         return parameters;
+    }
+
+    private static RSA? LoadRsaPrivateKey(string? pem, string? path)
+    {
+        var material = !string.IsNullOrWhiteSpace(pem)
+            ? pem
+            : !string.IsNullOrWhiteSpace(path) && File.Exists(path)
+                ? File.ReadAllText(path)
+                : null;
+        if (string.IsNullOrWhiteSpace(material)) return null;
+
+        var rsa = RSA.Create();
+        rsa.ImportFromPem(material);
+        return rsa;
     }
 
     private static TokenValidationParameters CreateSymmetricValidationParameters(JwtAuthenticationOptions settings) =>

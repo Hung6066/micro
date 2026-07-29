@@ -21,8 +21,12 @@ public class RateLimitingTests
         HttpResponseMessage? lastResponse = null;
         for (var i = 0; i < 130; i++)
         {
-            lastResponse = await client.PostAsJsonAsync("/api/v1/auth/login",
-                new { email = $"rl-test-{i}@test.test", password = $"TestPass{i}!" });
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login")
+            {
+                Content = JsonContent.Create(new { email = $"rl-test-{i}@test.test", password = $"TestPass{i}!" })
+            };
+            request.Headers.Add("X-RateLimit-Key", "integration-auth-rate-limit");
+            lastResponse = await client.SendAsync(request);
             if ((int)lastResponse.StatusCode == 429) break;
         }
 
@@ -36,8 +40,12 @@ public class RateLimitingTests
         HttpResponseMessage? lastResponse = null;
         for (var i = 0; i < 70; i++)
         {
-            lastResponse = await client.PostAsJsonAsync("/scim/v2/Users",
-                new { schemas = new[] { "urn:ietf:params:scim:schemas:core:2.0:User" }, userName = $"scim-rl-{i}@test.test" });
+            using var request = new HttpRequestMessage(HttpMethod.Post, "/scim/v2/Users")
+            {
+                Content = JsonContent.Create(new { schemas = new[] { "urn:ietf:params:scim:schemas:core:2.0:User" }, userName = $"scim-rl-{i}@test.test" })
+            };
+            request.Headers.Add("X-RateLimit-Key", "integration-scim-rate-limit");
+            lastResponse = await client.SendAsync(request);
             if ((int)lastResponse.StatusCode == 429) break;
         }
 

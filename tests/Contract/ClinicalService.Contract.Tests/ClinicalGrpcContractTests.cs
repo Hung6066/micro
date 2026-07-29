@@ -10,6 +10,7 @@ using His.Hope.ClinicalService.Application.UseCases.Encounters.Queries;
 using His.Hope.ClinicalService.Domain.Aggregates;
 using His.Hope.ClinicalService.Domain.Repositories;
 using His.Hope.ClinicalService.Domain.ValueObjects;
+using His.Hope.Contracts.Pagination;
 using His.Hope.SharedKernel.Domain.Common;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -185,7 +186,7 @@ public class ClinicalGrpcContractTests
 
         // Assert - contract requires error for invalid arguments
         var exception = await act.Should().ThrowAsync<RpcException>();
-        exception.And.StatusCode.Should().Be(StatusCode.Internal);
+        exception.And.StatusCode.Should().Be(StatusCode.InvalidArgument);
     }
 
     [Fact]

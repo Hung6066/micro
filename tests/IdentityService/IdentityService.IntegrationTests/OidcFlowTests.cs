@@ -4,25 +4,24 @@ using Xunit;
 
 namespace His.Hope.IdentityService.IntegrationTests;
 
+ [Collection("IdentityServiceIntegration")]
 public class OidcFlowTests
 {
     private readonly HttpClient _client;
 
-    public OidcFlowTests()
+    public OidcFlowTests(IdentityServiceTestFixture fixture)
     {
-        // In CI, IdentityService would be running as a Testcontainer
-        // For now: test against local running instance
-        _client = new HttpClient { BaseAddress = new Uri("http://localhost:5001") };
+        _client = fixture.AnonymousClient;
     }
 
     [Fact]
     public async Task DiscoveryEndpoint_ReturnsValidOidcConfiguration()
     {
         var response = await _client.GetAsync("/.well-known/openid-configuration");
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
 
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Equal("/connect/revoke", document.RootElement
+        Assert.EndsWith("/connect/revoke", document.RootElement
             .GetProperty("revocation_endpoint").GetString());
     }
 
@@ -31,7 +30,7 @@ public class OidcFlowTests
     {
         var response = await _client.GetAsync("/.well-known/jwks");
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
 
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var keys = document.RootElement.GetProperty("keys").EnumerateArray().ToArray();

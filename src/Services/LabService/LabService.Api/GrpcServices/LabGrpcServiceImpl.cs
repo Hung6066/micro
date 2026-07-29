@@ -25,7 +25,7 @@ public class LabGrpcServiceImpl : LabGrpcService.LabGrpcServiceBase
     public override async Task<LabOrderResponse> GetLabOrder(LabOrderRequest request,
         ServerCallContext context)
     {
-        var labOrderId = LabOrderId.From(Guid.Parse(request.Id));
+        var labOrderId = LabOrderId.From(ParseGuidOrThrow(request.Id, "Lab order id"));
         var labOrder = await _labOrderRepository.GetByIdAsync(labOrderId);
 
         if (labOrder is null)
@@ -37,7 +37,7 @@ public class LabGrpcServiceImpl : LabGrpcService.LabGrpcServiceBase
     public override async Task<LabOrderListResponse> GetPatientLabOrders(
         PatientLabOrdersRequest request, ServerCallContext context)
     {
-        var patientId = Guid.Parse(request.PatientId);
+        var patientId = ParseGuidOrThrow(request.PatientId, "Patient id");
         var page = request.Page > 0 ? request.Page : 1;
         var pageSize = request.PageSize > 0 ? request.PageSize : 20;
 
@@ -59,7 +59,7 @@ public class LabGrpcServiceImpl : LabGrpcService.LabGrpcServiceBase
     public override async Task<LabOrderExistsResponse> CheckLabOrderExists(
         LabOrderExistsRequest request, ServerCallContext context)
     {
-        var labOrderId = LabOrderId.From(Guid.Parse(request.Id));
+        var labOrderId = LabOrderId.From(ParseGuidOrThrow(request.Id, "Lab order id"));
         var labOrder = await _labOrderRepository.GetByIdAsync(labOrderId);
         return new LabOrderExistsResponse { Exists = labOrder is not null };
     }
@@ -78,6 +78,14 @@ public class LabGrpcServiceImpl : LabGrpcService.LabGrpcServiceBase
         response.Page = page;
         response.PageSize = pageSize;
         return response;
+    }
+
+    private static Guid ParseGuidOrThrow(string value, string fieldName)
+    {
+        if (Guid.TryParse(value, out var parsed))
+            return parsed;
+
+        throw new RpcException(new Status(StatusCode.InvalidArgument, $"{fieldName} must be a valid GUID."));
     }
 
     private static LabOrderResponse MapToResponse(Domain.Aggregates.LabOrder labOrder)

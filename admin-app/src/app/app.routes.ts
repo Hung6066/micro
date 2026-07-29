@@ -36,6 +36,14 @@ export const routes: Routes = [
       ),
   },
   {
+    path: "security-providers",
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import("./features/security-providers/security-providers-page.component").then(
+        (m) => m.SecurityProvidersPageComponent,
+      ),
+  },
+  {
     path: "dashboard",
     canActivate: [authGuard],
     loadComponent: () =>

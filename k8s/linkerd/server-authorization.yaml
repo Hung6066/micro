@@ -157,6 +157,7 @@ spec:
 # =============================================================================
 # Clinical BFF Authorizations
 # =============================================================================
+---
 apiVersion: policy.linkerd.io/v1beta1
 kind: ServerAuthorization
 metadata:
@@ -180,6 +181,7 @@ spec:
 # =============================================================================
 # Clinical Service Authorizations (PHI - most restricted)
 # =============================================================================
+---
 apiVersion: policy.linkerd.io/v1beta1
 kind: ServerAuthorization
 metadata:

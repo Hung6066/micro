@@ -52,6 +52,7 @@ spec:
         seccompProfile:
           type: Localhost
           localhostProfile: his-hope-dotnet-strict.json
+      volumes: []
       containers:
         - name: pharmacy-service
           image: his-hope/pharmacy-service:latest
@@ -83,6 +84,7 @@ spec:
                 secretKeyRef:
                   name: postgres-secret
                   key: pharmacy_connection_string
+          volumeMounts: []
           resources:
             requests:
               cpu: 512m

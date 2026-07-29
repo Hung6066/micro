@@ -100,6 +100,7 @@ public static class IdentityServicePipelineExtensions
         });
         
         app.UseHisHopeServiceDefaults();
+        app.UseStaticFiles();
         app.UseGlobalExceptionHandler();
         
         // SECURITY: Seed identity database with permissions, roles, and admin user
@@ -119,12 +120,16 @@ public static class IdentityServicePipelineExtensions
         app.UseHisHopePrometheus();
         app.UseCors();
         app.UseRouting();
+        app.UseRateLimiter();
+        app.UseDpopAuthorizationSchemeNormalization();
         app.UseAuthentication();
+        app.UseDpopAccessTokenValidation();
         
         // Facility resolution: extracts facility_id from JWT, sets FacilityContext (before authorization)
         app.UseFacilityResolution();
         
         app.UseAuthorization();
+        app.MapControllers();
         app.UsePhiAudit();
         
         // Auth endpoints

@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using StackExchange.Redis;
+using His.Hope.IdentityService.Api.Services;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -54,11 +55,16 @@ public static class MobilePlatformEndpoints
                 {
                     UserId = userId,
                     Platform = request.Platform,
-                    TokenHash = tokenHash,
-                    TokenCiphertext = protectionProvider.CreateProtector("HisHope.Mobile.PushToken.v1").Protect(request.Token)
+                    TokenHash = tokenHash
                 };
                 db.MobileDeviceRegistrations.Add(registration);
             }
+            // Re-protect on every registration so a revoked device or a
+            // registration after DataProtection key rotation becomes usable
+            // again without retaining stale ciphertext.
+            registration.TokenCiphertext = protectionProvider
+                .CreateProtector("HisHope.Mobile.PushToken.v1")
+                .Protect(request.Token);
             registration.LastSeenAt = DateTime.UtcNow;
             registration.RevokedAt = null;
             await db.SaveChangesAsync(cancellationToken);
@@ -136,6 +142,22 @@ public static class MobilePlatformEndpoints
             var accepted = await redis.GetDatabase().StringSetAsync(key, "accepted", TimeSpan.FromDays(7), When.NotExists);
             return accepted ? Results.Accepted() : Results.Ok(new { duplicate = true });
         }).AllowAnonymous();
+
+        var adminPush = app.MapGroup("/api/v1/admin/push")
+            .RequireAuthorization("Permission:admin.users.write");
+        adminPush.MapPost("/notifications", async (
+            PushNotificationRequest request,
+            IPushDeliveryService delivery,
+            CancellationToken cancellationToken) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.UserId) || request.UserId.Length > 200 ||
+                string.IsNullOrWhiteSpace(request.Title) || request.Title.Length > 200 ||
+                string.IsNullOrWhiteSpace(request.Body) || request.Body.Length > 4000)
+                return Results.BadRequest(new ProblemDetails { Title = "Invalid push notification", Status = 400 });
+
+            var id = await delivery.EnqueueAsync(request.UserId, request.Title, request.Body, cancellationToken);
+            return Results.Accepted($"/api/v1/admin/push/notifications/{id}", new { id });
+        });
     }
 
     public sealed record AppPolicyResponse(
@@ -168,4 +190,6 @@ public static class MobilePlatformEndpoints
         string Operation,
         Dictionary<string, object?> Payload,
         DateTime CreatedAt);
+
+    public sealed record PushNotificationRequest(string UserId, string Title, string Body);
 }

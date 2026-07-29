@@ -10,14 +10,12 @@ namespace His.Hope.ClinicalService.Infrastructure.Persistence;
 public static class ClinicalDbInitializer
 {
     /// <summary>
-    /// Ensures the database and all tables are created.
-    /// Uses EnsureCreated which is safe for development; in production,
-    /// migrations are applied via CI/CD pipelines.
+    /// Applies the committed EF migration history.
     /// </summary>
     public static void Initialize(IServiceProvider serviceProvider)
     {
         using var scope = serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ClinicalDbContext>();
-        db.Database.EnsureCreated();
+        db.Database.Migrate();
     }
 }

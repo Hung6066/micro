@@ -183,8 +183,8 @@ public class DeadLetterConsumer<TDbContext> : BackgroundService
         _logger.LogCritical(
             "DEAD LETTER MESSAGE - Exchange: {Exchange}, RoutingKey: {RoutingKey}, " +
             "Type: {MessageType}, Id: {MessageId}, RetryCount: {RetryCount}, " +
-            "AutoReprocessCount: {AutoReprocessCount}, EffectiveCount: {EffectiveCount}, Body: {Body}",
-            exchange, routingKey, messageType, messageId, retryCount, autoReprocessCount, effectiveCount, messageBody);
+            "AutoReprocessCount: {AutoReprocessCount}, EffectiveCount: {EffectiveCount}, BodyLength: {BodyLength}",
+            exchange, routingKey, messageType, messageId, retryCount, autoReprocessCount, effectiveCount, messageBody.Length);
 
         // Auto-reprocess if enabled and under max retry count
         if (_autoReprocessEnabled && effectiveCount < _maxRetryCount)

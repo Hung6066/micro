@@ -10,10 +10,16 @@ export class MobileTelemetryService {
   private readonly platform = inject(MobilePlatformService);
   private initialized = false;
 
+  // Native iOS/Android telemetry must use the pinned API boundary below. The
+  // browser Sentry transport is retained only for web preview builds.
+  private get directSentryEnabled(): boolean {
+    return !Capacitor.isNativePlatform() && !!environment.sentryDsn;
+  }
+
   initialize(): void {
     if (this.initialized || typeof window === "undefined") return;
     this.initialized = true;
-    if (environment.sentryDsn) {
+    if (this.directSentryEnabled) {
       Sentry.init({
         dsn: environment.sentryDsn,
         environment: environment.sentryEnvironment,
@@ -37,7 +43,7 @@ export class MobileTelemetryService {
       });
     }
     window.addEventListener("error", (event) => {
-      if (environment.sentryDsn) {
+      if (this.directSentryEnabled) {
         if (event.error instanceof Error) Sentry.captureException(event.error);
         else Sentry.captureMessage(String(event.message || "Unhandled window error"));
       }
@@ -49,7 +55,7 @@ export class MobileTelemetryService {
       }).catch(() => undefined);
     });
     window.addEventListener("unhandledrejection", (event) => {
-      if (environment.sentryDsn) {
+      if (this.directSentryEnabled) {
         if (event.reason instanceof Error) Sentry.captureException(event.reason);
         else Sentry.captureMessage(this.describe(event.reason));
       }
@@ -64,7 +70,7 @@ export class MobileTelemetryService {
 
   record(name: string, durationMs?: number, metadata?: Record<string, string | number | boolean>): void {
     const route = this.telemetryRoute();
-    if (environment.sentryDsn) {
+    if (this.directSentryEnabled) {
       Sentry.startSpan(
         { name: name.slice(0, 120), op: "mobile.rum", attributes: { route, duration_ms: durationMs ?? 0 } },
         (span) => {

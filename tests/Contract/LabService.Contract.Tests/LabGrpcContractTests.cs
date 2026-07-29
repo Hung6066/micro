@@ -40,7 +40,7 @@ public class LabGrpcContractTests
         var response = await _service.GetLabOrder(request, new TestServerCallContext());
 
         response.Should().NotBeNull();
-        response.Id.Should().Be(labOrderId.Value.ToString());
+        response.Id.Should().Be(labOrder.Id.Value.ToString());
         response.PatientId.Should().Be(labOrder.PatientId.ToString());
         response.ProviderId.Should().Be(labOrder.ProviderId.ToString());
         response.StatusCode.Should().Be("PENDING");

@@ -8,6 +8,7 @@ export interface HisHopeAuthOptions {
   defaultReturnUrl: string;
   loginRoute?: string;
   sessionStatusUrl?: string;
+  mfaStatusUrl?: string;
   sessionExchangeUrl?: string;
   logoutUrl?: string;
 }
@@ -15,6 +16,11 @@ export interface HisHopeAuthOptions {
 export interface IdentitySessionStatus {
   authenticated: boolean;
   userName?: string;
+}
+
+export interface IdentityMfaStatus {
+  enabled: boolean;
+  requiresMfa: boolean;
 }
 
 const AUTH_CHANNEL = 'hishop_auth';
@@ -27,6 +33,7 @@ export class HisHopeAuthCoordinator {
   private readonly checkAuthInit$ = new ReplaySubject<void>(1);
   private readonly sessionStatusUrl: string;
   private readonly sessionExchangeUrl: string;
+  private readonly mfaStatusUrl: string;
   private readonly logoutUrl: string;
   private readonly defaultReturnUrl: string;
   private readonly loginRoute: string;
@@ -48,6 +55,7 @@ export class HisHopeAuthCoordinator {
       options.sessionStatusUrl ??
       (origin ? `${window.location.protocol}//${window.location.hostname}:5000/api/v1/auth/session-status` : '/api/v1/auth/session-status');
     this.sessionExchangeUrl = options.sessionExchangeUrl ?? this.sessionStatusUrl.replace(/\/session-status$/, '/session/exchange');
+    this.mfaStatusUrl = options.mfaStatusUrl ?? this.sessionStatusUrl.replace(/\/session-status$/, '/mfa/status');
     this.logoutUrl = options.logoutUrl ?? this.sessionStatusUrl.replace(/\/session-status$/, '/logout');
 
     this.oidcSecurityService.isAuthenticated$.subscribe((result) => {
@@ -60,7 +68,9 @@ export class HisHopeAuthCoordinator {
         .checkAuth()
         .pipe(
           take(1),
-          switchMap((result) => result.isAuthenticated ? this.exchangeBffSession() : of(void 0)),
+          switchMap((result) => result.isAuthenticated ? this.requireCompletedMfa().pipe(
+            switchMap((completed) => completed ? this.exchangeBffSession() : of(void 0)),
+          ) : of(void 0)),
           finalize(() => this.completeCheckAuthInit()),
         )
         .subscribe();
@@ -120,7 +130,11 @@ export class HisHopeAuthCoordinator {
   handleCallback(): Observable<boolean> {
     return this.oidcSecurityService.checkAuth().pipe(
       switchMap(({ isAuthenticated }) => isAuthenticated
-        ? this.exchangeBffSession().pipe(map(() => true))
+        ? this.requireCompletedMfa().pipe(
+          switchMap((completed) => completed
+            ? this.exchangeBffSession().pipe(map(() => true))
+            : of(false)),
+        )
         : of(false)),
       tap((isAuthenticated) => {
         this.clearSsoLoginInProgress();
@@ -199,6 +213,22 @@ export class HisHopeAuthCoordinator {
     );
   }
 
+  private requireCompletedMfa(): Observable<boolean> {
+    return this.http.get<IdentityMfaStatus>(this.mfaStatusUrl).pipe(
+      map((status) => {
+        if (!status.requiresMfa) return true;
+        this.redirectToMfaChallenge();
+        return false;
+      }),
+      catchError(() => {
+        // A token that cannot prove its MFA state must not be promoted to a
+        // BFF session. The user can retry through the normal OIDC flow.
+        this.forceLocalLogout();
+        return of(false);
+      }),
+    );
+  }
+
   private forceLocalLogout(): void {
     this.markSsoLogout();
     this.broadcastLogout();
@@ -209,6 +239,16 @@ export class HisHopeAuthCoordinator {
     if (!this.router.url.includes(this.loginRoute)) {
       this.router.navigate([this.loginRoute]);
     }
+  }
+
+  private redirectToMfaChallenge(): void {
+    // Keep the server identity cookie so /connect/authorize can resolve the
+    // pending account and redirect to its shared /Account/Mfa page. A local
+    // logout alone leaves Angular on /auth/login with no visible MFA step.
+    this.markSsoLogout();
+    this.lastAuthenticated = false;
+    this.authenticatedSubject.next(false);
+    this.oidcSecurityService.authorize();
   }
 
   private markSsoLogout(): void {

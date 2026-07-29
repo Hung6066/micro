@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { HisHopeStateComponent } from '@his-hope/frontend-foundation';
 import { catchError, of, take } from 'rxjs';
 import { MobileAuthService } from './core/auth.service';
+import { NativeCapabilityService } from './core/native-capability.service';
 
 @Component({
   standalone: true,
@@ -22,6 +23,7 @@ import { MobileAuthService } from './core/auth.service';
 })
 export class MobileCallbackComponent implements OnInit {
   private readonly auth = inject(MobileAuthService);
+  private readonly native = inject(NativeCapabilityService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   readonly status = signal<'loading' | 'success' | 'error'>('loading');
@@ -34,7 +36,7 @@ export class MobileCallbackComponent implements OnInit {
     for (const [key, value] of Object.entries(this.route.snapshot.queryParams)) {
       query.set(key, value);
     }
-    const callbackUrl = query.toString()
+    const callbackUrl = this.native.isNative && query.toString()
       ? `hishope://auth/callback?${query.toString()}`
       : undefined;
 

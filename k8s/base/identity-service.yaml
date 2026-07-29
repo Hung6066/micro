@@ -86,6 +86,7 @@ spec:
             runAsGroup: 1654
           image: his-hope/identity-service:latest
           imagePullPolicy: Always
+          volumeMounts: []
           ports:
             - name: http
               containerPort: 5003

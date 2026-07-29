@@ -10,8 +10,8 @@ public class PersonName : ValueObject
 
     public string FullName =>
         string.IsNullOrWhiteSpace(MiddleName)
-            ? $"{LastName} {FirstName}"
-            : $"{LastName} {MiddleName} {FirstName}";
+            ? $"{FirstName} {LastName}"
+            : $"{FirstName} {MiddleName} {LastName}";
 
     public static PersonName Create(string firstName, string lastName, string? middleName = null) =>
         new(firstName, lastName, middleName);

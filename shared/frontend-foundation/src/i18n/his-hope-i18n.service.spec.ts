@@ -53,6 +53,13 @@ describe("HisHopeI18nService", () => {
     expect(service.formatNumber(1234.5)).toBe("1,234.5");
   });
 
+  it("exposes canonical API locale and formats currency with the selected ISO code", () => {
+    service.setLocale("en");
+    service.setCurrency("USD");
+    expect(service.apiLocale()).toBe("en-US");
+    expect(service.formatCurrency(1234.5, "USD")).toContain("1,234.50");
+  });
+
   it("resolves a plural form and interpolates the count", () => {
     service.registerLocale("plural-test", {
       items: { one: "{{count}} item", other: "{{count}} items" },

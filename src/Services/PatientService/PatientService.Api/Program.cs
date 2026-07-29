@@ -4,12 +4,12 @@ using His.Hope.ServiceDefaults;
 using His.Hope.Observability;
 using System.Text.Json;
 using System.Security.Cryptography.X509Certificates;
+using Microsoft.EntityFrameworkCore;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
 using His.Hope.EventBusRabbitMQ.Implementations;
 using His.Hope.Infrastructure;
-using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Database;
 using His.Hope.Infrastructure.HealthChecks;
 using His.Hope.Infrastructure.Observability;
@@ -19,6 +19,7 @@ using His.Hope.Authorization;
 using His.Hope.Resilience;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
+using His.Hope.Persistence;
 using His.Hope.IntegrationEvents.Patient;
 using His.Hope.PatientService.Api.GrpcServices;
 using His.Hope.PatientService.Api.Middleware;
@@ -39,12 +40,14 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "PatientServic
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
+                .Destructure.With<His.Hope.Infrastructure.Logging.PhiDestructuringPolicy>()
                 .Enrich.WithProperty("service", "patient-service"));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddPatientApplication();
 builder.Services.AddPatientInfrastructure(builder.Configuration);
+builder.Services.AddHisHopeMigrationRunner<PatientDbContext>();
 
 His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
 builder.Services.AddHisHopeAuthorization();
@@ -55,9 +58,6 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
     "patient-service",
     builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379"));
 
-// TEMP: Replace Redis cache with a no-op cache to avoid StackExchange.Redis hang
-// TODO: Fix StackExchange.Redis async timeout properly
-builder.Services.AddSingleton<ICacheService>(new NoOpCacheService());
 builder.Services.AddOutbox<PatientDbContext>();
 
 // Resilient HTTP client for outbound calls to internal services
@@ -125,18 +125,25 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
-// Auto-create databases and subscribe to integration events on startup
+// Subscribe to integration events and apply only development convenience schema
+// creation. Production schema is owned by the EF migration history.
 using (var scope = app.Services.CreateScope())
 {
     var sp = scope.ServiceProvider;
 
-    // Ensure write-side database exists
     var writeDb = sp.GetRequiredService<His.Hope.PatientService.Infrastructure.Persistence.PatientDbContext>();
-    writeDb.Database.EnsureCreated();
-
-    // Ensure read-side database exists
     var readDb = sp.GetRequiredService<PatientReadDbContext>();
-    readDb.Database.EnsureCreated();
+
+    if (app.Environment.IsDevelopment())
+    {
+        writeDb.Database.EnsureCreated();
+        readDb.Database.EnsureCreated();
+    }
+    else
+    {
+        await sp.GetRequiredService<IMigrationRunner>().MigrateAsync();
+        await readDb.Database.MigrateAsync();
+    }
 
     // Subscribe to integration events for CQRS read projections
     var eventBus = sp.GetRequiredService<IEventBus>();
@@ -162,7 +169,9 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseRouting();
 
 // SECURITY: Authentication & Authorization middleware
+app.UseDpopAuthorizationSchemeNormalization();
 app.UseAuthentication();
+app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
 app.UsePhiAudit();
 
@@ -331,16 +340,4 @@ static X509Certificate2 LoadServerCertificate(IConfiguration config)
     var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(5));
     return cert;
 }
-
-// TEMP: No-op cache — bypasses Redis until StackExchange.Redis timeout is fixed
-file sealed class NoOpCacheService : ICacheService
-{
-    public Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class => Task.FromResult<T?>(null);
-    public Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => factory();
-    public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => Task.CompletedTask;
-    public Task RemoveAsync(string key, CancellationToken ct = default) => Task.CompletedTask;
-    public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default) => Task.CompletedTask;
-}
-
-
 

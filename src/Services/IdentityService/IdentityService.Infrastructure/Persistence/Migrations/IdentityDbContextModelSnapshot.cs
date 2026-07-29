@@ -150,6 +150,51 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.ToTable("openiddict_consents", (string)null);
                 });
 
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.LocalizationResource", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.HasKey("Key")
+                        .HasName("pk_localization_resources");
+
+                    b.ToTable("localization_resources", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.LocalizationTranslation", b =>
+                {
+                    b.Property<string>("ResourceKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("resource_key");
+
+                    b.Property<string>("Locale")
+                        .HasMaxLength(35)
+                        .HasColumnType("character varying(35)")
+                        .HasColumnName("locale");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("value");
+
+                    b.HasKey("ResourceKey", "Locale")
+                        .HasName("pk_localization_translations");
+
+                    b.HasIndex("Locale")
+                        .HasDatabaseName("ix_localization_translations_locale");
+
+                    b.ToTable("localization_translations", (string)null);
+                });
+
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.MobileDeviceRegistration", b =>
                 {
                     b.Property<Guid>("Id")
@@ -279,6 +324,57 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.ToTable("mobile_telemetry_events", (string)null);
                 });
 
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.PasskeyCredential", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CredentialId")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("credential_id");
+
+                    b.Property<DateTime>("LastUsedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_used_at");
+
+                    b.Property<string>("PublicKey")
+                        .IsRequired()
+                        .HasMaxLength(4096)
+                        .HasColumnType("character varying(4096)")
+                        .HasColumnName("public_key");
+
+                    b.Property<long>("SignatureCounter")
+                        .HasColumnType("bigint")
+                        .HasColumnName("signature_counter");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_passkey_credentials");
+
+                    b.HasIndex("CredentialId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_passkey_credentials_credential_id");
+
+                    b.HasIndex("UserId", "CredentialId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_passkey_credentials_user_id_credential_id");
+
+                    b.ToTable("passkey_credentials", (string)null);
+                });
+
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.Permission", b =>
                 {
                     b.Property<string>("Code")
@@ -320,6 +416,72 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_permissions_group");
 
                     b.ToTable("permissions", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.PushNotificationOutbox", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_count");
+
+                    b.Property<DateTime>("AvailableAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("available_at");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("body");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<Guid?>("LeaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_id");
+
+                    b.Property<DateTime?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_push_notification_outbox");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_push_notification_outbox_user_id");
+
+                    b.HasIndex("ProcessedAt", "AvailableAt")
+                        .HasDatabaseName("ix_push_notification_outbox_processed_at_available_at");
+
+                    b.ToTable("push_notification_outbox", (string)null);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.Role", b =>
@@ -652,6 +814,14 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("boolean")
                         .HasColumnName("phone_number_confirmed");
+
+                    b.Property<string>("PreferredLanguage")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(35)
+                        .HasColumnType("character varying(35)")
+                        .HasDefaultValue("vi-VN")
+                        .HasColumnName("preferred_language");
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text")
@@ -1095,6 +1265,18 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.ToTable("openiddict_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.LocalizationTranslation", b =>
+                {
+                    b.HasOne("His.Hope.IdentityService.Domain.Entities.LocalizationResource", "Resource")
+                        .WithMany("Translations")
+                        .HasForeignKey("ResourceKey")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_localization_translations_localization_resources_resource_k");
+
+                    b.Navigation("Resource");
+                });
+
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.RolePermission", b =>
                 {
                     b.HasOne("His.Hope.IdentityService.Domain.Entities.Permission", "Permission")
@@ -1210,6 +1392,11 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Navigation("Application");
 
                     b.Navigation("Authorization");
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.LocalizationResource", b =>
+                {
+                    b.Navigation("Translations");
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.Permission", b =>

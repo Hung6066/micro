@@ -13,6 +13,17 @@ commonLabels:
 bases:
   - ../../base
 
+resources:
+  - ../../linkerd/server.yaml
+  - ../../linkerd/server-authorization.yaml
+  - ../../linkerd/traffic-split.yaml
+  - ../../linkerd/service-profiles.yaml
+  - ../../linkerd/pod-monitor.yaml
+  - ../../infrastructure/pgbouncer-configmap.yaml
+  - ../../infrastructure/pgbouncer-secret.yaml
+  - ../../infrastructure/unleash-deployment.yaml
+  - ../../priority/priority-classes.yaml
+
 patches:
   - target:
       kind: Deployment
@@ -32,8 +43,3 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/memory
         value: 512Mi
-  - target:
-      kind: HorizontalPodAutoscaler
-    patch: |-
-      - op: remove
-        path: /

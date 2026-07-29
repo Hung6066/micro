@@ -25,9 +25,11 @@
     "lint:mobile-foundation": "npm --workspace @his-hope/mobile-foundation run lint",
     "lint:admin": "npm --workspace admin-app run lint",
     "lint:dashboard": "npm --workspace dashboard-app run lint",
+    "lint:clinical": "npm --workspace his-hope-app run lint",
     "lint:mobile": "npm --workspace @his-hope/mobile-app run lint",
-    "lint": "npm run lint:foundation && npm run lint:mobile-foundation && npm run lint:admin && npm run lint:dashboard && npm run lint:mobile",
-    "test:mobile-foundation": "npm --workspace @his-hope/mobile-foundation run test"
+    "lint": "npm run lint:foundation && npm run lint:mobile-foundation && npm run lint:admin && npm run lint:dashboard && npm run lint:clinical && npm run lint:mobile",
+    "test:mobile-foundation": "npm --workspace @his-hope/mobile-foundation run test",
+    "test:e2e": "npm --prefix tests/e2e run test"
   },
   "devDependencies": {
     "@angular/localize": "^21.2.18"

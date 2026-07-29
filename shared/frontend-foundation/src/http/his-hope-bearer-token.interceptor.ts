@@ -5,6 +5,8 @@ export interface HisHopeBearerTokenOptions {
   /** Only requests matched by this predicate get an Authorization header. Defaults to any URL containing "/api/". */
   matches?: (url: string) => boolean;
   withCredentials?: boolean;
+  /** Authorization scheme used for the access token. Defaults to Bearer. */
+  tokenType?: "Bearer" | "DPoP";
 }
 
 const defaultMatcher = (url: string): boolean => url.includes("/api/");
@@ -18,6 +20,7 @@ export function createHisHopeBearerTokenInterceptor(
 ): HttpInterceptorFn {
   const matches = options.matches ?? defaultMatcher;
   const withCredentials = options.withCredentials ?? true;
+  const tokenType = options.tokenType ?? "Bearer";
 
   return (req, next) => {
     if (!matches(req.url)) {
@@ -28,7 +31,7 @@ export function createHisHopeBearerTokenInterceptor(
         const request = req.clone({
           withCredentials,
           ...(token
-            ? { setHeaders: { Authorization: `Bearer ${token}` } }
+            ? { setHeaders: { Authorization: `${tokenType} ${token}` } }
             : {}),
         });
         return next(request);

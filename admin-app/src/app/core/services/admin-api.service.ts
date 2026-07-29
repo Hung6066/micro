@@ -92,6 +92,7 @@ export interface AdminJobContract {
 
 export interface AdminTableView { name: string; payloadJson: string; updatedAt: string; }
 export interface AdminTableAnalysisResult { resource: string; operation: 'aggregate' | 'pivot'; groupBy: string; rows: Array<{ key: string; count: number }>; total: number; }
+export interface IdentitySetting { key: string; value: unknown; description?: string; }
 
 @Injectable({ providedIn: 'root' })
 export class AdminApiService {
@@ -260,6 +261,20 @@ export class AdminApiService {
 
   getMyPermissions(): Observable<{ userId?: string; userName?: string; roles: string[]; permissions: string[] }> {
     return this.http.get<{ userId?: string; userName?: string; roles: string[]; permissions: string[] }>(`${this.baseUrl}/me/permissions`);
+  }
+
+  getIdentitySettings(): Observable<IdentitySetting[]> {
+    return this.http.get<IdentitySetting[]>(`${this.baseUrl}/settings`);
+  }
+
+  saveIdentitySettings(settings: Array<{ key: string; value: unknown }>): Observable<IdentitySetting[]> {
+    // SystemSetting.Value is persisted as text. Normalize booleans and numbers
+    // before serialization so ASP.NET can bind BulkUpdateSettingItem.Value.
+    const payload = settings.map(setting => ({
+      key: setting.key,
+      value: String(setting.value ?? ''),
+    }));
+    return this.http.put<IdentitySetting[]>(`${this.baseUrl}/settings/bulk`, { settings: payload });
   }
 
   getDashboardStats(): Observable<DashboardStats> {

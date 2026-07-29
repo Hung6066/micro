@@ -65,11 +65,18 @@
 
 ### High Priority
 - **Key rotation automation**: Manual only via admin API. Automate via Vault auto-rotate.
-- **DPoP**: Not yet implemented. Add for Phase 5+.
+- **DPoP**: Implemented for mobile access tokens and protected resource APIs; retain conformance testing during rollout.
 
 ### Medium Priority
-- **SAML**: Not implemented. Add for legacy hospital IdP integration.
-- **FIDO2/WebAuthn**: Not implemented. Add for phishing-resistant MFA.
+- **SAML**: Implemented with metadata-based signing certificate validation, issuer/audience restriction, and replay detection.
+- **LDAP/AD**: Implemented with LDAPS/StartTLS enforcement, background sync, and bind-based login.
+- **FIDO2/WebAuthn**: Implemented with durable credential public-key/counter storage and Redis challenge expiry.
 
 ### Low Priority
-- **Token encryption (JWE)**: Access tokens are signed only, not encrypted. Full JWE support for sensitive claims.
+- **Token encryption (JWE)**: OpenIddict access tokens are encrypted in production and
+  the shared JwtBearer resource path now loads the matching RSA decryption key from
+  `Jwt:RsaEncryptionPrivateKeyPath`. Production rollout evidence must still prove
+  that every resource deployment mounts that key through its secret manager.
+- **Mobile push**: Device tokens are hashed plus protected at rest; notifications
+  are persisted in a database outbox and retried through Firebase/APNs adapters.
+- **External evidence**: Independent OIDC conformance certification and external penetration-test reports remain required before release.

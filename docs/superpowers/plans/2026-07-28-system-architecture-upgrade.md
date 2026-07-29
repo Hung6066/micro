@@ -16,6 +16,14 @@
 - Every behavior change gets a focused failing test before implementation; configuration-only edits are verified by build/configuration gates.
 - Do not claim a phase complete until its full verification commands have fresh exit-zero evidence.
 
+## Current execution status (2026-07-28)
+
+- Phase 1 implementation and backend gate: **green**. Release configuration, OIDC security policy, mobile placeholder rejection, dependency closure, and Identity integration coverage are implemented and verified.
+- Phase 2 implementation: **green for the current repository contract scope**. OpenAPI baseline generation/compatibility, Buf CI wiring, and all 7 gRPC/API contract projects pass: 100 tests executed, 0 failed. A full generated TypeScript-client migration is not claimed by this plan.
+- Phase 3 implementation: **green for verified repository/CI operational scope**. Mobile release validation, production API-origin fail-fast behavior, frontend lint execution, mobile foundation tests (4/4), container packaging, authenticated shared-foundation E2E (14/14), current SSO smoke (4/4), shared infrastructure tests (7/7), and the operational boundary gate are verified. The combined authenticated browser gate is 18/18. PHI Serilog redaction is wired into all seven service compositions and DLQ logging no longer emits message bodies. The broad 126-test legacy suite remains non-green because several specs still target the removed pre-OIDC `formControlName="username"` login contract; those failures are stale coverage, not an accepted release gate.
+- Remaining external gates: production mobile API host/origin/SPKI and organization Android keystore secrets. Local evidence now includes a signed test APK (`assembleRelease` pass, `apksigner` v1/v2 verified); this proves the packaging/signing path but is not a production release credential.
+- Warning debt remains in Angular lint output; lint exits zero, but warnings are retained as a follow-up quality backlog rather than hidden.
+
 ---
 
 ### Phase 1: P0 Baseline and Release Safety

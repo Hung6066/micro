@@ -26,6 +26,7 @@ using His.Hope.Authorization;
 using His.Hope.Resilience;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
+using His.Hope.Persistence;
 using His.Hope.IntegrationEvents.Appointment;
 using His.Hope.PatientGrpc;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
@@ -39,6 +40,7 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "AppointmentSe
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
+                .Destructure.With<His.Hope.Infrastructure.Logging.PhiDestructuringPolicy>()
                 .Enrich.WithProperty("service", "appointment-service"));
 
 builder.Services.AddEndpointsApiExplorer();
@@ -51,6 +53,7 @@ builder.Services.AddHisHopeAuthorization();
 
 builder.Services.AddAppointmentApplication();
 builder.Services.AddAppointmentInfrastructure(builder.Configuration);
+builder.Services.AddHisHopeMigrationRunner<AppointmentDbContext>();
 
 builder.Services.AddHisHopeEnterpriseInfrastructure(
     builder.Configuration, "appointment-service",
@@ -127,11 +130,17 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
-// Auto-create database on startup
-using (var scope = app.Services.CreateScope())
+if (app.Environment.IsDevelopment())
 {
+    // Local development convenience only. Production schema is migration-owned.
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppointmentDbContext>();
     db.Database.EnsureCreated();
+}
+else
+{
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
 }
 
 app.UseHisHopeServiceDefaults();
@@ -143,7 +152,9 @@ app.UseHisHopePrometheus();
 if (app.Environment.IsDevelopment()) { app.UseSwagger(); app.UseSwaggerUI(); }
 
 // SECURITY: Authentication & Authorization middleware
+app.UseDpopAuthorizationSchemeNormalization();
 app.UseAuthentication();
+app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
 
 

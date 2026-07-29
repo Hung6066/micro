@@ -25,6 +25,7 @@ using His.Hope.Infrastructure.Security;
 using His.Hope.Authorization;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
+using His.Hope.Persistence;
 using His.Hope.IntegrationEvents.Clinical;
 using His.Hope.Contracts.Query;
 using MediatR;
@@ -38,6 +39,7 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "ClinicalServi
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
+                .Destructure.With<His.Hope.Infrastructure.Logging.PhiDestructuringPolicy>()
                 .Enrich.WithProperty("service", "clinical-service"));
 
 builder.Services.AddEndpointsApiExplorer();
@@ -45,6 +47,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddHisHopeContractProblemDetails();
 builder.Services.AddClinicalApplication();
 builder.Services.AddClinicalInfrastructure(builder.Configuration);
+builder.Services.AddHisHopeMigrationRunner<ClinicalDbContext>();
 
 His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
 
@@ -122,6 +125,11 @@ if (app.Environment.IsDevelopment())
     var db = scope.ServiceProvider.GetRequiredService<ClinicalDbContext>();
     db.Database.EnsureCreated();
 }
+else
+{
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+}
 
 // Middleware Pipeline (order matters)
 app.UseHisHopeServiceDefaults();
@@ -141,7 +149,9 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseRouting();
 
 // SECURITY: Authentication & Authorization middleware
+app.UseDpopAuthorizationSchemeNormalization();
 app.UseAuthentication();
+app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
 
 

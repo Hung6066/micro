@@ -8,33 +8,19 @@ namespace His.Hope.IdentityService.Infrastructure.Services;
 public class LdapBackgroundService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IConfiguration _config;
     private readonly ILogger<LdapBackgroundService> _logger;
 
     public LdapBackgroundService(
         IServiceScopeFactory scopeFactory,
-        IConfiguration config,
         ILogger<LdapBackgroundService> logger)
     {
         _scopeFactory = scopeFactory;
-        _config = config;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var enabled = _config.GetValue<bool>("Ldap:Enabled");
-        if (!enabled)
-        {
-            _logger.LogInformation("LDAP background sync is disabled");
-            return;
-        }
-
-        var intervalMinutes = _config.GetValue("Ldap:SyncIntervalMinutes", 15);
-        var interval = TimeSpan.FromMinutes(intervalMinutes);
-
-        _logger.LogInformation("LDAP background sync started. Interval: {Interval} minutes", intervalMinutes);
-
+        _logger.LogInformation("LDAP background sync started with runtime configuration");
         await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
@@ -42,15 +28,29 @@ public class LdapBackgroundService : BackgroundService
             try
             {
                 using var scope = _scopeFactory.CreateScope();
-                var syncService = scope.ServiceProvider.GetRequiredService<LdapSyncService>();
-                await syncService.SyncAsync(stoppingToken);
+                var runtime = scope.ServiceProvider.GetRequiredService<ExternalIdentityProviderRuntime>();
+                var ldap = await runtime.GetLdapAsync(stoppingToken);
+                if (ldap.Enabled)
+                {
+                    var syncService = scope.ServiceProvider.GetRequiredService<LdapSyncService>();
+                    await syncService.SyncAsync(stoppingToken);
+                }
+                else
+                {
+                    _logger.LogDebug("LDAP background sync is disabled");
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "LDAP background sync iteration failed");
             }
 
-            await Task.Delay(interval, stoppingToken);
+            using (var scope = _scopeFactory.CreateScope())
+            {
+                var runtime = scope.ServiceProvider.GetRequiredService<ExternalIdentityProviderRuntime>();
+                var intervalMinutes = Math.Clamp((await runtime.GetLdapAsync(stoppingToken)).SyncIntervalMinutes, 1, 1440);
+                await Task.Delay(TimeSpan.FromMinutes(intervalMinutes), stoppingToken);
+            }
         }
     }
 }

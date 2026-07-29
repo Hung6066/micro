@@ -290,6 +290,8 @@ services:
       Vault__RequireVault: ${VAULT_REQUIRE:-false}
       Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-false}
       OpenIddict__Signing__PrivateKeyPath: ${OPENIDDICT_SIGNING_PRIVATE_KEY_PATH:-/etc/hishop/certs/jwt-private-key.pem}
+      # Nested legacy JWTs used by session exchange must remain JWE encrypted.
+      Jwt__RsaEncryptionPrivateKeyPath: ${JWT_RSA_ENCRYPTION_PRIVATE_KEY_PATH:-/etc/hishop/certs/jwt-encryption-private-key.pem}
       Otlp__Endpoint: http://otel-collector:4317
       # ─── OpenIddict OIDC Configuration ───
       OpenIddict__Issuer: ${OIDC_ISSUER:-http://localhost:5000}
@@ -297,6 +299,12 @@ services:
       OpenIddict__AccessTokenLifetime: ${OIDC_ACCESS_TOKEN_LIFETIME:-01:00:00}
       OpenIddict__RefreshTokenLifetime: ${OIDC_REFRESH_TOKEN_LIFETIME:-7.00:00:00}
       OpenIddict__AuthorizationCodeLifetime: ${OIDC_CODE_LIFETIME:-00:01:00}
+      # WebAuthn origins used by the local identity login page and admin app.
+      # Production deployments should override these with the public HTTPS origins.
+      Passkeys__RpId: ${PASSKEYS_RP_ID:-localhost}
+      Passkeys__Origins__0: ${PASSKEYS_ORIGIN_0:-http://localhost:5000}
+      Passkeys__Origins__1: ${PASSKEYS_ORIGIN_1:-http://localhost:8083}
+      Passkeys__Origins__2: ${PASSKEYS_ORIGIN_2:-https://localhost}
       Mobile__AppPolicy__MinimumVersion: 1.0.0
       Mobile__AppPolicy__LatestVersion: 1.0.0
       Mobile__AppPolicy__ForceUpgrade: "false"

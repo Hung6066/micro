@@ -17,5 +17,6 @@
     <ProjectReference Include="..\LabService.Application\LabService.Application.csproj" />
     <ProjectReference Include="..\..\..\Shared\SharedKernel\Src\His.Hope.SharedKernel\His.Hope.SharedKernel.csproj" />
     <ProjectReference Include="..\..\..\Shared\Infrastructure\His.Hope.Infrastructure\His.Hope.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Persistence\His.Hope.Persistence\His.Hope.Persistence.csproj" />
   </ItemGroup>
 </Project>

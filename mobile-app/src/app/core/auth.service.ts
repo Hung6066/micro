@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
-import { BehaviorSubject, Observable, catchError, filter, map, of, take, tap } from 'rxjs';
+import { BehaviorSubject, Observable, catchError, filter, map, of, switchMap, take, tap } from 'rxjs';
 import { NativeCapabilityService } from './native-capability.service';
 import { environment } from '../../environments/environment';
 
@@ -10,6 +10,7 @@ export class MobileAuthService {
   private readonly oidc = inject(OidcSecurityService);
   private readonly http = inject(HttpClient);
   private readonly native = inject(NativeCapabilityService);
+  private readonly mfaStatusUrl = environment.adminApiUrl.replace(/\/admin$/, '/auth/mfa/status');
   readonly isAuthenticated$ = this.oidc.isAuthenticated$.pipe(map(state => state.isAuthenticated));
   readonly userData$ = this.oidc.userData$;
   readonly loginError = signal('');
@@ -19,7 +20,20 @@ export class MobileAuthService {
 
   checkAuth(): Observable<boolean> {
     return this.oidc.checkAuth().pipe(
-      map(result => result.isAuthenticated),
+      switchMap(result => {
+        if (!result.isAuthenticated) return of(false);
+        return this.http.get<{ requiresMfa: boolean }>(this.mfaStatusUrl).pipe(
+          map(status => {
+            if (!status.requiresMfa) return true;
+            this.clearLocalSession();
+            return false;
+          }),
+          catchError(() => {
+            this.clearLocalSession();
+            return of(false);
+          }),
+        );
+      }),
       tap(isAuthenticated => {
         // Do not let the startup check overwrite a callback that is already
         // exchanging its authorization code for tokens.
@@ -85,11 +99,21 @@ export class MobileAuthService {
     });
   }
   async unlockWithBiometric(): Promise<boolean> { return this.native.authenticateBiometric(); }
-  logout(): void { void this.native.secureRemove('his-hope.mobile.session'); this.oidc.logoff().subscribe(); }
+  logout(): void {
+    void this.native.secureRemove('his-hope.mobile.session');
+    this.oidc.logoff(undefined, {
+      urlHandler: url => { void this.native.openAuthBrowser(url); },
+    }).subscribe();
+  }
 
   private publishAuthState(isAuthenticated: boolean): void {
     this.authState.next(isAuthenticated);
     if (isAuthenticated) void this.native.secureSet('his-hope.mobile.session', 'authenticated');
+  }
+
+  private clearLocalSession(): void {
+    this.oidc.logoffLocal();
+    void this.native.secureRemove('his-hope.mobile.session');
   }
 
   private describeError(error: unknown, fallback: string): string {

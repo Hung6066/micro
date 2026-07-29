@@ -6,6 +6,7 @@ import { mobileAuthGuard } from './core/auth.guard';
 import { MobileDashboardComponent } from './features/mobile-dashboard.component';
 import { MobileResourcePageComponent } from './features/mobile-resource-page.component';
 import { MobileMfaComponent } from './features/mobile-mfa.component';
+import { MobileNativeMfaComponent } from './mobile-native-mfa.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'admin/dashboard', pathMatch: 'full' },
@@ -20,5 +21,6 @@ export const routes: Routes = [
   ] },
   { path: 'auth/login', component: MobileLoginComponent },
   { path: 'auth/callback', component: MobileCallbackComponent },
+  { path: 'auth/mfa', component: MobileNativeMfaComponent },
   { path: '**', redirectTo: '' },
 ];

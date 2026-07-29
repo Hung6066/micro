@@ -42,7 +42,7 @@ public class PharmacyGrpcContractTests
         var response = await _service.GetMedication(request, new TestServerCallContext());
 
         response.Should().NotBeNull();
-        response.Id.Should().Be(medicationId.Value.ToString());
+        response.Id.Should().Be(medication.Id.Value.ToString());
         response.Name.Should().Be("Amoxicillin");
         response.GenericName.Should().Be("Amoxicillin Trihydrate");
         response.DosageForm.Should().Be("Capsule");
@@ -178,7 +178,7 @@ public class PharmacyGrpcContractTests
         var response = await _service.GetPrescription(request, new TestServerCallContext());
 
         response.Should().NotBeNull();
-        response.Id.Should().Be(prescriptionId.Value.ToString());
+        response.Id.Should().Be(prescription.Id.Value.ToString());
         response.MedicationName.Should().Be("Amoxicillin");
         response.Strength.Should().Be("500mg");
         response.DosageForm.Should().Be("Capsule");
@@ -334,6 +334,7 @@ public class PharmacyGrpcContractTests
         var routeField = typeof(Medication).GetField("<Route>k__BackingField",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         routeField?.SetValue(med, "Oral");
+        med.UpdateDetails("Amoxicillin", "Amoxicillin Trihydrate", "Amoxil", "Capsule", "500mg", "Oral", null, null, true);
         return med;
     }
 

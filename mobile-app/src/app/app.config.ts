@@ -12,6 +12,8 @@ import {
   HisHopeGlobalErrorHandler,
   hisHopeCorrelationIdInterceptor,
   hisHopeErrorInterceptor,
+  hisHopeInternationalizationInterceptor,
+  HIS_HOPE_LOCALIZATION_API_URL,
 } from "@his-hope/frontend-foundation";
 import { routes } from "./app.routes";
 import { authInterceptor } from "./core/auth.interceptor";
@@ -22,11 +24,13 @@ import { environment } from "../environments/environment";
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    { provide: HIS_HOPE_LOCALIZATION_API_URL, useValue: `${environment.oidc.authority}/api/v1` },
     provideRouter(routes),
     provideAnimations(),
     provideHttpClient(
       withInterceptors([
         hisHopeCorrelationIdInterceptor,
+        hisHopeInternationalizationInterceptor,
         authInterceptor,
         mobileNativeHttpInterceptor,
         hisHopeErrorInterceptor,

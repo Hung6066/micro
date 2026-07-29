@@ -13,12 +13,44 @@ commonAnnotations:
 
 resources:
   - ../../base
+  - ../../linkerd/server.yaml
+  - ../../linkerd/server-authorization.yaml
+  - ../../linkerd/traffic-split.yaml
+  - ../../linkerd/service-profiles.yaml
+  - ../../linkerd/pod-monitor.yaml
+  - ../../infrastructure/pgbouncer-configmap.yaml
+  - ../../infrastructure/pgbouncer-secret.yaml
+  - ../../infrastructure/unleash-deployment.yaml
+  - ../../priority/priority-classes.yaml
   - ../../security/gatekeeper-constraints.yaml
   - ../../vault/vault-statefulset.yaml
   - ../../vault/vault-agent-injector.yaml
   - ../../vault/vault-csi-provider.yaml
 
 patches:
+  - path: identity-security-patch.yaml
+  - target:
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/component=backend"
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: Jwt__RsaEncryptionPrivateKeyPath
+          value: /mnt/oidc-secrets/private_key
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: oidc-encryption-key
+          secret:
+            secretName: identity-service-oidc-encryption
+            defaultMode: 0440
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value:
+          name: oidc-encryption-key
+          mountPath: /mnt/oidc-secrets
+          readOnly: true
   - target:
       kind: Deployment
       labelSelector: "app.kubernetes.io/part-of=his-hope"
@@ -32,24 +64,9 @@ patches:
           vault.hashicorp.com/agent-pre-populate: "true"
           vault.hashicorp.com/agent-pre-populate-only: "false"
           linkerd.io/inject: enabled
-      - op: add
-        path: /spec/template/spec/volumes/-
-        value:
-          name: secrets-store
-          csi:
-            driver: secrets-store.csi.k8s.io
-            readOnly: true
-            volumeAttributes:
-              secretProviderClass: "${APP}-secrets"
-      - op: add
-        path: /spec/template/spec/containers/0/volumeMounts/-
-        value:
-          name: secrets-store
-          mountPath: "/vault/secrets"
-          readOnly: true
 
 components:
-  - image-digests.yaml
+  - image-digests
 
 namespace: his-hope
 
@@ -68,23 +85,6 @@ replicas:
 configMapGenerator:
   - name: vault-agent-config
     namespace: his-hope
-    behavior: merge
     literals:
       - vault.skip-verify=false
       - vault.address=https://vault-active.his-hope.svc.cluster.local:8200
-
-secretGenerator:
-  - name: vault-tls
-    namespace: his-hope
-    type: kubernetes.io/tls
-    files:
-      - tls.crt=secrets/vault-server.crt
-      - tls.key=secrets/vault-server.key
-      - ca.crt=secrets/vault-ca.crt
-  - name: vault-agent-injector-tls
-    namespace: his-hope
-    type: kubernetes.io/tls
-    files:
-      - tls.crt=secrets/injector-tls.crt
-      - tls.key=secrets/injector-tls.key
-      - ca.crt=secrets/vault-ca.crt

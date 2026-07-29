@@ -10,14 +10,14 @@ namespace His.Hope.PatientService.Infrastructure.Persistence;
 
 public class PatientDbContext : DbContext, IUnitOfWork
 {
-    private readonly IMediator _mediator;
+    private readonly IMediator? _mediator;
 
     public DbSet<Patient> Patients => Set<Patient>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public PatientDbContext(
         DbContextOptions<PatientDbContext> options,
-        IMediator mediator)
+        IMediator? mediator = null)
         : base(options)
     {
         _mediator = mediator;
@@ -72,7 +72,8 @@ public class PatientDbContext : DbContext, IUnitOfWork
 
         foreach (var domainEvent in domainEvents)
         {
-            await _mediator.Publish(domainEvent, cancellationToken);
+            if (_mediator is not null)
+                await _mediator.Publish(domainEvent, cancellationToken);
         }
 
         return result;

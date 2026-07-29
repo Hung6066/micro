@@ -36,7 +36,10 @@ export class AppComponent {
   private readonly telemetry = inject(MobileTelemetryService);
   private readonly sync = inject(MobileSyncQueueService);
   constructor() {
-    this.auth.checkAuth().subscribe();
+    // The callback component owns the one-time authorization-code exchange.
+    // Running the startup check on the same URL can redeem the code twice and
+    // make the second request fail with invalid_grant.
+    if (!this.isOidcCallbackUrl()) this.auth.checkAuth().subscribe();
     this.theme.restore();
     this.telemetry.initialize();
     void this.native.initialize();
@@ -44,6 +47,12 @@ export class AppComponent {
     void this.bootstrapPolicy();
     window.addEventListener('online', () => void this.sync.flush());
     if (navigator.onLine) void this.sync.flush();
+  }
+
+  private isOidcCallbackUrl(): boolean {
+    if (typeof window === 'undefined') return false;
+    const path = window.location.pathname.replace(/\/$/, '');
+    return path.endsWith('/auth/callback') && new URLSearchParams(window.location.search).has('code');
   }
 
   private async bootstrapPolicy(): Promise<void> {

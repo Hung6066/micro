@@ -7,6 +7,7 @@ namespace His.Hope.IdentityService.Api.Configuration;
 public sealed record OidcSecurityOptions(
     SecurityKey? SigningKey,
     SecurityKey? EncryptionKey,
+    IReadOnlyList<SecurityKey> EncryptionKeys,
     bool UseEphemeralDevelopmentKeys,
     bool AllowInsecureHttp);
 
@@ -15,7 +16,8 @@ public static class OidcSecurityConfiguration
     public static OidcSecurityOptions Resolve(IConfiguration configuration, IHostEnvironment environment)
     {
         var signingKey = TryLoadRsaSigningKey(configuration);
-        var encryptionKey = TryLoadRsaEncryptionKey(configuration);
+        var encryptionKeys = LoadRsaEncryptionKeys(configuration);
+        var encryptionKey = encryptionKeys.FirstOrDefault();
         var allowInsecureHttp = configuration.GetValue<bool?>("OpenIddict:AllowInsecureHttp")
             ?? environment.IsDevelopment();
 
@@ -42,6 +44,7 @@ public static class OidcSecurityConfiguration
         return new OidcSecurityOptions(
             signingKey,
             encryptionKey,
+            encryptionKeys,
             UseEphemeralDevelopmentKeys: signingKey is null && encryptionKey is null,
             AllowInsecureHttp: allowInsecureHttp);
     }
@@ -66,23 +69,33 @@ public static class OidcSecurityConfiguration
         };
     }
 
-    private static SecurityKey? TryLoadRsaEncryptionKey(IConfiguration configuration)
+    private static IReadOnlyList<SecurityKey> LoadRsaEncryptionKeys(IConfiguration configuration)
     {
-        var privateKeyPath = FirstNonPlaceholder(
-            configuration["OpenIddict:Encryption:PrivateKeyPath"],
-            configuration["Jwt:RsaEncryptionPrivateKeyPath"]);
-
-        if (string.IsNullOrWhiteSpace(privateKeyPath) || !File.Exists(privateKeyPath))
-            return null;
-
-        var rsa = RSA.Create();
-        rsa.ImportFromPem(File.ReadAllText(privateKeyPath));
-
-        return new RsaSecurityKey(rsa)
+        var configuredPaths = new List<string?>
         {
-            KeyId = configuration["OpenIddict:Encryption:KeyId"]
-                ?? "oidc-encryption"
+            configuration["OpenIddict:Encryption:PrivateKeyPath"],
+            configuration["Jwt:RsaEncryptionPrivateKeyPath"],
+            configuration["OpenIddict:Encryption:PreviousPrivateKeyPath"]
         };
+        configuredPaths.AddRange(configuration.GetSection("OpenIddict:Encryption:PrivateKeyPaths").GetChildren().Select(section => section.Value));
+
+        var keys = new List<SecurityKey>();
+        foreach (var privateKeyPath in configuredPaths.Select(path => FirstNonPlaceholder(path)).Where(path => !string.IsNullOrWhiteSpace(path)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (!File.Exists(privateKeyPath))
+                continue;
+
+            var rsa = RSA.Create();
+            rsa.ImportFromPem(File.ReadAllText(privateKeyPath));
+
+            keys.Add(new RsaSecurityKey(rsa)
+            {
+                KeyId = configuration["OpenIddict:Encryption:KeyId"]
+                    ?? "oidc-encryption"
+            });
+        }
+
+        return keys;
     }
 
     private static string? FirstNonPlaceholder(params string?[] values)

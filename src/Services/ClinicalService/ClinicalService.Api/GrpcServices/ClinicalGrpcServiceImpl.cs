@@ -26,8 +26,9 @@ public class ClinicalGrpcServiceImpl : ClinicalGrpcService.ClinicalGrpcServiceBa
     public override async Task<EncounterResponse> GetEncounter(EncounterRequest request,
         ServerCallContext context)
     {
+        var encounterId = ParseGuidOrThrow(request.Id, "Encounter id");
         var encounter = await _mediator.Send(
-            new GetEncounterByIdQuery(Guid.Parse(request.Id)),
+            new GetEncounterByIdQuery(encounterId),
             context.CancellationToken);
 
         if (encounter is null)
@@ -73,11 +74,20 @@ public class ClinicalGrpcServiceImpl : ClinicalGrpcService.ClinicalGrpcServiceBa
     public override async Task<EncounterExistsResponse> CheckEncounterExists(
         EncounterExistsRequest request, ServerCallContext context)
     {
+        var encounterId = ParseGuidOrThrow(request.Id, "Encounter id");
         var encounter = await _mediator.Send(
-            new GetEncounterByIdQuery(Guid.Parse(request.Id)),
+            new GetEncounterByIdQuery(encounterId),
             context.CancellationToken);
 
         return new EncounterExistsResponse { Exists = encounter is not null };
+    }
+
+    private static Guid ParseGuidOrThrow(string value, string fieldName)
+    {
+        if (Guid.TryParse(value, out var parsed))
+            return parsed;
+
+        throw new RpcException(new Status(StatusCode.InvalidArgument, $"{fieldName} must be a valid GUID."));
     }
 
     private static EncounterResponse MapToResponse(EncounterDto encounter) =>

@@ -8,6 +8,7 @@ import type {
   HisHopeDeviceSecurityResult,
   HisHopeNativeHttpRequest,
   HisHopeNativeHttpResponse,
+  HisHopeNativePasskeyCapability,
   HisHopeRumEvent,
 } from "@his-hope/mobile-foundation";
 import { environment } from "../../environments/environment";
@@ -20,12 +21,16 @@ interface HisHopeSecurityPlugin {
   verifyAppPin(options: { pin: string }): Promise<{ valid: boolean }>;
   clearAppPin(): Promise<void>;
   request(options: HisHopeNativeHttpRequest): Promise<HisHopeNativeHttpResponse>;
+  openPinnedAuthBrowser(options: { url: string }): Promise<void>;
+  isPasskeySupported(): Promise<{ supported: boolean }>;
+  createPasskey(options: { requestJson: string }): Promise<{ responseJson: string | Record<string, unknown> }>;
+  authenticatePasskey(options: { requestJson: string }): Promise<{ responseJson: string | Record<string, unknown> }>;
 }
 
 const Security = registerPlugin<HisHopeSecurityPlugin>("HisHopeSecurity");
 
 @Injectable({ providedIn: "root" })
-export class MobilePlatformService {
+export class MobilePlatformService implements Partial<HisHopeNativePasskeyCapability> {
   private readonly http = inject(HttpClient);
   private readonly baseUrl = environment.adminApiUrl.replace(/\/admin$/, "");
   readonly upgradeRequired = signal(false);
@@ -61,6 +66,33 @@ export class MobilePlatformService {
 
   nativeRequest(request: HisHopeNativeHttpRequest): Promise<HisHopeNativeHttpResponse> {
     return Security.request(request);
+  }
+
+  openPinnedAuthBrowser(url: string): Promise<void> {
+    return Security.openPinnedAuthBrowser({ url });
+  }
+
+  async isPasskeySupported(): Promise<boolean> {
+    return Capacitor.isNativePlatform() && (await Security.isPasskeySupported()).supported;
+  }
+
+  async register(options: Readonly<Record<string, unknown>>): Promise<Readonly<Record<string, unknown>>> {
+    const result = await Security.createPasskey({ requestJson: JSON.stringify(options) });
+    return this.parsePasskeyResponse(result.responseJson);
+  }
+
+  async authenticate(options: Readonly<Record<string, unknown>>): Promise<Readonly<Record<string, unknown>>> {
+    const result = await Security.authenticatePasskey({ requestJson: JSON.stringify(options) });
+    return this.parsePasskeyResponse(result.responseJson);
+  }
+
+  private parsePasskeyResponse(value: string | Record<string, unknown>): Readonly<Record<string, unknown>> {
+    if (typeof value !== "string") return value;
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    const response = parsed["response"];
+    return response && typeof response === "object"
+      ? response as Readonly<Record<string, unknown>>
+      : parsed;
   }
 
   async appPolicy(): Promise<HisHopeAppPolicy> {

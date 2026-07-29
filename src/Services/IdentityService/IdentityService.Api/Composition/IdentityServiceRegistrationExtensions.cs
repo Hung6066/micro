@@ -43,6 +43,10 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using ITfoxtec.Identity.Saml2;
+using ITfoxtec.Identity.Saml2.MvcCore.Configuration;
+using ITfoxtec.Identity.Saml2.MvcCore;
+using ITfoxtec.Identity.Saml2.Schemas.Metadata;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
@@ -57,10 +61,60 @@ public static class IdentityServiceRegistrationExtensions
 {
     public static void AddIdentityService(this WebApplicationBuilder builder)
     {
-        builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityService");
+        builder.Services.AddOptions<PushProviderOptions>()
+            .Bind(builder.Configuration.GetSection("PushProviders"))
+            // Production must never be able to disable provider validation via
+            // configuration. Development can still run without push material.
+            .Validate(options => !builder.Environment.IsProduction() || !options.Validate().Any(),
+                "Production push provider credentials are incomplete")
+            .ValidateOnStart();
+
+        builder.Services.AddSingleton(sp => new Fido2NetLib.Fido2(new Fido2NetLib.Fido2Configuration
+        {
+            ServerDomain = builder.Configuration["Passkeys:RpId"] ?? new Uri(builder.Configuration["OpenIddict:Issuer"] ?? "https://localhost").Host,
+            ServerName = builder.Configuration["Passkeys:RpName"] ?? "His.Hope",
+            Origins = new HashSet<string>(builder.Configuration.GetSection("Passkeys:Origins").Get<string[]>() ?? new[] { builder.Configuration["OpenIddict:Issuer"] ?? "https://localhost" })
+        }));
+        builder.Services.AddHttpClient();
+        builder.Services.AddScoped<SamlRuntimeConfigurationService>();
+        builder.Services.AddScoped<IPushDeliveryService, PushDeliveryService>();
+        builder.Services.AddScoped<OidcLoginCompletionService>();
+        builder.Services.AddHostedService<PushNotificationOutboxWorker>();
+        builder.Services.BindConfig<Saml2Configuration>(builder.Configuration, "Saml2", (services, configuration) =>
+        {
+            configuration.DetectReplayedTokens = true;
+            configuration.AudienceRestricted = true;
+            if (!string.IsNullOrWhiteSpace(configuration.Issuer))
+                configuration.AllowedAudienceUris.Add(configuration.Issuer);
+            if (builder.Configuration.GetValue("Saml2:Enabled", false))
+            {
+                var metadata = builder.Configuration["Saml2:IdPMetadata"];
+                if (string.IsNullOrWhiteSpace(metadata) || metadata.Contains("${", StringComparison.Ordinal))
+                    throw new InvalidOperationException("Saml2:IdPMetadata is required when SAML federation is enabled");
+                var descriptor = new EntityDescriptor();
+                descriptor.ReadIdPSsoDescriptorFromUrlAsync(services.GetRequiredService<IHttpClientFactory>(), new Uri(metadata))
+                    .GetAwaiter().GetResult();
+                var idp = descriptor.IdPSsoDescriptor ?? throw new InvalidOperationException("SAML IdP metadata has no IdPSSODescriptor");
+                configuration.AllowedIssuer = descriptor.EntityId;
+                configuration.SingleSignOnDestination = idp.SingleSignOnServices.First().Location;
+                foreach (var certificate in idp.SigningCertificates.Where(c => c.NotAfter > DateTime.UtcNow))
+                    configuration.SignatureValidationCertificates.Add(certificate);
+                if (configuration.SignatureValidationCertificates.Count == 0)
+                    throw new InvalidOperationException("SAML IdP metadata has no valid signing certificate");
+                configuration.CertificateValidationMode = System.ServiceModel.Security.X509CertificateValidationMode.Custom;
+                configuration.CustomCertificateValidator = new MetadataCertificateValidator(
+                    configuration.SignatureValidationCertificates);
+            }
+            return configuration;
+        });
+        builder.Services.AddSaml2();
+        builder.Services.AddControllersWithViews();
+
+builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityService");
         
         builder.Host.UseSerilog((context, config) =>
             config.ReadFrom.Configuration(context.Configuration)
+                        .Destructure.With<His.Hope.Infrastructure.Logging.PhiDestructuringPolicy>()
                         .Enrich.WithProperty("service", "identity-service"));
         
         builder.Services.AddEndpointsApiExplorer();
@@ -86,7 +140,6 @@ public static class IdentityServiceRegistrationExtensions
                 ?? "localhost:6379";
             options.InstanceName = "HisHope:";
         });
-        builder.Services.AddSingleton<ICacheService, NoOpCacheService>();
         
         // IdentityService user-management requests do not use distributed locks, so keep
         // MediatR off Redis here to avoid an unnecessary IConnectionMultiplexer dependency.
@@ -142,6 +195,29 @@ public static class IdentityServiceRegistrationExtensions
              options.Cookie.SameSite = SameSiteMode.Lax;
              options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
              options.LoginPath = "/Account/Login";
+             options.Events.OnRedirectToLogin = context =>
+             {
+                 if (context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase) ||
+                     context.Request.Path.StartsWithSegments("/scim", StringComparison.OrdinalIgnoreCase))
+                 {
+                     context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                     return Task.CompletedTask;
+                 }
+
+                 context.Response.Redirect(context.RedirectUri);
+                 return Task.CompletedTask;
+             };
+             options.Events.OnRedirectToAccessDenied = context =>
+             {
+                 if (context.Request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase))
+                 {
+                     context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                     return Task.CompletedTask;
+                 }
+
+                 context.Response.Redirect(context.RedirectUri);
+                 return Task.CompletedTask;
+             };
          })
          .AddCookie(IdentityConstants.ExternalScheme);
         
@@ -206,7 +282,7 @@ public static class IdentityServiceRegistrationExtensions
                         "http://localhost:8081", "http://localhost:8082", "http://localhost:8083",
                         "http://localhost:4200", "http://localhost:4201", "http://localhost:4202", "http://localhost:4300",
                         "https://localhost", "http://localhost", "capacitor://localhost")
-                    .WithHeaders("Authorization", "Content-Type", "X-CSRF-Token", "X-Correlation-ID")
+                    .WithHeaders("Authorization", "DPoP", "Content-Type", "X-CSRF-Token", "X-Correlation-ID")
                     .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                     .AllowCredentials();
             });
@@ -215,12 +291,52 @@ public static class IdentityServiceRegistrationExtensions
         // Configure rate limiting specifically for auth endpoints
         builder.Services.AddRateLimiter(options =>
         {
-            options.AddFixedWindowLimiter("auth", config =>
+            options.OnRejected = async (context, cancellationToken) =>
             {
-                config.PermitLimit = 30;
-                config.Window = TimeSpan.FromMinutes(1);
-                config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-                config.QueueLimit = 0;
+                context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                await context.HttpContext.Response.WriteAsJsonAsync(
+                    new { error = "rate_limit_exceeded" }, cancellationToken);
+            };
+            options.AddPolicy("auth", context =>
+            {
+                var key = context.Request.Headers["X-RateLimit-Key"].FirstOrDefault()
+                    ?? context.Connection.RemoteIpAddress?.ToString()
+                    ?? "unknown";
+                return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = builder.Configuration.GetValue("RateLimiting:AuthPermitLimit", 30),
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    QueueLimit = 0
+                });
+            });
+            options.AddPolicy("mfa", context =>
+            {
+                var key = context.Request.Headers["X-RateLimit-Key"].FirstOrDefault()
+                    ?? context.Connection.RemoteIpAddress?.ToString()
+                    ?? "unknown";
+                return RateLimitPartition.GetFixedWindowLimiter($"mfa:{key}", _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = builder.Configuration.GetValue(
+                        "RateLimiting:Mfa:PermitLimit",
+                        builder.Configuration.GetValue("RateLimiting:MfaPermitLimit", 5)),
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0
+                });
+            });
+            options.AddPolicy("scim", context =>
+            {
+                var key = context.Request.Headers["X-RateLimit-Key"].FirstOrDefault()
+                    ?? context.Connection.RemoteIpAddress?.ToString()
+                    ?? "unknown";
+                return RateLimitPartition.GetFixedWindowLimiter($"scim:{key}", _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = builder.Configuration.GetValue(
+                        "RateLimiting:Scim:PermitLimit",
+                        builder.Configuration.GetValue("RateLimiting:ScimPermitLimit", 60)),
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0
+                });
             });
         });
         
@@ -238,6 +354,7 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddIdentityApplication();
         
         // LDAP Sync service (disabled by default)
+        builder.Services.AddScoped<ExternalIdentityProviderRuntime>();
         builder.Services.AddScoped<LdapSyncService>();
         builder.Services.AddHostedService<LdapBackgroundService>();
         
@@ -284,8 +401,13 @@ public static class IdentityServiceRegistrationExtensions
         }
         else
         {
-            builder.Services.AddSingleton<IMfaSecretEncryptor, AesMfaSecretEncryptor>();
+        builder.Services.AddSingleton<IMfaSecretEncryptor, AesMfaSecretEncryptor>();
         }
+
+        builder.Services.AddSingleton<IDpopReplayCache>(sp =>
+            new RedisDpopReplayCache(sp.GetRequiredService<IConnectionMultiplexer>()));
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<DpopProofValidator>();
         
         // ─── OpenIddict OAuth2/OIDC Authorization Server ───
         var oidcConfig = builder.Configuration.GetSection("OpenIddict");
@@ -344,7 +466,8 @@ public static class IdentityServiceRegistrationExtensions
         
                 if (oidcSecurity.EncryptionKey is not null)
                 {
-                    options.AddEncryptionKey(oidcSecurity.EncryptionKey);
+                    foreach (var encryptionKey in oidcSecurity.EncryptionKeys)
+                        options.AddEncryptionKey(encryptionKey);
                 }
                 else
                 {
@@ -352,10 +475,11 @@ public static class IdentityServiceRegistrationExtensions
                     options.AddEphemeralEncryptionKey();
                 }
         
-                 options.DisableAccessTokenEncryption();
                 var aspNetCore = options.UseAspNetCore();
                 options.AddEventHandler(FixDiscoveryBaseUriHandler.Descriptor);
-                if (builder.Environment.IsDevelopment())
+                options.AddEventHandler(DpopTokenBindingHandler.Descriptor);
+                options.AddEventHandler(DpopTokenResponseHandler.Descriptor);
+                if (builder.Environment.IsDevelopment() || oidcConfig.GetValue<bool>("AllowInsecureHttp"))
                     aspNetCore.DisableTransportSecurityRequirement();
 
                 aspNetCore.EnableAuthorizationEndpointPassthrough()

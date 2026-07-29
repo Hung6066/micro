@@ -23,25 +23,6 @@ internal static class BffHelpers
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
-    internal static string[] ExtractPermissionsFromJwt(string jwt)
-    {
-        try
-        {
-            var payload = jwt.Split('.')[1];
-            var base64 = payload.Replace('-', '+').Replace('_', '/');
-            var padded = base64.PadRight(((base64.Length + 3) / 4) * 4, '=');
-            var json = Encoding.UTF8.GetString(Convert.FromBase64String(padded));
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("permissions", out var permProp))
-            {
-                var value = permProp.GetString();
-                if (!string.IsNullOrEmpty(value))
-                    return value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            }
-        }
-        catch { }
-        return [];
-    }
 }
 
 internal sealed class NoOpLockManager : ILockManager
@@ -50,16 +31,8 @@ internal sealed class NoOpLockManager : ILockManager
         => Task.FromResult<IDistributedLock?>(null);
 }
 
-internal sealed class NoOpCacheService : ICacheService
-{
-    public Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class => Task.FromResult<T?>(null);
-    public Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => factory();
-    public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => Task.CompletedTask;
-    public Task RemoveAsync(string key, CancellationToken ct = default) => Task.CompletedTask;
-    public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default) => Task.CompletedTask;
-}
-
 internal sealed record PermissionCheckRequest(string? Permission);
+internal sealed record UpdateLanguagePreferenceRequest(string PreferredLanguage);
 
 // DEPRECATED: Legacy auth endpoints maintained for backward compatibility.
 // Migrate to OIDC /connect/authorize and /connect/token.
@@ -75,38 +48,6 @@ internal static class LegacyEndpointFilter
             ctx.HttpContext.Response.Headers["Link"] = "</connect/authorize>; rel=\"successor-version\"";
             return await next(ctx);
         });
-    }
-}
-
-// Helper: extract userId ("sub" claim) from JWT payload without full validation
-internal static class JwtPayloadParser
-{
-    public static string? ExtractUserIdFromJwtPayload(string jwt)
-    {
-        try
-        {
-            var parts = jwt.Split('.');
-            if (parts.Length < 2) return null;
-
-            var payload = parts[1];
-            // Base64Url decode (handle padding)
-            payload = payload.Replace('-', '+').Replace('_', '/');
-            switch (payload.Length % 4)
-            {
-                case 2: payload += "=="; break;
-                case 3: payload += "="; break;
-            }
-
-            var json = Encoding.UTF8.GetString(Convert.FromBase64String(payload));
-            using var doc = JsonDocument.Parse(json);
-            return doc.RootElement.TryGetProperty("sub", out var sub)
-                ? sub.GetString()
-                : null;
-        }
-        catch
-        {
-            return null;
-        }
     }
 }
 

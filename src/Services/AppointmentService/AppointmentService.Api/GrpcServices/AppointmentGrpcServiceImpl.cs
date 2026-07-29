@@ -19,8 +19,9 @@ public class AppointmentGrpcServiceImpl : AppointmentGrpcService.AppointmentGrpc
     public override async Task<AppointmentResponse> GetAppointment(AppointmentRequest request,
         ServerCallContext context)
     {
+        var appointmentId = ParseGuidOrThrow(request.Id, "Appointment id");
         var apt = await _repository.GetByIdAsync(
-            AppointmentId.From(Guid.Parse(request.Id)), context.CancellationToken);
+            AppointmentId.From(appointmentId), context.CancellationToken);
 
         if (apt is null)
             throw new RpcException(new Status(StatusCode.NotFound, "Appointment not found"));
@@ -31,7 +32,7 @@ public class AppointmentGrpcServiceImpl : AppointmentGrpcService.AppointmentGrpc
     public override async Task<AppointmentListResponse> GetPatientAppointments(
         PatientAppointmentsRequest request, ServerCallContext context)
     {
-        var patientId = Guid.Parse(request.PatientId);
+        var patientId = ParseGuidOrThrow(request.PatientId, "Patient id");
         var page = request.Page > 0 ? request.Page : 1;
         var pageSize = request.PageSize > 0 ? request.PageSize : 20;
 
@@ -53,11 +54,27 @@ public class AppointmentGrpcServiceImpl : AppointmentGrpcService.AppointmentGrpc
     public override async Task<AppointmentExistsResponse> CheckAppointmentExists(
         AppointmentExistsRequest request, ServerCallContext context)
     {
+        var appointmentId = ParseGuidOrThrow(request.Id, "Appointment id");
         var exists = await _repository.ExistsAsync(
-            AppointmentId.From(Guid.Parse(request.Id)), context.CancellationToken);
+            AppointmentId.From(appointmentId), context.CancellationToken);
 
         return new AppointmentExistsResponse { Exists = exists };
     }
+
+    private static Guid ParseGuidOrThrow(string value, string fieldName)
+    {
+        if (Guid.TryParse(value, out var parsed))
+            return parsed;
+
+        throw new RpcException(new Status(StatusCode.InvalidArgument, $"{fieldName} must be a valid GUID."));
+    }
+
+    private static DateTime AsUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+    };
 
     private static AppointmentResponse MapToResponse(Appointment apt) =>
         new()
@@ -65,13 +82,13 @@ public class AppointmentGrpcServiceImpl : AppointmentGrpcService.AppointmentGrpc
             Id = apt.Id.ToString()!,
             PatientId = apt.PatientId.ToString(),
             ProviderId = apt.ProviderId.ToString(),
-            ScheduledDate = apt.ScheduledDate.ToTimestamp(),
-            StartTime = apt.ScheduledDate.Date.Add(apt.StartTime).ToTimestamp(),
-            EndTime = apt.ScheduledDate.Date.Add(apt.EndTime).ToTimestamp(),
+            ScheduledDate = AsUtc(apt.ScheduledDate).ToTimestamp(),
+            StartTime = AsUtc(apt.ScheduledDate.Date.Add(apt.StartTime)).ToTimestamp(),
+            EndTime = AsUtc(apt.ScheduledDate.Date.Add(apt.EndTime)).ToTimestamp(),
             StatusCode = apt.Status.Code,
             StatusName = apt.Status.Name,
             TypeCode = apt.Type.Code,
-            CreatedAt = apt.CreatedAt.ToTimestamp(),
-            UpdatedAt = apt.UpdatedAt?.ToTimestamp()
+            CreatedAt = AsUtc(apt.CreatedAt).ToTimestamp(),
+            UpdatedAt = apt.UpdatedAt is { } updatedAt ? AsUtc(updatedAt).ToTimestamp() : null
         };
 }

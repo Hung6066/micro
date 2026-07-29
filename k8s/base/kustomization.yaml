@@ -34,21 +34,9 @@ resources:
   - postgres-secret.yaml
   - rabbitmq.yaml
   - redis.yaml
-  - ../linkerd/server.yaml
-  - ../linkerd/server-authorization.yaml
-  - ../linkerd/traffic-split.yaml
-  - ../linkerd/service-profiles.yaml
-  - ../linkerd/pod-monitor.yaml
   - network-policies.yaml
   - seccomp-profiles.yaml
   - seccomp-daemonset.yaml
-  # PgBouncer connection pooler infrastructure
-  - ../infrastructure/pgbouncer-configmap.yaml
-  - ../infrastructure/pgbouncer-secret.yaml
-  # Unleash feature flag service
-  - ../infrastructure/unleash-deployment.yaml
-  # 5-tier request priority classes (P0–P4)
-  - ../priority/priority-classes.yaml
 
 patches:
   - target:

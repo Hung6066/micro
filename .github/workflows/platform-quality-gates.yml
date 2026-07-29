@@ -27,6 +27,27 @@ jobs:
       - name: API platform convention gate
         shell: pwsh
         run: ./scripts/validate-api-platform-conventions.ps1
+      - name: Persistence boundary gate
+        shell: pwsh
+        run: ./scripts/validate-persistence-boundaries.ps1
+      - name: Operational boundary gate
+        shell: pwsh
+        run: ./scripts/validate-operational-boundaries.ps1
+      - name: Identity security deployment gate
+        shell: pwsh
+        run: ./scripts/validate-identity-security-deployment.ps1
+      - name: DPoP resource coverage gate
+        shell: pwsh
+        run: ./scripts/validate-dpop-coverage.ps1
+      - name: Install Buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: '1.50.0'
+      - name: Lint and check protobuf compatibility
+        working-directory: src/Shared/Protos
+        run: |
+          buf lint
+          buf breaking --against '.git#branch=main,subdir=src/Shared/Protos'
 
   frontend-contracts:
     runs-on: ubuntu-latest
@@ -39,7 +60,9 @@ jobs:
       - run: npm ci
       - run: npm run validate:foundation
       - run: npm run lint:design-tokens
+      - run: npm run lint
       - run: npm run build:shared
+      - run: npm run test:mobile-foundation
       - run: npm pack --workspace @his-hope/frontend-foundation --dry-run
       - run: npm --workspace admin-app run build
       - run: npm --workspace dashboard-app run build
@@ -51,6 +74,7 @@ jobs:
           npx playwright install --with-deps chromium
           pwsh ../../scripts/verify-e2e-prerequisites.ps1
           npm run test:shared-foundation -- --project=chromium
+          npm run test -- --project=chromium --workers=1 specs/00-sso-smoke.spec.js
         env:
           E2E_AUTH_REQUIRED: 'true'
           E2E_AUTH_PROBE_URL: ${{ secrets.E2E_AUTH_PROBE_URL }}
@@ -101,15 +125,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Start Identity dependencies and service
+        run: docker compose -f docker/docker-compose.yml up -d postgres redis identityservice
+      - name: Generate current OpenAPI document
+        shell: pwsh
+        run: ./scripts/generate-openapi.ps1 -Output artifacts/openapi/identity-v1.json
       - name: Check OpenAPI compatibility
         shell: pwsh
-        run: |
-          $baseline = 'docs/openapi/identity-v1.json'
-          $current = 'artifacts/openapi/identity-v1.json'
-          if (-not (Test-Path $baseline)) {
-            throw "OpenAPI baseline is missing: $baseline"
-          }
-          if (-not (Test-Path $current)) {
-            throw "Generated OpenAPI document is missing: $current"
-          }
-          ./scripts/check-openapi-breaking.ps1 -Baseline $baseline -Current $current
+        run: ./scripts/check-openapi-breaking.ps1 -Baseline docs/openapi/identity-v1.json -Current artifacts/openapi/identity-v1.json
+      - name: Stop Identity dependencies
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down --volumes

@@ -25,6 +25,9 @@ Mobile API endpoints:
 | `POST /api/v1/mobile/crash-reports` | Anonymous | Bounded crash report ingestion |
 | `POST /api/v1/mobile/rum` | Anonymous | Bounded RUM event ingestion |
 | `POST /api/v1/mobile/sync` | Bearer required | Idempotent offline sync envelope |
+| `GET /api/v1/auth/mfa/status` | Bearer required | Read whether TOTP MFA is already enabled |
+| `POST /api/v1/auth/passkeys/register/options` | Bearer required | Create a WebAuthn registration challenge |
+| `POST /api/v1/auth/passkeys/register/complete` | Bearer required | Verify and persist the native/browser passkey |
 
 The client does not send directly to the OTLP Collector. It sends scrubbed
 JavaScript crash events and performance spans to GlitchTip, while the existing
@@ -71,6 +74,9 @@ GLITCHTIP_DB_PASSWORD
 GLITCHTIP_EMAIL_URL
 GLITCHTIP_RETENTION_DAYS
 Otlp__Endpoint=http://otel-collector:4317
+Passkeys__RpId=identity.myduchospital.vn
+Passkeys__Origins__0=https://identity.myduchospital.vn
+Passkeys__Origins__1=android:apk-key-hash:<base64url-sha256-signing-key>
 ```
 
 Deploy Identity Service with the normal image pipeline. The service runs the EF migration runner during startup. The mobile release requires these tables to exist:
@@ -99,7 +105,64 @@ Expected policy response:
 
 For a database migration failure, stop mobile rollout, correct the migration or connection configuration, and redeploy Identity before releasing a client that depends on the new contract.
 
-## 4. Certificate pinning release inputs
+## 4. Native passkey domain and Digital Asset Links
+
+Native Android passkeys cannot use the local development value
+`Passkeys:RpId=localhost`. Android Credential Manager validates the RP domain
+against Digital Asset Links before showing the credential UI. Use a real HTTPS
+domain controlled by the deployment, for example `identity.myduchospital.vn`.
+
+Publish this file on the RP domain before installing the release APK:
+
+```text
+https://identity.myduchospital.vn/.well-known/assetlinks.json
+```
+
+Example content (replace the fingerprint with the release signing key):
+
+```json
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.hishope.mobile",
+      "sha256_cert_fingerprints": ["AA:BB:CC:...:FF"]
+    }
+  }
+]
+```
+
+The file must return HTTP 200 with `Content-Type: application/json`, without
+authentication or redirects. Generate the fingerprint from the exact key used
+for the artifact:
+
+```powershell
+Push-Location mobile-app/android
+./gradlew signingReport
+Pop-Location
+```
+
+For the current local debug keystore, the fingerprint is
+`2A:CE:83:04:01:14:BA:12:FA:2C:4C:C4:87:86:8A:C0:BE:13:98:98:2C:F8:4A:83:07:F6:05:B3:29:B5:7F:AE`.
+Do not use this debug fingerprint in production. Release and Play signing
+fingerprints must both be listed when both installation paths are supported.
+
+Set the Identity Service passkey configuration to the same RP domain and
+allow the Android origin:
+
+```text
+Passkeys__RpId=identity.myduchospital.vn
+Passkeys__Origins__0=https://identity.myduchospital.vn
+Passkeys__Origins__1=android:apk-key-hash:<base64url-sha256-signing-key>
+```
+
+After changing `RpId`, `Origins`, the assetlinks file, or the signing key,
+rebuild and reinstall the app. A passkey created for `localhost` is not
+production evidence. Localhost native failures such as `RpId validation
+failed` are expected until this domain association is deployed.
+
+## 5. Certificate pinning release inputs
 
 Do not ship `api.his-hope.example` or `sha256/REPLACE_IN_RELEASE`. The release pipeline must provide:
 
@@ -107,17 +170,19 @@ Do not ship `api.his-hope.example` or `sha256/REPLACE_IN_RELEASE`. The release p
 $env:HISHOPE_API_HOST = "api.example.com"
 $env:HISHOPE_API_ORIGIN = "https://api.example.com"
 $env:HISHOPE_API_SPKI = "sha256/<base64-spki-sha256>"
+# Required JSON array for every HTTPS host reached by native auth/API flows.
+$env:HISHOPE_CERTIFICATE_PINS_JSON = '[{"host":"api.example.com","sha256Spki":"sha256/<api-base64>"},{"host":"login.example.com","sha256Spki":"sha256/<idp-base64>"}]'
 npm run prepare:mobile-release
 npm run validate:mobile-release
 ```
 
-`prepare:mobile-release` updates the production Angular environment and generates the Android Network Security Config pin-set. `validate:mobile-release` must pass before any signed artifact is created.
+`prepare:mobile-release` updates the production Angular environment and generates the Android Network Security Config pin-set for every host in `HISHOPE_CERTIFICATE_PINS_JSON`. Include the API host and every identity-provider or other HTTPS host used by native authentication/API flows. The array is required because iOS routes every HTTPS `HttpClient` request through the native pinning boundary; a host without a pin is rejected. `validate:mobile-release` must pass before any signed artifact is created. The production web/mobile runtime must also provide `window.__HISHOPE_CONFIG__.apiOrigin`; the client fails before bootstrap when it is absent.
 
 The SPKI hash must be calculated from the public key used by the production certificate, not copied from a development certificate. Keep a backup certificate/key plan and rotate pins before the current certificate expires. A pin mismatch intentionally blocks the API connection; treat it as a release incident, not as a reason to disable pinning.
 
 The iOS project uses the native `URLSessionDelegate` pinning adapter. The archive and challenge path must still be verified on macOS with Xcode and a physical device. Do not consider the iOS artifact production-ready based only on a Windows Capacitor sync.
 
-## 5. Angular build and tests
+## 6. Angular build and tests
 
 Build shared packages before the mobile app when local workspace artifacts are used:
 
@@ -130,7 +195,7 @@ npm run build --workspace @his-hope/mobile-app
 
 The mobile test command must finish with all browser tests passing. The production Angular build must stay below the budget in `mobile-app/angular.json`.
 
-## 6. Android deployment
+## 7. Android deployment
 
 ### 6.1 Signing
 
@@ -140,7 +205,7 @@ Copy the sample file locally and provision the keystore through CI secrets:
 Copy-Item mobile-app/android/keystore.properties.sample mobile-app/android/keystore.properties
 ```
 
-Replace every `CHANGE_ME` value. `keystore.properties` and the keystore must remain outside source control. A release build that reports `keystore.properties not found` is debug-signed and must not be distributed.
+Replace every `CHANGE_ME` value. `keystore.properties` and the keystore must remain outside source control. A release build that reports `keystore.properties not found` is blocked by the build and must not be distributed.
 
 ### 6.2 Build
 
@@ -164,7 +229,7 @@ Pop-Location
 
 Install and verify the signed APK/AAB on a clean emulator or physical device. Verify OIDC login, logout, PIN, biometric unlock, push registration, offline queue flush, deep link callback, and force upgrade.
 
-## 7. iOS deployment
+## 8. iOS deployment
 
 iOS deployment must run on macOS:
 
@@ -189,7 +254,7 @@ In Xcode:
 
 The archive must be tested on a physical iOS device. Simulator-only validation is insufficient for jailbreak detection, secure storage, biometrics, push delivery, and certificate validation.
 
-## 8. Push notification operations
+## 9. Push notification operations
 
 The client registers its provider token after authentication. Identity stores a protected token plus hash in `mobile_device_registrations`. A production push worker/provider integration must:
 
@@ -201,7 +266,7 @@ The client registers its provider token after authentication. Identity stores a 
 
 Do not put APNs or FCM private keys in the Angular bundle or Capacitor assets.
 
-## 9. Crash, RUM, and offline sync
+## 10. Crash, RUM, and offline sync
 
 Crash and RUM payloads are intentionally bounded and must not contain patient
 data, access tokens, cookies, or raw request bodies. The mobile telemetry
@@ -218,6 +283,7 @@ web deployment or Capacitor sync:
 
 ```js
 window.__HISHOPE_CONFIG__ = {
+  apiOrigin: "https://api.example.com",
   sentryDsn: "http://public-key@glitchtip.example/<project-id>",
   sentryEnvironment: "production"
 };
@@ -240,7 +306,7 @@ GlitchTip is available at `http://localhost:8000`, OTLP HTTP at
 
 Offline sync envelopes use an idempotency key. The backend must return the duplicate result for a replayed key. Sync failures remain queued on the device and are retried when the network returns.
 
-## 10. Force upgrade and rollback
+## 11. Force upgrade and rollback
 
 To force an upgrade:
 
@@ -261,7 +327,7 @@ Rollout order:
 
 Rollback means restoring the previous mobile policy and backend-compatible image. Never roll back the database by deleting applied migrations; use a forward-compatible corrective migration.
 
-## 11. Production release gate
+## 12. Production release gate
 
 The release is blocked unless every item passes:
 
@@ -281,10 +347,14 @@ The release is blocked unless every item passes:
 - OTLP Collector accepts `/v1/traces` and forwards backend spans to Jaeger.
 - Offline replay is idempotent.
 - Root/jailbreak, App PIN, biometric, deep link, logout, and force-upgrade flows are verified.
+- Native Android passkey registration and assertion pass with the production RP domain and Digital Asset Links.
+- The Android `android:apk-key-hash` origin for the release signing key is in the Identity Service passkey origin allow-list.
+- `https://<passkey-rp-domain>/.well-known/assetlinks.json` returns the expected package and signing fingerprints with HTTP 200 JSON.
+- Localhost native passkey failures are treated as an expected development limitation, not as release evidence.
 - SBOM, dependency scan, container scan, and artifact signature checks pass.
 - Rollback owner, on-call owner, and certificate rotation owner are recorded.
 
-## 12. Incident contacts and ownership
+## 13. Incident contacts and ownership
 
 Record these values in the deployment ticket for every release:
 

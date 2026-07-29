@@ -16,6 +16,7 @@ using His.Hope.Infrastructure.Security;
 using His.Hope.Authorization;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
+using His.Hope.Persistence;
 using His.Hope.IntegrationEvents.Pharmacy;
 using His.Hope.PharmacyService.Api.GrpcServices;
 using His.Hope.PharmacyService.Api.Middleware;
@@ -40,12 +41,14 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "PharmacyServi
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
+                .Destructure.With<His.Hope.Infrastructure.Logging.PhiDestructuringPolicy>()
                 .Enrich.WithProperty("service", "pharmacy-service"));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddPharmacyApplication();
 builder.Services.AddPharmacyInfrastructure(builder.Configuration);
+builder.Services.AddHisHopeMigrationRunner<PharmacyDbContext>();
 
 His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
 
@@ -135,6 +138,11 @@ if (app.Environment.IsDevelopment())
             CHECK (status IN ('PRESCRIBED', 'FILLED', 'CANCELLED', 'EXPIRED'));
         """);
 }
+else
+{
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+}
 
 // Middleware Pipeline (order matters)
 app.UseHisHopeServiceDefaults();
@@ -154,7 +162,9 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseRouting();
 
 // SECURITY: Authentication & Authorization middleware
+app.UseDpopAuthorizationSchemeNormalization();
 app.UseAuthentication();
+app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
 
 

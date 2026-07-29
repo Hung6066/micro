@@ -29,7 +29,7 @@ public class PharmacyGrpcServiceImpl : PharmacyGrpcService.PharmacyGrpcServiceBa
     public override async Task<MedicationResponse> GetMedication(MedicationRequest request,
         ServerCallContext context)
     {
-        var medicationId = MedicationId.From(Guid.Parse(request.Id));
+        var medicationId = MedicationId.From(ParseGuidOrThrow(request.Id, "Medication id"));
         var medication = await _medicationRepository.GetByIdAsync(medicationId);
 
         if (medication is null)
@@ -58,7 +58,7 @@ public class PharmacyGrpcServiceImpl : PharmacyGrpcService.PharmacyGrpcServiceBa
     public override async Task<MedicationExistsResponse> CheckMedicationExists(
         MedicationExistsRequest request, ServerCallContext context)
     {
-        var medicationId = MedicationId.From(Guid.Parse(request.Id));
+        var medicationId = MedicationId.From(ParseGuidOrThrow(request.Id, "Medication id"));
         var exists = await _medicationRepository.ExistsAsync(medicationId);
 
         return new MedicationExistsResponse { Exists = exists };
@@ -67,7 +67,7 @@ public class PharmacyGrpcServiceImpl : PharmacyGrpcService.PharmacyGrpcServiceBa
     public override async Task<PrescriptionResponse> GetPrescription(
         PrescriptionRequest request, ServerCallContext context)
     {
-        var prescriptionId = PrescriptionId.From(Guid.Parse(request.Id));
+        var prescriptionId = PrescriptionId.From(ParseGuidOrThrow(request.Id, "Prescription id"));
         var prescription = await _prescriptionRepository.GetByIdAsync(prescriptionId, context.CancellationToken);
 
         if (prescription is null)
@@ -91,6 +91,14 @@ public class PharmacyGrpcServiceImpl : PharmacyGrpcService.PharmacyGrpcServiceBa
         response.Page = page;
         response.PageSize = pageSize;
         return response;
+    }
+
+    private static Guid ParseGuidOrThrow(string value, string fieldName)
+    {
+        if (Guid.TryParse(value, out var parsed))
+            return parsed;
+
+        throw new RpcException(new Status(StatusCode.InvalidArgument, $"{fieldName} must be a valid GUID."));
     }
 
     private static MedicationResponse MapToResponse(Domain.Aggregates.Medication medication) =>

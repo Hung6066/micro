@@ -8,7 +8,10 @@ export const environment = {
   otelCollectorUrl: '',
 
   oidc: {
-    authority: window.location.origin,
+    // All web applications share the gateway-backed Identity authority. The
+    // app origin is only the redirect origin; using it as the authority makes
+    // cross-app SSO work on production-like non-default ports fail.
+    authority: 'http://localhost:5000',
     clientId: 'his-hope-spa',
     redirectUrl: window.location.origin + '/auth/callback',
     postLogoutRedirectUri: window.location.origin + '/auth/login',

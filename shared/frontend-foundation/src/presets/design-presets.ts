@@ -134,7 +134,9 @@ export const HIS_HOPE_DESIGN_PRESETS: Readonly<Record<HisHopeDesignPresetId, His
     components: { button: 'soft', table: 'quiet', navigation: 'sidebar' },
   }),
   supabase: base('supabase', 'Supabase', 'Developer-first console with dark emerald surfaces and crisp data controls.', {
-    tokens: { canvas: '#F7FAF8', surface: '#FFFFFF', surfaceMuted: '#EEF5F0', ink: '#1C2B24', inkMuted: '#63746B', border: '#D5E4DA', primary: '#3ECF8E', primaryHover: '#2EAA73', primarySoft: '#DDF7E9', focus: '#3ECF8E', header: '#173B2C' },
+    // Keep the emerald identity while meeting WCAG AA against the light
+    // surfaces used by the default workspace preset.
+    tokens: { canvas: '#F7FAF8', surface: '#FFFFFF', surfaceMuted: '#EEF5F0', ink: '#1C2B24', inkMuted: '#52665B', border: '#D5E4DA', primary: '#16825A', primaryHover: '#106A49', primarySoft: '#DDF7E9', focus: '#16825A', header: '#173B2C' },
     typography: { body: 'HisHope Inter, Inter, ui-sans-serif, system-ui, sans-serif', display: 'HisHope Inter, Inter, ui-sans-serif, system-ui, sans-serif', mono: 'HisHope Plex Mono, "Cascadia Mono", Consolas, monospace' },
     layout: { density: 'compact', sidebarWidth: '240px', contentMaxWidth: '1440px', controlHeight: '36px', cardRadius: '6px', buttonRadius: '6px', inputRadius: '6px' },
     components: { button: 'solid', table: 'dense', navigation: 'workspace' },

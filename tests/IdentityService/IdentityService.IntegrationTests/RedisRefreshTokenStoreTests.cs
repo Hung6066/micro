@@ -55,8 +55,8 @@ public sealed class RedisRefreshTokenStoreTests : IAsyncLifetime
             _store.ConsumeAsync(refreshToken),
             _store.ConsumeAsync(refreshToken));
 
-        results.Should().ContainSingle(result => result.Record == record && !result.WasReused);
-        results.Should().ContainSingle(result => result.Record == record && result.WasReused);
+        results.Should().ContainSingle(result => result.Record != null && result.Record.TokenHash == record.TokenHash && !result.WasReused);
+        results.Should().ContainSingle(result => result.Record != null && result.Record.TokenHash == record.TokenHash && result.WasReused);
         (await _store.IsFamilyRevokedAsync(record.FamilyId)).Should().BeTrue();
     }
 }

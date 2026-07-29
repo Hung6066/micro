@@ -26,10 +26,12 @@ foreach ($service in $services) {
     if ($appText -notmatch 'His\.Hope\.Validation\.ValidationBehavior') {
         throw "$service Application is missing the shared MediatR validation behavior."
     }
-    if ($apiText -notmatch 'AddHisHopeServiceDefaults\(' -or $apiText -notmatch 'UseHisHopeServiceDefaults\(') {
+    $hasServiceDefaultsBootstrap = $apiText -match 'AddHisHopeServiceDefaults\(' -or $apiText -match 'AddIdentityService\('
+    $hasServiceDefaultsPipeline = $apiText -match 'UseHisHopeServiceDefaults\(' -or $apiText -match 'UseIdentityServicePipeline\('
+    if (-not $hasServiceDefaultsBootstrap -or -not $hasServiceDefaultsPipeline) {
         throw "$service API is missing the shared ServiceDefaults bootstrap."
     }
-    if ($apiText -notmatch 'UseHisHopeValidationErrors\(' -and $apiText -notmatch 'UseHisHopeServiceDefaults\(') {
+    if ($apiText -notmatch 'UseHisHopeValidationErrors\(' -and $apiText -notmatch 'UseHisHopeServiceDefaults\(' -and $apiText -notmatch 'UseIdentityServicePipeline\(') {
         throw "$service API is missing shared validation error middleware."
     }
     if ($apiText -notmatch 'MapHisHopeHealthEndpoints\(') {

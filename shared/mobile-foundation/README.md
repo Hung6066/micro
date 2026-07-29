@@ -12,6 +12,45 @@ Required production adapters:
 - app/universal-link handling;
 - network and lifecycle state.
 
+## OIDC and native security contracts
+
+The package owns reusable contracts and deterministic, platform-neutral
+helpers; it does not own application routes or identity-provider policy.
+
+- `HisHopeNativePasskeyCapability` is the seam for native FIDO2/passkey
+  registration and assertion. Android is implemented by the app's
+  `HisHopeSecurityPlugin` through AndroidX Credential Manager; iOS is provided
+  by the same plugin boundary through AuthenticationServices. The Angular
+  adapter passes server-generated WebAuthn JSON and returns the native response
+  to the Identity Service.
+- Mobile MFA enrollment uses the same adapter and the Identity Service
+  `/api/v1/auth/passkeys/register/options` plus `/register/complete` endpoints.
+  Passkey MFA is preferred; TOTP remains the explicit fallback for unsupported
+  devices or cancelled native prompts.
+- Native OIDC MFA approval uses an opaque one-time `hishope://auth/mfa` ticket.
+  The browser keeps the pending OIDC cookie and polls the server; the native
+  app only receives the ticket, signs the server challenge, and never receives
+  or transports an OIDC cookie or access token through the deep link.
+- `HisHopeDpopProofService` and `HisHopeWebCryptoDpopProofService` create an
+  ES256 DPoP proof with `htu`, `htm`, `iat`, `jti` and `ath` when an access token
+  is present. The P-256 private JWK is persisted through the supplied secure
+  storage adapter; a missing key must fail closed.
+- `HisHopeNativeSecurityCapability` describes device-security and certificate
+  pinning boundaries. Pin values, issuer URLs and redirect URIs remain
+  deployment configuration.
+
+The mobile OIDC flow is Authorization Code + PKCE through the system browser
+or native authorization surface, followed by an allow-listed deep-link
+callback. Tokens belong in Keychain/Keystore-backed storage, never web
+`localStorage`. The app adapter is
+`mobile-app/src/app/core/mobile-platform.service.ts`; feature pages should use
+`NativeCapabilityService` instead of importing Capacitor or native plugin APIs.
+
+The shared package cannot certify a native build by itself. Android Gradle
+compilation and unit tests are repository gates; emulator/device login,
+passkey prompts, callback delivery and iOS compilation remain platform runtime
+gates.
+
 OIDC uses Authorization Code + PKCE in the system browser. Tokens must not be stored in web `localStorage` on native builds.
 
 Native refresh uses the `HisHopeNativeRefreshCapability` adapter contract. The shared Angular refresher keeps a browser/touch fallback; an Ionic `ion-refresher` or dedicated Capacitor plugin can implement the native contract without changing feature pages.

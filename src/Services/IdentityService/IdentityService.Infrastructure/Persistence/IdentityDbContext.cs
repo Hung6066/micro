@@ -20,6 +20,10 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<TableView> TableViews => Set<TableView>();
     public DbSet<MobileDeviceRegistration> MobileDeviceRegistrations => Set<MobileDeviceRegistration>();
     public DbSet<MobileTelemetryEvent> MobileTelemetryEvents => Set<MobileTelemetryEvent>();
+    public DbSet<PasskeyCredential> PasskeyCredentials => Set<PasskeyCredential>();
+    public DbSet<PushNotificationOutbox> PushNotificationOutbox => Set<PushNotificationOutbox>();
+    public DbSet<LocalizationResource> LocalizationResources => Set<LocalizationResource>();
+    public DbSet<LocalizationTranslation> LocalizationTranslations => Set<LocalizationTranslation>();
 
     // OpenIddict entity sets — need BOTH non-generic (store uses these) and generic <Guid> (EF model)
     // Non-generic sets are for OpenIddict 5.7.0 EF Core store access
@@ -70,6 +74,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(u => u.MiddleName).HasMaxLength(100);
             entity.Property(u => u.LicenseNumber).HasMaxLength(50);
             entity.Property(u => u.Specialty).HasMaxLength(200);
+            entity.Property(u => u.PreferredLanguage).HasMaxLength(35).IsRequired().HasDefaultValue("vi-VN");
             entity.Property(u => u.IsActive).IsRequired();
             entity.Property(u => u.CreatedAt).IsRequired();
             entity.Property(u => u.LastLoginAt);
@@ -254,6 +259,28 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.HasIndex(view => new { view.UserId, view.Resource, view.Name }).IsUnique();
         });
 
+        builder.Entity<LocalizationResource>(entity =>
+        {
+            entity.ToTable("localization_resources");
+            entity.HasKey(resource => resource.Key);
+            entity.Property(resource => resource.Key).HasMaxLength(200).IsRequired();
+            entity.Property(resource => resource.Description).HasMaxLength(500);
+            entity.HasMany(resource => resource.Translations)
+                .WithOne(translation => translation.Resource)
+                .HasForeignKey(translation => translation.ResourceKey)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<LocalizationTranslation>(entity =>
+        {
+            entity.ToTable("localization_translations");
+            entity.HasKey(translation => new { translation.ResourceKey, translation.Locale });
+            entity.Property(translation => translation.ResourceKey).HasMaxLength(200).IsRequired();
+            entity.Property(translation => translation.Locale).HasMaxLength(35).IsRequired();
+            entity.Property(translation => translation.Value).HasMaxLength(4000).IsRequired();
+            entity.HasIndex(translation => translation.Locale);
+        });
+
         builder.Entity<MobileDeviceRegistration>(entity =>
         {
             entity.ToTable("mobile_device_registrations");
@@ -280,6 +307,32 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(item => item.MetadataJson).HasMaxLength(8000);
             entity.Property(item => item.CorrelationId).HasMaxLength(128);
             entity.HasIndex(item => new { item.EventType, item.CreatedAt });
+        });
+
+        builder.Entity<PushNotificationOutbox>(entity =>
+        {
+            entity.ToTable("push_notification_outbox");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.UserId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.Title).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.Body).HasMaxLength(4000).IsRequired();
+            entity.Property(item => item.LastError).HasMaxLength(2000);
+            entity.HasIndex(item => new { item.ProcessedAt, item.AvailableAt });
+            entity.HasIndex(item => item.UserId);
+        });
+
+        builder.Entity<PasskeyCredential>(entity =>
+        {
+            entity.ToTable("passkey_credentials");
+            entity.HasKey(credential => credential.Id);
+            entity.Property(credential => credential.UserId).HasMaxLength(200).IsRequired();
+            entity.Property(credential => credential.CredentialId).HasMaxLength(512).IsRequired();
+            entity.Property(credential => credential.PublicKey).HasMaxLength(4096).IsRequired();
+            entity.Property(credential => credential.SignatureCounter).IsRequired();
+            entity.Property(credential => credential.CreatedAt).IsRequired();
+            entity.Property(credential => credential.LastUsedAt).IsRequired();
+            entity.HasIndex(credential => credential.CredentialId).IsUnique();
+            entity.HasIndex(credential => new { credential.UserId, credential.CredentialId }).IsUnique();
         });
 
         // Configure OpenIddict tables (snake_case naming)

@@ -52,7 +52,7 @@
         },
         "lint": {
           "builder": "@angular-eslint/builder:lint",
-          "options": {}
+          "options": { "lintFilePatterns": ["src/**/*.ts", "src/**/*.html"] }
         }
       }
     }

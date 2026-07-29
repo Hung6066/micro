@@ -16,7 +16,7 @@ namespace His.Hope.IdentityService.Api.Endpoints;
 /// </summary>
 public static class AuditLogEndpoints
 {
-    private const int MaxAuditEventsPerRequest = 50;
+    private const int MaxAuditEventsPerRequest = 100;
 
     private static readonly HashSet<string> AllowedActions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -28,6 +28,7 @@ public static class AuditLogEndpoints
         "data.view", "data.create", "data.update", "data.delete",
         "error.client", "error.server", "security.csp-violation",
         "navigation.change"
+        ,"read_patient"
     };
 
     public static RouteGroupBuilder MapAuditLogEndpoints(this RouteGroupBuilder group)

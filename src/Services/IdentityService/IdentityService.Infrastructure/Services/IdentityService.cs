@@ -274,7 +274,9 @@ public class IdentityService : IIdentityService
         if (principal is null)
             throw new UnauthorizedAccessException("Invalid access token.");
 
-        var userId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? principal.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value
+            ?? principal.FindFirst("sub")?.Value;
         if (userId is null)
             throw new UnauthorizedAccessException("Invalid access token.");
 

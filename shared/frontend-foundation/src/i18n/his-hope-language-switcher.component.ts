@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, Output, QueryList, ViewChildren, inject, input, signal } from '@angular/core';
 import { HisHopeI18nService, HisHopeLocale } from './his-hope-i18n.service';
+import { HisHopeLocalizationApiService } from './his-hope-localization-api.service';
 
 @Component({
   selector: 'hh-language-switcher',
@@ -51,6 +52,7 @@ export class HisHopeLanguageSwitcherComponent {
     { code: 'en', label: 'English', icon: 'EN' },
   ]);
   readonly i18n = inject(HisHopeI18nService);
+  readonly localizationApi = inject(HisHopeLocalizationApiService);
   readonly open = signal(false);
   readonly triggerId = `hh-language-trigger-${Math.random().toString(36).slice(2, 9)}`;
   readonly menuId = `hh-language-menu-${Math.random().toString(36).slice(2, 9)}`;
@@ -70,6 +72,8 @@ export class HisHopeLanguageSwitcherComponent {
 
   change(locale: HisHopeLocale): void {
     this.i18n.setLocale(locale);
+    this.localizationApi.load(locale).subscribe();
+    this.localizationApi.savePreferredLanguage(locale).subscribe();
     this.open.set(false);
     this.localeChange.emit(locale);
     this.focusTrigger();

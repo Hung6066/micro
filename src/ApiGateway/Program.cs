@@ -34,7 +34,7 @@ builder.Services.AddCors(options =>
         // SECURITY: only configured origins are allowed. Never fall back to a wildcard.
         policy.WithOrigins(allowedOrigins)
               .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-              .WithHeaders("Accept", "Authorization", "Content-Type", "If-Match", "If-None-Match",
+              .WithHeaders("Accept", "Authorization", "DPoP", "Content-Type", "If-Match", "If-None-Match",
                   "X-Correlation-ID", "X-CSRF-Token", "X-Requested-With")
               .WithExposedHeaders("Authorization", "ETag", "X-Correlation-ID")
               .AllowCredentials();
@@ -42,7 +42,8 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddReverseProxy()
-    .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
+    .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
+    .AddTransforms<DpopHeaderTransform>();
 
 // BFF session bridge: keep access tokens server-side in Redis and attach the
 // current session JWT only to internal downstream proxy requests.
@@ -195,12 +196,9 @@ app.Use(async (context, next) =>
     // no bearer is present. Do not replace that cookie flow with the legacy
     // HMAC session token on admin/settings/audit endpoints; those endpoints
     // validate OIDC bearer tokens or the Identity application cookie.
-    if (cookieBackedIdentityRoute && hasSessionCookie)
-    {
-        context.Request.Headers.Remove("Authorization");
-    }
-    else if (hasSessionCookie &&
-             !context.Request.Headers.ContainsKey("Authorization"))
+    if (hasSessionCookie &&
+        !cookieBackedIdentityRoute &&
+        !context.Request.Headers.ContainsKey("Authorization"))
     {
         var redis = context.RequestServices.GetRequiredService<IConnectionMultiplexer>();
         var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
@@ -220,6 +218,16 @@ app.Use(async (context, next) =>
         }
     }
 
+    await next();
+});
+
+// Preserve the public origin for downstream DPoP proof validation. YARP does
+// not guarantee these headers for every configured route, so set them from
+// the already-routed gateway request and never trust client-supplied values.
+app.Use(async (context, next) =>
+{
+    context.Request.Headers["X-Forwarded-Proto"] = context.Request.Scheme;
+    context.Request.Headers["X-Forwarded-Host"] = context.Request.Host.Value;
     await next();
 });
 

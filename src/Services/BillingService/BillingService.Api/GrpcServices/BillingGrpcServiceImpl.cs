@@ -31,7 +31,7 @@ public class BillingGrpcServiceImpl : BillingGrpcService.BillingGrpcServiceBase
     public override async Task<InvoiceResponse> GetInvoice(InvoiceRequest request,
         ServerCallContext context)
     {
-        var invoiceId = InvoiceId.From(Guid.Parse(request.Id));
+        var invoiceId = InvoiceId.From(ParseGuidOrThrow(request.Id, "Invoice id"));
         var invoice = await _invoiceRepository.GetByIdAsync(invoiceId);
 
         if (invoice is null)
@@ -54,7 +54,7 @@ public class BillingGrpcServiceImpl : BillingGrpcService.BillingGrpcServiceBase
     public override async Task<InvoiceListResponse> GetPatientInvoices(
         PatientInvoicesRequest request, ServerCallContext context)
     {
-        var patientId = Guid.Parse(request.PatientId);
+        var patientId = ParseGuidOrThrow(request.PatientId, "Patient id");
         var page = request.Page > 0 ? request.Page : 1;
         var pageSize = request.PageSize > 0 ? request.PageSize : 20;
 
@@ -76,7 +76,7 @@ public class BillingGrpcServiceImpl : BillingGrpcService.BillingGrpcServiceBase
     public override async Task<InvoiceExistsResponse> CheckInvoiceExists(
         InvoiceExistsRequest request, ServerCallContext context)
     {
-        var invoiceId = InvoiceId.From(Guid.Parse(request.Id));
+        var invoiceId = InvoiceId.From(ParseGuidOrThrow(request.Id, "Invoice id"));
         var invoice = await _invoiceRepository.GetByIdAsync(invoiceId);
 
         return new InvoiceExistsResponse { Exists = invoice is not null };
@@ -96,6 +96,14 @@ public class BillingGrpcServiceImpl : BillingGrpcService.BillingGrpcServiceBase
         response.Page = page;
         response.PageSize = pageSize;
         return response;
+    }
+
+    private static Guid ParseGuidOrThrow(string value, string fieldName)
+    {
+        if (Guid.TryParse(value, out var parsed))
+            return parsed;
+
+        throw new RpcException(new Status(StatusCode.InvalidArgument, $"{fieldName} must be a valid GUID."));
     }
 
     private static InvoiceResponse MapToResponse(Domain.Aggregates.Invoice invoice) =>

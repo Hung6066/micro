@@ -15,6 +15,7 @@ public class User : IdentityUser<Guid>
     public string? MiddleName { get; set; }
     public string? LicenseNumber { get; set; }
     public string? Specialty { get; set; }
+    public string PreferredLanguage { get; set; } = "vi-VN";
 
     /// <summary>
     /// Tenant/facility identifier for multi-facility access control.

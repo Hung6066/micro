@@ -80,6 +80,17 @@
         "filesystem": "allow"
       }
     },
+    "mobile": {
+      "description": "Senior Capacitor/Ionic mobile engineer for His.Hope (Angular mobile UI, Android/iOS native plugins, OIDC deep links, secure storage, biometric/PIN lock, native HTTP/certificate pinning, push, offline sync, GlitchTip/OTLP, and mobile release gates). Must read .opencode/agents/mobile-agent.md and his-hope-standards.md before changes. Uses MCP: filesystem, playwright, docker, and agent-harness.",
+      "model": "opencode-go/deepseek-v4-flash",
+      "permission": "allow",
+      "mcp": {
+        "agent-harness": "allow",
+        "filesystem": "allow",
+        "playwright": "allow",
+        "docker": "allow"
+      }
+    },
     "devops": {
       "description": "DevOps / SRE engineer (Kubernetes, Docker, Linkerd, Cilium, Tekton, ArgoCD, Bazel). Uses MCP: kubernetes for pod/deployment/service management, docker for container exec/logs, prometheus for metrics/SLO queries, rabbitmq for event bus health, redis for cache inspection.",
       "model": "opencode-go/deepseek-v4-flash",

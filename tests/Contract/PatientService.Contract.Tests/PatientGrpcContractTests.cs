@@ -41,7 +41,7 @@ public class PatientGrpcContractTests
         var response = await _service.GetPatient(request, new TestServerCallContext());
 
         response.Should().NotBeNull();
-        response.Id.Should().Be(patientId.Value.ToString());
+        response.Id.Should().Be(patient.Id.Value.ToString());
         response.FullName.Should().Be("John Michael Doe");
         response.FirstName.Should().Be("John");
         response.LastName.Should().Be("Doe");
@@ -266,11 +266,11 @@ public class PatientGrpcContractTests
     private static Patient CreateSamplePatient(PatientId patientId)
     {
         return Patient.Register(
-            PersonName.Create("John", "Michael", "Doe"),
+            PersonName.Create("John", "Doe", "Michael"),
             new DateTime(1990, 5, 15),
             PatientService.Domain.ValueObjects.Gender.Male,
             ContactInfo.Create("+1234567890", "john.doe@example.com"),
-            Address.Create("123 Main St", "", "Springfield", "IL", "62701", "USA"));
+            Address.Create("123 Main St", "Downtown", "Springfield", "IL", "62701", "USA"));
     }
 }
 

@@ -46,7 +46,7 @@ public class BillingGrpcContractTests
         var response = await _service.GetInvoice(request, new TestServerCallContext());
 
         response.Should().NotBeNull();
-        response.Id.Should().Be(invoiceId.Value.ToString());
+        response.Id.Should().Be(invoice.Id.Value.ToString());
         response.InvoiceNumber.Should().Be("INV-001");
         response.PatientId.Should().Be(invoice.PatientId.ToString());
         response.StatusCode.Should().Be("DRAFT");

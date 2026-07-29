@@ -3,6 +3,7 @@ const { defineConfig, devices } = require('@playwright/test');
 
 module.exports = defineConfig({
   testDir: './specs',
+  globalSetup: process.env.E2E_AUTH_REQUIRED === 'true' ? './shared-foundation.setup.js' : undefined,
   testMatch: '*.spec.js',
   timeout: 120000,
   expect: {

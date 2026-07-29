@@ -1,15 +1,17 @@
 using System.Net;
+using System.Net.Http.Json;
 using Xunit;
 
 namespace His.Hope.IdentityService.IntegrationTests;
 
+ [Collection("IdentityServiceIntegration")]
 public class FederationTests
 {
     private readonly HttpClient _client;
 
-    public FederationTests()
+    public FederationTests(IdentityServiceTestFixture fixture)
     {
-        _client = new HttpClient { BaseAddress = new Uri("http://localhost:5001") };
+        _client = fixture.AnonymousClient;
     }
 
     [Fact]
@@ -36,5 +38,40 @@ public class FederationTests
     {
         var response = await _client.GetAsync("/api/v1/auth/account/linked-accounts");
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task LoginPage_UsesCspCompatiblePasskeyScriptAndHidesUnavailableSaml()
+    {
+        var response = await _client.GetAsync("/Account/Login?returnUrl=%2Fconnect%2Fauthorize");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("/api/v1/auth/identity-login.js", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("addEventListener('click'", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("/api/v1/federation/saml/login", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PasskeyRegistrationOptions_RequiresAuth()
+    {
+        var response = await _client.PostAsync("/api/v1/auth/passkeys/register/options", content: null);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task LdapLogin_IsFailClosedWhenFederationIsNotConfigured()
+    {
+        var response = await _client.PostAsJsonAsync(
+            "/api/v1/auth/ldap/login",
+            new { userName = "unknown", password = "invalid" });
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SamlLogin_IsNotAvailableWithoutIdpMetadata()
+    {
+        var response = await _client.GetAsync("/api/v1/federation/saml/login");
+        Assert.Contains(response.StatusCode, new[] { HttpStatusCode.NotFound, HttpStatusCode.Unauthorized });
     }
 }

@@ -13,11 +13,6 @@ declare global {
   }
 }
 
-// Must be replaced with the real production origin before a release build ships;
-// left as a placeholder so a missing runtime config fails loudly instead of
-// silently talking to an emulator/localhost.
-const PRODUCTION_API_ORIGIN_FALLBACK = "https://api.his-hope.example";
-
 export function resolveMobileApiOrigin(): string {
   if (Capacitor.isNativePlatform()) {
     if (Capacitor.getPlatform() === "android") return "http://10.0.2.2:5000";
@@ -41,7 +36,12 @@ export function resolveProductionApiOrigin(): string {
     typeof window !== "undefined"
       ? window.__HISHOPE_CONFIG__?.apiOrigin
       : undefined;
-  return runtimeOrigin || PRODUCTION_API_ORIGIN_FALLBACK;
+  if (!runtimeOrigin?.trim()) {
+    throw new Error(
+      "Production mobile API origin is not configured. Provide window.__HISHOPE_CONFIG__.apiOrigin before boot.",
+    );
+  }
+  return runtimeOrigin.trim();
 }
 
 export function resolveMobileSentryDsn(defaultDsn = ""): string {

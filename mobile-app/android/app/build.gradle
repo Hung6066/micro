@@ -1,16 +1,29 @@
 apply plugin: 'com.android.application'
 
 // Release signing is sourced from keystore.properties (gitignored). See
-// keystore.properties.sample for the expected keys. Falls back to debug
-// signing with a build-time warning so CI/local release builds do not hard
-// fail before secrets are provisioned — do not ship an artifact signed this way.
+// keystore.properties.sample for the expected keys. A release artifact must
+// never silently fall back to debug signing.
 def keystorePropertiesFile = rootProject.file('keystore.properties')
 def keystoreProperties = new Properties()
 def hasReleaseSigning = keystorePropertiesFile.exists()
 if (hasReleaseSigning) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
-} else {
-    logger.warn('keystore.properties not found — release build will use debug signing. Do not distribute this artifact.')
+} else if (gradle.startParameter.taskNames.any { it.toLowerCase().contains('release') }) {
+    throw new GradleException('Release signing is required. Create mobile-app/android/keystore.properties from keystore.properties.sample.')
+}
+
+if (hasReleaseSigning) {
+    ['storeFile', 'storePassword', 'keyAlias', 'keyPassword'].each { key ->
+        def value = keystoreProperties[key]?.toString()?.trim()
+        if (!value || value == 'CHANGE_ME') {
+            throw new GradleException("Release signing property '${key}' is missing or still uses a placeholder.")
+        }
+    }
+}
+
+def releaseKeystore = hasReleaseSigning ? rootProject.file(keystoreProperties['storeFile']) : null
+if (hasReleaseSigning && !releaseKeystore.isFile()) {
+    throw new GradleException("Release keystore does not exist: ${releaseKeystore}")
 }
 
 android {
@@ -30,18 +43,16 @@ android {
         }
     }
     signingConfigs {
-        release {
-            if (hasReleaseSigning) {
-                storeFile rootProject.file(keystoreProperties['storeFile'])
-                storePassword keystoreProperties['storePassword']
-                keyAlias keystoreProperties['keyAlias']
-                keyPassword keystoreProperties['keyPassword']
-            }
+        if (hasReleaseSigning) release {
+            storeFile releaseKeystore
+            storePassword keystoreProperties['storePassword']
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
         }
     }
     buildTypes {
         release {
-            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
+            if (hasReleaseSigning) signingConfig signingConfigs.release
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -60,6 +71,8 @@ dependencies {
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation "androidx.credentials:credentials:1.5.0"
+    implementation "androidx.credentials:credentials-play-services-auth:1.5.0"
     implementation project(':capacitor-android')
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"

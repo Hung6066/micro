@@ -1,217 +1,209 @@
 using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Novell.Directory.Ldap;
 
 namespace His.Hope.IdentityService.Infrastructure.Services;
 
-public class LdapSyncService
+public sealed class LdapSyncService(
+    ExternalIdentityProviderRuntime runtime,
+    UserManager<User> userManager,
+    ILogger<LdapSyncService> logger)
 {
-    private readonly IConfiguration _config;
-    private readonly UserManager<User> _userManager;
-    private readonly ILogger<LdapSyncService> _logger;
-    private readonly LdapConfig _ldapConfig;
-
-    public LdapSyncService(
-        IConfiguration config,
-        UserManager<User> userManager,
-        ILogger<LdapSyncService> logger)
-    {
-        _config = config;
-        _userManager = userManager;
-        _logger = logger;
-
-        _ldapConfig = new LdapConfig();
-        config.GetSection("Ldap").Bind(_ldapConfig);
-    }
-
     public async Task SyncAsync(CancellationToken ct = default)
     {
-        if (!_ldapConfig.Enabled)
+        var config = await runtime.GetLdapAsync(ct);
+        Validate(config);
+        if (!config.Enabled)
         {
-            _logger.LogInformation("LDAP sync is disabled");
+            logger.LogInformation("LDAP sync is disabled");
             return;
         }
 
-        _logger.LogInformation("Starting LDAP sync from {Server}:{Port}", _ldapConfig.Server, _ldapConfig.Port);
-
         try
         {
-            using var connection = Connect();
-            var syncedUsers = await SearchAndSyncUsers(connection, ct);
-
-            if (_ldapConfig.SearchBase.Contains("OU="))
-            {
-                await DeactivateMissingUsers(syncedUsers, ct);
-            }
-
-            _logger.LogInformation("LDAP sync complete. Synced {Count} users", syncedUsers.Count);
+            using var connection = Connect(config);
+            var synced = await SearchAndSyncUsers(connection, config, ct);
+            if (config.SearchBase.Contains("OU=", StringComparison.OrdinalIgnoreCase))
+                await DeactivateMissingUsers(synced, ct);
+            logger.LogInformation("LDAP sync complete. Synced {Count} users", synced.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "LDAP sync failed");
+            logger.LogError(ex, "LDAP sync failed");
         }
     }
 
-    private LdapConnection Connect()
+    public async Task<bool> AuthenticateAsync(string userName, string password, CancellationToken ct = default) =>
+        await AuthenticateAndGetProfileAsync(userName, password, ct) is not null;
+
+    public async Task<LdapUserProfile?> AuthenticateAndGetProfileAsync(
+        string userName, string password, CancellationToken ct = default)
     {
-        var port = _ldapConfig.UseSsl ? 636 : _ldapConfig.Port;
-        var connection = new LdapConnection();
-        connection.Connect(_ldapConfig.Server, port);
+        var config = await runtime.GetLdapAsync(ct);
+        Validate(config);
+        if (!config.Enabled || string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(password))
+            return null;
 
-        if (_ldapConfig.UseSsl)
-            connection.StartTls();
+        try
+        {
+            using var serviceConnection = Connect(config);
+            var escaped = EscapeFilterValue(userName);
+            var filter = $"(&{config.SearchFilter}(|({config.UserNameAttribute}={escaped})({config.EmailAttribute}={escaped})))";
+            var results = serviceConnection.Search(config.SearchBase, LdapConnection.ScopeSub, filter,
+                config.Attributes.Concat(new[] { "distinguishedName" }).Distinct().ToArray(), false);
+            if (!results.HasMore())
+                return null;
 
-        connection.Bind(_ldapConfig.BindDn, _ldapConfig.BindPassword);
-        _logger.LogDebug("Connected to LDAP {Server}", _ldapConfig.Server);
-        return connection;
+            var entry = results.Next();
+            using var userConnection = new LdapConnection();
+            var port = config.UseSsl ? 636 : config.Port;
+            userConnection.Connect(config.Server, port);
+            if (!config.UseSsl && config.RequireStartTls)
+                userConnection.StartTls();
+            userConnection.Bind(entry.Dn, password);
+
+            var profile = ToProfile(entry.GetAttributeSet(), entry.Dn, config);
+            return profile with { UserName = profile.UserName ?? userName };
+        }
+        catch (Exception ex)
+        {
+            logger.LogInformation("LDAP authentication failed for {UserName}: {Reason}", userName, ex.Message);
+            return null;
+        }
     }
 
-    private async Task<HashSet<string>> SearchAndSyncUsers(LdapConnection connection, CancellationToken ct)
+    public async Task<User> ProvisionUserAsync(LdapUserProfile profile, CancellationToken ct = default)
     {
-        var syncedUsers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var config = await runtime.GetLdapAsync(ct);
+        var user = await userManager.FindByNameAsync(profile.UserName ?? string.Empty)
+            ?? (!string.IsNullOrWhiteSpace(profile.Email) ? await userManager.FindByEmailAsync(profile.Email) : null);
+        var isNew = user is null;
+        user ??= new User
+        {
+            UserName = profile.UserName,
+            Email = profile.Email ?? $"{profile.UserName}@his-hope.local",
+            FirstName = profile.FirstName ?? profile.UserName ?? "Directory",
+            LastName = profile.LastName ?? string.Empty,
+            EmailConfirmed = true,
+            CreatedAt = DateTime.UtcNow
+        };
+        user.Email = profile.Email ?? user.Email;
+        user.FirstName = profile.FirstName ?? user.FirstName;
+        user.LastName = profile.LastName ?? user.LastName;
+        user.IsActive = profile.IsActive;
 
-        var results = connection.Search(
-            _ldapConfig.SearchBase,
-            LdapConnection.ScopeSub,
-            _ldapConfig.SearchFilter,
-            _ldapConfig.Attributes,
-            false);
+        var result = isNew ? await userManager.CreateAsync(user) : await userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+            throw new InvalidOperationException("Unable to provision LDAP user.");
 
+        await ApplyRolesAsync(user, MapGroupsToRoles(profile.MemberOf, config));
+        return user;
+    }
+
+    private async Task<HashSet<string>> SearchAndSyncUsers(LdapConnection connection, LdapConfig config, CancellationToken ct)
+    {
+        var synced = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var results = connection.Search(config.SearchBase, LdapConnection.ScopeSub, config.SearchFilter, config.Attributes, false);
         while (results.HasMore() && !ct.IsCancellationRequested)
         {
             try
             {
                 var entry = results.Next();
-                var attrs = entry.GetAttributeSet();
-
-                var userName = GetStringAttribute(attrs, _ldapConfig.UserNameAttribute);
-                var email = GetStringAttribute(attrs, _ldapConfig.EmailAttribute);
-                var firstName = GetStringAttribute(attrs, _ldapConfig.FirstNameAttribute);
-                var lastName = GetStringAttribute(attrs, _ldapConfig.LastNameAttribute);
-                var memberOf = GetStringArrayAttribute(attrs, _ldapConfig.MemberOfAttribute);
-                var userAccountControl = GetStringAttribute(attrs, _ldapConfig.UserAccountControlAttribute);
-
-                if (string.IsNullOrEmpty(userName))
-                {
-                    userName = GetStringAttribute(attrs, "userPrincipalName")?.Split('@')[0];
-                }
-
-                if (string.IsNullOrEmpty(userName))
-                {
-                    _logger.LogWarning("Skipping LDAP entry without username");
+                var profile = ToProfile(entry.GetAttributeSet(), entry.Dn, config);
+                if (string.IsNullOrWhiteSpace(profile.UserName))
                     continue;
-                }
-
-                bool isActive = true;
-                if (int.TryParse(userAccountControl, out var uac))
-                {
-                    isActive = (uac & 0x2) == 0;
-                }
-
-                var roles = MapGroupsToRoles(memberOf);
-
-                var user = await _userManager.FindByNameAsync(userName);
-                var isNew = user is null;
-
-                if (isNew)
-                {
-                    user = new User
-                    {
-                        UserName = userName,
-                        Email = email ?? $"{userName}@his-hope.local",
-                        FirstName = firstName ?? userName,
-                        LastName = lastName ?? "",
-                        IsActive = isActive,
-                        EmailConfirmed = true,
-                        CreatedAt = DateTime.UtcNow
-                    };
-
-                    var createResult = await _userManager.CreateAsync(user);
-                    if (!createResult.Succeeded)
-                    {
-                        _logger.LogWarning("Failed to create LDAP user {UserName}: {Errors}",
-                            userName, string.Join(", ", createResult.Errors.Select(e => e.Description)));
-                        continue;
-                    }
-                }
-                else
-                {
-                    user.Email = email ?? user.Email;
-                    user.FirstName = firstName ?? user.FirstName;
-                    user.LastName = lastName ?? user.LastName;
-                    user.IsActive = isActive;
-                    await _userManager.UpdateAsync(user);
-                }
-
-                var existingRoles = await _userManager.GetRolesAsync(user);
-                var rolesToAdd = roles.Except(existingRoles).ToList();
-                var rolesToRemove = existingRoles.Except(roles).ToList();
-
-                foreach (var role in rolesToAdd)
-                    await _userManager.AddToRoleAsync(user, role);
-                foreach (var role in rolesToRemove)
-                    if (role != "Provider")
-                        await _userManager.RemoveFromRoleAsync(user, role);
-
-                syncedUsers.Add(userName);
-                _logger.LogDebug("{Action} LDAP user: {UserName} ({Email}), roles: {Roles}",
-                    isNew ? "Created" : "Updated", userName, email, string.Join(", ", roles));
+                var user = await ProvisionUserAsync(profile, ct);
+                synced.Add(user.UserName!);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing LDAP entry");
+                logger.LogError(ex, "Error processing LDAP entry");
             }
         }
-
-        return syncedUsers;
+        return synced;
     }
 
-    private async Task DeactivateMissingUsers(HashSet<string> syncedUsers, CancellationToken ct)
+    private async Task DeactivateMissingUsers(HashSet<string> synced, CancellationToken ct)
     {
-        var ldapUsers = await _userManager.Users
-            .Where(u => u.EmailConfirmed && u.UserName != null && !syncedUsers.Contains(u.UserName))
-            .Take(1000)
-            .ToListAsync(ct);
-
-        foreach (var user in ldapUsers)
+        var users = await userManager.Users
+            .Where(u => u.EmailConfirmed && u.UserName != null && !synced.Contains(u.UserName))
+            .Take(1000).ToListAsync(ct);
+        foreach (var user in users)
         {
             user.IsActive = false;
-            await _userManager.UpdateAsync(user);
-            _logger.LogWarning("Deactivated LDAP user {UserName} — not found in directory", user.UserName);
+            await userManager.UpdateAsync(user);
         }
     }
 
-    private List<string> MapGroupsToRoles(string[]? memberOf)
+    private async Task ApplyRolesAsync(User user, IReadOnlyCollection<string> roles)
     {
-        if (memberOf is null) return new List<string>();
+        var existing = await userManager.GetRolesAsync(user);
+        foreach (var role in roles.Except(existing))
+            await userManager.AddToRoleAsync(user, role);
+        foreach (var role in existing.Except(roles))
+            if (role != "Provider")
+                await userManager.RemoveFromRoleAsync(user, role);
+    }
 
+    private static List<string> MapGroupsToRoles(string[]? groups, LdapConfig config)
+    {
         var roles = new List<string>();
-        foreach (var group in memberOf)
-        {
-            foreach (var (groupPattern, role) in _ldapConfig.GroupRoleMapping)
-            {
-                if (group.Contains(groupPattern, StringComparison.OrdinalIgnoreCase))
-                {
-                    if (!roles.Contains(role))
-                        roles.Add(role);
-                }
-            }
-        }
+        foreach (var group in groups ?? [])
+            foreach (var (pattern, role) in config.GroupRoleMapping)
+                if (group.Contains(pattern, StringComparison.OrdinalIgnoreCase) && !roles.Contains(role))
+                    roles.Add(role);
         return roles;
     }
 
-    private static string? GetStringAttribute(LdapAttributeSet attrs, string name)
+    private LdapConnection Connect(LdapConfig config)
     {
-        try { return attrs.GetAttribute(name)?.StringValue; }
-        catch { return null; }
+        var connection = new LdapConnection();
+        var port = config.UseSsl ? 636 : config.Port;
+        connection.Connect(config.Server, port);
+        if (!config.UseSsl && config.RequireStartTls)
+            connection.StartTls();
+        connection.Bind(config.BindDn, config.BindPassword);
+        return connection;
     }
 
-    private static string[]? GetStringArrayAttribute(LdapAttributeSet attrs, string name)
+    private static void Validate(LdapConfig config)
     {
-        try { return attrs.GetAttribute(name)?.StringValueArray; }
-        catch { return null; }
+        var errors = config.Validate();
+        if (errors.Count > 0)
+            throw new InvalidOperationException(string.Join(" ", errors));
     }
+
+    private static LdapUserProfile ToProfile(LdapAttributeSet attrs, string dn, LdapConfig config) => new(
+        Get(attrs, config.UserNameAttribute), Get(attrs, config.EmailAttribute),
+        Get(attrs, config.FirstNameAttribute), Get(attrs, config.LastNameAttribute),
+        GetMany(attrs, config.MemberOfAttribute),
+        !int.TryParse(Get(attrs, config.UserAccountControlAttribute), out var uac) || (uac & 0x2) == 0, dn);
+
+    private static string? Get(LdapAttributeSet attrs, string name)
+    {
+        try { return attrs.GetAttribute(name)?.StringValue; } catch { return null; }
+    }
+
+    private static string[]? GetMany(LdapAttributeSet attrs, string name)
+    {
+        try { return attrs.GetAttribute(name)?.StringValueArray; } catch { return null; }
+    }
+
+    private static string EscapeFilterValue(string value) => value
+        .Replace("\\", "\\5c", StringComparison.Ordinal)
+        .Replace("*", "\\2a", StringComparison.Ordinal)
+        .Replace("(", "\\28", StringComparison.Ordinal)
+        .Replace(")", "\\29", StringComparison.Ordinal)
+        .Replace("\0", "\\00", StringComparison.Ordinal);
 }
+
+public sealed record LdapUserProfile(
+    string? UserName,
+    string? Email,
+    string? FirstName,
+    string? LastName,
+    string[]? MemberOf,
+    bool IsActive,
+    string DistinguishedName);

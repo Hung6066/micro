@@ -54,6 +54,7 @@ spec:
         seccompProfile:
           type: Localhost
           localhostProfile: his-hope-dotnet-strict.json
+      volumes: []
       containers:
         - name: billing-service
           image: his-hope/billing-service:latest
@@ -85,6 +86,7 @@ spec:
                 secretKeyRef:
                   name: postgres-secret
                   key: billing_connection_string
+          volumeMounts: []
           resources:
             requests:
               cpu: 512m

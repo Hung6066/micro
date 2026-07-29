@@ -10,6 +10,7 @@ export interface MobileUser { id: string; userName: string; email: string; roles
 export interface MobileRole { id?: string; name: string; description?: string; }
 export interface MobileConsent { id: string; subject: string; clientId: string; scopes: string[]; created: string; }
 export interface MobileMfaEnrollment { secretKey: string; qrCodeUri: string; recoveryCodes: string[]; }
+export interface MobileMfaStatus { enabled: boolean; requiresMfa: boolean; enrolledAt?: string; recoveryCodesRemaining: number; }
 export type MobileResource = 'clients' | 'users' | 'roles' | 'consents';
 
 @Injectable({ providedIn: 'root' })
@@ -21,7 +22,18 @@ export class MobileAdminApiService {
   getDashboard(): Observable<MobileDashboardStats> { return this.http.get<MobileDashboardStats>(`${this.baseUrl}/dashboard`); }
   getMyPermissions(): Observable<{ permissions: string[]; roles: string[] }> { return this.http.get<{ permissions: string[]; roles: string[] }>(`${this.baseUrl}/me/permissions`); }
   enrollMfa(): Observable<MobileMfaEnrollment> { return this.http.post<MobileMfaEnrollment>(`${this.authApiUrl}/mfa/enroll`, {}); }
+  getMfaStatus(): Observable<MobileMfaStatus> { return this.http.get<MobileMfaStatus>(`${this.authApiUrl}/mfa/status`); }
   verifyMfa(code: string): Observable<{ status: string; requiresMfa: boolean }> { return this.http.post<{ status: string; requiresMfa: boolean }>(`${this.authApiUrl}/mfa/verify`, { code }); }
+  registerPasskeyOptions(): Observable<Record<string, unknown>> { return this.http.post<Record<string, unknown>>(`${this.authApiUrl}/passkeys/register/options`, {}); }
+  completePasskeyRegistration(response: Readonly<Record<string, unknown>>): Observable<{ registered: boolean }> {
+    return this.http.post<{ registered: boolean }>(`${this.authApiUrl}/passkeys/register/complete`, response);
+  }
+  nativeMfaOptions(ticket: string): Observable<{ options: Record<string, unknown> }> {
+    return this.http.post<{ options: Record<string, unknown> }>(`${this.authApiUrl}/passkeys/mfa/native/options`, { ticket });
+  }
+  completeNativeMfa(ticket: string, response: Readonly<Record<string, unknown>>): Observable<{ approved: boolean }> {
+    return this.http.post<{ approved: boolean }>(`${this.authApiUrl}/passkeys/mfa/native/complete`, { ticket, response });
+  }
 
   getPage<T>(resource: MobileResource, query: HisHopePageQuery): Observable<HisHopePageResult<T>> {
     let params = new HttpParams().set('page', String(query.page)).set('pageSize', String(query.pageSize));

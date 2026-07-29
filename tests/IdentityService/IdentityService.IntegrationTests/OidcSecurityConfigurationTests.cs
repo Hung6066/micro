@@ -109,6 +109,38 @@ public class OidcSecurityConfigurationTests
         }
     }
 
+    [Fact]
+    public void Resolve_ProductionWithRotatedEncryptionKeys_LoadsActiveAndPreviousKeys()
+    {
+        var signingPath = WriteRsaPrivateKey();
+        var activePath = WriteRsaPrivateKey();
+        var previousPath = WriteRsaPrivateKey();
+
+        try
+        {
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["OpenIddict:AllowInsecureHttp"] = "false",
+                    ["OpenIddict:Signing:PrivateKeyPath"] = signingPath,
+                    ["OpenIddict:Encryption:PrivateKeyPath"] = activePath,
+                    ["OpenIddict:Encryption:PreviousPrivateKeyPath"] = previousPath
+                })
+                .Build();
+
+            var options = OidcSecurityConfiguration.Resolve(configuration, new TestHostEnvironment("Production"));
+
+            Assert.Equal(2, options.EncryptionKeys.Count);
+            Assert.NotNull(options.EncryptionKey);
+        }
+        finally
+        {
+            File.Delete(signingPath);
+            File.Delete(activePath);
+            File.Delete(previousPath);
+        }
+    }
+
     private static string WriteRsaPrivateKey()
     {
         var keyPath = Path.Combine(Path.GetTempPath(), $"oidc-signing-{Guid.NewGuid():N}.pem");

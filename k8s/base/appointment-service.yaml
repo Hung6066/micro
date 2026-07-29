@@ -51,6 +51,7 @@ spec:
         seccompProfile:
           type: Localhost
           localhostProfile: his-hope-dotnet-strict.json
+      volumes: []
       containers:
         - name: appointment-service
           securityContext:
@@ -82,6 +83,7 @@ spec:
                 secretKeyRef:
                   name: postgres-secret
                   key: appointment_connection_string
+          volumeMounts: []
           resources:
             requests:
               cpu: 512m

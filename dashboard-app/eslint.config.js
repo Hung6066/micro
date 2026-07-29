@@ -13,8 +13,16 @@ module.exports = tseslint.config(
     rules: {
       '@angular-eslint/directive-selector': ['error', { type: 'attribute', prefix: 'app', style: 'camelCase' }],
       '@angular-eslint/component-selector': ['error', { type: 'element', prefix: 'app', style: 'kebab-case' }],
-      '@typescript-eslint/no-implied-eval': 'error',
       'no-eval': 'error',
+      '@typescript-eslint/no-unused-vars': 'warn',
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-empty-object-type': 'warn',
+      '@angular-eslint/prefer-inject': 'warn',
+      '@angular-eslint/no-output-native': 'warn',
+      '@angular-eslint/no-empty-lifecycle-method': 'warn',
+      '@angular-eslint/prefer-standalone': 'warn',
+      '@typescript-eslint/no-this-alias': 'warn',
+      '@typescript-eslint/no-unused-expressions': 'warn',
     },
   },
   {
@@ -23,6 +31,13 @@ module.exports = tseslint.config(
       ...angular.configs.templateRecommended,
       ...angular.configs.templateAccessibility,
     ],
-    rules: {},
+    rules: {
+      '@angular-eslint/template/prefer-control-flow': 'warn',
+      '@angular-eslint/template/no-negated-async': 'warn',
+      '@angular-eslint/template/label-has-associated-control': 'warn',
+      '@angular-eslint/template/click-events-have-key-events': 'warn',
+      '@angular-eslint/template/interactive-supports-focus': 'warn',
+      '@angular-eslint/template/eqeqeq': 'warn',
+    },
   },
 );

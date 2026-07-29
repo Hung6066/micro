@@ -16,6 +16,7 @@ using His.Hope.Infrastructure.Security;
 using His.Hope.Authorization;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
+using His.Hope.Persistence;
 using His.Hope.IntegrationEvents.Billing;
 using His.Hope.BillingService.Api.GrpcServices;
 using His.Hope.BillingService.Api.Middleware;
@@ -37,12 +38,14 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "BillingServic
 
 builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration)
+                .Destructure.With<His.Hope.Infrastructure.Logging.PhiDestructuringPolicy>()
                 .Enrich.WithProperty("service", "billing-service"));
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddBillingApplication();
 builder.Services.AddBillingInfrastructure(builder.Configuration);
+builder.Services.AddHisHopeMigrationRunner<BillingDbContext>();
 
 His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
 
@@ -54,9 +57,6 @@ builder.Services.AddHisHopeEnterpriseInfrastructure(
     builder.Configuration,
     "billing-service",
     builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379"));
-
-// TEMP: Replace Redis cache with a no-op cache to avoid StackExchange.Redis hang
-builder.Services.AddSingleton<ICacheService>(new NoOpCacheService());
 
 builder.Services.AddOutbox<BillingDbContext>();
 
@@ -122,11 +122,17 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
-// Auto-create database on startup
-using (var scope = app.Services.CreateScope())
+if (app.Environment.IsDevelopment())
 {
+    // Local development convenience only. Production schema is migration-owned.
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<BillingDbContext>();
     db.Database.EnsureCreated();
+}
+else
+{
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
 }
 
 // Middleware Pipeline (order matters)
@@ -147,7 +153,9 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseRouting();
 
 // SECURITY: Authentication & Authorization middleware
+app.UseDpopAuthorizationSchemeNormalization();
 app.UseAuthentication();
+app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
 
 
@@ -392,14 +400,4 @@ public record VoidInvoiceRequest(string Reason);
 public record ApplyDiscountRequest(decimal Amount);
 
 public record ApplyTaxRequest(decimal Amount);
-
-file sealed class NoOpCacheService : ICacheService
-{
-    public Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class => Task.FromResult<T?>(null);
-    public Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => factory();
-    public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null, CancellationToken ct = default) where T : class => Task.CompletedTask;
-    public Task RemoveAsync(string key, CancellationToken ct = default) => Task.CompletedTask;
-    public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default) => Task.CompletedTask;
-}
-
 

@@ -10,14 +10,14 @@ namespace His.Hope.AppointmentService.Infrastructure.Persistence;
 
 public class AppointmentDbContext : DbContext, IUnitOfWork
 {
-    private readonly IMediator _mediator;
+    private readonly IMediator? _mediator;
 
     public DbSet<Appointment> Appointments => Set<Appointment>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public AppointmentDbContext(
         DbContextOptions<AppointmentDbContext> options,
-        IMediator mediator)
+        IMediator? mediator = null)
         : base(options)
     {
         _mediator = mediator;
@@ -66,7 +66,8 @@ public class AppointmentDbContext : DbContext, IUnitOfWork
 
         foreach (var domainEvent in domainEvents)
         {
-            await _mediator.Publish(domainEvent, cancellationToken);
+            if (_mediator is not null)
+                await _mediator.Publish(domainEvent, cancellationToken);
         }
 
         return result;

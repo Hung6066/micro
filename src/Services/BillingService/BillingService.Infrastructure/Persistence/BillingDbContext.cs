@@ -10,14 +10,14 @@ namespace His.Hope.BillingService.Infrastructure.Persistence;
 
 public class BillingDbContext : DbContext, IUnitOfWork
 {
-    private readonly IMediator _mediator;
+    private readonly IMediator? _mediator;
 
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public BillingDbContext(
         DbContextOptions<BillingDbContext> options,
-        IMediator mediator)
+        IMediator? mediator = null)
         : base(options)
     {
         _mediator = mediator;
@@ -68,7 +68,8 @@ public class BillingDbContext : DbContext, IUnitOfWork
 
         foreach (var domainEvent in domainEvents)
         {
-            await _mediator.Publish(domainEvent, cancellationToken);
+            if (_mediator is not null)
+                await _mediator.Publish(domainEvent, cancellationToken);
         }
 
         return result;

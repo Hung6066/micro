@@ -3,6 +3,7 @@ import { ActivatedRoute } from '@angular/router';
 import { HisHopeBulkAction, HisHopeBulkActionRequest, HisHopeDataTableColumn, HisHopeDataTableComponent, HisHopeDataTableDetailDirective, HisHopeMobileActionSheetComponent, HisHopeMobileBottomSheetComponent, HisHopeMobileIconComponent, HisHopeMobileInfiniteListComponent, HisHopeMobileRefresherComponent, HisHopeMobileSearchbarComponent, HisHopePageQuery, HisHopeTableExportRequest, HisHopeToolbarComponent } from '@his-hope/frontend-foundation';
 import { catchError, finalize, of } from 'rxjs';
 import { MobileAdminApiService, MobileClient, MobileConsent, MobileResource, MobileRole, MobileUser } from '../core/admin-api.service';
+import { formatHisHopeDateTime } from '@his-hope/mobile-foundation';
 
 type MobileRow = Record<string, unknown>;
 
@@ -108,7 +109,7 @@ export class MobileResourcePageComponent implements OnInit {
       this.changeDetector.detectChanges();
     });
   }
-  toRow(item: MobileClient | MobileUser | MobileRole | MobileConsent): MobileRow { if (this.resource === 'clients') { const value = item as MobileClient; return { id: value.id ?? value.clientId, clientId: value.clientId, displayName: value.displayName, clientType: value.clientType, redirectUris: value.redirectUris.join(', ') }; } if (this.resource === 'users') { const value = item as MobileUser; return { id: value.id, userName: value.userName, email: value.email, roles: value.roles.join(', '), isActive: value.isActive ? 'Yes' : 'No' }; } if (this.resource === 'roles') { const value = item as MobileRole; return { id: value.id, name: value.name, description: value.description ?? '' }; } const value = item as MobileConsent; return { id: value.id, subject: value.subject, clientId: value.clientId, scopes: value.scopes.join(', '), created: new Date(value.created).toLocaleDateString() }; }
+  toRow(item: MobileClient | MobileUser | MobileRole | MobileConsent): MobileRow { if (this.resource === 'clients') { const value = item as MobileClient; return { id: value.id ?? value.clientId, clientId: value.clientId, displayName: value.displayName, clientType: value.clientType, redirectUris: value.redirectUris.join(', ') }; } if (this.resource === 'users') { const value = item as MobileUser; return { id: value.id, userName: value.userName, email: value.email, roles: value.roles.join(', '), isActive: value.isActive ? 'Yes' : 'No' }; } if (this.resource === 'roles') { const value = item as MobileRole; return { id: value.id, name: value.name, description: value.description ?? '' }; } const value = item as MobileConsent; return { id: value.id, subject: value.subject, clientId: value.clientId, scopes: value.scopes.join(', '), created: formatHisHopeDateTime(value.created) }; }
   detail(row: MobileRow): string { return Object.entries(row).filter(([key]) => key !== 'id').map(([key, value]) => `${key}: ${String(value ?? '')}`).join(' · '); }
   bulk(request: HisHopeBulkActionRequest): void { if (this.resource === 'consents') return; this.loading = true; this.api.bulk(this.resource, request.actionId, request.rowKeys).pipe(finalize(() => this.loading = false), catchError(() => { this.error = 'Bulk action failed.'; return of(null); })).subscribe(result => { if (result) this.load(); }); }
   exportRows(_request: HisHopeTableExportRequest): void { this.error = 'Export is available from the desktop admin workspace.'; }

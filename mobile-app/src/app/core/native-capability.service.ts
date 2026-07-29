@@ -43,11 +43,14 @@ export class NativeCapabilityService {
       window.location.assign(url);
       return;
     }
-    await Browser.open({
-      url,
-      presentationStyle: "popover",
-      toolbarColor: "#195c43",
-    });
+    if (Capacitor.getPlatform() === "ios") {
+      // Route iOS OIDC authorization through the native pinned WKWebView.
+      // Safari or Capacitor Browser cannot apply the app's SPKI pin to every
+      // redirect.
+      await this.platform.openPinnedAuthBrowser(url);
+      return;
+    }
+    await Browser.open({ url, presentationStyle: "popover", toolbarColor: "#195c43" });
   }
 
   consumeAuthCallbackUrl(): string | null {
@@ -69,10 +72,9 @@ export class NativeCapabilityService {
     if (!link) return;
     if (url.startsWith("hishope://auth/callback"))
       this.pendingAuthCallbackUrl = url;
-    // The custom tab is already handing control back to the app. Waiting for
-    // Browser.close() here can delay the router navigation and leave the app
-    // on its pre-login screen while the OIDC callback is being exchanged.
-    if (url.startsWith("hishope://auth/"))
+    // The pinned iOS auth view dismisses itself before this callback is routed
+    // back into Angular. Android's system browser still needs closing.
+    if (url.startsWith("hishope://auth/callback") && Capacitor.getPlatform() !== "ios")
       void Browser.close().catch(() => undefined);
     const target = link.path + this.queryString(link.query);
     try {
@@ -211,6 +213,18 @@ export class NativeCapabilityService {
     } catch {
       return null;
     }
+  }
+
+  async nativePasskeySupported(): Promise<boolean> {
+    return this.platform.isPasskeySupported();
+  }
+
+  registerNativePasskey(options: Readonly<Record<string, unknown>>): Promise<Readonly<Record<string, unknown>>> {
+    return this.platform.register(options);
+  }
+
+  authenticateNativePasskey(options: Readonly<Record<string, unknown>>): Promise<Readonly<Record<string, unknown>>> {
+    return this.platform.authenticate(options);
   }
 
   private parseCallbackFallback(url: string): HisHopeDeepLink | null {

@@ -13,6 +13,13 @@ describe("mobile runtime", () => {
     delete window.__HISHOPE_CONFIG__;
   });
 
+  it("fails fast when production API origin is missing", () => {
+    delete window.__HISHOPE_CONFIG__;
+    expect(() => resolveProductionApiOrigin()).toThrowError(
+      "Production mobile API origin is not configured. Provide window.__HISHOPE_CONFIG__.apiOrigin before boot.",
+    );
+  });
+
   it("keeps browser callbacks on the current origin", () => {
     spyOn(Capacitor, "isNativePlatform").and.returnValue(false);
     expect(resolveMobileRedirectUri("/auth/callback")).toBe(
