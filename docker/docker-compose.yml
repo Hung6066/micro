@@ -292,6 +292,10 @@ services:
       OpenIddict__Signing__PrivateKeyPath: ${OPENIDDICT_SIGNING_PRIVATE_KEY_PATH:-/etc/hishop/certs/jwt-private-key.pem}
       # Nested legacy JWTs used by session exchange must remain JWE encrypted.
       Jwt__RsaEncryptionPrivateKeyPath: ${JWT_RSA_ENCRYPTION_PRIVATE_KEY_PATH:-/etc/hishop/certs/jwt-encryption-private-key.pem}
+      # OIDC access-token encryption must use the same persistent key as every
+      # downstream JWT validator. Do not fall back to an ephemeral development key.
+      OpenIddict__Encryption__PrivateKeyPath: ${JWT_RSA_ENCRYPTION_PRIVATE_KEY_PATH:-/etc/hishop/certs/jwt-encryption-private-key.pem}
+      OpenIddict__Encryption__KeyId: oidc-encryption-v1
       Otlp__Endpoint: http://otel-collector:4317
       # ─── OpenIddict OIDC Configuration ───
       OpenIddict__Issuer: ${OIDC_ISSUER:-http://localhost:5000}
@@ -350,6 +354,7 @@ services:
       Jwt__AllowHttp: "true"
       Jwt__Audience: his-hope-services
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
@@ -388,6 +393,7 @@ services:
       Jwt__AllowHttp: "true"
       Jwt__Audience: his-hope-services
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
@@ -426,6 +432,7 @@ services:
       Jwt__AllowHttp: "true"
       Jwt__Audience: his-hope-services
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
@@ -465,6 +472,7 @@ services:
       Jwt__AllowHttp: "true"
       Jwt__Audience: his-hope-services
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
@@ -505,6 +513,7 @@ services:
       Jwt__AllowHttp: "true"
       Jwt__Audience: his-hope-services
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
@@ -543,6 +552,7 @@ services:
       Jwt__AllowHttp: "true"
       Jwt__Audience: his-hope-services
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
@@ -620,8 +630,9 @@ services:
       - Jwt__Issuer=http://localhost:5000/
       - Jwt__ValidIssuers__0=http://localhost:5000/
       - Jwt__ValidIssuers__1=his-hope-identity
-      - Jwt__Audience=his-hope-services
+      - Jwt__Audience=http://localhost:5000/
       - Jwt__RsaPublicKeyPath=/etc/hishop/certs/jwt-public-key.pem
+      - Jwt__RsaEncryptionPrivateKeyPath=/etc/hishop/certs/jwt-encryption-private-key.pem
       - Jwt__SessionKey=ThisIsADevelopmentKeyThatIsLongEnoughForHmacSha256!
       - Redis__ConnectionString=redis:6379
       - Docker__Enabled=false
