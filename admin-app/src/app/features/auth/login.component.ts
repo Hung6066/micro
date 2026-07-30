@@ -8,7 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../core/services/auth.service';
-import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
+import { HisHopeTranslatePipe, createHisHopeAdaptiveMfaState } from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-login',
@@ -24,10 +24,10 @@ import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
             <p class="subtitle">{{ 'admin.signInManageOidc' | hhTranslate }}</p>
           </div>
           <div class="login-buttons">
-            <button mat-raised-button color="primary" class="full-width" (click)="oidcLogin()" [disabled]="checkingAuth">
-              @if (checkingAuth) { <mat-spinner diameter="20" class="btn-spinner"></mat-spinner> }
-              @if (!checkingAuth) { <mat-icon>login</mat-icon> }
-              @if (!checkingAuth) { {{ 'admin.signInHisHope' | hhTranslate }} }
+            <button mat-raised-button color="primary" class="full-width" (click)="oidcLogin()" [disabled]="checkingAuth || initiatingLogin">
+              @if (checkingAuth || initiatingLogin) { <mat-spinner diameter="20" class="btn-spinner"></mat-spinner> }
+              @if (!checkingAuth && !initiatingLogin) { <mat-icon>{{ loginIcon }}</mat-icon> }
+              @if (!checkingAuth && !initiatingLogin) { {{ 'admin.signInHisHope' | hhTranslate }} }
             </button>
           </div>
         </mat-card-content>
@@ -50,7 +50,10 @@ export class LoginComponent implements OnInit, OnDestroy {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
   private readonly destroy$ = new Subject<void>();
+  private readonly adaptiveMfaState = createHisHopeAdaptiveMfaState();
   checkingAuth = true;
+  initiatingLogin = false;
+  readonly loginIcon = this.adaptiveMfaState.preferred === 'passkey' ? 'passkey' : 'login';
 
   ngOnInit(): void {
     this.authService.isAuthenticated$.pipe(takeUntil(this.destroy$)).subscribe(isAuth => {
@@ -63,7 +66,10 @@ export class LoginComponent implements OnInit, OnDestroy {
     });
   }
 
-  oidcLogin(): void { this.authService.oidcLogin(); }
+  oidcLogin(): void {
+    this.initiatingLogin = true;
+    this.authService.oidcLogin();
+  }
 
   ngOnDestroy(): void {
     this.destroy$.next();
