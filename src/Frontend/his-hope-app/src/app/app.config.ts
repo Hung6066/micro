@@ -1,7 +1,7 @@
 import { ApplicationConfig, ErrorHandler, PLATFORM_ID, provideZoneChangeDetection } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { provideRouter } from '@angular/router';
-import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpClient, provideHttpClient, withInterceptors, withInterceptorsFromDi, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideStore } from '@ngrx/store';
 import { provideEffects } from '@ngrx/effects';
@@ -16,11 +16,12 @@ import { AuthEffects } from '@store/auth/auth.effects';
 import { PatientsEffects } from '@store/patients/patients.effects';
 import { csrfInterceptor } from '@core/interceptors/csrf.interceptor';
 import { authInterceptor } from '@core/interceptors/auth.interceptor';
+import { ErrorInterceptor } from '@core/interceptors/error.interceptor';
 import { GlobalErrorHandler } from '@core/errors/global-error-handler';
 
 import { environment } from '@env/environment';
 import { mockServiceProviders } from '@core/services/mock/mock-providers';
-import { HisHopeI18nService, HisHopeLocalizationApiService, HIS_HOPE_LOCALIZATION_API_URL, hisHopeCorrelationIdInterceptor, hisHopeErrorInterceptor, hisHopeInternationalizationInterceptor } from '@his-hope/frontend-foundation';
+import { HisHopeI18nService, HisHopeLocalizationApiService, HIS_HOPE_LOCALIZATION_API_URL, hisHopeInternationalizationInterceptor } from '@his-hope/frontend-foundation';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -29,7 +30,7 @@ export const appConfig: ApplicationConfig = {
     { provide: HisHopeLocalizationApiService, useFactory: (http: HttpClient, i18n: HisHopeI18nService, apiUrl: string) => new HisHopeLocalizationApiService(http, i18n, apiUrl), deps: [HttpClient, HisHopeI18nService, HIS_HOPE_LOCALIZATION_API_URL] },
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    provideHttpClient(withInterceptors([hisHopeCorrelationIdInterceptor, hisHopeInternationalizationInterceptor, authInterceptor, csrfInterceptor, hisHopeErrorInterceptor])),
+    provideHttpClient(withInterceptorsFromDi(), withInterceptors([hisHopeInternationalizationInterceptor, authInterceptor, csrfInterceptor])),
     provideAuth({
       config: {
         authority: environment.oidc.authority,
@@ -60,6 +61,7 @@ export const appConfig: ApplicationConfig = {
     provideEffects([AuthEffects, PatientsEffects]),
     provideStoreDevtools({ maxAge: 25 }),
     { provide: ErrorHandler, useClass: GlobalErrorHandler },
+    { provide: HTTP_INTERCEPTORS, useClass: ErrorInterceptor, multi: true },
     ...(environment.useMockServices ? mockServiceProviders : []),
   ],
 };
