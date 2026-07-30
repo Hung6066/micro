@@ -1,6 +1,5 @@
-import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { switchMap, take } from 'rxjs/operators';
+import { createHisHopeBearerTokenInterceptor } from '@his-hope/frontend-foundation';
 import { AuthService } from '@core/services/auth.service';
 
 /**
@@ -9,26 +8,11 @@ import { AuthService } from '@core/services/auth.service';
  * - BFF sessions (via HttpOnly cookies): handled automatically by withCredentials
  *
  * Both modes coexist during the transition from OIDC to BFF-only.
+ *
+ * Uses the shared foundation interceptor factory which sets
+ * withCredentials: true by default, ensuring BFF session cookies
+ * are sent on every /api/ request.
  */
-export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  if (!req.url.includes('/api/')) {
-    return next(req);
-  }
-
-  const authService = inject(AuthService);
-
-  return authService.getAccessToken().pipe(
-    take(1),
-    switchMap((token) => {
-      if (!token) {
-        return next(req);
-      }
-
-      return next(req.clone({
-        setHeaders: {
-          Authorization: `Bearer ${token}`,
-        },
-      }));
-    }),
-  );
-};
+export const authInterceptor = createHisHopeBearerTokenInterceptor(
+  () => inject(AuthService).getAccessToken(),
+);
