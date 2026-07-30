@@ -9,11 +9,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
 import { BehaviorSubject, Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
 import { AuthService } from './core/services/auth.service';
 import { AlertPanelComponent } from './shared/alert-panel/alert-panel.component';
 import { AlertToastService } from './shared/alert-toast/alert-toast.service';
-import { HisHopeBrandComponent, HisHopeCommandPaletteComponent, HisHopeLanguageSwitcherComponent, HisHopeOfflineBannerComponent, HisHopeThemeService, HisHopeToastComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
+import { HisHopeBrandComponent, HisHopeCommandPaletteComponent, HisHopeI18nService, HisHopeLanguageSwitcherComponent, HisHopeOfflineBannerComponent, HisHopeThemeService, HisHopeToastComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-root',
@@ -43,28 +42,26 @@ export class AppComponent {
   readonly isAuthenticated$: Observable<boolean>;
 
   readonly isMobile$: Observable<boolean>;
-  readonly isDarkMode$: Observable<boolean>;
   readonly sidenavOpened$ = new BehaviorSubject<boolean>(true);
 
   private readonly isMobileSubject = new BehaviorSubject<boolean>(window.innerWidth <= 768);
-  private readonly isDarkModeSubject = new BehaviorSubject<boolean>(false);
 
   private readonly alertToast = inject(AlertToastService);
+  private readonly i18n = inject(HisHopeI18nService);
   private readonly themeService = inject(HisHopeThemeService);
   private readonly router = inject(Router);
+  readonly isDarkMode$ = new BehaviorSubject<boolean>(this.themeService.resolvedTheme() === 'dark');
   paletteOpen = false;
-  readonly commands = [
-    { id: 'resources', label: 'Open resources', keywords: ['services', 'health'] },
-    { id: 'logs', label: 'Open logs', keywords: ['audit'] },
-    { id: 'traces', label: 'Open traces', keywords: ['telemetry'] },
-  ];
+
+  get commands() { this.i18n.locale(); return [
+    { id: 'resources', label: this.i18n.t('app.dashboard.openResources'), keywords: ['services', 'health'] },
+    { id: 'logs', label: this.i18n.t('app.dashboard.openLogs'), keywords: ['audit'] },
+    { id: 'traces', label: this.i18n.t('app.dashboard.openTraces'), keywords: ['telemetry'] },
+  ]; }
 
   constructor(private readonly authService: AuthService) {
     this.isAuthenticated$ = this.authService.isAuthenticated$;
     this.isMobile$ = this.isMobileSubject.asObservable();
-    this.isDarkMode$ = this.isDarkModeSubject.asObservable();
-    this.isDarkModeSubject.next(this.themeService.resolvedTheme() === 'dark');
-
     // Listen for viewport width changes
     const mediaQuery = window.matchMedia('(max-width: 768px)');
     const handleChange = (e: MediaQueryListEvent | MediaQueryList): void => {
@@ -78,9 +75,9 @@ export class AppComponent {
   }
 
   toggleTheme(): void {
-    const next = !this.isDarkModeSubject.value;
-    this.isDarkModeSubject.next(next);
-    this.themeService.setTheme(next ? 'dark' : 'light');
+    const next = this.themeService.resolvedTheme() === 'dark' ? 'light' : 'dark';
+    this.themeService.setTheme(next);
+    this.isDarkMode$.next(next === 'dark');
   }
 
   toggleSidenav(): void {

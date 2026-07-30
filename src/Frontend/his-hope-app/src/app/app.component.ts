@@ -17,6 +17,7 @@ import {
   HisHopeOfflineBannerComponent,
   HisHopeThemeService,
   HisHopeToastComponent,
+  HisHopeTranslatePipe,
   HisHopeWorkspaceHeaderComponent,
 } from '@his-hope/frontend-foundation';
 
@@ -27,7 +28,7 @@ import {
         CommonModule, RouterModule,
         MatButtonModule, MatIconModule,
         MatSidenavModule,
-        SidebarComponent, ErrorBarComponent, HisHopeLanguageSwitcherComponent, HisHopeOfflineBannerComponent, HisHopeWorkspaceHeaderComponent, HisHopeToastComponent,
+        SidebarComponent, ErrorBarComponent, HisHopeLanguageSwitcherComponent, HisHopeOfflineBannerComponent, HisHopeWorkspaceHeaderComponent, HisHopeToastComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
@@ -41,7 +42,7 @@ import {
       }
       <mat-sidenav-content>
         @if (isLoggedIn && isMobile && !sidenavOpened) {
-        <button mat-icon-button class="mobile-menu-button" (click)="openSidenav()" aria-label="Mở menu điều hướng">
+        <button mat-icon-button class="mobile-menu-button" (click)="openSidenav()" [attr.aria-label]="'app.navigation.openMenu' | hhTranslate:'Mở menu điều hướng'">
           <mat-icon aria-hidden="true">menu</mat-icon>
         </button>
         }
@@ -49,7 +50,12 @@ import {
         @if (isLoggedIn) {
         <hh-workspace-header />
         }
-        <div class="language-switcher"><hh-language-switcher /></div>
+        <div class="toolbar-actions">
+          <button mat-icon-button type="button" (click)="toggleTheme()" [attr.aria-label]="'app.theme.toggle' | hhTranslate:'Đổi giao diện sáng/tối'">
+            <mat-icon>brightness_6</mat-icon>
+          </button>
+          <hh-language-switcher />
+        </div>
         <div class="main-content" id="main-content">
           <router-outlet></router-outlet>
         </div>
@@ -61,6 +67,7 @@ import {
     .app-sidenav-container { min-height: 100dvh; background: var(--bg-warm, #F2F6F3); }
     .app-sidenav-container .mat-drawer-side { width: var(--shell-sidebar-width, 264px); border-right: 1px solid var(--border-default, #EAEAEA); }
     .main-content { min-height: 100dvh; padding: 28px 32px; position: relative; max-width: var(--max-width-container, 1200px); width: 100%; margin: 0 auto; }
+    .toolbar-actions { position: absolute; top: 12px; right: 32px; z-index: 5; display: flex; align-items: center; gap: 8px; }
     .mobile-menu-button {
       position: fixed;
       top: 12px;
@@ -104,6 +111,12 @@ export class AppComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
   }
 
+  toggleTheme(): void {
+    const next = this.theme.resolvedTheme() === 'dark' ? 'light' : 'dark';
+    this.theme.setTheme(next);
+    this.cdr.markForCheck();
+  }
+
   ngOnInit(): void {
     // Initialise Real User Monitoring (Web Vitals + OpenTelemetry).
     this.rum.initialize();
@@ -142,7 +155,7 @@ export class AppComponent implements OnInit, OnDestroy {
           action: 'navigation.change',
           resource: 'route',
           outcome: 'success',
-          message: `Đã chuyển từ ${this.previousUrl} đến ${event.url}`,
+          message: this.i18n.t('app.navigation.changed', `Đã chuyển từ ${this.previousUrl} đến ${event.url}`, { from: this.previousUrl, to: event.url }),
         });
       }
       this.previousUrl = event.url;
