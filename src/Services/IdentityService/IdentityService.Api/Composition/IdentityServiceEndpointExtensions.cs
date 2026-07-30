@@ -645,7 +645,12 @@ admin.MapTableViewEndpoints();
 
         app.MapMobilePlatformEndpoints();
         app.MapGet("/api/v1/auth/identity-login.js", () =>
-            Results.File(Path.Combine(app.Environment.WebRootPath ?? "wwwroot", "js", "identity-login.js"), "text/javascript"))
+        {
+            var scriptPath = ResolveIdentityLoginScriptPath(app.Environment);
+            return File.Exists(scriptPath)
+                ? Results.File(scriptPath, "text/javascript; charset=utf-8")
+                : Results.NotFound();
+        })
             .AllowAnonymous();
         app.MapPasskeyEndpoints();
 admin.MapGet("/me/permissions", async (HttpContext httpContext, UserManager<User> userManager) =>
@@ -1135,8 +1140,20 @@ app.MapGet("/Account/Login", async (HttpContext httpContext, SignInManager<User>
 })
 .AllowAnonymous();
 
-app.MapGet("/Account/Mfa", (string? error) =>
-    Results.Content(BuildMfaPage(error), "text/html; charset=utf-8"))
+app.MapGet("/Account/Mfa", async (HttpContext httpContext, string? error, OidcLoginCompletionService completion,
+    CancellationToken ct) =>
+{
+    var methods = await completion.GetPendingMfaMethodsAsync(httpContext, ct);
+    var html = BuildMfaPage(error, methods);
+
+    httpContext.Response.OnStarting(() =>
+    {
+        httpContext.Response.Headers.Remove("Content-Security-Policy");
+        return Task.CompletedTask;
+    });
+
+    return Results.Content(html, "text/html; charset=utf-8");
+})
     .AllowAnonymous();
 
 app.MapPost("/Account/Mfa", async (HttpContext context, OidcLoginCompletionService completion,
@@ -1342,12 +1359,172 @@ static string BuildConsentPage(string displayName, string clientId, string redir
         .Replace("__STATE__", System.Net.WebUtility.HtmlEncode(state), StringComparison.Ordinal);
 }
 
-static string BuildMfaPage(string? error)
+static string BuildMfaPage(string? error, AdaptiveMfaMethods? methods)
 {
-    var errorBlock = string.IsNullOrWhiteSpace(error)
+    var availableMethods = methods?.AvailableMethods ?? [];
+    var hasPasskey = availableMethods.Contains("passkey", StringComparer.Ordinal);
+    var hasMobileApproval = availableMethods.Contains("mobileApproval", StringComparer.Ordinal);
+    var hasTotp = availableMethods.Contains("totp", StringComparer.Ordinal);
+    var preferredMethod = methods?.PreferredMethod ?? string.Empty;
+    var mobilePrimary = string.Equals(preferredMethod, "mobileApproval", StringComparison.Ordinal) && hasMobileApproval;
+    var alternateMethodsAvailable = (hasMobileApproval && !mobilePrimary) || hasTotp;
+    var preferredMethodAttr = System.Net.WebUtility.HtmlEncode(preferredMethod);
+    var methodsAttr = System.Net.WebUtility.HtmlEncode(string.Join(",", availableMethods));
+
+    var alertMessage = methods is null
+        ? "Your verification session has expired. Sign in again to continue securely."
+        : string.Equals(error, "invalid_code", StringComparison.OrdinalIgnoreCase)
+            ? "The verification code is invalid or has expired."
+            : string.Empty;
+    var errorBlock = string.IsNullOrWhiteSpace(alertMessage)
         ? string.Empty
-        : "<p role=\"alert\" style=\"color:#9f2f1f;background:#fff1ed;border:1px solid #ffd5c9;padding:12px;border-radius:10px\">The verification code is invalid or has expired.</p>";
-    return "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Verify identity - His.Hope</title><style>body{margin:0;background:#eef3ef;color:#18251f;font:15px Arial,sans-serif}main{max-width:480px;margin:48px auto;padding:28px;background:#fff;border:1px solid #dbe6df;border-radius:18px;box-shadow:0 18px 45px #153b2a18}form{display:grid;gap:10px;margin-top:18px}input,button{min-height:44px;padding:0 12px;border:1px solid #b9c9bf;border-radius:10px;font:inherit}button{background:#216344;color:#fff;border:0;font-weight:700;cursor:pointer}#passkey-mfa,#native-passkey-mfa{background:#0d8060}#passkey-status,#native-passkey-status{min-height:20px;color:#9f2f1f}</style></head><body><main><h1>Verify your identity</h1><p>Your account requires multi-factor verification before the OIDC session can be issued.</p>" + errorBlock + "<button id='native-passkey-mfa' type='button'>Approve in His.Hope mobile app</button><p id='native-passkey-status' role='status'></p><button id='passkey-mfa' type='button'>Continue with device passkey</button><p id='passkey-status' role='alert'></p><hr><form method='post' action='/Account/Mfa'><label for='code'>Authenticator code (fallback)</label><input id='code' name='code' inputmode='numeric' autocomplete='one-time-code' pattern='[0-9]{6}' minlength='6' maxlength='6'><button type='submit'>Verify with TOTP</button></form></main><script src='/api/v1/auth/identity-login.js' defer></script></body></html>";
+        : $"""<p class="inline-alert" role="alert">{System.Net.WebUtility.HtmlEncode(alertMessage)}</p>""";
+
+    var passkeyButtonHidden = hasPasskey ? string.Empty : " hidden";
+    var nativeButtonHidden = hasMobileApproval ? string.Empty : " hidden";
+    var alternateToggleHidden = alternateMethodsAvailable ? string.Empty : " hidden";
+    var totpDisabled = hasTotp ? string.Empty : " disabled";
+    var alternateToggleLabel = !hasPasskey && !hasMobileApproval && hasTotp
+        ? "Use authenticator code"
+        : "Use another method";
+
+    var topLevelMobileButton = mobilePrimary
+        ? $"""<button id="native-passkey-mfa" class="btn btn-secondary" type="button" aria-describedby="mfa-status"{nativeButtonHidden}>Approve in His.Hope mobile app</button>"""
+        : string.Empty;
+    var alternateMobileButton = mobilePrimary
+        ? string.Empty
+        : $"""<button id="native-passkey-mfa" class="btn btn-secondary" type="button" aria-describedby="mfa-status"{nativeButtonHidden}>Approve in His.Hope mobile app</button>""";
+
+    var template = $$"""
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Verify identity - His.Hope</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:#eef3ef;color:#18251f;font:15px Arial,sans-serif;padding:32px 16px}
+[hidden]{display:none!important}
+.page{max-width:560px;margin:0 auto}
+.brand{display:flex;align-items:center;gap:12px;margin-bottom:18px;color:#174b38;font-weight:800;letter-spacing:.02em}
+.brand-mark{display:grid;place-items:center;width:40px;height:40px;border-radius:14px;background:#174b38;color:#fff;font-size:24px}
+.card{background:#fff;border:1px solid #dbe6df;border-radius:24px;box-shadow:0 18px 45px #153b2a18;padding:30px}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#277553;margin-bottom:10px}
+h1{margin:0 0 10px;font-size:30px;line-height:1.12}
+.intro{margin:0 0 24px;color:#5f7067;line-height:1.6}
+.inline-alert{margin:0 0 16px;padding:12px 14px;border-radius:12px;background:#fff1ed;border:1px solid #ffd5c9;color:#9f2f1f;line-height:1.5}
+.feedback{min-height:22px;margin:0 0 12px;line-height:1.5}
+#mfa-status{color:#325744}
+#mfa-error{color:#9f2f1f}
+.action-stack{display:grid;gap:12px}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:50px;width:100%;padding:0 16px;border-radius:14px;border:1px solid #216344;background:#216344;color:#fff;font:700 15px Arial,sans-serif;cursor:pointer;transition:transform .18s,box-shadow .18s,background .18s}
+.btn:hover{background:#1b5439;transform:translateY(-1px);box-shadow:0 12px 22px rgba(33,99,68,.18)}
+.btn:disabled{cursor:not-allowed;opacity:.65;transform:none;box-shadow:none}
+.btn-secondary{background:#fff;color:#1d392e;border-color:#b9c9bf}
+.btn-secondary:hover{background:#f6faf7}
+.btn-link{background:transparent;color:#216344;border-color:#dbe6df;box-shadow:none}
+.btn-link:hover{background:#f6faf7;box-shadow:none}
+.alternate-panel{margin-top:14px;padding-top:16px;border-top:1px solid #e4ece7}
+.alternate-copy{margin:0 0 14px;color:#66756c;line-height:1.5}
+.totp-form{display:grid;gap:10px;margin-top:14px}
+.totp-form label{font-weight:700;color:#325744}
+.totp-form input{min-height:48px;padding:0 14px;border:1px solid #b9c9bf;border-radius:12px;font:inherit;letter-spacing:.12em}
+.totp-form input:focus,.btn:focus-visible{outline:3px solid rgba(47,125,85,.18);outline-offset:2px}
+.support{margin-top:18px;font-size:13px;color:#607067;line-height:1.5}
+@media (max-width:640px){
+  body{padding:0}
+  .page{max-width:none}
+  .card{min-height:100vh;border-radius:0;border:0;box-shadow:none;padding:26px 20px 32px}
+}
+</style>
+<noscript>
+  <style>
+    #alternate-method-panel[hidden],#totp-form[hidden]{display:block!important}
+  </style>
+</noscript>
+</head>
+<body>
+  <main class="page">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">+</span>His.Hope</div>
+    <section class="card"
+      data-mfa-methods-endpoint="/api/v1/auth/mfa/methods"
+      data-preferred-method="{{preferredMethodAttr}}"
+      data-available-methods="{{methodsAttr}}">
+      <div class="eyebrow">Identity Service</div>
+      <h1>Verify your identity</h1>
+      <p class="intro">Use a trusted factor to finish this hospital sign-in without restarting the OIDC session.</p>
+      {{errorBlock}}
+      <p id="mfa-status" class="feedback" role="status" aria-live="polite"></p>
+      <p id="mfa-error" class="feedback" role="alert" aria-live="assertive" hidden></p>
+      <div id="primary-actions" class="action-stack">
+        {{topLevelMobileButton}}
+        <button id="passkey-mfa" class="btn" type="button" aria-describedby="mfa-status"{{passkeyButtonHidden}}>Continue with device passkey</button>
+        <button id="alternate-methods" class="btn btn-link" type="button" aria-controls="alternate-method-panel" aria-expanded="false"{{alternateToggleHidden}}>{{alternateToggleLabel}}</button>
+      </div>
+      <section id="alternate-method-panel" class="alternate-panel" hidden aria-label="Alternate verification methods">
+        <p class="alternate-copy">Choose another trusted method if the device passkey is unavailable right now.</p>
+        <div id="alternate-actions" class="action-stack">
+          {{alternateMobileButton}}
+        </div>
+        <form id="totp-form" class="totp-form" method="post" action="/Account/Mfa" hidden>
+          <label for="totp-code">Authenticator code</label>
+          <input id="totp-code" name="code" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6"{{totpDisabled}}>
+          <button type="submit" class="btn"{{totpDisabled}}>Verify with TOTP</button>
+        </form>
+      </section>
+      <p class="support">Verification methods stay bound to the pending browser session. The page never asks for your account email again.</p>
+    </section>
+  </main>
+  <script src="/api/v1/auth/identity-login.js" defer></script>
+</body>
+</html>
+""";
+
+    return template;
+}
+
+static string ResolveIdentityLoginScriptPath(IWebHostEnvironment environment)
+{
+    var candidates = new[]
+    {
+        string.IsNullOrWhiteSpace(environment.WebRootPath)
+            ? null
+            : Path.Combine(environment.WebRootPath, "js", "identity-login.js"),
+        Path.Combine(environment.ContentRootPath, "wwwroot", "js", "identity-login.js"),
+        Path.Combine(AppContext.BaseDirectory, "wwwroot", "js", "identity-login.js")
+    }
+    .Where(path => !string.IsNullOrWhiteSpace(path))
+    .Cast<string>()
+    .ToList();
+
+    foreach (var candidate in candidates)
+    {
+        if (File.Exists(candidate))
+            return candidate;
+    }
+
+    foreach (var root in EnumerateSearchRoots(environment.ContentRootPath)
+        .Concat(EnumerateSearchRoots(Directory.GetCurrentDirectory()))
+        .Distinct(StringComparer.OrdinalIgnoreCase))
+    {
+        var sourceCandidate = Path.Combine(root, "src", "Services", "IdentityService", "IdentityService.Api", "wwwroot", "js", "identity-login.js");
+        if (File.Exists(sourceCandidate))
+            return sourceCandidate;
+    }
+
+    return candidates[0];
+}
+
+static IEnumerable<string> EnumerateSearchRoots(string? startPath)
+{
+    if (string.IsNullOrWhiteSpace(startPath))
+        yield break;
+
+    for (var current = new DirectoryInfo(startPath); current is not null; current = current.Parent)
+    {
+        yield return current.FullName;
+    }
 }
 
 static string BuildPasskeyManagementPage(bool ldapAvailable, bool samlAvailable)
