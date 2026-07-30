@@ -6,6 +6,7 @@ namespace His.Hope.ClinicalService.Domain.Aggregates;
 
 public class Encounter : AggregateRoot<EncounterId>
 {
+    public string? FacilityId { get; private set; }
     public Guid PatientId { get; private set; }
     public Guid ProviderId { get; private set; }
     public Guid? AppointmentId { get; private set; }

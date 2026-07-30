@@ -12,6 +12,8 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
     {
         builder.ToTable("Invoices");
 
+        builder.Property(i => i.FacilityId).HasColumnName("FacilityId").HasMaxLength(100);
+
         builder.HasKey(i => i.Id);
 
         builder.Property(i => i.Id)
@@ -56,5 +58,6 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.HasIndex(i => i.PatientId);
         builder.HasIndex(i => i.Status);
         builder.HasIndex(i => i.InvoiceDate);
+        builder.HasIndex(i => i.FacilityId);
     }
 }

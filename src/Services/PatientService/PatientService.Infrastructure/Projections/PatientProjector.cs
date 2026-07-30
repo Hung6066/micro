@@ -36,6 +36,7 @@ public class PatientProjector :
         var projection = new PatientProjection
         {
             PatientId = @event.PatientId,
+            FacilityId = @event.FacilityId,
             FullName = @event.FullName,
             DateOfBirth = @event.DateOfBirth,
             Gender = @event.GenderCode,
@@ -76,6 +77,7 @@ public class PatientProjector :
             var projection = new PatientProjection
             {
                 PatientId = @event.PatientId,
+                FacilityId = @event.FacilityId,
                 FullName = @event.FullName,
                 DateOfBirth = default,
                 Gender = string.Empty,

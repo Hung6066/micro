@@ -8,6 +8,7 @@ namespace His.Hope.PatientService.Domain.Aggregates;
 
 public class Patient : AggregateRoot<PatientId>
 {
+    public string? FacilityId { get; private set; }
     public PersonName Name { get; private set; }
     public DateTime DateOfBirth { get; private set; }
     public Gender Gender { get; private set; }

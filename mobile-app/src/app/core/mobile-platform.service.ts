@@ -88,11 +88,7 @@ export class MobilePlatformService implements Partial<HisHopeNativePasskeyCapabi
 
   private parsePasskeyResponse(value: string | Record<string, unknown>): Readonly<Record<string, unknown>> {
     if (typeof value !== "string") return value;
-    const parsed = JSON.parse(value) as Record<string, unknown>;
-    const response = parsed["response"];
-    return response && typeof response === "object"
-      ? response as Readonly<Record<string, unknown>>
-      : parsed;
+    return JSON.parse(value) as Readonly<Record<string, unknown>>;
   }
 
   async appPolicy(): Promise<HisHopeAppPolicy> {

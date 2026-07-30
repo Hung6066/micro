@@ -12,6 +12,8 @@ public class LabOrderConfiguration : IEntityTypeConfiguration<LabOrder>
     {
         builder.ToTable("LabOrders");
 
+        builder.Property(o => o.FacilityId).HasColumnName("facilityid").HasMaxLength(100);
+
         builder.HasKey(o => o.Id);
 
         builder.Property(o => o.Id)
@@ -129,5 +131,6 @@ public class LabOrderConfiguration : IEntityTypeConfiguration<LabOrder>
         builder.HasIndex(o => o.ProviderId);
         builder.HasIndex(o => o.Status);
         builder.HasIndex(o => o.OrderDate);
+        builder.HasIndex(o => o.FacilityId);
     }
 }

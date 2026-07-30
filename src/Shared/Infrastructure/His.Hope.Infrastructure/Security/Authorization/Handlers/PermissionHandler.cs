@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using His.Hope.Infrastructure.Security.Authorization.Requirements;
@@ -60,28 +59,7 @@ public class PermissionHandler : AuthorizationHandler<PermissionRequirement>
             return Task.CompletedTask;
         }
 
-        // PRIORITY 2: Fallback to role-based permission mapping
-        var roleClaims = context.User.FindAll(ClaimTypes.Role)
-            .Select(c => c.Value)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        if (roleClaims.Count > 0)
-        {
-            var rolePermissions = RolePermissionMapping.GetPermissionsForRoles(roleClaims);
-            if (rolePermissions.Contains(requirement.PermissionCode))
-            {
-                _logger.LogDebug(
-                    "Permission granted via role fallback: role {Roles} has permission {Permission}",
-                    string.Join(", ", roleClaims),
-                    requirement.PermissionCode);
-                context.Succeed(requirement);
-                return Task.CompletedTask;
-            }
-        }
-
-        _logger.LogWarning(
-            "Permission denied: no matching claim or role mapping for {Permission}",
-            requirement.PermissionCode);
+        _logger.LogWarning("Permission denied: token has no matching permission claim for {Permission}", requirement.PermissionCode);
 
         return Task.CompletedTask;
     }

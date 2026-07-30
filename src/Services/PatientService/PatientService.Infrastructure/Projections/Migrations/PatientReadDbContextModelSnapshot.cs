@@ -42,6 +42,11 @@ namespace His.Hope.PatientService.Infrastructure.Projections.Migrations
                         .HasDefaultValue(0)
                         .HasColumnName("encounter_count");
 
+                    b.Property<string>("FacilityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("facility_id");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -69,6 +74,9 @@ namespace His.Hope.PatientService.Infrastructure.Projections.Migrations
 
                     b.HasKey("PatientId")
                         .HasName("pk_patient_read_models");
+
+                    b.HasIndex("FacilityId")
+                        .HasDatabaseName("ix_patient_read_models_facility_id");
 
                     b.HasIndex("FullName")
                         .HasDatabaseName("ix_patient_read_models_full_name");

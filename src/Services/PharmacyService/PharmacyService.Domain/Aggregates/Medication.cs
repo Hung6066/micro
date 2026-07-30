@@ -6,6 +6,7 @@ namespace His.Hope.PharmacyService.Domain.Aggregates;
 
 public class Medication : AggregateRoot<MedicationId>
 {
+    public string? FacilityId { get; private set; }
     public string Name { get; private set; }
     public string? GenericName { get; private set; }
     public string? BrandName { get; private set; }

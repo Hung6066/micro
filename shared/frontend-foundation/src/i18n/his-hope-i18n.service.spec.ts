@@ -6,11 +6,15 @@ describe("HisHopeI18nService", () => {
 
   beforeEach(() => {
     localStorage.removeItem("hh-locale");
+    document.documentElement.lang = "";
     TestBed.configureTestingModule({ providers: [HisHopeI18nService] });
     service = TestBed.inject(HisHopeI18nService);
   });
 
-  afterEach(() => localStorage.removeItem("hh-locale"));
+  afterEach(() => {
+    localStorage.removeItem("hh-locale");
+    document.documentElement.lang = "";
+  });
 
   it("defaults to vi-VN when nothing is stored and the document has no explicit locale", () => {
     expect(service.locale()).toBe("vi-VN");

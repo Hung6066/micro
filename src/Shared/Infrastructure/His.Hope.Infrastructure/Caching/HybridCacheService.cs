@@ -77,6 +77,7 @@ public class HybridCacheService : IHybridCacheService
     private readonly ICacheService _l2;
     private readonly ILogger<HybridCacheService> _logger;
     private readonly HybridCacheOptions _options;
+    private readonly AuthorizationCacheKeyPartitioner _keyPartitioner;
 
     // Per-key semaphores to ensure only one caller refreshes a given key.
     private static readonly ConcurrentDictionary<string, SemaphoreSlim> _refreshLocks = new(StringComparer.Ordinal);
@@ -90,16 +91,19 @@ public class HybridCacheService : IHybridCacheService
         IMemoryCacheService l1,
         ICacheService l2,
         ILogger<HybridCacheService> logger,
-        IOptions<HybridCacheOptions> options)
+        IOptions<HybridCacheOptions> options,
+        AuthorizationCacheKeyPartitioner keyPartitioner)
     {
         _l1 = l1;
         _l2 = l2;
         _logger = logger;
         _options = options.Value;
+        _keyPartitioner = keyPartitioner;
     }
 
     public async Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class
     {
+        key = _keyPartitioner.Partition(key);
         // Try L1 first
         var l1Result = await _l1.GetAsync<T>(key, ct);
         if (l1Result is not null)
@@ -126,6 +130,7 @@ public class HybridCacheService : IHybridCacheService
         TimeSpan? softTtl = null, TimeSpan? hardTtl = null,
         CancellationToken ct = default) where T : class
     {
+        key = _keyPartitioner.Partition(key);
         var soft = softTtl ?? _options.DefaultSoftTtl;
         var hard = hardTtl ?? _options.DefaultHardTtl;
 
@@ -159,6 +164,7 @@ public class HybridCacheService : IHybridCacheService
         TimeSpan? softTtl = null, TimeSpan? hardTtl = null,
         CancellationToken ct = default) where T : class
     {
+        key = _keyPartitioner.Partition(key);
         var soft = softTtl ?? _options.DefaultSoftTtl;
         var hard = hardTtl ?? _options.DefaultHardTtl;
 
@@ -179,6 +185,7 @@ public class HybridCacheService : IHybridCacheService
 
     public async Task RemoveAsync(string key, CancellationToken ct = default)
     {
+        key = _keyPartitioner.Partition(key);
         await Task.WhenAll(
             _l1.RemoveAsync(key, ct),
             _l2.RemoveAsync(key, ct),

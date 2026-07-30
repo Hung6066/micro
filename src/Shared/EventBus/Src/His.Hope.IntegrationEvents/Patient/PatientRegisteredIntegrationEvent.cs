@@ -9,6 +9,7 @@ public class PatientRegisteredIntegrationEvent : IntegrationEvent
     public string Phone { get; }
     public string GenderCode { get; }
     public DateTime DateOfBirth { get; }
+    public string? FacilityId { get; }
 
     public PatientRegisteredIntegrationEvent(
         Guid patientId, string fullName, string phone,
@@ -19,5 +20,13 @@ public class PatientRegisteredIntegrationEvent : IntegrationEvent
         Phone = phone;
         GenderCode = genderCode;
         DateOfBirth = dateOfBirth;
+    }
+
+    public PatientRegisteredIntegrationEvent(
+        Guid patientId, string fullName, string phone,
+        string genderCode, DateTime dateOfBirth, string? facilityId)
+        : this(patientId, fullName, phone, genderCode, dateOfBirth)
+    {
+        FacilityId = facilityId;
     }
 }

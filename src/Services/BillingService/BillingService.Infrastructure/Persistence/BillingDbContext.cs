@@ -1,32 +1,42 @@
 using System.Reflection;
+using His.Hope.Authorization;
 using His.Hope.BillingService.Domain.Aggregates;
 using His.Hope.BillingService.Domain.ValueObjects;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.SharedKernel.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 
 namespace His.Hope.BillingService.Infrastructure.Persistence;
 
 public class BillingDbContext : DbContext, IUnitOfWork
 {
     private readonly IMediator? _mediator;
+    private readonly FacilityAccessScope _facilityScope;
+    private readonly IHttpContextAccessor? _httpContextAccessor;
 
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public BillingDbContext(
         DbContextOptions<BillingDbContext> options,
-        IMediator? mediator = null)
+        IMediator? mediator = null,
+        IHttpContextAccessor? httpContextAccessor = null)
         : base(options)
     {
         _mediator = mediator;
+        _httpContextAccessor = httpContextAccessor;
+        _facilityScope = FacilityScopeEfExtensions.Resolve(httpContextAccessor);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("billing");
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+        modelBuilder.Entity<Invoice>().HasQueryFilter(invoice =>
+            !_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
+            _facilityScope.FacilityIds.Contains(invoice.FacilityId!));
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.ToTable("OutboxMessages");
@@ -51,6 +61,7 @@ public class BillingDbContext : DbContext, IUnitOfWork
     public override async Task<int> SaveChangesAsync(
         CancellationToken cancellationToken = default)
     {
+        FacilityScopeEfExtensions.StampAddedFacilities(this, _facilityScope, _httpContextAccessor);
         var domainEvents = ChangeTracker.Entries<AggregateRoot<InvoiceId>>()
             .Select(e => e.Entity.DomainEvents)
             .SelectMany(e => e)
@@ -73,5 +84,11 @@ public class BillingDbContext : DbContext, IUnitOfWork
         }
 
         return result;
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        FacilityScopeEfExtensions.StampAddedFacilities(this, _facilityScope, _httpContextAccessor);
+        return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 }

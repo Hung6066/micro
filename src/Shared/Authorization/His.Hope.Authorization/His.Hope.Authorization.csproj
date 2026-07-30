@@ -12,6 +12,7 @@
     <IsPackable>true</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.10" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../../SharedKernel/Src/His.Hope.SharedKernel/His.Hope.SharedKernel.csproj" />
     <None Include="README.md" Pack="true" PackagePath="\" />

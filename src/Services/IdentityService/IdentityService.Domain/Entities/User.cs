@@ -17,15 +17,7 @@ public class User : IdentityUser<Guid>
     public string? Specialty { get; set; }
     public string PreferredLanguage { get; set; } = "vi-VN";
 
-    /// <summary>
-    /// Tenant/facility identifier for multi-facility access control.
-    /// Users belong to a primary facility; cross-facility access requires explicit role grant.
-    /// Maps to facility_id claim in JWT tokens.
-    /// NOTE: Requires EF Core migration to add facility_id column to asp_net_users.
-    /// </summary>
-    // TODO: Remove [NotMapped] after running migration to add facility_id column
-    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
-    public string? FacilityId { get; set; }
+    public ICollection<UserFacility> FacilityMemberships { get; set; } = new List<UserFacility>();
 
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

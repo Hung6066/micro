@@ -9,6 +9,10 @@ This is the integration contract for His.Hope clients. The discovery document
 and deployed server configuration are authoritative at runtime; examples below
 use local development values only.
 
+For the final passkey-first adaptive MFA contract, replay handling, deployment
+checklist, and honest verification gates, see
+[`docs/security/adaptive-passkey-first-mfa.md`](../security/adaptive-passkey-first-mfa.md).
+
 ## 1. Security boundaries
 
 ```text

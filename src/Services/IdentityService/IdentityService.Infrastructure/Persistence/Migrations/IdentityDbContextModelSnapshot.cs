@@ -1322,6 +1322,45 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.ToTable("asp_net_users", (string)null);
                 });
 
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.UserFacility", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("FacilityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("facility_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_primary");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.HasKey("UserId", "FacilityId")
+                        .HasName("pk_user_facilities");
+
+                    b.HasIndex("FacilityId", "IsActive")
+                        .HasDatabaseName("ix_user_facilities_facility_id_is_active");
+
+                    b.HasIndex("UserId", "IsPrimary")
+                        .HasDatabaseName("ix_user_facilities_user_id_is_primary");
+
+                    b.ToTable("user_facilities", (string)null);
+                });
+
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.UserMfa", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -1761,6 +1800,18 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.UserFacility", b =>
+                {
+                    b.HasOne("His.Hope.IdentityService.Domain.Entities.User", "User")
+                        .WithMany("FacilityMemberships")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_user_facilities_users_user_id");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.UserMfa", b =>
                 {
                     b.HasOne("His.Hope.IdentityService.Domain.Entities.User", "User")
@@ -1870,6 +1921,11 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.Role", b =>
                 {
                     b.Navigation("RolePermissions");
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.User", b =>
+                {
+                    b.Navigation("FacilityMemberships");
                 });
 
             modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreApplication", b =>

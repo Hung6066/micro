@@ -17,7 +17,14 @@ import androidx.credentials.GetCredentialRequest;
 import androidx.credentials.GetCredentialResponse;
 import androidx.credentials.GetPublicKeyCredentialOption;
 import androidx.credentials.exceptions.CreateCredentialException;
+import androidx.credentials.exceptions.CreateCredentialCancellationException;
+import androidx.credentials.exceptions.CreateCredentialProviderConfigurationException;
+import androidx.credentials.exceptions.CreateCredentialUnsupportedException;
 import androidx.credentials.exceptions.GetCredentialException;
+import androidx.credentials.exceptions.GetCredentialCancellationException;
+import androidx.credentials.exceptions.GetCredentialProviderConfigurationException;
+import androidx.credentials.exceptions.GetCredentialUnsupportedException;
+import androidx.credentials.exceptions.NoCredentialException;
 import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -117,7 +124,7 @@ public final class HisHopeSecurityPlugin extends Plugin {
 
     @PluginMethod
     public void isPasskeySupported(PluginCall call) {
-        boolean supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M;
+        boolean supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P;
         call.resolve(new JSObject().put("supported", supported));
     }
 
@@ -130,16 +137,24 @@ public final class HisHopeSecurityPlugin extends Plugin {
         manager.createCredentialAsync(getActivity(), request, new CancellationSignal(), credentialExecutor,
                 new androidx.credentials.CredentialManagerCallback<CreateCredentialResponse, CreateCredentialException>() {
                     @Override public void onResult(CreateCredentialResponse result) {
-                        if (!(result instanceof CreatePublicKeyCredentialResponse response)) { call.reject("Credential Manager returned an unsupported credential"); return; }
+                        if (!(result instanceof CreatePublicKeyCredentialResponse response)) { rejectUnsupported(call, "Credential Manager returned an unsupported credential"); return; }
                         call.resolve(new JSObject().put("responseJson", response.getRegistrationResponseJson()));
                     }
                     @Override public void onError(CreateCredentialException error) {
                         String detail = error.getMessage();
-                        if (detail != null && detail.toLowerCase(java.util.Locale.ROOT).contains("cannot be validated")) {
-                            call.reject("Passkey registration failed: Android cannot validate the RP domain. Configure Digital Asset Links for the passkey domain.", detail);
+                        if (error instanceof CreateCredentialCancellationException) {
+                            call.reject("Passkey registration was cancelled", "native_cancelled");
                             return;
                         }
-                        call.reject("Passkey registration failed", detail);
+                        if (error instanceof CreateCredentialUnsupportedException || error instanceof CreateCredentialProviderConfigurationException) {
+                            rejectUnsupported(call, "Passkey registration is not supported by this Android credential provider");
+                            return;
+                        }
+                        if (detail != null && detail.toLowerCase(java.util.Locale.ROOT).contains("cannot be validated")) {
+                            call.reject("Passkey registration failed: Android cannot validate the RP domain. Configure Digital Asset Links for the passkey domain.", "native_rejected");
+                            return;
+                        }
+                        call.reject("Passkey registration failed", "native_rejected");
                     }
                 });
     }
@@ -154,11 +169,25 @@ public final class HisHopeSecurityPlugin extends Plugin {
         manager.getCredentialAsync(getActivity(), request, new CancellationSignal(), credentialExecutor,
                 new androidx.credentials.CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
                     @Override public void onResult(GetCredentialResponse result) {
-                        if (!(result.getCredential() instanceof androidx.credentials.PublicKeyCredential credential)) { call.reject("Credential Manager returned an unsupported credential"); return; }
+                        if (!(result.getCredential() instanceof androidx.credentials.PublicKeyCredential credential)) { rejectUnsupported(call, "Credential Manager returned an unsupported credential"); return; }
                         call.resolve(new JSObject().put("responseJson", credential.getAuthenticationResponseJson()));
                     }
-                    @Override public void onError(GetCredentialException error) { call.reject("Passkey authentication failed", error.getMessage()); }
+                    @Override public void onError(GetCredentialException error) {
+                        if (error instanceof GetCredentialCancellationException) {
+                            call.reject("Passkey authentication was cancelled", "native_cancelled");
+                            return;
+                        }
+                        if (error instanceof GetCredentialUnsupportedException || error instanceof GetCredentialProviderConfigurationException || error instanceof NoCredentialException) {
+                            rejectUnsupported(call, "Native passkey authentication is not available on this Android device");
+                            return;
+                        }
+                        call.reject("Passkey authentication failed", "native_rejected");
+                    }
                 });
+    }
+
+    private void rejectUnsupported(PluginCall call, String message) {
+        call.reject(message, "native_unsupported");
     }
 
     @PluginMethod

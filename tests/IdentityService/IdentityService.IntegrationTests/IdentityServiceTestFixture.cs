@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Threading.Channels;
 using His.Hope.IdentityService.Api.Composition;
 using His.Hope.IdentityService.Domain.Entities;
@@ -29,6 +30,7 @@ public class IdentityServiceTestFixture : IAsyncLifetime
     private WebApplication? _app;
 
     public HttpClient AnonymousClient { get; private set; } = null!;
+    public IServiceProvider Services => _app!.Services;
     public string PostgresConnectionString => _postgres?.GetConnectionString() ?? "";
 
     public async Task InitializeAsync()
@@ -50,6 +52,8 @@ public class IdentityServiceTestFixture : IAsyncLifetime
 
         var pgConnStr = _postgres.GetConnectionString();
         var redisConnStr = _redis.GetConnectionString();
+        using var signingRsa = RSA.Create(2048);
+        using var encryptionRsa = RSA.Create(2048);
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -72,6 +76,8 @@ public class IdentityServiceTestFixture : IAsyncLifetime
             ["Jwt:Issuer"] = "http://localhost:5001",
             ["Jwt:Audience"] = "His.Hope",
             ["Jwt:Key"] = "integration-test-signing-key-32-bytes-long!",
+            ["Jwt:RsaPrivateKey"] = signingRsa.ExportRSAPrivateKeyPem(),
+            ["Jwt:RsaEncryptionPrivateKey"] = encryptionRsa.ExportRSAPrivateKeyPem(),
             ["RateLimiting:AuthPermitLimit"] = "120",
             ["RateLimiting:MaxRequestsPerIp"] = "1000",
             ["Vault:EnableTransit"] = "false",
@@ -238,6 +244,17 @@ public class SessionClient : IDisposable
                 }
             }
         }
+    }
+
+    public void SetCookieValue(string name, string value)
+    {
+        _cookies.RemoveAll(c => c.Name == name);
+        _cookies.Add(new Cookie(name, value, "/"));
+    }
+
+    public void RemoveCookie(string name)
+    {
+        _cookies.RemoveAll(c => c.Name == name);
     }
 
     public void Dispose() => _client.Dispose();

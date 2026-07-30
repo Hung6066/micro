@@ -10,10 +10,14 @@ public static class BulkImportEndpoints
 {
     public static RouteGroupBuilder MapBulkImportEndpoints(this RouteGroupBuilder group)
     {
-        group.MapPost("/users/bulk", BulkImportUsers);
-        group.MapPost("/users/bulk/csv", BulkImportCsv);
-        group.MapPost("/users/bulk/file", BulkImportFile);
-        group.MapPost("/users/bulk/preview", PreviewImport);
+        group.MapPost("/users/bulk", BulkImportUsers)
+            .RequireAuthorization("Permission:admin.users.write");
+        group.MapPost("/users/bulk/csv", BulkImportCsv)
+            .RequireAuthorization("Permission:admin.users.write");
+        group.MapPost("/users/bulk/file", BulkImportFile)
+            .RequireAuthorization("Permission:admin.users.write");
+        group.MapPost("/users/bulk/preview", PreviewImport)
+            .RequireAuthorization("Permission:admin.users.read");
         return group;
     }
 

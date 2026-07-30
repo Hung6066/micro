@@ -1,4 +1,5 @@
 using System.Reflection;
+using His.Hope.Authorization;
 using His.Hope.ClinicalService.Domain.Aggregates;
 using His.Hope.ClinicalService.Domain.Entities;
 using His.Hope.ClinicalService.Domain.ValueObjects;
@@ -6,12 +7,15 @@ using His.Hope.Infrastructure.Outbox;
 using His.Hope.SharedKernel.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 
 namespace His.Hope.ClinicalService.Infrastructure.Persistence;
 
 public class ClinicalDbContext : DbContext, IUnitOfWork
 {
     private readonly IMediator? _mediator;
+    private readonly FacilityAccessScope _facilityScope;
+    private readonly IHttpContextAccessor? _httpContextAccessor;
 
     public DbSet<Encounter> Encounters => Set<Encounter>();
     public DbSet<ClinicalNote> ClinicalNotes => Set<ClinicalNote>();
@@ -19,15 +23,21 @@ public class ClinicalDbContext : DbContext, IUnitOfWork
 
     public ClinicalDbContext(
         DbContextOptions<ClinicalDbContext> options,
-        IMediator? mediator = null)
+        IMediator? mediator = null,
+        IHttpContextAccessor? httpContextAccessor = null)
         : base(options)
     {
         _mediator = mediator;
+        _httpContextAccessor = httpContextAccessor;
+        _facilityScope = FacilityScopeEfExtensions.Resolve(httpContextAccessor);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+        modelBuilder.Entity<Encounter>().HasQueryFilter(encounter =>
+            !_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
+            _facilityScope.FacilityIds.Contains(encounter.FacilityId!));
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.ToTable("outbox_messages");
@@ -52,6 +62,7 @@ public class ClinicalDbContext : DbContext, IUnitOfWork
     public override async Task<int> SaveChangesAsync(
         CancellationToken cancellationToken = default)
     {
+        FacilityScopeEfExtensions.StampAddedFacilities(this, _facilityScope, _httpContextAccessor);
         var domainEvents = ChangeTracker.Entries<AggregateRoot<EncounterId>>()
             .Select(e => e.Entity.DomainEvents)
             .SelectMany(e => e)
@@ -77,5 +88,11 @@ public class ClinicalDbContext : DbContext, IUnitOfWork
         }
 
         return result;
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        FacilityScopeEfExtensions.StampAddedFacilities(this, _facilityScope, _httpContextAccessor);
+        return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 }

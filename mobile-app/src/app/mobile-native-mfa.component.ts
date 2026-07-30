@@ -1,8 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { firstValueFrom } from 'rxjs';
 import { HisHopeStateComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
-import { MobileAdminApiService } from './core/admin-api.service';
 import { NativeCapabilityService } from './core/native-capability.service';
 
 @Component({
@@ -11,8 +9,14 @@ import { NativeCapabilityService } from './core/native-capability.service';
   template: `
     @if (status() === 'loading') {
       <hh-state kind="loading" [message]="'mobile.approveSignIn' | hhTranslate" />
-    } @else if (status() === 'success') {
+    } @else if (status() === 'approved') {
       <hh-state kind="empty" [message]="'mobile.signInApproved' | hhTranslate" />
+    } @else if (status() === 'rejected') {
+      <hh-state kind="error" [message]="'mobile.nativeApprovalRejected' | hhTranslate" />
+    } @else if (status() === 'expired') {
+      <hh-state kind="error" [message]="'mobile.nativeApprovalExpired' | hhTranslate" />
+    } @else if (status() === 'retry') {
+      <hh-state kind="error" [message]="'mobile.nativeApprovalRetry' | hhTranslate" />
     } @else {
       <hh-state kind="error" [message]="'mobile.nativeApprovalFailed' | hhTranslate" />
     }
@@ -20,23 +24,33 @@ import { NativeCapabilityService } from './core/native-capability.service';
 })
 export class MobileNativeMfaComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
-  private readonly api = inject(MobileAdminApiService);
   private readonly native = inject(NativeCapabilityService);
-  readonly status = signal<'loading' | 'success' | 'error'>('loading');
+  readonly status = signal<'loading' | 'approved' | 'rejected' | 'expired' | 'retry' | 'error'>('loading');
 
   async ngOnInit(): Promise<void> {
     const ticket = this.route.snapshot.queryParamMap.get('ticket');
-    if (!ticket || !await this.native.nativePasskeySupported()) {
-      this.status.set('error');
+    if (!ticket) {
+      this.status.set('retry');
       return;
     }
 
     try {
-      const challenge = await firstValueFrom(this.api.nativeMfaOptions(ticket));
-      const assertion = await this.native.authenticateNativePasskey(challenge.options);
-      const result = await firstValueFrom(this.api.completeNativeMfa(ticket, assertion));
-      if (!result.approved) throw new Error('Native MFA was not approved.');
-      this.status.set('success');
+      const result = await this.native.approveMfa({ ticket });
+      switch (result.status) {
+        case 'approved':
+          this.status.set('approved');
+          break;
+        case 'rejected':
+          this.status.set('rejected');
+          break;
+        case 'expired':
+          this.status.set('expired');
+          break;
+        case 'cancelled':
+        case 'unsupported':
+          this.status.set('retry');
+          break;
+      }
     } catch {
       this.status.set('error');
     }

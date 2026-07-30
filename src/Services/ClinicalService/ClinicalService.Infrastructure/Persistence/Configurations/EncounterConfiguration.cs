@@ -11,6 +11,8 @@ public class EncounterConfiguration : IEntityTypeConfiguration<Encounter>
     {
         builder.ToTable("encounters");
 
+        builder.Property(e => e.FacilityId).HasColumnName("facility_id").HasMaxLength(100);
+
         builder.HasKey(e => e.Id);
 
         builder.Property(e => e.Id)
@@ -94,5 +96,6 @@ public class EncounterConfiguration : IEntityTypeConfiguration<Encounter>
         builder.HasIndex(e => e.ProviderId).HasDatabaseName("ix_encounters_providerid");
         builder.HasIndex(e => e.Status).HasDatabaseName("ix_encounters_status");
         builder.HasIndex(e => e.EncounterDate).HasDatabaseName("ix_encounters_encounterdate");
+        builder.HasIndex(e => e.FacilityId).HasDatabaseName("ix_encounters_facility_id");
     }
 }

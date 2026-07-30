@@ -1,16 +1,20 @@
 using System.Reflection;
+using His.Hope.Authorization;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.PharmacyService.Domain.Aggregates;
 using His.Hope.PharmacyService.Domain.ValueObjects;
 using His.Hope.SharedKernel.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 
 namespace His.Hope.PharmacyService.Infrastructure.Persistence;
 
 public class PharmacyDbContext : DbContext, IUnitOfWork
 {
     private readonly IMediator? _mediator;
+    private readonly FacilityAccessScope _facilityScope;
+    private readonly IHttpContextAccessor? _httpContextAccessor;
 
     public DbSet<Medication> Medications => Set<Medication>();
     public DbSet<Prescription> Prescriptions => Set<Prescription>();
@@ -18,15 +22,24 @@ public class PharmacyDbContext : DbContext, IUnitOfWork
 
     public PharmacyDbContext(
         DbContextOptions<PharmacyDbContext> options,
-        IMediator? mediator = null)
+        IMediator? mediator = null,
+        IHttpContextAccessor? httpContextAccessor = null)
         : base(options)
     {
         _mediator = mediator;
+        _httpContextAccessor = httpContextAccessor;
+        _facilityScope = FacilityScopeEfExtensions.Resolve(httpContextAccessor);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+        modelBuilder.Entity<Medication>().HasQueryFilter(medication =>
+            !_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
+            _facilityScope.FacilityIds.Contains(medication.FacilityId!));
+        modelBuilder.Entity<Prescription>().HasQueryFilter(prescription =>
+            !_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
+            _facilityScope.FacilityIds.Contains(prescription.FacilityId!));
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.ToTable("OutboxMessages");
@@ -51,6 +64,7 @@ public class PharmacyDbContext : DbContext, IUnitOfWork
     public override async Task<int> SaveChangesAsync(
         CancellationToken cancellationToken = default)
     {
+        FacilityScopeEfExtensions.StampAddedFacilities(this, _facilityScope, _httpContextAccessor);
         var domainEvents = ChangeTracker.Entries<AggregateRoot<MedicationId>>()
             .Select(e => e.Entity.DomainEvents)
             .SelectMany(e => e)
@@ -78,5 +92,11 @@ public class PharmacyDbContext : DbContext, IUnitOfWork
         }
 
         return result;
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        FacilityScopeEfExtensions.StampAddedFacilities(this, _facilityScope, _httpContextAccessor);
+        return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 }

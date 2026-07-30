@@ -5,6 +5,7 @@ namespace His.Hope.AppointmentService.Domain.Aggregates;
 
 public class Appointment : AggregateRoot<AppointmentId>
 {
+    public string? FacilityId { get; private set; }
     public Guid PatientId { get; private set; }
     public Guid ProviderId { get; private set; }
     public DateTime ScheduledDate { get; private set; }

@@ -15,6 +15,7 @@
     <ProjectReference Include="..\PatientService.Domain\PatientService.Domain.csproj" />
     <ProjectReference Include="..\PatientService.Application\PatientService.Application.csproj" />
     <ProjectReference Include="..\..\..\Shared\SharedKernel\Src\His.Hope.SharedKernel\His.Hope.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Authorization\His.Hope.Authorization\His.Hope.Authorization.csproj" />
     <ProjectReference Include="..\..\..\Shared\Infrastructure\His.Hope.Infrastructure\His.Hope.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\Shared\Persistence\His.Hope.Persistence\His.Hope.Persistence.csproj" />
     <ProjectReference Include="..\..\..\Shared\EventBus\Src\His.Hope.IntegrationEvents\His.Hope.IntegrationEvents.csproj" />

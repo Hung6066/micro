@@ -47,4 +47,22 @@ describe("HisHopePermissionService", () => {
     expect(service.has("patients.read")).toBeFalse();
     expect(service.hasSnapshot()).toBeFalse();
   });
+
+  it("fails closed when the authorization snapshot is expired", () => {
+    service.setSnapshot({
+      permissions: ["patients.read"],
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+    });
+    expect(service.hasSnapshot()).toBeFalse();
+    expect(service.has("patients.read")).toBeFalse();
+  });
+
+  it("normalizes facility membership metadata with the snapshot", () => {
+    service.setSnapshot({
+      permissions: ["patients.read"],
+      facilityIds: [" facility-a ", "facility-a", "facility-b"],
+    });
+    expect(service.snapshot()?.facilityIds).toEqual(["facility-a", "facility-b"]);
+    expect(service.has("patients.read")).toBeTrue();
+  });
 });

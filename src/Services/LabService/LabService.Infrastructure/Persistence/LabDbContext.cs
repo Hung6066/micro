@@ -1,16 +1,20 @@
 using System.Reflection;
+using His.Hope.Authorization;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.LabService.Domain.Aggregates;
 using His.Hope.LabService.Domain.Entities;
 using His.Hope.SharedKernel.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 
 namespace His.Hope.LabService.Infrastructure.Persistence;
 
 public class LabDbContext : DbContext, IUnitOfWork
 {
     private readonly IMediator? _mediator;
+    private readonly FacilityAccessScope _facilityScope;
+    private readonly IHttpContextAccessor? _httpContextAccessor;
 
     public DbSet<LabOrder> LabOrders => Set<LabOrder>();
     public DbSet<CriticalAlertRule> CriticalAlertRules => Set<CriticalAlertRule>();
@@ -20,15 +24,21 @@ public class LabDbContext : DbContext, IUnitOfWork
 
     public LabDbContext(
         DbContextOptions<LabDbContext> options,
-        IMediator? mediator = null)
+        IMediator? mediator = null,
+        IHttpContextAccessor? httpContextAccessor = null)
         : base(options)
     {
         _mediator = mediator;
+        _httpContextAccessor = httpContextAccessor;
+        _facilityScope = FacilityScopeEfExtensions.Resolve(httpContextAccessor);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+        modelBuilder.Entity<LabOrder>().HasQueryFilter(order =>
+            !_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
+            _facilityScope.FacilityIds.Contains(order.FacilityId!));
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.ToTable("OutboxMessages");
@@ -53,6 +63,7 @@ public class LabDbContext : DbContext, IUnitOfWork
     public override async Task<int> SaveChangesAsync(
         CancellationToken cancellationToken = default)
     {
+        FacilityScopeEfExtensions.StampAddedFacilities(this, _facilityScope, _httpContextAccessor);
         var domainEvents = ChangeTracker.Entries<AggregateRoot<LabOrderId>>()
             .Select(e => e.Entity.DomainEvents)
             .SelectMany(e => e)
@@ -67,5 +78,11 @@ public class LabDbContext : DbContext, IUnitOfWork
         }
 
         return result;
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        FacilityScopeEfExtensions.StampAddedFacilities(this, _facilityScope, _httpContextAccessor);
+        return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 }

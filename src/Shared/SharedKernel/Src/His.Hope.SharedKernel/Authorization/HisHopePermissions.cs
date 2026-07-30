@@ -10,6 +10,11 @@ namespace His.Hope.SharedKernel.Authorization;
 /// </summary>
 public static class HisHopePermissions
 {
+    public static class Facilities
+    {
+        public const string Cross = "facility.cross";
+    }
+
     // ──────────────────────────────────────────────
     // Patients Module
     // ──────────────────────────────────────────────
@@ -127,6 +132,7 @@ public static class HisHopePermissions
     /// </summary>
     public static readonly FrozenSet<string> All = new[]
     {
+        Facilities.Cross,
         // Patients
         Patients.View, Patients.Create, Patients.Update, Patients.Delete,
         Patients.Export, Patients.Manage,
@@ -167,6 +173,7 @@ public static class HisHopePermissions
     /// </summary>
     public static readonly FrozenSet<PermissionDescriptor> AllDescriptors = new PermissionDescriptor[]
     {
+        new(Facilities.Cross, "Truy cập liên cơ sở", "Phạm vi dữ liệu", "Cho phép truy cập dữ liệu của nhiều cơ sở y tế"),
         // Patients
         new(Patients.View, "Xem bệnh nhân", "Bệnh nhân", "Xem thông tin bệnh nhân"),
         new(Patients.Create, "Thêm bệnh nhân", "Bệnh nhân", "Tạo hồ sơ bệnh nhân mới"),

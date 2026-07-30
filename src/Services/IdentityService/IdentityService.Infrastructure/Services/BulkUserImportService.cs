@@ -1,6 +1,8 @@
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Domain.Entities;
+using His.Hope.IdentityService.Application.Interfaces;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace His.Hope.IdentityService.Infrastructure.Services;
@@ -10,15 +12,18 @@ public class BulkUserImportService
     private readonly UserManager<User> _userManager;
     private readonly RoleManager<Role> _roleManager;
     private readonly ILogger<BulkUserImportService> _logger;
+    private readonly IApplicationDbContext _context;
 
     public BulkUserImportService(
         UserManager<User> userManager,
         RoleManager<Role> roleManager,
-        ILogger<BulkUserImportService> logger)
+        ILogger<BulkUserImportService> logger,
+        IApplicationDbContext context)
     {
         _userManager = userManager;
         _roleManager = roleManager;
         _logger = logger;
+        _context = context;
     }
 
     public async Task<BulkImportResult> ImportAsync(BulkImportRequest request, CancellationToken ct = default)
@@ -49,6 +54,7 @@ public class BulkUserImportService
                     existing.LicenseNumber = record.LicenseNumber;
                     existing.Specialty = record.Specialty;
                     await _userManager.UpdateAsync(existing);
+                    await UpsertFacilityAsync(existing, record.FacilityId, ct);
                     succeeded++;
                     continue;
                 }
@@ -82,6 +88,8 @@ public class BulkUserImportService
                         await _userManager.AddToRoleAsync(user, record.Role);
                 }
 
+                await UpsertFacilityAsync(user, record.FacilityId, ct);
+
                 succeeded++;
             }
             catch (Exception ex)
@@ -98,5 +106,39 @@ public class BulkUserImportService
             result.Succeeded, result.Skipped, result.Failed, result.TotalSubmitted);
 
         return result;
+    }
+
+    private async Task UpsertFacilityAsync(User user, string? facilityId, CancellationToken ct)
+    {
+        var normalized = facilityId?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+            return;
+
+        var memberships = await _context.UserFacilities
+            .Where(membership => membership.UserId == user.Id && membership.IsActive)
+            .ToListAsync(ct);
+        foreach (var membership in memberships)
+            membership.IsPrimary = false;
+
+        var current = memberships.FirstOrDefault(membership =>
+            string.Equals(membership.FacilityId, normalized, StringComparison.OrdinalIgnoreCase));
+        if (current is null)
+        {
+            _context.UserFacilities.Add(new UserFacility
+            {
+                UserId = user.Id,
+                FacilityId = normalized,
+                IsPrimary = true,
+                IsActive = true
+            });
+        }
+        else
+        {
+            current.IsPrimary = true;
+            current.IsActive = true;
+            current.RevokedAt = null;
+        }
+
+        await _context.SaveChangesAsync(ct);
     }
 }

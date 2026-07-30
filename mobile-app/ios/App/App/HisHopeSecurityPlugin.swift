@@ -95,8 +95,16 @@ public class HisHopeSecurityPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    @available(iOS 16.0, *)
     @objc func createPasskey(_ call: CAPPluginCall) {
+        if #available(iOS 16.0, *) {
+            createPasskeyAvailable(call)
+        } else {
+            call.reject("Native passkeys require iOS 16 or later", "native_unsupported")
+        }
+    }
+
+    @available(iOS 16.0, *)
+    private func createPasskeyAvailable(_ call: CAPPluginCall) {
         guard let raw = call.getString("requestJson"), let data = raw.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let challenge = base64UrlData(json["challenge"] as? String),
@@ -114,8 +122,16 @@ public class HisHopeSecurityPlugin: CAPPlugin, CAPBridgedPlugin {
         controller.performRequests()
     }
 
-    @available(iOS 16.0, *)
     @objc func authenticatePasskey(_ call: CAPPluginCall) {
+        if #available(iOS 16.0, *) {
+            authenticatePasskeyAvailable(call)
+        } else {
+            call.reject("Native passkeys require iOS 16 or later", "native_unsupported")
+        }
+    }
+
+    @available(iOS 16.0, *)
+    private func authenticatePasskeyAvailable(_ call: CAPPluginCall) {
         guard let raw = call.getString("requestJson"), let data = raw.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let challenge = base64UrlData(json["challenge"] as? String),
@@ -268,7 +284,7 @@ public class HisHopeSecurityPlugin: CAPPlugin, CAPBridgedPlugin {
                     "userHandle": assertion.userID.map(base64Url)
                 ]
             ]])
-        } else { call.reject("Unsupported passkey credential") }
+        } else { call.reject("Unsupported passkey credential", "native_unsupported") }
     }
 }
 
@@ -281,7 +297,11 @@ extension HisHopeSecurityPlugin: ASAuthorizationControllerDelegate, ASAuthorizat
     public func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
         let call = passkeyCall
         passkeyCall = nil
-        call?.reject("Passkey operation failed", error.localizedDescription)
+        if let authError = error as? ASAuthorizationError, authError.code == .canceled {
+            call?.reject("Passkey operation was cancelled", "native_cancelled")
+            return
+        }
+        call?.reject("Passkey operation failed", "native_rejected")
     }
 
     public func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {

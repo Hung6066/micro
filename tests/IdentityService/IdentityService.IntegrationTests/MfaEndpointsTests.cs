@@ -1,5 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using His.Hope.IdentityService.Domain.Entities;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
 using Xunit;
 
@@ -23,11 +26,59 @@ public class MfaEndpointsTests
     }
 
     [Fact]
-    public async Task Verify_WithoutAuth_Returns401()
+    public async Task Verify_WithoutAuthAndNoPendingContext_Returns401()
     {
         var response = await _fixture.AnonymousClient.PostAsJsonAsync("/api/v1/auth/mfa/verify",
             new { code = "123456" });
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Verify_WithInvalidPendingOidcCookieDoesNotFallBackToLegacyTokenIssuance()
+    {
+        await using var scope = _fixture.Services.CreateAsyncScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            UserName = $"mfa-invalid-pending-{Guid.NewGuid():N}",
+            Email = $"mfa-invalid-pending-{Guid.NewGuid():N}@example.com",
+            FirstName = "Invalid",
+            LastName = "Pending",
+            IsActive = true,
+            EmailConfirmed = true,
+            CreatedAt = DateTime.UtcNow
+        };
+        var create = await userManager.CreateAsync(user, "Test@123456");
+        Assert.True(create.Succeeded, string.Join(", ", create.Errors.Select(error => error.Description)));
+
+        var session = _fixture.CreateSessionClient();
+        var loginResponse = await session.InnerClient.PostAsync(
+            "/Account/Login",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["email"] = user.Email!,
+                ["password"] = "Test@123456",
+                ["returnUrl"] = "/"
+            }));
+        session.ApplySetCookieHeaders(loginResponse);
+        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
+        session.SetCookieValue("hishop_oidc_mfa", "invalid-pending-state");
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/mfa/verify")
+        {
+            Content = JsonContent.Create(new { code = "123456" })
+        };
+        request.Headers.TryAddWithoutValidation(
+            "Cookie",
+            $".AspNetCore.Identity.Application={session.GetCookieValue(".AspNetCore.Identity.Application")}; hishop_oidc_mfa=invalid-pending-state");
+        request.Headers.Add("X-RateLimit-Key", $"mfa-invalid-pending-{Guid.NewGuid():N}");
+
+        var response = await session.InnerClient.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out var setCookies) &&
+            setCookies.Any(value => value.StartsWith("hishop_sid=", StringComparison.OrdinalIgnoreCase)));
     }
 
     [Fact]

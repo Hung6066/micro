@@ -39,20 +39,24 @@ public class MemoryCacheService : IMemoryCacheService
     private readonly IMemoryCache _cache;
     private readonly ILogger<MemoryCacheService> _logger;
     private readonly MemoryCacheServiceOptions _options;
+    private readonly AuthorizationCacheKeyPartitioner _keyPartitioner;
     private static readonly TimeSpan DefaultTtl = TimeSpan.FromMinutes(5);
 
     public MemoryCacheService(
         IMemoryCache cache,
         ILogger<MemoryCacheService> logger,
-        IOptions<MemoryCacheServiceOptions> options)
+        IOptions<MemoryCacheServiceOptions> options,
+        AuthorizationCacheKeyPartitioner keyPartitioner)
     {
         _cache = cache;
         _logger = logger;
         _options = options.Value;
+        _keyPartitioner = keyPartitioner;
     }
 
     public Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class
     {
+        key = _keyPartitioner.Partition(key);
         if (_cache.TryGetValue(key, out T? value))
         {
             _logger.LogTrace("L1 cache HIT for key {Key}", key);
@@ -66,6 +70,7 @@ public class MemoryCacheService : IMemoryCacheService
     public async Task<T> GetOrSetAsync<T>(string key, Func<Task<T>> factory,
         TimeSpan? expiry = null, CancellationToken ct = default) where T : class
     {
+        key = _keyPartitioner.Partition(key);
         if (_cache.TryGetValue(key, out T? cached) && cached is not null)
         {
             _logger.LogTrace("L1 cache HIT for key {Key}", key);
@@ -89,6 +94,7 @@ public class MemoryCacheService : IMemoryCacheService
     public Task SetAsync<T>(string key, T value, TimeSpan? expiry = null,
         CancellationToken ct = default) where T : class
     {
+        key = _keyPartitioner.Partition(key);
         var entryOptions = new MemoryCacheEntryOptions
         {
             SlidingExpiration = expiry ?? _options.DefaultSlidingExpiration,
@@ -101,6 +107,7 @@ public class MemoryCacheService : IMemoryCacheService
 
     public Task RemoveAsync(string key, CancellationToken ct = default)
     {
+        key = _keyPartitioner.Partition(key);
         _cache.Remove(key);
         _logger.LogTrace("L1 cache REMOVE for key {Key}", key);
         return Task.CompletedTask;

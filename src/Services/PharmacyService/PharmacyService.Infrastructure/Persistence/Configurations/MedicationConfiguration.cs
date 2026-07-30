@@ -11,6 +11,8 @@ public class MedicationConfiguration : IEntityTypeConfiguration<Medication>
     {
         builder.ToTable("Medications");
 
+        builder.Property(m => m.FacilityId).HasColumnName("facilityid").HasMaxLength(100);
+
         builder.HasKey(m => m.Id);
 
         builder.Property(m => m.Id)
@@ -35,5 +37,6 @@ public class MedicationConfiguration : IEntityTypeConfiguration<Medication>
         builder.HasIndex(m => m.Name);
         builder.HasIndex(m => m.GenericName);
         builder.HasIndex(m => m.IsActive);
+        builder.HasIndex(m => m.FacilityId);
     }
 }

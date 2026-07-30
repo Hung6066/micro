@@ -46,5 +46,6 @@ export * from "./i18n/dictionaries/en";
 export * from "./audit/his-hope-audit-feedback.service";
 export * from "./presets/design-presets";
 export * from "./performance/his-hope-performance-telemetry.service";
+export * from "./security/his-hope-adaptive-mfa";
 export * from "./security/his-hope-passkey";
 export * from "./security/his-hope-security-contracts";

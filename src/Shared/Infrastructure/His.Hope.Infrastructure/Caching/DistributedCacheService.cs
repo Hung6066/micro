@@ -19,15 +19,18 @@ public class DistributedCacheService : ICacheService
 {
     private readonly ILogger<DistributedCacheService> _logger;
     private readonly IConnectionMultiplexer _connectionMultiplexer;
+    private readonly AuthorizationCacheKeyPartitioner _keyPartitioner;
     private readonly string _instancePrefix;
     private static readonly TimeSpan RedisOpTimeout = TimeSpan.FromSeconds(5);
 
     public DistributedCacheService(
         ILogger<DistributedCacheService> logger,
-        IConnectionMultiplexer connectionMultiplexer)
+        IConnectionMultiplexer connectionMultiplexer,
+        AuthorizationCacheKeyPartitioner keyPartitioner)
     {
         _logger = logger;
         _connectionMultiplexer = connectionMultiplexer;
+        _keyPartitioner = keyPartitioner;
         _instancePrefix = "HisHope:";
     }
 
@@ -57,7 +60,7 @@ public class DistributedCacheService : ICacheService
     {
         try
         {
-            var redisKey = (RedisKey)(_instancePrefix + key);
+            var redisKey = (RedisKey)(_instancePrefix + _keyPartitioner.Partition(key));
             var cached = await WithTimeout(GetDatabase().StringGetAsync(redisKey), RedisOpTimeout);
             if (cached.IsNullOrEmpty) return null;
             return JsonConvert.DeserializeObject<T>(cached.ToString());
@@ -86,7 +89,7 @@ public class DistributedCacheService : ICacheService
     {
         try
         {
-            var redisKey = (RedisKey)(_instancePrefix + key);
+            var redisKey = (RedisKey)(_instancePrefix + _keyPartitioner.Partition(key));
             var serialized = JsonConvert.SerializeObject(value);
             if (expiry.HasValue)
                 await WithTimeout(GetDatabase().StringSetAsync(redisKey, serialized, expiry), RedisOpTimeout);
@@ -103,7 +106,7 @@ public class DistributedCacheService : ICacheService
     {
         try
         {
-            var redisKey = (RedisKey)(_instancePrefix + key);
+            var redisKey = (RedisKey)(_instancePrefix + _keyPartitioner.Partition(key));
             await WithTimeout(GetDatabase().KeyDeleteAsync(redisKey), RedisOpTimeout);
         }
         catch (Exception ex)

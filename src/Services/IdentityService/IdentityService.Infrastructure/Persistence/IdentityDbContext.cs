@@ -22,6 +22,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<MobileTelemetryEvent> MobileTelemetryEvents => Set<MobileTelemetryEvent>();
     public DbSet<PasskeyCredential> PasskeyCredentials => Set<PasskeyCredential>();
     public DbSet<PushNotificationOutbox> PushNotificationOutbox => Set<PushNotificationOutbox>();
+    public DbSet<UserFacility> UserFacilities => Set<UserFacility>();
     public DbSet<LocalizationResource> LocalizationResources => Set<LocalizationResource>();
     public DbSet<LocalizationTranslation> LocalizationTranslations => Set<LocalizationTranslation>();
 
@@ -82,8 +83,26 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(u => u.LockoutEnd);
             entity.Property(u => u.LastPasswordChangedAt);
             entity.Property(u => u.TrustedDeviceToken).HasMaxLength(256);
+            entity.HasMany(u => u.FacilityMemberships)
+                .WithOne(membership => membership.User)
+                .HasForeignKey(membership => membership.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
             // TODO: Enable after running migration to add previous_password_hashes column
             // entity.Property(u => u.PreviousPasswordHashes);
+        });
+
+        builder.Entity<UserFacility>(entity =>
+        {
+            entity.ToTable("user_facilities");
+            entity.HasKey(membership => new { membership.UserId, membership.FacilityId });
+            entity.Property(membership => membership.FacilityId).HasMaxLength(100).IsRequired();
+            entity.Property(membership => membership.IsPrimary).IsRequired();
+            entity.Property(membership => membership.IsActive).IsRequired();
+            entity.Property(membership => membership.CreatedAt).IsRequired();
+            entity.HasIndex(membership => new { membership.UserId, membership.IsPrimary })
+                .HasDatabaseName("ix_user_facilities_user_id_is_primary");
+            entity.HasIndex(membership => new { membership.FacilityId, membership.IsActive })
+                .HasDatabaseName("ix_user_facilities_facility_id_is_active");
         });
 
         // ──────────────────────────────────────────────
