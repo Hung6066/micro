@@ -104,29 +104,21 @@ public sealed class OidcLoginCompletionService(
             .AnyAsync(item => item.UserId == user.Id && item.IsEnabled, cancellationToken);
         if (mfaEnabled)
         {
-            var sessionId = GetOrCreatePendingSessionId(context);
+            var sessionBinding = await GetOrCreatePendingSessionAsync(context, user);
             var pendingId = CreateOpaqueToken();
             var pending = new PendingMfaSessionRecord(
                 pendingId,
                 user.Id,
                 safeReturnUrl,
-                await IsUnfamiliarDeviceAsync(context, user, cancellationToken),
+                IsUnfamiliarDevice(context, user, sessionBinding.IsRecognized),
                 authenticationMethods.ToArray(),
                 DateTimeOffset.UtcNow,
-                sessionId,
+                sessionBinding.SessionId,
                 GetUserAgentHash(context));
             await redisDb.StringSetAsync(GetPendingMfaKey(pendingId), pending.ToJson(), PendingMfaLifetime);
 
             var protectedState = protector.Protect(JsonSerializer.Serialize(new PendingMfaCookieState(pendingId)));
             context.Response.Cookies.Append(CookieName, protectedState, new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = context.Request.IsHttps,
-                SameSite = SameSiteMode.Lax,
-                Path = "/",
-                MaxAge = PendingMfaLifetime
-            });
-            context.Response.Cookies.Append(SessionCookieName, pending.SessionId, new CookieOptions
             {
                 HttpOnly = true,
                 Secure = context.Request.IsHttps,
@@ -176,7 +168,7 @@ public sealed class OidcLoginCompletionService(
         if (cookieState is null)
             return null;
 
-        var sessionId = context.Request.Cookies[SessionCookieName];
+        var sessionId = context.Request.Cookies[BrowserSessionCookieName];
         if (string.IsNullOrWhiteSpace(sessionId))
             return null;
 
@@ -201,6 +193,29 @@ public sealed class OidcLoginCompletionService(
             return null;
 
         if (!string.Equals(GetUserAgentHash(context), pending.UserAgentHash, StringComparison.Ordinal))
+            return null;
+
+        var rawSession = redisDb.StringGet(GetBrowserSessionKey(sessionId));
+        if (!rawSession.HasValue)
+            return null;
+
+        SessionData session;
+        try
+        {
+            session = JsonSerializer.Deserialize<SessionData>(rawSession!)!;
+        }
+        catch
+        {
+            return null;
+        }
+
+        if (session is null || session.IsExpired)
+            return null;
+
+        if (!string.Equals(session.UserId, pending.UserId.ToString(), StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (!string.Equals(session.UserAgentHash, pending.UserAgentHash, StringComparison.Ordinal))
             return null;
 
         return new(
@@ -262,18 +277,58 @@ public sealed class OidcLoginCompletionService(
             ? value
             : "/";
 
-    private static string GetOrCreatePendingSessionId(HttpContext context)
+    private async Task<(string SessionId, bool IsRecognized)> GetOrCreatePendingSessionAsync(
+        HttpContext context,
+        User user)
     {
         var existingBrowserSession = context.Request.Cookies[BrowserSessionCookieName];
-        return !string.IsNullOrWhiteSpace(existingBrowserSession)
-            ? existingBrowserSession
-            : CreateOpaqueToken();
+        if (!string.IsNullOrWhiteSpace(existingBrowserSession))
+        {
+            var existingSession = await TryGetLiveSessionAsync(existingBrowserSession);
+            if (existingSession is not null
+                && string.Equals(existingSession.UserId, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)
+                && string.Equals(existingSession.UserAgentHash, GetUserAgentHash(context), StringComparison.Ordinal))
+            {
+                return (existingBrowserSession, true);
+            }
+        }
+
+        var sessionId = CreateOpaqueToken();
+        var now = DateTimeOffset.UtcNow;
+        var pendingSession = new SessionData
+        {
+            UserId = user.Id.ToString(),
+            Jwt = string.Empty,
+            RefreshToken = null,
+            Permissions = [],
+            CsrfToken = CreateOpaqueToken(),
+            UserAgentHash = GetUserAgentHash(context),
+            IssuedAt = now,
+            ExpiresAt = now.Add(PendingMfaLifetime)
+        };
+        await redisDb.StringSetAsync(
+            GetBrowserSessionKey(sessionId),
+            JsonSerializer.Serialize(pendingSession),
+            PendingMfaLifetime);
+        context.Response.Cookies.Append(BrowserSessionCookieName, sessionId, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = context.Request.IsHttps,
+            SameSite = SameSiteMode.Lax,
+            Path = "/",
+            MaxAge = PendingMfaLifetime
+        });
+
+        return (sessionId, false);
     }
 
     private static string CreateOpaqueToken() =>
         WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
 
-    private async Task<bool> IsUnfamiliarDeviceAsync(HttpContext context, User user, CancellationToken cancellationToken)
+    private static bool IsUnfamiliarDevice(
+        HttpContext context,
+        User user,
+        bool hasRecognizedBrowserSession)
     {
         var trustedDeviceToken = user.TrustedDeviceToken?.Trim();
         if (!string.IsNullOrWhiteSpace(trustedDeviceToken))
@@ -282,29 +337,23 @@ public sealed class OidcLoginCompletionService(
             return !string.Equals(presentedToken, trustedDeviceToken, StringComparison.Ordinal);
         }
 
-        return !await HasRecognizedBrowserSessionAsync(context, user, cancellationToken);
+        return !hasRecognizedBrowserSession;
     }
 
-    private async Task<bool> HasRecognizedBrowserSessionAsync(HttpContext context, User user, CancellationToken cancellationToken)
+    private async Task<SessionData?> TryGetLiveSessionAsync(string sessionId)
     {
-        var existingBrowserSession = context.Request.Cookies[BrowserSessionCookieName];
-        if (string.IsNullOrWhiteSpace(existingBrowserSession))
-            return true;
-
-        var rawSession = await redisDb.StringGetAsync($"session:{existingBrowserSession}");
+        var rawSession = await redisDb.StringGetAsync(GetBrowserSessionKey(sessionId));
         if (!rawSession.HasValue)
-            return false;
+            return null;
 
         try
         {
-            var session = JsonSerializer.Deserialize<SessionData>(rawSession!)!;
-            return string.Equals(session.UserId, user.Id.ToString(), StringComparison.Ordinal)
-                && !session.IsExpired
-                && string.Equals(session.UserAgentHash, GetUserAgentHash(context), StringComparison.Ordinal);
+            var session = JsonSerializer.Deserialize<SessionData>(rawSession!);
+            return session is not null && !session.IsExpired ? session : null;
         }
         catch
         {
-            return false;
+            return null;
         }
     }
 
@@ -315,6 +364,8 @@ public sealed class OidcLoginCompletionService(
     }
 
     private static string GetPendingMfaKey(string pendingId) => $"hishop:oidc-mfa:pending:{pendingId}";
+
+    private static string GetBrowserSessionKey(string sessionId) => $"session:{sessionId}";
 
     private static string GetUserAgentHash(HttpContext context) =>
         BffHelpers.ComputeSha256(context.Request.Headers.UserAgent.ToString());
