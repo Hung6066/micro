@@ -29,6 +29,12 @@ Mobile API endpoints:
 | `POST /api/v1/auth/passkeys/register/options` | Bearer required | Create a WebAuthn registration challenge |
 | `POST /api/v1/auth/passkeys/register/complete` | Bearer required | Verify and persist the native/browser passkey |
 
+Native MFA approval is part of the passkey-first adaptive MFA flow and has a
+separate deployment gate. See
+[`docs/security/adaptive-passkey-first-mfa.md`](../security/adaptive-passkey-first-mfa.md)
+for the ticket TTLs, trust boundaries, native hardware verification status, and
+release checklist.
+
 The client does not send directly to the OTLP Collector. It sends scrubbed
 JavaScript crash events and performance spans to GlitchTip, while the existing
 mobile API keeps a durable operational record. The Identity API request span

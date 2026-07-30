@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using His.Hope.Authorization.Requirements;
@@ -21,8 +20,10 @@ public sealed class PermissionHandler(ILogger<PermissionHandler> logger) : Autho
             return Task.CompletedTask;
         }
 
-        var roles = context.User.FindAll(ClaimTypes.Role).Select(c => c.Value);
-        if (RolePermissionMapping.GetPermissionsForRoles(roles).Contains(requirement.PermissionCode)) context.Succeed(requirement);
+        // Runtime authorization is driven only by issued permission claims. Role
+        // mappings are used when minting tokens, but must not become a second
+        // authorization source of truth when a token is missing its permissions.
+        logger.LogWarning("Permission denied: token has no permissions claim for {Permission}", requirement.PermissionCode);
         return Task.CompletedTask;
     }
 }

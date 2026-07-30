@@ -7,12 +7,17 @@ import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { SecureStorage } from "@aparajita/capacitor-secure-storage";
 import { NativeBiometric } from "capacitor-native-biometric";
+import { firstValueFrom } from "rxjs";
 import { MobilePlatformService } from "./mobile-platform.service";
+import { MobileAdminApiService } from "./admin-api.service";
 import { environment } from "../../environments/environment";
 import {
+  createHisHopeNativeMfaBridge,
   HisHopeCameraCapture,
   HisHopeCameraCaptureOptions,
   HisHopeDeepLink,
+  HisHopeNativeMfaRequest,
+  HisHopeNativeMfaResult,
   isHisHopeDeepLinkAllowed,
 } from "@his-hope/mobile-foundation";
 
@@ -28,6 +33,7 @@ export class NativeCapabilityService {
   private pendingAuthCallbackUrl: string | null = null;
   private pushRegistrationPromise: Promise<string | null> | null = null;
   private readonly platform = inject(MobilePlatformService);
+  private readonly api = inject(MobileAdminApiService);
 
   async initialize(): Promise<void> {
     if (!this.isNative) return;
@@ -225,6 +231,20 @@ export class NativeCapabilityService {
 
   authenticateNativePasskey(options: Readonly<Record<string, unknown>>): Promise<Readonly<Record<string, unknown>>> {
     return this.platform.authenticate(options);
+  }
+
+  approveMfa(request: HisHopeNativeMfaRequest): Promise<HisHopeNativeMfaResult> {
+    const bridge = createHisHopeNativeMfaBridge({
+      passkey: {
+        isSupported: () => this.nativePasskeySupported(),
+        authenticate: options => this.authenticateNativePasskey(options),
+      },
+      server: {
+        requestOptions: ticket => firstValueFrom(this.api.nativeMfaOptions(ticket)),
+        complete: (ticket, assertion) => firstValueFrom(this.api.completeNativeMfa(ticket, assertion)),
+      },
+    });
+    return bridge.approveMfa(request);
   }
 
   private parseCallbackFallback(url: string): HisHopeDeepLink | null {

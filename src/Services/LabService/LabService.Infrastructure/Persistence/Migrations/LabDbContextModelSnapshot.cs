@@ -112,6 +112,11 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("encounterid");
 
+                    b.Property<string>("FacilityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("facilityid");
+
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)")
@@ -146,6 +151,8 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                         .HasColumnName("updatedat");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FacilityId");
 
                     b.HasIndex("OrderDate");
 

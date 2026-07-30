@@ -55,6 +55,11 @@ namespace His.Hope.ClinicalService.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("FacilityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("facility_id");
+
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uuid");
 
@@ -78,6 +83,9 @@ namespace His.Hope.ClinicalService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("EncounterDate")
                         .HasDatabaseName("ix_encounters_encounterdate");
+
+                    b.HasIndex("FacilityId")
+                        .HasDatabaseName("ix_encounters_facility_id");
 
                     b.HasIndex("PatientId")
                         .HasDatabaseName("ix_encounters_patientid");

@@ -11,6 +11,8 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
     {
         builder.ToTable("appointments");
 
+        builder.Property(a => a.FacilityId).HasColumnName("facility_id").HasMaxLength(100);
+
         builder.HasKey(a => a.Id);
 
         builder.Property(a => a.Id)
@@ -86,5 +88,8 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
 
         builder.HasIndex(a => a.Status)
             .HasDatabaseName("IX_Appointments_Status");
+
+        builder.HasIndex(a => a.FacilityId)
+            .HasDatabaseName("IX_Appointments_FacilityId");
     }
 }

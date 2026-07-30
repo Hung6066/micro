@@ -9,7 +9,7 @@ namespace His.Hope.IdentityService.Infrastructure.Facility;
 /// Authorization requirement that enforces facility-level access control.
 /// Users must either:
 ///   - Have cross-facility privileges (Admin/SuperAdmin role or "facility:cross" permission), OR
-///   - Have a facility_id that matches the requested resource's facility
+///   - Have a facility_id/facility_ids claim that matches the requested resource's facility
 /// </summary>
 public class FacilityRequirement : IAuthorizationRequirement
 {
@@ -39,7 +39,7 @@ public class FacilityAuthorizationHandler : AuthorizationHandler<FacilityRequire
         var httpContext = _httpContextAccessor.HttpContext;
         if (httpContext is null)
         {
-            context.Succeed(requirement); // No HTTP context — allow (e.g., background jobs)
+            context.Fail(new AuthorizationFailureReason(this, "Facility authorization requires an HTTP request context."));
             return Task.CompletedTask;
         }
 
@@ -65,7 +65,7 @@ public class FacilityAuthorizationHandler : AuthorizationHandler<FacilityRequire
 
         if (string.IsNullOrWhiteSpace(targetFacility))
         {
-            context.Succeed(requirement);
+            context.Fail(new AuthorizationFailureReason(this, "A target facility is required for facility authorization."));
             return Task.CompletedTask;
         }
 

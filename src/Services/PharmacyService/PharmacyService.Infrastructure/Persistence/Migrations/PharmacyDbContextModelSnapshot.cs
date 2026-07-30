@@ -124,6 +124,11 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("dosageform");
 
+                    b.Property<string>("FacilityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("facilityid");
+
                     b.Property<string>("GenericName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
@@ -164,6 +169,8 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
                         .HasColumnName("updatedat");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FacilityId");
 
                     b.HasIndex("GenericName");
 
@@ -208,6 +215,11 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
                     b.Property<DateTime?>("ExpiryDate")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("expirydate");
+
+                    b.Property<string>("FacilityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("facilityid");
 
                     b.Property<DateTime?>("FilledDate")
                         .HasColumnType("timestamp with time zone")
@@ -270,6 +282,8 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
                         .HasColumnName("updatedat");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FacilityId");
 
                     b.HasIndex("PatientId");
 

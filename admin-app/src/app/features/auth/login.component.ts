@@ -1,6 +1,6 @@
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Subject, timer } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { MatCardModule } from '@angular/material/card';
@@ -8,7 +8,11 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../core/services/auth.service';
-import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
+import {
+  createHisHopeAdaptiveMfaState,
+  HisHopeMfaMethod,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-login',
@@ -24,9 +28,9 @@ import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
             <p class="subtitle">{{ 'admin.signInManageOidc' | hhTranslate }}</p>
           </div>
           <div class="login-buttons">
-            <button mat-raised-button color="primary" class="full-width" (click)="oidcLogin()" [disabled]="checkingAuth">
+            <button mat-raised-button color="primary" class="full-width" (click)="startLogin()" [disabled]="checkingAuth">
               @if (checkingAuth) { <mat-spinner diameter="20" class="btn-spinner"></mat-spinner> }
-              @if (!checkingAuth) { <mat-icon>login</mat-icon> }
+              @if (!checkingAuth) { <mat-icon>{{ initiatingMethodIcon }}</mat-icon> }
               @if (!checkingAuth) { {{ 'admin.signInHisHope' | hhTranslate }} }
             </button>
           </div>
@@ -49,7 +53,11 @@ import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 export class LoginComponent implements OnInit, OnDestroy {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly destroy$ = new Subject<void>();
+  readonly adaptiveMfaState = createHisHopeAdaptiveMfaState({
+    availableMethods: ['passkey', 'mobileApproval', 'totp'],
+  });
   checkingAuth = true;
 
   ngOnInit(): void {
@@ -59,11 +67,34 @@ export class LoginComponent implements OnInit, OnDestroy {
     });
 
     timer(0, 3000).pipe(takeUntil(this.destroy$)).subscribe(() => {
-      this.authService.trySsoLogin().pipe(takeUntil(this.destroy$)).subscribe();
+      this.authService.trySsoLogin(this.requestedReturnUrl).pipe(takeUntil(this.destroy$)).subscribe();
     });
   }
 
-  oidcLogin(): void { this.authService.oidcLogin(); }
+  get initiatingMethodIcon(): string {
+    return this.adaptiveMfaState.preferredMethod ? this.methodIcon(this.adaptiveMfaState.preferredMethod) : 'login';
+  }
+
+  startLogin(): void {
+    this.authService.login(this.requestedReturnUrl);
+  }
+
+  private get requestedReturnUrl(): string | undefined {
+    return this.route.snapshot.queryParamMap.get('returnUrl') ?? undefined;
+  }
+
+  private methodIcon(method: HisHopeMfaMethod): string {
+    switch (method) {
+      case 'passkey':
+        return 'fingerprint';
+      case 'mobileApproval':
+        return 'smartphone';
+      case 'totp':
+        return 'shield';
+    }
+
+    return 'login';
+  }
 
   ngOnDestroy(): void {
     this.destroy$.next();

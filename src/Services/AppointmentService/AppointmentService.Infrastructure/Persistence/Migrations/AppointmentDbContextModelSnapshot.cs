@@ -51,6 +51,11 @@ namespace His.Hope.AppointmentService.Infrastructure.Persistence.Migrations
                     b.Property<TimeSpan>("EndTime")
                         .HasColumnType("interval");
 
+                    b.Property<string>("FacilityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("facility_id");
+
                     b.Property<string>("Location")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -89,6 +94,9 @@ namespace His.Hope.AppointmentService.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FacilityId")
+                        .HasDatabaseName("IX_Appointments_FacilityId");
 
                     b.HasIndex("PatientId")
                         .HasDatabaseName("IX_Appointments_PatientId");

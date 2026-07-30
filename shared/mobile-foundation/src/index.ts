@@ -230,3 +230,4 @@ export function parseHisHopeDeepLink(url: string): HisHopeDeepLink | null {
 export * from "./secure-storage/his-hope-caching-secure-storage";
 export * from "./deep-link/his-hope-deep-link-allow-list";
 export * from "./internationalization";
+export * from "./security/his-hope-native-mfa";

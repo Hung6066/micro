@@ -127,22 +127,29 @@ public class CriticalAlertEndpointsTests : IAsyncLifetime
         var received = new TaskCompletionSource<CriticalAlertDto>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         await using var connection = await CreateHubConnectionAsync();
-        connection.On<CriticalAlertDto>("criticalAlertCreated", alert => received.TrySetResult(alert));
-        await connection.StartAsync();
-
-        var response = await _client.PutAsJsonAsync($"/api/v1/lab-orders/{orderId}/result", new
+        try
         {
-            testId,
-            value = "18.5",
-            abnormalFlagCode = "CRITICAL_HIGH",
-            notes = "Critical CBC"
-        });
+            connection.On<CriticalAlertDto>("criticalAlertCreated", alert => received.TrySetResult(alert));
+            await connection.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
 
-        response.EnsureSuccessStatusCode();
+            var response = await _client.PutAsJsonAsync($"/api/v1/lab-orders/{orderId}/result", new
+            {
+                testId,
+                value = "18.5",
+                abnormalFlagCode = "CRITICAL_HIGH",
+                notes = "Critical CBC"
+            });
 
-        var alert = await received.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        alert.Status.Should().Be(CriticalAlertStatus.Open);
-        alert.AuditEntries.Should().ContainSingle(entry => entry.Action == "Created");
+            response.EnsureSuccessStatusCode();
+
+            var alert = await received.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            alert.Status.Should().Be(CriticalAlertStatus.Open);
+            alert.AuditEntries.Should().ContainSingle(entry => entry.Action == "Created");
+        }
+        finally
+        {
+            await connection.DisposeAsync();
+        }
     }
 
     [Fact]
@@ -249,6 +256,7 @@ public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationScheme
     {
         var identity = new ClaimsIdentity(Scheme);
         identity.AddClaim(new Claim("sub", "user-1"));
+        identity.AddClaim(new Claim("facility_id", "facility-1"));
         identity.AddClaim(new Claim("fullName", "Dr. Jones"));
         identity.AddClaim(new Claim("permissions", "lab.view,lab.manage,lab.result"));
         identity.AddClaim(new Claim(ClaimTypes.Role, "LabTechnician"));

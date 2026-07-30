@@ -1,31 +1,41 @@
 using System.Reflection;
+using His.Hope.Authorization;
 using His.Hope.AppointmentService.Domain.Aggregates;
 using His.Hope.AppointmentService.Domain.ValueObjects;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.SharedKernel.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 
 namespace His.Hope.AppointmentService.Infrastructure.Persistence;
 
 public class AppointmentDbContext : DbContext, IUnitOfWork
 {
     private readonly IMediator? _mediator;
+    private readonly FacilityAccessScope _facilityScope;
+    private readonly IHttpContextAccessor? _httpContextAccessor;
 
     public DbSet<Appointment> Appointments => Set<Appointment>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public AppointmentDbContext(
         DbContextOptions<AppointmentDbContext> options,
-        IMediator? mediator = null)
+        IMediator? mediator = null,
+        IHttpContextAccessor? httpContextAccessor = null)
         : base(options)
     {
         _mediator = mediator;
+        _httpContextAccessor = httpContextAccessor;
+        _facilityScope = FacilityScopeEfExtensions.Resolve(httpContextAccessor);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
+        modelBuilder.Entity<Appointment>().HasQueryFilter(appointment =>
+            !_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
+            _facilityScope.FacilityIds.Contains(appointment.FacilityId!));
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.ToTable("outbox_messages");
@@ -49,6 +59,7 @@ public class AppointmentDbContext : DbContext, IUnitOfWork
     public override async Task<int> SaveChangesAsync(
         CancellationToken cancellationToken = default)
     {
+        FacilityScopeEfExtensions.StampAddedFacilities(this, _facilityScope, _httpContextAccessor);
         var domainEvents = ChangeTracker.Entries<AggregateRoot<AppointmentId>>()
             .Select(e => e.Entity.DomainEvents)
             .SelectMany(e => e)
@@ -71,5 +82,11 @@ public class AppointmentDbContext : DbContext, IUnitOfWork
         }
 
         return result;
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        FacilityScopeEfExtensions.StampAddedFacilities(this, _facilityScope, _httpContextAccessor);
+        return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 }

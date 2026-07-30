@@ -8,6 +8,7 @@ namespace His.Hope.BillingService.Domain.Aggregates;
 
 public class Invoice : AggregateRoot<InvoiceId>
 {
+    public string? FacilityId { get; private set; }
     public Guid PatientId { get; private set; }
     public Guid? EncounterId { get; private set; }
     public string InvoiceNumber { get; private set; }

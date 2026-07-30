@@ -129,6 +129,11 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("emergency_contact_phone");
 
+                    b.Property<string>("FacilityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("facility_id");
+
                     b.Property<string>("Gender")
                         .IsRequired()
                         .HasMaxLength(10)
@@ -169,6 +174,9 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                         .HasColumnName("updated_at");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FacilityId")
+                        .HasDatabaseName("ix_patients_facility_id");
 
                     b.HasIndex("IsActive")
                         .HasDatabaseName("ix_patients_is_active");

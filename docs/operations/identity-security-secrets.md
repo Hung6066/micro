@@ -15,6 +15,13 @@ Provision these Vault records before enabling the corresponding features:
 | `secret/data/his-hope/identity-service/push/firebase` | `credentials_json` | Firebase service-account JSON |
 | `secret/data/his-hope/identity-service/push/apns` | `key_id`, `team_id`, `private_key`, `bundle_id` | APNs provider authentication |
 
+Passkey-first adaptive MFA does not introduce a client secret in the Angular or
+mobile bundles. Its operational controls are Redis-backed pending sessions,
+WebAuthn challenges, native MFA tickets, deployment-owned passkey RP
+configuration, and native domain association. Keep the final flow and current
+PASS/UNVERIFIED gate status in
+[`docs/security/adaptive-passkey-first-mfa.md`](../security/adaptive-passkey-first-mfa.md).
+
 The production overlay intentionally does not generate Vault TLS secrets from
 local files. Provision the externally managed `vault-tls` and
 `vault-agent-injector-tls` Kubernetes TLS secrets in namespace `his-hope` before

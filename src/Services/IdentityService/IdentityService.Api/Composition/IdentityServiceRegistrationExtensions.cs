@@ -19,6 +19,7 @@ using His.Hope.IdentityService.Api.Services;
 using His.Hope.IdentityService.Api.Configuration;
 using His.Hope.IdentityService.Api.Handlers;
 using His.Hope.IdentityService.Application;
+using His.Hope.IdentityService.Application.OpenIddict;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
@@ -479,6 +480,7 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
                 options.AddEventHandler(FixDiscoveryBaseUriHandler.Descriptor);
                 options.AddEventHandler(DpopTokenBindingHandler.Descriptor);
                 options.AddEventHandler(DpopTokenResponseHandler.Descriptor);
+                options.AddEventHandler(CustomPopulateTokenClaims.Descriptor);
                 if (builder.Environment.IsDevelopment() || oidcConfig.GetValue<bool>("AllowInsecureHttp"))
                     aspNetCore.DisableTransportSecurityRequirement();
 

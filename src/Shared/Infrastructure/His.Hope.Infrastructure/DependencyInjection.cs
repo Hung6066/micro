@@ -63,6 +63,7 @@ public static class DependencyInjection
         // Provides stale cached data when downstream systems fail.
         // Uses IHttpContextAccessor to set X-Degraded-Data response header.
         services.AddHttpContextAccessor();
+        services.AddSingleton<AuthorizationCacheKeyPartitioner>();
         services.AddSingleton<IDegradedResponseProvider, StaleCacheFallbackPolicy>();
 
         // SECURITY: Register PHI audit service for HIPAA audit compliance

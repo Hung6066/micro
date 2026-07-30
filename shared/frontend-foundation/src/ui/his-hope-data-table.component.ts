@@ -66,15 +66,21 @@ export function parseHisHopeDataTableQuery(params: URLSearchParams | Record<stri
   };
   const page = Number(read('page'));
   const pageSize = Number(read('pageSize'));
-  return {
+  const query: HisHopePageQuery = {
     page: Number.isFinite(page) && page > 0 ? page : 1,
     pageSize: Number.isFinite(pageSize) && pageSize > 0 ? pageSize : 20,
-    cursor: read('cursor'),
-    search: read('search')?.trim() || undefined,
-    sort: parseJson<HisHopeSort>('sort'),
-    filters: parseJson<HisHopePageQuery['filters']>('filters'),
-    filterItems: parseJson<HisHopePageQuery['filterItems']>('filterItems'),
   };
+  const cursor = read('cursor');
+  const search = read('search')?.trim();
+  const sort = parseJson<HisHopeSort>('sort');
+  const filters = parseJson<HisHopePageQuery['filters']>('filters');
+  const filterItems = parseJson<HisHopePageQuery['filterItems']>('filterItems');
+  if (cursor) query.cursor = cursor;
+  if (search) query.search = search;
+  if (sort) query.sort = sort;
+  if (filters) query.filters = filters;
+  if (filterItems) query.filterItems = filterItems;
+  return query;
 }
 
 export function toggleHisHopeDataTableSort(current: HisHopeDataTableSort[], key: string, append: boolean): HisHopeDataTableSort[] {
@@ -106,8 +112,10 @@ export class HisHopeDataTableCellDirective {
       @if (loading() && !rows().length) {
         <div class="hh-data-table__state" role="status" aria-live="polite">
           <div class="hh-data-table__skeleton-list" aria-hidden="true">
-            @for (item of [1, 2, 3, 4]; track item) {
-              <div class="hh-data-table__skeleton-item"><span></span><span></span><span></span></div>
+            @for (item of [1, 2, 3, 4, 5]; track item) {
+              <div class="hh-data-table__skeleton-item">
+                <span></span><span></span><span></span><span></span><span></span>
+              </div>
             }
           </div>
           <p>{{ loadingMessage() | hhTranslate }}</p>
@@ -476,7 +484,7 @@ export class HisHopeDataTableCellDirective {
     .hh-data-table__mobile-load-more-error { color: var(--color-danger); }
     .hh-data-table__mobile-load-more-status { display: inline-flex; align-items: center; gap: 8px; }
     .hh-data-table__mobile-load-more-skeleton { display: inline-flex; align-items: center; gap: 8px; width: min(100%, 220px); }
-    .hh-data-table__mobile-load-more-skeleton span { display: block; flex: 1; height: 8px; border-radius: 999px; background: linear-gradient(90deg, var(--surface-subtle), var(--border-light), var(--surface-subtle)); background-size: 200% 100%; animation: hh-skeleton-shimmer 1.3s linear infinite; }
+    .hh-data-table__mobile-load-more-skeleton span { display: block; flex: 1; height: 8px; border-radius: 999px; background: linear-gradient(90deg, var(--skeleton-base), var(--skeleton-highlight), var(--skeleton-base)); background-size: 200% 100%; animation: hh-skeleton-shimmer 1.3s linear infinite; }
     .hh-data-table__mobile-load-more-skeleton span:last-child { flex: .55; }
     .hh-data-table__page-size { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); }
     .hh-data-table__page-size select { min-height: 32px; border: 1px solid var(--border-default); border-radius: var(--radius-input); background: var(--surface-white); color: var(--text-primary); padding: 0 8px; }
@@ -485,11 +493,14 @@ export class HisHopeDataTableCellDirective {
     .hh-data-table__state p { margin: 0; }
     .hh-data-table__state .material-icons { font-size: 40px; width: 40px; height: 40px; opacity: .65; }
     .hh-data-table__state--error { color: var(--color-danger); }
-    .hh-data-table__skeleton-list { display: grid; width: min(100%, 420px); gap: 10px; }
-    .hh-data-table__skeleton-item { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--border-light); border-radius: var(--radius-input); background: var(--surface-white); }
-    .hh-data-table__skeleton-item span { display: block; height: 10px; border-radius: 6px; background: linear-gradient(90deg, var(--surface-subtle), var(--border-light), var(--surface-subtle)); background-size: 200% 100%; animation: hh-skeleton-shimmer 1.3s linear infinite; }
-    .hh-data-table__skeleton-item span:first-child { width: 62%; height: 14px; }
-    .hh-data-table__skeleton-item span:last-child { width: 42%; }
+    .hh-data-table__skeleton-list { display: grid; width: 100%; gap: 0; align-self: stretch; }
+    .hh-data-table__skeleton-item { display: grid; grid-template-columns: minmax(120px, 1.1fr) minmax(150px, 1.4fr) minmax(110px, 1fr) minmax(90px, .8fr) minmax(64px, .45fr); gap: 16px; align-items: center; min-height: 58px; padding: 0 24px; border-bottom: 1px solid var(--border-light); background: var(--surface-white); }
+    .hh-data-table__skeleton-item:first-child { border-top: 1px solid var(--border-light); }
+    .hh-data-table__skeleton-item span { display: block; width: 100%; height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--skeleton-base), var(--skeleton-highlight), var(--skeleton-base)); background-size: 200% 100%; animation: hh-skeleton-shimmer 1.3s linear infinite; }
+    .hh-data-table__skeleton-item span:first-child { height: 14px; }
+    .hh-data-table__skeleton-item span:nth-child(3) { width: 82%; }
+    .hh-data-table__skeleton-item span:nth-child(4) { width: 70%; }
+    .hh-data-table__skeleton-item span:last-child { width: 58%; justify-self: end; }
     @keyframes hh-skeleton-shimmer { to { background-position: -200% 0; } }
     .hh-data-table--compact .hh-data-table__state { min-height: 140px; padding: 24px 16px; }
     @media (max-width: 768px) {
@@ -503,6 +514,8 @@ export class HisHopeDataTableCellDirective {
       .hh-data-table--mobile-list .hh-data-table__pagination { display: none; }
       .hh-data-table__columns-menu { right: auto; left: 0; width: min(240px, calc(100vw - 32px)); min-width: 0; }
       .hh-data-table__filters-menu { right: auto; left: 0; width: min(620px, calc(100vw - 32px)); min-width: 0; }
+      .hh-data-table__skeleton-item { grid-template-columns: minmax(100px, 1.2fr) minmax(120px, 1.5fr) minmax(80px, 1fr); gap: 10px; padding: 0 12px; }
+      .hh-data-table__skeleton-item span:nth-child(n + 4) { display: none; }
       .hh-data-table__filter-row { grid-template-columns: 1fr; }
     }
     @media (max-width: 420px) {

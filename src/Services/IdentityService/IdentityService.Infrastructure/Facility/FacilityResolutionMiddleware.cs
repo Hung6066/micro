@@ -11,7 +11,7 @@ namespace His.Hope.IdentityService.Infrastructure.Facility;
 /// 
 /// Extracts:
 ///   - facility_id claim → FacilityContext.FacilityId
-///   - Cross-facility role check via "Admin" role or "facility:cross" permission
+///   - Cross-facility role check via "Admin" role or "facility.cross" permission
 ///   - facility_ids claim (comma-separated) → AuthorizedFacilities for multi-facility users
 /// </summary>
 public class FacilityResolutionMiddleware
@@ -71,7 +71,7 @@ public class FacilityResolutionMiddleware
     private static bool IsCrossFacilityUser(ClaimsPrincipal user)
     {
         // Check cross-facility permission
-        if (user.HasClaim("permissions", "facility:cross"))
+        if (user.HasClaim("permissions", "facility.cross"))
             return true;
 
         // Check admin/super-admin roles

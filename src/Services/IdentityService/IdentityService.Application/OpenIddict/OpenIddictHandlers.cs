@@ -79,7 +79,11 @@ public class CustomPopulateTokenClaims :
 
         var roles = await _userManager.GetRolesAsync(user);
         foreach (var role in roles)
-            identity.AddClaim(new Claim(OpenIddictConstants.Claims.Role, role));
+        {
+            var roleClaim = new Claim(OpenIddictConstants.Claims.Role, role);
+            roleClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+            identity.AddClaim(roleClaim);
+        }
 
         identity.AddClaim(new Claim("scope", "hishop:permissions"));
 
@@ -91,10 +95,21 @@ public class CustomPopulateTokenClaims :
         if (!identity.FindAll("amr").Any())
             identity.AddClaim(new Claim("amr", "pwd"));
 
-        var claims = await _userManager.GetClaimsAsync(user);
-        var facilityClaim = claims.FirstOrDefault(c => c.Type == "facility_id");
-        if (facilityClaim is not null)
-            identity.AddClaim(new Claim("facility_id", facilityClaim.Value));
+        var legacyClaims = await _userManager.GetClaimsAsync(user);
+        var legacyFacility = legacyClaims.FirstOrDefault(c => c.Type == "facility_id")?.Value;
+        var memberships = await _dbContext.UserFacilities
+            .Where(membership => membership.UserId == user.Id && membership.IsActive)
+            .OrderByDescending(membership => membership.IsPrimary)
+            .ThenBy(membership => membership.FacilityId)
+            .Select(membership => membership.FacilityId)
+            .ToListAsync();
+        if (memberships.Count == 0 && !string.IsNullOrWhiteSpace(legacyFacility))
+            memberships.Add(legacyFacility);
+        if (memberships.Count > 0)
+        {
+            identity.AddClaim(new Claim("facility_id", memberships[0]));
+            identity.AddClaim(new Claim("facility_ids", string.Join(",", memberships.Distinct(StringComparer.OrdinalIgnoreCase))));
+        }
 
         var permissions = await _dbContext.RolePermissions
             .Where(rp => roles.Contains(rp.Role.Name!))
@@ -104,7 +119,9 @@ public class CustomPopulateTokenClaims :
 
         if (permissions.Count > 0)
         {
-            identity.AddClaim(new Claim("permissions", string.Join(",", permissions)));
+            var permissionsClaim = new Claim("permissions", string.Join(",", permissions));
+            permissionsClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+            identity.AddClaim(permissionsClaim);
         }
     }
 }

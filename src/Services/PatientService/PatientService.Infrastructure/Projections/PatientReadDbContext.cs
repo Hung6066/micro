@@ -1,3 +1,5 @@
+using His.Hope.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace His.Hope.PatientService.Infrastructure.Projections;
@@ -8,11 +10,16 @@ namespace His.Hope.PatientService.Infrastructure.Projections;
 /// </summary>
 public class PatientReadDbContext : DbContext
 {
+    private readonly FacilityAccessScope _facilityScope;
+
     public DbSet<PatientProjection> PatientProjections => Set<PatientProjection>();
 
-    public PatientReadDbContext(DbContextOptions<PatientReadDbContext> options)
+    public PatientReadDbContext(
+        DbContextOptions<PatientReadDbContext> options,
+        IHttpContextAccessor? httpContextAccessor = null)
         : base(options)
     {
+        _facilityScope = FacilityScopeEfExtensions.Resolve(httpContextAccessor);
         ChangeTracker.QueryTrackingBehavior = QueryTrackingBehavior.NoTracking;
     }
 
@@ -23,6 +30,18 @@ public class PatientReadDbContext : DbContext
             entity.ToTable("patient_read_models");
 
             entity.HasKey(e => e.PatientId).HasName("pk_patient_read_models");
+
+            entity.Property(e => e.FacilityId)
+                .HasColumnName("facility_id")
+                .HasMaxLength(100);
+
+            entity.HasIndex(e => e.FacilityId)
+                .HasDatabaseName("ix_patient_read_models_facility_id");
+
+            entity.HasQueryFilter(projection =>
+                !_facilityScope.IsEnforced ||
+                _facilityScope.IsCrossFacility ||
+                _facilityScope.FacilityIds.Contains(projection.FacilityId!));
 
             entity.Property(e => e.PatientId)
                 .HasColumnName("patient_id")

@@ -15,6 +15,11 @@ namespace His.Hope.PatientService.Integration.Tests;
 
 public class PatientRepositoryIntegrationTests : IAsyncLifetime
 {
+    static PatientRepositoryIntegrationTests()
+    {
+        AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+    }
+
     private PostgreSqlContainer _container = null!;
     private PatientDbContext _context = null!;
     private PatientRepository _repository = null!;
@@ -54,11 +59,11 @@ public class PatientRepositoryIntegrationTests : IAsyncLifetime
     public async Task AddAndRetrieve_ValidPatient_ReturnsPatientWithProperties()
     {
         var patient = Patient.Register(
-            PersonName.Create("John", "Michael", "Doe"),
+            PersonName.Create("John", "Doe", "Michael"),
             new DateTime(1990, 5, 15),
             Gender.Male,
             ContactInfo.Create("+1234567890", "john.doe@example.com"),
-            Address.Create("123 Main St", "", "Springfield", "IL", "62701", "USA"));
+            Address.Create("123 Main St", "Downtown", "Springfield", "IL", "62701", "USA"));
 
         var added = await _repository.AddAsync(patient);
         await _repository.UnitOfWork.SaveChangesAsync();
@@ -67,7 +72,7 @@ public class PatientRepositoryIntegrationTests : IAsyncLifetime
 
         retrieved.Should().NotBeNull();
         retrieved!.Id.Should().Be(patient.Id);
-        retrieved.Name.FullName.Should().Be("John Michael Doe");
+        retrieved.Name.FullName.Should().Be("Doe Michael John");
         retrieved.Name.FirstName.Should().Be("John");
         retrieved.Name.LastName.Should().Be("Doe");
         retrieved.DateOfBirth.Should().Be(new DateTime(1990, 5, 15));
@@ -81,16 +86,16 @@ public class PatientRepositoryIntegrationTests : IAsyncLifetime
     public async Task SearchPatients_ByFirstName_ReturnsMatchingPatients()
     {
         var patient1 = Patient.Register(
-            PersonName.Create("Alice", null, "Johnson"),
+            PersonName.Create("Alice", "Johnson"),
             new DateTime(1985, 3, 10), Gender.Female,
             ContactInfo.Create("+1111111111", "alice@example.com"),
-            Address.Create("1 Oak Ave", "", "Portland", "OR", "97201", "USA"));
+            Address.Create("1 Oak Ave", "Downtown", "Portland", "OR", "97201", "USA"));
 
         var patient2 = Patient.Register(
-            PersonName.Create("Bob", null, "Smith"),
+            PersonName.Create("Bob", "Smith"),
             new DateTime(1978, 7, 22), Gender.Male,
             ContactInfo.Create("+2222222222", "bob@example.com"),
-            Address.Create("2 Elm St", "", "Portland", "OR", "97202", "USA"));
+            Address.Create("2 Elm St", "Downtown", "Portland", "OR", "97202", "USA"));
 
         await _repository.AddAsync(patient1);
         await _repository.AddAsync(patient2);
@@ -107,10 +112,10 @@ public class PatientRepositoryIntegrationTests : IAsyncLifetime
     public async Task SearchPatients_ByPhone_ReturnsMatchingPatients()
     {
         var patient = Patient.Register(
-            PersonName.Create("Charlie", null, "Brown"),
+            PersonName.Create("Charlie", "Brown"),
             new DateTime(1995, 1, 5), Gender.Male,
             ContactInfo.Create("+3333333333", "charlie@example.com"),
-            Address.Create("3 Pine Rd", "", "Denver", "CO", "80201", "USA"));
+            Address.Create("3 Pine Rd", "Downtown", "Denver", "CO", "80201", "USA"));
 
         await _repository.AddAsync(patient);
         await _repository.UnitOfWork.SaveChangesAsync();
@@ -128,10 +133,10 @@ public class PatientRepositoryIntegrationTests : IAsyncLifetime
         for (int i = 1; i <= 5; i++)
         {
             var p = Patient.Register(
-                PersonName.Create($"First{i}", null, $"Last{i}"),
+                PersonName.Create($"First{i}", $"Last{i}"),
                 new DateTime(2000, 1, i), Gender.Male,
                 ContactInfo.Create($"+100000000{i}", $"user{i}@example.com"),
-                Address.Create($"{i} St", "", "City", "ST", "00001", "USA"));
+                Address.Create($"{i} St", "Downtown", "City", "ST", "00001", "USA"));
             await _repository.AddAsync(p);
         }
         await _repository.UnitOfWork.SaveChangesAsync();
@@ -153,19 +158,19 @@ public class PatientRepositoryIntegrationTests : IAsyncLifetime
     public async Task UpdatePatient_ChangesFields_RetainsUpdates()
     {
         var patient = Patient.Register(
-            PersonName.Create("David", null, "Jones"),
+            PersonName.Create("David", "Jones"),
             new DateTime(1988, 11, 30), Gender.Male,
             ContactInfo.Create("+4444444444", "david.old@example.com"),
-            Address.Create("4 Lake Dr", "", "Dallas", "TX", "75201", "USA"));
+            Address.Create("4 Lake Dr", "Downtown", "Dallas", "TX", "75201", "USA"));
 
         await _repository.AddAsync(patient);
         await _repository.UnitOfWork.SaveChangesAsync();
 
         patient.UpdatePersonalInfo(
-            PersonName.Create("David", "Robert", "Jones-Renamed"),
+            PersonName.Create("David", "Jones-Renamed", "Robert"),
             new DateTime(1988, 11, 30), Gender.Male,
             ContactInfo.Create("+4444444444", "david.new@example.com"),
-            Address.Create("4 Lake Dr", "", "Dallas", "TX", "75201", "USA"));
+            Address.Create("4 Lake Dr", "Downtown", "Dallas", "TX", "75201", "USA"));
 
         await _repository.UpdateAsync(patient);
         await _repository.UnitOfWork.SaveChangesAsync();
@@ -173,7 +178,7 @@ public class PatientRepositoryIntegrationTests : IAsyncLifetime
         var retrieved = await _repository.GetByIdAsync(patient.Id);
 
         retrieved.Should().NotBeNull();
-        retrieved!.Name.FullName.Should().Be("David Robert Jones-Renamed");
+        retrieved!.Name.FullName.Should().Be("Jones-Renamed Robert David");
         retrieved.ContactInfo.Email.Should().Be("david.new@example.com");
     }
 }

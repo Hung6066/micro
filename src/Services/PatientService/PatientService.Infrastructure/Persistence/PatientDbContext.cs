@@ -1,26 +1,33 @@
 using His.Hope.Infrastructure.Outbox;
+using His.Hope.Authorization;
 using His.Hope.PatientService.Domain.Aggregates;
 using His.Hope.PatientService.Domain.Entities;
 using His.Hope.PatientService.Infrastructure.Persistence.Configurations;
 using His.Hope.SharedKernel.Domain.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 
 namespace His.Hope.PatientService.Infrastructure.Persistence;
 
 public class PatientDbContext : DbContext, IUnitOfWork
 {
     private readonly IMediator? _mediator;
+    private readonly FacilityAccessScope _facilityScope;
+    private readonly IHttpContextAccessor? _httpContextAccessor;
 
     public DbSet<Patient> Patients => Set<Patient>();
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     public PatientDbContext(
         DbContextOptions<PatientDbContext> options,
-        IMediator? mediator = null)
+        IMediator? mediator = null,
+        IHttpContextAccessor? httpContextAccessor = null)
         : base(options)
     {
         _mediator = mediator;
+        _httpContextAccessor = httpContextAccessor;
+        _facilityScope = FacilityScopeEfExtensions.Resolve(httpContextAccessor);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -29,6 +36,9 @@ public class PatientDbContext : DbContext, IUnitOfWork
         modelBuilder.ApplyConfiguration(new PatientConfiguration());
         modelBuilder.ApplyConfiguration(new MedicalConditionConfiguration());
         modelBuilder.ApplyConfiguration(new AllergyConfiguration());
+        modelBuilder.Entity<Patient>().HasQueryFilter(patient =>
+            !_facilityScope.IsEnforced || _facilityScope.IsCrossFacility ||
+            (_facilityScope.FacilityIds.Contains(patient.FacilityId!)));
 
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
@@ -54,6 +64,7 @@ public class PatientDbContext : DbContext, IUnitOfWork
     public override async Task<int> SaveChangesAsync(
         CancellationToken cancellationToken = default)
     {
+        FacilityScopeEfExtensions.StampAddedFacilities(this, _facilityScope, _httpContextAccessor);
         var domainEvents = ChangeTracker.Entries<AggregateRoot<PatientId>>()
             .Select(e => e.Entity.DomainEvents)
             .SelectMany(e => e)
@@ -77,5 +88,11 @@ public class PatientDbContext : DbContext, IUnitOfWork
         }
 
         return result;
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        FacilityScopeEfExtensions.StampAddedFacilities(this, _facilityScope, _httpContextAccessor);
+        return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 }

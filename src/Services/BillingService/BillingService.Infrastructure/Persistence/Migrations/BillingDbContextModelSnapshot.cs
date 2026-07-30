@@ -45,6 +45,11 @@ namespace His.Hope.BillingService.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("EncounterId");
 
+                    b.Property<string>("FacilityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("FacilityId");
+
                     b.Property<DateTime>("InvoiceDate")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("InvoiceDate");
@@ -87,6 +92,8 @@ namespace His.Hope.BillingService.Infrastructure.Persistence.Migrations
                         .HasColumnName("UpdatedAt");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FacilityId");
 
                     b.HasIndex("InvoiceDate");
 

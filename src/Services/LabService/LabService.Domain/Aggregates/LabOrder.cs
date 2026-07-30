@@ -8,6 +8,7 @@ namespace His.Hope.LabService.Domain.Aggregates;
 
 public class LabOrder : AggregateRoot<LabOrderId>
 {
+    public string? FacilityId { get; private set; }
     private readonly List<LabTest> _tests = [];
 
     public Guid PatientId { get; private set; }
