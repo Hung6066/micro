@@ -29,6 +29,7 @@ public class IdentityServiceTestFixture : IAsyncLifetime
     private WebApplication? _app;
 
     public HttpClient AnonymousClient { get; private set; } = null!;
+    public IServiceProvider Services => _app!.Services;
     public string PostgresConnectionString => _postgres?.GetConnectionString() ?? "";
 
     public async Task InitializeAsync()
@@ -238,6 +239,17 @@ public class SessionClient : IDisposable
                 }
             }
         }
+    }
+
+    public void SetCookieValue(string name, string value)
+    {
+        _cookies.RemoveAll(c => c.Name == name);
+        _cookies.Add(new Cookie(name, value, "/"));
+    }
+
+    public void RemoveCookie(string name)
+    {
+        _cookies.RemoveAll(c => c.Name == name);
     }
 
     public void Dispose() => _client.Dispose();
