@@ -18,7 +18,18 @@ using StackExchange.Redis;
 namespace His.Hope.IdentityService.Api.Services;
 
 public sealed record OidcLoginCompletionResult(bool RequiresMfa, string RedirectUrl);
-public sealed record AdaptiveMfaMethods(string? PreferredMethod, IReadOnlyList<string> AvailableMethods, bool IsUnfamiliarDevice);
+public sealed record AdaptiveMfaMethods(
+    string? PreferredMethod,
+    IReadOnlyList<string> AvailableMethods,
+    bool IsUnfamiliarDevice,
+    string RedirectHandle = "/");
+public enum PendingMfaCompletionStatus
+{
+    Success,
+    Unauthorized,
+    InvalidCode
+}
+public sealed record PendingMfaCompletionResult(PendingMfaCompletionStatus Status, string? RedirectUrl);
 public sealed record PendingMfaContext(
     string PendingId,
     Guid UserId,
@@ -134,27 +145,60 @@ public sealed class OidcLoginCompletionService(
         return new(false, safeReturnUrl);
     }
 
-    public async Task<string?> CompleteMfaAsync(HttpContext context, string code, CancellationToken cancellationToken)
+    public async Task<AdaptiveMfaMethods?> GetPendingMfaMethodsAsync(
+        HttpContext context,
+        CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(code))
-            return null;
-
         var pending = TryGetPendingMfaContext(context);
         if (pending is null)
             return null;
 
+        var hasPasskey = await db.PasskeyCredentials
+            .AsNoTracking()
+            .AnyAsync(item => item.UserId == pending.UserId.ToString(), cancellationToken);
+        var hasTotp = await db.UserMfas
+            .AsNoTracking()
+            .AnyAsync(item => item.UserId == pending.UserId && item.IsEnabled, cancellationToken);
+        var methods = AdaptiveMfaMethodPolicy.Resolve(
+            hasPasskey,
+            hasMobileApproval: hasPasskey,
+            hasTotp,
+            pending.IsUnfamiliarDevice);
+
+        return methods with { RedirectHandle = CreateRedirectHandle(pending.ReturnUrl) };
+    }
+
+    public async Task<string?> CompleteMfaAsync(HttpContext context, string code, CancellationToken cancellationToken)
+    {
+        var result = await CompletePendingTotpAsync(context, code, cancellationToken);
+        return result.Status == PendingMfaCompletionStatus.Success
+            ? result.RedirectUrl
+            : null;
+    }
+
+    public async Task<PendingMfaCompletionResult> CompletePendingTotpAsync(
+        HttpContext context,
+        string code,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+            return new(PendingMfaCompletionStatus.InvalidCode, null);
+
+        var pending = TryGetPendingMfaContext(context);
+        if (pending is null)
+            return new(PendingMfaCompletionStatus.Unauthorized, null);
+
         var user = await userManager.FindByIdAsync(pending.UserId.ToString());
         var mfa = await db.UserMfas.AsNoTracking().SingleOrDefaultAsync(x => x.UserId == pending.UserId, cancellationToken);
         if (user is null || !user.IsActive || mfa is null || !mfa.IsEnabled)
-            return null;
+            return new(PendingMfaCompletionStatus.Unauthorized, null);
 
         var secret = encryptor.Decrypt(mfa.SecretKey);
         if (!totpService.VerifyCode(secret, code.Trim()))
-            return null;
+            return new(PendingMfaCompletionStatus.InvalidCode, null);
 
-        await DeletePendingMfaAsync(context, pending.PendingId);
-        await SignInAsync(user, pending.AuthenticationMethods.Append("otp").Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
-        return pending.ReturnUrl;
+        var redirectUrl = await CompletePendingMfaAsync(context, pending, user, "otp");
+        return new(PendingMfaCompletionStatus.Success, redirectUrl);
     }
 
     public Guid? TryGetPendingMfaUserId(HttpContext context)
@@ -172,60 +216,20 @@ public sealed class OidcLoginCompletionService(
         if (string.IsNullOrWhiteSpace(sessionId))
             return null;
 
-        var rawPending = redisDb.StringGet(GetPendingMfaKey(cookieState.PendingId));
-        if (!rawPending.HasValue)
-            return null;
+        return TryResolvePendingMfaContext(
+            cookieState.PendingId,
+            sessionId,
+            expectedUserId: null,
+            requiredUserAgentHash: GetUserAgentHash(context));
+    }
 
-        PendingMfaSessionRecord pending;
-        try
-        {
-            pending = PendingMfaSessionRecord.FromJson(rawPending!);
-        }
-        catch
-        {
-            return null;
-        }
-
-        if (DateTimeOffset.UtcNow - pending.CreatedAt > PendingMfaLifetime)
-            return null;
-
-        if (!string.Equals(sessionId, pending.SessionId, StringComparison.Ordinal))
-            return null;
-
-        if (!string.Equals(GetUserAgentHash(context), pending.UserAgentHash, StringComparison.Ordinal))
-            return null;
-
-        var rawSession = redisDb.StringGet(GetBrowserSessionKey(sessionId));
-        if (!rawSession.HasValue)
-            return null;
-
-        SessionData session;
-        try
-        {
-            session = JsonSerializer.Deserialize<SessionData>(rawSession!)!;
-        }
-        catch
-        {
-            return null;
-        }
-
-        if (session is null || session.IsExpired)
-            return null;
-
-        if (!string.Equals(session.UserId, pending.UserId.ToString(), StringComparison.OrdinalIgnoreCase))
-            return null;
-
-        if (!string.Equals(session.UserAgentHash, pending.UserAgentHash, StringComparison.Ordinal))
-            return null;
-
-        return new(
-            pending.PendingId,
-            pending.UserId,
-            pending.ReturnUrl,
-            pending.IsUnfamiliarDevice,
-            pending.AuthenticationMethods,
-            pending.CreatedAt,
-            pending.SessionId);
+    public bool HasLivePendingMfaContext(string pendingId, string sessionId, Guid userId)
+    {
+        return TryResolvePendingMfaContext(
+            pendingId,
+            sessionId,
+            expectedUserId: userId,
+            requiredUserAgentHash: null) is not null;
     }
 
     public async Task<string?> CompleteMfaWithPasskeyAsync(
@@ -241,9 +245,7 @@ public sealed class OidcLoginCompletionService(
         if (user is null || !user.IsActive)
             return null;
 
-        await DeletePendingMfaAsync(context, pending.PendingId);
-        await SignInAsync(user, pending.AuthenticationMethods.Append("passkey").Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
-        return pending.ReturnUrl;
+        return await CompletePendingMfaAsync(context, pending, user, "passkey");
     }
 
     private PendingMfaCookieState? ReadPendingMfaCookie(HttpContext context)
@@ -271,11 +273,34 @@ public sealed class OidcLoginCompletionService(
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .Select(value => new Claim("amr", value)));
 
+    private async Task<string> CompletePendingMfaAsync(
+        HttpContext context,
+        PendingMfaContext pending,
+        User user,
+        string authenticationMethod)
+    {
+        await DeletePendingMfaAsync(context, pending.PendingId);
+        await SignInAsync(
+            user,
+            pending.AuthenticationMethods
+                .Append(authenticationMethod)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray());
+        return pending.ReturnUrl;
+    }
+
     private static string SafeReturnUrl(string? value) =>
         !string.IsNullOrWhiteSpace(value) && value.StartsWith("/", StringComparison.Ordinal) &&
         !value.StartsWith("//", StringComparison.Ordinal) && !value.Contains('\\') && !value.Contains(':')
             ? value
             : "/";
+
+    private static string CreateRedirectHandle(string returnUrl)
+    {
+        var safeReturnUrl = SafeReturnUrl(returnUrl);
+        var delimiterIndex = safeReturnUrl.IndexOfAny(['?', '#']);
+        return delimiterIndex >= 0 ? safeReturnUrl[..delimiterIndex] : safeReturnUrl;
+    }
 
     private async Task<(string SessionId, bool IsRecognized)> GetOrCreatePendingSessionAsync(
         HttpContext context,
@@ -343,6 +368,77 @@ public sealed class OidcLoginCompletionService(
     private async Task<SessionData?> TryGetLiveSessionAsync(string sessionId)
     {
         var rawSession = await redisDb.StringGetAsync(GetBrowserSessionKey(sessionId));
+        return ParseLiveSession(rawSession);
+    }
+
+    private async Task DeletePendingMfaAsync(HttpContext context, string pendingId)
+    {
+        await redisDb.KeyDeleteAsync(GetPendingMfaKey(pendingId));
+        DeletePendingMfaCookies(context);
+    }
+
+    private PendingMfaContext? TryResolvePendingMfaContext(
+        string pendingId,
+        string sessionId,
+        Guid? expectedUserId,
+        string? requiredUserAgentHash)
+    {
+        var pending = TryReadPendingMfaSession(pendingId);
+        if (pending is null)
+            return null;
+
+        if (expectedUserId.HasValue && pending.UserId != expectedUserId.Value)
+            return null;
+
+        if (!string.Equals(sessionId, pending.SessionId, StringComparison.Ordinal))
+            return null;
+
+        if (requiredUserAgentHash is not null &&
+            !string.Equals(requiredUserAgentHash, pending.UserAgentHash, StringComparison.Ordinal))
+            return null;
+
+        var session = ParseLiveSession(redisDb.StringGet(GetBrowserSessionKey(sessionId)));
+        if (session is null)
+            return null;
+
+        if (!string.Equals(session.UserId, pending.UserId.ToString(), StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (requiredUserAgentHash is not null &&
+            !string.Equals(session.UserAgentHash, requiredUserAgentHash, StringComparison.Ordinal))
+            return null;
+
+        return new(
+            pending.PendingId,
+            pending.UserId,
+            pending.ReturnUrl,
+            pending.IsUnfamiliarDevice,
+            pending.AuthenticationMethods,
+            pending.CreatedAt,
+            pending.SessionId);
+    }
+
+    private PendingMfaSessionRecord? TryReadPendingMfaSession(string pendingId)
+    {
+        var rawPending = redisDb.StringGet(GetPendingMfaKey(pendingId));
+        if (!rawPending.HasValue)
+            return null;
+
+        try
+        {
+            var pending = PendingMfaSessionRecord.FromJson(rawPending!);
+            return DateTimeOffset.UtcNow - pending.CreatedAt <= PendingMfaLifetime
+                ? pending
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static SessionData? ParseLiveSession(RedisValue rawSession)
+    {
         if (!rawSession.HasValue)
             return null;
 
@@ -355,12 +451,6 @@ public sealed class OidcLoginCompletionService(
         {
             return null;
         }
-    }
-
-    private async Task DeletePendingMfaAsync(HttpContext context, string pendingId)
-    {
-        await redisDb.KeyDeleteAsync(GetPendingMfaKey(pendingId));
-        DeletePendingMfaCookies(context);
     }
 
     private static string GetPendingMfaKey(string pendingId) => $"hishop:oidc-mfa:pending:{pendingId}";

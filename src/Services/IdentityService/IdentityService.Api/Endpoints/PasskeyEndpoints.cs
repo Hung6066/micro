@@ -156,11 +156,12 @@ public static class PasskeyEndpoints
             IConnectionMultiplexer redis,
             IdentityDbContext db) =>
         {
-            var userId = completion.TryGetPendingMfaUserId(context);
-            if (userId is null) return Results.Unauthorized();
+            var pending = completion.TryGetPendingMfaContext(context);
+            if (pending is null) return Results.Unauthorized();
+            var userId = pending.UserId;
 
             var credential = await db.PasskeyCredentials.AsNoTracking()
-                .FirstOrDefaultAsync(item => item.UserId == userId.Value.ToString());
+                .FirstOrDefaultAsync(item => item.UserId == userId.ToString());
             if (credential is null)
                 return Results.UnprocessableEntity(new ProblemDetails
                 {
@@ -174,8 +175,8 @@ public static class PasskeyEndpoints
                 UserVerification = UserVerificationRequirement.Required
             });
             var redisDb = redis.GetDatabase();
-            await redisDb.StringSetAsync(MfaAssertionKey(userId.Value), options.ToJson(), TimeSpan.FromMinutes(5));
-            await redisDb.StringSetAsync(MfaCredentialPointerKey(userId.Value), credential.CredentialId, TimeSpan.FromMinutes(5));
+            await redisDb.StringSetAsync(MfaAssertionKey(userId), options.ToJson(), TimeSpan.FromMinutes(5));
+            await redisDb.StringSetAsync(MfaCredentialPointerKey(userId), credential.CredentialId, TimeSpan.FromMinutes(5));
             return Results.Ok(new { userId, options });
         });
 
@@ -234,11 +235,16 @@ public static class PasskeyEndpoints
             OidcLoginCompletionService completion,
             IConnectionMultiplexer redis) =>
         {
-            var userId = completion.TryGetPendingMfaUserId(context);
-            if (userId is null) return Results.Unauthorized();
+            var pending = completion.TryGetPendingMfaContext(context);
+            if (pending is null) return Results.Unauthorized();
 
             var ticket = CreateNativeMfaTicket();
-            var state = new NativeMfaState(userId.Value, false, DateTimeOffset.UtcNow);
+            var state = new NativeMfaState(
+                pending.UserId,
+                pending.PendingId,
+                pending.SessionId,
+                false,
+                DateTimeOffset.UtcNow);
             await redis.GetDatabase().StringSetAsync(NativeMfaKey(ticket), JsonSerializer.Serialize(state), TimeSpan.FromMinutes(5));
             return Results.Ok(new { ticket, deepLink = $"hishope://auth/mfa?ticket={Uri.EscapeDataString(ticket)}" });
         });
@@ -250,8 +256,15 @@ public static class PasskeyEndpoints
             IConnectionMultiplexer redis) =>
         {
             var state = await ReadNativeMfaState(redis, ticket);
-            var pendingUserId = completion.TryGetPendingMfaUserId(context);
-            if (state is null || pendingUserId != state.UserId) return Results.Unauthorized();
+            var pending = completion.TryGetPendingMfaContext(context);
+            if (state is null ||
+                pending is null ||
+                state.UserId != pending.UserId ||
+                !string.Equals(state.PendingId, pending.PendingId, StringComparison.Ordinal) ||
+                !string.Equals(state.SessionId, pending.SessionId, StringComparison.Ordinal))
+            {
+                return Results.Unauthorized();
+            }
             if (!state.Approved) return Results.Accepted();
 
             await redis.GetDatabase().KeyDeleteAsync(NativeMfaKey(ticket));
@@ -265,10 +278,16 @@ public static class PasskeyEndpoints
             NativeMfaTicketRequest request,
             Fido2 fido2,
             IConnectionMultiplexer redis,
+            OidcLoginCompletionService completion,
             IdentityDbContext db) =>
         {
             var state = await ReadNativeMfaState(redis, request.Ticket);
-            if (state is null || state.Approved) return Results.Unauthorized();
+            if (state is null ||
+                state.Approved ||
+                !completion.HasLivePendingMfaContext(state.PendingId, state.SessionId, state.UserId))
+            {
+                return Results.Unauthorized();
+            }
 
             var credential = await db.PasskeyCredentials.AsNoTracking()
                 .FirstOrDefaultAsync(item => item.UserId == state.UserId.ToString());
@@ -294,10 +313,16 @@ public static class PasskeyEndpoints
             NativeMfaAssertionRequest request,
             Fido2 fido2,
             IConnectionMultiplexer redis,
+            OidcLoginCompletionService completion,
             IdentityDbContext db) =>
         {
             var state = await ReadNativeMfaState(redis, request.Ticket);
-            if (state is null || state.Approved) return Results.Unauthorized();
+            if (state is null ||
+                state.Approved ||
+                !completion.HasLivePendingMfaContext(state.PendingId, state.SessionId, state.UserId))
+            {
+                return Results.Unauthorized();
+            }
 
             var redisDb = redis.GetDatabase();
             var rawOptions = await redisDb.StringGetDeleteAsync(NativeMfaOptionsKey(request.Ticket));
@@ -354,5 +379,10 @@ public static class PasskeyEndpoints
     public sealed record PasskeyAssertionRequest(string UserId, AuthenticatorAssertionRawResponse Response, string? ReturnUrl);
     public sealed record NativeMfaTicketRequest(string Ticket);
     public sealed record NativeMfaAssertionRequest(string Ticket, AuthenticatorAssertionRawResponse Response);
-    private sealed record NativeMfaState(Guid UserId, bool Approved, DateTimeOffset CreatedAt);
+    private sealed record NativeMfaState(
+        Guid UserId,
+        string PendingId,
+        string SessionId,
+        bool Approved,
+        DateTimeOffset CreatedAt);
 }

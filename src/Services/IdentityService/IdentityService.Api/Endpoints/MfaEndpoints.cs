@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using His.Hope.Bff.Core.Authentication;
+using His.Hope.IdentityService.Api.Services;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Application.Services;
@@ -21,6 +22,25 @@ public static class MfaEndpoints
 {
     public static RouteGroupBuilder MapMfaEndpoints(this RouteGroupBuilder group)
     {
+        group.MapGet("/mfa/methods", async (
+            HttpContext httpContext,
+            OidcLoginCompletionService completion,
+            CancellationToken ct) =>
+        {
+            var methods = await completion.GetPendingMfaMethodsAsync(httpContext, ct);
+            return methods is null
+                ? Results.Unauthorized()
+                : Results.Ok(new
+                {
+                    preferredMethod = methods.PreferredMethod,
+                    availableMethods = methods.AvailableMethods,
+                    isUnfamiliarDevice = methods.IsUnfamiliarDevice,
+                    redirectHandle = methods.RedirectHandle
+                });
+        })
+        .AllowAnonymous()
+        .WithOpenApi();
+
         group.MapGet("/mfa/status", async (
             HttpContext httpContext,
             IdentityDbContext db,
@@ -110,10 +130,32 @@ public static class MfaEndpoints
             IMfaSecretEncryptor encryptor,
             IConnectionMultiplexer redis,
             ITokenBlacklistService tokenBlacklist,
+            OidcLoginCompletionService completion,
             IdentityDbContext db,
             UserManager<User> userManager,
             CancellationToken ct) =>
         {
+            var pending = completion.TryGetPendingMfaContext(httpContext);
+            if (pending is not null)
+            {
+                var result = await completion.CompletePendingTotpAsync(httpContext, request.Code, ct);
+                return result.Status switch
+                {
+                    PendingMfaCompletionStatus.Success => Results.Ok(new
+                    {
+                        status = "ok",
+                        userId = pending.UserId,
+                        requiresMfa = false,
+                        redirectUrl = result.RedirectUrl
+                    }),
+                    PendingMfaCompletionStatus.InvalidCode => Results.Problem("Invalid TOTP code.", statusCode: 400),
+                    _ => Results.Unauthorized()
+                };
+            }
+
+            if (httpContext.Request.Cookies.ContainsKey("hishop_oidc_mfa"))
+                return Results.Unauthorized();
+
             var userId = GetUserId(httpContext);
             if (userId is null) return Results.Unauthorized();
 
@@ -189,7 +231,7 @@ public static class MfaEndpoints
 
             return Results.Ok(new { status = "ok", userId = user.Id, requiresMfa = false });
         })
-        .RequireAuthorization()
+        .AllowAnonymous()
         .RequireRateLimiting("mfa")
         .WithOpenApi();
 
