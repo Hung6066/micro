@@ -7,11 +7,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { Subject, takeUntil, filter } from 'rxjs';
 import { AuthService } from '@core/services/auth.service';
-import { AuditService } from '@core/services/audit.service';
 import { RumService } from './monitoring/rum.service';
 import { SidebarComponent } from '@shared/components/sidebar/sidebar.component';
 import { ErrorBarComponent } from '@shared/components/error-bar/error-bar.component';
 import {
+  HisHopeAuditFeedbackService,
   HisHopeI18nService,
   HisHopeLanguageSwitcherComponent,
   HisHopeOfflineBannerComponent,
@@ -88,7 +88,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly theme = inject(HisHopeThemeService);
   private readonly i18n = inject(HisHopeI18nService);
   private router = inject(Router);
-  private auditService = inject(AuditService);
+  private auditFeedback = inject(HisHopeAuditFeedbackService);
   private cdr = inject(ChangeDetectorRef);
   private rum = inject(RumService);
   private breakpointObserver = inject(BreakpointObserver);
@@ -129,8 +129,6 @@ export class AppComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe((user) => {
         this.isLoggedIn = !!user;
-        // Set user ID for audit events
-        this.auditService.setUserId(user?.id);
         this.cdr.markForCheck();
       });
 
@@ -140,9 +138,11 @@ export class AppComponent implements OnInit, OnDestroy {
       takeUntil(this.destroy$),
     ).subscribe((event: NavigationEnd) => {
       if (this.previousUrl && this.previousUrl !== event.url) {
-        this.auditService.log('navigation.change', {
-          from: this.previousUrl,
-          to: event.url,
+        this.auditFeedback.report({
+          action: 'navigation.change',
+          resource: 'route',
+          outcome: 'success',
+          message: `Đã chuyển từ ${this.previousUrl} đến ${event.url}`,
         });
       }
       this.previousUrl = event.url;

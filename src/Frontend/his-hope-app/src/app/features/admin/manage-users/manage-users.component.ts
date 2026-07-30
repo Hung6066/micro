@@ -21,9 +21,9 @@ import { AdminUser } from '@core/models/admin.model';
 import { PagedResult } from '@core/models/paged-result.model';
 import { UserFormDialogComponent, UserFormData } from './user-form.dialog';
 import { AssignRolesDialogComponent, AssignRolesData } from './assign-roles.dialog';
-import { ConfirmDialogComponent, ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { HisHopeConfirmDialogComponent } from '@his-hope/frontend-foundation';
 
 const ROLE_FILTERS = [
   { value: '', label: 'Tất cả vai trò' },
@@ -44,155 +44,11 @@ const ROLE_FILTERS = [
     MatFormFieldModule, MatInputModule, MatSelectModule, MatMenuModule,
     MatChipsModule, MatProgressSpinnerModule, MatTooltipModule, MatDialogModule,
     MatSnackBarModule,
-    LoadingSpinnerComponent, EmptyStateComponent,
+    LoadingSpinnerComponent, EmptyStateComponent, HisHopeConfirmDialogComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="manage-users">
-      <div class="page-header">
-        <div>
-          <h1>Quản lý người dùng</h1>
-          <p class="subtitle">Quản lý tài khoản bác sĩ, điều dưỡng và nhân viên</p>
-        </div>
-        <button mat-raised-button color="primary" (click)="openAddUserDialog()">
-          <mat-icon>person_add</mat-icon>
-          Thêm người dùng
-        </button>
-      </div>
-
-      <div class="filter-bar">
-        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="search-field">
-          <mat-icon matPrefix>search</mat-icon>
-          <input matInput [formControl]="searchControl" placeholder="Tìm kiếm theo tên, email, ID...">
-        </mat-form-field>
-        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="role-filter">
-          <mat-select [formControl]="roleFilter" (selectionChange)="onFilterChange()">
-            @for (f of roleFilters; track f.value) {
-            <mat-option [value]="f.value">{{ f.label }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-      </div>
-
-      <div class="table-container mat-elevation-z2">
-        <app-loading-spinner [loading]="loading" message="Đang tải danh sách người dùng..."></app-loading-spinner>
-
-        @if (!loading) {
-          @if (users.length > 0) {
-          <mat-table [dataSource]="users" class="users-table">
-            <ng-container matColumnDef="id">
-              <mat-header-cell *matHeaderCellDef>ID</mat-header-cell>
-              <mat-cell *matCellDef="let u" class="cell-id">{{ u.id | slice:0:12 }}</mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="fullName">
-              <mat-header-cell *matHeaderCellDef>Họ và tên</mat-header-cell>
-              <mat-cell *matCellDef="let u">
-                <div class="user-name-cell">
-                  <span class="name">{{ u.fullName }}</span>
-                  <span class="email">{{ u.email }}</span>
-                </div>
-              </mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="email">
-              <mat-header-cell *matHeaderCellDef>Email</mat-header-cell>
-              <mat-cell *matCellDef="let u">{{ u.email }}</mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="roles">
-              <mat-header-cell *matHeaderCellDef>Vai trò</mat-header-cell>
-              <mat-cell *matCellDef="let u">
-                <div class="roles-cell">
-                  @for (r of u.roles; track r) {
-                  <span class="role-badge" [ngClass]="'role-' + r">{{ getRoleLabel(r) }}</span>
-                  }
-                </div>
-              </mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="status">
-              <mat-header-cell *matHeaderCellDef>Trạng thái</mat-header-cell>
-              <mat-cell *matCellDef="let u">
-                <span class="status-badge" [ngClass]="u.isActive ? 'active' : 'inactive'">
-                  {{ u.isActive ? 'Hoạt động' : 'Ngưng hoạt động' }}
-                </span>
-              </mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="actions">
-              <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
-              <mat-cell *matCellDef="let u">
-                <button mat-icon-button color="primary" (click)="openEditUserDialog(u)"
-                        matTooltip="Chỉnh sửa người dùng">
-                  <mat-icon>edit</mat-icon>
-                </button>
-                <button mat-icon-button (click)="openAssignRolesDialog(u)"
-                        matTooltip="Phân vai trò">
-                  <mat-icon>admin_panel_settings</mat-icon>
-                </button>
-                <button mat-icon-button (click)="toggleUserStatus(u)"
-                        [matTooltip]="u.isActive ? 'Vô hiệu hóa' : 'Kích hoạt'">
-                  <mat-icon [color]="u.isActive ? 'warn' : 'primary'">
-                    {{ u.isActive ? 'block' : 'check_circle' }}
-                  </mat-icon>
-                </button>
-              </mat-cell>
-            </ng-container>
-
-            <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
-            <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>
-          </mat-table>
-          } @else {
-          <app-empty-state icon="people" title="Không tìm thấy người dùng"
-                          message="Thử thay đổi bộ lọc hoặc thêm người dùng mới">
-          </app-empty-state>
-          }
-        }
-
-        @if (totalCount > 0) {
-        <mat-paginator [length]="totalCount" [pageSize]="pageSize"
-                       [pageSizeOptions]="[5, 10, 20, 50]" [pageIndex]="currentPage - 1"
-                       (page)="onPageChange($event)" showFirstLastButtons>
-        </mat-paginator>
-        }
-      </div>
-    </div>
-  `,
-  styles: [`
-    .manage-users { padding: 24px; max-width: 1200px; margin: 0 auto; }
-    .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-    .page-header h1 { margin: 0; font-size: 24px; font-weight: 600; color: #1A1A1A; }
-    .subtitle { margin: 4px 0 0; color: #787774; font-size: 14px; }
-
-    .filter-bar { display: flex; gap: 12px; margin-bottom: 20px; align-items: flex-start; }
-    .search-field { flex: 1; max-width: 400px; }
-    .role-filter { width: 200px; }
-
-    .table-container { background: #FFFFFF; border-radius: 8px; border: 1px solid #EAEAEA; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .users-table { width: 100%; }
-    .cell-id { font-family: var(--font-mono); font-size: 12px; color: #787774; }
-
-    .user-name-cell { display: flex; flex-direction: column; }
-    .user-name-cell .name { font-weight: 500; color: #1A1A1A; }
-    .user-name-cell .email { font-size: 12px; color: #787774; }
-
-    .roles-cell { display: flex; flex-wrap: wrap; gap: 4px; }
-    .role-badge { display: inline-flex; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; }
-    .role-admin { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
-    .role-doctor { background: var(--mat-sys-tertiary-container); color: var(--mat-sys-on-tertiary-container); }
-    .role-nurse { background: #fce4ec; color: #c62828; }
-    .role-pharmacist { background: #fff3e0; color: #e65100; }
-    .role-receptionist { background: #f3e5f5; color: #7b1fa2; }
-    .role-manager { background: #e0f2f1; color: #00695c; }
-
-    .status-badge { display: inline-flex; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; }
-    .status-badge.active { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
-    .status-badge.inactive { background: var(--mat-sys-error-container); color: var(--mat-sys-on-error-container); }
-
-    mat-row:hover { background: #F7F6F3; }
-    .mat-mdc-header-cell { font-weight: 600; color: #787774; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-  `],
+  templateUrl: './manage-users.component.html',
+  styleUrls: ['./manage-users.component.scss'],
 })
 export class ManageUsersComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
@@ -208,6 +64,13 @@ export class ManageUsersComponent implements OnInit, OnDestroy {
 
   displayedColumns = ['id', 'fullName', 'roles', 'status', 'actions'];
   roleFilters = ROLE_FILTERS;
+
+  // Confirm dialog state (replaces MatDialog-based ConfirmDialogComponent)
+  showConfirmDialog = false;
+  confirmDialogTitle = '';
+  confirmDialogMessage = '';
+  confirmDialogConfirmLabel = '';
+  private pendingUserAction: { user: AdminUser; activate: boolean } | null = null;
 
   constructor(
     private adminService: AdminService,
@@ -315,39 +178,39 @@ export class ManageUsersComponent implements OnInit, OnDestroy {
 
   toggleUserStatus(user: AdminUser): void {
     const action = user.isActive ? 'vô hiệu hóa' : 'kích hoạt';
-    const dialogRef = this.dialog.open<ConfirmDialogComponent, ConfirmDialogData>(ConfirmDialogComponent, {
-      width: '420px',
-      data: {
-        title: `${user.isActive ? 'Vô hiệu hóa' : 'Kích hoạt'} người dùng`,
-        message: `Bạn có chắc muốn ${action} người dùng "${user.fullName}"?`,
-        confirmLabel: user.isActive ? 'Vô hiệu hóa' : 'Kích hoạt',
-        cancelLabel: 'Hủy',
-        confirmColor: user.isActive ? 'warn' : 'primary',
-      },
-    });
+    this.confirmDialogTitle = `${user.isActive ? 'Vô hiệu hóa' : 'Kích hoạt'} người dùng`;
+    this.confirmDialogMessage = `Bạn có chắc muốn ${action} người dùng "${user.fullName}"?`;
+    this.confirmDialogConfirmLabel = user.isActive ? 'Vô hiệu hóa' : 'Kích hoạt';
+    this.pendingUserAction = { user, activate: !user.isActive };
+    this.showConfirmDialog = true;
+    this.cdr.markForCheck();
+  }
 
-    dialogRef.afterClosed()
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((confirmed) => {
-        if (!confirmed) return;
-        const obs$ = user.isActive
-          ? this.adminService.deactivateUser(user.id)
-          : this.adminService.activateUser(user.id);
+  onConfirmDialogConfirmed(): void {
+    this.showConfirmDialog = false;
+    const pending = this.pendingUserAction;
+    this.pendingUserAction = null;
+    if (!pending) return;
 
-        obs$.pipe(takeUntil(this.destroy$))
-          .subscribe({
-            next: () => {
-              this.snackBar.open(
-                `Đã ${action} người dùng thành công`, 'Đóng', { duration: 3000 },
-              );
-              this.loadUsers();
-            },
-            error: () => {
-              this.snackBar.open(
-                `Không thể ${action} người dùng`, 'Đóng', { duration: 5000 },
-              );
-            },
-          });
+    const action = pending.user.isActive ? 'vô hiệu hóa' : 'kích hoạt';
+    const obs$ = pending.user.isActive
+      ? this.adminService.deactivateUser(pending.user.id)
+      : this.adminService.activateUser(pending.user.id);
+
+    obs$.pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.snackBar.open(`Đã ${action} người dùng thành công`, 'Đóng', { duration: 3000 });
+          this.loadUsers();
+        },
+        error: () => {
+          this.snackBar.open(`Không thể ${action} người dùng`, 'Đóng', { duration: 5000 });
+        },
       });
+  }
+
+  onConfirmDialogCancelled(): void {
+    this.showConfirmDialog = false;
+    this.pendingUserAction = null;
   }
 }

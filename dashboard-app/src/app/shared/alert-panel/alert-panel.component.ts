@@ -10,6 +10,7 @@ import { map } from 'rxjs/operators';
 import { AlertService } from '../../core/services/alert.service';
 import { Alert } from '../../core/models/alert.model';
 import { RelativeTimePipe } from '../pipes/relative-time.pipe';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 const SEVERITY_CONFIG: Record<string, { dotColor: string; bg: string; label: string }> = {
   critical: { dotColor: '#C25450', bg: '#FDEBEC', label: 'Nghiêm trọng' },
@@ -28,6 +29,7 @@ const SEVERITY_CONFIG: Record<string, { dotColor: string; bg: string; label: str
     MatMenuModule,
     MatBadgeModule,
     RelativeTimePipe,
+    HisHopeTranslatePipe,
   ],
   template: `
     <button
@@ -36,7 +38,7 @@ const SEVERITY_CONFIG: Record<string, { dotColor: string; bg: string; label: str
       [matBadge]="totalAlerts$ | async"
       matBadgeColor="warn"
       matBadgeSize="small"
-      aria-label="Thông báo cảnh báo"
+      [attr.aria-label]="'dashboard.alerts.alertNotification' | hhTranslate:'Thông báo cảnh báo'"
       class="alert-bell-btn"
     >
       <mat-icon>notifications</mat-icon>
@@ -44,41 +46,44 @@ const SEVERITY_CONFIG: Record<string, { dotColor: string; bg: string; label: str
 
     <mat-menu #alertMenu="matMenu" class="alert-menu-panel" xPosition="before" yPosition="below">
       <div class="alert-menu-header">
-        <span class="alert-menu-title">Cảnh báo hệ thống</span>
-        <span class="alert-menu-count" *ngIf="(totalAlerts$ | async) as total">
-          {{ total }} đang hoạt động
-        </span>
+        <span class="alert-menu-title">{{ 'dashboard.alerts.systemAlerts' | hhTranslate:'Cảnh báo hệ thống' }}</span>
+        @let total = totalAlerts$ | async;
+        @if (total !== null) {
+          <span class="alert-menu-count">{{ total }} {{ 'dashboard.alerts.active' | hhTranslate:'đang hoạt động' }}</span>
+        }
       </div>
 
-      <ng-container *ngIf="(activeAlerts$ | async) as alerts">
-        <div class="alert-menu-body" *ngIf="alerts.length > 0; else emptyAlerts">
-          <button
-            *ngFor="let alert of alerts"
-            mat-menu-item
-            class="alert-menu-item"
-            [style.--alert-dot-color]="getSeverityConfig(alert.severity).dotColor"
-            [style.--alert-bg]="getSeverityConfig(alert.severity).bg"
-          >
-            <div class="alert-item">
-              <span class="alert-severity-dot" [style.background]="getSeverityConfig(alert.severity).dotColor"></span>
-              <div class="alert-content">
-                <div class="alert-heading">
-                  <span class="alert-service">{{ alert.service }}</span>
-                  <span class="alert-time">{{ alert.startsAt | relativeTime }}</span>
+      @let alerts = activeAlerts$ | async;
+      @if (alerts) {
+        @if (alerts.length > 0) {
+          <div class="alert-menu-body">
+            @for (alert of alerts; track alert.summary + alert.service) {
+              <button
+                mat-menu-item
+                class="alert-menu-item"
+                [style.--alert-dot-color]="getSeverityConfig(alert.severity).dotColor"
+                [style.--alert-bg]="getSeverityConfig(alert.severity).bg"
+              >
+                <div class="alert-item">
+                  <span class="alert-severity-dot" [style.background]="getSeverityConfig(alert.severity).dotColor"></span>
+                  <div class="alert-content">
+                    <div class="alert-heading">
+                      <span class="alert-service">{{ alert.service }}</span>
+                      <span class="alert-time">{{ alert.startsAt | relativeTime }}</span>
+                    </div>
+                    <div class="alert-summary">{{ alert.summary }}</div>
+                  </div>
                 </div>
-                <div class="alert-summary">{{ alert.summary }}</div>
-              </div>
-            </div>
-          </button>
-        </div>
-      </ng-container>
-
-      <ng-template #emptyAlerts>
-        <div class="alert-empty">
-          <mat-icon class="alert-empty-icon">check_circle</mat-icon>
-          <span>Không có cảnh báo nào</span>
-        </div>
-      </ng-template>
+              </button>
+            }
+          </div>
+        } @else {
+          <div class="alert-empty">
+            <mat-icon class="alert-empty-icon">check_circle</mat-icon>
+            <span>{{ 'dashboard.alerts.noAlerts' | hhTranslate:'Không có cảnh báo nào' }}</span>
+          </div>
+        }
+      }
     </mat-menu>
   `,
   styles: [`

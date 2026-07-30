@@ -1,0 +1,81 @@
+    <div class="manage-roles">
+      <div class="page-header">
+        <div>
+          <h1>Quản lý vai trò & quyền</h1>
+          <p class="subtitle">Cấu hình kiểm soát truy cập dựa trên vai trò (RBAC)</p>
+        </div>
+        <button mat-raised-button color="primary" (click)="openAddRoleDialog()">
+          <mat-icon>add_moderator</mat-icon>
+          Thêm vai trò
+        </button>
+      </div>
+
+      <div class="table-container mat-elevation-z2">
+        <app-loading-spinner [loading]="loading" message="Đang tải danh sách vai trò..."></app-loading-spinner>
+
+        @if (!loading) {
+          @if (roles.length > 0) {
+          <mat-table [dataSource]="roles" class="roles-table">
+            <ng-container matColumnDef="name">
+              <mat-header-cell *matHeaderCellDef>Tên vai trò</mat-header-cell>
+              <mat-cell *matCellDef="let r">
+                <div class="role-name-cell">
+                  <span class="name">{{ getRoleLabel(r.name) }}</span>
+                  <span class="desc">{{ r.description }}</span>
+                </div>
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="usersCount">
+              <mat-header-cell *matHeaderCellDef>Người dùng</mat-header-cell>
+              <mat-cell *matCellDef="let r">{{ r.usersCount }}</mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="system">
+              <mat-header-cell *matHeaderCellDef>Hệ thống</mat-header-cell>
+              <mat-cell *matCellDef="let r">
+                <span class="system-badge" [ngClass]="r.isSystem ? 'system' : 'custom'">
+                  {{ r.isSystem ? 'Hệ thống' : 'Tùy chỉnh' }}
+                </span>
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="permissions">
+              <mat-header-cell *matHeaderCellDef>Quyền</mat-header-cell>
+              <mat-cell *matCellDef="let r">{{ r.permissions.length }} quyền</mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="actions">
+              <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
+              <mat-cell *matCellDef="let r">
+                <button mat-icon-button color="primary" (click)="openEditRoleDialog(r)"
+                        matTooltip="Chỉnh sửa vai trò">
+                  <mat-icon>edit</mat-icon>
+                </button>
+                <button mat-icon-button color="warn" (click)="deleteRole(r)"
+                        [disabled]="r.isSystem"
+                        matTooltip="{{ r.isSystem ? 'Không thể xóa vai trò hệ thống' : 'Xóa vai trò' }}">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </mat-cell>
+            </ng-container>
+
+            <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
+            <mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row"
+                     (click)="openEditRoleDialog(row)"></mat-row>
+          </mat-table>
+          } @else {
+          <app-empty-state icon="admin_panel_settings" title="Không có vai trò nào"
+                          message="Thêm vai trò mới để bắt đầu cấu hình quyền">
+          </app-empty-state>
+          }
+        }
+      </div>
+    </div>
+
+    @if (showConfirmDialog) {
+      <hh-confirm-dialog [open]="true" [title]="confirmDialogTitle" [message]="confirmDialogMessage"
+        [confirmLabel]="confirmDialogConfirmLabel" [cancelLabel]="'Hủy'"
+        (confirmed)="onConfirmDialogConfirmed()" (cancelled)="onConfirmDialogCancelled()">
+      </hh-confirm-dialog>
+    }

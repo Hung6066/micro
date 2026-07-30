@@ -10,13 +10,14 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { RouterModule } from '@angular/router';
-import { BehaviorSubject, Observable, Subject, of, combineLatest } from 'rxjs';
+import { BehaviorSubject, Subject, of } from 'rxjs';
 import { catchError, switchMap, finalize, debounceTime, takeUntil, tap } from 'rxjs/operators';
 import { TracesService } from '../../core/services/traces.service';
 import { ResourceService } from '../../core/services/resource.service';
 import { TraceSummary } from '../../core/models/trace.model';
 import { Resource } from '../../core/models/resource.model';
 import { ActivatedRoute, Router } from '@angular/router';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-traces-page',
@@ -33,13 +34,14 @@ import { ActivatedRoute, Router } from '@angular/router';
     MatInputModule,
     MatSelectModule,
     MatProgressSpinnerModule,
+    HisHopeTranslatePipe,
   ],
   template: `
     <div class="page-header">
-      <h1 class="page-title">System Traces</h1>
+      <h1 class="page-title">{{ 'dashboard.traces.title' | hhTranslate:'System Traces' }}</h1>
       <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
         <mat-icon>refresh</mat-icon>
-        Refresh
+        {{ 'dashboard.common.refresh' | hhTranslate:'Refresh' }}
       </button>
     </div>
 
@@ -48,35 +50,37 @@ import { ActivatedRoute, Router } from '@angular/router';
       <mat-card-content>
         <div class="filters-row">
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Service</mat-label>
+            <mat-label>{{ 'dashboard.traces.service' | hhTranslate:'Service' }}</mat-label>
             <mat-select [(ngModel)]="selectedService" (selectionChange)="onFilterChange()">
-              <mat-option value="">All services</mat-option>
-              <mat-option *ngFor="let svc of availableServices" [value]="svc.name">
-                {{ svc.displayName || svc.name }}
-              </mat-option>
+              <mat-option value="">{{ 'dashboard.traces.allServices' | hhTranslate:'All services' }}</mat-option>
+              @for (svc of availableServices; track svc.name) {
+                <mat-option [value]="svc.name">
+                  {{ svc.displayName || svc.name }}
+                </mat-option>
+              }
             </mat-select>
           </mat-form-field>
 
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Time range</mat-label>
+            <mat-label>{{ 'dashboard.traces.timeRange' | hhTranslate:'Time range' }}</mat-label>
             <mat-select [(ngModel)]="selectedTimeRange" (selectionChange)="onFilterChange()">
-              <mat-option value="15m">15 minutes</mat-option>
-              <mat-option value="1h">1 hour</mat-option>
-              <mat-option value="6h">6 hours</mat-option>
-              <mat-option value="24h">24 hours</mat-option>
-              <mat-option value="7d">7 days</mat-option>
+              <mat-option value="15m">{{ 'dashboard.traces.time.15m' | hhTranslate:'15 minutes' }}</mat-option>
+              <mat-option value="1h">{{ 'dashboard.traces.time.1h' | hhTranslate:'1 hour' }}</mat-option>
+              <mat-option value="6h">{{ 'dashboard.traces.time.6h' | hhTranslate:'6 hours' }}</mat-option>
+              <mat-option value="24h">{{ 'dashboard.traces.time.24h' | hhTranslate:'24 hours' }}</mat-option>
+              <mat-option value="7d">{{ 'dashboard.traces.time.7d' | hhTranslate:'7 days' }}</mat-option>
             </mat-select>
           </mat-form-field>
 
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Min duration (ms)</mat-label>
+            <mat-label>{{ 'dashboard.traces.minDuration' | hhTranslate:'Min duration (ms)' }}</mat-label>
             <input matInput type="number" [(ngModel)]="minDurationMs" (ngModelChange)="onFilterChange()"
                    placeholder="0" min="0" />
           </mat-form-field>
 
           <button mat-raised-button color="primary" (click)="search()">
             <mat-icon>search</mat-icon>
-            Search
+            {{ 'dashboard.common.search' | hhTranslate:'Search' }}
           </button>
         </div>
       </mat-card-content>
@@ -85,41 +89,48 @@ import { ActivatedRoute, Router } from '@angular/router';
     <!-- Table card -->
     <mat-card>
       <mat-card-content class="table-content">
+        @let loading = loading$ | async;
+        @let error = error$ | async;
+
         <!-- Loading -->
-        <div class="loading-state" *ngIf="(loading$ | async) && !(error$ | async)">
-          <mat-spinner diameter="28"></mat-spinner>
-        </div>
+        @if (loading && !error) {
+          <div class="loading-state">
+            <mat-spinner diameter="28"></mat-spinner>
+          </div>
+        }
 
         <!-- Error -->
-        <div class="error-inline" *ngIf="error$ | async as err">
-          <span class="error-text">{{ err }}</span>
-          <button mat-stroked-button size="small" (click)="refresh()">Retry</button>
-        </div>
+        @if (error) {
+          <div class="error-inline">
+            <span class="error-text">{{ error }}</span>
+            <button mat-stroked-button size="small" (click)="refresh()">{{ 'dashboard.common.retry' | hhTranslate:'Retry' }}</button>
+          </div>
+        }
 
         <!-- Table -->
         <table mat-table [dataSource]="traces" class="mat-elevation-z0">
           <ng-container matColumnDef="traceId">
-            <th mat-header-cell *matHeaderCellDef>Trace ID</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.traces.traceId' | hhTranslate:'Trace ID' }}</th>
             <td mat-cell *matCellDef="let t" class="mono">{{ t.traceId | slice:0:16 }}...</td>
           </ng-container>
 
           <ng-container matColumnDef="rootService">
-            <th mat-header-cell *matHeaderCellDef>Service</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.traces.service' | hhTranslate:'Service' }}</th>
             <td mat-cell *matCellDef="let t">{{ t.rootService }}</td>
           </ng-container>
 
           <ng-container matColumnDef="duration">
-            <th mat-header-cell *matHeaderCellDef>Duration</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.traces.duration' | hhTranslate:'Duration' }}</th>
             <td mat-cell *matCellDef="let t" class="mono">{{ t.durationMs | number }}ms</td>
           </ng-container>
 
           <ng-container matColumnDef="spans">
-            <th mat-header-cell *matHeaderCellDef>Spans</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.traces.spans' | hhTranslate:'Spans' }}</th>
             <td mat-cell *matCellDef="let t">{{ t.spanCount }}</td>
           </ng-container>
 
           <ng-container matColumnDef="startTime">
-            <th mat-header-cell *matHeaderCellDef>Start time</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.traces.startTime' | hhTranslate:'Start time' }}</th>
             <td mat-cell *matCellDef="let t" class="mono">{{ t.startTime | date:'dd/MM HH:mm:ss' }}</td>
           </ng-container>
 
@@ -130,7 +141,7 @@ import { ActivatedRoute, Router } from '@angular/router';
           <tr class="mat-row" *matNoDataRow>
             <td class="mat-cell empty-state" [attr.colspan]="displayedColumns.length">
               <mat-icon>timeline</mat-icon>
-              <p>{{ (loading$ | async) ? 'Loading...' : 'No traces found' }}</p>
+              <p>{{ loading ? ('dashboard.common.loading' | hhTranslate:'Loading...') : ('dashboard.traces.noTraces' | hhTranslate:'No traces found') }}</p>
             </td>
           </tr>
         </table>

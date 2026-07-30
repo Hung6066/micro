@@ -5,6 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { BehaviorSubject, Subject, of } from 'rxjs';
 import { catchError, finalize, takeUntil } from 'rxjs/operators';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { ResourceService } from '../../core/services/resource.service';
 import { Resource } from '../../core/models/resource.model';
 
@@ -16,6 +17,7 @@ import { Resource } from '../../core/models/resource.model';
     MatCardModule,
     MatIconModule,
     MatProgressSpinnerModule,
+    HisHopeTranslatePipe,
   ],
   template: `
     <div class="overview-grid">
@@ -27,7 +29,7 @@ import { Resource } from '../../core/models/resource.model';
             </div>
             <div class="overview-info">
               <span class="overview-value">{{ runningCount }}</span>
-              <span class="overview-label">Đang chạy</span>
+              <span class="overview-label">{{ 'dashboard.metricsOverview.running' | hhTranslate:'Đang chạy' }}</span>
             </div>
           </div>
         </mat-card-content>
@@ -41,7 +43,7 @@ import { Resource } from '../../core/models/resource.model';
             </div>
             <div class="overview-info">
               <span class="overview-value">{{ stoppedCount }}</span>
-              <span class="overview-label">Đã dừng</span>
+              <span class="overview-label">{{ 'dashboard.metricsOverview.stopped' | hhTranslate:'Đã dừng' }}</span>
             </div>
           </div>
         </mat-card-content>
@@ -55,7 +57,7 @@ import { Resource } from '../../core/models/resource.model';
             </div>
             <div class="overview-info">
               <span class="overview-value">{{ degradedCount }}</span>
-              <span class="overview-label">Suy giảm</span>
+              <span class="overview-label">{{ 'dashboard.metricsOverview.degraded' | hhTranslate:'Suy giảm' }}</span>
             </div>
           </div>
         </mat-card-content>
@@ -69,7 +71,7 @@ import { Resource } from '../../core/models/resource.model';
             </div>
             <div class="overview-info">
               <span class="overview-value">{{ totalCount }}</span>
-              <span class="overview-label">Tổng dịch vụ</span>
+              <span class="overview-label">{{ 'dashboard.metricsOverview.totalServices' | hhTranslate:'Tổng dịch vụ' }}</span>
             </div>
           </div>
         </mat-card-content>

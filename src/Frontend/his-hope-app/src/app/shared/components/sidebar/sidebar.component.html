@@ -1,0 +1,82 @@
+
+    <div class="sidebar-header">
+      <hh-brand></hh-brand>
+      <button mat-icon-button class="hide-desktop close-btn" (click)="toggle.emit()"
+        aria-label="Đóng menu điều hướng">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+
+    <!-- Patient Quick Search -->
+    <div class="sidebar-search">
+      <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
+        <mat-icon matPrefix>search</mat-icon>
+        <input matInput [formControl]="patientSearchControl" [matAutocomplete]="patientAuto"
+               placeholder="Tìm bệnh nhân...">
+      </mat-form-field>
+      <mat-autocomplete #patientAuto="matAutocomplete" [displayWith]="displayPatientName"
+                        (optionSelected)="onPatientSelected($event)">
+        @for (p of searchResults; track p.id) {
+          <mat-option [value]="p">
+            <div class="search-result-item">
+              <span class="result-name">{{ p.fullName }}</span>
+              <span class="result-meta">{{ p.genderName }} · {{ p.age }}t · {{ p.id | slice:0:8 }}</span>
+            </div>
+          </mat-option>
+        }
+        @if (searchResults.length === 0 && (patientSearchControl.value?.length ?? 0) >= 2) {
+          <mat-option disabled>
+            <span class="no-results">Không tìm thấy bệnh nhân</span>
+          </mat-option>
+        }
+      </mat-autocomplete>
+    </div>
+
+    <mat-nav-list class="sidebar-nav" aria-label="Điều hướng chính">
+      <a mat-list-item routerLink="/dashboard" routerLinkActive="active" #rla1="routerLinkActive">
+        <mat-icon matListItemIcon aria-hidden="true">dashboard</mat-icon>
+        <span matListItemTitle>Dashboard</span>
+      </a>
+      <a mat-list-item routerLink="/patients" routerLinkActive="active" #rla2="routerLinkActive">
+        <mat-icon matListItemIcon aria-hidden="true">people</mat-icon>
+        <span matListItemTitle>Bệnh nhân</span>
+      </a>
+      <a mat-list-item routerLink="/appointments" routerLinkActive="active" #rla3="routerLinkActive">
+        <mat-icon matListItemIcon aria-hidden="true">calendar_today</mat-icon>
+        <span matListItemTitle>Lịch hẹn</span>
+      </a>
+      <a mat-list-item routerLink="/clinical" routerLinkActive="active" #rla4="routerLinkActive">
+        <mat-icon matListItemIcon aria-hidden="true">medical_services</mat-icon>
+        <span matListItemTitle>Lâm sàng</span>
+      </a>
+      <a mat-list-item routerLink="/pharmacy" routerLinkActive="active" #rla5="routerLinkActive">
+        <mat-icon matListItemIcon aria-hidden="true">medication</mat-icon>
+        <span matListItemTitle>Dược phẩm</span>
+      </a>
+      <a mat-list-item routerLink="/lab" routerLinkActive="active" #rla6="routerLinkActive">
+        <mat-icon matListItemIcon aria-hidden="true">biotech</mat-icon>
+        <span matListItemTitle>Xét nghiệm</span>
+      </a>
+      <a mat-list-item routerLink="/billing" routerLinkActive="active" #rla7="routerLinkActive">
+        <mat-icon matListItemIcon aria-hidden="true">receipt</mat-icon>
+        <span matListItemTitle>Thanh toán</span>
+      </a>
+      <a mat-list-item routerLink="/admin" routerLinkActive="active" #rla8="routerLinkActive">
+        <mat-icon matListItemIcon aria-hidden="true">settings</mat-icon>
+        <span matListItemTitle>Quản trị</span>
+      </a>
+    </mat-nav-list>
+
+    @if (currentUser) {
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <span class="user-name" id="user-name">{{ currentUser.fullName }}</span>
+        <span class="user-specialty">{{ currentUser.specialty }}</span>
+      </div>
+      <button mat-icon-button (click)="logout()" [disabled]="loggingOut"
+        aria-label="Đăng xuất" aria-describedby="user-name">
+        <mat-icon aria-hidden="true">logout</mat-icon>
+      </button>
+    </div>
+    }
+  

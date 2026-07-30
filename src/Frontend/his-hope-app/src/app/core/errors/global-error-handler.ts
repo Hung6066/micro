@@ -2,8 +2,8 @@ import { ErrorHandler, inject, Injectable, Injector, NgZone } from '@angular/cor
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ErrorService } from '@core/services/error.service';
-import { AuditService } from '@core/services/audit.service';
 import { Store } from '@ngrx/store';
+import { HisHopeAuditFeedbackService } from '@his-hope/frontend-foundation';
 import { captureError, clearError } from '@store/error/error.actions';
 import { environment } from '@env/environment';
 
@@ -39,7 +39,7 @@ export class GlobalErrorHandler implements ErrorHandler {
 
   private injector = inject(Injector);
   private ngZone = inject(NgZone);
-  private auditService = inject(AuditService);
+  private auditFeedback = inject(HisHopeAuditFeedbackService);
 
   handleError(error: unknown): void {
     const context = this.errorService.buildErrorContext(error);
@@ -49,11 +49,12 @@ export class GlobalErrorHandler implements ErrorHandler {
       console.error('[GlobalErrorHandler]', error);
     }
 
-    // === Audit log (gửi về backend an toàn) ===
-    this.auditService.log('error.client', {
-      type: context.type,
-      url: context.url,
-      correlationId: context.correlationId,
+    // === Audit feedback ===
+    this.auditFeedback.report({
+      action: 'error.client',
+      resource: 'app',
+      outcome: 'failure',
+      message: `${context.type}: ${context.url}`,
     });
 
     // === Guard: skip reporting if this error originated from the errors API ===

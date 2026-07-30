@@ -1,0 +1,228 @@
+
+    <hh-page-layout density="dense">
+    <div class="dashboard">
+      <div class="welcome-section">
+        <div>
+          <h1>Xin chào, {{ currentUserName }}</h1>
+          <p class="page-subtitle">Tổng quan bệnh viện</p>
+        </div>
+        <div class="date-display">
+          <mat-icon>calendar_today</mat-icon>
+          <span>{{ today | date:'EEEE, dd/MM/yyyy' }}</span>
+        </div>
+      </div>
+
+      @if (loading) {
+      <div class="loading-state" aria-live="polite" aria-busy="true">
+        <mat-spinner diameter="40"></mat-spinner>
+        <span class="sr-only">Đang tải dữ liệu...</span>
+      </div>
+      }
+
+      @if (error) {
+      <div class="error-message" role="alert" aria-live="assertive">
+        <mat-icon aria-hidden="true">error_outline</mat-icon>
+        <span>{{ error }}</span>
+      </div>
+      }
+
+      <!-- Row 1: Stat Cards — bento-grid layout -->
+      @defer (on viewport) {
+      @if (!loading && !error) {
+      <div class="stats-bento">
+        <mat-card class="stat-card card-patients">
+          <mat-card-content>
+            <div class="stat-icon"><mat-icon>people</mat-icon></div>
+            <div class="stat-info">
+              <span class="stat-value">{{ stats.totalPatients }}</span>
+              <span class="stat-label">Tổng bệnh nhân</span>
+              @if (stats.newPatientsToday > 0) {
+              <span class="stat-trend">
+                +{{ stats.newPatientsToday }} hôm nay
+              </span>
+              }
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="stat-card card-appointments">
+          <mat-card-content>
+            <div class="stat-icon"><mat-icon>calendar_today</mat-icon></div>
+            <div class="stat-info">
+              <span class="stat-value">{{ stats.todayAppointments }}</span>
+              <span class="stat-label">Lịch hẹn hôm nay</span>
+              @if (stats.appointmentsTomorrow > 0) {
+              <span class="stat-trend">
+                {{ stats.appointmentsTomorrow }} ngày mai
+              </span>
+              }
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="stat-card card-encounters">
+          <mat-card-content>
+            <div class="stat-icon"><mat-icon>emergency</mat-icon></div>
+            <div class="stat-info">
+              <span class="stat-value">{{ stats.activeEncounters }}</span>
+              <span class="stat-label">Điều trị đang mở</span>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="stat-card card-labs">
+          <mat-card-content>
+            <div class="stat-icon"><mat-icon>science</mat-icon></div>
+            <div class="stat-info">
+              <span class="stat-value">{{ stats.pendingLabs }}</span>
+              <span class="stat-label">Xét nghiệm chờ KQ</span>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="stat-card card-billing">
+          <mat-card-content>
+            <div class="stat-icon"><mat-icon>receipt</mat-icon></div>
+            <div class="stat-info">
+              <span class="stat-value">{{ stats.outstandingInvoices }}</span>
+              <span class="stat-label">Hóa đơn chưa TT</span>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="stat-card card-pharmacy">
+          <mat-card-content>
+            <div class="stat-icon"><mat-icon>medication</mat-icon></div>
+            <div class="stat-info">
+              <span class="stat-value">{{ stats.lowStockMedications }}</span>
+              <span class="stat-label">Thuốc sắp hết</span>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
+      }
+      } @placeholder {
+      <div class="stats-bento">
+        @for (_ of [1,2,3,4,5,6]; track _) {
+        <mat-card class="stat-card">
+          <mat-card-content>
+            <div class="stat-icon-placeholder"></div>
+            <div class="stat-info">
+              <span class="stat-value-placeholder"></span>
+              <span class="stat-label-placeholder"></span>
+            </div>
+          </mat-card-content>
+        </mat-card>
+        }
+      </div>
+      }
+
+      <!-- Patient Quick Search -->
+      @if (!loading && !error) {
+      <mat-card class="section-card search-card">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>search</mat-icon> Tìm bệnh nhân
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <mat-form-field appearance="outline" class="dashboard-search">
+            <mat-label>Nhập tên, số điện thoại hoặc mã bệnh nhân...</mat-label>
+            <input matInput [formControl]="patientSearchControl" [matAutocomplete]="auto">
+            <mat-icon matSuffix>search</mat-icon>
+          </mat-form-field>
+          <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayPatientName"
+                            (optionSelected)="onPatientSelected($event)">
+            @for (p of patientSearchResults; track p.id) {
+            <mat-option [value]="p">
+              <div class="search-result-item">
+                <span class="result-name">{{ p.fullName }}</span>
+                <span class="result-meta">{{ p.genderName }} · {{ p.age }} tuổi · {{ p.phone }}</span>
+              </div>
+            </mat-option>
+            }
+            @if (patientSearchResults.length === 0 && (patientSearchControl.value?.length ?? 0) >= 2) {
+            <mat-option disabled>
+              <span class="no-results">Không tìm thấy bệnh nhân</span>
+            </mat-option>
+            }
+          </mat-autocomplete>
+        </mat-card-content>
+      </mat-card>
+      }
+
+      <!-- Recent Patients -->
+      @if (!loading && !error && recentPatients.length > 0) {
+      <mat-card class="section-card">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>history</mat-icon> Bệnh nhân gần đây
+          </mat-card-title>
+          <button mat-stroked-button size="small" routerLink="/patients">Xem tất cả</button>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="recent-patients-grid">
+            @for (p of recentPatients; track p.id) {
+            <button
+              type="button"
+              class="recent-patient-card"
+              (click)="openPatientWorkspace(p.id)"
+              [attr.aria-label]="'Mở hồ sơ bệnh nhân ' + p.fullName"
+            >
+              <div class="rp-avatar">{{ p.fullName.charAt(0) }}</div>
+              <div class="rp-info">
+                <span class="rp-name">{{ p.fullName }}</span>
+                <span class="rp-meta">{{ p.genderName }} · {{ p.age }} tuổi</span>
+              </div>
+              <mat-icon class="rp-arrow">chevron_right</mat-icon>
+            </button>
+            }
+          </div>
+        </mat-card-content>
+      </mat-card>
+      }
+
+      <!-- Row 2: Recent Encounters -->
+      @defer (on viewport) {
+      @if (!loading && !error) {
+      <mat-card class="section-card">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>history</mat-icon> Lượt khám gần đây
+          </mat-card-title>
+          <button mat-stroked-button size="small" routerLink="/clinical">Xem tất cả</button>
+        </mat-card-header>
+        <mat-card-content>
+          <hh-data-table label="Lượt khám gần đây" density="compact" [columns]="encounterColumns" [rows]="encounterRows"
+                         [empty]="recentEncounters.length === 0" emptyMessage="Chưa có lượt khám nào"
+                         [rowClickable]="true" (rowClick)="viewEncounter(encounterFromRow($event).id)" />
+        </mat-card-content>
+      </mat-card>
+      }
+      } @placeholder {
+      <mat-card class="section-card"><mat-card-content><div class="section-empty">Đang tải...</div></mat-card-content></mat-card>
+      }
+
+      <!-- Row 3: Upcoming Appointments -->
+      @defer (on viewport) {
+      @if (!loading && !error) {
+      <mat-card class="section-card">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>upcoming</mat-icon> Lịch hẹn sắp tới
+          </mat-card-title>
+          <button mat-stroked-button size="small" routerLink="/appointments">Xem tất cả</button>
+        </mat-card-header>
+        <mat-card-content>
+          <hh-data-table label="Lịch hẹn sắp tới" density="compact" [columns]="appointmentColumns" [rows]="appointmentRows"
+                         [empty]="upcomingAppointments.length === 0" emptyMessage="Không có lịch hẹn nào"
+                         [rowClickable]="true" (rowClick)="viewAppointment(appointmentFromRow($event).id)" />
+        </mat-card-content>
+      </mat-card>
+      }
+      } @placeholder {
+      <mat-card class="section-card"><mat-card-content><div class="section-empty">Đang tải...</div></mat-card-content></mat-card>
+      }
+    </div>
+    </hh-page-layout>
+  

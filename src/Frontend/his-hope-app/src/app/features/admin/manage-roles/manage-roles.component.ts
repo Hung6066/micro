@@ -12,9 +12,9 @@ import { CommonModule } from '@angular/common';
 import { AdminService } from '@core/services/admin.service';
 import { Role } from '@core/models/admin.model';
 import { RoleFormDialogComponent, RoleFormData } from './role-form.dialog';
-import { ConfirmDialogComponent, ConfirmDialogData } from '@shared/components/confirm-dialog/confirm-dialog.component';
 import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
 import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { HisHopeConfirmDialogComponent } from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-manage-roles',
@@ -24,106 +24,11 @@ import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.
     MatTableModule, MatButtonModule, MatIconModule, MatMenuModule,
     MatProgressSpinnerModule, MatTooltipModule, MatDialogModule,
     MatSnackBarModule,
-    LoadingSpinnerComponent, EmptyStateComponent,
+    LoadingSpinnerComponent, EmptyStateComponent, HisHopeConfirmDialogComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="manage-roles">
-      <div class="page-header">
-        <div>
-          <h1>Quản lý vai trò & quyền</h1>
-          <p class="subtitle">Cấu hình kiểm soát truy cập dựa trên vai trò (RBAC)</p>
-        </div>
-        <button mat-raised-button color="primary" (click)="openAddRoleDialog()">
-          <mat-icon>add_moderator</mat-icon>
-          Thêm vai trò
-        </button>
-      </div>
-
-      <div class="table-container mat-elevation-z2">
-        <app-loading-spinner [loading]="loading" message="Đang tải danh sách vai trò..."></app-loading-spinner>
-
-        @if (!loading) {
-          @if (roles.length > 0) {
-          <mat-table [dataSource]="roles" class="roles-table">
-            <ng-container matColumnDef="name">
-              <mat-header-cell *matHeaderCellDef>Tên vai trò</mat-header-cell>
-              <mat-cell *matCellDef="let r">
-                <div class="role-name-cell">
-                  <span class="name">{{ getRoleLabel(r.name) }}</span>
-                  <span class="desc">{{ r.description }}</span>
-                </div>
-              </mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="usersCount">
-              <mat-header-cell *matHeaderCellDef>Người dùng</mat-header-cell>
-              <mat-cell *matCellDef="let r">{{ r.usersCount }}</mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="system">
-              <mat-header-cell *matHeaderCellDef>Hệ thống</mat-header-cell>
-              <mat-cell *matCellDef="let r">
-                <span class="system-badge" [ngClass]="r.isSystem ? 'system' : 'custom'">
-                  {{ r.isSystem ? 'Hệ thống' : 'Tùy chỉnh' }}
-                </span>
-              </mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="permissions">
-              <mat-header-cell *matHeaderCellDef>Quyền</mat-header-cell>
-              <mat-cell *matCellDef="let r">{{ r.permissions.length }} quyền</mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="actions">
-              <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
-              <mat-cell *matCellDef="let r">
-                <button mat-icon-button color="primary" (click)="openEditRoleDialog(r)"
-                        matTooltip="Chỉnh sửa vai trò">
-                  <mat-icon>edit</mat-icon>
-                </button>
-                <button mat-icon-button color="warn" (click)="deleteRole(r)"
-                        [disabled]="r.isSystem"
-                        matTooltip="{{ r.isSystem ? 'Không thể xóa vai trò hệ thống' : 'Xóa vai trò' }}">
-                  <mat-icon>delete</mat-icon>
-                </button>
-              </mat-cell>
-            </ng-container>
-
-            <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
-            <mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row"
-                     (click)="openEditRoleDialog(row)"></mat-row>
-          </mat-table>
-          } @else {
-          <app-empty-state icon="admin_panel_settings" title="Không có vai trò nào"
-                          message="Thêm vai trò mới để bắt đầu cấu hình quyền">
-          </app-empty-state>
-          }
-        }
-      </div>
-    </div>
-  `,
-  styles: [`
-    .manage-roles { padding: 24px; max-width: 1000px; margin: 0 auto; }
-    .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-    .page-header h1 { margin: 0; font-size: 24px; font-weight: 600; color: #1A1A1A; }
-    .subtitle { margin: 4px 0 0; color: #787774; font-size: 14px; }
-
-    .table-container { background: #FFFFFF; border-radius: 8px; border: 1px solid #EAEAEA; overflow: hidden; }
-    .roles-table { width: 100%; }
-
-    .role-name-cell { display: flex; flex-direction: column; }
-    .role-name-cell .name { font-weight: 500; color: #1A1A1A; text-transform: capitalize; }
-    .role-name-cell .desc { font-size: 12px; color: #787774; margin-top: 2px; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-    .system-badge { display: inline-flex; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; }
-    .system-badge.system { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
-    .system-badge.custom { background: var(--mat-sys-tertiary-container); color: var(--mat-sys-on-tertiary-container); }
-
-    .clickable-row { cursor: pointer; }
-    .clickable-row:hover { background: #F7F6F3; }
-    .mat-mdc-header-cell { font-weight: 600; color: #787774; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-  `],
+  templateUrl: './manage-roles.component.html',
+  styleUrls: ['./manage-roles.component.scss'],
 })
 export class ManageRolesComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
@@ -132,6 +37,13 @@ export class ManageRolesComponent implements OnInit, OnDestroy {
   loading = true;
 
   displayedColumns = ['name', 'usersCount', 'system', 'permissions', 'actions'];
+
+  // Confirm dialog state (replaces MatDialog-based ConfirmDialogComponent)
+  showConfirmDialog = false;
+  confirmDialogTitle = '';
+  confirmDialogMessage = '';
+  confirmDialogConfirmLabel = '';
+  private pendingRoleDelete: Role | null = null;
 
   constructor(
     private adminService: AdminService,
@@ -212,32 +124,35 @@ export class ManageRolesComponent implements OnInit, OnDestroy {
   deleteRole(role: Role): void {
     if (role.isSystem) return;
 
-    const dialogRef = this.dialog.open<ConfirmDialogComponent, ConfirmDialogData>(ConfirmDialogComponent, {
-      width: '420px',
-      data: {
-        title: 'Xóa vai trò',
-        message: `Bạn có chắc muốn xóa vai trò "${this.getRoleLabel(role.name)}"? Hành động này không thể hoàn tác.`,
-        confirmLabel: 'Xóa',
-        cancelLabel: 'Hủy',
-        confirmColor: 'warn',
-      },
-    });
+    this.confirmDialogTitle = 'Xóa vai trò';
+    this.confirmDialogMessage = `Bạn có chắc muốn xóa vai trò "${this.getRoleLabel(role.name)}"? Hành động này không thể hoàn tác.`;
+    this.confirmDialogConfirmLabel = 'Xóa';
+    this.pendingRoleDelete = role;
+    this.showConfirmDialog = true;
+    this.cdr.markForCheck();
+  }
 
-    dialogRef.afterClosed()
+  onConfirmDialogConfirmed(): void {
+    this.showConfirmDialog = false;
+    const role = this.pendingRoleDelete;
+    this.pendingRoleDelete = null;
+    if (!role) return;
+
+    this.adminService.deleteRole(role.id)
       .pipe(takeUntil(this.destroy$))
-      .subscribe((confirmed) => {
-        if (!confirmed) return;
-        this.adminService.deleteRole(role.id)
-          .pipe(takeUntil(this.destroy$))
-          .subscribe({
-            next: () => {
-              this.snackBar.open('Đã xóa vai trò thành công', 'Đóng', { duration: 3000 });
-              this.loadRoles();
-            },
-            error: () => {
-              this.snackBar.open('Không thể xóa vai trò', 'Đóng', { duration: 5000 });
-            },
-          });
+      .subscribe({
+        next: () => {
+          this.snackBar.open('Đã xóa vai trò thành công', 'Đóng', { duration: 3000 });
+          this.loadRoles();
+        },
+        error: () => {
+          this.snackBar.open('Không thể xóa vai trò', 'Đóng', { duration: 5000 });
+        },
       });
+  }
+
+  onConfirmDialogCancelled(): void {
+    this.showConfirmDialog = false;
+    this.pendingRoleDelete = null;
   }
 }

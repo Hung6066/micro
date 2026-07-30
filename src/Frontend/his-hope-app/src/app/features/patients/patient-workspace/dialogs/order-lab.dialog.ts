@@ -46,63 +46,8 @@ const AVAILABLE_TESTS = [
         MatSnackBarModule,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    template: `
-    <h2 mat-dialog-title>Chỉ định xét nghiệm</h2>
-    <mat-dialog-content>
-      @if (data.patientName) {
-      <div class="patient-info">
-        <mat-icon>person</mat-icon>
-        <span>{{ data.patientName }}</span>
-      </div>
-      }
-      <form [formGroup]="form" class="dialog-form">
-        <mat-form-field appearance="outline">
-          <mat-label>Loại xét nghiệm</mat-label>
-          <mat-select formControlName="testCode" required>
-            @for (t of availableTests; track t.code) {
-            <mat-option [value]="t.code">
-              {{ t.name }}
-            </mat-option>
-            }
-          </mat-select>
-          @if (form.get('testCode')?.hasError('required')) {
-          <mat-error>Vui lòng chọn xét nghiệm</mat-error>
-          }
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Mức độ ưu tiên</mat-label>
-          <mat-select formControlName="priority" required>
-            <mat-option value="routine">Thường quy</mat-option>
-            <mat-option value="urgent">Khẩn</mat-option>
-            <mat-option value="stat">Cấp cứu</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Ghi chú</mat-label>
-          <textarea matInput formControlName="notes" rows="3"
-                    placeholder="Ghi chú cho kỹ thuật viên..."></textarea>
-        </mat-form-field>
-      </form>
-    </mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close [disabled]="saving">Hủy</button>
-      <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid || saving">
-        <mat-icon>science</mat-icon>
-        @if (!saving) {
-        <span>Gửi chỉ định</span>
-        }
-        @if (saving) {
-        <mat-spinner diameter="20"></mat-spinner>
-        }
-      </button>
-    </mat-dialog-actions>
-  `,
-    styles: [`
-    .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: var(--pastel-purple, #F3EDF8); border-radius: 8px; color: var(--pastel-purple-text, #6B4FA0); font-weight: 500; }
-    .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 380px; }
-  `]
+    templateUrl: './order-lab.dialog.html',
+    styleUrls: ['./order-lab.dialog.scss']
 })
 export class OrderLabDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();

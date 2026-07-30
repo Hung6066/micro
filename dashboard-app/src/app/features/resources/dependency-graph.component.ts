@@ -1,5 +1,6 @@
 import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { Resource } from '../../core/models/resource.model';
 
 interface GraphNode {
@@ -45,12 +46,12 @@ const LAYER_PADDING = 80;
 @Component({
   selector: 'app-dependency-graph',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, HisHopeTranslatePipe],
   template: `
     <div class="graph-container">
       <!-- Toolbar -->
       <div class="graph-toolbar">
-        <span class="graph-title">Service Dependency Graph</span>
+        <span class="graph-title">{{ 'dashboard.resources.dependencyGraph' | hhTranslate:'Service Dependency Graph' }}</span>
         <div class="zoom-controls">
           <button class="zoom-btn" (click)="zoomOut()" title="Zoom out" aria-label="Zoom out">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -72,8 +73,8 @@ const LAYER_PADDING = 80;
           </button>
         </div>
         <div class="graph-legend">
-          <span class="legend-item"><span class="legend-dot" style="background:#2F6B4A"></span>Healthy</span>
-          <span class="legend-item"><span class="legend-dot" style="background:#B6581C"></span>Degraded</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#2F6B4A"></span>{{ 'dashboard.resources.healthy' | hhTranslate:'Healthy' }}</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#B6581C"></span>{{ 'dashboard.resources.degraded' | hhTranslate:'Degraded' }}</span>
           <span class="legend-item"><span class="legend-dot" style="background:#C25450"></span>Stopped</span>
           <span class="legend-item"><span class="legend-dot" style="background:#A1A09B"></span>Unknown</span>
           <span class="legend-divider"></span>
@@ -114,65 +115,68 @@ const LAYER_PADDING = 80;
           <rect width="100%" height="100%" fill="#FAFAF8" rx="8"/>
 
           <!-- Edges -->
-          <g class="edges-layer" *ngFor="let edge of edges()">
-            <path
-              [attr.d]="edgePath(edge)"
-              [class.edge-http]="edge.type === 'http'"
-              [class.edge-grpc]="edge.type === 'grpc'"
-              [class.edge-dep]="edge.type === 'dependency'"
-              [class.edge-highlighted]="isConnectedToHovered(edge)"
-              [attr.marker-end]="edgeMarker(edge)"
-            />
-          </g>
+          @for (edge of edges(); track $index) {
+            <g class="edges-layer">
+              <path
+                [attr.d]="edgePath(edge)"
+                [class.edge-http]="edge.type === 'http'"
+                [class.edge-grpc]="edge.type === 'grpc'"
+                [class.edge-dep]="edge.type === 'dependency'"
+                [class.edge-highlighted]="isConnectedToHovered(edge)"
+                [attr.marker-end]="edgeMarker(edge)"
+              />
+            </g>
+          }
 
           <!-- Nodes -->
           <g class="nodes-layer">
-            <g
-              *ngFor="let node of allNodes()"
-              class="node-group"
-              [class.node-highlighted]="hoveredNode() === node.id || isConnected(hoveredNode(), node.id)"
-              [class.node-dimmed]="hoveredNode() !== null && hoveredNode() !== node.id && !isConnected(hoveredNode(), node.id)"
-              (mouseenter)="hoveredNode.set(node.id)"
-              (click)="onNodeClick(node.resource)"
-              style="cursor: pointer;"
-            >
-              <!-- Node circle -->
-              <circle
-                [attr.cx]="node.x"
-                [attr.cy]="node.y"
-                [attr.r]="node.radius"
-                [attr.fill]="nodeColor(node)"
-                [attr.stroke]="nodeStroke(node)"
-                stroke-width="2"
-                [attr.filter]="hoveredNode() === node.id ? 'url(#node-glow)' : null"
-              />
-              <!-- Node icon (simple shape based on type) -->
-              <g [attr.transform]="'translate(' + (node.x - 8) + ',' + (node.y - 8) + ')'">
-                <!-- Service: cube -->
-                <ng-container *ngIf="node.type === 'service'">
-                  <rect x="2" y="2" width="12" height="12" rx="2" fill="white" opacity="0.85"/>
-                  <rect x="4" y="4" width="4" height="4" rx="1" fill="none" stroke="#1A1A1A" stroke-width="0.8" opacity="0.5"/>
-                </ng-container>
-                <!-- Database: cylinder -->
-                <ng-container *ngIf="node.type === 'database'">
-                  <ellipse cx="8" cy="4" rx="6" ry="2.5" fill="white" opacity="0.85"/>
-                  <rect x="2" y="4" width="12" height="6" fill="white" opacity="0.85"/>
-                  <ellipse cx="8" cy="10" rx="6" ry="2.5" fill="white" opacity="0.85"/>
-                </ng-container>
-                <!-- Infrastructure: diamond -->
-                <ng-container *ngIf="node.type === 'infrastructure'">
-                  <rect x="3" y="3" width="10" height="10" rx="1" fill="white" opacity="0.85"
-                        transform="rotate(45, 8, 8)"/>
-                </ng-container>
+            @for (node of allNodes(); track node.id) {
+              <g
+                class="node-group"
+                [class.node-highlighted]="hoveredNode() === node.id || isConnected(hoveredNode(), node.id)"
+                [class.node-dimmed]="hoveredNode() !== null && hoveredNode() !== node.id && !isConnected(hoveredNode(), node.id)"
+                (mouseenter)="hoveredNode.set(node.id)"
+                (click)="onNodeClick(node.resource)"
+                style="cursor: pointer;"
+              >
+                <!-- Node circle -->
+                <circle
+                  [attr.cx]="node.x"
+                  [attr.cy]="node.y"
+                  [attr.r]="node.radius"
+                  [attr.fill]="nodeColor(node)"
+                  [attr.stroke]="nodeStroke(node)"
+                  stroke-width="2"
+                  [attr.filter]="hoveredNode() === node.id ? 'url(#node-glow)' : null"
+                />
+                <!-- Node icon (simple shape based on type) -->
+                <g [attr.transform]="'translate(' + (node.x - 8) + ',' + (node.y - 8) + ')'">
+                  @if (node.type === 'service') {
+                    <!-- Service: cube -->
+                    <rect x="2" y="2" width="12" height="12" rx="2" fill="white" opacity="0.85"/>
+                    <rect x="4" y="4" width="4" height="4" rx="1" fill="none" stroke="#1A1A1A" stroke-width="0.8" opacity="0.5"/>
+                  }
+                  @if (node.type === 'database') {
+                    <!-- Database: cylinder -->
+                    <ellipse cx="8" cy="4" rx="6" ry="2.5" fill="white" opacity="0.85"/>
+                    <rect x="2" y="4" width="12" height="6" fill="white" opacity="0.85"/>
+                    <ellipse cx="8" cy="10" rx="6" ry="2.5" fill="white" opacity="0.85"/>
+                  }
+                  @if (node.type === 'infrastructure') {
+                    <!-- Infrastructure: diamond -->
+                    <rect x="3" y="3" width="10" height="10" rx="1" fill="white" opacity="0.85"
+                          transform="rotate(45, 8, 8)"/>
+                  }
+                </g>
+                <!-- Node label -->
+                <text
+                  [attr.x]="node.x"
+                  [attr.y]="node.y + node.radius + 16"
+                  text-anchor="middle"
+                  class="node-label"
+                >{{ node.label }}</text>
               </g>
-              <!-- Node label -->
-              <text
-                [attr.x]="node.x"
-                [attr.y]="node.y + node.radius + 16"
-                text-anchor="middle"
-                class="node-label"
-              >{{ node.label }}</text>
-            </g>
+            }
           </g>
         </svg>
       </div>

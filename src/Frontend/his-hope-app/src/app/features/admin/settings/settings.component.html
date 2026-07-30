@@ -1,0 +1,90 @@
+    <div class="settings-page">
+      <div class="page-header">
+        <div>
+          <h1>Cài đặt hệ thống</h1>
+          <p class="subtitle">Cấu hình các tham số và giá trị mặc định toàn hệ thống</p>
+        </div>
+        <button mat-raised-button color="primary" (click)="saveAll()" [disabled]="saving">
+          <mat-icon>save</mat-icon>
+          @if (!saving) {
+          <span>Lưu tất cả</span>
+          }
+          @if (saving) {
+          <mat-spinner diameter="20"></mat-spinner>
+          }
+        </button>
+      </div>
+
+      <app-loading-spinner [loading]="loading" message="Đang tải cài đặt..."></app-loading-spinner>
+
+      @if (!loading) {
+      <div class="settings-content">
+        <mat-accordion class="settings-accordion" [multi]="true">
+          @for (cat of categories; track cat.key) {
+          <mat-expansion-panel expanded>
+            <mat-expansion-panel-header>
+              <mat-panel-title>
+                <mat-icon>{{ cat.icon }}</mat-icon>
+                {{ cat.label }}
+              </mat-panel-title>
+            </mat-expansion-panel-header>
+
+            <div class="settings-grid">
+              @for (setting of getSettingsByCategory(cat.key); track setting.key) {
+                <div class="setting-item">
+                  <label class="setting-label">{{ setting.label }}</label>
+
+                  @if (setting.type === 'text') {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <input matInput [value]="settingValues[setting.key] || ''"
+                           (input)="onSettingChange(setting.key, $event, setting.type)">
+                  </mat-form-field>
+                  }
+
+                  @if (setting.type === 'number') {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <input matInput type="number" [value]="settingValues[setting.key] ?? 0"
+                           (input)="onSettingChange(setting.key, $event, setting.type)">
+                  </mat-form-field>
+                  }
+
+                  @if (setting.type === 'select') {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-select [value]="settingValues[setting.key]"
+                                (selectionChange)="onSettingSelect(setting.key, $event)">
+                      @for (opt of setting.options; track opt.value) {
+                      <mat-option [value]="opt.value">
+                        {{ opt.label }}
+                      </mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  }
+
+                  @if (setting.type === 'boolean') {
+                  <div class="toggle-wrapper">
+                    <mat-slide-toggle [checked]="settingValues[setting.key] === true"
+                                      (change)="onSettingToggle(setting.key, $event)">
+                      {{ settingValues[setting.key] ? 'Đã bật' : 'Đã tắt' }}
+                    </mat-slide-toggle>
+                  </div>
+                  }
+                </div>
+              }
+            </div>
+          </mat-expansion-panel>
+          }
+        </mat-accordion>
+
+        @if (hasChanges) {
+        <div class="save-bar">
+          <span class="changes-hint">Có thay đổi chưa được lưu</span>
+          <button mat-raised-button color="primary" (click)="saveAll()" [disabled]="saving">
+            <mat-icon>save</mat-icon>
+            Lưu tất cả
+          </button>
+        </div>
+        }
+      </div>
+      }
+    </div>

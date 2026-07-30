@@ -33,87 +33,8 @@ export interface StartEncounterData {
         MatSnackBarModule,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    template: `
-    <h2 mat-dialog-title>Bắt đầu lượt khám mới</h2>
-    <mat-dialog-content>
-      @if (data.patientName) {
-      <div class="patient-info">
-        <mat-icon>person</mat-icon>
-        <span>{{ data.patientName }}</span>
-      </div>
-      }
-      <form [formGroup]="form" class="dialog-form">
-        <mat-form-field appearance="outline">
-          <mat-label>Loại khám</mat-label>
-          <mat-select formControlName="encounterType">
-            <mat-option value="consultation">Khám bệnh</mat-option>
-            <mat-option value="follow_up">Tái khám</mat-option>
-            <mat-option value="emergency">Cấp cứu</mat-option>
-            <mat-option value="procedure">Thủ thuật</mat-option>
-          </mat-select>
-          @if (form.get('encounterType')?.hasError('required')) {
-          <mat-error>Vui lòng chọn loại khám</mat-error>
-          }
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Lý do khám / Triệu chứng chính</mat-label>
-          <textarea matInput formControlName="chiefComplaint" rows="3"
-                    placeholder="Nhập lý do khám..."></textarea>
-        </mat-form-field>
-
-        <fieldset class="vitals-section">
-          <legend>Dấu hiệu sinh tồn</legend>
-          <div class="vitals-grid">
-            <mat-form-field appearance="outline">
-              <mat-label>Nhiệt độ (°C)</mat-label>
-              <input matInput type="number" formControlName="temperature" step="0.1">
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Mạch (lần/ph)</mat-label>
-              <input matInput type="number" formControlName="heartRate">
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Nhịp thở (lần/ph)</mat-label>
-              <input matInput type="number" formControlName="respiratoryRate">
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Huyết áp tâm thu</mat-label>
-              <input matInput type="number" formControlName="systolicBP">
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>Huyết áp tâm trương</mat-label>
-              <input matInput type="number" formControlName="diastolicBP">
-            </mat-form-field>
-            <mat-form-field appearance="outline">
-              <mat-label>SpO2 (%)</mat-label>
-              <input matInput type="number" formControlName="oxygenSaturation" min="0" max="100">
-            </mat-form-field>
-          </div>
-        </fieldset>
-      </form>
-    </mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close [disabled]="saving">Hủy</button>
-      <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid || saving">
-        <mat-icon>add</mat-icon>
-        @if (!saving) {
-        <span>Bắt đầu khám</span>
-        }
-        @if (saving) {
-        <mat-spinner diameter="20"></mat-spinner>
-        }
-      </button>
-    </mat-dialog-actions>
-  `,
-    styles: [`
-    .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: var(--pastel-blue, #E1F3FE); border-radius: 8px; color: var(--pastel-blue-text, #1F6C9F); font-weight: 500; }
-    .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 420px; }
-    .vitals-section { border: 1px solid var(--border-light, #F0F0EE); border-radius: 8px; padding: 16px; margin: 0; }
-    .vitals-section legend { font-weight: 500; color: var(--text-secondary, #787774); padding: 0 8px; }
-    .vitals-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-    mat-dialog-actions mat-spinner { display: inline-block; }
-  `]
+    templateUrl: './start-encounter.dialog.html',
+    styleUrls: ['./start-encounter.dialog.scss']
 })
 export class StartEncounterDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();

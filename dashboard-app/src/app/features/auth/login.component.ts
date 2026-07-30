@@ -8,6 +8,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../core/services/auth.service';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-login',
@@ -18,6 +19,7 @@ import { AuthService } from '../../core/services/auth.service';
     MatButtonModule,
     MatProgressSpinnerModule,
     MatIconModule,
+    HisHopeTranslatePipe,
   ],
   template: `
     <div class="login-container">
@@ -25,8 +27,8 @@ import { AuthService } from '../../core/services/auth.service';
         <mat-card-content>
           <div class="login-header">
             <div class="logo">His.Hope</div>
-            <h2>Dashboard</h2>
-            <p class="subtitle">Sign in to your account</p>
+            <h2>{{ 'dashboard.auth.dashboard' | hhTranslate:'Dashboard' }}</h2>
+            <p class="subtitle">{{ 'dashboard.auth.signInSubtitle' | hhTranslate:'Sign in to your account' }}</p>
           </div>
 
           <div class="login-buttons">
@@ -38,7 +40,7 @@ import { AuthService } from '../../core/services/auth.service';
                 <mat-icon>login</mat-icon>
               }
               @if (!checkingAuth) {
-                Sign in with His.Hope
+                {{ 'dashboard.auth.signInButton' | hhTranslate:'Sign in with His.Hope' }}
               }
             </button>
           </div>

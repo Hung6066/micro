@@ -6,7 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { HisHopeStatusBadgeComponent, HisHopeStatusTone } from '@his-hope/frontend-foundation';
+import { HisHopeStatusBadgeComponent, HisHopeStatusTone, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { Resource } from '../../core/models/resource.model';
 
 @Component({
@@ -21,6 +21,7 @@ import { Resource } from '../../core/models/resource.model';
     MatDividerModule,
     MatTooltipModule,
     HisHopeStatusBadgeComponent,
+    HisHopeTranslatePipe,
   ],
   template: `
     <mat-card class="resource-card" [class.pulsing]="animating" (click)="onCardClick()">
@@ -35,32 +36,36 @@ import { Resource } from '../../core/models/resource.model';
               <span class="resource-type">{{ resource.type }}</span>
             </div>
           </div>
-          <hh-status-badge [status]="resource.status" [label]="statusLabel(resource.status)" [tone]="statusTone(resource.status)" />
+          <hh-status-badge [status]="resource.status" [label]="statusLabelKey(resource.status) | hhTranslate:statusLabel(resource.status)" [tone]="statusTone(resource.status)" />
         </div>
 
         <mat-divider></mat-divider>
 
         <div class="card-meta">
-          <div class="meta-item" *ngIf="resource.version">
-            <span class="meta-label">Version</span>
-            <span class="meta-value">{{ resource.version }}</span>
-          </div>
+          @if (resource.version) {
+            <div class="meta-item">
+              <span class="meta-label">{{ 'dashboard.resources.version' | hhTranslate:'Version' }}</span>
+              <span class="meta-value">{{ resource.version }}</span>
+            </div>
+          }
           <div class="meta-item">
-            <span class="meta-label">Health</span>
+            <span class="meta-label">{{ 'dashboard.resources.health' | hhTranslate:'Health' }}</span>
             <span class="meta-value health-value" [class.healthy]="resource.healthStatus === 'Healthy'"
                                                       [class.unhealthy]="resource.healthStatus === 'Unhealthy'"
                                                       [class.degraded]="resource.healthStatus === 'Degraded'">
               {{ resource.healthStatus }}
             </span>
           </div>
-          <div class="meta-item" *ngIf="resource.type === 'Service' || resource.type === 'service'">
-            <span class="meta-label">CPU</span>
-            <span class="meta-value">{{ resource.cpuPercent != null ? (resource.cpuPercent | number:'1.1-1') + '%' : '—' }}</span>
-          </div>
-          <div class="meta-item" *ngIf="resource.type === 'Service' || resource.type === 'service'">
-            <span class="meta-label">Memory</span>
-            <span class="meta-value">{{ resource.memoryUsedMb != null ? (resource.memoryUsedMb | number:'1.0-0') + ' MB' : '—' }}</span>
-          </div>
+          @if (resource.type === 'Service' || resource.type === 'service') {
+            <div class="meta-item">
+              <span class="meta-label">{{ 'dashboard.resources.cpu' | hhTranslate:'CPU' }}</span>
+              <span class="meta-value">{{ resource.cpuPercent != null ? (resource.cpuPercent | number:'1.1-1') + '%' : '—' }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="meta-label">{{ 'dashboard.resources.memory' | hhTranslate:'Memory' }}</span>
+              <span class="meta-value">{{ resource.memoryUsedMb != null ? (resource.memoryUsedMb | number:'1.0-0') + ' MB' : '—' }}</span>
+            </div>
+          }
         </div>
 
         <mat-divider></mat-divider>
@@ -69,44 +74,45 @@ import { Resource } from '../../core/models/resource.model';
           <button mat-stroked-button size="small" (click)="onStart()"
                   [disabled]="resource.status === 'Running'">
             <mat-icon>play_arrow</mat-icon>
-            Start
+            {{ 'dashboard.resources.start' | hhTranslate:'Start' }}
           </button>
           <button mat-stroked-button size="small" (click)="onStop()"
                   [disabled]="resource.status === 'Stopped'">
             <mat-icon>stop</mat-icon>
-            Stop
+            {{ 'dashboard.resources.stop' | hhTranslate:'Stop' }}
           </button>
           <button mat-stroked-button size="small" (click)="onRestart()">
             <mat-icon>refresh</mat-icon>
-            Restart
+            {{ 'dashboard.resources.restart' | hhTranslate:'Restart' }}
           </button>
         </div>
 
-        <mat-divider *ngIf="resource.type === 'Service' || resource.type === 'service'"></mat-divider>
+        @if (resource.type === 'Service' || resource.type === 'service') {
+          <mat-divider></mat-divider>
 
-        <!-- Quick links to Logs, Traces, Metrics -->
-        <div class="quick-links" *ngIf="resource.type === 'Service' || resource.type === 'service'"
-             (click)="$event.stopPropagation()">
-          <a mat-icon-button [routerLink]="['/logs']"
-             [queryParams]="{ service: resource.name }"
-             matTooltip="View logs"
-             aria-label="View logs">
-            <mat-icon>article</mat-icon>
-          </a>
-          <a mat-icon-button [routerLink]="['/traces']"
-             [queryParams]="{ service: resource.name }"
-             matTooltip="View traces"
-             aria-label="View traces">
-            <mat-icon>timeline</mat-icon>
-          </a>
-          <a mat-icon-button [routerLink]="['/metrics']"
-             [queryParams]="{ service: resource.name }"
-             matTooltip="View metrics"
-             aria-label="View metrics">
-            <mat-icon>monitoring</mat-icon>
-          </a>
-          <span class="quick-links-label">Logs, Traces, Metrics</span>
-        </div>
+          <!-- Quick links to Logs, Traces, Metrics -->
+          <div class="quick-links" (click)="$event.stopPropagation()">
+            <a mat-icon-button [routerLink]="['/logs']"
+               [queryParams]="{ service: resource.name }"
+               [matTooltip]="'dashboard.resources.viewLogs' | hhTranslate:'View logs'"
+               [attr.aria-label]="'dashboard.resources.viewLogs' | hhTranslate:'View logs'">
+              <mat-icon>article</mat-icon>
+            </a>
+            <a mat-icon-button [routerLink]="['/traces']"
+               [queryParams]="{ service: resource.name }"
+               [matTooltip]="'dashboard.resources.viewTraces' | hhTranslate:'View traces'"
+               [attr.aria-label]="'dashboard.resources.viewTraces' | hhTranslate:'View traces'">
+              <mat-icon>timeline</mat-icon>
+            </a>
+            <a mat-icon-button [routerLink]="['/metrics']"
+               [queryParams]="{ service: resource.name }"
+               [matTooltip]="'dashboard.resources.viewMetrics' | hhTranslate:'View metrics'"
+               [attr.aria-label]="'dashboard.resources.viewMetrics' | hhTranslate:'View metrics'">
+              <mat-icon>monitoring</mat-icon>
+            </a>
+            <span class="quick-links-label">{{ 'dashboard.resources.quickLinks' | hhTranslate:'Logs, Traces, Metrics' }}</span>
+          </div>
+        }
       </mat-card-content>
     </mat-card>
   `,
@@ -274,6 +280,7 @@ export class ResourceCardComponent implements OnChanges {
   }
 
   statusLabel(status: string): string { return ({ Running: 'Đang chạy', Healthy: 'Khỏe mạnh', Stopped: 'Đã dừng', Degraded: 'Suy giảm', Unhealthy: 'Mất sức khỏe', Unknown: 'Không xác định' } as Record<string, string>)[status] ?? status; }
+  statusLabelKey(status: string): string { return ({ Running: 'dashboard.resources.status.running', Healthy: 'dashboard.resources.status.healthy', Stopped: 'dashboard.resources.status.stopped', Degraded: 'dashboard.resources.status.degraded', Unhealthy: 'dashboard.resources.status.unhealthy', Unknown: 'dashboard.resources.status.unknown' } as Record<string, string>)[status] ?? status; }
   statusTone(status: string): HisHopeStatusTone { if (status === 'Running' || status === 'Healthy') return 'success'; if (status === 'Degraded') return 'warning'; if (status === 'Stopped') return 'neutral'; return 'danger'; }
 
   onCardClick(): void {

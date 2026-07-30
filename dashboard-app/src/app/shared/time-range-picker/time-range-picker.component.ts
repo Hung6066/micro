@@ -7,6 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatIconModule } from '@angular/material/icon';
 import { provideNativeDateAdapter } from '@angular/material/core';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 export interface TimeRange {
   from: Date;
@@ -89,56 +90,60 @@ const PRESETS: PresetOption[] = [
     MatFormFieldModule,
     MatInputModule,
     MatIconModule,
+    HisHopeTranslatePipe,
   ],
   template: `
     <div class="time-range-picker">
       <div class="preset-group">
-        <button
-          *ngFor="let preset of presets"
-          mat-stroked-button
-          size="small"
-          class="preset-btn"
-          [class.active]="activePreset === preset.value"
-          (click)="selectPreset(preset)">
-          {{ preset.label }}
-        </button>
+        @for (preset of presets; track preset.value) {
+          <button
+            mat-stroked-button
+            size="small"
+            class="preset-btn"
+            [class.active]="activePreset === preset.value"
+            (click)="selectPreset(preset)">
+            {{ preset.label }}
+          </button>
+        }
       </div>
 
-      <div class="custom-range" *ngIf="showCustom">
-        <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>From</mat-label>
-          <input
-            matInput
-            [matDatepicker]="fromPicker"
-            [(ngModel)]="customFrom"
-            (ngModelChange)="onCustomChange()"
-          />
-          <mat-datepicker-toggle matSuffix [for]="fromPicker"></mat-datepicker-toggle>
-          <mat-datepicker #fromPicker></mat-datepicker>
-        </mat-form-field>
+      @if (showCustom) {
+        <div class="custom-range">
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>{{ 'dashboard.timeRange.from' | hhTranslate:'From' }}</mat-label>
+            <input
+              matInput
+              [matDatepicker]="fromPicker"
+              [(ngModel)]="customFrom"
+              (ngModelChange)="onCustomChange()"
+            />
+            <mat-datepicker-toggle matSuffix [for]="fromPicker"></mat-datepicker-toggle>
+            <mat-datepicker #fromPicker></mat-datepicker>
+          </mat-form-field>
 
-        <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>To</mat-label>
-          <input
-            matInput
-            [matDatepicker]="toPicker"
-            [(ngModel)]="customTo"
-            (ngModelChange)="onCustomChange()"
-          />
-          <mat-datepicker-toggle matSuffix [for]="toPicker"></mat-datepicker-toggle>
-          <mat-datepicker #toPicker></mat-datepicker>
-        </mat-form-field>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>{{ 'dashboard.timeRange.to' | hhTranslate:'To' }}</mat-label>
+            <input
+              matInput
+              [matDatepicker]="toPicker"
+              [(ngModel)]="customTo"
+              (ngModelChange)="onCustomChange()"
+            />
+            <mat-datepicker-toggle matSuffix [for]="toPicker"></mat-datepicker-toggle>
+            <mat-datepicker #toPicker></mat-datepicker>
+          </mat-form-field>
 
-        <button
-          mat-raised-button
-          color="primary"
-          size="small"
-          (click)="applyCustom()"
-          [disabled]="!customFrom || !customTo">
-          <mat-icon>check</mat-icon>
-          Apply
-        </button>
-      </div>
+          <button
+            mat-raised-button
+            color="primary"
+            size="small"
+            (click)="applyCustom()"
+            [disabled]="!customFrom || !customTo">
+            <mat-icon>check</mat-icon>
+            {{ 'dashboard.timeRange.apply' | hhTranslate:'Apply' }}
+          </button>
+        </div>
+      }
     </div>
   `,
   styles: [`

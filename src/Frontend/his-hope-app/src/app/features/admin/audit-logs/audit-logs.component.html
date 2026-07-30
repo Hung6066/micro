@@ -1,0 +1,132 @@
+
+    <div class="audit-logs">
+      <div class="page-header">
+        <h1>Nhật ký truy cập</h1>
+        <p class="subtitle">Xem lịch sử truy cập và hoạt động hệ thống</p>
+      </div>
+
+      <div class="filter-bar">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-user">
+          <mat-icon matPrefix>search</mat-icon>
+          <input matInput [formControl]="userSearchControl" placeholder="Tìm người dùng...">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-action">
+          <mat-select [formControl]="actionFilter" placeholder="Hành động">
+            @for (a of actionOptions; track a.value) {
+            <mat-option [value]="a.value">{{ a.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-resource">
+          <mat-select [formControl]="resourceFilter" placeholder="Loại tài nguyên">
+            @for (r of resourceOptions; track r.value) {
+            <mat-option [value]="r.value">{{ r.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-date">
+          <mat-label>Từ ngày</mat-label>
+          <input matInput [matDatepicker]="fromPicker" [formControl]="fromDateControl" placeholder="dd/MM/yyyy">
+          <mat-datepicker-toggle matSuffix [for]="fromPicker"></mat-datepicker-toggle>
+          <mat-datepicker #fromPicker></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-date">
+          <mat-label>Đến ngày</mat-label>
+          <input matInput [matDatepicker]="toPicker" [formControl]="toDateControl" placeholder="dd/MM/yyyy">
+          <mat-datepicker-toggle matSuffix [for]="toPicker"></mat-datepicker-toggle>
+          <mat-datepicker #toPicker></mat-datepicker>
+        </mat-form-field>
+
+        <button mat-stroked-button (click)="clearFilters()" class="clear-btn">
+          <mat-icon>clear</mat-icon> Xóa lọc
+        </button>
+      </div>
+
+      <div class="table-container mat-elevation-z2">
+        <app-loading-spinner [loading]="loading" message="Đang tải nhật ký..."></app-loading-spinner>
+
+        @if (!loading) {
+          @if (auditLogs.length > 0) {
+          <mat-table [dataSource]="auditLogs" class="audit-table" multiTemplateDataRows>
+
+            <ng-container matColumnDef="timestamp">
+              <mat-header-cell *matHeaderCellDef>Thời gian</mat-header-cell>
+              <mat-cell *matCellDef="let log">{{ log.timestamp | date:'dd/MM/yy HH:mm' }}</mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="userName">
+              <mat-header-cell *matHeaderCellDef>Người dùng</mat-header-cell>
+              <mat-cell *matCellDef="let log">{{ log.userName }}</mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="action">
+              <mat-header-cell *matHeaderCellDef>Hành động</mat-header-cell>
+              <mat-cell *matCellDef="let log">
+                <span class="action-badge" [ngClass]="'action-' + (log.action?.toLowerCase() || '')">
+                  {{ getActionLabel(log.action) }}
+                </span>
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="resourceType">
+              <mat-header-cell *matHeaderCellDef>Loại</mat-header-cell>
+              <mat-cell *matCellDef="let log">
+                <span class="resource-badge">{{ getResourceLabel(log.resourceType) }}</span>
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="resourceId">
+              <mat-header-cell *matHeaderCellDef>ID Tài nguyên</mat-header-cell>
+              <mat-cell *matCellDef="let log" class="cell-mono">{{ log.resourceId }}</mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="ipAddress">
+              <mat-header-cell *matHeaderCellDef>Địa chỉ IP</mat-header-cell>
+              <mat-cell *matCellDef="let log" class="cell-mono">{{ log.ipAddress }}</mat-cell>
+            </ng-container>
+
+            <!-- Expanded detail column -->
+            <ng-container matColumnDef="expandedDetail">
+              <mat-cell *matCellDef="let log" [attr.colspan]="displayedColumns.length">
+                @if (log === expandedLog) {
+                <div class="detail-row-inner">
+                  <div class="detail-section">
+                    <span class="detail-label">User-Agent:</span>
+                    <span class="detail-value">{{ log.userAgent }}</span>
+                  </div>
+                  <div class="detail-section">
+                    <span class="detail-label">Chi tiết:</span>
+                    <pre class="detail-json">{{ log.details | json }}</pre>
+                  </div>
+                </div>
+                }
+              </mat-cell>
+            </ng-container>
+
+            <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
+            <mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row"
+                     (click)="toggleRowExpansion(row)" (keydown.enter)="toggleRowExpansion(row)"
+                     (keydown.space)="$event.preventDefault(); toggleRowExpansion(row)" tabindex="0" role="button"
+                     [attr.aria-label]="'Mở chi tiết nhật ký ' + row.userName"></mat-row>
+            <mat-row *matRowDef="let row; columns: ['expandedDetail']" class="detail-row"></mat-row>
+          </mat-table>
+          } @else {
+          <app-empty-state icon="receipt_long" title="Không có nhật ký nào"
+                          message="Không tìm thấy bản ghi nhật ký phù hợp với bộ lọc">
+          </app-empty-state>
+          }
+        }
+
+        @if (totalCount > 0) {
+        <mat-paginator [length]="totalCount" [pageSize]="pageSize"
+                       [pageSizeOptions]="[5, 10, 20, 50]" [pageIndex]="currentPage - 1"
+                       (page)="onPageChange($event)" showFirstLastButtons>
+        </mat-paginator>
+        }
+      </div>
+    </div>
+  

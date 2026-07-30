@@ -1,0 +1,9 @@
+    .user-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: var(--mat-sys-primary-container); border-radius: 8px; color: var(--mat-sys-on-primary-container); font-weight: 500; }
+    .instruction { color: #666; font-size: 14px; margin-bottom: 16px; }
+    .roles-list { display: flex; flex-direction: column; gap: 8px; min-width: 400px; max-height: 400px; overflow-y: auto; }
+    .role-item { padding: 8px 12px; border: 1px solid #EAEAEA; border-radius: 8px; transition: background 0.15s; }
+    .role-item:hover { background: #f9f9f7; }
+    .role-info { display: flex; flex-direction: column; }
+    .role-name { font-weight: 500; font-size: 14px; color: #1A1A1A; }
+    .role-desc { font-size: 12px; color: #787774; margin-top: 2px; }
+    .loading-state { display: flex; align-items: center; gap: 12px; justify-content: center; padding: 48px; color: #787774; }

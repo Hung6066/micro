@@ -1,7 +1,7 @@
 import { Routes } from '@angular/router';
-import { AuthGuard } from '@core/guards/auth.guard';
-import { RoleGuard } from '@core/guards/role.guard';
-import { PermissionGuard } from '@core/guards/permission.guard';
+import { authGuard } from '@core/guards/auth.guard';
+import { roleGuard } from '@core/guards/role.guard';
+import { permissionGuard } from '@core/guards/permission.guard';
 
 export const routes: Routes = [
   {
@@ -25,60 +25,60 @@ export const routes: Routes = [
     path: 'dashboard',
     loadChildren: () =>
       import('@features/dashboard/dashboard.routes').then((m) => m.DASHBOARD_ROUTES),
-    canActivate: [AuthGuard],
+    canActivate: [authGuard],
   },
   {
     path: 'patients',
-    canActivate: [AuthGuard, PermissionGuard],
+    canActivate: [authGuard, permissionGuard],
     data: { permissions: ['patients.view'] },
     loadChildren: () =>
       import('@features/patients/patients.routes').then((m) => m.PATIENT_ROUTES),
   },
   {
     path: 'appointments',
-    canActivate: [AuthGuard, PermissionGuard],
+    canActivate: [authGuard, permissionGuard],
     data: { permissions: ['appointments.view'] },
     loadChildren: () =>
       import('@features/appointments/appointments.routes').then((m) => m.APPOINTMENT_ROUTES),
   },
   {
     path: 'clinical',
-    canActivate: [AuthGuard, PermissionGuard],
+    canActivate: [authGuard, permissionGuard],
     data: { permissions: ['clinical.view'] },
     loadChildren: () =>
       import('@features/clinical/clinical.routes').then((m) => m.CLINICAL_ROUTES),
   },
   {
     path: 'pharmacy',
-    canActivate: [AuthGuard, PermissionGuard],
+    canActivate: [authGuard, permissionGuard],
     data: { permissions: ['pharmacy.view'] },
     loadChildren: () =>
       import('@features/pharmacy/pharmacy.routes').then((m) => m.PHARMACY_ROUTES),
   },
   {
     path: 'lab',
-    canActivate: [AuthGuard, PermissionGuard],
+    canActivate: [authGuard, permissionGuard],
     data: { permissions: ['lab.view'] },
     loadChildren: () =>
       import('@features/lab/lab.routes').then((m) => m.LAB_ROUTES),
   },
   {
     path: 'billing',
-    canActivate: [AuthGuard, PermissionGuard],
+    canActivate: [authGuard, permissionGuard],
     data: { permissions: ['billing.view'] },
     loadChildren: () =>
       import('@features/billing/billing.routes').then(m => m.BILLING_ROUTES),
   },
   {
     path: 'admin',
-    canActivate: [AuthGuard, RoleGuard],
+    canActivate: [authGuard, roleGuard],
     data: { roles: ['admin'] },
     loadChildren: () =>
       import('@features/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
   },
   {
     path: 'reports',
-    canActivate: [AuthGuard, PermissionGuard],
+    canActivate: [authGuard, permissionGuard],
     data: { permissions: ['reports.view'] },
     loadChildren: () =>
       import('@features/reports/reports.routes').then((m) => m.REPORTS_ROUTES),

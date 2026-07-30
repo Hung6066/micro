@@ -19,6 +19,7 @@ import { MetricSnapshot, MetricDataPoint } from '../../core/models/metric-snapsh
 import { LiveMetricUpdate } from '../../core/models/live-metric-update.model';
 import { Resource } from '../../core/models/resource.model';
 import { MetricsOverviewComponent } from './metrics-overview.component';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { Chart, LineController, LineElement, PointElement, LinearScale, TimeScale, CategoryScale, Tooltip, Legend, Filler } from 'chart.js';
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, TimeScale, CategoryScale, Tooltip, Legend, Filler);
@@ -67,16 +68,19 @@ const SERVICE_COLORS = [
     MatProgressSpinnerModule,
     MatDividerModule,
     MetricsOverviewComponent,
+    HisHopeTranslatePipe,
   ],
   template: `
     <div class="page-header">
       <h1 class="page-title">
-        System Metrics
-        <span class="live-badge" *ngIf="liveConnected">● LIVE</span>
+        {{ 'dashboard.metrics.pageTitle' | hhTranslate:'System Metrics' }}
+        @if (liveConnected) {
+          <span class="live-badge">● {{ 'dashboard.metrics.live' | hhTranslate:'LIVE' }}</span>
+        }
       </h1>
       <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
         <mat-icon>refresh</mat-icon>
-        Refresh
+        {{ 'dashboard.metrics.refresh' | hhTranslate:'Refresh' }}
       </button>
     </div>
 
@@ -89,88 +93,107 @@ const SERVICE_COLORS = [
         <div class="controls-row">
           <!-- Service multi-select -->
           <mat-form-field appearance="outline" subscriptSizing="dynamic" class="services-field">
-            <mat-label>Service</mat-label>
+            <mat-label>{{ 'dashboard.metrics.service' | hhTranslate:'Service' }}</mat-label>
             <mat-select [(ngModel)]="selectedServices" multiple (selectionChange)="onServicesChange()">
-              <mat-option *ngFor="let svc of availableServices" [value]="svc.name">
-                {{ svc.displayName || svc.name }}
-              </mat-option>
+              @for (svc of availableServices; track svc.name) {
+                <mat-option [value]="svc.name">
+                  {{ svc.displayName || svc.name }}
+                </mat-option>
+              }
             </mat-select>
           </mat-form-field>
 
           <!-- Metric type selector -->
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Metric Type</mat-label>
+            <mat-label>{{ 'dashboard.metrics.metricType' | hhTranslate:'Metric Type' }}</mat-label>
             <mat-select [(ngModel)]="selectedMetricType" (selectionChange)="onMetricTypeChange()">
-              <mat-option *ngFor="let mt of metricTypes" [value]="mt.key">
-                {{ mt.label }}
-              </mat-option>
+              @for (mt of metricTypes; track mt.key) {
+                <mat-option [value]="mt.key">
+                  {{ mt.label }}
+                </mat-option>
+              }
             </mat-select>
           </mat-form-field>
 
           <!-- Time range selector -->
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>Time Range</mat-label>
+            <mat-label>{{ 'dashboard.metrics.timeRange' | hhTranslate:'Time Range' }}</mat-label>
             <mat-select [(ngModel)]="selectedTimeRange" (selectionChange)="onTimeRangeChange()">
-              <mat-option *ngFor="let tr of timeRanges" [value]="tr.value">
-                {{ tr.label }}
-              </mat-option>
+              @for (tr of timeRanges; track tr.value) {
+                <mat-option [value]="tr.value">
+                  {{ tr.label }}
+                </mat-option>
+              }
             </mat-select>
           </mat-form-field>
 
           <button mat-raised-button color="primary" (click)="applyFilters()">
             <mat-icon>refresh</mat-icon>
-            Apply
+            {{ 'dashboard.metrics.apply' | hhTranslate:'Apply' }}
           </button>
         </div>
 
         <!-- Selected services chips -->
-        <div class="service-chips" *ngIf="selectedServices.length > 0">
-          <span class="chip" *ngFor="let svc of selectedServices; let i = index"
-                [style.--chip-color]="getServiceColor(svc)">
-            {{ svc }}
-            <mat-icon class="chip-remove" (click)="removeService(svc)">close</mat-icon>
-          </span>
-        </div>
-        <div class="service-chips empty-chips" *ngIf="selectedServices.length === 0">
-          <span class="chip-hint">Select at least one service to view metrics</span>
-        </div>
+        @if (selectedServices.length > 0) {
+          <div class="service-chips">
+            @for (svc of selectedServices; track svc; let i = $index) {
+              <span class="chip" [style.--chip-color]="getServiceColor(svc)">
+                {{ svc }}
+                <mat-icon class="chip-remove" (click)="removeService(svc)">close</mat-icon>
+              </span>
+            }
+          </div>
+        }
+        @if (selectedServices.length === 0) {
+          <div class="service-chips empty-chips">
+            <span class="chip-hint">{{ 'dashboard.metrics.selectServiceHint' | hhTranslate:'Select at least one service to view metrics' }}</span>
+          </div>
+        }
       </mat-card-content>
     </mat-card>
 
     <!-- Loading -->
-    <div class="loading-state" *ngIf="(loading$ | async)">
-      <mat-spinner diameter="32"></mat-spinner>
-      <span class="loading-text">Loading metrics...</span>
-    </div>
+    @if ((loading$ | async)) {
+      <div class="loading-state">
+        <mat-spinner diameter="32"></mat-spinner>
+        <span class="loading-text">{{ 'dashboard.metrics.loading' | hhTranslate:'Loading metrics...' }}</span>
+      </div>
+    }
 
     <!-- Error -->
-    <div class="error-state" *ngIf="error$ | async as err">
-      <mat-icon class="error-icon">error_outline</mat-icon>
-      <p class="error-message">{{ err }}</p>
-      <button mat-raised-button color="primary" (click)="refresh()">Retry</button>
-    </div>
+    @if (error$ | async; as err) {
+      <div class="error-state">
+        <mat-icon class="error-icon">error_outline</mat-icon>
+        <p class="error-message">{{ err }}</p>
+        <button mat-raised-button color="primary" (click)="refresh()">{{ 'dashboard.metrics.retry' | hhTranslate:'Retry' }}</button>
+      </div>
+    }
 
     <!-- Chart card -->
-    <mat-card class="chart-card" *ngIf="hasData && !(loading$ | async)">
-      <mat-card-header>
-        <mat-card-title>{{ currentMetric.label }}</mat-card-title>
-        <mat-card-subtitle>
-          Time range: {{ getTimeRangeLabel() }} &mdash;
-          {{ selectedServices.length }} services selected
-        </mat-card-subtitle>
-      </mat-card-header>
-      <mat-card-content>
-        <div class="chart-wrapper">
-          <canvas #chartCanvas></canvas>
-        </div>
-      </mat-card-content>
-    </mat-card>
+    @if (hasData && !(loading$ | async)) {
+      <mat-card class="chart-card">
+        <mat-card-header>
+          <mat-card-title>{{ currentMetric.label }}</mat-card-title>
+          <mat-card-subtitle>
+            {{ 'dashboard.metrics.timeRangeLabel' | hhTranslate:'Time range' }}: {{ getTimeRangeLabel() }} &mdash;
+            {{ selectedServices.length }} {{ 'dashboard.metrics.servicesSelected' | hhTranslate:'services selected' }}
+          </mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="chart-wrapper">
+            <canvas #chartCanvas></canvas>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
 
     <!-- Empty state -->
-    <div class="empty-state" *ngIf="!hasData && !(loading$ | async) && !(error$ | async)">
-      <mat-icon>monitoring</mat-icon>
-      <p>Select services and metric to view chart</p>
-    </div>
+    @if (!hasData && !(loading$ | async) && !(error$ | async)) {
+      <div class="empty-state">
+        <mat-icon>monitoring</mat-icon>
+        <p>{{ 'dashboard.metrics.emptyState' | hhTranslate:'Select services and metric to view chart' }}</p>
+      </div>
+    }
   `,
   styles: [`
     .page-header {

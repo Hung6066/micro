@@ -1,0 +1,12 @@
+    .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 520px; padding-top: 8px; }
+    .section-label { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #1A1A1A; margin-top: 8px; }
+    .section-label mat-icon { color: var(--mat-sys-primary); }
+    .permission-accordion { margin-top: 4px; }
+    .perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; padding: 4px 0; }
+    .perm-item { padding: 4px 0; }
+    .perm-info { display: flex; flex-direction: column; margin-left: 4px; }
+    .perm-name { font-weight: 500; font-size: 13px; color: #1A1A1A; }
+    .perm-desc { font-size: 11px; color: #787774; margin-top: 1px; }
+    .loading-state { display: flex; align-items: center; gap: 12px; justify-content: center; padding: 48px; color: #787774; }
+    ::ng-deep .mat-expansion-panel-header-title .mat-checkbox { pointer-events: auto; }
+    ::ng-deep .mat-expansion-panel-header-description { justify-content: flex-end; margin-right: 0; }

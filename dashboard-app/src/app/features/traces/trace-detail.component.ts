@@ -1,4 +1,4 @@
-import { Component, OnInit, ChangeDetectionStrategy, inject, ElementRef, ViewChild, AfterViewInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, inject, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -6,11 +6,12 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDividerModule } from '@angular/material/divider';
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import { catchError, finalize, switchMap, takeUntil, tap } from 'rxjs/operators';
+import { BehaviorSubject, Subject } from 'rxjs';
+import { catchError, finalize, takeUntil } from 'rxjs/operators';
 import { TracesService } from '../../core/services/traces.service';
 import { TraceDetail, TraceSpan } from '../../core/models/trace.model';
 import { Router } from '@angular/router';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 interface ExpandedSpan {
   [spanId: string]: boolean;
@@ -32,63 +33,71 @@ const SERVICE_COLORS = [
     MatIconModule,
     MatProgressSpinnerModule,
     MatDividerModule,
+    HisHopeTranslatePipe,
   ],
   template: `
     <div class="page-header">
       <div class="page-header-left">
         <button mat-stroked-button routerLink="/traces" class="back-btn">
           <mat-icon>arrow_back</mat-icon>
-          Back
+          {{ 'dashboard.common.back' | hhTranslate:'Back' }}
         </button>
-        <h1 class="page-title">Trace Detail</h1>
+        <h1 class="page-title">{{ 'dashboard.traces.detailTitle' | hhTranslate:'Trace Detail' }}</h1>
       </div>
       <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
         <mat-icon>refresh</mat-icon>
-        Refresh
+        {{ 'dashboard.common.refresh' | hhTranslate:'Refresh' }}
       </button>
     </div>
 
+    @let loading = loading$ | async;
+    @let error = error$ | async;
+
     <!-- Loading -->
-    <div class="loading-state" *ngIf="(loading$ | async) && !trace">
-      <mat-spinner diameter="32"></mat-spinner>
-      <span class="loading-text">Loading trace...</span>
-    </div>
+    @if (loading && !trace) {
+      <div class="loading-state">
+        <mat-spinner diameter="32"></mat-spinner>
+        <span class="loading-text">{{ 'dashboard.traces.loadingTrace' | hhTranslate:'Loading trace...' }}</span>
+      </div>
+    }
 
     <!-- Error -->
-    <div class="error-state" *ngIf="error$ | async as err">
-      <mat-icon class="error-icon">error_outline</mat-icon>
-      <p class="error-message">{{ err }}</p>
-      <button mat-raised-button color="primary" (click)="refresh()">Retry</button>
-    </div>
+    @if (error) {
+      <div class="error-state">
+        <mat-icon class="error-icon">error_outline</mat-icon>
+        <p class="error-message">{{ error }}</p>
+        <button mat-raised-button color="primary" (click)="refresh()">{{ 'dashboard.common.retry' | hhTranslate:'Retry' }}</button>
+      </div>
+    }
 
     <!-- Trace detail -->
-    <ng-container *ngIf="trace">
+    @if (trace) {
       <!-- Header card -->
       <mat-card class="detail-header-card">
         <mat-card-content>
           <div class="header-grid">
             <div class="header-field">
-              <span class="field-label">Trace ID</span>
+              <span class="field-label">{{ 'dashboard.traces.traceId' | hhTranslate:'Trace ID' }}</span>
               <code class="field-value mono">{{ trace.traceId }}</code>
             </div>
             <div class="header-field">
-              <span class="field-label">Time</span>
+              <span class="field-label">{{ 'dashboard.traces.time' | hhTranslate:'Time' }}</span>
               <span class="field-value">{{ trace.startTime | date:'dd/MM/yyyy HH:mm:ss' }}</span>
             </div>
             <div class="header-field">
-              <span class="field-label">Total Duration</span>
+              <span class="field-label">{{ 'dashboard.traces.totalDuration' | hhTranslate:'Total Duration' }}</span>
               <span class="field-value">{{ trace.durationMs | number }} ms</span>
             </div>
             <div class="header-field">
-              <span class="field-label">Services</span>
+              <span class="field-label">{{ 'dashboard.traces.services' | hhTranslate:'Services' }}</span>
               <span class="field-value">{{ trace.services.length }}</span>
             </div>
             <div class="header-field">
-              <span class="field-label">Spans</span>
+              <span class="field-label">{{ 'dashboard.traces.spans' | hhTranslate:'Spans' }}</span>
               <span class="field-value">{{ trace.spanCount }}</span>
             </div>
             <div class="header-field">
-                  <span class="field-label">Status</span>
+              <span class="field-label">{{ 'dashboard.common.status' | hhTranslate:'Status' }}</span>
               <span class="field-value">
                 <span class="status-pill" [class.status-ok]="trace.status === 'Ok'"
                       [class.status-error]="trace.status === 'Error'">
@@ -98,11 +107,12 @@ const SERVICE_COLORS = [
             </div>
           </div>
           <div class="service-chips">
-            <span class="service-chip-label">Services:</span>
-            <span class="service-chip" *ngFor="let svc of trace.services; let i = index"
-                  [style.--chip-color]="getServiceColor(svc)">
-              {{ svc }}
-            </span>
+            <span class="service-chip-label">{{ 'dashboard.traces.servicesLabel' | hhTranslate:'Services:' }}</span>
+            @for (svc of trace.services; track svc; let i = $index) {
+              <span class="service-chip" [style.--chip-color]="getServiceColor(svc)">
+                {{ svc }}
+              </span>
+            }
           </div>
         </mat-card-content>
       </mat-card>
@@ -110,125 +120,141 @@ const SERVICE_COLORS = [
       <!-- Waterfall chart -->
       <mat-card class="waterfall-card">
         <mat-card-header>
-          <mat-card-title>Waterfall Chart</mat-card-title>
+          <mat-card-title>{{ 'dashboard.traces.waterfallChart' | hhTranslate:'Waterfall Chart' }}</mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <div class="waterfall-container" #waterfallContainer>
+          <div class="waterfall-container">
             <div class="waterfall-labels">
               <div class="waterfall-label-row header-row">
-                <span class="label-service">Service</span>
-                <span class="label-operation">Operation</span>
-                <span class="label-duration">Duration</span>
+                <span class="label-service">{{ 'dashboard.traces.service' | hhTranslate:'Service' }}</span>
+                <span class="label-operation">{{ 'dashboard.traces.operation' | hhTranslate:'Operation' }}</span>
+                <span class="label-duration">{{ 'dashboard.traces.duration' | hhTranslate:'Duration' }}</span>
               </div>
-              <div *ngFor="let span of trace.spans" class="waterfall-label-row"
-                   (click)="toggleSpan(span.spanId)"
-                   [class.expanded]="expanded[span.spanId]">
-                <span class="label-service" [style.color]="getServiceColor(span.service)">
-                  {{ span.service }}
-                </span>
-                <span class="label-operation">{{ span.name }}</span>
-                <span class="label-duration">{{ span.durationMs }}ms</span>
-                <mat-icon class="expand-icon">
-                  {{ expanded[span.spanId] ? 'expand_less' : 'expand_more' }}
-                </mat-icon>
-              </div>
+              @for (span of trace.spans; track span.spanId) {
+                <div class="waterfall-label-row"
+                     (click)="toggleSpan(span.spanId)"
+                     [class.expanded]="expanded[span.spanId]">
+                  <span class="label-service" [style.color]="getServiceColor(span.service)">
+                    {{ span.service }}
+                  </span>
+                  <span class="label-operation">{{ span.name }}</span>
+                  <span class="label-duration">{{ span.durationMs }}ms</span>
+                  <mat-icon class="expand-icon">
+                    {{ expanded[span.spanId] ? 'expand_less' : 'expand_more' }}
+                  </mat-icon>
+                </div>
+              }
             </div>
-            <div class="waterfall-bars" #waterfallBars>
+            <div class="waterfall-bars">
               <div class="waterfall-time-axis">
-                <span *ngFor="let tick of timeTicks" class="time-tick">
-                  {{ tick }}ms
-                </span>
+                @for (tick of timeTicks; track tick) {
+                  <span class="time-tick">{{ tick }}ms</span>
+                }
               </div>
-              <div *ngFor="let span of trace.spans" class="waterfall-bar-row"
-                   (click)="toggleSpan(span.spanId)"
-                   [class.expanded]="expanded[span.spanId]">
-                <div class="waterfall-bar-track">
-                  <div class="waterfall-bar"
-                       [style.left.%]="getSpanLeft(span)"
-                       [style.width.%]="getSpanWidth(span)"
-                       [style.background]="getServiceColor(span.service)"
-                       [title]="span.name + ' - ' + span.durationMs + 'ms'">
+              @for (span of trace.spans; track span.spanId) {
+                <div class="waterfall-bar-row"
+                     (click)="toggleSpan(span.spanId)"
+                     [class.expanded]="expanded[span.spanId]">
+                  <div class="waterfall-bar-track">
+                    <div class="waterfall-bar"
+                         [style.left.%]="getSpanLeft(span)"
+                         [style.width.%]="getSpanWidth(span)"
+                         [style.background]="getServiceColor(span.service)"
+                         [title]="span.name + ' - ' + span.durationMs + 'ms'">
+                    </div>
                   </div>
                 </div>
-              </div>
+              }
             </div>
           </div>
         </mat-card-content>
       </mat-card>
 
       <!-- Expanded span details -->
-      <ng-container *ngFor="let span of trace.spans">
-        <div class="span-detail-card" *ngIf="expanded[span.spanId]">
-          <mat-card>
-            <mat-card-header>
-              <mat-card-subtitle>
-                <span class="span-detail-service" [style.color]="getServiceColor(span.service)">
-                  {{ span.service }}
-                </span>
-                &mdash; {{ span.name }}
-              </mat-card-subtitle>
-              <mat-card-title>
-                Span: <code class="mono">{{ span.spanId }}</code>
-              </mat-card-title>
-            </mat-card-header>
-            <mat-card-content>
-              <div class="span-meta-grid">
-                <div class="detail-field">
-                  <span class="field-label">Parent Span ID</span>
-                  <code class="field-value mono">{{ span.parentSpanId || '—' }}</code>
-                </div>
-                <div class="detail-field">
-                  <span class="field-label">Start</span>
-                  <span class="field-value">{{ span.startTime | date:'HH:mm:ss.SSS' }}</span>
-                </div>
-                <div class="detail-field">
-                  <span class="field-label">End</span>
-                  <span class="field-value">{{ span.endTime | date:'HH:mm:ss.SSS' }}</span>
-                </div>
-                <div class="detail-field">
-              <span class="field-label">Status</span>
-                  <span class="field-value">{{ span.status }}</span>
-                </div>
-              </div>
-
-              <mat-divider class="detail-divider"></mat-divider>
-
-              <!-- Attributes / Tags -->
-              <div class="detail-section" *ngIf="span.attributes && objectKeys(span.attributes).length > 0">
-                <h4 class="detail-section-title">Tags</h4>
-                <div class="tags-grid">
-                  <div class="tag-item" *ngFor="let key of objectKeys(span.attributes)">
-                    <span class="tag-key">{{ key }}</span>
-                    <span class="tag-value">{{ span.attributes[key] }}</span>
+      @for (span of trace.spans; track span.spanId) {
+        @if (expanded[span.spanId]) {
+          <div class="span-detail-card">
+            <mat-card>
+              <mat-card-header>
+                <mat-card-subtitle>
+                  <span class="span-detail-service" [style.color]="getServiceColor(span.service)">
+                    {{ span.service }}
+                  </span>
+                  &mdash; {{ span.name }}
+                </mat-card-subtitle>
+                <mat-card-title>
+                  {{ 'dashboard.traces.span' | hhTranslate:'Span:' }} <code class="mono">{{ span.spanId }}</code>
+                </mat-card-title>
+              </mat-card-header>
+              <mat-card-content>
+                <div class="span-meta-grid">
+                  <div class="detail-field">
+                    <span class="field-label">{{ 'dashboard.traces.parentSpanId' | hhTranslate:'Parent Span ID' }}</span>
+                    <code class="field-value mono">{{ span.parentSpanId || '—' }}</code>
+                  </div>
+                  <div class="detail-field">
+                    <span class="field-label">{{ 'dashboard.traces.start' | hhTranslate:'Start' }}</span>
+                    <span class="field-value">{{ span.startTime | date:'HH:mm:ss.SSS' }}</span>
+                  </div>
+                  <div class="detail-field">
+                    <span class="field-label">{{ 'dashboard.traces.end' | hhTranslate:'End' }}</span>
+                    <span class="field-value">{{ span.endTime | date:'HH:mm:ss.SSS' }}</span>
+                  </div>
+                  <div class="detail-field">
+                    <span class="field-label">{{ 'dashboard.common.status' | hhTranslate:'Status' }}</span>
+                    <span class="field-value">{{ span.status }}</span>
                   </div>
                 </div>
-              </div>
 
-              <!-- Events / Logs -->
-              <div class="detail-section" *ngIf="span.events && span.events.length > 0">
-                <h4 class="detail-section-title">Events & Logs</h4>
-                <div class="events-list">
-                  <div class="event-item" *ngFor="let evt of span.events">
-                    <div class="event-header">
-                      <span class="event-name">{{ evt.name }}</span>
-                      <span class="event-time">{{ evt.timestamp | date:'HH:mm:ss.SSS' }}</span>
-                    </div>
-                    <ng-container *ngIf="evt.attributes && objectKeys(evt.attributes).length > 0">
-                      <div class="event-attributes">
-                        <div class="tag-item" *ngFor="let key of objectKeys(evt.attributes)">
+                <mat-divider class="detail-divider"></mat-divider>
+
+                <!-- Attributes / Tags -->
+                @if (span.attributes && objectKeys(span.attributes).length > 0) {
+                  <div class="detail-section">
+                    <h4 class="detail-section-title">{{ 'dashboard.traces.tags' | hhTranslate:'Tags' }}</h4>
+                    <div class="tags-grid">
+                      @for (key of objectKeys(span.attributes); track key) {
+                        <div class="tag-item">
                           <span class="tag-key">{{ key }}</span>
-                          <span class="tag-value">{{ evt.attributes[key] }}</span>
+                          <span class="tag-value">{{ span.attributes[key] }}</span>
                         </div>
-                      </div>
-                    </ng-container>
+                      }
+                    </div>
                   </div>
-                </div>
-              </div>
-            </mat-card-content>
-          </mat-card>
-        </div>
-      </ng-container>
-    </ng-container>
+                }
+
+                <!-- Events / Logs -->
+                @if (span.events && span.events.length > 0) {
+                  <div class="detail-section">
+                    <h4 class="detail-section-title">{{ 'dashboard.traces.eventsLogs' | hhTranslate:'Events & Logs' }}</h4>
+                    <div class="events-list">
+                      @for (evt of span.events; track evt.timestamp) {
+                        <div class="event-item">
+                          <div class="event-header">
+                            <span class="event-name">{{ evt.name }}</span>
+                            <span class="event-time">{{ evt.timestamp | date:'HH:mm:ss.SSS' }}</span>
+                          </div>
+                          @if (evt.attributes && objectKeys(evt.attributes).length > 0) {
+                            <div class="event-attributes">
+                              @for (key of objectKeys(evt.attributes); track key) {
+                                <div class="tag-item">
+                                  <span class="tag-key">{{ key }}</span>
+                                  <span class="tag-value">{{ evt.attributes[key] }}</span>
+                                </div>
+                              }
+                            </div>
+                          }
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+              </mat-card-content>
+            </mat-card>
+          </div>
+        }
+      }
+    }
   `,
   styles: [`
     .page-header {

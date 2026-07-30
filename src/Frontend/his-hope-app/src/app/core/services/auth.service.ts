@@ -153,6 +153,7 @@ export class AuthService {
           this.currentUserSubject.next(null);
           this.clearStoredAccessToken();
           this.permissionCache.clear();
+          this.currentUserLoad$ = undefined;
           this.redirectToCentralLogout();
         }),
         retry(1),
@@ -161,6 +162,7 @@ export class AuthService {
           this.oidcSecurityService.logoffLocal();
           this.clearStoredAccessToken();
           this.permissionCache.clear();
+          this.currentUserLoad$ = undefined;
           this.redirectToCentralLogout();
           return of(void 0);
         }),
@@ -179,6 +181,7 @@ export class AuthService {
     this.authCoordinator.logout();
     this.currentUserSubject.next(null);
     this.permissionCache.clear();
+    this.currentUserLoad$ = undefined;
   }
 
   trySsoLogin(returnUrl?: string): Observable<boolean> {

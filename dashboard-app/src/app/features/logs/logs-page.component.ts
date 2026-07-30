@@ -14,6 +14,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { BehaviorSubject, of, combineLatest, interval, merge } from 'rxjs';
 import { catchError, switchMap, finalize, debounceTime, map } from 'rxjs/operators';
 import { LogsService } from '../../core/services/logs.service';
@@ -74,30 +75,35 @@ const SERVICE_COLORS = [
     MatAutocompleteModule,
     TimeRangePickerComponent,
     LogStreamViewComponent,
+    HisHopeTranslatePipe,
   ],
   template: `
     <div class="page-header">
-      <h1 class="page-title">System Logs</h1>
+      <h1 class="page-title">{{ 'dashboard.logs.pageTitle' | hhTranslate:'System Logs' }}</h1>
       <div class="page-header-actions">
-        <span class="result-count" *ngIf="totalCount > 0">{{ totalCount }} results</span>
+        @if (totalCount > 0) {
+          <span class="result-count">{{ totalCount }} {{ 'dashboard.logs.results' | hhTranslate:'results' }}</span>
+        }
         <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
           <mat-icon>refresh</mat-icon>
-          Refresh
+          {{ 'dashboard.logs.refresh' | hhTranslate:'Refresh' }}
         </button>
       </div>
     </div>
 
     <!-- Query summary bar -->
-    <div class="query-summary" *ngIf="querySummary">
-      <span class="query-summary-text">{{ querySummary }}</span>
-      <button mat-icon-button size="small" (click)="clearAllFilters()" title="Clear all filters">
-        <mat-icon>close</mat-icon>
-      </button>
-    </div>
+    @if (querySummary) {
+      <div class="query-summary">
+        <span class="query-summary-text">{{ querySummary }}</span>
+        <button mat-icon-button size="small" (click)="clearAllFilters()" [title]="'dashboard.logs.clearFilters' | hhTranslate:'Clear all filters'">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    }
 
     <mat-tab-group (selectedIndexChange)="onTabChange($event)" class="logs-tabs">
       <!-- ═══════════════ Search Tab ═══════════════ -->
-      <mat-tab label="Search">
+      <mat-tab [label]="'dashboard.logs.tabSearch' | hhTranslate:'Search'">
         <ng-template matTabContent>
           <!-- Filters card -->
           <mat-card class="filters-card">
@@ -105,25 +111,25 @@ const SERVICE_COLORS = [
               <!-- Row 1: Time range + Service autocomplete -->
               <div class="filters-row">
                 <div class="filter-group time-range-group">
-                  <label class="filter-label">Time range</label>
+                  <label class="filter-label">{{ 'dashboard.logs.timeRange' | hhTranslate:'Time range' }}</label>
                   <app-time-range-picker (rangeChange)="onTimeRangeChange($event)"></app-time-range-picker>
                 </div>
 
                 <mat-form-field appearance="outline" subscriptSizing="dynamic" class="service-filter">
-                  <mat-label>Service</mat-label>
+                  <mat-label>{{ 'dashboard.logs.service' | hhTranslate:'Service' }}</mat-label>
                   <input
                     matInput
                     [matAutocomplete]="autoService"
                     [(ngModel)]="serviceInput"
                     (ngModelChange)="onServiceInputChange()"
-                    placeholder="All services"
+                    [placeholder]="'dashboard.logs.allServices' | hhTranslate:'All services'"
                   />
                   <mat-icon matSuffix>search</mat-icon>
                   <mat-autocomplete #autoService="matAutocomplete" (optionSelected)="onServiceSelected($event.option.value)">
-                    <mat-option value="">All services</mat-option>
-                    <mat-option *ngFor="let svc of filteredServices" [value]="svc">
-                      {{ svc }}
-                    </mat-option>
+                    <mat-option value="">{{ 'dashboard.logs.allServices' | hhTranslate:'All services' }}</mat-option>
+                    @for (svc of filteredServices; track svc) {
+                      <mat-option [value]="svc">{{ svc }}</mat-option>
+                    }
                   </mat-autocomplete>
                 </mat-form-field>
               </div>
@@ -131,29 +137,32 @@ const SERVICE_COLORS = [
               <!-- Row 2: Search + level chips -->
               <div class="filters-row filters-second-row">
                 <mat-form-field appearance="outline" subscriptSizing="dynamic" class="search-field">
-                  <mat-label>Full-text search</mat-label>
-                  <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()" placeholder="Keywords, trace ID, message..." />
-                  <button matSuffix mat-icon-button *ngIf="searchQuery" (click)="clearSearch()" type="button">
-                    <mat-icon>close</mat-icon>
-                  </button>
+                  <mat-label>{{ 'dashboard.logs.fullTextSearch' | hhTranslate:'Full-text search' }}</mat-label>
+                  <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()" [placeholder]="'dashboard.logs.searchPlaceholder' | hhTranslate:'Keywords, trace ID, message...'" />
+                  @if (searchQuery) {
+                    <button matSuffix mat-icon-button (click)="clearSearch()" type="button">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                  }
                 </mat-form-field>
 
                 <div class="level-filter-group">
-                  <label class="filter-label">Level</label>
+                  <label class="filter-label">{{ 'dashboard.logs.level' | hhTranslate:'Level' }}</label>
                   <div class="level-chips">
-                    <button
-                      *ngFor="let level of levelOptions"
-                      class="level-chip"
-                      [class.selected]="selectedLevels.includes(level.value)"
-                      (click)="toggleLevel(level.value)">
-                      {{ level.label }}
-                    </button>
+                    @for (level of levelOptions; track level.value) {
+                      <button
+                        class="level-chip"
+                        [class.selected]="selectedLevels.includes(level.value)"
+                        (click)="toggleLevel(level.value)">
+                        {{ level.label }}
+                      </button>
+                    }
                   </div>
                 </div>
 
                 <button mat-raised-button color="primary" (click)="search()" class="search-btn">
                   <mat-icon>search</mat-icon>
-                  Search
+                  {{ 'dashboard.logs.searchBtn' | hhTranslate:'Search' }}
                 </button>
               </div>
             </mat-card-content>
@@ -163,25 +172,29 @@ const SERVICE_COLORS = [
           <mat-card>
             <mat-card-content class="table-content">
               <!-- Loading -->
-              <div class="loading-state" *ngIf="(loading$ | async) && !(error$ | async)">
-                <mat-spinner diameter="28"></mat-spinner>
-              </div>
+              @if ((loading$ | async) && !(error$ | async)) {
+                <div class="loading-state">
+                  <mat-spinner diameter="28"></mat-spinner>
+                </div>
+              }
 
               <!-- Error -->
-              <div class="error-inline" *ngIf="error$ | async as err">
-                <span class="error-text">{{ err }}</span>
-                <button mat-stroked-button size="small" (click)="refresh()">Retry</button>
-              </div>
+              @if (error$ | async; as err) {
+                <div class="error-inline">
+                  <span class="error-text">{{ err }}</span>
+                  <button mat-stroked-button size="small" (click)="refresh()">{{ 'dashboard.logs.retry' | hhTranslate:'Retry' }}</button>
+                </div>
+              }
 
               <!-- Table -->
               <table mat-table [dataSource]="logs" class="mat-elevation-z0" multiTemplateDataRows>
                 <ng-container matColumnDef="timestamp">
-                  <th mat-header-cell *matHeaderCellDef>Time</th>
+                  <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.logs.time' | hhTranslate:'Time' }}</th>
                   <td mat-cell *matCellDef="let l" class="cell-timestamp">{{ l.timestamp | date:'dd/MM HH:mm:ss' }}</td>
                 </ng-container>
 
                 <ng-container matColumnDef="level">
-                  <th mat-header-cell *matHeaderCellDef>Level</th>
+                  <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.logs.level' | hhTranslate:'Level' }}</th>
                   <td mat-cell *matCellDef="let l">
                     <span class="level-badge" [class]="'level-' + l.level.toLowerCase()">
                       {{ l.level }}
@@ -190,7 +203,7 @@ const SERVICE_COLORS = [
                 </ng-container>
 
                 <ng-container matColumnDef="service">
-                  <th mat-header-cell *matHeaderCellDef>Service</th>
+                  <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.logs.service' | hhTranslate:'Service' }}</th>
                   <td mat-cell *matCellDef="let l">
                     <span class="service-chip" [style.--chip-color]="getServiceColor(l.service)">
                       {{ l.service }}
@@ -199,12 +212,14 @@ const SERVICE_COLORS = [
                 </ng-container>
 
                 <ng-container matColumnDef="message">
-                  <th mat-header-cell *matHeaderCellDef>Message</th>
+                  <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.logs.message' | hhTranslate:'Message' }}</th>
                   <td mat-cell *matCellDef="let l" class="cell-message">
                     <span class="message-text">{{ l.message }}</span>
-                    <span class="trace-link" *ngIf="l.traceId" (click)="goToTrace($event, l.traceId!)">
-                      [{{ l.traceId | slice:0:8 }}...]
-                    </span>
+                    @if (l.traceId) {
+                      <span class="trace-link" (click)="goToTrace($event, l.traceId!)">
+                        [{{ l.traceId | slice:0:8 }}...]
+                      </span>
+                    }
                   </td>
                 </ng-container>
 
@@ -220,26 +235,36 @@ const SERVICE_COLORS = [
                 <!-- Expanded detail row -->
                 <ng-container matColumnDef="expandedDetail">
                   <td mat-cell *matCellDef="let l" [attr.colspan]="displayedColumns.length">
-                    <div class="expanded-detail" *ngIf="expanded[l.id]">
-                      <div class="detail-field" *ngIf="l.traceId">
-                        <span class="detail-field-label">Trace ID</span>
-                        <code class="detail-field-value trace-link-inline" (click)="goToTrace($event, l.traceId!)">
-                          {{ l.traceId }}
-                        </code>
+                    @if (expanded[l.id]) {
+                      <div class="expanded-detail">
+                        @if (l.traceId) {
+                          <div class="detail-field">
+                            <span class="detail-field-label">{{ 'dashboard.logs.traceId' | hhTranslate:'Trace ID' }}</span>
+                            <code class="detail-field-value trace-link-inline" (click)="goToTrace($event, l.traceId!)">
+                              {{ l.traceId }}
+                            </code>
+                          </div>
+                        }
+                        @if (l.spanId) {
+                          <div class="detail-field">
+                            <span class="detail-field-label">{{ 'dashboard.logs.spanId' | hhTranslate:'Span ID' }}</span>
+                            <code class="detail-field-value">{{ l.spanId }}</code>
+                          </div>
+                        }
+                        @if (l.exception) {
+                          <div class="detail-field">
+                            <span class="detail-field-label">{{ 'dashboard.logs.exception' | hhTranslate:'Exception' }}</span>
+                            <pre class="detail-field-value exception">{{ l.exception }}</pre>
+                          </div>
+                        }
+                        @if (l.properties) {
+                          <div class="detail-field">
+                            <span class="detail-field-label">{{ 'dashboard.logs.properties' | hhTranslate:'Properties (JSON)' }}</span>
+                            <pre class="detail-field-value json">{{ l.properties | json }}</pre>
+                          </div>
+                        }
                       </div>
-                      <div class="detail-field" *ngIf="l.spanId">
-                        <span class="detail-field-label">Span ID</span>
-                        <code class="detail-field-value">{{ l.spanId }}</code>
-                      </div>
-                      <div class="detail-field" *ngIf="l.exception">
-                        <span class="detail-field-label">Exception</span>
-                        <pre class="detail-field-value exception">{{ l.exception }}</pre>
-                      </div>
-                      <div class="detail-field" *ngIf="l.properties">
-                        <span class="detail-field-label">Properties (JSON)</span>
-                        <pre class="detail-field-value json">{{ l.properties | json }}</pre>
-                      </div>
-                    </div>
+                    }
                   </td>
                 </ng-container>
 
@@ -251,26 +276,31 @@ const SERVICE_COLORS = [
                 <tr class="mat-row" *matNoDataRow>
                   <td class="mat-cell empty-state" [attr.colspan]="displayedColumns.length">
                     <mat-icon>article</mat-icon>
-                    <p>{{ (loading$ | async) ? 'Loading...' : 'No logs found' }}</p>
+                    <p>{{ (loading$ | async) ? ('dashboard.logs.loading' | hhTranslate:'Loading...') : ('dashboard.logs.noLogs' | hhTranslate:'No logs found') }}</p>
                   </td>
                 </tr>
               </table>
 
               <!-- Load more -->
-              <div class="load-more" *ngIf="hasMore && !(loading$ | async)">
-                <button mat-stroked-button (click)="loadMore()" [disabled]="loadingMore.value">
-                  <mat-icon *ngIf="!loadingMore.value">expand_more</mat-icon>
-                  <mat-spinner *ngIf="loadingMore.value" diameter="16"></mat-spinner>
-                  Load More
-                </button>
-              </div>
+              @if (hasMore && !(loading$ | async)) {
+                <div class="load-more">
+                  <button mat-stroked-button (click)="loadMore()" [disabled]="loadingMore.value">
+                    @if (!loadingMore.value) {
+                      <mat-icon>expand_more</mat-icon>
+                    } @else {
+                      <mat-spinner diameter="16"></mat-spinner>
+                    }
+                    {{ 'dashboard.logs.loadMore' | hhTranslate:'Load More' }}
+                  </button>
+                </div>
+              }
             </mat-card-content>
           </mat-card>
         </ng-template>
       </mat-tab>
 
       <!-- ═══════════════ Stream Tab ═══════════════ -->
-      <mat-tab label="Stream">
+      <mat-tab [label]="'dashboard.logs.tabStream' | hhTranslate:'Stream'">
         <ng-template matTabContent>
           <mat-card class="stream-card">
             <mat-card-content class="stream-card-content">

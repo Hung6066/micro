@@ -7,6 +7,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { BehaviorSubject, Subject, of } from 'rxjs';
 import { catchError, finalize, takeUntil } from 'rxjs/operators';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { SloService } from '../../core/services/slo.service';
 import { SloRecord, SloResponse } from '../../core/models/slo.model';
 import { MetricDataPoint } from '../../core/models/metric-snapshot.model';
@@ -78,129 +79,142 @@ function fmt(val: number, decimals = 2): string {
     MatButtonModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
+    HisHopeTranslatePipe,
   ],
   template: `
     <div class="page-header">
-      <h1 class="page-title">Service Level Objectives</h1>
+      <h1 class="page-title">{{ 'dashboard.slo.pageTitle' | hhTranslate:'Service Level Objectives' }}</h1>
       <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
         <mat-icon>refresh</mat-icon>
-        Refresh
+        {{ 'dashboard.slo.refresh' | hhTranslate:'Refresh' }}
       </button>
     </div>
 
     <!-- Loading -->
-    <div class="loading-state" *ngIf="loading$ | async">
-      <mat-spinner diameter="32"></mat-spinner>
-      <span class="loading-text">Loading SLO data...</span>
-    </div>
+    @if (loading$ | async) {
+      <div class="loading-state">
+        <mat-spinner diameter="32"></mat-spinner>
+        <span class="loading-text">{{ 'dashboard.slo.loading' | hhTranslate:'Loading SLO data...' }}</span>
+      </div>
+    }
 
     <!-- Error -->
-    <div class="error-state" *ngIf="error$ | async as err">
-      <mat-icon class="error-icon">error_outline</mat-icon>
-      <p class="error-message">{{ err }}</p>
-      <button mat-raised-button color="primary" (click)="refresh()">Retry</button>
-    </div>
+    @if (error$ | async; as err) {
+      <div class="error-state">
+        <mat-icon class="error-icon">error_outline</mat-icon>
+        <p class="error-message">{{ err }}</p>
+        <button mat-raised-button color="primary" (click)="refresh()">{{ 'dashboard.slo.retry' | hhTranslate:'Retry' }}</button>
+      </div>
+    }
 
     <!-- SLO cards grid -->
-    <div class="slo-grid" *ngIf="!(loading$ | async) && !(error$ | async) && services.length > 0">
-      <mat-card class="slo-card" *ngFor="let svc of services">
+    @if (!(loading$ | async) && !(error$ | async) && services.length > 0) {
+      <div class="slo-grid">
+        @for (svc of services; track svc.service) {
+          <mat-card class="slo-card">
+            <mat-card-header>
+              <mat-card-title class="slo-title">{{ svc.displayName }}</mat-card-title>
+              <mat-card-subtitle class="slo-subtitle">{{ svc.service }}</mat-card-subtitle>
+            </mat-card-header>
+
+            <mat-card-content class="slo-content">
+              <!-- Availability gauge (top semi-circle, 0–100%) -->
+              <div class="gauge-wrapper">
+                <svg viewBox="0 0 100 65" class="gauge-svg" [attr.aria-label]="'dashboard.slo.availability' | hhTranslate:'Availability gauge'">
+                  <!-- Background arc (full grey semi-circle, CCW = top) -->
+                  <path d="M 10 50 A 40 40 0 1 0 90 50"
+                        fill="none" stroke="#EAEAEA" stroke-width="6" stroke-linecap="round"/>
+                  <!-- Foreground arc (colored, partial) -->
+                  <path [attr.d]="gaugePath(svc.availability)"
+                        fill="none"
+                        [attr.stroke]="availColor(svc.availability)"
+                        stroke-width="6"
+                        stroke-linecap="round"
+                        style="transition: d 600ms cubic-bezier(0.4, 0, 0.2, 1);"/>
+                </svg>
+                <div class="gauge-label">
+                  <span class="gauge-value" [style.color]="availColor(svc.availability)">
+                    {{ fmt(svc.availability, 2) }}%
+                  </span>
+                  <span class="gauge-meta">{{ 'dashboard.slo.availability' | hhTranslate:'Availability' }}</span>
+                </div>
+              </div>
+
+              <!-- Error budget bar -->
+              <div class="budget-row">
+                <div class="budget-header">
+                  <span class="budget-label">{{ 'dashboard.slo.errorBudget' | hhTranslate:'Error Budget' }}</span>
+                  <span class="budget-value" [style.color]="budgetColor(svc.errorBudgetRemaining)">
+                    {{ fmt(svc.errorBudgetRemaining, 1) }}%
+                  </span>
+                </div>
+                <div class="budget-track">
+                  <div class="budget-fill"
+                       [style.width.%]="svc.errorBudgetRemaining"
+                       [style.background]="budgetColor(svc.errorBudgetRemaining)"></div>
+                </div>
+              </div>
+
+              <!-- Burn rate indicators -->
+              <div class="burn-row">
+                <div class="burn-item">
+                  <span class="burn-value" [style.color]="burnRateValue(svc.burnRate1h)">
+                    {{ fmt(svc.burnRate1h, 2) }}
+                  </span>
+                  <span class="burn-label">{{ 'dashboard.slo.burn1h' | hhTranslate:'1h Burn' }}</span>
+                </div>
+                <div class="burn-divider"></div>
+                <div class="burn-item">
+                  <span class="burn-value" [style.color]="burnRateValue(svc.burnRate6h)">
+                    {{ fmt(svc.burnRate6h, 2) }}
+                  </span>
+                  <span class="burn-label">{{ 'dashboard.slo.burn6h' | hhTranslate:'6h Burn' }}</span>
+                </div>
+              </div>
+
+              <!-- Latency P99 -->
+              <div class="latency-row">
+                <mat-icon class="latency-icon" [style.color]="latencyColor(svc.latencyP99)">timer</mat-icon>
+                <span class="latency-value" [style.color]="latencyColor(svc.latencyP99)">
+                  {{ fmt(svc.latencyP99, 0) }}ms
+                </span>
+                <span class="latency-label">{{ 'dashboard.slo.p99Latency' | hhTranslate:'p99 latency' }}</span>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        }
+      </div>
+    }
+
+    <!-- Latency sparkline card -->
+    @if (sparklineData && sparklineData.length > 1 && !(loading$ | async) && !(error$ | async)) {
+      <mat-card class="sparkline-card">
         <mat-card-header>
-          <mat-card-title class="slo-title">{{ svc.displayName }}</mat-card-title>
-          <mat-card-subtitle class="slo-subtitle">{{ svc.service }}</mat-card-subtitle>
+          <mat-card-title class="slo-title">{{ 'dashboard.slo.latencyTrend' | hhTranslate:'p99 Latency Trend' }}</mat-card-title>
+          <mat-card-subtitle class="slo-subtitle">{{ 'dashboard.slo.last24h' | hhTranslate:'Last 24 hours' }}</mat-card-subtitle>
         </mat-card-header>
-
-        <mat-card-content class="slo-content">
-          <!-- Availability gauge (top semi-circle, 0–100%) -->
-          <div class="gauge-wrapper">
-            <svg viewBox="0 0 100 65" class="gauge-svg" aria-label="Availability gauge">
-              <!-- Background arc (full grey semi-circle, CCW = top) -->
-              <path d="M 10 50 A 40 40 0 1 0 90 50"
-                    fill="none" stroke="#EAEAEA" stroke-width="6" stroke-linecap="round"/>
-              <!-- Foreground arc (colored, partial) -->
-              <path [attr.d]="gaugePath(svc.availability)"
-                    fill="none"
-                    [attr.stroke]="availColor(svc.availability)"
-                    stroke-width="6"
-                    stroke-linecap="round"
-                    style="transition: d 600ms cubic-bezier(0.4, 0, 0.2, 1);"/>
+        <mat-card-content>
+          <div class="sparkline-container">
+            <svg viewBox="0 0 480 80" class="sparkline-svg" preserveAspectRatio="none">
+              <polyline
+                [attr.points]="sparklinePts"
+                fill="none"
+                stroke="#2F6B4A"
+                stroke-width="2"
+                vector-effect="non-scaling-stroke"/>
             </svg>
-            <div class="gauge-label">
-              <span class="gauge-value" [style.color]="availColor(svc.availability)">
-                {{ fmt(svc.availability, 2) }}%
-              </span>
-              <span class="gauge-meta">Availability</span>
-            </div>
-          </div>
-
-          <!-- Error budget bar -->
-          <div class="budget-row">
-            <div class="budget-header">
-              <span class="budget-label">Error Budget</span>
-              <span class="budget-value" [style.color]="budgetColor(svc.errorBudgetRemaining)">
-                {{ fmt(svc.errorBudgetRemaining, 1) }}%
-              </span>
-            </div>
-            <div class="budget-track">
-              <div class="budget-fill"
-                   [style.width.%]="svc.errorBudgetRemaining"
-                   [style.background]="budgetColor(svc.errorBudgetRemaining)"></div>
-            </div>
-          </div>
-
-          <!-- Burn rate indicators -->
-          <div class="burn-row">
-            <div class="burn-item">
-              <span class="burn-value" [style.color]="burnRateValue(svc.burnRate1h)">
-                {{ fmt(svc.burnRate1h, 2) }}
-              </span>
-              <span class="burn-label">1h Burn</span>
-            </div>
-            <div class="burn-divider"></div>
-            <div class="burn-item">
-              <span class="burn-value" [style.color]="burnRateValue(svc.burnRate6h)">
-                {{ fmt(svc.burnRate6h, 2) }}
-              </span>
-              <span class="burn-label">6h Burn</span>
-            </div>
-          </div>
-
-          <!-- Latency P99 -->
-          <div class="latency-row">
-            <mat-icon class="latency-icon" [style.color]="latencyColor(svc.latencyP99)">timer</mat-icon>
-            <span class="latency-value" [style.color]="latencyColor(svc.latencyP99)">
-              {{ fmt(svc.latencyP99, 0) }}ms
-            </span>
-            <span class="latency-label">p99 latency</span>
           </div>
         </mat-card-content>
       </mat-card>
-    </div>
-
-    <!-- Latency sparkline card -->
-    <mat-card class="sparkline-card" *ngIf="sparklineData && sparklineData.length > 1 && !(loading$ | async) && !(error$ | async)">
-      <mat-card-header>
-        <mat-card-title class="slo-title">p99 Latency Trend</mat-card-title>
-        <mat-card-subtitle class="slo-subtitle">Last 24 hours</mat-card-subtitle>
-      </mat-card-header>
-      <mat-card-content>
-        <div class="sparkline-container">
-          <svg viewBox="0 0 480 80" class="sparkline-svg" preserveAspectRatio="none">
-            <polyline
-              [attr.points]="sparklinePts"
-              fill="none"
-              stroke="#2F6B4A"
-              stroke-width="2"
-              vector-effect="non-scaling-stroke"/>
-          </svg>
-        </div>
-      </mat-card-content>
-    </mat-card>
+    }
 
     <!-- Empty state -->
-    <div class="empty-state" *ngIf="!(loading$ | async) && !(error$ | async) && services.length === 0">
-      <mat-icon>speed</mat-icon>
-      <p>No SLO data available. Ensure Prometheus recording rules are configured.</p>
-    </div>
+    @if (!(loading$ | async) && !(error$ | async) && services.length === 0) {
+      <div class="empty-state">
+        <mat-icon>speed</mat-icon>
+        <p>{{ 'dashboard.slo.emptyState' | hhTranslate:'No SLO data available. Ensure Prometheus recording rules are configured.' }}</p>
+      </div>
+    }
   `,
   styles: [`
     :host {

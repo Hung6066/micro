@@ -28,59 +28,8 @@ export interface AssignRolesData {
         MatSnackBarModule,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    template: `
-    <h2 mat-dialog-title>Phân vai trò</h2>
-    <mat-dialog-content>
-      <div class="user-info">
-        <mat-icon>person</mat-icon>
-        <span>{{ data.user.fullName }}</span>
-      </div>
-      <p class="instruction">Chọn các vai trò cho người dùng:</p>
-
-      @if (roles.length > 0) {
-      <div class="roles-list">
-        @for (role of roles; track role.id; let i = $index) {
-        <div class="role-item">
-          <mat-checkbox [formControl]="roleCheckboxes.at(i)!">
-            <div class="role-info">
-              <span class="role-name">{{ role.name }}</span>
-              <span class="role-desc">{{ role.description }}</span>
-            </div>
-          </mat-checkbox>
-        </div>
-        }
-      </div>
-      } @else {
-      <div class="loading-state">
-        <mat-spinner diameter="24"></mat-spinner>
-        <span>Đang tải vai trò...</span>
-      </div>
-      }
-    </mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close [disabled]="saving">Hủy</button>
-      <button mat-raised-button color="primary" (click)="save()" [disabled]="saving">
-        <mat-icon>save</mat-icon>
-        @if (!saving) {
-        <span>Lưu vai trò</span>
-        }
-        @if (saving) {
-        <mat-spinner diameter="20"></mat-spinner>
-        }
-      </button>
-    </mat-dialog-actions>
-  `,
-    styles: [`
-    .user-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: var(--mat-sys-primary-container); border-radius: 8px; color: var(--mat-sys-on-primary-container); font-weight: 500; }
-    .instruction { color: #666; font-size: 14px; margin-bottom: 16px; }
-    .roles-list { display: flex; flex-direction: column; gap: 8px; min-width: 400px; max-height: 400px; overflow-y: auto; }
-    .role-item { padding: 8px 12px; border: 1px solid #EAEAEA; border-radius: 8px; transition: background 0.15s; }
-    .role-item:hover { background: #f9f9f7; }
-    .role-info { display: flex; flex-direction: column; }
-    .role-name { font-weight: 500; font-size: 14px; color: #1A1A1A; }
-    .role-desc { font-size: 12px; color: #787774; margin-top: 2px; }
-    .loading-state { display: flex; align-items: center; gap: 12px; justify-content: center; padding: 48px; color: #787774; }
-  `]
+    templateUrl: './assign-roles.dialog.html',
+    styleUrls: ['./assign-roles.dialog.scss']
 })
 export class AssignRolesDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();
