@@ -52,6 +52,11 @@
   };
 
   const wait = timeoutMs => new Promise(resolve => window.setTimeout(resolve, timeoutMs));
+  const DEFAULT_NATIVE_APPROVAL_TICKET_LIFETIME_MS = 5 * 60 * 1000;
+  const NATIVE_APPROVAL_CLIENT_BUFFER_MS = 15 * 1000;
+  const NATIVE_APPROVAL_MIN_TIMEOUT_MS = 60 * 1000;
+  const NATIVE_APPROVAL_INITIAL_INTERVAL_MS = 1000;
+  const NATIVE_APPROVAL_MAX_INTERVAL_MS = 5000;
 
   const passkeyButton = document.getElementById('passkey-button');
   if (passkeyButton) {
@@ -275,21 +280,76 @@
     }
   };
 
-  const pollNativeApproval = async ticket => {
-    const intervals = [800, 1200, 1600, 2000, 2400, 3000, 3600, 4200, 5000, 5000, 5000];
-    for (const interval of intervals) {
-      await wait(interval);
+  const getNativeApprovalPollTimeout = expiresInMs => {
+    const serverLifetimeMs = Number.isFinite(expiresInMs) && expiresInMs > 0
+      ? expiresInMs
+      : DEFAULT_NATIVE_APPROVAL_TICKET_LIFETIME_MS;
+
+    return Math.max(NATIVE_APPROVAL_MIN_TIMEOUT_MS, serverLifetimeMs - NATIVE_APPROVAL_CLIENT_BUFFER_MS);
+  };
+
+  const openNativeApprovalWindow = () => {
+    const launchWindow = window.open('', '_blank');
+    if (!launchWindow) return null;
+
+    try {
+      launchWindow.opener = null;
+    } catch {
+      // Best effort only.
+    }
+
+    return launchWindow;
+  };
+
+  const navigateNativeApprovalWindow = (launchWindow, deepLink) => {
+    if (launchWindow && !launchWindow.closed) {
+      try {
+        launchWindow.location.replace(deepLink);
+        return;
+      } catch {
+        try {
+          launchWindow.location.href = deepLink;
+          return;
+        } catch {
+          // Fall through to same-tab navigation.
+        }
+      }
+
+      launchWindow.close();
+    }
+
+    window.location.assign(deepLink);
+  };
+
+  const pollNativeApproval = async (ticket, timeoutMs) => {
+    const deadline = Date.now() + timeoutMs;
+    let intervalMs = NATIVE_APPROVAL_INITIAL_INTERVAL_MS;
+
+    while (Date.now() < deadline) {
+      await wait(intervalMs);
 
       const response = await fetch(`/api/v1/auth/passkeys/mfa/native/poll?ticket=${encodeURIComponent(ticket)}`);
-      if (response.status === 202) continue;
+      if (response.status === 202) {
+        intervalMs = Math.min(Math.round(intervalMs * 1.35), NATIVE_APPROVAL_MAX_INTERVAL_MS);
+        continue;
+      }
+
+      if (response.status === 409) {
+        throw new Error(await readProblem(response, 'Mobile approval was rejected in the His.Hope mobile app.'));
+      }
+
+      if (response.status === 410) {
+        throw new Error(await readProblem(response, 'Mobile approval expired. Retry the request from this page.'));
+      }
+
       if (!response.ok) {
-        throw new Error(await readProblem(response, 'Mobile approval expired or was rejected.'));
+        throw new Error(await readProblem(response, 'Unable to confirm mobile approval.'));
       }
 
       return response.json();
     }
 
-    throw new Error('Mobile approval timed out. Retry the request from this page.');
+    throw new Error('Mobile approval timed out before the server ticket expired. Retry the request from this page.');
   };
 
   const startNativeApproval = async () => {
@@ -299,16 +359,21 @@
     setStatus('Approve this sign-in in the His.Hope mobile app.');
     render();
 
+    const launchWindow = openNativeApprovalWindow();
+
     try {
       const start = await fetch('/api/v1/auth/passkeys/mfa/native/start', { method: 'POST' });
       if (!start.ok) throw new Error(await readProblem(start, 'Unable to start mobile approval.'));
 
       const payload = await start.json();
-      window.open(payload.deepLink, '_blank', 'noopener,noreferrer');
+      navigateNativeApprovalWindow(launchWindow, payload.deepLink);
 
-      const result = await pollNativeApproval(payload.ticket);
+      const result = await pollNativeApproval(payload.ticket, getNativeApprovalPollTimeout(payload.expiresInMs));
       window.location.assign(result.redirectUrl || '/');
     } catch (exception) {
+      if (launchWindow && !launchWindow.closed) {
+        launchWindow.close();
+      }
       setError(exception instanceof Error ? exception.message : String(exception));
     } finally {
       state.busyMethod = null;
