@@ -190,13 +190,15 @@ var app = builder.Build();
 
 app.UseHisHopeAspNetCore();
 
-// The three local apps share the Identity BFF session cookie.  Forward the
-// session JWT to this BFF when the browser did not send a Bearer token so
-// controller authorization works consistently across ports.
+// The three local apps share the Identity BFF session cookie.  The SPA
+// auth interceptor always sends an Authorization header with the OIDC
+// access token, but that token may carry an audience that does not match
+// the BFF's JwtBearer configuration.  When the session cookie is present,
+// inject the session JWT as the authenticated principal so that controller
+// authorization works consistently across ports.
 app.Use(async (context, next) =>
 {
-    if (!context.Request.Headers.ContainsKey("Authorization") &&
-        context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
+    if (context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
         !string.IsNullOrWhiteSpace(sessionId))
     {
         var redis = context.RequestServices.GetRequiredService<IConnectionMultiplexer>();
@@ -231,6 +233,9 @@ app.Use(async (context, next) =>
                             },
                             out _);
                         context.User = principal;
+                        // Remove the OIDC Bearer token so JwtBearer does not
+                        // attempt to validate it with a mismatched audience.
+                        context.Request.Headers.Remove("Authorization");
                     }
                     catch (SecurityTokenException)
                     {
