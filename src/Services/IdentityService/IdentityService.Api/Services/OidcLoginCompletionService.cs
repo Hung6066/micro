@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text.Json;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
@@ -9,10 +10,41 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace His.Hope.IdentityService.Api.Services;
 
 public sealed record OidcLoginCompletionResult(bool RequiresMfa, string RedirectUrl);
+public sealed record AdaptiveMfaMethods(string? PreferredMethod, IReadOnlyList<string> AvailableMethods, bool IsUnfamiliarDevice);
+public sealed record PendingMfaContext(
+    Guid UserId,
+    string ReturnUrl,
+    bool IsUnfamiliarDevice,
+    string[] AuthenticationMethods,
+    DateTimeOffset CreatedAt,
+    string SessionId);
+
+public static class AdaptiveMfaMethodPolicy
+{
+    public static AdaptiveMfaMethods Resolve(
+        bool hasPasskey,
+        bool hasMobileApproval,
+        bool hasTotp,
+        bool unfamiliarDevice)
+    {
+        var available = new List<string>();
+        if (hasPasskey) available.Add("passkey");
+        if (hasMobileApproval) available.Add("mobileApproval");
+        if (hasTotp) available.Add("totp");
+        var preferred = unfamiliarDevice && hasMobileApproval
+            ? "mobileApproval"
+            : hasPasskey ? "passkey"
+            : hasMobileApproval ? "mobileApproval"
+            : hasTotp ? "totp" : null;
+
+        return new(preferred, available, unfamiliarDevice);
+    }
+}
 
 /// <summary>
 /// Completes every interactive authentication method through the same OIDC
@@ -28,6 +60,9 @@ public sealed class OidcLoginCompletionService(
     IDataProtectionProvider dataProtectionProvider)
 {
     private const string CookieName = "hishop_oidc_mfa";
+    private const string SessionCookieName = "hishop_oidc_mfa_session";
+    private const string TrustedDeviceCookieName = "hishop_trusted_device";
+    private static readonly TimeSpan PendingMfaLifetime = TimeSpan.FromMinutes(5);
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector("HisHope.OidcMfa.v1");
 
     public async Task<OidcLoginCompletionResult> CompletePrimaryAsync(
@@ -43,7 +78,13 @@ public sealed class OidcLoginCompletionService(
             .AnyAsync(item => item.UserId == user.Id && item.IsEnabled, cancellationToken);
         if (mfaEnabled)
         {
-            var pending = new PendingMfa(user.Id, safeReturnUrl, authenticationMethods.ToArray(), DateTimeOffset.UtcNow);
+            var pending = new PendingMfaContext(
+                user.Id,
+                safeReturnUrl,
+                IsUnfamiliarDevice(context, user),
+                authenticationMethods.ToArray(),
+                DateTimeOffset.UtcNow,
+                GetOrCreatePendingSessionId());
             var protectedState = protector.Protect(JsonSerializer.Serialize(pending));
             context.Response.Cookies.Append(CookieName, protectedState, new CookieOptions
             {
@@ -51,7 +92,15 @@ public sealed class OidcLoginCompletionService(
                 Secure = context.Request.IsHttps,
                 SameSite = SameSiteMode.Lax,
                 Path = "/",
-                MaxAge = TimeSpan.FromMinutes(5)
+                MaxAge = PendingMfaLifetime
+            });
+            context.Response.Cookies.Append(SessionCookieName, pending.SessionId, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = context.Request.IsHttps,
+                SameSite = SameSiteMode.Lax,
+                Path = "/",
+                MaxAge = PendingMfaLifetime
             });
 
             return new(true, $"/Account/Mfa?returnUrl={Uri.EscapeDataString(safeReturnUrl)}");
@@ -66,21 +115,8 @@ public sealed class OidcLoginCompletionService(
         if (string.IsNullOrWhiteSpace(code))
             return null;
 
-        var protectedState = context.Request.Cookies[CookieName];
-        if (string.IsNullOrWhiteSpace(protectedState))
-            return null;
-
-        PendingMfa? pending;
-        try
-        {
-            pending = JsonSerializer.Deserialize<PendingMfa>(protector.Unprotect(protectedState));
-        }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            return null;
-        }
-
-        if (pending is null || DateTimeOffset.UtcNow - pending.CreatedAt > TimeSpan.FromMinutes(5))
+        var pending = TryGetPendingMfaContext(context);
+        if (pending is null)
             return null;
 
         var user = await userManager.FindByIdAsync(pending.UserId.ToString());
@@ -92,15 +128,30 @@ public sealed class OidcLoginCompletionService(
         if (!totpService.VerifyCode(secret, code.Trim()))
             return null;
 
-        context.Response.Cookies.Delete(CookieName, new CookieOptions { Path = "/" });
+        DeletePendingMfaCookies(context);
         await SignInAsync(user, pending.AuthenticationMethods.Append("otp").Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
         return pending.ReturnUrl;
     }
 
     public Guid? TryGetPendingMfaUserId(HttpContext context)
     {
+        return TryGetPendingMfaContext(context)?.UserId;
+    }
+
+    public PendingMfaContext? TryGetPendingMfaContext(HttpContext context)
+    {
         var pending = ReadPendingMfa(context);
-        return pending?.UserId;
+        if (pending is null || DateTimeOffset.UtcNow - pending.CreatedAt > PendingMfaLifetime)
+            return null;
+
+        var sessionId = context.Request.Cookies[SessionCookieName];
+        if (string.IsNullOrWhiteSpace(sessionId))
+            return null;
+
+        if (!string.Equals(sessionId, pending.SessionId, StringComparison.Ordinal))
+            return null;
+
+        return pending;
     }
 
     public async Task<string?> CompleteMfaWithPasskeyAsync(
@@ -108,21 +159,20 @@ public sealed class OidcLoginCompletionService(
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var pending = ReadPendingMfa(context);
-        if (pending is null || pending.UserId != userId ||
-            DateTimeOffset.UtcNow - pending.CreatedAt > TimeSpan.FromMinutes(5))
+        var pending = TryGetPendingMfaContext(context);
+        if (pending is null || pending.UserId != userId)
             return null;
 
         var user = await userManager.FindByIdAsync(userId.ToString());
         if (user is null || !user.IsActive)
             return null;
 
-        context.Response.Cookies.Delete(CookieName, new CookieOptions { Path = "/" });
+        DeletePendingMfaCookies(context);
         await SignInAsync(user, pending.AuthenticationMethods.Append("passkey").Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
         return pending.ReturnUrl;
     }
 
-    private PendingMfa? ReadPendingMfa(HttpContext context)
+    private PendingMfaContext? ReadPendingMfa(HttpContext context)
     {
         var protectedState = context.Request.Cookies[CookieName];
         if (string.IsNullOrWhiteSpace(protectedState))
@@ -130,7 +180,7 @@ public sealed class OidcLoginCompletionService(
 
         try
         {
-            return JsonSerializer.Deserialize<PendingMfa>(protector.Unprotect(protectedState));
+            return JsonSerializer.Deserialize<PendingMfaContext>(protector.Unprotect(protectedState));
         }
         catch
         {
@@ -153,5 +203,22 @@ public sealed class OidcLoginCompletionService(
             ? value
             : "/";
 
-    private sealed record PendingMfa(Guid UserId, string ReturnUrl, string[] AuthenticationMethods, DateTimeOffset CreatedAt);
+    private static string GetOrCreatePendingSessionId() =>
+        WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+
+    private static bool IsUnfamiliarDevice(HttpContext context, User user)
+    {
+        var trustedDeviceToken = user.TrustedDeviceToken?.Trim();
+        if (string.IsNullOrWhiteSpace(trustedDeviceToken))
+            return true;
+
+        var presentedToken = context.Request.Cookies[TrustedDeviceCookieName];
+        return !string.Equals(presentedToken, trustedDeviceToken, StringComparison.Ordinal);
+    }
+
+    private static void DeletePendingMfaCookies(HttpContext context)
+    {
+        context.Response.Cookies.Delete(CookieName, new CookieOptions { Path = "/" });
+        context.Response.Cookies.Delete(SessionCookieName, new CookieOptions { Path = "/" });
+    }
 }

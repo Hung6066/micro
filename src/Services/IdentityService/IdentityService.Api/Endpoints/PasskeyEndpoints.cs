@@ -187,9 +187,17 @@ public static class PasskeyEndpoints
             OidcLoginCompletionService completion,
             IdentityDbContext db) =>
         {
-            if (!Guid.TryParse(request.UserId, out var userId) || completion.TryGetPendingMfaUserId(context) != userId)
+            var pending = completion.TryGetPendingMfaContext(context);
+            if (pending is null)
                 return Results.Unauthorized();
 
+            if (!string.IsNullOrWhiteSpace(request.UserId) &&
+                (!Guid.TryParse(request.UserId, out var requestedUserId) || requestedUserId != pending.UserId))
+            {
+                return Results.Conflict();
+            }
+
+            var userId = pending.UserId;
             var redisDb = redis.GetDatabase();
             var rawOptions = await redisDb.StringGetDeleteAsync(MfaAssertionKey(userId));
             var credentialId = await redisDb.StringGetDeleteAsync(MfaCredentialPointerKey(userId));
