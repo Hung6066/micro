@@ -125,14 +125,8 @@ public static class MfaEndpoints
         group.MapPost("/mfa/verify", async (
             MfaVerifyRequest request,
             HttpContext httpContext,
-            TotpService totpService,
-            JwtTokenGenerator tokenGenerator,
-            IMfaSecretEncryptor encryptor,
-            IConnectionMultiplexer redis,
-            ITokenBlacklistService tokenBlacklist,
             OidcLoginCompletionService completion,
-            IdentityDbContext db,
-            UserManager<User> userManager,
+            IServiceProvider services,
             CancellationToken ct) =>
         {
             var pending = completion.TryGetPendingMfaContext(httpContext);
@@ -159,15 +153,19 @@ public static class MfaEndpoints
             var userId = GetUserId(httpContext);
             if (userId is null) return Results.Unauthorized();
 
+            var userManager = services.GetRequiredService<UserManager<User>>();
             var user = await userManager.FindByIdAsync(userId.Value.ToString());
             if (user is null) return Results.NotFound();
 
+            var db = services.GetRequiredService<IdentityDbContext>();
             var mfa = await db.UserMfas
                 .FirstOrDefaultAsync(m => m.UserId == userId.Value, ct);
 
             if (mfa is null)
                 return Results.Problem("MFA not enrolled. Enroll first.", statusCode: 400);
 
+            var encryptor = services.GetRequiredService<IMfaSecretEncryptor>();
+            var totpService = services.GetRequiredService<TotpService>();
             var decryptedSecret = encryptor.Decrypt(mfa.SecretKey);
             if (!totpService.VerifyCode(decryptedSecret, request.Code))
                 return Results.Problem("Invalid TOTP code.", statusCode: 400);
@@ -181,10 +179,12 @@ public static class MfaEndpoints
             // Tokens issued before MFA enrollment must not keep an MFA-free
             // session alive in Angular/mobile. The fresh token below is issued
             // after this timestamp and carries amr=pwd,otp.
+            var tokenBlacklist = services.GetRequiredService<ITokenBlacklistService>();
             await tokenBlacklist.RevokeAllUserTokensAsync(user.Id.ToString(), ct);
 
             var roles = await userManager.GetRolesAsync(user);
             var permissions = await GetPermissionsForRoles(roles, db, ct);
+            var tokenGenerator = services.GetRequiredService<JwtTokenGenerator>();
             var (accessToken, expiresAt) = tokenGenerator.GenerateAccessToken(
                 user, roles, permissions, amrValues: ["pwd", "otp"]);
 
@@ -205,6 +205,7 @@ public static class MfaEndpoints
                 ExpiresAt = expiresAt
             };
 
+            var redis = services.GetRequiredService<IConnectionMultiplexer>();
             var rdb = redis.GetDatabase();
             await rdb.StringSetAsync(
                 $"session:{sessionId}",

@@ -2,44 +2,87 @@
 
 ## Fix summary
 
-- Added `GET /api/v1/auth/mfa/methods` to return only server-derived MFA presentation data from the live pending OIDC session: `preferredMethod`, `availableMethods`, `isUnfamiliarDevice`, and a safe `redirectHandle`.
-- Centralized pending-session validation in `OidcLoginCompletionService` so browser passkey MFA, native mobile approval, and method discovery all resolve against the same pending/session binding instead of trusting client input.
-- Bound native mobile MFA tickets to the pending session ID and pending MFA record, not just the user ID, so a second pending session for the same user cannot complete the first session’s approval ticket.
-- Kept the legacy authenticated `/api/v1/auth/mfa/verify` flow for enrolled-session token issuance, but made it fail closed when an unresolved OIDC pending cookie is present instead of falling through to token minting.
-- Verified the pending TOTP success path through `/Account/Mfa`, which already completes through the shared pending OIDC completion service and preserves the original authorize callback.
+- Restored `/api/v1/auth/mfa/verify` fail-closed behavior for unauthenticated/no-pending requests: no pending context now returns 401 before legacy token dependencies are resolved.
+- Preserved the legacy authenticated MFA verification path only when no pending OIDC MFA cookie is present; an invalid/unresolvable `hishop_oidc_mfa` cookie returns 401 and does not mint or rotate a `hishop_sid` session.
+- Bound browser passkey MFA options and completion state to the live pending session using `userId + PendingId + hishop_sid`, instead of the previous user-only Redis keys.
+- Added regressions proving concurrent pending sessions for the same user get distinct browser passkey challenges and session A cannot complete with session B's challenge.
+- Left native mobile MFA ticket binding intact: native state remains bound to user, pending ID, and browser session ID.
 
 ## Changed files
 
 - `src/Services/IdentityService/IdentityService.Api/Endpoints/MfaEndpoints.cs`
 - `src/Services/IdentityService/IdentityService.Api/Endpoints/PasskeyEndpoints.cs`
-- `src/Services/IdentityService/IdentityService.Api/Services/OidcLoginCompletionService.cs`
 - `tests/IdentityService/IdentityService.IntegrationTests/AdaptiveMfaEndpointTests.cs`
+- `tests/IdentityService/IdentityService.IntegrationTests/MfaEndpointsTests.cs`
 - `.superpowers/sdd/2026-07-30-passkey-first-adaptive-mfa/task-2-report.md`
 
-## Focused red verification
+## Red verification
 
 ```powershell
-rtk dotnet test D:\AI\micro-worktrees\passkey-first-adaptive-mfa\tests\IdentityService\IdentityService.IntegrationTests\IdentityService.IntegrationTests.csproj --filter FullyQualifiedName~AdaptiveMfaEndpointTests
+rtk dotnet test tests\IdentityService\IdentityService.IntegrationTests\IdentityService.IntegrationTests.csproj --filter FullyQualifiedName~AdaptiveMfaEndpointTests
 ```
 
 ```text
-fail dotnet test: 2 passed, 5 failed, 0 skipped, 2 warnings in 1 projects (24.3 s)
+fail dotnet test: 7 passed, 2 failed, 0 skipped, 0 warnings in 1 projects (50.9 s)
 ```
 
-The initial failures covered the missing `/api/v1/auth/mfa/methods` behavior, missing native-ticket pending-session enforcement, and the unresolved pending TOTP completion path.
-
-## Final focused verification
+The new red failures showed the user-only browser MFA challenge binding: same-user concurrent pending sessions produced no session-scoped challenge keys, and a session without its own challenge reached WebAuthn validation from another session's challenge instead of returning 401.
 
 ```powershell
-rtk dotnet test D:\AI\micro-worktrees\passkey-first-adaptive-mfa\tests\IdentityService\IdentityService.IntegrationTests\IdentityService.IntegrationTests.csproj --filter FullyQualifiedName~AdaptiveMfaEndpointTests
+rtk dotnet test tests\IdentityService\IdentityService.IntegrationTests\IdentityService.IntegrationTests.csproj --filter FullyQualifiedName~MfaEndpointsTests
 ```
 
 ```text
-ok dotnet test: 7 tests passed, 333 warnings in 1 projects (22.6 s)
+fail dotnet test: 7 passed, 2 failed, 0 skipped, 2 warnings in 1 projects (48.9 s)
+```
+
+The verify red failures showed `/api/v1/auth/mfa/verify` returning 500 before it could answer 401 for unauthenticated/no-pending requests because legacy token dependencies were resolved too early.
+
+## Final requested verification
+
+```powershell
+rtk dotnet test tests\IdentityService\IdentityService.IntegrationTests\IdentityService.IntegrationTests.csproj --filter FullyQualifiedName~AdaptiveMfaEndpointTests
+```
+
+```text
+ok dotnet test: 9 tests passed, 333 warnings in 1 projects (40.8 s)
+```
+
+```powershell
+rtk dotnet test tests\IdentityService\IdentityService.IntegrationTests\IdentityService.IntegrationTests.csproj --filter FullyQualifiedName~AdaptiveMfaMethodTests
+```
+
+```text
+ok dotnet test: 13 tests passed, 0 warnings in 1 projects (9.4 s)
+```
+
+```powershell
+rtk dotnet test tests\IdentityService\IdentityService.IntegrationTests\IdentityService.IntegrationTests.csproj --filter FullyQualifiedName~MfaEndpointsTests
+```
+
+```text
+ok dotnet test: 9 tests passed, 2 warnings in 1 projects (39.5 s)
+```
+
+```powershell
+rtk dotnet test tests\IdentityService\IdentityService.IntegrationTests\IdentityService.IntegrationTests.csproj --filter FullyQualifiedName~RateLimitingTests
+```
+
+```text
+ok dotnet test: 3 tests passed, 0 warnings in 1 projects (60.0 s)
+```
+
+## Final combined verification
+
+```powershell
+rtk dotnet test tests\IdentityService\IdentityService.IntegrationTests\IdentityService.IntegrationTests.csproj --filter "FullyQualifiedName~AdaptiveMfaEndpointTests|FullyQualifiedName~AdaptiveMfaMethodTests|FullyQualifiedName~MfaEndpointsTests|FullyQualifiedName~RateLimitingTests"
+```
+
+```text
+ok dotnet test: 34 tests passed, 0 warnings in 1 projects (48.7 s)
 ```
 
 ## Concerns
 
-- Verification is intentionally limited to the requested adaptive-MFA endpoint slice, not the full IdentityService or repository suite.
-- The test project still emits 333 pre-existing build warnings in this focused run; Task 2 did not change or reduce that warning baseline.
-- Pending TOTP success is verified through `/Account/Mfa` because that is the existing shared pending-session completion path; the JSON `/api/v1/auth/mfa/verify` endpoint now rejects unresolved pending OIDC cookies instead of minting tokens from the legacy authenticated branch.
+- Verification was scoped to the requested IdentityService backend suites, not the full repository.
+- `AdaptiveMfaEndpointTests` still emits the existing 333-warning baseline in this worktree; this fix did not expand warning cleanup outside Task 2 scope.

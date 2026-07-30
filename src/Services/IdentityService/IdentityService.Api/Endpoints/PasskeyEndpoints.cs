@@ -175,8 +175,8 @@ public static class PasskeyEndpoints
                 UserVerification = UserVerificationRequirement.Required
             });
             var redisDb = redis.GetDatabase();
-            await redisDb.StringSetAsync(MfaAssertionKey(userId), options.ToJson(), TimeSpan.FromMinutes(5));
-            await redisDb.StringSetAsync(MfaCredentialPointerKey(userId), credential.CredentialId, TimeSpan.FromMinutes(5));
+            await redisDb.StringSetAsync(MfaAssertionKey(pending), options.ToJson(), TimeSpan.FromMinutes(5));
+            await redisDb.StringSetAsync(MfaCredentialPointerKey(pending), credential.CredentialId, TimeSpan.FromMinutes(5));
             return Results.Ok(new { userId, options });
         });
 
@@ -200,8 +200,8 @@ public static class PasskeyEndpoints
 
             var userId = pending.UserId;
             var redisDb = redis.GetDatabase();
-            var rawOptions = await redisDb.StringGetDeleteAsync(MfaAssertionKey(userId));
-            var credentialId = await redisDb.StringGetDeleteAsync(MfaCredentialPointerKey(userId));
+            var rawOptions = await redisDb.StringGetDeleteAsync(MfaAssertionKey(pending));
+            var credentialId = await redisDb.StringGetDeleteAsync(MfaCredentialPointerKey(pending));
             if (!rawOptions.HasValue || !credentialId.HasValue)
                 return Results.Unauthorized();
 
@@ -356,8 +356,10 @@ public static class PasskeyEndpoints
     private static string OptionsKey(string userId) => $"hishop:passkey:registration:{userId}";
     private static string CredentialPointerKey(string userId) => $"hishop:passkey:credential-pointer:{userId}";
     private static string AssertionKey(string userId) => $"hishop:passkey:assertion:{userId}";
-    private static string MfaAssertionKey(Guid userId) => $"hishop:passkey:mfa:assertion:{userId}";
-    private static string MfaCredentialPointerKey(Guid userId) => $"hishop:passkey:mfa:credential:{userId}";
+    private static string MfaAssertionKey(PendingMfaContext pending) =>
+        $"hishop:passkey:mfa:assertion:{pending.UserId:D}:{pending.PendingId}:{pending.SessionId}";
+    private static string MfaCredentialPointerKey(PendingMfaContext pending) =>
+        $"hishop:passkey:mfa:credential:{pending.UserId:D}:{pending.PendingId}:{pending.SessionId}";
     private static string NativeMfaKey(string ticket) => $"hishop:passkey:mfa:native:{ticket}";
     private static string NativeMfaOptionsKey(string ticket) => $"hishop:passkey:mfa:native:options:{ticket}";
     private static string NativeMfaCredentialKey(string ticket) => $"hishop:passkey:mfa:native:credential:{ticket}";

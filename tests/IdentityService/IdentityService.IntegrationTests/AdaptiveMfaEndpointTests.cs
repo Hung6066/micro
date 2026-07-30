@@ -170,6 +170,54 @@ public sealed class AdaptiveMfaEndpointTests
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
+    [Fact]
+    public async Task Passkey_mfa_options_creates_distinct_challenges_for_concurrent_same_user_pending_sessions()
+    {
+        var first = await CreatePendingMfaSessionAsync(new PendingMfaUserOptions(
+            HasPasskey: true,
+            HasTotp: false,
+            ReturnUrl: PendingReturnUrl));
+        var second = await CreatePendingMfaSessionAsync(new PendingMfaUserOptions(
+            UserId: first.UserId,
+            Email: first.Email,
+            HasPasskey: true,
+            HasTotp: false,
+            ReturnUrl: PendingReturnUrl));
+
+        var firstOptions = await first.Session.PostWithCookiesAsync("/api/v1/auth/passkeys/mfa/options");
+        var secondOptions = await second.Session.PostWithCookiesAsync("/api/v1/auth/passkeys/mfa/options");
+
+        firstOptions.StatusCode.Should().Be(HttpStatusCode.OK);
+        secondOptions.StatusCode.Should().Be(HttpStatusCode.OK);
+        var challengeKeys = await FindRedisKeysAsync($"hishop:passkey:mfa:assertion:{first.UserId:D}:*");
+        challengeKeys.Should().HaveCount(2);
+        (await RedisKeyExistsAsync($"hishop:passkey:mfa:assertion:{first.UserId:D}")).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Passkey_mfa_complete_returns_401_when_only_another_same_user_pending_session_started_options()
+    {
+        var first = await CreatePendingMfaSessionAsync(new PendingMfaUserOptions(
+            HasPasskey: true,
+            HasTotp: false,
+            ReturnUrl: PendingReturnUrl));
+        var second = await CreatePendingMfaSessionAsync(new PendingMfaUserOptions(
+            UserId: first.UserId,
+            Email: first.Email,
+            HasPasskey: true,
+            HasTotp: false,
+            ReturnUrl: PendingReturnUrl));
+
+        var secondOptions = await second.Session.PostWithCookiesAsync("/api/v1/auth/passkeys/mfa/options");
+        secondOptions.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var response = await first.Session.PostWithCookiesAsync(
+            "/api/v1/auth/passkeys/mfa/complete",
+            CreatePasskeyAssertionRequest(first.UserId.ToString()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
     private async Task<PendingMfaSessionSetup> CreatePendingMfaSessionAsync(PendingMfaUserOptions options)
     {
         var userId = options.UserId ?? Guid.NewGuid();
@@ -279,6 +327,22 @@ public sealed class AdaptiveMfaEndpointTests
         await using var scope = _fixture.Services.CreateAsyncScope();
         var redis = scope.ServiceProvider.GetRequiredService<IConnectionMultiplexer>();
         await redis.GetDatabase().KeyDeleteAsync(key);
+    }
+
+    private async Task<bool> RedisKeyExistsAsync(string key)
+    {
+        await using var scope = _fixture.Services.CreateAsyncScope();
+        var redis = scope.ServiceProvider.GetRequiredService<IConnectionMultiplexer>();
+        return await redis.GetDatabase().KeyExistsAsync(key);
+    }
+
+    private async Task<string[]> FindRedisKeysAsync(string pattern)
+    {
+        await using var scope = _fixture.Services.CreateAsyncScope();
+        var redis = scope.ServiceProvider.GetRequiredService<IConnectionMultiplexer>();
+        var endpoint = redis.GetEndPoints().First();
+        var server = redis.GetServer(endpoint);
+        return server.Keys(pattern: pattern).Select(key => key.ToString()).Order().ToArray();
     }
 
     private async Task ApproveNativeTicketAsync(string ticket)
