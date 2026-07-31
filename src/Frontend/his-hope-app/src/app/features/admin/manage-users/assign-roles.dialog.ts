@@ -10,6 +10,9 @@ import { CommonModule } from '@angular/common';
 import { Subject, takeUntil } from 'rxjs';
 import { AdminService } from '@core/services/admin.service';
 import { AdminUser, Role } from '@core/models/admin.model';
+import {
+  HisHopeCreateDialogShellComponent, HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 export interface AssignRolesData {
   user: AdminUser;
@@ -26,6 +29,7 @@ export interface AssignRolesData {
         MatIconModule,
         MatProgressSpinnerModule,
         MatSnackBarModule,
+        HisHopeCreateDialogShellComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './assign-roles.dialog.html',

@@ -1,144 +1,182 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
-import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
 import { AppointmentService } from '@core/services/appointment.service';
 import { Appointment } from '@core/models/appointment.model';
+import {
+  HisHopeI18nService,
+  HisHopeMetaItemComponent,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopePageSectionComponent,
+  HisHopeStateComponent,
+  HisHopeStatusBadgeComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-appointment-detail',
     standalone: true,
     imports: [
         CommonModule, RouterModule,
-        MatCardModule, MatIconModule, MatListModule,
+        MatIconModule, MatListModule,
+        HisHopePageLayoutComponent, HisHopePageHeaderComponent, HisHopePageSectionComponent,
+        HisHopeStateComponent, HisHopeStatusBadgeComponent, HisHopeMetaItemComponent,
+        HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    @if (appointment) {
-    <div class="detail">
-      <div class="header">
-        <h1>Appointment Details</h1>
-        <div class="status-badge" [class]="'status-' + appointment.status.toLowerCase()">
-          {{ appointment.statusName || appointment.status }}
+    <hh-page-layout>
+      <hh-page-header hhPageHeader
+                      [title]="'appointments.detail' | hhTranslate:'Chi tiết cuộc hẹn'"
+                      [subtitle]="appointment ? ('appointments.detailSubtitle' | hhTranslate:'Mã hẹn: {{id}}':{id: (appointment.id | slice:0:8)}) : ''">
+        <button mat-stroked-button (click)="goBack()">
+          <mat-icon>arrow_back</mat-icon> {{ 'common.back' | hhTranslate:'Quay lại' }}
+        </button>
+        @if (appointment) {
+        <hh-status-badge [status]="appointment.status" [label]="appointment.statusName || appointment.status" />
+        }
+      </hh-page-header>
+
+      @if (loading) {
+      <hh-state kind="loading" [message]="'common.loading' | hhTranslate" />
+      } @else if (error) {
+      <hh-state kind="error" [message]="error">
+        <button mat-stroked-button (click)="loadAppointment()">{{ 'common.retry' | hhTranslate }}</button>
+      </hh-state>
+      } @else if (appointment) {
+      <hh-page-section [title]="'appointments.section.schedule' | hhTranslate:'Lịch hẹn'">
+        <div class="meta-grid">
+          <hh-meta-item [label]="'appointments.field.date' | hhTranslate:'Ngày'" [value]="(appointment.scheduledDate | date:'mediumDate') || '-'" icon="event" />
+          <hh-meta-item [label]="'appointments.field.time' | hhTranslate:'Giờ'" [value]="appointment.startTime + ' - ' + appointment.endTime" icon="schedule" />
+          <hh-meta-item [label]="'appointments.field.type' | hhTranslate:'Loại'" [value]="appointment.typeName || appointment.type" icon="category" />
+          <hh-meta-item [label]="'appointments.field.location' | hhTranslate:'Địa điểm'" [value]="appointment.location || 'N/A'" icon="place" />
         </div>
-      </div>
+      </hh-page-section>
 
-      <div class="card-grid">
-        <mat-card>
-          <mat-card-header><mat-card-title>Schedule</mat-card-title></mat-card-header>
-          <mat-card-content>
-            <p><strong>Date:</strong> {{ appointment.scheduledDate | date:'mediumDate' }}</p>
-            <p><strong>Time:</strong> {{ appointment.startTime }} - {{ appointment.endTime }}</p>
-            <p><strong>Type:</strong> {{ appointment.typeName || appointment.type }}</p>
-            <p><strong>Location:</strong> {{ appointment.location || 'N/A' }}</p>
-          </mat-card-content>
-        </mat-card>
+      <hh-page-section [title]="'appointments.section.participants' | hhTranslate:'Thành phần tham gia'">
+        <div class="meta-grid">
+          <hh-meta-item [label]="'appointments.field.patient' | hhTranslate:'Mã bệnh nhân'" [value]="appointment.patientId" icon="person" />
+          <hh-meta-item [label]="'appointments.field.provider' | hhTranslate:'Mã bác sĩ'" [value]="appointment.providerId" icon="medical_services" />
+        </div>
+      </hh-page-section>
 
-        <mat-card>
-          <mat-card-header><mat-card-title>Participants</mat-card-title></mat-card-header>
-          <mat-card-content>
-            <p><strong>Patient ID:</strong> {{ appointment.patientId }}</p>
-            <p><strong>Provider ID:</strong> {{ appointment.providerId }}</p>
-          </mat-card-content>
-        </mat-card>
+      @if (appointment.reason) {
+      <hh-page-section [title]="'appointments.section.reason' | hhTranslate:'Lý do'">
+        <p>{{ appointment.reason }}</p>
+      </hh-page-section>
+      }
 
-        @if (appointment.reason) {
-        <mat-card>
-          <mat-card-header><mat-card-title>Reason</mat-card-title></mat-card-header>
-          <mat-card-content><p>{{ appointment.reason }}</p></mat-card-content>
-        </mat-card>
-        }
+      @if (appointment.notes) {
+      <hh-page-section [title]="'appointments.section.notes' | hhTranslate:'Ghi chú'">
+        <p>{{ appointment.notes }}</p>
+      </hh-page-section>
+      }
 
-        @if (appointment.notes) {
-        <mat-card>
-          <mat-card-header><mat-card-title>Notes</mat-card-title></mat-card-header>
-          <mat-card-content><p>{{ appointment.notes }}</p></mat-card-content>
-        </mat-card>
-        }
-
-        @if (appointment.cancellationReason) {
-        <mat-card>
-          <mat-card-header><mat-card-title>Cancellation Reason</mat-card-title></mat-card-header>
-          <mat-card-content><p>{{ appointment.cancellationReason }}</p></mat-card-content>
-        </mat-card>
-        }
-      </div>
+      @if (appointment.cancellationReason) {
+      <hh-page-section [title]="'appointments.section.cancellationReason' | hhTranslate:'Lý do hủy'">
+        <p>{{ appointment.cancellationReason }}</p>
+      </hh-page-section>
+      }
 
       @if (appointment.createdAt) {
-      <div class="timeline">
-        <h2>Timeline</h2>
+      <hh-page-section [title]="'appointments.section.timeline' | hhTranslate:'Dòng thời gian'">
         <mat-list>
           @if (appointment.createdAt) {
           <mat-list-item>
             <mat-icon matListItemIcon>add_circle</mat-icon>
-            <div matListItemTitle>Created</div>
+            <div matListItemTitle>{{ 'appointments.timeline.created' | hhTranslate:'Khởi tạo' }}</div>
             <div matListItemLine>{{ appointment.createdAt | date:'medium' }}</div>
           </mat-list-item>
           }
           @if (appointment.checkedInAt) {
           <mat-list-item>
             <mat-icon matListItemIcon>login</mat-icon>
-            <div matListItemTitle>Checked In</div>
+            <div matListItemTitle>{{ 'appointments.timeline.checkedIn' | hhTranslate:'Đã đến' }}</div>
             <div matListItemLine>{{ appointment.checkedInAt | date:'medium' }}</div>
           </mat-list-item>
           }
           @if (appointment.checkedOutAt) {
           <mat-list-item>
             <mat-icon matListItemIcon>logout</mat-icon>
-            <div matListItemTitle>Checked Out</div>
+            <div matListItemTitle>{{ 'appointments.timeline.checkedOut' | hhTranslate:'Đã ra về' }}</div>
             <div matListItemLine>{{ appointment.checkedOutAt | date:'medium' }}</div>
           </mat-list-item>
           }
           @if (appointment.cancelledAt) {
           <mat-list-item>
             <mat-icon matListItemIcon>cancel</mat-icon>
-            <div matListItemTitle>Cancelled</div>
+            <div matListItemTitle>{{ 'appointments.timeline.cancelled' | hhTranslate:'Đã hủy' }}</div>
             <div matListItemLine>{{ appointment.cancelledAt | date:'medium' }}</div>
           </mat-list-item>
           }
         </mat-list>
-      </div>
+      </hh-page-section>
       }
-    </div>
-    }
+      }
+    </hh-page-layout>
   `,
     styles: [`
-    .detail { padding: 24px; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    .status-badge { padding: 4px 16px; border-radius: 16px; font-weight: 500; font-size: 14px; }
-    .status-scheduled { background: #e3f2fd; color: #1565c0; }
-    .status-checked_in { background: #fff3e0; color: #e65100; }
-    .status-completed { background: #e8f5e9; color: #2e7d32; }
-    .status-cancelled { background: #fce4ec; color: #c62828; }
-    .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 24px; }
-    .timeline h2 { margin-bottom: 16px; }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    p {
+      margin: 4px 0;
+      line-height: 1.5;
+    }
   `],
 })
 export class AppointmentDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
   appointment?: Appointment;
+
+  loading = true;
+  error = '';
 
   constructor(
     private route: ActivatedRoute,
     private appointmentService: AppointmentService,
     private cdr: ChangeDetectorRef,
+    private router: Router,
   ) {}
 
   ngOnInit(): void {
-    const id = this.route.snapshot.paramMap.get('id')!;
-    this.appointmentService.getById(id)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(a => {
-        this.appointment = a;
-        this.cdr.markForCheck();
-      });
+    this.loadAppointment();
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+  }
+
+  loadAppointment(): void {
+    const id = this.route.snapshot.paramMap.get('id')!;
+    this.loading = true;
+    this.error = '';
+    this.appointmentService.getById(id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: a => {
+          this.appointment = a;
+          this.loading = false;
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.error = this.i18n.t('appointments.loadFailed', 'Không thể tải thông tin cuộc hẹn.');
+          this.loading = false;
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  goBack(): void {
+    this.router.navigate(['/appointments']);
   }
 }

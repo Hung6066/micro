@@ -15,6 +15,10 @@ import { LabService } from '@core/services/lab.service';
 import { PatientService } from '@core/services/patient.service';
 import { Patient } from '@core/models/patient.model';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import {
+  HisHopePageLayoutComponent, HisHopePageHeaderComponent,
+  HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-lab-order-form',
@@ -24,51 +28,59 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
         MatCardModule, MatFormFieldModule, MatInputModule, MatIconModule,
         MatSelectModule, MatButtonModule, MatAutocompleteModule, MatProgressSpinnerModule,
         MatSnackBarModule,
+        HisHopePageLayoutComponent, HisHopePageHeaderComponent,
+        HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="lab-order-form">
-      <h1>Tạo phiếu xét nghiệm mới</h1>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader
+                      [title]="'labOrderForm.title' | hhTranslate:'Tạo phiếu xét nghiệm mới'"
+                      [subtitle]="'labOrderForm.subtitle' | hhTranslate:'Chỉ định xét nghiệm cho bệnh nhân'" />
 
-      <form [formGroup]="labOrderForm" (ngSubmit)="onSubmit()">
-        <div class="form-grid">
-          <mat-form-field appearance="outline">
-            <mat-label>Bệnh nhân</mat-label>
-            <input matInput [formControl]="patientSearchControl" placeholder="Tìm bệnh nhân..."
-                   aria-label="Tìm kiếm bệnh nhân" [matAutocomplete]="patientAuto">
-            <mat-icon matSuffix>search</mat-icon>
-            <mat-autocomplete #patientAuto="matAutocomplete" [displayWith]="displayPatientFn">
-              @for (p of filteredPatients; track p.id) {
-              <mat-option [value]="p" (onSelectionChange)="onPatientSelected(p)">
-                {{ p.fullName }} - {{ p.id | slice:0:8 }}...
-              </mat-option>
-              }
-            </mat-autocomplete>
-            @if (labOrderForm.get('patientId')?.hasError('required')) {
-            <mat-error>Vui lòng chọn bệnh nhân</mat-error>
-            }
-          </mat-form-field>
+      <form [formGroup]="labOrderForm" (ngSubmit)="onSubmit()" novalidate>
+        <hh-form-layout>
+          <hh-form-section [title]="'labOrderForm.section.basic' | hhTranslate:'Thông tin phiếu xét nghiệm'" [span]="2">
+            <div class="form-grid">
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'labOrderForm.patient' | hhTranslate:'Bệnh nhân' }}</mat-label>
+                <input matInput [formControl]="patientSearchControl" [placeholder]="'labOrderForm.patientPlaceholder' | hhTranslate:'Tìm bệnh nhân...'"
+                       [attr.aria-label]="'labOrderForm.patientSearchAria' | hhTranslate:'Tìm kiếm bệnh nhân'" [matAutocomplete]="patientAuto">
+                <mat-icon matSuffix>search</mat-icon>
+                <mat-autocomplete #patientAuto="matAutocomplete" [displayWith]="displayPatientFn">
+                  @for (p of filteredPatients; track p.id) {
+                  <mat-option [value]="p" (onSelectionChange)="onPatientSelected(p)">
+                    {{ p.fullName }} - {{ p.id | slice:0:8 }}...
+                  </mat-option>
+                  }
+                </mat-autocomplete>
+                @if (labOrderForm.get('patientId')?.hasError('required')) {
+                <mat-error>{{ 'labOrderForm.patientRequired' | hhTranslate:'Vui lòng chọn bệnh nhân' }}</mat-error>
+                }
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Mức ưu tiên</mat-label>
-            <mat-select formControlName="priorityCode" required aria-label="Chọn mức ưu tiên">
-              <mat-option value="routine">Thường</mat-option>
-              <mat-option value="high">Cao</mat-option>
-              <mat-option value="urgent">Khẩn cấp</mat-option>
-            </mat-select>
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'labOrderForm.priority' | hhTranslate:'Mức ưu tiên' }}</mat-label>
+                <mat-select formControlName="priorityCode" required [attr.aria-label]="'labOrderForm.priorityAria' | hhTranslate:'Chọn mức ưu tiên'">
+                  <mat-option value="routine">{{ 'labOrderForm.priority.routine' | hhTranslate:'Thường' }}</mat-option>
+                  <mat-option value="high">{{ 'labOrderForm.priority.high' | hhTranslate:'Cao' }}</mat-option>
+                  <mat-option value="urgent">{{ 'labOrderForm.priority.urgent' | hhTranslate:'Khẩn cấp' }}</mat-option>
+                </mat-select>
+              </mat-form-field>
 
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Ghi chú</mat-label>
-            <textarea matInput formControlName="notes" rows="2" placeholder="Ghi chú cho phiếu xét nghiệm..."
-                      aria-label="Ghi chú"></textarea>
-          </mat-form-field>
-        </div>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>{{ 'labOrderForm.notes' | hhTranslate:'Ghi chú' }}</mat-label>
+                <textarea matInput formControlName="notes" rows="2" [placeholder]="'labOrderForm.notesPlaceholder' | hhTranslate:'Ghi chú cho phiếu xét nghiệm...'"
+                          [attr.aria-label]="'labOrderForm.notesAria' | hhTranslate:'Ghi chú'"></textarea>
+              </mat-form-field>
+            </div>
+          </hh-form-section>
+        </hh-form-layout>
 
         <!-- Tests section -->
         <mat-card class="tests-section">
           <mat-card-header>
-            <mat-card-title>Xét nghiệm</mat-card-title>
+            <mat-card-title>{{ 'labOrderForm.tests' | hhTranslate:'Xét nghiệm' }}</mat-card-title>
           </mat-card-header>
           <mat-card-content>
             <div formArrayName="tests">
@@ -76,33 +88,33 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
               <div [formGroupName]="i" class="test-item">
                 <div class="test-row">
                   <mat-form-field appearance="outline">
-                    <mat-label>Mã xét nghiệm</mat-label>
-                    <input matInput formControlName="testCode" required placeholder="VD: CBC, GPT..."
-                           aria-label="Mã xét nghiệm">
+                    <mat-label>{{ 'labOrderForm.testCode' | hhTranslate:'Mã xét nghiệm' }}</mat-label>
+                    <input matInput formControlName="testCode" required [placeholder]="'labOrderForm.testCodePlaceholder' | hhTranslate:'VD: CBC, GPT...'"
+                           [attr.aria-label]="'labOrderForm.testCodeAria' | hhTranslate:'Mã xét nghiệm'">
                   </mat-form-field>
 
                   <mat-form-field appearance="outline">
-                    <mat-label>Tên xét nghiệm</mat-label>
-                    <input matInput formControlName="testName" required placeholder="VD: Tổng phân tích máu..."
-                           aria-label="Tên xét nghiệm">
+                    <mat-label>{{ 'labOrderForm.testName' | hhTranslate:'Tên xét nghiệm' }}</mat-label>
+                    <input matInput formControlName="testName" required [placeholder]="'labOrderForm.testNamePlaceholder' | hhTranslate:'VD: Tổng phân tích máu...'"
+                           [attr.aria-label]="'labOrderForm.testNameAria' | hhTranslate:'Tên xét nghiệm'">
                   </mat-form-field>
 
                   <mat-form-field appearance="outline">
-                    <mat-label>Loại mẫu</mat-label>
-                    <mat-select formControlName="specimenType" required aria-label="Loại mẫu bệnh phẩm">
-                      <mat-option value="Máu">Máu</mat-option>
-                      <mat-option value="Huyết thanh">Huyết thanh</mat-option>
-                      <mat-option value="Nước tiểu">Nước tiểu</mat-option>
-                      <mat-option value="Phân">Phân</mat-option>
-                      <mat-option value="Đờm">Đờm</mat-option>
-                      <mat-option value="Dịch não tủy">Dịch não tủy</mat-option>
-                      <mat-option value="Mô">Mô</mat-option>
-                      <mat-option value="Khác">Khác</mat-option>
+                    <mat-label>{{ 'labOrderForm.specimen' | hhTranslate:'Loại mẫu' }}</mat-label>
+                    <mat-select formControlName="specimenType" required [attr.aria-label]="'labOrderForm.specimenAria' | hhTranslate:'Loại mẫu bệnh phẩm'">
+                      <mat-option value="Máu">{{ 'labOrderForm.specimen.blood' | hhTranslate:'Máu' }}</mat-option>
+                      <mat-option value="Huyết thanh">{{ 'labOrderForm.specimen.serum' | hhTranslate:'Huyết thanh' }}</mat-option>
+                      <mat-option value="Nước tiểu">{{ 'labOrderForm.specimen.urine' | hhTranslate:'Nước tiểu' }}</mat-option>
+                      <mat-option value="Phân">{{ 'labOrderForm.specimen.stool' | hhTranslate:'Phân' }}</mat-option>
+                      <mat-option value="Đờm">{{ 'labOrderForm.specimen.sputum' | hhTranslate:'Đờm' }}</mat-option>
+                      <mat-option value="Dịch não tủy">{{ 'labOrderForm.specimen.csf' | hhTranslate:'Dịch não tủy' }}</mat-option>
+                      <mat-option value="Mô">{{ 'labOrderForm.specimen.tissue' | hhTranslate:'Mô' }}</mat-option>
+                      <mat-option value="Khác">{{ 'labOrderForm.specimen.other' | hhTranslate:'Khác' }}</mat-option>
                     </mat-select>
                   </mat-form-field>
 
                   <button mat-icon-button color="warn" type="button" (click)="removeTest(i)"
-                          aria-label="Xóa xét nghiệm">
+                          [attr.aria-label]="'labOrderForm.removeTest' | hhTranslate:'Xóa xét nghiệm'">
                     <mat-icon>delete</mat-icon>
                   </button>
                 </div>
@@ -111,29 +123,29 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
             </div>
 
             <button mat-stroked-button color="primary" type="button" (click)="addTest()"
-                    aria-label="Thêm xét nghiệm">
-              <mat-icon>add</mat-icon> Thêm xét nghiệm
+                    [attr.aria-label]="'labOrderForm.addTest' | hhTranslate:'Thêm xét nghiệm'">
+              <mat-icon>add</mat-icon> {{ 'labOrderForm.addTest' | hhTranslate:'Thêm xét nghiệm' }}
             </button>
           </mat-card-content>
         </mat-card>
 
         <div class="form-actions">
-          <button mat-button type="button" routerLink="/lab">Hủy</button>
+          <button mat-button type="button" routerLink="/lab">{{ 'common.cancel' | hhTranslate:'Hủy' }}</button>
           <button mat-raised-button color="primary" type="submit"
                   [disabled]="labOrderForm.invalid || submitting">
             @if (submitting) {
-            <mat-spinner diameter="18" class="btn-spinner" aria-label="Đang lưu"></mat-spinner>
+            <mat-spinner diameter="18" class="btn-spinner" [attr.aria-label]="'common.saving' | hhTranslate:'Đang lưu'"></mat-spinner>
             }
-            {{ submitting ? 'Đang lưu...' : 'Tạo phiếu xét nghiệm' }}
+            {{ submitting ? ('common.saving' | hhTranslate:'Đang lưu...') : ('labOrderForm.save' | hhTranslate:'Tạo phiếu xét nghiệm') }}
           </button>
         </div>
       </form>
-    </div>
+    </hh-page-layout>
   `,
     styles: [`
-    .lab-order-form { padding: 24px; max-width: 900px; }
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .full-width { grid-column: 1 / -1; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--form-field-gap, 16px); }
+    .form-grid .full-width { grid-column: 1 / -1; }
+    @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } }
     .tests-section { margin: 20px 0; }
     .test-item { margin-bottom: 12px; }
     .test-row { display: flex; gap: 12px; align-items: flex-start; }

@@ -13,6 +13,10 @@ import { CommonModule } from '@angular/common';
 import { Subject, takeUntil } from 'rxjs';
 import { AdminService } from '@core/services/admin.service';
 import { Role, PermissionGroup, Permission } from '@core/models/admin.model';
+import {
+  HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
+  HisHopeFormSectionComponent, HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 export interface RoleFormData {
   role?: Role;
@@ -33,6 +37,8 @@ export interface RoleFormData {
         MatIconModule,
         MatProgressSpinnerModule,
         MatSnackBarModule,
+        HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
+        HisHopeFormSectionComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './role-form.dialog.html',

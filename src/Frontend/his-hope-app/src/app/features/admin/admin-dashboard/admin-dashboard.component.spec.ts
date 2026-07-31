@@ -11,7 +11,6 @@ import { RouterModule } from '@angular/router';
 import { of } from 'rxjs';
 import { AdminDashboardComponent } from './admin-dashboard.component';
 import { AdminService } from '@core/services/admin.service';
-import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('AdminDashboardComponent', () => {
@@ -33,7 +32,7 @@ describe('AdminDashboardComponent', () => {
     await TestBed.configureTestingModule({
     
     imports: [
-        AdminDashboardComponent, LoadingSpinnerComponent, RouterTestingModule, NoopAnimationsModule,
+        AdminDashboardComponent, RouterTestingModule, NoopAnimationsModule,
         MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule,
         CommonModule, RouterModule],
     providers: [

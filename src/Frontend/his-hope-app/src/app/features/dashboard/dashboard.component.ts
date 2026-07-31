@@ -20,7 +20,13 @@ import { ClinicalService } from '@core/services/clinical.service';
 import { Encounter } from '@core/models/encounter.model';
 import { Appointment } from '@core/models/appointment.model';
 import { Patient } from '@core/models/patient.model';
-import { HisHopeDataTableComponent, HisHopePageLayoutComponent } from '@his-hope/frontend-foundation';
+import {
+    HisHopeDataTableComponent,
+    HisHopeMetricCardComponent,
+    HisHopePageLayoutComponent,
+    HisHopeStateComponent,
+    HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-dashboard',
@@ -28,8 +34,9 @@ import { HisHopeDataTableComponent, HisHopePageLayoutComponent } from '@his-hope
     imports: [
         CommonModule, RouterModule, ReactiveFormsModule,
         MatCardModule, MatInputModule, MatFormFieldModule, MatIconModule, MatButtonModule,
-        MatProgressSpinnerModule, MatTableModule, MatChipsModule, MatAutocompleteModule,
-        HisHopeDataTableComponent, HisHopePageLayoutComponent,
+        MatTableModule, MatChipsModule, MatAutocompleteModule,
+        HisHopeDataTableComponent, HisHopeMetricCardComponent, HisHopePageLayoutComponent,
+        HisHopeStateComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './dashboard.component.html',
@@ -159,7 +166,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  private loadAllData(): void {
+  loadAllData(): void {
     this.loading = true;
     this.error = null;
 

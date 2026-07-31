@@ -2,29 +2,33 @@ import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRe
 import { Subject, takeUntil } from 'rxjs';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatTableModule } from '@angular/material/table';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { CommonModule } from '@angular/common';
 import { AdminService } from '@core/services/admin.service';
 import { Role } from '@core/models/admin.model';
 import { RoleFormDialogComponent, RoleFormData } from './role-form.dialog';
-import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { HisHopeConfirmDialogComponent } from '@his-hope/frontend-foundation';
+import {
+  HisHopeConfirmDialogComponent,
+  HisHopeDataTableColumn,
+  HisHopeDataTableComponent,
+  HisHopeDataTableCellDirective,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-manage-roles',
   standalone: true,
   imports: [
     CommonModule,
-    MatTableModule, MatButtonModule, MatIconModule, MatMenuModule,
-    MatProgressSpinnerModule, MatTooltipModule, MatDialogModule,
-    MatSnackBarModule,
-    LoadingSpinnerComponent, EmptyStateComponent, HisHopeConfirmDialogComponent,
+    MatButtonModule, MatIconModule, MatMenuModule,
+    MatTooltipModule, MatDialogModule, MatSnackBarModule,
+    HisHopeDataTableComponent, HisHopeDataTableCellDirective, HisHopeConfirmDialogComponent,
+    HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeTranslatePipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './manage-roles.component.html',
@@ -35,8 +39,16 @@ export class ManageRolesComponent implements OnInit, OnDestroy {
 
   roles: Role[] = [];
   loading = true;
+  error: string | null = null;
 
-  displayedColumns = ['name', 'usersCount', 'system', 'permissions', 'actions'];
+  readonly columns: HisHopeDataTableColumn[] = [
+    { key: 'name', label: 'Tên vai trò' },
+    { key: 'usersCount', label: 'Người dùng' },
+    { key: 'system', label: 'Hệ thống' },
+    { key: 'permissions', label: 'Quyền', computed: (row) => `${row['permissionCount']} quyền` },
+    { key: 'actions', label: 'Thao tác' },
+  ];
+  rows: Record<string, unknown>[] = [];
 
   // Confirm dialog state (replaces MatDialog-based ConfirmDialogComponent)
   showConfirmDialog = false;
@@ -63,6 +75,7 @@ export class ManageRolesComponent implements OnInit, OnDestroy {
 
   loadRoles(): void {
     this.loading = true;
+    this.error = null;
     this.cdr.markForCheck();
 
     this.adminService.getRoles()
@@ -70,11 +83,21 @@ export class ManageRolesComponent implements OnInit, OnDestroy {
       .subscribe({
         next: (roles) => {
           this.roles = roles;
+          this.rows = roles.map((r) => ({
+            id: r.id,
+            name: r.name,
+            description: r.description,
+            usersCount: r.usersCount,
+            isSystem: r.isSystem,
+            permissionCount: r.permissions.length,
+            entity: r,
+          }));
           this.loading = false;
           this.cdr.markForCheck();
         },
         error: () => {
           this.loading = false;
+          this.error = 'Không thể tải danh sách vai trò';
           this.snackBar.open('Không thể tải danh sách vai trò', 'Đóng', { duration: 5000 });
           this.cdr.markForCheck();
         },
@@ -91,6 +114,10 @@ export class ManageRolesComponent implements OnInit, OnDestroy {
       manager: 'Quản lý',
     };
     return labels[name] || name;
+  }
+
+  roleFromRow(row: Record<string, unknown>): Role {
+    return row['entity'] as Role;
   }
 
   openAddRoleDialog(): void {

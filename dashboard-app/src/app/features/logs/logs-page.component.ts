@@ -1,7 +1,7 @@
 import { Component, OnInit, ChangeDetectionStrategy, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -112,14 +112,14 @@ function serviceToneFor(service: string): HisHopeStatusTone {
         </button>
       </hh-page-header>
 
-      <mat-tab-group (selectedIndexChange)="onTabChange($event)" class="logs-tabs">
+      <mat-tab-group (selectedIndexChange)="onTabChange()" class="logs-tabs">
         <!-- ═══════════════ Search Tab ═══════════════ -->
         <mat-tab [label]="'dashboard.logs.tabSearch' | hhTranslate:'Search'">
           <ng-template matTabContent>
-            <hh-filter-toolbar label="dashboard.logs.filterToolbarLabel" [resultCount]="totalCount > 0 ? totalCount : null">
+            <hh-filter-toolbar label="Log filters" [resultCount]="totalCount">
               <!-- Time range -->
               <div class="filter-group time-range-group">
-                <label class="filter-label">{{ 'dashboard.logs.timeRange' | hhTranslate:'Time range' }}</label>
+                <span class="filter-label">{{ 'dashboard.logs.timeRange' | hhTranslate:'Time range' }}</span>
                 <app-time-range-picker (rangeChange)="onTimeRangeChange($event)"></app-time-range-picker>
               </div>
 
@@ -155,7 +155,7 @@ function serviceToneFor(service: string): HisHopeStatusTone {
 
               <!-- Level chips -->
               <div class="level-filter-group">
-                <label class="filter-label">{{ 'dashboard.logs.level' | hhTranslate:'Level' }}</label>
+                <span class="filter-label">{{ 'dashboard.logs.level' | hhTranslate:'Level' }}</span>
                 <div class="level-chips">
                   @for (level of levelOptions; track level.value) {
                     <button
@@ -185,13 +185,15 @@ function serviceToneFor(service: string): HisHopeStatusTone {
             }
 
             <!-- Results table -->
+            @let loading = (loading$ | async) ?? false;
+            @let error = (error$ | async) ?? '';
             <hh-data-table
               label="System logs"
               [columns]="columns"
               [rows]="tableRows"
-              [loading]="(loading$ | async) ?? false"
-              [error]="(error$ | async) ?? ''"
-              [empty]="!((loading$ | async) ?? false) && !((error$ | async) ?? '') && logs.length === 0"
+              [loading]="loading"
+              [error]="error"
+              [empty]="!loading && !error && logs.length === 0"
               mode="server"
               [pageSize]="20"
               [totalItems]="totalCount"
@@ -215,9 +217,9 @@ function serviceToneFor(service: string): HisHopeStatusTone {
               <ng-template hhDataTableCell="message" let-row>
                 <span class="message-text">{{ logOf(row).message }}</span>
                 @if (logOf(row).traceId) {
-                  <span class="trace-link" (click)="goToTrace($event, logOf(row).traceId!)">
+                  <a class="trace-link" [routerLink]="['/traces', logOf(row).traceId!]" (click)="$event.stopPropagation()">
                     [{{ logOf(row).traceId! | slice:0:8 }}...]
-                  </span>
+                  </a>
                 }
               </ng-template>
               <ng-template hhDataTableDetail let-row>
@@ -226,9 +228,9 @@ function serviceToneFor(service: string): HisHopeStatusTone {
                   @if (log.traceId) {
                     <div class="detail-field">
                       <span class="detail-field-label">{{ 'dashboard.logs.traceId' | hhTranslate:'Trace ID' }}</span>
-                      <code class="detail-field-value trace-link-inline" (click)="goToTrace($event, log.traceId!)">
+                      <a class="detail-field-value trace-link-inline" [routerLink]="['/traces', log.traceId!]">
                         {{ log.traceId }}
-                      </code>
+                      </a>
                     </div>
                   }
                   @if (log.spanId) {
@@ -378,6 +380,8 @@ function serviceToneFor(service: string): HisHopeStatusTone {
       color: var(--color-info) !important;
       cursor: pointer !important;
       text-decoration: none !important;
+      font-family: var(--font-mono);
+      font-size: 12px;
       border-bottom: 1px dashed var(--color-info) !important;
     }
     .trace-link-inline:hover {
@@ -446,7 +450,6 @@ function serviceToneFor(service: string): HisHopeStatusTone {
 export class LogsPageComponent implements OnInit {
   private readonly logsService = inject(LogsService);
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
 
   private readonly refreshTrigger = new BehaviorSubject<void>(undefined);
@@ -648,12 +651,7 @@ export class LogsPageComponent implements OnInit {
     this.refresh();
   }
 
-  onTabChange(index: number): void {
+  onTabChange(): void {
     // No special handling needed
-  }
-
-  goToTrace(event: MouseEvent, traceId: string): void {
-    event.stopPropagation();
-    this.router.navigate(['/traces', traceId]);
   }
 }

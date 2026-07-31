@@ -2,21 +2,12 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { MatTableModule } from '@angular/material/table';
-import { MatPaginatorModule } from '@angular/material/paginator';
-import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatIconModule } from '@angular/material/icon';
-import { MatButtonModule } from '@angular/material/button';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { ReactiveFormsModule } from '@angular/forms';
-import { CommonModule } from '@angular/common';
 import { of } from 'rxjs';
 import { EncounterListComponent } from './encounter-list.component';
 import { ClinicalService } from '@core/services/clinical.service';
 import { createMockEncounter, createMockPagedResult } from '@testing/mock-data';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
+import { HisHopePageQuery } from '@his-hope/frontend-foundation';
 
 describe('EncounterListComponent', () => {
   let component: EncounterListComponent;
@@ -31,12 +22,8 @@ describe('EncounterListComponent', () => {
     spy.search.and.returnValue(of(createMockPagedResult([], 0)));
 
     await TestBed.configureTestingModule({
-    
     imports: [
-        EncounterListComponent, RouterTestingModule, NoopAnimationsModule,
-        MatTableModule, MatPaginatorModule, MatCardModule, MatFormFieldModule,
-        MatInputModule, MatIconModule, MatButtonModule, MatTooltipModule,
-        ReactiveFormsModule, CommonModule],
+        EncounterListComponent, RouterTestingModule, NoopAnimationsModule],
     providers: [
         { provide: ClinicalService, useValue: spy },
         provideHttpClient(withInterceptorsFromDi()),
@@ -60,18 +47,24 @@ describe('EncounterListComponent', () => {
 
   it('should render title', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Clinical Encounters');
+    expect(compiled.querySelector('h1')?.textContent).toContain('Hồ sơ lâm sàng');
   });
 
   it('should display encounter rows', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    const rows = compiled.querySelectorAll('.mat-mdc-row');
+    const rows = compiled.querySelectorAll('.hh-data-table tbody tr');
     expect(rows.length).toBe(2);
   });
 
   it('should have search field', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('input[placeholder="Type to search..."]')).toBeTruthy();
+    expect(compiled.querySelector('input[placeholder="Tìm theo mã bệnh nhân..."]')).toBeTruthy();
+  });
+
+  it('should search encounters when the query changes', () => {
+    const query: HisHopePageQuery = { page: 1, pageSize: 20, search: 'pat-001' };
+    component.onQueryChange(query);
+    expect(clinicalService.search).toHaveBeenCalledWith('pat-001', 1, 20);
   });
 
   it('should have component initialized', () => {

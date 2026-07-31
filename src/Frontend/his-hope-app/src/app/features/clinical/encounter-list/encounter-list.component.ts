@@ -70,7 +70,6 @@ import {
       </hh-data-table>
     </hh-page-layout>
   `,
-    styles: [``],
 })
 export class EncounterListComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();

@@ -1,81 +1,90 @@
-<h2 mat-dialog-title>Kê đơn thuốc</h2>
-<mat-dialog-content>
-  @if (data.patientName) {
-  <div class="patient-info">
-    <mat-icon>person</mat-icon>
-    <span>{{ data.patientName }}</span>
-  </div>
-  }
-  <form [formGroup]="form" class="dialog-form">
-    <mat-form-field appearance="outline">
-      <mat-label>Tìm thuốc</mat-label>
-      <input matInput formControlName="medicationSearch" [matAutocomplete]="auto" placeholder="Gõ tên thuốc...">
-      <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayMedication" (optionSelected)="onMedicationSelected($event)">
-        @for (med of filteredMedications; track med) {
-        <mat-option [value]="med">
-          {{ med.name }} <small>({{ med.strength }})</small>
-        </mat-option>
-        }
-      </mat-autocomplete>
-      @if (form.get('medicationSearch')?.value && !selectedMedication) {
-      <mat-icon matSuffix>search</mat-icon>
-      }
-      @if (selectedMedication) {
-      <mat-icon matSuffix color="primary">check_circle</mat-icon>
-      }
-    </mat-form-field>
+    <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+      <hh-create-dialog-shell
+        [title]="'prescribe.title' | hhTranslate:'Kê đơn thuốc'"
+        [subtitle]="'prescribe.subtitle' | hhTranslate:'Kê đơn thuốc cho bệnh nhân'">
+        <div hhCreateDialogContent>
+          @if (data.patientName) {
+          <div class="patient-info">
+            <mat-icon>person</mat-icon>
+            <span>{{ data.patientName }}</span>
+          </div>
+          }
+          <hh-form-layout>
+            <hh-form-section [title]="'prescribe.section.medication' | hhTranslate:'Thuốc kê đơn'" [span]="2">
+              <div class="form-grid">
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>{{ 'prescribe.medicationSearch' | hhTranslate:'Tìm thuốc' }}</mat-label>
+                  <input matInput formControlName="medicationSearch" [matAutocomplete]="auto" [placeholder]="'prescribe.medicationPlaceholder' | hhTranslate:'Gõ tên thuốc...'">
+                  <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayMedication" (optionSelected)="onMedicationSelected($event)">
+                    @for (med of filteredMedications; track med) {
+                    <mat-option [value]="med">
+                      {{ med.name }} <small>({{ med.strength }})</small>
+                    </mat-option>
+                    }
+                  </mat-autocomplete>
+                  @if (form.get('medicationSearch')?.value && !selectedMedication) {
+                  <mat-icon matSuffix>search</mat-icon>
+                  }
+                  @if (selectedMedication) {
+                  <mat-icon matSuffix color="primary">check_circle</mat-icon>
+                  }
+                </mat-form-field>
 
-    @if (selectedMedication) {
-    <div class="selected-med">
-      <p><strong>{{ selectedMedication.name }}</strong></p>
-      <p>Dạng: {{ selectedMedication.dosageForm }} | Hàm lượng: {{ selectedMedication.strength }}</p>
-    </div>
-    }
+                @if (selectedMedication) {
+                <div class="selected-med full-width">
+                  <p><strong>{{ selectedMedication.name }}</strong></p>
+                  <p>{{ 'prescribe.dosageForm' | hhTranslate:'Dạng:' }} {{ selectedMedication.dosageForm }} | {{ 'prescribe.strength' | hhTranslate:'Hàm lượng:' }} {{ selectedMedication.strength }}</p>
+                </div>
+                }
 
-    <mat-form-field appearance="outline">
-      <mat-label>Liều dùng</mat-label>
-      <input matInput formControlName="dosageInstructions" placeholder="VD: Uống 1 viên x 2 lần/ngày sau ăn" required>
-      @if (form.get('dosageInstructions')?.hasError('required')) {
-      <mat-error>Vui lòng nhập liều dùng</mat-error>
-      }
-    </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'prescribe.instructions' | hhTranslate:'Liều dùng' }}</mat-label>
+                  <input matInput formControlName="dosageInstructions" [placeholder]="'prescribe.instructionsPlaceholder' | hhTranslate:'VD: Uống 1 viên x 2 lần/ngày sau ăn'" required>
+                  @if (form.get('dosageInstructions')?.hasError('required')) {
+                  <mat-error>{{ 'prescribe.instructionsRequired' | hhTranslate:'Vui lòng nhập liều dùng' }}</mat-error>
+                  }
+                </mat-form-field>
 
-    <mat-form-field appearance="outline">
-      <mat-label>Đường dùng</mat-label>
-      <mat-select formControlName="route" required>
-        <mat-option value="oral">Uống</mat-option>
-        <mat-option value="intravenous">Tiêm tĩnh mạch</mat-option>
-        <mat-option value="intramuscular">Tiêm bắp</mat-option>
-        <mat-option value="subcutaneous">Tiêm dưới da</mat-option>
-        <mat-option value="inhalation">Hít</mat-option>
-        <mat-option value="topical">Bôi ngoài da</mat-option>
-        <mat-option value="rectal">Đặt hậu môn</mat-option>
-      </mat-select>
-    </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'prescribe.route' | hhTranslate:'Đường dùng' }}</mat-label>
+                  <mat-select formControlName="route" required>
+                    <mat-option value="oral">{{ 'prescribe.route.oral' | hhTranslate:'Uống' }}</mat-option>
+                    <mat-option value="intravenous">{{ 'prescribe.route.iv' | hhTranslate:'Tiêm tĩnh mạch' }}</mat-option>
+                    <mat-option value="intramuscular">{{ 'prescribe.route.im' | hhTranslate:'Tiêm bắp' }}</mat-option>
+                    <mat-option value="subcutaneous">{{ 'prescribe.route.sc' | hhTranslate:'Tiêm dưới da' }}</mat-option>
+                    <mat-option value="inhalation">{{ 'prescribe.route.inhalation' | hhTranslate:'Hít' }}</mat-option>
+                    <mat-option value="topical">{{ 'prescribe.route.topical' | hhTranslate:'Bôi ngoài da' }}</mat-option>
+                    <mat-option value="rectal">{{ 'prescribe.route.rectal' | hhTranslate:'Đặt hậu môn' }}</mat-option>
+                  </mat-select>
+                </mat-form-field>
 
-    <mat-form-field appearance="outline">
-      <mat-label>Số lượng</mat-label>
-      <input matInput type="number" formControlName="quantity" min="1" required>
-      @if (form.get('quantity')?.hasError('required')) {
-      <mat-error>Vui lòng nhập số lượng</mat-error>
-      }
-    </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'prescribe.quantity' | hhTranslate:'Số lượng' }}</mat-label>
+                  <input matInput type="number" formControlName="quantity" min="1" required>
+                  @if (form.get('quantity')?.hasError('required')) {
+                  <mat-error>{{ 'prescribe.quantityRequired' | hhTranslate:'Vui lòng nhập số lượng' }}</mat-error>
+                  }
+                </mat-form-field>
 
-    <mat-form-field appearance="outline">
-      <mat-label>Số lần tái kê</mat-label>
-      <input matInput type="number" formControlName="refills" min="0" value="0">
-    </mat-form-field>
-  </form>
-</mat-dialog-content>
-<mat-dialog-actions align="end">
-  <button mat-button mat-dialog-close [disabled]="saving">Hủy</button>
-  <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid || saving || !selectedMedication">
-    <mat-icon>medication</mat-icon>
-    @if (!saving) {
-    <span>Kê đơn</span>
-    }
-    @if (saving) {
-    <mat-spinner diameter="20"></mat-spinner>
-    }
-  </button>
-</mat-dialog-actions>
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'prescribe.refills' | hhTranslate:'Số lần tái kê' }}</mat-label>
+                  <input matInput type="number" formControlName="refills" min="0" value="0">
+                </mat-form-field>
+              </div>
+            </hh-form-section>
+          </hh-form-layout>
+        </div>
+        <div hhCreateDialogFooter>
+          <button mat-button type="button" mat-dialog-close [disabled]="saving">{{ 'common.cancel' | hhTranslate:'Hủy' }}</button>
+          <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid || saving || !selectedMedication">
+            <mat-icon>medication</mat-icon>
+            @if (!saving) {
+            <span>{{ 'prescribe.save' | hhTranslate:'Kê đơn' }}</span>
+            }
+            @if (saving) {
+            <mat-spinner diameter="20"></mat-spinner>
+            }
+          </button>
+        </div>
+      </hh-create-dialog-shell>
+    </form>

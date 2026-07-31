@@ -66,10 +66,10 @@ describe('InvoiceDetailComponent', () => {
     expect(compiled.textContent).toContain(mockInvoice.invoiceNumber);
   });
 
-  it('should render summary cards', () => {
+  it('should render summary sections', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    const cards = compiled.querySelectorAll('mat-card');
-    expect(cards.length).toBeGreaterThanOrEqual(2);
+    const sections = compiled.querySelectorAll('hh-page-section');
+    expect(sections.length).toBeGreaterThanOrEqual(2);
   });
 
   it('should have payment form initialized', () => {

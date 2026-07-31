@@ -87,24 +87,24 @@ import { clearError, ErrorPayload } from '@store/error/error.actions';
     }
     .error-bar--HTTP_5XX,
     .error-bar--HTTP_0 {
-      background: #d32f2f;
-      color: #fff;
-      border-color: #b71c1c;
+      background: var(--surface-danger);
+      color: var(--text-primary);
+      border-color: var(--color-danger);
     }
     .error-bar--HTTP_4XX {
-      background: #f57c00;
-      color: #fff;
-      border-color: #e65100;
+      background: var(--surface-warning);
+      color: var(--text-primary);
+      border-color: var(--color-warning);
     }
     .error-bar--default {
-      background: #455a64;
-      color: #fff;
-      border-color: #37474f;
+      background: var(--surface-muted);
+      color: var(--text-primary);
+      border-color: var(--border-default);
     }
     .error-bar--UNKNOWN {
-      background: #757575;
-      color: #fff;
-      border-color: #616161;
+      background: var(--surface-muted);
+      color: var(--text-primary);
+      border-color: var(--border-strong);
     }
     .error-bar ::ng-deep .mat-icon {
       color: inherit;

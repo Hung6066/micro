@@ -53,7 +53,7 @@ import {
         </button>
       </hh-page-header>
 
-      <hh-filter-toolbar label="dashboard.traces.filterToolbarLabel" [resultCount]="traces.length > 0 ? traces.length : 0">
+      <hh-filter-toolbar label="Trace filters" [resultCount]="traces.length">
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
           <mat-label>{{ 'dashboard.traces.service' | hhTranslate:'Service' }}</mat-label>
           <mat-select [(ngModel)]="selectedService" (selectionChange)="onFilterChange()">
@@ -89,13 +89,15 @@ import {
         </button>
       </hh-filter-toolbar>
 
+      @let loading = (loading$ | async) ?? false;
+      @let error = (error$ | async) ?? '';
       <hh-data-table
         label="System traces"
         [columns]="columns"
         [rows]="tableRows"
-        [loading]="(loading$ | async) ?? false"
-        [error]="(error$ | async) ?? ''"
-        [empty]="!((loading$ | async) ?? false) && !((error$ | async) ?? '') && traces.length === 0"
+        [loading]="loading"
+        [error]="error"
+        [empty]="!loading && !error && traces.length === 0"
         [pageSize]="20"
         [rowClickable]="true"
         [urlSync]="false"

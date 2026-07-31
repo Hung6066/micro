@@ -14,6 +14,10 @@ import { Subject, of, takeUntil, debounceTime, distinctUntilChanged, switchMap }
 import { PharmacyService } from '@core/services/pharmacy.service';
 import { AuthService } from '@core/services/auth.service';
 import { Medication } from '@core/models/medication.model';
+import {
+  HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
+  HisHopeFormSectionComponent, HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 export interface PrescribeData {
   patientId: string;
@@ -34,6 +38,8 @@ export interface PrescribeData {
         MatIconModule,
         MatProgressSpinnerModule,
         MatSnackBarModule,
+        HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
+        HisHopeFormSectionComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './prescribe.dialog.html',

@@ -1,9 +1,6 @@
-    <div class="settings-page">
-      <div class="page-header">
-        <div>
-          <h1>Cài đặt hệ thống</h1>
-          <p class="subtitle">Cấu hình các tham số và giá trị mặc định toàn hệ thống</p>
-        </div>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader [title]="'Cài đặt hệ thống' | hhTranslate"
+                      [subtitle]="'Cấu hình các tham số và giá trị mặc định toàn hệ thống' | hhTranslate">
         <button mat-raised-button color="primary" (click)="saveAll()" [disabled]="saving">
           <mat-icon>save</mat-icon>
           @if (!saving) {
@@ -13,11 +10,15 @@
           <mat-spinner diameter="20"></mat-spinner>
           }
         </button>
-      </div>
+      </hh-page-header>
 
-      <app-loading-spinner [loading]="loading" message="Đang tải cài đặt..."></app-loading-spinner>
-
-      @if (!loading) {
+      @if (loading) {
+      <hh-state kind="loading" [message]="'Đang tải cài đặt...' | hhTranslate" />
+      } @else if (error) {
+      <hh-state kind="error" [message]="error">
+        <button mat-stroked-button type="button" (click)="loadSettings()">{{ 'common.retry' | hhTranslate }}</button>
+      </hh-state>
+      } @else {
       <div class="settings-content">
         <mat-accordion class="settings-accordion" [multi]="true">
           @for (cat of categories; track cat.key) {
@@ -87,4 +88,4 @@
         }
       </div>
       }
-    </div>
+    </hh-page-layout>

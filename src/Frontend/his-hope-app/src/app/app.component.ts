@@ -4,14 +4,15 @@ import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatListModule } from '@angular/material/list';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { Subject, takeUntil, filter } from 'rxjs';
 import { AuthService } from '@core/services/auth.service';
 import { RumService } from './monitoring/rum.service';
-import { SidebarComponent } from '@shared/components/sidebar/sidebar.component';
 import { ErrorBarComponent } from '@shared/components/error-bar/error-bar.component';
 import {
   HisHopeAuditFeedbackService,
+  HisHopeBrandComponent,
   HisHopeI18nService,
   HisHopeLanguageSwitcherComponent,
   HisHopeOfflineBannerComponent,
@@ -26,9 +27,9 @@ import {
     standalone: true,
     imports: [
         CommonModule, RouterModule,
-        MatButtonModule, MatIconModule,
+        MatButtonModule, MatIconModule, MatListModule,
         MatSidenavModule,
-        SidebarComponent, ErrorBarComponent, HisHopeLanguageSwitcherComponent, HisHopeOfflineBannerComponent, HisHopeWorkspaceHeaderComponent, HisHopeToastComponent, HisHopeTranslatePipe,
+        ErrorBarComponent, HisHopeBrandComponent, HisHopeLanguageSwitcherComponent, HisHopeOfflineBannerComponent, HisHopeWorkspaceHeaderComponent, HisHopeToastComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
@@ -36,8 +37,49 @@ import {
       <hh-offline-banner></hh-offline-banner>
       @if (isLoggedIn) {
       <mat-sidenav #sidenav [mode]="sidenavMode" [opened]="isLoggedIn && sidenavOpened">
-        <app-sidebar [sidenavOpened]="sidenavOpened"
-                     (toggle)="toggleSidenav()"></app-sidebar>
+        <div class="shell-sidebar">
+          <div class="shell-sidebar__header">
+            <hh-brand [caption]="'app.name' | hhTranslate"></hh-brand>
+            <button mat-icon-button class="shell-sidebar__close" (click)="toggleSidenav()"
+                    [attr.aria-label]="'Đóng menu điều hướng' | hhTranslate">
+              <mat-icon aria-hidden="true">close</mat-icon>
+            </button>
+          </div>
+          <mat-nav-list class="shell-sidebar__nav" aria-label="Điều hướng chính">
+            <a mat-list-item routerLink="/dashboard" routerLinkActive="active-link">
+              <mat-icon matListItemIcon aria-hidden="true">dashboard</mat-icon>
+              <span matListItemTitle>{{ 'navigation.dashboard' | hhTranslate }}</span>
+            </a>
+            <a mat-list-item routerLink="/patients" routerLinkActive="active-link">
+              <mat-icon matListItemIcon aria-hidden="true">people</mat-icon>
+              <span matListItemTitle>{{ 'navigation.patients' | hhTranslate }}</span>
+            </a>
+            <a mat-list-item routerLink="/appointments" routerLinkActive="active-link">
+              <mat-icon matListItemIcon aria-hidden="true">calendar_today</mat-icon>
+              <span matListItemTitle>{{ 'navigation.appointments' | hhTranslate }}</span>
+            </a>
+            <a mat-list-item routerLink="/clinical" routerLinkActive="active-link">
+              <mat-icon matListItemIcon aria-hidden="true">medical_services</mat-icon>
+              <span matListItemTitle>{{ 'navigation.clinical' | hhTranslate }}</span>
+            </a>
+            <a mat-list-item routerLink="/pharmacy" routerLinkActive="active-link">
+              <mat-icon matListItemIcon aria-hidden="true">medication</mat-icon>
+              <span matListItemTitle>{{ 'navigation.pharmacy' | hhTranslate }}</span>
+            </a>
+            <a mat-list-item routerLink="/lab" routerLinkActive="active-link">
+              <mat-icon matListItemIcon aria-hidden="true">biotech</mat-icon>
+              <span matListItemTitle>{{ 'navigation.laboratory' | hhTranslate }}</span>
+            </a>
+            <a mat-list-item routerLink="/billing" routerLinkActive="active-link">
+              <mat-icon matListItemIcon aria-hidden="true">receipt</mat-icon>
+              <span matListItemTitle>{{ 'navigation.billing' | hhTranslate }}</span>
+            </a>
+            <a mat-list-item routerLink="/admin" routerLinkActive="active-link">
+              <mat-icon matListItemIcon aria-hidden="true">settings</mat-icon>
+              <span matListItemTitle>{{ 'navigation.administration' | hhTranslate }}</span>
+            </a>
+          </mat-nav-list>
+        </div>
       </mat-sidenav>
       }
       <mat-sidenav-content>
@@ -78,6 +120,16 @@ import {
       border-radius: 6px;
       color: var(--text-primary, #1A1A1A);
     }
+    .shell-sidebar { display: flex; flex-direction: column; height: 100%; background: var(--surface-white); }
+    .shell-sidebar__header { display: flex; align-items: center; justify-content: space-between; padding: 22px 20px 16px; flex-shrink: 0; }
+    .shell-sidebar__close { color: var(--text-secondary); }
+    .shell-sidebar__nav { flex: 1; padding: 4px 8px; overflow-y: auto; }
+    .shell-sidebar__nav a { border-radius: 6px; margin-bottom: 2px; color: var(--text-primary); height: 44px; position: relative; transition: background-color 150ms ease; }
+    .shell-sidebar__nav a:hover { background: var(--surface-hover); }
+    .shell-sidebar__nav a.active-link { background: var(--color-primary-soft); box-shadow: inset 3px 0 0 var(--color-primary); color: var(--color-primary); }
+    .shell-sidebar__nav a.active-link:hover { background: var(--color-primary-soft); }
+    .shell-sidebar__nav .mat-icon { color: var(--text-secondary); font-size: 20px; width: 20px; height: 20px; }
+    .shell-sidebar__nav a.active-link .mat-icon { color: var(--color-primary); }
     :host ::ng-deep .mat-drawer-inner-container { overflow-x: hidden; }
     @media (max-width: 767.98px) {
       .main-content { padding: 20px 16px; }

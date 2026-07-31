@@ -1,168 +1,168 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatListModule } from '@angular/material/list';
 import { MatTableModule } from '@angular/material/table';
 import { MatTabsModule } from '@angular/material/tabs';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { Subject, forkJoin, takeUntil } from 'rxjs';
+import { Subject, takeUntil } from 'rxjs';
 import { PatientService } from '@core/services/patient.service';
 import { Patient } from '@core/models/patient.model';
 import { Encounter } from '@core/models/encounter.model';
 import { Prescription } from '@core/models/prescription.model';
 import { LabOrder } from '@core/models/lab-order.model';
+import {
+  HisHopeI18nService,
+  HisHopeMetaItemComponent,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopePageSectionComponent,
+  HisHopeStateComponent,
+  HisHopeStatusBadgeComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-patient-detail',
     standalone: true,
     imports: [
         CommonModule, RouterModule,
-        MatCardModule, MatIconModule, MatButtonModule, MatListModule,
-        MatTableModule, MatTabsModule, MatProgressSpinnerModule, MatTooltipModule,
+        MatIconModule, MatButtonModule, MatListModule,
+        MatTableModule, MatTabsModule, MatTooltipModule,
         MatSnackBarModule,
+        HisHopePageLayoutComponent, HisHopePageHeaderComponent, HisHopePageSectionComponent,
+        HisHopeStateComponent, HisHopeStatusBadgeComponent, HisHopeMetaItemComponent,
+        HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    @if (patient) {
-    <div class="patient-detail">
-      <div class="header">
-        <div>
-          <h1>{{ patient.fullName }}</h1>
-          <p class="subtitle">Mã BN: {{ patient.id | slice:0:8 }}... | {{ patient.genderName }} | Tuổi: {{ patient.age }}</p>
-        </div>
-        <div class="header-actions">
+    <hh-page-layout>
+      <hh-page-header hhPageHeader
+                      [title]="patient?.fullName || ('patients.detail' | hhTranslate:'Hồ sơ bệnh nhân')"
+                      [subtitle]="patient ? ('patients.detailSubtitle' | hhTranslate:'Mã BN: {{id}} | {{gender}} | Tuổi: {{age}}':{id: (patient.id | slice:0:8), gender: patient.genderName, age: patient.age}) : ''">
+        <button mat-stroked-button (click)="goBack()">
+          <mat-icon>arrow_back</mat-icon> {{ 'common.back' | hhTranslate:'Quay lại' }}
+        </button>
+        @if (patient) {
           @if (patient.isActive) {
           <button mat-raised-button color="accent" [routerLink]="['/patients', patient.id, 'edit']">
-            <mat-icon>edit</mat-icon> Sửa
+            <mat-icon>edit</mat-icon> {{ 'common.edit' | hhTranslate:'Chỉnh sửa' }}
           </button>
           }
           <button mat-stroked-button color="primary" [routerLink]="['/appointments/new']"
                   [queryParams]="{patientId: patient.id}">
-            <mat-icon>calendar_today</mat-icon> Đặt lịch hẹn
+            <mat-icon>calendar_today</mat-icon> {{ 'patients.newAppointment' | hhTranslate:'Đặt lịch hẹn' }}
           </button>
           <button mat-raised-button [color]="patient.isActive ? 'warn' : 'primary'"
                   (click)="toggleActive()">
             <mat-icon>{{ patient.isActive ? 'block' : 'check_circle' }}</mat-icon>
-            {{ patient.isActive ? 'Vô hiệu hóa' : 'Kích hoạt lại' }}
+            {{ patient.isActive ? ('patients.deactivate' | hhTranslate:'Vô hiệu hóa') : ('patients.reactivate' | hhTranslate:'Kích hoạt lại') }}
           </button>
-        </div>
-      </div>
+        }
+      </hh-page-header>
 
+      @if (loading) {
+      <hh-state kind="loading" [message]="'common.loading' | hhTranslate" />
+      } @else if (error) {
+      <hh-state kind="error" [message]="error">
+        <button mat-stroked-button (click)="loadPatient()">{{ 'common.retry' | hhTranslate }}</button>
+      </hh-state>
+      } @else if (patient) {
       <mat-tab-group dynamicHeight>
         <!-- Tab 1: Thông tin -->
-        <mat-tab label="Thông tin">
+        <mat-tab [label]="'patients.tab.info' | hhTranslate:'Thông tin'">
           <div class="tab-content">
-            <div class="detail-grid">
-              <mat-card>
-                <mat-card-header><mat-card-title>Thông tin cá nhân</mat-card-title></mat-card-header>
-                <mat-card-content>
-                  <p><strong>Ngày sinh:</strong> {{ patient.dateOfBirth | date:'mediumDate' }}</p>
-                  <p><strong>Giới tính:</strong> {{ patient.genderName }}</p>
-                  <p><strong>Nhóm máu:</strong> {{ patient.bloodTypeName || '-' }}</p>
-                  <p><strong>CMND/CCCD:</strong> {{ patient.nationalId || '-' }}</p>
-                  <p><strong>Nghề nghiệp:</strong> {{ patient.occupation || '-' }}</p>
-                </mat-card-content>
-              </mat-card>
+            <hh-page-section [title]="'patients.section.personal' | hhTranslate:'Thông tin cá nhân'">
+              <div class="meta-grid">
+                <hh-meta-item [label]="'patients.field.dob' | hhTranslate:'Ngày sinh'" [value]="(patient.dateOfBirth | date:'mediumDate') || '-'" icon="cake" />
+                <hh-meta-item [label]="'patients.field.gender' | hhTranslate:'Giới tính'" [value]="patient.genderName" icon="person" />
+                <hh-meta-item [label]="'patients.field.bloodType' | hhTranslate:'Nhóm máu'" [value]="patient.bloodTypeName || '-'" icon="bloodtype" />
+                <hh-meta-item [label]="'patients.field.nationalId' | hhTranslate:'CMND/CCCD'" [value]="patient.nationalId || '-'" icon="badge" />
+                <hh-meta-item [label]="'patients.field.occupation' | hhTranslate:'Nghề nghiệp'" [value]="patient.occupation || '-'" icon="work" />
+              </div>
+            </hh-page-section>
 
-              <mat-card>
-                <mat-card-header><mat-card-title>Liên hệ</mat-card-title></mat-card-header>
-                <mat-card-content>
-                  <p><strong>Điện thoại:</strong> {{ patient.phone }}</p>
-                  <p><strong>Email:</strong> {{ patient.email || '-' }}</p>
-                  <p><strong>Địa chỉ:</strong> {{ patient.street }}, {{ patient.district }}, {{ patient.city }}</p>
-                  <p><strong>Bảo hiểm:</strong> {{ patient.insuranceId || '-' }}</p>
-                  <p><strong>Liên hệ khẩn cấp:</strong> {{ patient.emergencyContactName || '-' }} - {{ patient.emergencyContactPhone || '-' }}</p>
-                </mat-card-content>
-              </mat-card>
-            </div>
+            <hh-page-section [title]="'patients.section.contact' | hhTranslate:'Liên hệ'">
+              <div class="meta-grid">
+                <hh-meta-item [label]="'patients.field.phone' | hhTranslate:'Điện thoại'" [value]="patient.phone" icon="phone" />
+                <hh-meta-item [label]="'patients.field.email' | hhTranslate:'Email'" [value]="patient.email || '-'" icon="email" />
+                <hh-meta-item [label]="'patients.field.address' | hhTranslate:'Địa chỉ'" [value]="patient.street + ', ' + patient.district + ', ' + patient.city" icon="home" />
+                <hh-meta-item [label]="'patients.field.insurance' | hhTranslate:'Bảo hiểm'" [value]="patient.insuranceId || '-'" icon="health_and_safety" />
+                <hh-meta-item [label]="'patients.field.emergency' | hhTranslate:'Liên hệ khẩn cấp'" [value]="(patient.emergencyContactName || '-') + ' - ' + (patient.emergencyContactPhone || '-')" icon="emergency" />
+              </div>
+            </hh-page-section>
 
-            <mat-card class="conditions-card">
-              <mat-card-header>
-                <mat-card-title>Bệnh lý ({{ patient.conditions.length }})</mat-card-title>
-              </mat-card-header>
-              <mat-card-content>
-                @if (patient.conditions.length > 0) {
-                <mat-list>
-                  @for (c of patient.conditions; track c) {
-                  <mat-list-item>
-                    <mat-icon matListItemIcon>info</mat-icon>
-                    <span matListItemTitle>{{ c.conditionName }} @if (c.icd10Code) {<small>({{ c.icd10Code }})</small>}</span>
-                    <span matListItemLine>{{ c.isChronic ? 'Mạn tính' : 'Cấp tính' }} | {{ c.isActive ? 'Đang hoạt động' : 'Đã khỏi' }}</span>
-                  </mat-list-item>
-                  }
-                </mat-list>
-                } @else {
-                <p class="empty">Không có bệnh lý nào</p>
+            <hh-page-section [title]="'patients.section.conditions' | hhTranslate:'Bệnh lý ({{count}})':{count: patient.conditions.length}">
+              @if (patient.conditions.length > 0) {
+              <mat-list>
+                @for (c of patient.conditions; track c) {
+                <mat-list-item>
+                  <mat-icon matListItemIcon>info</mat-icon>
+                  <span matListItemTitle>{{ c.conditionName }} @if (c.icd10Code) {<small>({{ c.icd10Code }})</small>}</span>
+                  <span matListItemLine>{{ c.isChronic ? ('patients.chronic' | hhTranslate:'Mạn tính') : ('patients.acute' | hhTranslate:'Cấp tính') }} | {{ c.isActive ? ('patients.active' | hhTranslate:'Đang hoạt động') : ('patients.resolved' | hhTranslate:'Đã khỏi') }}</span>
+                </mat-list-item>
                 }
-              </mat-card-content>
-            </mat-card>
+              </mat-list>
+              } @else {
+              <p class="empty">{{ 'patients.noConditions' | hhTranslate:'Không có bệnh lý nào' }}</p>
+              }
+            </hh-page-section>
 
-            <mat-card>
-              <mat-card-header>
-                <mat-card-title>Dị ứng ({{ patient.allergies.length }})</mat-card-title>
-              </mat-card-header>
-              <mat-card-content>
-                @if (patient.allergies.length > 0) {
-                <mat-list>
-                  @for (a of patient.allergies; track a) {
-                  <mat-list-item>
-                    <mat-icon matListItemIcon>warning</mat-icon>
-                    <span matListItemTitle>{{ a.allergen }}</span>
-                    <span matListItemLine>{{ a.reaction || 'Không rõ phản ứng' }} | {{ a.severity || 'N/A' }}</span>
-                  </mat-list-item>
-                  }
-                </mat-list>
-                } @else {
-                <p class="empty">Không có dị ứng nào</p>
+            <hh-page-section [title]="'patients.section.allergies' | hhTranslate:'Dị ứng ({{count}})':{count: patient.allergies.length}">
+              @if (patient.allergies.length > 0) {
+              <mat-list>
+                @for (a of patient.allergies; track a) {
+                <mat-list-item>
+                  <mat-icon matListItemIcon>warning</mat-icon>
+                  <span matListItemTitle>{{ a.allergen }}</span>
+                  <span matListItemLine>{{ a.reaction || ('patients.unknownReaction' | hhTranslate:'Không rõ phản ứng') }} | {{ a.severity || 'N/A' }}</span>
+                </mat-list-item>
                 }
-              </mat-card-content>
-            </mat-card>
+              </mat-list>
+              } @else {
+              <p class="empty">{{ 'patients.noAllergies' | hhTranslate:'Không có dị ứng nào' }}</p>
+              }
+            </hh-page-section>
           </div>
         </mat-tab>
 
         <!-- Tab 2: Lịch sử khám -->
-        <mat-tab label="Lịch sử khám ({{ encounters.length }})">
+        <mat-tab [label]="'patients.tab.encounters' | hhTranslate:'Lịch sử khám ({{count}})':{count: encounters.length}">
           <div class="tab-content">
             @if (loadingEncounters) {
-            <div class="tab-loading"><mat-spinner diameter="32"></mat-spinner></div>
+            <hh-state kind="loading" [message]="'common.loading' | hhTranslate" />
             }
             @if (!loadingEncounters && encounters.length === 0) {
-            <div class="tab-empty">
-              <mat-icon>inbox</mat-icon>
-              <p>Bệnh nhân chưa có lượt khám nào</p>
-            </div>
+            <hh-state kind="empty" [message]="'patients.noEncounters' | hhTranslate:'Bệnh nhân chưa có lượt khám nào'" />
             }
             @if (!loadingEncounters && encounters.length > 0) {
             <table mat-table [dataSource]="encounters" class="records-table">
               <ng-container matColumnDef="encounterDate">
-                <th mat-header-cell *matHeaderCellDef>Ngày khám</th>
+                <th mat-header-cell *matHeaderCellDef>{{ 'patients.column.encounterDate' | hhTranslate:'Ngày khám' }}</th>
                 <td mat-cell *matCellDef="let e">{{ e.encounterDate | date:'dd/MM/yyyy HH:mm' }}</td>
               </ng-container>
               <ng-container matColumnDef="encounterType">
-                <th mat-header-cell *matHeaderCellDef>Loại</th>
+                <th mat-header-cell *matHeaderCellDef>{{ 'patients.column.type' | hhTranslate:'Loại' }}</th>
                 <td mat-cell *matCellDef="let e">{{ e.encounterTypeName || e.encounterType }}</td>
               </ng-container>
               <ng-container matColumnDef="chiefComplaint">
-                <th mat-header-cell *matHeaderCellDef>Lý do khám</th>
+                <th mat-header-cell *matHeaderCellDef>{{ 'patients.column.chiefComplaint' | hhTranslate:'Lý do khám' }}</th>
                 <td mat-cell *matCellDef="let e">{{ e.chiefComplaint || '-' }}</td>
               </ng-container>
               <ng-container matColumnDef="status">
-                <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
+                <th mat-header-cell *matHeaderCellDef>{{ 'common.status' | hhTranslate:'Trạng thái' }}</th>
                 <td mat-cell *matCellDef="let e">
-                  <span class="status-badge" [class]="'status-' + e.status.toLowerCase()">
-                    {{ e.statusName || e.status }}
-                  </span>
+                  <hh-status-badge [status]="e.status" [label]="e.statusName || e.status" />
                 </td>
               </ng-container>
               <ng-container matColumnDef="actions">
                 <th mat-header-cell *matHeaderCellDef></th>
                 <td mat-cell *matCellDef="let e">
-                  <button mat-icon-button [routerLink]="['/clinical', e.id]" matTooltip="Xem chi tiết">
+                  <button mat-icon-button [routerLink]="['/clinical', e.id]" [matTooltip]="'common.details' | hhTranslate:'Xem chi tiết'"
+                          [attr.aria-label]="'common.details' | hhTranslate:'Xem chi tiết'">
                     <mat-icon>visibility</mat-icon>
                   </button>
                 </td>
@@ -175,41 +175,36 @@ import { LabOrder } from '@core/models/lab-order.model';
         </mat-tab>
 
         <!-- Tab 3: Đơn thuốc -->
-        <mat-tab label="Đơn thuốc ({{ prescriptions.length }})">
+        <mat-tab [label]="'patients.tab.prescriptions' | hhTranslate:'Đơn thuốc ({{count}})':{count: prescriptions.length}">
           <div class="tab-content">
             @if (loadingPrescriptions) {
-            <div class="tab-loading"><mat-spinner diameter="32"></mat-spinner></div>
+            <hh-state kind="loading" [message]="'common.loading' | hhTranslate" />
             }
             @if (!loadingPrescriptions && prescriptions.length === 0) {
-            <div class="tab-empty">
-              <mat-icon>medication</mat-icon>
-              <p>Bệnh nhân chưa có đơn thuốc nào</p>
-            </div>
+            <hh-state kind="empty" [message]="'patients.noPrescriptions' | hhTranslate:'Bệnh nhân chưa có đơn thuốc nào'" />
             }
             @if (!loadingPrescriptions && prescriptions.length > 0) {
             <table mat-table [dataSource]="prescriptions" class="records-table">
               <ng-container matColumnDef="prescribedDate">
-                <th mat-header-cell *matHeaderCellDef>Ngày kê</th>
+                <th mat-header-cell *matHeaderCellDef>{{ 'patients.column.prescribedDate' | hhTranslate:'Ngày kê' }}</th>
                 <td mat-cell *matCellDef="let p">{{ p.prescribedDate | date:'dd/MM/yyyy' }}</td>
               </ng-container>
               <ng-container matColumnDef="medicationName">
-                <th mat-header-cell *matHeaderCellDef>Thuốc</th>
+                <th mat-header-cell *matHeaderCellDef>{{ 'patients.column.medication' | hhTranslate:'Thuốc' }}</th>
                 <td mat-cell *matCellDef="let p">{{ p.medicationName }}</td>
               </ng-container>
               <ng-container matColumnDef="dosage">
-                <th mat-header-cell *matHeaderCellDef>Liều dùng</th>
+                <th mat-header-cell *matHeaderCellDef>{{ 'patients.column.dosage' | hhTranslate:'Liều dùng' }}</th>
                 <td mat-cell *matCellDef="let p">{{ p.dosage }}</td>
               </ng-container>
               <ng-container matColumnDef="frequency">
-                <th mat-header-cell *matHeaderCellDef>Tần suất</th>
+                <th mat-header-cell *matHeaderCellDef>{{ 'patients.column.frequency' | hhTranslate:'Tần suất' }}</th>
                 <td mat-cell *matCellDef="let p">{{ p.frequency }}</td>
               </ng-container>
               <ng-container matColumnDef="status">
-                <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
+                <th mat-header-cell *matHeaderCellDef>{{ 'common.status' | hhTranslate:'Trạng thái' }}</th>
                 <td mat-cell *matCellDef="let p">
-                  <span class="status-badge" [class]="'rx-status-' + p.status.toLowerCase()">
-                    {{ p.statusName || p.status }}
-                  </span>
+                  <hh-status-badge [status]="p.status" [label]="p.statusName || p.status" />
                 </td>
               </ng-container>
               <tr mat-header-row *matHeaderRowDef="['prescribedDate','medicationName','dosage','frequency','status']"></tr>
@@ -220,43 +215,39 @@ import { LabOrder } from '@core/models/lab-order.model';
         </mat-tab>
 
         <!-- Tab 4: Xét nghiệm -->
-        <mat-tab label="Xét nghiệm ({{ labOrders.length }})">
+        <mat-tab [label]="'patients.tab.labOrders' | hhTranslate:'Xét nghiệm ({{count}})':{count: labOrders.length}">
           <div class="tab-content">
             @if (loadingLabs) {
-            <div class="tab-loading"><mat-spinner diameter="32"></mat-spinner></div>
+            <hh-state kind="loading" [message]="'common.loading' | hhTranslate" />
             }
             @if (!loadingLabs && labOrders.length === 0) {
-            <div class="tab-empty">
-              <mat-icon>science</mat-icon>
-              <p>Bệnh nhân chưa có xét nghiệm nào</p>
-            </div>
+            <hh-state kind="empty" [message]="'patients.noLabOrders' | hhTranslate:'Bệnh nhân chưa có xét nghiệm nào'" />
             }
             @if (!loadingLabs && labOrders.length > 0) {
             <table mat-table [dataSource]="labOrders" class="records-table">
               <ng-container matColumnDef="orderDate">
-                <th mat-header-cell *matHeaderCellDef>Ngày chỉ định</th>
+                <th mat-header-cell *matHeaderCellDef>{{ 'patients.column.orderDate' | hhTranslate:'Ngày chỉ định' }}</th>
                 <td mat-cell *matCellDef="let l">{{ l.orderDate | date:'dd/MM/yyyy' }}</td>
               </ng-container>
               <ng-container matColumnDef="testName">
-                <th mat-header-cell *matHeaderCellDef>Xét nghiệm</th>
+                <th mat-header-cell *matHeaderCellDef>{{ 'patients.column.test' | hhTranslate:'Xét nghiệm' }}</th>
                 <td mat-cell *matCellDef="let l">{{ l.testName }}</td>
               </ng-container>
               <ng-container matColumnDef="status">
-                <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
+                <th mat-header-cell *matHeaderCellDef>{{ 'common.status' | hhTranslate:'Trạng thái' }}</th>
                 <td mat-cell *matCellDef="let l">
-                  <span class="status-badge" [class]="'lab-status-' + l.status.toLowerCase()">
-                    {{ l.statusName || l.status }}
-                  </span>
+                  <hh-status-badge [status]="l.status" [label]="l.statusName || l.status" />
                 </td>
               </ng-container>
               <ng-container matColumnDef="result">
-                <th mat-header-cell *matHeaderCellDef>Kết quả</th>
+                <th mat-header-cell *matHeaderCellDef>{{ 'patients.column.result' | hhTranslate:'Kết quả' }}</th>
                 <td mat-cell *matCellDef="let l">{{ l.result || '-' }}</td>
               </ng-container>
               <ng-container matColumnDef="actions">
                 <th mat-header-cell *matHeaderCellDef></th>
                 <td mat-cell *matCellDef="let l">
-                  <button mat-icon-button [routerLink]="['/labs', l.id]" matTooltip="Xem chi tiết">
+                  <button mat-icon-button [routerLink]="['/labs', l.id]" [matTooltip]="'common.details' | hhTranslate:'Xem chi tiết'"
+                          [attr.aria-label]="'common.details' | hhTranslate:'Xem chi tiết'">
                     <mat-icon>visibility</mat-icon>
                   </button>
                 </td>
@@ -268,76 +259,18 @@ import { LabOrder } from '@core/models/lab-order.model';
           </div>
         </mat-tab>
       </mat-tab-group>
-    </div>
-    }
+      }
+    </hh-page-layout>
   `,
     styles: [`
-    .patient-detail {
-      max-width: var(--max-width-container, 1200px);
-      margin: 0 auto;
-      padding: 32px 24px;
-    }
-
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 24px;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-
-    .header h1 {
-      font-size: 24px;
-      font-weight: 600;
-      letter-spacing: 0;
-    }
-
-    .header-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .subtitle {
-      color: var(--text-secondary, #787774);
-      margin-top: 4px;
-    }
-
     .tab-content {
       padding: 20px 0;
     }
 
-    .tab-loading {
-      display: flex;
-      justify-content: center;
-      padding: 48px;
-    }
-
-    .tab-empty {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-      padding: 48px;
-      color: var(--text-muted, #A1A09B);
-    }
-
-    .tab-empty mat-icon {
-      font-size: 48px;
-      width: 48px;
-      height: 48px;
-    }
-
-    .detail-grid {
+    .meta-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin-bottom: 20px;
-    }
-
-    .conditions-card {
-      margin-bottom: 20px;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
     }
 
     .empty {
@@ -346,32 +279,24 @@ import { LabOrder } from '@core/models/lab-order.model';
       padding: 12px;
     }
 
-    mat-card-content p {
-      margin: 8px 0;
-      font-size: 14px;
-    }
-
     .records-table {
       width: 100%;
     }
 
     ::ng-deep .mat-mdc-tab-body-content { overflow: hidden; }
-
-    @media (max-width: 768px) {
-      .detail-grid {
-        grid-template-columns: 1fr;
-      }
-    }
   `],
 })
 export class PatientDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
   patient?: Patient;
 
   encounters: Encounter[] = [];
   prescriptions: Prescription[] = [];
   labOrders: LabOrder[] = [];
 
+  loading = true;
+  error = '';
   loadingEncounters = false;
   loadingPrescriptions = false;
   loadingLabs = false;
@@ -381,27 +306,41 @@ export class PatientDetailComponent implements OnInit, OnDestroy {
     private patientService: PatientService,
     private snackBar: MatSnackBar,
     private cdr: ChangeDetectorRef,
+    private router: Router,
   ) {}
 
   ngOnInit(): void {
+    this.loadPatient();
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
+  loadPatient(): void {
     const id = this.route.snapshot.params['id'];
+    this.loading = true;
+    this.error = '';
     this.patientService.getById(id)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (p) => {
           this.patient = p;
           this.loadTabData();
+          this.loading = false;
           this.cdr.markForCheck();
         },
         error: () => {
-          this.snackBar.open('Không thể tải thông tin bệnh nhân', 'Đóng', { duration: 5000 });
+          this.error = this.i18n.t('patients.loadFailed', 'Không thể tải thông tin bệnh nhân.');
+          this.loading = false;
+          this.cdr.markForCheck();
         },
       });
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
+  goBack(): void {
+    this.router.navigate(['/patients']);
   }
 
   private loadTabData(): void {

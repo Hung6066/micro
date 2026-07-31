@@ -51,17 +51,17 @@ describe('AppointmentDetailComponent', () => {
 
   it('should display appointment details', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Appointment Details');
+    expect(compiled.querySelector('h1')?.textContent).toContain('Chi tiết cuộc hẹn');
   });
 
-  it('should render schedule card', () => {
+  it('should render schedule section', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.textContent).toContain('Schedule');
+    expect(compiled.textContent).toContain('Lịch hẹn');
   });
 
   it('should render timeline', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.textContent).toContain('Timeline');
+    expect(compiled.textContent).toContain('Dòng thời gian');
   });
 
   it('should have component initialized', () => {

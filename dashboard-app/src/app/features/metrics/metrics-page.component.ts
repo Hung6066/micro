@@ -17,6 +17,7 @@ import { Resource } from '../../core/models/resource.model';
 import { MetricsOverviewComponent } from './metrics-overview.component';
 import { themeColor } from '../../shared/theme-color';
 import {
+  HisHopeFilterToolbarComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopePageSectionComponent,
@@ -77,6 +78,7 @@ interface ChartDataset {
     MatFormFieldModule,
     MatSelectModule,
     MetricsOverviewComponent,
+    HisHopeFilterToolbarComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopePageSectionComponent,
@@ -100,7 +102,7 @@ interface ChartDataset {
       <app-metrics-overview></app-metrics-overview>
 
       <!-- Controls -->
-      <hh-filter-toolbar label="dashboard.metrics.controlsLabel">
+      <hh-filter-toolbar label="Metric filters">
         <!-- Service multi-select -->
         <mat-form-field appearance="outline" subscriptSizing="dynamic" class="services-field">
           <mat-label>{{ 'dashboard.metrics.service' | hhTranslate:'Service' }}</mat-label>
@@ -160,19 +162,22 @@ interface ChartDataset {
       }
 
       <!-- Loading -->
-      @if ((loading$ | async)) {
+      @let loading = (loading$ | async) ?? false;
+      @let error = (error$ | async) ?? '';
+
+      @if (loading) {
         <hh-state kind="loading" [message]="'dashboard.metrics.loading' | hhTranslate:'Loading metrics...'" />
       }
 
       <!-- Error -->
-      @if (error$ | async; as err) {
+      @if (error; as err) {
         <hh-state kind="error" icon="error_outline" [message]="err">
           <button mat-raised-button color="primary" (click)="refresh()">{{ 'dashboard.metrics.retry' | hhTranslate:'Retry' }}</button>
         </hh-state>
       }
 
       <!-- Chart -->
-      @if (hasData && !(loading$ | async)) {
+      @if (hasData && !loading) {
         <hh-page-section [title]="currentMetric.label"
                          [subtitle]="('dashboard.metrics.timeRangeLabel' | hhTranslate:'Time range') + ': ' + getTimeRangeLabel() + ' — ' + selectedServices.length + ' ' + ('dashboard.metrics.servicesSelected' | hhTranslate:'services selected')">
           <div class="chart-wrapper">
@@ -182,7 +187,7 @@ interface ChartDataset {
       }
 
       <!-- Empty state -->
-      @if (!hasData && !(loading$ | async) && !(error$ | async)) {
+      @if (!hasData && !loading && !error) {
         <hh-state kind="empty" icon="monitoring" [message]="'dashboard.metrics.emptyState' | hhTranslate:'Select services and metric to view chart'" />
       }
     </hh-page-layout>
@@ -421,7 +426,7 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
     );
 
     // Use combineLatest to load all services in parallel
-    const sub = combineLatest(requests).pipe(
+    combineLatest(requests).pipe(
       finalize(() => this.loading$.next(false)),
       takeUntil(this.destroy$),
     ).subscribe(results => {

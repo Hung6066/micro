@@ -74,7 +74,6 @@ import {
       </hh-data-table>
     </hh-page-layout>
   `,
-    styles: [``],
 })
 export class MedicationListComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();

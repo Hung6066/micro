@@ -1,117 +1,63 @@
-    <div class="manage-users">
-      <div class="page-header">
-        <div>
-          <h1>Quản lý người dùng</h1>
-          <p class="subtitle">Quản lý tài khoản bác sĩ, điều dưỡng và nhân viên</p>
-        </div>
-        <button mat-raised-button color="primary" (click)="openAddUserDialog()">
-          <mat-icon>person_add</mat-icon>
-          Thêm người dùng
-        </button>
-      </div>
-
-      <div class="filter-bar">
-        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="search-field">
-          <mat-icon matPrefix>search</mat-icon>
-          <input matInput [formControl]="searchControl" placeholder="Tìm kiếm theo tên, email, ID...">
-        </mat-form-field>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader [title]="'Quản lý người dùng' | hhTranslate"
+                      [subtitle]="'Quản lý tài khoản bác sĩ, điều dưỡng và nhân viên' | hhTranslate">
         <mat-form-field appearance="outline" subscriptSizing="dynamic" class="role-filter">
-          <mat-select [formControl]="roleFilter" (selectionChange)="onFilterChange()">
+          <mat-select [formControl]="roleFilter" (selectionChange)="onFilterChange()" [attr.aria-label]="'Bộ lọc vai trò'">
             @for (f of roleFilters; track f.value) {
             <mat-option [value]="f.value">{{ f.label }}</mat-option>
             }
           </mat-select>
         </mat-form-field>
-      </div>
+        <button mat-raised-button color="primary" (click)="openAddUserDialog()">
+          <mat-icon>person_add</mat-icon>
+          Thêm người dùng
+        </button>
+      </hh-page-header>
 
-      <div class="table-container mat-elevation-z2">
-        <app-loading-spinner [loading]="loading" message="Đang tải danh sách người dùng..."></app-loading-spinner>
+      <hh-data-table label="Danh sách người dùng" [columns]="columns" [rows]="rows" mode="server"
+                     [loading]="loading" [error]="error ?? ''"
+                     [empty]="rows.length === 0 && !loading" emptyMessage="Không tìm thấy người dùng"
+                     [pageSize]="20" [totalItems]="totalCount" [query]="query"
+                     [searchable]="true" searchPlaceholder="Tìm kiếm theo tên, email, ID..."
+                     (queryChange)="onQueryChange($event)" (retry)="loadUsers()">
+        <ng-template hhDataTableCell="fullName" let-row>
+          <div class="user-name-cell">
+            <span class="name">{{ row['fullName'] }}</span>
+            <span class="email">{{ row['email'] }}</span>
+          </div>
+        </ng-template>
+        <ng-template hhDataTableCell="roles" let-row>
+          <div class="roles-cell">
+            @for (r of row['roles']; track r) {
+            <span class="role-badge" [ngClass]="'role-' + r">{{ getRoleLabel(r) }}</span>
+            }
+          </div>
+        </ng-template>
+        <ng-template hhDataTableCell="status" let-row>
+          <span class="status-badge" [ngClass]="row['isActive'] ? 'active' : 'inactive'">
+            {{ row['isActive'] ? 'Hoạt động' : 'Ngưng hoạt động' }}
+          </span>
+        </ng-template>
+        <ng-template hhDataTableCell="actions" let-row>
+          <button mat-icon-button color="primary" (click)="openEditUserDialog(userFromRow(row))"
+                  matTooltip="Chỉnh sửa người dùng">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button (click)="openAssignRolesDialog(userFromRow(row))"
+                  matTooltip="Phân vai trò">
+            <mat-icon>admin_panel_settings</mat-icon>
+          </button>
+          <button mat-icon-button (click)="toggleUserStatus(userFromRow(row))"
+                  [matTooltip]="row['isActive'] ? 'Vô hiệu hóa' : 'Kích hoạt'">
+            <mat-icon [color]="row['isActive'] ? 'warn' : 'primary'">
+              {{ row['isActive'] ? 'block' : 'check_circle' }}
+            </mat-icon>
+          </button>
+        </ng-template>
+      </hh-data-table>
 
-        @if (!loading) {
-          @if (users.length > 0) {
-          <mat-table [dataSource]="users" class="users-table">
-            <ng-container matColumnDef="id">
-              <mat-header-cell *matHeaderCellDef>ID</mat-header-cell>
-              <mat-cell *matCellDef="let u" class="cell-id">{{ u.id | slice:0:12 }}</mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="fullName">
-              <mat-header-cell *matHeaderCellDef>Họ và tên</mat-header-cell>
-              <mat-cell *matCellDef="let u">
-                <div class="user-name-cell">
-                  <span class="name">{{ u.fullName }}</span>
-                  <span class="email">{{ u.email }}</span>
-                </div>
-              </mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="email">
-              <mat-header-cell *matHeaderCellDef>Email</mat-header-cell>
-              <mat-cell *matCellDef="let u">{{ u.email }}</mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="roles">
-              <mat-header-cell *matHeaderCellDef>Vai trò</mat-header-cell>
-              <mat-cell *matCellDef="let u">
-                <div class="roles-cell">
-                  @for (r of u.roles; track r) {
-                  <span class="role-badge" [ngClass]="'role-' + r">{{ getRoleLabel(r) }}</span>
-                  }
-                </div>
-              </mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="status">
-              <mat-header-cell *matHeaderCellDef>Trạng thái</mat-header-cell>
-              <mat-cell *matCellDef="let u">
-                <span class="status-badge" [ngClass]="u.isActive ? 'active' : 'inactive'">
-                  {{ u.isActive ? 'Hoạt động' : 'Ngưng hoạt động' }}
-                </span>
-              </mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="actions">
-              <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
-              <mat-cell *matCellDef="let u">
-                <button mat-icon-button color="primary" (click)="openEditUserDialog(u)"
-                        matTooltip="Chỉnh sửa người dùng">
-                  <mat-icon>edit</mat-icon>
-                </button>
-                <button mat-icon-button (click)="openAssignRolesDialog(u)"
-                        matTooltip="Phân vai trò">
-                  <mat-icon>admin_panel_settings</mat-icon>
-                </button>
-                <button mat-icon-button (click)="toggleUserStatus(u)"
-                        [matTooltip]="u.isActive ? 'Vô hiệu hóa' : 'Kích hoạt'">
-                  <mat-icon [color]="u.isActive ? 'warn' : 'primary'">
-                    {{ u.isActive ? 'block' : 'check_circle' }}
-                  </mat-icon>
-                </button>
-              </mat-cell>
-            </ng-container>
-
-            <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
-            <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>
-          </mat-table>
-          } @else {
-          <app-empty-state icon="people" title="Không tìm thấy người dùng"
-                          message="Thử thay đổi bộ lọc hoặc thêm người dùng mới">
-          </app-empty-state>
-          }
-        }
-
-        @if (totalCount > 0) {
-        <mat-paginator [length]="totalCount" [pageSize]="pageSize"
-                       [pageSizeOptions]="[5, 10, 20, 50]" [pageIndex]="currentPage - 1"
-                       (page)="onPageChange($event)" showFirstLastButtons>
-        </mat-paginator>
-        }
-      </div>
-    </div>
-
-    @if (showConfirmDialog) {
-      <hh-confirm-dialog [open]="true" [title]="confirmDialogTitle" [message]="confirmDialogMessage"
+      <hh-confirm-dialog [open]="showConfirmDialog" [title]="confirmDialogTitle" [message]="confirmDialogMessage"
         [confirmLabel]="confirmDialogConfirmLabel" [cancelLabel]="'Hủy'"
         (confirmed)="onConfirmDialogConfirmed()" (cancelled)="onConfirmDialogCancelled()">
       </hh-confirm-dialog>
-    }
+    </hh-page-layout>

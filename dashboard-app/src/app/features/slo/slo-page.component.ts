@@ -13,7 +13,7 @@ import {
   HisHopeTranslatePipe,
 } from '@his-hope/frontend-foundation';
 import { SloService } from '../../core/services/slo.service';
-import { SloRecord, SloResponse } from '../../core/models/slo.model';
+import { SloRecord } from '../../core/models/slo.model';
 import { MetricDataPoint } from '../../core/models/metric-snapshot.model';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -97,20 +97,23 @@ function fmt(val: number, decimals = 2): string {
         </button>
       </hh-page-header>
 
+      @let loading = (loading$ | async) ?? false;
+      @let error = (error$ | async) ?? '';
+
       <!-- Loading -->
-      @if (loading$ | async) {
+      @if (loading) {
         <hh-state kind="loading" [message]="'dashboard.slo.loading' | hhTranslate:'Loading SLO data...'" />
       }
 
       <!-- Error -->
-      @if (error$ | async; as err) {
+      @if (error; as err) {
         <hh-state kind="error" icon="error_outline" [message]="err">
           <button mat-raised-button color="primary" (click)="refresh()">{{ 'dashboard.slo.retry' | hhTranslate:'Retry' }}</button>
         </hh-state>
       }
 
       <!-- SLO cards grid -->
-      @if (!(loading$ | async) && !(error$ | async) && services.length > 0) {
+      @if (!loading && !error && services.length > 0) {
         <div class="slo-grid">
           @for (svc of services; track svc.service) {
             <mat-card class="slo-card">
@@ -189,7 +192,7 @@ function fmt(val: number, decimals = 2): string {
       }
 
       <!-- Latency sparkline card -->
-      @if (sparklineData && sparklineData.length > 1 && !(loading$ | async) && !(error$ | async)) {
+      @if (sparklineData && sparklineData.length > 1 && !loading && !error) {
         <mat-card class="sparkline-card">
           <mat-card-header>
             <mat-card-title class="slo-title">{{ 'dashboard.slo.latencyTrend' | hhTranslate:'p99 Latency Trend' }}</mat-card-title>
@@ -211,7 +214,7 @@ function fmt(val: number, decimals = 2): string {
       }
 
       <!-- Empty state -->
-      @if (!(loading$ | async) && !(error$ | async) && services.length === 0) {
+      @if (!loading && !error && services.length === 0) {
         <hh-state kind="empty" icon="speed"
                   [message]="'dashboard.slo.emptyState' | hhTranslate:'No SLO data available. Ensure Prometheus recording rules are configured.'" />
       }

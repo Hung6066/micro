@@ -2,16 +2,19 @@ import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRe
 import { HttpClient } from '@angular/common/http';
 import { Subject, takeUntil } from 'rxjs';
 import { CommonModule } from '@angular/common';
-import { MatCardModule } from '@angular/material/card';
-import { MatTableModule } from '@angular/material/table';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatExpansionModule } from '@angular/material/expansion';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
+import {
+  HisHopeDataTableColumn,
+  HisHopeDataTableComponent,
+  HisHopeDataTableCellDirective,
+  HisHopeDataTableDetailDirective,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopeStatusBadgeComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 interface AgentRun {
   id: string;
@@ -39,16 +42,12 @@ interface PipelineRun {
   standalone: true,
   imports: [
     CommonModule,
-    MatCardModule,
-    MatTableModule,
-    MatChipsModule,
     MatButtonModule,
     MatIconModule,
-    MatProgressSpinnerModule,
-    MatTooltipModule,
-    MatExpansionModule,
     MatSnackBarModule,
-    LoadingSpinnerComponent,
+    HisHopeDataTableComponent, HisHopeDataTableCellDirective, HisHopeDataTableDetailDirective,
+    HisHopeStatusBadgeComponent,
+    HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeTranslatePipe,
   ],
   templateUrl: './harness-dashboard.component.html',
   styleUrls: ['./harness-dashboard.component.scss'],
@@ -63,9 +62,18 @@ export class HarnessDashboardComponent implements OnInit, OnDestroy {
   private readonly harnessApiUrl = 'http://localhost:5200/mcp';
 
   loading = true;
+  error: string | null = null;
   pipelines: PipelineRun[] = [];
-  expandedPipeline: PipelineRun | null = null;
-  displayedColumns = ['workflowId', 'status', 'startedAt', 'duration', 'agentCount', 'actions'];
+  expandedRowKeys: string[] = [];
+
+  readonly columns: HisHopeDataTableColumn[] = [
+    { key: 'workflowId', label: 'Workflow' },
+    { key: 'status', label: 'Trạng thái' },
+    { key: 'startedAt', label: 'Bắt đầu' },
+    { key: 'duration', label: 'Thời gian' },
+    { key: 'agentCount', label: 'Số Agent' },
+  ];
+  pipelineRows: Record<string, unknown>[] = [];
 
   ngOnInit(): void {
     this.loadPipelines();
@@ -82,6 +90,7 @@ export class HarnessDashboardComponent implements OnInit, OnDestroy {
 
   private loadPipelines(): void {
     this.loading = true;
+    this.error = null;
     this.cdr.markForCheck();
 
     this.http.post<PipelineRun>(`${this.harnessApiUrl}/get-pipeline-status`, {})
@@ -144,26 +153,34 @@ export class HarnessDashboardComponent implements OnInit, OnDestroy {
         agentCount: 4,
       },
     ];
-    this.loading = false;
-    this.cdr.markForCheck();
+    this.loadDetailForPipelines();
   }
 
   private loadDetailForPipelines(): void {
     this.loading = false;
+    this.pipelineRows = this.pipelines.map((p) => ({
+      id: p.id,
+      workflowId: p.workflowId,
+      status: p.status,
+      statusLabel: this.statusLabel(p.status),
+      startedAt: p.startedAt,
+      duration: this.duration(p.startedAt, p.completedAt),
+      agentCount: p.agentCount,
+      entity: p,
+    }));
     this.cdr.markForCheck();
   }
 
-  toggleRow(pipeline: PipelineRun): void {
-    if (this.expandedPipeline?.id === pipeline.id) {
-      this.expandedPipeline = null;
-      this.cdr.markForCheck();
-      return;
+  onRowExpand(event: { rowKey: string; expanded: boolean }): void {
+    if (event.expanded) {
+      const pipeline = this.pipelines.find((p) => p.id === event.rowKey);
+      if (pipeline && !pipeline.agents) {
+        this.loadAgentsFor(pipeline);
+      }
     }
-    this.expandedPipeline = pipeline;
-    if (!pipeline.agents) {
-      this.loadAgentsFor(pipeline);
-    }
-    this.cdr.markForCheck();
+    this.expandedRowKeys = event.expanded
+      ? [...this.expandedRowKeys, event.rowKey]
+      : this.expandedRowKeys.filter((key) => key !== event.rowKey);
   }
 
   private loadAgentsFor(pipeline: PipelineRun): void {
@@ -200,14 +217,13 @@ export class HarnessDashboardComponent implements OnInit, OnDestroy {
     return agents[pipelineId] ?? [];
   }
 
-  statusChipClass(status: string): string {
+  statusTone(status: string): 'success' | 'info' | 'warning' | 'danger' | 'neutral' {
     switch (status) {
-      case 'Completed': return 'status-completed';
-      case 'Running': return 'status-running';
-      case 'Failed': return 'status-failed';
-      case 'Cancelled': return 'status-cancelled';
-      case 'Pending': return 'status-pending';
-      default: return 'status-pending';
+      case 'Completed': return 'success';
+      case 'Running': return 'info';
+      case 'Failed': return 'danger';
+      case 'Cancelled': return 'neutral';
+      default: return 'warning';
     }
   }
 

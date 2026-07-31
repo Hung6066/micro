@@ -184,8 +184,8 @@
 .status-badge.rx-status-expired,
 .status-badge.inv-status-voided,
 .status-badge.status-voided {
-  background: var(--pastel-purple);
-  color: var(--pastel-purple-text);
+  background: var(--pastel-purple, #F0ECFA);
+  color: var(--pastel-purple-text, #6B4FA0);
 }
 
 .status-badge.status-cancelled,
@@ -238,8 +238,8 @@
 
   &.priority-high,
   &.priority-urgent {
-    background: var(--pastel-orange);
-    color: var(--pastel-orange-text);
+    background: var(--pastel-orange, #FEF0E0);
+    color: var(--pastel-orange-text, #B6581C);
   }
 
   &.priority-routine {

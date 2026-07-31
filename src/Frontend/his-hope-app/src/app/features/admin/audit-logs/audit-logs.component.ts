@@ -1,9 +1,7 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { FormControl, ReactiveFormsModule, FormsModule } from '@angular/forms';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatTableModule } from '@angular/material/table';
-import { MatPaginatorModule, PageEvent } from '@angular/material/paginator';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -11,14 +9,21 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { CommonModule } from '@angular/common';
 import { AdminService } from '@core/services/admin.service';
 import { AuditLog } from '@core/models/admin.model';
 import { PagedResult } from '@core/models/paged-result.model';
-import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import {
+  HisHopeDataTableColumn,
+  HisHopeDataTableComponent,
+  HisHopeDataTableCellDirective,
+  HisHopeDataTableDetailDirective,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopePageQuery,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 const ACTION_OPTIONS = [
   { value: '', label: 'Tất cả hành động' },
@@ -48,11 +53,12 @@ const RESOURCE_OPTIONS = [
   standalone: true,
   imports: [
     CommonModule, ReactiveFormsModule,
-    MatSnackBarModule, MatTableModule, MatPaginatorModule, MatButtonModule,
+    MatSnackBarModule, MatButtonModule,
     MatIconModule, MatFormFieldModule, MatInputModule, MatSelectModule,
-    MatDatepickerModule, MatNativeDateModule, MatProgressSpinnerModule,
+    MatDatepickerModule, MatNativeDateModule,
     MatExpansionModule,
-    LoadingSpinnerComponent, EmptyStateComponent,
+    HisHopeDataTableComponent, HisHopeDataTableCellDirective, HisHopeDataTableDetailDirective,
+    HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeTranslatePipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './audit-logs.component.html',
@@ -63,10 +69,10 @@ export class AuditLogsComponent implements OnInit, OnDestroy {
 
   auditLogs: AuditLog[] = [];
   totalCount = 0;
-  currentPage = 1;
-  pageSize = 10;
   loading = true;
-  expandedLog: AuditLog | null = null;
+  error: string | null = null;
+  query: HisHopePageQuery = { page: 1, pageSize: 20 };
+  expandedRowKeys: string[] = [];
 
   userSearchControl = new FormControl('');
   actionFilter = new FormControl('');
@@ -74,7 +80,15 @@ export class AuditLogsComponent implements OnInit, OnDestroy {
   fromDateControl = new FormControl<Date | null>(null);
   toDateControl = new FormControl<Date | null>(null);
 
-  displayedColumns = ['timestamp', 'userName', 'action', 'resourceType', 'resourceId', 'ipAddress'];
+  readonly columns: HisHopeDataTableColumn[] = [
+    { key: 'timestamp', label: 'Thời gian' },
+    { key: 'userName', label: 'Người dùng' },
+    { key: 'action', label: 'Hành động' },
+    { key: 'resourceType', label: 'Loại' },
+    { key: 'resourceId', label: 'ID Tài nguyên' },
+    { key: 'ipAddress', label: 'Địa chỉ IP' },
+  ];
+  rows: Record<string, unknown>[] = [];
   actionOptions = ACTION_OPTIONS;
   resourceOptions = RESOURCE_OPTIONS;
 
@@ -89,26 +103,26 @@ export class AuditLogsComponent implements OnInit, OnDestroy {
     this.userSearchControl.valueChanges
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntil(this.destroy$))
       .subscribe(() => {
-        this.currentPage = 1;
+        this.query = { ...this.query, page: 1 };
         this.loadAuditLogs();
       });
 
     // Filter changes
     this.actionFilter.valueChanges
       .pipe(takeUntil(this.destroy$))
-      .subscribe(() => { this.currentPage = 1; this.loadAuditLogs(); });
+      .subscribe(() => { this.query = { ...this.query, page: 1 }; this.loadAuditLogs(); });
 
     this.resourceFilter.valueChanges
       .pipe(takeUntil(this.destroy$))
-      .subscribe(() => { this.currentPage = 1; this.loadAuditLogs(); });
+      .subscribe(() => { this.query = { ...this.query, page: 1 }; this.loadAuditLogs(); });
 
     this.fromDateControl.valueChanges
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntil(this.destroy$))
-      .subscribe(() => { this.currentPage = 1; this.loadAuditLogs(); });
+      .subscribe(() => { this.query = { ...this.query, page: 1 }; this.loadAuditLogs(); });
 
     this.toDateControl.valueChanges
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntil(this.destroy$))
-      .subscribe(() => { this.currentPage = 1; this.loadAuditLogs(); });
+      .subscribe(() => { this.query = { ...this.query, page: 1 }; this.loadAuditLogs(); });
 
     this.loadAuditLogs();
   }
@@ -120,6 +134,7 @@ export class AuditLogsComponent implements OnInit, OnDestroy {
 
   loadAuditLogs(): void {
     this.loading = true;
+    this.error = null;
     this.cdr.markForCheck();
 
     this.adminService.getAuditLogs({
@@ -128,29 +143,48 @@ export class AuditLogsComponent implements OnInit, OnDestroy {
       resourceType: this.resourceFilter.value || undefined,
       fromDate: this.fromDateControl.value?.toISOString(),
       toDate: this.toDateControl.value?.toISOString(),
-      page: this.currentPage,
-      pageSize: this.pageSize,
+      page: this.query.page,
+      pageSize: this.query.pageSize,
     })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (result: PagedResult<AuditLog>) => {
           this.auditLogs = result.items;
           this.totalCount = result.totalCount;
+          this.rows = result.items.map((log) => ({
+            id: log.id,
+            timestamp: log.timestamp,
+            userName: log.userName,
+            action: log.action,
+            actionLabel: this.getActionLabel(log.action),
+            resourceType: log.resourceType,
+            resourceLabel: this.getResourceLabel(log.resourceType),
+            resourceId: log.resourceId,
+            ipAddress: log.ipAddress,
+            userAgent: log.userAgent,
+            details: log.details,
+          }));
           this.loading = false;
           this.cdr.markForCheck();
         },
         error: () => {
           this.loading = false;
+          this.error = 'Không thể tải nhật ký truy cập';
           this.snackBar.open('Không thể tải nhật ký truy cập', 'Đóng', { duration: 5000 });
           this.cdr.markForCheck();
         },
       });
   }
 
-  onPageChange(event: PageEvent): void {
-    this.currentPage = event.pageIndex + 1;
-    this.pageSize = event.pageSize;
+  onQueryChange(query: HisHopePageQuery): void {
+    this.query = query;
     this.loadAuditLogs();
+  }
+
+  onRowExpand(event: { rowKey: string; expanded: boolean }): void {
+    this.expandedRowKeys = event.expanded
+      ? [...this.expandedRowKeys, event.rowKey]
+      : this.expandedRowKeys.filter((key) => key !== event.rowKey);
   }
 
   clearFilters(): void {
@@ -159,11 +193,6 @@ export class AuditLogsComponent implements OnInit, OnDestroy {
     this.resourceFilter.setValue('');
     this.fromDateControl.setValue(null);
     this.toDateControl.setValue(null);
-  }
-
-  toggleRowExpansion(log: AuditLog): void {
-    this.expandedLog = this.expandedLog?.id === log.id ? null : log;
-    this.cdr.markForCheck();
   }
 
   getActionLabel(action: string): string {

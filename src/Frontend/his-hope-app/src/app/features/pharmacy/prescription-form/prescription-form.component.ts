@@ -15,6 +15,10 @@ import { PatientService } from '@core/services/patient.service';
 import { Medication } from '@core/models/medication.model';
 import { Patient } from '@core/models/patient.model';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import {
+  HisHopePageLayoutComponent, HisHopePageHeaderComponent,
+  HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-prescription-form',
@@ -24,107 +28,116 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
         MatFormFieldModule, MatInputModule, MatIconModule, MatSelectModule,
         MatButtonModule, MatAutocompleteModule, MatProgressSpinnerModule,
         MatSnackBarModule,
+        HisHopePageLayoutComponent, HisHopePageHeaderComponent,
+        HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="prescription-form">
-      <h1>Tạo đơn thuốc mới</h1>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader
+                      [title]="'prescriptionForm.title' | hhTranslate:'Tạo đơn thuốc mới'"
+                      [subtitle]="'prescriptionForm.subtitle' | hhTranslate:'Kê đơn thuốc cho bệnh nhân'" />
 
-      <form [formGroup]="prescriptionForm" (ngSubmit)="onSubmit()">
-        <div class="form-grid">
-          <!-- Patient Search -->
-          <mat-form-field appearance="outline">
-            <mat-label>Bệnh nhân</mat-label>
-            <input matInput [formControl]="patientSearchControl" placeholder="Tìm bệnh nhân..."
-                   aria-label="Tìm kiếm bệnh nhân" [matAutocomplete]="patientAuto">
-            <mat-icon matSuffix>search</mat-icon>
-            <mat-autocomplete #patientAuto="matAutocomplete" [displayWith]="displayPatientFn">
-              @for (p of filteredPatients; track p.id) {
-              <mat-option [value]="p" (onSelectionChange)="onPatientSelected(p)">
-                {{ p.fullName }} - {{ p.id | slice:0:8 }}...
-              </mat-option>
-              }
-            </mat-autocomplete>
-            @if (prescriptionForm.get('patientId')?.hasError('required')) {
-            <mat-error>Vui lòng chọn bệnh nhân</mat-error>
-            }
-          </mat-form-field>
+      <form [formGroup]="prescriptionForm" (ngSubmit)="onSubmit()" novalidate>
+        <hh-form-layout>
+          <hh-form-section [title]="'prescriptionForm.section.basic' | hhTranslate:'Thông tin đơn thuốc'" [span]="2">
+            <div class="form-grid">
+              <!-- Patient Search -->
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'prescriptionForm.patient' | hhTranslate:'Bệnh nhân' }}</mat-label>
+                <input matInput [formControl]="patientSearchControl" [placeholder]="'prescriptionForm.patientPlaceholder' | hhTranslate:'Tìm bệnh nhân...'"
+                       [attr.aria-label]="'prescriptionForm.patientSearchAria' | hhTranslate:'Tìm kiếm bệnh nhân'" [matAutocomplete]="patientAuto">
+                <mat-icon matSuffix>search</mat-icon>
+                <mat-autocomplete #patientAuto="matAutocomplete" [displayWith]="displayPatientFn">
+                  @for (p of filteredPatients; track p.id) {
+                  <mat-option [value]="p" (onSelectionChange)="onPatientSelected(p)">
+                    {{ p.fullName }} - {{ p.id | slice:0:8 }}...
+                  </mat-option>
+                  }
+                </mat-autocomplete>
+                @if (prescriptionForm.get('patientId')?.hasError('required')) {
+                <mat-error>{{ 'prescriptionForm.patientRequired' | hhTranslate:'Vui lòng chọn bệnh nhân' }}</mat-error>
+                }
+              </mat-form-field>
 
-          <!-- Medication Search -->
-          <mat-form-field appearance="outline">
-            <mat-label>Thuốc</mat-label>
-            <mat-select formControlName="medicationId" required aria-label="Chọn thuốc">
-              @for (med of medications; track med.id) {
-              <mat-option [value]="med.id">
-                {{ med.name }} - {{ med.strength }} ({{ med.dosageForm }})
-              </mat-option>
-              }
-            </mat-select>
-            @if (prescriptionForm.get('medicationId')?.hasError('required')) {
-            <mat-error>Vui lòng chọn thuốc</mat-error>
-            }
-          </mat-form-field>
+              <!-- Medication Search -->
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'prescriptionForm.medication' | hhTranslate:'Thuốc' }}</mat-label>
+                <mat-select formControlName="medicationId" required [attr.aria-label]="'prescriptionForm.medicationAria' | hhTranslate:'Chọn thuốc'">
+                  @for (med of medications; track med.id) {
+                  <mat-option [value]="med.id">
+                    {{ med.name }} - {{ med.strength }} ({{ med.dosageForm }})
+                  </mat-option>
+                  }
+                </mat-select>
+                @if (prescriptionForm.get('medicationId')?.hasError('required')) {
+                <mat-error>{{ 'prescriptionForm.medicationRequired' | hhTranslate:'Vui lòng chọn thuốc' }}</mat-error>
+                }
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Đường dùng</mat-label>
-            <mat-select formControlName="route" required aria-label="Chọn đường dùng">
-              <mat-option value="Uống">Uống</mat-option>
-              <mat-option value="Tiêm tĩnh mạch">Tiêm tĩnh mạch</mat-option>
-              <mat-option value="Tiêm bắp">Tiêm bắp</mat-option>
-              <mat-option value="Tiêm dưới da">Tiêm dưới da</mat-option>
-              <mat-option value="Bôi ngoài da">Bôi ngoài da</mat-option>
-              <mat-option value="Nhỏ mắt">Nhỏ mắt</mat-option>
-              <mat-option value="Xịt mũi">Xịt mũi</mat-option>
-              <mat-option value="Đặt trực tràng">Đặt trực tràng</mat-option>
-              <mat-option value="Hít">Hít</mat-option>
-            </mat-select>
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'prescriptionForm.route' | hhTranslate:'Đường dùng' }}</mat-label>
+                <mat-select formControlName="route" required [attr.aria-label]="'prescriptionForm.routeAria' | hhTranslate:'Chọn đường dùng'">
+                  <mat-option value="Uống">{{ 'prescriptionForm.route.oral' | hhTranslate:'Uống' }}</mat-option>
+                  <mat-option value="Tiêm tĩnh mạch">{{ 'prescriptionForm.route.iv' | hhTranslate:'Tiêm tĩnh mạch' }}</mat-option>
+                  <mat-option value="Tiêm bắp">{{ 'prescriptionForm.route.im' | hhTranslate:'Tiêm bắp' }}</mat-option>
+                  <mat-option value="Tiêm dưới da">{{ 'prescriptionForm.route.sc' | hhTranslate:'Tiêm dưới da' }}</mat-option>
+                  <mat-option value="Bôi ngoài da">{{ 'prescriptionForm.route.topical' | hhTranslate:'Bôi ngoài da' }}</mat-option>
+                  <mat-option value="Nhỏ mắt">{{ 'prescriptionForm.route.eye' | hhTranslate:'Nhỏ mắt' }}</mat-option>
+                  <mat-option value="Xịt mũi">{{ 'prescriptionForm.route.nasal' | hhTranslate:'Xịt mũi' }}</mat-option>
+                  <mat-option value="Đặt trực tràng">{{ 'prescriptionForm.route.rectal' | hhTranslate:'Đặt trực tràng' }}</mat-option>
+                  <mat-option value="Hít">{{ 'prescriptionForm.route.inhaled' | hhTranslate:'Hít' }}</mat-option>
+                </mat-select>
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Hướng dẫn sử dụng</mat-label>
-            <input matInput formControlName="dosageInstructions" required
-                   placeholder="VD: Uống 1 viên x 2 lần/ngày sau ăn"
-                   aria-label="Hướng dẫn sử dụng">
-            @if (prescriptionForm.get('dosageInstructions')?.hasError('required')) {
-            <mat-error>Vui lòng nhập hướng dẫn</mat-error>
-            }
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'prescriptionForm.instructions' | hhTranslate:'Hướng dẫn sử dụng' }}</mat-label>
+                <input matInput formControlName="dosageInstructions" required
+                       [placeholder]="'prescriptionForm.instructionsPlaceholder' | hhTranslate:'VD: Uống 1 viên x 2 lần/ngày sau ăn'"
+                       [attr.aria-label]="'prescriptionForm.instructionsAria' | hhTranslate:'Hướng dẫn sử dụng'">
+                @if (prescriptionForm.get('dosageInstructions')?.hasError('required')) {
+                <mat-error>{{ 'prescriptionForm.instructionsRequired' | hhTranslate:'Vui lòng nhập hướng dẫn' }}</mat-error>
+                }
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Số lượng</mat-label>
-            <input matInput formControlName="quantity" type="number" required min="1"
-                   aria-label="Số lượng thuốc">
-            @if (prescriptionForm.get('quantity')?.hasError('required')) {
-            <mat-error>Vui lòng nhập số lượng</mat-error>
-            }
-            @if (prescriptionForm.get('quantity')?.hasError('min')) {
-            <mat-error>Số lượng phải lớn hơn 0</mat-error>
-            }
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'prescriptionForm.quantity' | hhTranslate:'Số lượng' }}</mat-label>
+                <input matInput formControlName="quantity" type="number" required min="1"
+                       [attr.aria-label]="'prescriptionForm.quantityAria' | hhTranslate:'Số lượng thuốc'">
+                @if (prescriptionForm.get('quantity')?.hasError('required')) {
+                <mat-error>{{ 'prescriptionForm.quantityRequired' | hhTranslate:'Vui lòng nhập số lượng' }}</mat-error>
+                }
+                @if (prescriptionForm.get('quantity')?.hasError('min')) {
+                <mat-error>{{ 'prescriptionForm.quantityMin' | hhTranslate:'Số lượng phải lớn hơn 0' }}</mat-error>
+                }
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Số lần tái kê</mat-label>
-            <input matInput formControlName="refills" type="number" min="0" value="0"
-                   aria-label="Số lần tái kê">
-          </mat-form-field>
-        </div>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'prescriptionForm.refills' | hhTranslate:'Số lần tái kê' }}</mat-label>
+                <input matInput formControlName="refills" type="number" min="0" value="0"
+                       [attr.aria-label]="'prescriptionForm.refillsAria' | hhTranslate:'Số lần tái kê'">
+              </mat-form-field>
+            </div>
+          </hh-form-section>
+        </hh-form-layout>
 
         <div class="form-actions">
-          <button mat-button type="button" routerLink="/pharmacy/prescriptions">Hủy</button>
+          <button mat-button type="button" routerLink="/pharmacy/prescriptions">{{ 'common.cancel' | hhTranslate:'Hủy' }}</button>
           <button mat-raised-button color="primary" type="submit"
                   [disabled]="prescriptionForm.invalid || submitting">
             @if (submitting) {
-            <mat-spinner diameter="18" class="btn-spinner" aria-label="Đang lưu"></mat-spinner>
+            <mat-spinner diameter="18" class="btn-spinner" [attr.aria-label]="'common.saving' | hhTranslate:'Đang lưu'"></mat-spinner>
             }
-            {{ submitting ? 'Đang lưu...' : 'Tạo đơn thuốc' }}
+            {{ submitting ? ('common.saving' | hhTranslate:'Đang lưu...') : ('prescriptionForm.save' | hhTranslate:'Tạo đơn thuốc') }}
           </button>
         </div>
       </form>
-    </div>
+    </hh-page-layout>
   `,
     styles: [`
-    .prescription-form { padding: 24px; max-width: 900px; }
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--form-field-gap, 16px); }
+    .form-grid .full-width { grid-column: 1 / -1; }
+    @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } }
     .form-actions { margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end; }
     .btn-spinner { display: inline-block; margin-right: 8px; }
   `],

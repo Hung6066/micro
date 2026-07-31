@@ -8,7 +8,6 @@ import { BehaviorSubject, Subject } from 'rxjs';
 import { catchError, finalize, takeUntil } from 'rxjs/operators';
 import { TracesService } from '../../core/services/traces.service';
 import { TraceDetail, TraceSpan } from '../../core/models/trace.model';
-import { Router } from '@angular/router';
 import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
@@ -129,6 +128,10 @@ const SERVICE_COLORS = [
               @for (span of trace.spans; track span.spanId) {
                 <div class="waterfall-label-row"
                      (click)="toggleSpan(span.spanId)"
+                     (keydown.enter)="toggleSpan(span.spanId)"
+                     tabindex="0"
+                     role="button"
+                     [attr.aria-expanded]="expanded[span.spanId]"
                      [class.expanded]="expanded[span.spanId]">
                   <span class="label-service" [style.color]="getServiceColor(span.service)">
                     {{ span.service }}
@@ -150,6 +153,10 @@ const SERVICE_COLORS = [
               @for (span of trace.spans; track span.spanId) {
                 <div class="waterfall-bar-row"
                      (click)="toggleSpan(span.spanId)"
+                     (keydown.enter)="toggleSpan(span.spanId)"
+                     tabindex="0"
+                     role="button"
+                     [attr.aria-expanded]="expanded[span.spanId]"
                      [class.expanded]="expanded[span.spanId]">
                   <div class="waterfall-bar-track">
                     <div class="waterfall-bar"

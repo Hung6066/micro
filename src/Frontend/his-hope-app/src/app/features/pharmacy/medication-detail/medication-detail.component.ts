@@ -1,110 +1,103 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Subject, takeUntil } from 'rxjs';
 import { PharmacyService } from '@core/services/pharmacy.service';
 import { Medication } from '@core/models/medication.model';
+import {
+  HisHopeI18nService,
+  HisHopeMetaItemComponent,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopePageSectionComponent,
+  HisHopeStateComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-medication-detail',
     standalone: true,
     imports: [
         CommonModule, RouterModule,
-        MatCardModule, MatIconModule, MatButtonModule, MatProgressSpinnerModule,
-        MatSnackBarModule,
+        MatIconModule, MatButtonModule, MatSnackBarModule,
+        HisHopePageLayoutComponent, HisHopePageHeaderComponent, HisHopePageSectionComponent,
+        HisHopeStateComponent, HisHopeMetaItemComponent,
+        HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    @if (medication) {
-    <div class="medication-detail">
-      <div class="header">
-        <div>
-          <h1>{{ medication.name }}</h1>
-          <p class="subtitle">
-            Mã thuốc: {{ medication.id | slice:0:8 }}... |
-            {{ medication.genericName }} |
-            <span class="status-badge" [class.status-active]="medication.isActive" [class.status-inactive]="!medication.isActive">
-              {{ medication.isActive ? 'Đang hoạt động' : 'Ngừng sử dụng' }}
-            </span>
-          </p>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader
+                      [title]="medication?.name || ('medications.detail' | hhTranslate:'Thông tin thuốc')"
+                      [subtitle]="medication ? ('medications.detailSubtitle' | hhTranslate:'Mã thuốc: {{id}} | {{generic}}':{id: (medication.id | slice:0:8), generic: medication.genericName}) : ''">
+        <button mat-stroked-button (click)="goBack()">
+          <mat-icon>arrow_back</mat-icon> {{ 'common.back' | hhTranslate:'Quay lại' }}
+        </button>
+        @if (medication) {
+        @if (medication.isActive) {
+        <button mat-raised-button color="accent" [routerLink]="['/pharmacy/medications', medication.id, 'edit']"
+                [attr.aria-label]="'medications.editLabel' | hhTranslate:'Chỉnh sửa thuốc'">
+          <mat-icon>edit</mat-icon> {{ 'common.edit' | hhTranslate:'Chỉnh sửa' }}
+        </button>
+        }
+        <button mat-stroked-button [color]="medication.isActive ? 'warn' : 'primary'"
+                (click)="toggleActive()"
+                [attr.aria-label]="(medication.isActive ? ('medications.deactivateLabel' | hhTranslate:'Ngừng thuốc') : ('medications.reactivateLabel' | hhTranslate:'Kích hoạt thuốc'))">
+          <mat-icon>{{ medication.isActive ? 'block' : 'check_circle' }}</mat-icon>
+          {{ medication.isActive ? ('medications.deactivate' | hhTranslate:'Ngừng sử dụng') : ('medications.reactivate' | hhTranslate:'Kích hoạt') }}
+        </button>
+        }
+      </hh-page-header>
+
+      @if (loading) {
+      <hh-state kind="loading" [message]="'common.loading' | hhTranslate" />
+      } @else if (loadError) {
+      <hh-state kind="error" [message]="errorMessage">
+        <button mat-stroked-button (click)="loadMedication()">{{ 'common.retry' | hhTranslate }}</button>
+      </hh-state>
+      } @else if (medication) {
+      <hh-page-section [title]="'medications.section.info' | hhTranslate:'Thông tin thuốc'">
+        <div class="meta-grid">
+          <hh-meta-item [label]="'medications.field.name' | hhTranslate:'Tên thuốc'" [value]="medication.name" icon="medication" />
+          <hh-meta-item [label]="'medications.field.generic' | hhTranslate:'Hoạt chất'" [value]="medication.genericName" icon="science" />
+          <hh-meta-item [label]="'medications.field.brand' | hhTranslate:'Tên thương mại'" [value]="medication.brandName || '-'" icon="local_pharmacy" />
+          <hh-meta-item [label]="'medications.field.strength' | hhTranslate:'Hàm lượng'" [value]="medication.strength" icon="scale" />
+          <hh-meta-item [label]="'medications.field.dosageForm' | hhTranslate:'Dạng bào chế'" [value]="medication.dosageForm" icon="category" />
+          <hh-meta-item [label]="'medications.field.route' | hhTranslate:'Đường dùng'" [value]="medication.route" icon="route" />
+          <hh-meta-item [label]="'medications.field.prescription' | hhTranslate:'Kê đơn'" [value]="medication.requiresPrescription ? ('medications.rxRequired' | hhTranslate:'Cần kê đơn') : ('medications.rxNotRequired' | hhTranslate:'Không cần kê đơn')" icon="description" />
         </div>
-        <div class="header-actions">
-          @if (medication.isActive) {
-          <button mat-raised-button color="accent" [routerLink]="['/pharmacy/medications', medication.id, 'edit']"
-                  [attr.aria-label]="'Chỉnh sửa thuốc ' + medication.name">
-            <mat-icon>edit</mat-icon> Chỉnh sửa
-          </button>
+      </hh-page-section>
+
+      <hh-page-section [title]="'medications.section.timeline' | hhTranslate:'Thời gian'">
+        <div class="meta-grid">
+          <hh-meta-item [label]="'medications.field.createdAt' | hhTranslate:'Ngày tạo'" [value]="(medication.createdAt | date:'medium') || '-'" icon="event" />
+          @if (medication.updatedAt) {
+          <hh-meta-item [label]="'medications.field.updatedAt' | hhTranslate:'Cập nhật lần cuối'" [value]="(medication.updatedAt | date:'medium') || '-'" icon="update" />
           }
-          <button mat-stroked-button [color]="medication.isActive ? 'warn' : 'primary'"
-                  (click)="toggleActive()" [attr.aria-label]="(medication.isActive ? 'Ngừng' : 'Kích hoạt') + ' thuốc'">
-            <mat-icon>{{ medication.isActive ? 'block' : 'check_circle' }}</mat-icon>
-            {{ medication.isActive ? 'Ngừng sử dụng' : 'Kích hoạt' }}
-          </button>
         </div>
-      </div>
-
-      <div class="detail-grid">
-        <mat-card>
-          <mat-card-header><mat-card-title>Thông tin thuốc</mat-card-title></mat-card-header>
-          <mat-card-content>
-            <p><strong>Tên thuốc:</strong> {{ medication.name }}</p>
-            <p><strong>Hoạt chất:</strong> {{ medication.genericName }}</p>
-            <p><strong>Tên thương mại:</strong> {{ medication.brandName || '-' }}</p>
-            <p><strong>Hàm lượng:</strong> {{ medication.strength }}</p>
-            <p><strong>Dạng bào chế:</strong> {{ medication.dosageForm }}</p>
-            <p><strong>Đường dùng:</strong> {{ medication.route }}</p>
-            <p><strong>Kê đơn:</strong> {{ medication.requiresPrescription ? 'Cần kê đơn' : 'Không cần kê đơn' }}</p>
-          </mat-card-content>
-        </mat-card>
-
-        <mat-card>
-          <mat-card-header><mat-card-title>Thời gian</mat-card-title></mat-card-header>
-          <mat-card-content>
-            <p><strong>Ngày tạo:</strong> {{ medication.createdAt | date:'medium' }}</p>
-            @if (medication.updatedAt) {
-            <p><strong>Cập nhật lần cuối:</strong> {{ medication.updatedAt | date:'medium' }}</p>
-            }
-          </mat-card-content>
-        </mat-card>
-      </div>
-    </div>
-    }
-
-    @if (!medication && !loadError) {
-    <div class="loading-container">
-      <mat-spinner diameter="40" aria-label="Đang tải"></mat-spinner>
-      <p>Đang tải thông tin thuốc...</p>
-    </div>
-    }
-
-    @if (loadError) {
-    <div class="error-container">
-      <mat-icon color="warn">error_outline</mat-icon>
-      <p>Không thể tải thông tin thuốc. Vui lòng thử lại sau.</p>
-      <button mat-stroked-button color="primary" (click)="loadMedication()">Thử lại</button>
-    </div>
-    }
+      </hh-page-section>
+      }
+    </hh-page-layout>
   `,
     styles: [`
-    .medication-detail { padding: 24px; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-    .header-actions { display: flex; gap: 12px; }
-    .subtitle { color: #666; font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-    mat-card-content p { margin: 8px 0; }
-    .loading-container, .error-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 24px; gap: 16px; color: var(--text-secondary, #787774); }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
   `],
 })
 export class MedicationDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   medication?: Medication;
   loadError = false;
+  loading = true;
+  errorMessage = '';
   private medicationId = '';
 
   constructor(
@@ -125,17 +118,25 @@ export class MedicationDetailComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
+  goBack(): void {
+    this.router.navigate(['/pharmacy/medications']);
+  }
+
   loadMedication(): void {
     this.loadError = false;
+    this.loading = true;
     this.pharmacyService.getMedication(this.medicationId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (m) => {
           this.medication = m;
+          this.loading = false;
           this.cdr.markForCheck();
         },
         error: () => {
           this.loadError = true;
+          this.loading = false;
+          this.errorMessage = this.i18n.t('medications.loadFailed', 'Không thể tải thông tin thuốc. Vui lòng thử lại sau.');
           this.cdr.markForCheck();
         },
       });

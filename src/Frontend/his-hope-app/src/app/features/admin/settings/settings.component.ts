@@ -14,7 +14,12 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { CommonModule } from '@angular/common';
 import { AdminService } from '@core/services/admin.service';
 import { Setting } from '@core/models/admin.model';
-import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
+import {
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopeStateComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 interface CategoryConfig {
   key: string;
@@ -40,7 +45,7 @@ const CATEGORIES: CategoryConfig[] = [
     MatSnackBarModule, MatButtonModule, MatIconModule, MatFormFieldModule,
     MatInputModule, MatSelectModule, MatSlideToggleModule, MatExpansionModule,
     MatProgressSpinnerModule, MatProgressBarModule,
-    LoadingSpinnerComponent,
+    HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTranslatePipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './settings.component.html',
@@ -55,6 +60,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   loading = true;
   saving = false;
   hasChanges = false;
+  error: string | null = null;
 
   categories = CATEGORIES;
 
@@ -75,6 +81,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   loadSettings(): void {
     this.loading = true;
+    this.error = null;
     this.cdr.markForCheck();
 
     this.adminService.getSettings()
@@ -94,6 +101,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.loading = false;
+          this.error = 'Không thể tải cài đặt hệ thống';
           this.snackBar.open('Không thể tải cài đặt hệ thống', 'Đóng', { duration: 5000 });
           this.cdr.markForCheck();
         },
