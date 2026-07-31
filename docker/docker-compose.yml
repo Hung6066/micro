@@ -282,7 +282,7 @@ services:
       # Keep the internal hostname as an explicit legacy issuer during migration.
       Jwt__ValidIssuers__0: http://localhost:5000/
       Jwt__ValidIssuers__1: his-hope-identity
-      Jwt__Audience: his-hope-services
+      Jwt__Audience: http://localhost:5000/
       Jwt__Expiry: "08:00:00"
       Redis__ConnectionString: redis:6379
       Vault__Address: ${VAULT_ADDR:-}
@@ -352,7 +352,7 @@ services:
       Jwt__MetadataAddress: http://identityservice:5001/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
-      Jwt__Audience: his-hope-services
+      Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
@@ -391,7 +391,7 @@ services:
       Jwt__MetadataAddress: http://identityservice:5001/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
-      Jwt__Audience: his-hope-services
+      Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
@@ -430,7 +430,7 @@ services:
       Jwt__MetadataAddress: http://identityservice:5001/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
-      Jwt__Audience: his-hope-services
+      Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
@@ -470,7 +470,7 @@ services:
       Jwt__MetadataAddress: http://identityservice:5001/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
-      Jwt__Audience: his-hope-services
+      Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
@@ -511,7 +511,7 @@ services:
       Jwt__MetadataAddress: http://identityservice:5001/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
-      Jwt__Audience: his-hope-services
+      Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
@@ -550,7 +550,7 @@ services:
       Jwt__MetadataAddress: http://identityservice:5001/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
-      Jwt__Audience: his-hope-services
+      Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317

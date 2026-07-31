@@ -189,15 +189,13 @@ app.Use(async (context, next) =>
     var hasSessionCookie = context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
         !string.IsNullOrWhiteSpace(sessionId);
 
-    // When the session cookie is present, inject the session JWT into the
-    // Authorization header for downstream services.  The SPA always sends an
-    // OIDC Bearer token, but that token carries the issuer URL as its audience
-    // (http://localhost:5000/), which downstream JwtBearer handlers reject.
-    // The session JWT carries the correct internal audience.  Admin/settings/
-    // audit endpoints are excluded because IdentityService validates the OIDC
-    // token directly with OpenIddict (lenient audience checking).
+    // Identity's policy scheme intentionally selects its browser cookie when
+    // no bearer is present. Do not replace that cookie flow with the session
+    // JWT on admin/settings/audit/auth endpoints; those endpoints validate
+    // OIDC bearer tokens or the Identity application cookie.
     if (hasSessionCookie &&
-        !cookieBackedIdentityRoute)
+        !cookieBackedIdentityRoute &&
+        !context.Request.Headers.ContainsKey("Authorization"))
     {
         var redis = context.RequestServices.GetRequiredService<IConnectionMultiplexer>();
         var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
