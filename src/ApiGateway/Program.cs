@@ -180,14 +180,11 @@ app.Use(async (context, next) =>
         // here makes Identity select JWT validation and breaks /connect/authorize.
         context.Request.Path.StartsWithSegments("/connect") ||
         context.Request.Path.StartsWithSegments("/Account") ||
+        context.Request.Path.StartsWithSegments("/api/v1/auth") ||
         context.Request.Path.StartsWithSegments("/api/v1/admin") ||
         context.Request.Path.StartsWithSegments("/api/v1/settings") ||
         context.Request.Path.StartsWithSegments("/api/v1/audit-logs") ||
-        context.Request.Path.StartsWithSegments("/api/v1/audit") ||
-        context.Request.Path.Equals("/api/v1/auth/me") ||
-        context.Request.Path.Equals("/api/v1/auth/check-permission") ||
-        context.Request.Path.Equals("/api/v1/auth/session/exchange") ||
-        context.Request.Path.Equals("/api/v1/auth/session-status");
+        context.Request.Path.StartsWithSegments("/api/v1/audit");
 
     var hasSessionCookie = context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
         !string.IsNullOrWhiteSpace(sessionId);
