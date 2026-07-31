@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,7 +10,7 @@ import { map } from 'rxjs/operators';
 import { AlertService } from '../../core/services/alert.service';
 import { Alert } from '../../core/models/alert.model';
 import { RelativeTimePipe } from '../pipes/relative-time.pipe';
-import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
+import { HisHopeI18nService, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 const SEVERITY_CONFIG: Record<string, { dotColor: string; bg: string; label: string }> = {
   critical: { dotColor: '#C25450', bg: '#FDEBEC', label: 'Nghiêm trọng' },
@@ -219,7 +219,10 @@ export class AlertPanelComponent {
   readonly activeAlerts$: Observable<Alert[]>;
   readonly totalAlerts$: Observable<number>;
 
-  constructor(private readonly alertService: AlertService) {
+  private readonly alertService = inject(AlertService);
+  private readonly i18n = inject(HisHopeI18nService);
+
+  constructor() {
     this.activeAlerts$ = this.alertService.activeAlerts$;
     this.totalAlerts$ = this.activeAlerts$.pipe(
       map(alerts => alerts.filter(a => a.status === 'firing').length),
@@ -227,6 +230,7 @@ export class AlertPanelComponent {
   }
 
   getSeverityConfig(severity: string): { dotColor: string; bg: string; label: string } {
-    return SEVERITY_CONFIG[severity] ?? SEVERITY_CONFIG['info'];
+    const config = SEVERITY_CONFIG[severity] ?? SEVERITY_CONFIG['info'];
+    return { ...config, label: this.i18n.t(`dashboard.alerts.severity.${severity}`, config.label) };
   }
 }

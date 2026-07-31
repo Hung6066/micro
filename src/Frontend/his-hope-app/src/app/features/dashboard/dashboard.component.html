@@ -3,8 +3,8 @@
     <div class="dashboard">
       <div class="welcome-section">
         <div>
-          <h1>Xin chào, {{ currentUserName }}</h1>
-          <p class="page-subtitle">Tổng quan bệnh viện</p>
+          <h1>{{ 'dashboard.welcome' | hhTranslate:'Xin chào, {{name}}':{name: currentUserName} }}</h1>
+          <p class="page-subtitle">{{ 'dashboard.overview' | hhTranslate:'Tổng quan bệnh viện' }}</p>
         </div>
         <div class="date-display">
           <mat-icon>calendar_today</mat-icon>
@@ -13,7 +13,7 @@
       </div>
 
       @if (loading) {
-      <hh-state kind="loading" [message]="'Đang tải dữ liệu...' | hhTranslate" />
+      <hh-state kind="loading" [message]="'dashboard.loadingData' | hhTranslate:'Đang tải dữ liệu...'" />
       }
 
       @if (error) {
@@ -25,14 +25,14 @@
       <!-- Row 1: Stat Cards — bento-grid layout -->
       @if (!loading && !error) {
       <div class="stats-bento">
-        <hh-metric-card icon="people" [label]="'Tổng bệnh nhân' | hhTranslate" [value]="stats.totalPatients" link="/patients"
-                        [action]="stats.newPatientsToday > 0 ? ('+' + stats.newPatientsToday + ' hôm nay') : ''" />
-        <hh-metric-card icon="calendar_today" [label]="'Lịch hẹn hôm nay' | hhTranslate" [value]="stats.todayAppointments" link="/appointments"
-                        [action]="stats.appointmentsTomorrow > 0 ? (stats.appointmentsTomorrow + ' ngày mai') : ''" tone="info" />
-        <hh-metric-card icon="emergency" [label]="'Điều trị đang mở' | hhTranslate" [value]="stats.activeEncounters" link="/clinical" tone="danger" />
-        <hh-metric-card icon="science" [label]="'Xét nghiệm chờ KQ' | hhTranslate" [value]="stats.pendingLabs" link="/lab" tone="warning" />
-        <hh-metric-card icon="receipt" [label]="'Hóa đơn chưa TT' | hhTranslate" [value]="stats.outstandingInvoices" link="/billing" tone="success" />
-        <hh-metric-card icon="medication" [label]="'Thuốc sắp hết' | hhTranslate" [value]="stats.lowStockMedications" link="/pharmacy" tone="warning" />
+        <hh-metric-card icon="people" [label]="'dashboard.totalPatients' | hhTranslate:'Tổng bệnh nhân'" [value]="stats.totalPatients" link="/patients"
+                        [action]="stats.newPatientsToday > 0 ? ('dashboard.todayNew' | hhTranslate:'+{{count}} hôm nay':{count: stats.newPatientsToday}) : ''" />
+        <hh-metric-card icon="calendar_today" [label]="'dashboard.todayAppointments' | hhTranslate:'Lịch hẹn hôm nay'" [value]="stats.todayAppointments" link="/appointments"
+                        [action]="stats.appointmentsTomorrow > 0 ? ('dashboard.tomorrow' | hhTranslate:'{{count}} ngày mai':{count: stats.appointmentsTomorrow}) : ''" tone="info" />
+        <hh-metric-card icon="emergency" [label]="'dashboard.activeEncounters' | hhTranslate:'Điều trị đang mở'" [value]="stats.activeEncounters" link="/clinical" tone="danger" />
+        <hh-metric-card icon="science" [label]="'dashboard.pendingLabs' | hhTranslate:'Xét nghiệm chờ KQ'" [value]="stats.pendingLabs" link="/lab" tone="warning" />
+        <hh-metric-card icon="receipt" [label]="'dashboard.outstandingInvoices' | hhTranslate:'Hóa đơn chưa TT'" [value]="stats.outstandingInvoices" link="/billing" tone="success" />
+        <hh-metric-card icon="medication" [label]="'dashboard.lowStockMedications' | hhTranslate:'Thuốc sắp hết'" [value]="stats.lowStockMedications" link="/pharmacy" tone="warning" />
       </div>
       }
 
@@ -41,12 +41,12 @@
       <mat-card class="section-card search-card">
         <mat-card-header>
           <mat-card-title>
-            <mat-icon>search</mat-icon> Tìm bệnh nhân
+            <mat-icon>search</mat-icon> {{ 'dashboard.searchPatients' | hhTranslate:'Tìm bệnh nhân' }}
           </mat-card-title>
         </mat-card-header>
         <mat-card-content>
           <mat-form-field appearance="outline" class="dashboard-search">
-            <mat-label>Nhập tên, số điện thoại hoặc mã bệnh nhân...</mat-label>
+            <mat-label>{{ 'dashboard.searchPlaceholder' | hhTranslate:'Nhập tên, số điện thoại hoặc mã bệnh nhân...' }}</mat-label>
             <input matInput [formControl]="patientSearchControl" [matAutocomplete]="auto">
             <mat-icon matSuffix>search</mat-icon>
           </mat-form-field>
@@ -56,13 +56,13 @@
             <mat-option [value]="p">
               <div class="search-result-item">
                 <span class="result-name">{{ p.fullName }}</span>
-                <span class="result-meta">{{ p.genderName }} · {{ p.age }} tuổi · {{ p.phone }}</span>
+                <span class="result-meta">{{ p.genderName }} · {{ 'dashboard.age' | hhTranslate:'{{age}} tuổi':{age: p.age} }} · {{ p.phone }}</span>
               </div>
             </mat-option>
             }
             @if (patientSearchResults.length === 0 && (patientSearchControl.value?.length ?? 0) >= 2) {
             <mat-option disabled>
-              <span class="no-results">Không tìm thấy bệnh nhân</span>
+              <span class="no-results">{{ 'dashboard.noPatientsFound' | hhTranslate:'Không tìm thấy bệnh nhân' }}</span>
             </mat-option>
             }
           </mat-autocomplete>
@@ -75,9 +75,9 @@
       <mat-card class="section-card">
         <mat-card-header>
           <mat-card-title>
-            <mat-icon>history</mat-icon> Bệnh nhân gần đây
+            <mat-icon>history</mat-icon> {{ 'dashboard.recentPatients' | hhTranslate:'Bệnh nhân gần đây' }}
           </mat-card-title>
-          <button mat-stroked-button size="small" routerLink="/patients">Xem tất cả</button>
+          <button mat-stroked-button size="small" routerLink="/patients">{{ 'dashboard.viewAll' | hhTranslate:'Xem tất cả' }}</button>
         </mat-card-header>
         <mat-card-content>
           <div class="recent-patients-grid">
@@ -86,12 +86,12 @@
               type="button"
               class="recent-patient-card"
               (click)="openPatientWorkspace(p.id)"
-              [attr.aria-label]="'Mở hồ sơ bệnh nhân ' + p.fullName"
+              [attr.aria-label]="'dashboard.openPatientRecord' | hhTranslate:'Mở hồ sơ bệnh nhân {{name}}':{name: p.fullName}"
             >
               <div class="rp-avatar">{{ p.fullName.charAt(0) }}</div>
               <div class="rp-info">
                 <span class="rp-name">{{ p.fullName }}</span>
-                <span class="rp-meta">{{ p.genderName }} · {{ p.age }} tuổi</span>
+                <span class="rp-meta">{{ p.genderName }} · {{ 'dashboard.age' | hhTranslate:'{{age}} tuổi':{age: p.age} }}</span>
               </div>
               <mat-icon class="rp-arrow">chevron_right</mat-icon>
             </button>
@@ -107,19 +107,19 @@
       <mat-card class="section-card">
         <mat-card-header>
           <mat-card-title>
-            <mat-icon>history</mat-icon> Lượt khám gần đây
+            <mat-icon>history</mat-icon> {{ 'dashboard.recentEncounters' | hhTranslate:'Lượt khám gần đây' }}
           </mat-card-title>
-          <button mat-stroked-button size="small" routerLink="/clinical">Xem tất cả</button>
+          <button mat-stroked-button size="small" routerLink="/clinical">{{ 'dashboard.viewAll' | hhTranslate:'Xem tất cả' }}</button>
         </mat-card-header>
         <mat-card-content>
-          <hh-data-table label="Lượt khám gần đây" density="compact" [columns]="encounterColumns" [rows]="encounterRows"
-                         [empty]="recentEncounters.length === 0" emptyMessage="Chưa có lượt khám nào"
+          <hh-data-table [label]="'dashboard.recentEncounters' | hhTranslate:'Lượt khám gần đây'" density="compact" [columns]="encounterColumns" [rows]="encounterRows"
+                         [empty]="recentEncounters.length === 0" [emptyMessage]="'dashboard.noEncounters' | hhTranslate:'Chưa có lượt khám nào'"
                          [rowClickable]="true" (rowClick)="viewEncounter(encounterFromRow($event).id)" />
         </mat-card-content>
       </mat-card>
       }
       } @placeholder {
-      <mat-card class="section-card"><mat-card-content><div class="section-empty">Đang tải...</div></mat-card-content></mat-card>
+      <mat-card class="section-card"><mat-card-content><div class="section-empty">{{ 'common.loading' | hhTranslate:'Đang tải...' }}</div></mat-card-content></mat-card>
       }
 
       <!-- Row 3: Upcoming Appointments -->
@@ -128,19 +128,19 @@
       <mat-card class="section-card">
         <mat-card-header>
           <mat-card-title>
-            <mat-icon>upcoming</mat-icon> Lịch hẹn sắp tới
+            <mat-icon>upcoming</mat-icon> {{ 'dashboard.upcomingAppointments' | hhTranslate:'Lịch hẹn sắp tới' }}
           </mat-card-title>
-          <button mat-stroked-button size="small" routerLink="/appointments">Xem tất cả</button>
+          <button mat-stroked-button size="small" routerLink="/appointments">{{ 'dashboard.viewAll' | hhTranslate:'Xem tất cả' }}</button>
         </mat-card-header>
         <mat-card-content>
-          <hh-data-table label="Lịch hẹn sắp tới" density="compact" [columns]="appointmentColumns" [rows]="appointmentRows"
-                         [empty]="upcomingAppointments.length === 0" emptyMessage="Không có lịch hẹn nào"
+          <hh-data-table [label]="'dashboard.upcomingAppointments' | hhTranslate:'Lịch hẹn sắp tới'" density="compact" [columns]="appointmentColumns" [rows]="appointmentRows"
+                         [empty]="upcomingAppointments.length === 0" [emptyMessage]="'dashboard.noAppointments' | hhTranslate:'Không có lịch hẹn nào'"
                          [rowClickable]="true" (rowClick)="viewAppointment(appointmentFromRow($event).id)" />
         </mat-card-content>
       </mat-card>
       }
       } @placeholder {
-      <mat-card class="section-card"><mat-card-content><div class="section-empty">Đang tải...</div></mat-card-content></mat-card>
+      <mat-card class="section-card"><mat-card-content><div class="section-empty">{{ 'common.loading' | hhTranslate:'Đang tải...' }}</div></mat-card-content></mat-card>
       }
     </div>
     </hh-page-layout>

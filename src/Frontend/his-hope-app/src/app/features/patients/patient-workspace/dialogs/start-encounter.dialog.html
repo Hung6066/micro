@@ -1,4 +1,4 @@
-<h2 mat-dialog-title>Bắt đầu lượt khám mới</h2>
+<h2 mat-dialog-title>{{ 'startEncounter.title' | hhTranslate:'Bắt đầu lượt khám mới' }}</h2>
 <mat-dialog-content>
   @if (data.patientName) {
   <div class="patient-info">
@@ -8,49 +8,49 @@
   }
   <form [formGroup]="form" class="dialog-form">
     <mat-form-field appearance="outline">
-      <mat-label>Loại khám</mat-label>
+      <mat-label>{{ 'startEncounter.encounterType' | hhTranslate:'Loại khám' }}</mat-label>
       <mat-select formControlName="encounterType">
-        <mat-option value="consultation">Khám bệnh</mat-option>
-        <mat-option value="follow_up">Tái khám</mat-option>
-        <mat-option value="emergency">Cấp cứu</mat-option>
-        <mat-option value="procedure">Thủ thuật</mat-option>
+        <mat-option value="consultation">{{ 'startEncounter.type.consultation' | hhTranslate:'Khám bệnh' }}</mat-option>
+        <mat-option value="follow_up">{{ 'startEncounter.type.followUp' | hhTranslate:'Tái khám' }}</mat-option>
+        <mat-option value="emergency">{{ 'startEncounter.type.emergency' | hhTranslate:'Cấp cứu' }}</mat-option>
+        <mat-option value="procedure">{{ 'startEncounter.type.procedure' | hhTranslate:'Thủ thuật' }}</mat-option>
       </mat-select>
       @if (form.get('encounterType')?.hasError('required')) {
-      <mat-error>Vui lòng chọn loại khám</mat-error>
+      <mat-error>{{ 'startEncounter.typeRequired' | hhTranslate:'Vui lòng chọn loại khám' }}</mat-error>
       }
     </mat-form-field>
 
     <mat-form-field appearance="outline">
-      <mat-label>Lý do khám / Triệu chứng chính</mat-label>
+      <mat-label>{{ 'startEncounter.chiefComplaint' | hhTranslate:'Lý do khám / Triệu chứng chính' }}</mat-label>
       <textarea matInput formControlName="chiefComplaint" rows="3"
-                placeholder="Nhập lý do khám..."></textarea>
+                [placeholder]="'startEncounter.complaintPlaceholder' | hhTranslate:'Nhập lý do khám...'"></textarea>
     </mat-form-field>
 
     <fieldset class="vitals-section">
-      <legend>Dấu hiệu sinh tồn</legend>
+      <legend>{{ 'startEncounter.vitalSignsTitle' | hhTranslate:'Dấu hiệu sinh tồn' }}</legend>
       <div class="vitals-grid">
         <mat-form-field appearance="outline">
-          <mat-label>Nhiệt độ (°C)</mat-label>
+          <mat-label>{{ 'startEncounter.vitalSigns.temperature' | hhTranslate:'Nhiệt độ (°C)' }}</mat-label>
           <input matInput type="number" formControlName="temperature" step="0.1">
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Mạch (lần/ph)</mat-label>
+          <mat-label>{{ 'startEncounter.vitalSigns.pulse' | hhTranslate:'Mạch (lần/ph)' }}</mat-label>
           <input matInput type="number" formControlName="heartRate">
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Nhịp thở (lần/ph)</mat-label>
+          <mat-label>{{ 'startEncounter.vitalSigns.respiratoryRate' | hhTranslate:'Nhịp thở (lần/ph)' }}</mat-label>
           <input matInput type="number" formControlName="respiratoryRate">
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Huyết áp tâm thu</mat-label>
+          <mat-label>{{ 'startEncounter.vitalSigns.systolicBP' | hhTranslate:'Huyết áp tâm thu' }}</mat-label>
           <input matInput type="number" formControlName="systolicBP">
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>Huyết áp tâm trương</mat-label>
+          <mat-label>{{ 'startEncounter.vitalSigns.diastolicBP' | hhTranslate:'Huyết áp tâm trương' }}</mat-label>
           <input matInput type="number" formControlName="diastolicBP">
         </mat-form-field>
         <mat-form-field appearance="outline">
-          <mat-label>SpO2 (%)</mat-label>
+          <mat-label>{{ 'startEncounter.vitalSigns.spo2' | hhTranslate:'SpO2 (%)' }}</mat-label>
           <input matInput type="number" formControlName="oxygenSaturation" min="0" max="100">
         </mat-form-field>
       </div>
@@ -58,11 +58,11 @@
   </form>
 </mat-dialog-content>
 <mat-dialog-actions align="end">
-  <button mat-button mat-dialog-close [disabled]="saving">Hủy</button>
+  <button mat-button mat-dialog-close [disabled]="saving">{{ 'common.cancel' | hhTranslate:'Hủy' }}</button>
   <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid || saving">
     <mat-icon>add</mat-icon>
     @if (!saving) {
-    <span>Bắt đầu khám</span>
+    <span>{{ 'startEncounter.start' | hhTranslate:'Bắt đầu khám' }}</span>
     }
     @if (saving) {
     <mat-spinner diameter="20"></mat-spinner>

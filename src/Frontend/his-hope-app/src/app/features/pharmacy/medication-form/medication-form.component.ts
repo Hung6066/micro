@@ -70,15 +70,15 @@ import {
               <mat-form-field appearance="outline">
                 <mat-label>{{ 'medicationForm.dosageForm' | hhTranslate:'Dạng bào chế' }}</mat-label>
                 <mat-select formControlName="dosageForm" required>
-                  <mat-option value="Viên nén">{{ 'medicationForm.dosageForm.tablet' | hhTranslate:'Viên nén' }}</mat-option>
-                  <mat-option value="Viên nang">{{ 'medicationForm.dosageForm.capsule' | hhTranslate:'Viên nang' }}</mat-option>
-                  <mat-option value="Dung dịch">{{ 'medicationForm.dosageForm.solution' | hhTranslate:'Dung dịch' }}</mat-option>
-                  <mat-option value="Hỗn dịch">{{ 'medicationForm.dosageForm.suspension' | hhTranslate:'Hỗn dịch' }}</mat-option>
-                  <mat-option value="Bột pha">{{ 'medicationForm.dosageForm.powder' | hhTranslate:'Bột pha' }}</mat-option>
-                  <mat-option value="Kem bôi">{{ 'medicationForm.dosageForm.cream' | hhTranslate:'Kem bôi' }}</mat-option>
-                  <mat-option value="Thuốc mỡ">{{ 'medicationForm.dosageForm.ointment' | hhTranslate:'Thuốc mỡ' }}</mat-option>
-                  <mat-option value="Ống tiêm">{{ 'medicationForm.dosageForm.injection' | hhTranslate:'Ống tiêm' }}</mat-option>
-                  <mat-option value="Khí dung">{{ 'medicationForm.dosageForm.inhalation' | hhTranslate:'Khí dung' }}</mat-option>
+                  <mat-option value="tablet">{{ 'medicationForm.dosageForm.tablet' | hhTranslate:'Viên nén' }}</mat-option>
+                  <mat-option value="capsule">{{ 'medicationForm.dosageForm.capsule' | hhTranslate:'Viên nang' }}</mat-option>
+                  <mat-option value="solution">{{ 'medicationForm.dosageForm.solution' | hhTranslate:'Dung dịch' }}</mat-option>
+                  <mat-option value="suspension">{{ 'medicationForm.dosageForm.suspension' | hhTranslate:'Hỗn dịch' }}</mat-option>
+                  <mat-option value="powder">{{ 'medicationForm.dosageForm.powder' | hhTranslate:'Bột pha' }}</mat-option>
+                  <mat-option value="cream">{{ 'medicationForm.dosageForm.cream' | hhTranslate:'Kem bôi' }}</mat-option>
+                  <mat-option value="ointment">{{ 'medicationForm.dosageForm.ointment' | hhTranslate:'Thuốc mỡ' }}</mat-option>
+                  <mat-option value="injection">{{ 'medicationForm.dosageForm.injection' | hhTranslate:'Ống tiêm' }}</mat-option>
+                  <mat-option value="inhalation">{{ 'medicationForm.dosageForm.inhalation' | hhTranslate:'Khí dung' }}</mat-option>
                 </mat-select>
                 @if (medicationForm.get('dosageForm')?.hasError('required')) {
                 <mat-error>{{ 'medicationForm.dosageFormRequired' | hhTranslate:'Vui lòng chọn dạng bào chế' }}</mat-error>
@@ -88,15 +88,15 @@ import {
               <mat-form-field appearance="outline">
                 <mat-label>{{ 'medicationForm.route' | hhTranslate:'Đường dùng' }}</mat-label>
                 <mat-select formControlName="route" required>
-                  <mat-option value="Uống">{{ 'medicationForm.route.oral' | hhTranslate:'Uống' }}</mat-option>
-                  <mat-option value="Tiêm tĩnh mạch">{{ 'medicationForm.route.iv' | hhTranslate:'Tiêm tĩnh mạch' }}</mat-option>
-                  <mat-option value="Tiêm bắp">{{ 'medicationForm.route.im' | hhTranslate:'Tiêm bắp' }}</mat-option>
-                  <mat-option value="Tiêm dưới da">{{ 'medicationForm.route.sc' | hhTranslate:'Tiêm dưới da' }}</mat-option>
-                  <mat-option value="Bôi ngoài da">{{ 'medicationForm.route.topical' | hhTranslate:'Bôi ngoài da' }}</mat-option>
-                  <mat-option value="Nhỏ mắt">{{ 'medicationForm.route.eye' | hhTranslate:'Nhỏ mắt' }}</mat-option>
-                  <mat-option value="Xịt mũi">{{ 'medicationForm.route.nasal' | hhTranslate:'Xịt mũi' }}</mat-option>
-                  <mat-option value="Đặt trực tràng">{{ 'medicationForm.route.rectal' | hhTranslate:'Đặt trực tràng' }}</mat-option>
-                  <mat-option value="Hít">{{ 'medicationForm.route.inhaled' | hhTranslate:'Hít' }}</mat-option>
+                  <mat-option value="oral">{{ 'medicationForm.route.oral' | hhTranslate:'Uống' }}</mat-option>
+                  <mat-option value="iv">{{ 'medicationForm.route.iv' | hhTranslate:'Tiêm tĩnh mạch' }}</mat-option>
+                  <mat-option value="im">{{ 'medicationForm.route.im' | hhTranslate:'Tiêm bắp' }}</mat-option>
+                  <mat-option value="sc">{{ 'medicationForm.route.sc' | hhTranslate:'Tiêm dưới da' }}</mat-option>
+                  <mat-option value="topical">{{ 'medicationForm.route.topical' | hhTranslate:'Bôi ngoài da' }}</mat-option>
+                  <mat-option value="eye">{{ 'medicationForm.route.eye' | hhTranslate:'Nhỏ mắt' }}</mat-option>
+                  <mat-option value="nasal">{{ 'medicationForm.route.nasal' | hhTranslate:'Xịt mũi' }}</mat-option>
+                  <mat-option value="rectal">{{ 'medicationForm.route.rectal' | hhTranslate:'Đặt trực tràng' }}</mat-option>
+                  <mat-option value="inhaled">{{ 'medicationForm.route.inhaled' | hhTranslate:'Hít' }}</mat-option>
                 </mat-select>
                 @if (medicationForm.get('route')?.hasError('required')) {
                 <mat-error>{{ 'medicationForm.routeRequired' | hhTranslate:'Vui lòng chọn đường dùng' }}</mat-error>

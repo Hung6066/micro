@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
@@ -8,6 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CriticalAlert } from '@core/models/critical-alert.model';
 import { LabCriticalAlertService } from '@core/services/lab-critical-alert.service';
+import { HisHopeI18nService } from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-lab-critical-alert-detail',
@@ -36,6 +37,7 @@ import { LabCriticalAlertService } from '@core/services/lab-critical-alert.servi
 })
 export class LabCriticalAlertDetailComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
   alert?: CriticalAlert;
   private alertId = '';
 
@@ -64,7 +66,7 @@ export class LabCriticalAlertDetailComponent implements OnInit, OnDestroy {
     this.alertService.acknowledgeCriticalAlert(this.alert.id)
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
-        this.snackBar.open('Đã ghi nhận cảnh báo', 'Đóng', { duration: 2500 });
+        this.snackBar.open(this.i18n.t('labOrders.acknowledgeSuccess', 'Đã ghi nhận cảnh báo'), this.i18n.t('common.close', 'Đóng'), { duration: 2500 });
         this.loadAlert();
       });
   }
@@ -77,7 +79,7 @@ export class LabCriticalAlertDetailComponent implements OnInit, OnDestroy {
     this.alertService.resolveCriticalAlert(this.alert.id)
       .pipe(takeUntil(this.destroy$))
       .subscribe(() => {
-        this.snackBar.open('Đã xử lý cảnh báo', 'Đóng', { duration: 2500 });
+        this.snackBar.open(this.i18n.t('labOrders.resolveSuccess', 'Đã xử lý cảnh báo'), this.i18n.t('common.close', 'Đóng'), { duration: 2500 });
         this.loadAlert();
       });
   }

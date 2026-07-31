@@ -30,6 +30,12 @@
             "styles": [
               "src/styles/styles.scss"
             ],
+            "stylePreprocessorOptions": {
+              "includePaths": [
+                "node_modules",
+                "../../shared/frontend-foundation/node_modules"
+              ]
+            },
             "scripts": []
           },
           "configurations": {

@@ -1,4 +1,4 @@
-import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormArray, ReactiveFormsModule } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,7 +15,7 @@ import { AdminService } from '@core/services/admin.service';
 import { Role, PermissionGroup, Permission } from '@core/models/admin.model';
 import {
   HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
-  HisHopeFormSectionComponent, HisHopeTranslatePipe,
+  HisHopeFormSectionComponent, HisHopeTranslatePipe, HisHopeI18nService,
 } from '@his-hope/frontend-foundation';
 
 export interface RoleFormData {
@@ -46,6 +46,7 @@ export interface RoleFormData {
 })
 export class RoleFormDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   form: FormGroup;
   saving = false;
@@ -140,14 +141,14 @@ export class RoleFormDialogComponent implements OnDestroy {
       .subscribe({
         next: () => {
           this.snackBar.open(
-            this.data.mode === 'create' ? 'Đã thêm vai trò thành công' : 'Đã cập nhật vai trò thành công',
-            'Đóng', { duration: 3000 },
+            this.i18n.t(this.data.mode === 'create' ? 'roleForm.createSuccess' : 'roleForm.updateSuccess', this.data.mode === 'create' ? 'Đã thêm vai trò thành công' : 'Đã cập nhật vai trò thành công'),
+            this.i18n.t('common.close', 'Đóng'), { duration: 3000 },
           );
           this.dialogRef.close(true);
         },
         error: () => {
           this.saving = false;
-          this.snackBar.open('Không thể lưu vai trò', 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('roleForm.saveFailed', 'Không thể lưu vai trò'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });

@@ -43,13 +43,26 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
-    .AddTransforms<DpopHeaderTransform>();
+    .AddTransforms<DpopHeaderTransform>()
+    .ConfigureHttpClient((context, handler) =>
+    {
+        // Recycle connections every 2 minutes to prevent stale connections
+        // across container restarts, while still benefiting from pooling.
+        handler.PooledConnectionLifetime = TimeSpan.FromMinutes(2);
+        handler.MaxConnectionsPerServer = 20;
+    });
 
 // BFF session bridge: keep access tokens server-side in Redis and attach the
 // current session JWT only to internal downstream proxy requests.
 var redisConnection = builder.Configuration["Redis:ConnectionString"] ?? "redis:6379";
 builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
-    ConnectionMultiplexer.Connect(redisConnection));
+    ConnectionMultiplexer.Connect(new ConfigurationOptions
+    {
+        EndPoints = { redisConnection },
+        AbortOnConnectFail = false,
+        ConnectTimeout = 2000,
+        SyncTimeout = 1000
+    }));
 
 builder.Services.AddGrpc();
 builder.Services.AddHealthChecks();
@@ -198,7 +211,8 @@ app.Use(async (context, next) =>
         !context.Request.Headers.ContainsKey("Authorization"))
     {
         var redis = context.RequestServices.GetRequiredService<IConnectionMultiplexer>();
-        var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
+        var db = redis.GetDatabase();
+        var sessionJson = await db.StringGetAsync($"session:{sessionId}");
         if (sessionJson.HasValue)
         {
             using var document = JsonDocument.Parse((string)sessionJson!);
@@ -223,6 +237,79 @@ app.Use(async (context, next) =>
     context.Request.Headers["X-Forwarded-Host"] = context.Request.Host.Value;
     await next();
 });
+
+app.MapGet("/diag/patients", async (HttpContext ctx) =>
+{
+    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    try
+    {
+        var resp = await http.GetAsync("http://patientservice:5002/api/v1/patients/search?q=&page=1&pageSize=1");
+        sw.Stop();
+        await ctx.Response.WriteAsync($"OK: {resp.StatusCode} in {sw.ElapsedMilliseconds}ms");
+    }
+    catch (Exception ex)
+    {
+        sw.Stop();
+        await ctx.Response.WriteAsync($"FAIL: {ex.GetType().Name}: {ex.Message} after {sw.ElapsedMilliseconds}ms");
+    }
+});
+
+// Shared proxy helper — bypasses YARP HttpForwarder connection pool issues
+// that cause 60s timeouts when proxying to backend services.
+// Direct HttpClient works instantly (14ms vs 60000ms through YARP).
+HttpClient CreateProxyClient() => new(new System.Net.Http.SocketsHttpHandler
+{
+    PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+    MaxConnectionsPerServer = 20,
+})
+{ Timeout = TimeSpan.FromSeconds(25) };
+
+void MapDirectProxy(string pathPrefix, string serviceHost, int servicePort)
+{
+    app.UseWhen(ctx => ctx.Request.Path.StartsWithSegments(pathPrefix), app =>
+    {
+        app.Run(async ctx =>
+        {
+            var client = CreateProxyClient();
+            var catchAll = ctx.Request.Path.Value![pathPrefix.Length..];
+            var targetUrl = $"http://{serviceHost}:{servicePort}{pathPrefix}{catchAll}{ctx.Request.QueryString}";
+            var request = new HttpRequestMessage(new HttpMethod(ctx.Request.Method), targetUrl);
+
+            if (ctx.Request.ContentLength > 0)
+            {
+                request.Content = new StreamContent(ctx.Request.Body);
+                if (ctx.Request.Headers.TryGetValue("Content-Type", out var ct))
+                    request.Content.Headers.TryAddWithoutValidation("Content-Type", ct.ToArray());
+            }
+
+            foreach (var h in ctx.Request.Headers)
+            {
+                if (h.Key is "Authorization" or "Accept" or "Accept-Language"
+                    or "X-Correlation-ID" or "X-Timezone" or "X-Currency" or "Content-Type")
+                    try { request.Headers.TryAddWithoutValidation(h.Key, h.Value.ToArray()); } catch { }
+            }
+
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);
+                cts.CancelAfter(TimeSpan.FromSeconds(25));
+                var resp = await client.SendAsync(request, cts.Token);
+                ctx.Response.StatusCode = (int)resp.StatusCode;
+                foreach (var h in resp.Headers) ctx.Response.Headers[h.Key] = h.Value.ToArray();
+                foreach (var h in resp.Content.Headers) ctx.Response.Headers[h.Key] = h.Value.ToArray();
+                await resp.Content.CopyToAsync(ctx.Response.Body, cts.Token);
+            }
+            catch (OperationCanceledException) { }
+        });
+    });
+}
+
+MapDirectProxy("/api/v1/patients", "patientservice", 5002);
+MapDirectProxy("/api/v1/encounters", "clinicalservice", 5004);
+MapDirectProxy("/api/v1/medications", "pharmacyservice", 5030);
+MapDirectProxy("/api/v1/lab-orders", "labservice", 5010);
+MapDirectProxy("/api/v1/invoices", "billingservice", 5020);
 
 app.MapReverseProxy();
 

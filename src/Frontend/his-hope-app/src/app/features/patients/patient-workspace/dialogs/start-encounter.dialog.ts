@@ -1,4 +1,4 @@
-import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -12,6 +12,7 @@ import { CommonModule } from '@angular/common';
 import { Subject, takeUntil } from 'rxjs';
 import { ClinicalService } from '@core/services/clinical.service';
 import { AuthService } from '@core/services/auth.service';
+import { HisHopeI18nService, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 export interface StartEncounterData {
   patientId: string;
@@ -31,6 +32,7 @@ export interface StartEncounterData {
         MatIconModule,
         MatProgressSpinnerModule,
         MatSnackBarModule,
+        HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './start-encounter.dialog.html',
@@ -38,6 +40,7 @@ export interface StartEncounterData {
 })
 export class StartEncounterDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   form: FormGroup;
   saving = false;
@@ -98,12 +101,12 @@ export class StartEncounterDialogComponent implements OnDestroy {
                 this.clinicalService.recordVitals(encounter.id, vitals).pipe(takeUntil(this.destroy$)).subscribe();
               }
 
-              this.snackBar.open('Đã bắt đầu lượt khám mới', 'Đóng', { duration: 3000 });
+              this.snackBar.open(this.i18n.t('startEncounter.started', 'Đã bắt đầu lượt khám mới'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
               this.dialogRef.close(encounter);
             },
             error: () => {
               this.saving = false;
-              this.snackBar.open('Không thể tạo lượt khám', 'Đóng', { duration: 5000 });
+              this.snackBar.open(this.i18n.t('startEncounter.startFailed', 'Không thể tạo lượt khám'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
               this.cdr.markForCheck();
             },
           });

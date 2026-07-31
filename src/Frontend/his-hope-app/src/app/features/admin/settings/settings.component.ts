@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
@@ -19,6 +19,7 @@ import {
   HisHopePageLayoutComponent,
   HisHopeStateComponent,
   HisHopeTranslatePipe,
+  HisHopeI18nService,
 } from '@his-hope/frontend-foundation';
 
 interface CategoryConfig {
@@ -26,16 +27,6 @@ interface CategoryConfig {
   label: string;
   icon: string;
 }
-
-const CATEGORIES: CategoryConfig[] = [
-  { key: 'hospital', label: 'Thông tin bệnh viện', icon: 'local_hospital' },
-  { key: 'system', label: 'Hệ thống', icon: 'settings_applications' },
-  { key: 'clinical', label: 'Lâm sàng', icon: 'medical_services' },
-  { key: 'billing', label: 'Thanh toán', icon: 'receipt' },
-  { key: 'appointment', label: 'Lịch hẹn', icon: 'calendar_today' },
-  { key: 'lab', label: 'Xét nghiệm', icon: 'biotech' },
-  { key: 'pharmacy', label: 'Dược', icon: 'medication' },
-];
 
 @Component({
   selector: 'app-admin-settings',
@@ -53,6 +44,7 @@ const CATEGORIES: CategoryConfig[] = [
 })
 export class SettingsComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   settings: Setting[] = [];
   settingValues: Record<string, any> = {};
@@ -62,7 +54,15 @@ export class SettingsComponent implements OnInit, OnDestroy {
   hasChanges = false;
   error: string | null = null;
 
-  categories = CATEGORIES;
+  readonly categories: CategoryConfig[] = [
+    { key: 'hospital', label: this.i18n.t('adminPage.settingsCategories.hospital', 'Thông tin bệnh viện'), icon: 'local_hospital' },
+    { key: 'system', label: this.i18n.t('adminPage.settingsCategories.system', 'Hệ thống'), icon: 'settings_applications' },
+    { key: 'clinical', label: this.i18n.t('adminPage.settingsCategories.clinical', 'Lâm sàng'), icon: 'medical_services' },
+    { key: 'billing', label: this.i18n.t('adminPage.settingsCategories.billing', 'Thanh toán'), icon: 'receipt' },
+    { key: 'appointment', label: this.i18n.t('adminPage.settingsCategories.appointment', 'Lịch hẹn'), icon: 'calendar_today' },
+    { key: 'lab', label: this.i18n.t('adminPage.settingsCategories.lab', 'Xét nghiệm'), icon: 'biotech' },
+    { key: 'pharmacy', label: this.i18n.t('adminPage.settingsCategories.pharmacy', 'Dược'), icon: 'medication' },
+  ];
 
   constructor(
     private adminService: AdminService,
@@ -101,8 +101,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.loading = false;
-          this.error = 'Không thể tải cài đặt hệ thống';
-          this.snackBar.open('Không thể tải cài đặt hệ thống', 'Đóng', { duration: 5000 });
+          this.error = this.i18n.t('settings.loadFailed', 'Không thể tải cài đặt hệ thống');
+          this.snackBar.open(this.error, this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });
@@ -149,12 +149,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
           this.originalValues = { ...this.settingValues };
           this.hasChanges = false;
           this.saving = false;
-          this.snackBar.open('Đã lưu cài đặt thành công', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('settings.saved', 'Đã lưu cài đặt thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.cdr.markForCheck();
         },
         error: () => {
           this.saving = false;
-          this.snackBar.open('Không thể lưu cài đặt', 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('settings.saveFailed', 'Không thể lưu cài đặt'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });

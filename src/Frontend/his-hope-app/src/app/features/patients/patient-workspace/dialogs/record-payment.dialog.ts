@@ -1,4 +1,4 @@
-import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,7 +16,7 @@ import { BillingService } from '@core/services/billing.service';
 import { Invoice } from '@core/models/invoice.model';
 import {
   HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
-  HisHopeFormSectionComponent, HisHopeTranslatePipe,
+  HisHopeFormSectionComponent, HisHopeTranslatePipe, HisHopeI18nService,
 } from '@his-hope/frontend-foundation';
 
 export interface RecordPaymentData {
@@ -49,6 +49,7 @@ export interface RecordPaymentData {
 })
 export class RecordPaymentDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   form: FormGroup;
   saving = false;
@@ -96,12 +97,12 @@ export class RecordPaymentDialogComponent implements OnDestroy {
     }).pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã ghi nhận thanh toán', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('recordPayment.saveSuccess', 'Đã ghi nhận thanh toán'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.dialogRef.close(true);
         },
         error: () => {
           this.saving = false;
-          this.snackBar.open('Không thể ghi nhận thanh toán', 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('recordPayment.saveFailed', 'Không thể ghi nhận thanh toán'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });

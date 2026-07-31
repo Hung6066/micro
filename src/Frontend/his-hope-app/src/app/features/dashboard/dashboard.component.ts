@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
@@ -22,6 +22,7 @@ import { Appointment } from '@core/models/appointment.model';
 import { Patient } from '@core/models/patient.model';
 import {
     HisHopeDataTableComponent,
+    HisHopeI18nService,
     HisHopeMetricCardComponent,
     HisHopePageLayoutComponent,
     HisHopeStateComponent,
@@ -71,20 +72,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
   loading = true;
   error: string | null = null;
 
-  readonly encounterColumns = [
-    { key: 'encounterDate', label: 'Ngày', sortable: true },
-    { key: 'patientId', label: 'Bệnh nhân' },
-    { key: 'encounterType', label: 'Loại' },
-    { key: 'chiefComplaint', label: 'Lý do' },
-    { key: 'status', label: 'Trạng thái' },
-  ];
-  readonly appointmentColumns = [
-    { key: 'scheduledDate', label: 'Ngày', sortable: true },
-    { key: 'startTime', label: 'Giờ', sortable: true },
-    { key: 'patientId', label: 'Bệnh nhân' },
-    { key: 'type', label: 'Loại' },
-    { key: 'status', label: 'Trạng thái' },
-  ];
+  private readonly i18n = inject(HisHopeI18nService);
+
+  get encounterColumns() { return [
+    { key: 'encounterDate', label: this.i18n.t('dashboard.column.date', 'Ngày'), sortable: true },
+    { key: 'patientId', label: this.i18n.t('dashboard.column.patient', 'Bệnh nhân') },
+    { key: 'encounterType', label: this.i18n.t('dashboard.column.type', 'Loại') },
+    { key: 'chiefComplaint', label: this.i18n.t('dashboard.column.reason', 'Lý do') },
+    { key: 'status', label: this.i18n.t('dashboard.column.status', 'Trạng thái') },
+  ]; }
+  get appointmentColumns() { return [
+    { key: 'scheduledDate', label: this.i18n.t('dashboard.column.date', 'Ngày'), sortable: true },
+    { key: 'startTime', label: this.i18n.t('dashboard.column.time', 'Giờ'), sortable: true },
+    { key: 'patientId', label: this.i18n.t('dashboard.column.patient', 'Bệnh nhân') },
+    { key: 'type', label: this.i18n.t('dashboard.column.type', 'Loại') },
+    { key: 'status', label: this.i18n.t('dashboard.column.status', 'Trạng thái') },
+  ]; }
 
   get encounterRows(): Record<string, unknown>[] {
     return this.recentEncounters.map(encounter => ({
@@ -190,7 +193,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       },
       error: () => {
-        this.error = 'Không thể tải dữ liệu tổng quan';
+        this.error = this.i18n.t('dashboard.loadError', 'Không thể tải dữ liệu tổng quan');
         this.loading = false;
         this.cdr.markForCheck();
       },

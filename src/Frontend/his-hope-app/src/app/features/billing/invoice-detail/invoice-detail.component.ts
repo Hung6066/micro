@@ -335,7 +335,7 @@ export class InvoiceDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã ghi nhận thanh toán thành công', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('invoices.paymentSuccess', 'Đã ghi nhận thanh toán thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.showPaymentForm = false;
           this.recordingPayment = false;
           this.paymentForm.reset({ methodCode: 'cash' });
@@ -343,7 +343,7 @@ export class InvoiceDetailComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.recordingPayment = false;
-          this.snackBar.open('Không thể ghi nhận thanh toán', 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('invoices.paymentFailed', 'Không thể ghi nhận thanh toán'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });
@@ -355,10 +355,10 @@ export class InvoiceDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã hủy hóa đơn', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('invoices.voidSuccess', 'Đã hủy hóa đơn'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadInvoice();
         },
-        error: () => this.snackBar.open('Không thể hủy hóa đơn', 'Đóng', { duration: 5000 }),
+        error: () => this.snackBar.open(this.i18n.t('invoices.voidFailed', 'Không thể hủy hóa đơn'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 }),
       });
   }
 }

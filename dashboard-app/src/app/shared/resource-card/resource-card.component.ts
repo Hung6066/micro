@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, OnChanges, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -6,7 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { HisHopeStatusBadgeComponent, HisHopeStatusTone, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
+import { HisHopeI18nService, HisHopeStatusBadgeComponent, HisHopeStatusTone, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { Resource } from '../../core/models/resource.model';
 
 @Component({
@@ -264,6 +264,8 @@ export class ResourceCardComponent implements OnChanges {
 
   animating = false;
 
+  private readonly i18n = inject(HisHopeI18nService);
+
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['pulseTrigger'] && !changes['pulseTrigger'].firstChange) {
       this.animating = true;
@@ -279,7 +281,7 @@ export class ResourceCardComponent implements OnChanges {
     return 'device_hub';
   }
 
-  statusLabel(status: string): string { return ({ Running: 'Đang chạy', Healthy: 'Khỏe mạnh', Stopped: 'Đã dừng', Degraded: 'Suy giảm', Unhealthy: 'Mất sức khỏe', Unknown: 'Không xác định' } as Record<string, string>)[status] ?? status; }
+  statusLabel(status: string): string { return ({ Running: this.i18n.t('dashboard.resources.status.running', 'Đang chạy'), Healthy: this.i18n.t('dashboard.resources.status.healthy', 'Khỏe mạnh'), Stopped: this.i18n.t('dashboard.resources.status.stopped', 'Đã dừng'), Degraded: this.i18n.t('dashboard.resources.status.degraded', 'Suy giảm'), Unhealthy: this.i18n.t('dashboard.resources.status.unhealthy', 'Mất sức khỏe'), Unknown: this.i18n.t('dashboard.resources.status.unknown', 'Không xác định') } as Record<string, string>)[status] ?? status; }
   statusLabelKey(status: string): string { return ({ Running: 'dashboard.resources.status.running', Healthy: 'dashboard.resources.status.healthy', Stopped: 'dashboard.resources.status.stopped', Degraded: 'dashboard.resources.status.degraded', Unhealthy: 'dashboard.resources.status.unhealthy', Unknown: 'dashboard.resources.status.unknown' } as Record<string, string>)[status] ?? status; }
   statusTone(status: string): HisHopeStatusTone { if (status === 'Running' || status === 'Healthy') return 'success'; if (status === 'Degraded') return 'warning'; if (status === 'Stopped') return 'neutral'; return 'danger'; }
 

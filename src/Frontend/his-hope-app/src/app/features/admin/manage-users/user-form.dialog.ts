@@ -1,4 +1,4 @@
-import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,7 +14,7 @@ import { AdminService } from '@core/services/admin.service';
 import { AdminUser } from '@core/models/admin.model';
 import {
   HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
-  HisHopeFormSectionComponent, HisHopeTranslatePipe,
+  HisHopeFormSectionComponent, HisHopeTranslatePipe, HisHopeI18nService,
 } from '@his-hope/frontend-foundation';
 
 export interface UserFormData {
@@ -53,6 +53,7 @@ const ROLE_OPTIONS = [
 })
 export class UserFormDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   form: FormGroup;
   saving = false;
@@ -93,12 +94,12 @@ export class UserFormDialogComponent implements OnDestroy {
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: () => {
-            this.snackBar.open('Đã thêm người dùng thành công', 'Đóng', { duration: 3000 });
+            this.snackBar.open(this.i18n.t('userForm.createSuccess', 'Đã thêm người dùng thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
             this.dialogRef.close(true);
           },
           error: () => {
             this.saving = false;
-            this.snackBar.open('Không thể thêm người dùng', 'Đóng', { duration: 5000 });
+            this.snackBar.open(this.i18n.t('userForm.createFailed', 'Không thể thêm người dùng'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
             this.cdr.markForCheck();
           },
         });
@@ -108,12 +109,12 @@ export class UserFormDialogComponent implements OnDestroy {
         .pipe(takeUntil(this.destroy$))
         .subscribe({
           next: () => {
-            this.snackBar.open('Đã cập nhật người dùng thành công', 'Đóng', { duration: 3000 });
+            this.snackBar.open(this.i18n.t('userForm.updateSuccess', 'Đã cập nhật người dùng thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
             this.dialogRef.close(true);
           },
           error: () => {
             this.saving = false;
-            this.snackBar.open('Không thể cập nhật người dùng', 'Đóng', { duration: 5000 });
+            this.snackBar.open(this.i18n.t('userForm.updateFailed', 'Không thể cập nhật người dùng'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
             this.cdr.markForCheck();
           },
         });

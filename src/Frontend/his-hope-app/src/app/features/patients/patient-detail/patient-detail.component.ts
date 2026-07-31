@@ -378,19 +378,19 @@ export class PatientDetailComponent implements OnInit, OnDestroy {
   toggleActive(): void {
     if (!this.patient) return;
     const id = this.patient.id;
-    const action = this.patient.isActive ? 'vô hiệu hóa' : 'kích hoạt lại';
-    const obs = this.patient.isActive
-      ? this.patientService.deactivate(id)
-      : this.patientService.reactivate(id);
+    const activate = !this.patient.isActive;
+    const obs = activate
+      ? this.patientService.reactivate(id)
+      : this.patientService.deactivate(id);
 
     obs.pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.patient!.isActive = !this.patient!.isActive;
-        this.snackBar.open(`Đã ${action} bệnh nhân`, 'Đóng', { duration: 3000 });
+        this.snackBar.open(this.i18n.t(activate ? 'patients.reactivated' : 'patients.deactivated', activate ? 'Đã kích hoạt lại bệnh nhân' : 'Đã vô hiệu hóa bệnh nhân'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
         this.cdr.markForCheck();
       },
       error: () => {
-        this.snackBar.open(`Không thể ${action} bệnh nhân`, 'Đóng', { duration: 5000 });
+        this.snackBar.open(this.i18n.t(activate ? 'patients.reactivateFailed' : 'patients.deactivateFailed', activate ? 'Không thể kích hoạt lại bệnh nhân' : 'Không thể vô hiệu hóa bệnh nhân'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
         this.cdr.markForCheck();
       },
     });

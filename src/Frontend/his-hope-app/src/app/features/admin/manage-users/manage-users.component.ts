@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -24,17 +24,8 @@ import {
   HisHopePageLayoutComponent,
   HisHopePageQuery,
   HisHopeTranslatePipe,
+  HisHopeI18nService,
 } from '@his-hope/frontend-foundation';
-
-const ROLE_FILTERS = [
-  { value: '', label: 'Tất cả vai trò' },
-  { value: 'admin', label: 'Quản trị viên' },
-  { value: 'doctor', label: 'Bác sĩ' },
-  { value: 'nurse', label: 'Điều dưỡng' },
-  { value: 'pharmacist', label: 'Dược sĩ' },
-  { value: 'receptionist', label: 'Lễ tân' },
-  { value: 'manager', label: 'Quản lý' },
-];
 
 @Component({
   selector: 'app-manage-users',
@@ -53,6 +44,7 @@ const ROLE_FILTERS = [
 })
 export class ManageUsersComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   users: AdminUser[] = [];
   totalCount = 0;
@@ -63,15 +55,23 @@ export class ManageUsersComponent implements OnInit, OnDestroy {
   roleFilter = new FormControl('');
 
   readonly columns: HisHopeDataTableColumn[] = [
-    { key: 'id', label: 'ID', computed: (row) => String(row['id']).slice(0, 12) },
-    { key: 'fullName', label: 'Họ và tên' },
-    { key: 'email', label: 'Email' },
-    { key: 'roles', label: 'Vai trò' },
-    { key: 'status', label: 'Trạng thái' },
-    { key: 'actions', label: 'Thao tác' },
+    { key: 'id', label: this.i18n.t('manageUsers.column.id', 'ID'), computed: (row) => String(row['id']).slice(0, 12) },
+    { key: 'fullName', label: this.i18n.t('manageUsers.column.fullName', 'Họ và tên') },
+    { key: 'email', label: this.i18n.t('manageUsers.column.email', 'Email') },
+    { key: 'roles', label: this.i18n.t('manageUsers.column.roles', 'Vai trò') },
+    { key: 'status', label: this.i18n.t('manageUsers.column.status', 'Trạng thái') },
+    { key: 'actions', label: this.i18n.t('manageUsers.column.actions', 'Thao tác') },
   ];
   rows: Record<string, unknown>[] = [];
-  roleFilters = ROLE_FILTERS;
+  readonly roleFilters = [
+    { value: '', label: this.i18n.t('manageUsers.roleAll', 'Tất cả vai trò') },
+    { value: 'admin', label: this.i18n.t('manageUsers.role.admin', 'Quản trị viên') },
+    { value: 'doctor', label: this.i18n.t('manageUsers.role.doctor', 'Bác sĩ') },
+    { value: 'nurse', label: this.i18n.t('manageUsers.role.nurse', 'Điều dưỡng') },
+    { value: 'pharmacist', label: this.i18n.t('manageUsers.role.pharmacist', 'Dược sĩ') },
+    { value: 'receptionist', label: this.i18n.t('manageUsers.role.receptionist', 'Lễ tân') },
+    { value: 'manager', label: this.i18n.t('manageUsers.role.manager', 'Quản lý') },
+  ];
 
   // Confirm dialog state (replaces MatDialog-based ConfirmDialogComponent)
   showConfirmDialog = false;
@@ -125,8 +125,8 @@ export class ManageUsersComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.loading = false;
-          this.error = 'Không thể tải danh sách người dùng';
-          this.snackBar.open('Không thể tải danh sách người dùng', 'Đóng', { duration: 5000 });
+          this.error = this.i18n.t('manageUsers.loadFailed', 'Không thể tải danh sách người dùng');
+          this.snackBar.open(this.error, this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });
@@ -143,8 +143,7 @@ export class ManageUsersComponent implements OnInit, OnDestroy {
   }
 
   getRoleLabel(role: string): string {
-    const found = ROLE_FILTERS.find((f) => f.value === role);
-    return found ? found.label : role;
+    return this.i18n.t(`manageUsers.role.${role}`, role);
   }
 
   userFromRow(row: Record<string, unknown>): AdminUser {
@@ -191,11 +190,14 @@ export class ManageUsersComponent implements OnInit, OnDestroy {
   }
 
   toggleUserStatus(user: AdminUser): void {
-    const action = user.isActive ? 'vô hiệu hóa' : 'kích hoạt';
-    this.confirmDialogTitle = `${user.isActive ? 'Vô hiệu hóa' : 'Kích hoạt'} người dùng`;
-    this.confirmDialogMessage = `Bạn có chắc muốn ${action} người dùng "${user.fullName}"?`;
-    this.confirmDialogConfirmLabel = user.isActive ? 'Vô hiệu hóa' : 'Kích hoạt';
-    this.pendingUserAction = { user, activate: !user.isActive };
+    const activate = !user.isActive;
+    this.confirmDialogTitle = this.i18n.t(activate ? 'manageUsers.confirmActivateTitle' : 'manageUsers.confirmDeactivateTitle', activate ? 'Kích hoạt người dùng' : 'Vô hiệu hóa người dùng');
+    this.confirmDialogMessage = this.i18n.t('manageUsers.confirmMessage', 'Bạn có chắc muốn {{action}} người dùng "{{name}}"?', {
+      action: this.i18n.t(activate ? 'manageUsers.actionActivate' : 'manageUsers.actionDeactivate', activate ? 'kích hoạt' : 'vô hiệu hóa'),
+      name: user.fullName,
+    });
+    this.confirmDialogConfirmLabel = this.i18n.t(activate ? 'adminPage.activate' : 'adminPage.deactivate', activate ? 'Kích hoạt' : 'Vô hiệu hóa');
+    this.pendingUserAction = { user, activate };
     this.showConfirmDialog = true;
     this.cdr.markForCheck();
   }
@@ -206,19 +208,19 @@ export class ManageUsersComponent implements OnInit, OnDestroy {
     this.pendingUserAction = null;
     if (!pending) return;
 
-    const action = pending.user.isActive ? 'vô hiệu hóa' : 'kích hoạt';
-    const obs$ = pending.user.isActive
-      ? this.adminService.deactivateUser(pending.user.id)
-      : this.adminService.activateUser(pending.user.id);
+    const activate = pending.activate;
+    const obs$ = activate
+      ? this.adminService.activateUser(pending.user.id)
+      : this.adminService.deactivateUser(pending.user.id);
 
     obs$.pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open(`Đã ${action} người dùng thành công`, 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t(activate ? 'manageUsers.activateSuccess' : 'manageUsers.deactivateSuccess', activate ? 'Đã kích hoạt người dùng thành công' : 'Đã vô hiệu hóa người dùng thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadUsers();
         },
         error: () => {
-          this.snackBar.open(`Không thể ${action} người dùng`, 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t(activate ? 'manageUsers.activateFailed' : 'manageUsers.deactivateFailed', activate ? 'Không thể kích hoạt người dùng' : 'Không thể vô hiệu hóa người dùng'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
         },
       });
   }

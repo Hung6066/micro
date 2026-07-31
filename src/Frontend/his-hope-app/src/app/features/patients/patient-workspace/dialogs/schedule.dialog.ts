@@ -1,4 +1,4 @@
-import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,7 +16,7 @@ import { AppointmentService } from '@core/services/appointment.service';
 import { AuthService } from '@core/services/auth.service';
 import {
   HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
-  HisHopeFormSectionComponent, HisHopeTranslatePipe,
+  HisHopeFormSectionComponent, HisHopeTranslatePipe, HisHopeI18nService,
 } from '@his-hope/frontend-foundation';
 
 export interface ScheduleData {
@@ -134,6 +134,7 @@ const TIME_SLOTS = [
 })
 export class ScheduleDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   form: FormGroup;
   saving = false;
@@ -191,12 +192,12 @@ export class ScheduleDialogComponent implements OnDestroy {
         }).pipe(takeUntil(this.destroy$))
           .subscribe({
             next: () => {
-              this.snackBar.open('Đã đặt lịch hẹn thành công', 'Đóng', { duration: 3000 });
+              this.snackBar.open(this.i18n.t('schedule.saveSuccess', 'Đã đặt lịch hẹn thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
               this.dialogRef.close(true);
             },
             error: () => {
               this.saving = false;
-              this.snackBar.open('Không thể đặt lịch hẹn', 'Đóng', { duration: 5000 });
+              this.snackBar.open(this.i18n.t('schedule.saveFailed', 'Không thể đặt lịch hẹn'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
               this.cdr.markForCheck();
             },
           });

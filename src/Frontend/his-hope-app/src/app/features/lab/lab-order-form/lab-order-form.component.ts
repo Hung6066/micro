@@ -102,14 +102,14 @@ import {
                   <mat-form-field appearance="outline">
                     <mat-label>{{ 'labOrderForm.specimen' | hhTranslate:'Loại mẫu' }}</mat-label>
                     <mat-select formControlName="specimenType" required [attr.aria-label]="'labOrderForm.specimenAria' | hhTranslate:'Loại mẫu bệnh phẩm'">
-                      <mat-option value="Máu">{{ 'labOrderForm.specimen.blood' | hhTranslate:'Máu' }}</mat-option>
-                      <mat-option value="Huyết thanh">{{ 'labOrderForm.specimen.serum' | hhTranslate:'Huyết thanh' }}</mat-option>
-                      <mat-option value="Nước tiểu">{{ 'labOrderForm.specimen.urine' | hhTranslate:'Nước tiểu' }}</mat-option>
-                      <mat-option value="Phân">{{ 'labOrderForm.specimen.stool' | hhTranslate:'Phân' }}</mat-option>
-                      <mat-option value="Đờm">{{ 'labOrderForm.specimen.sputum' | hhTranslate:'Đờm' }}</mat-option>
-                      <mat-option value="Dịch não tủy">{{ 'labOrderForm.specimen.csf' | hhTranslate:'Dịch não tủy' }}</mat-option>
-                      <mat-option value="Mô">{{ 'labOrderForm.specimen.tissue' | hhTranslate:'Mô' }}</mat-option>
-                      <mat-option value="Khác">{{ 'labOrderForm.specimen.other' | hhTranslate:'Khác' }}</mat-option>
+                      <mat-option value="blood">{{ 'labOrderForm.specimen.blood' | hhTranslate:'Máu' }}</mat-option>
+                      <mat-option value="serum">{{ 'labOrderForm.specimen.serum' | hhTranslate:'Huyết thanh' }}</mat-option>
+                      <mat-option value="urine">{{ 'labOrderForm.specimen.urine' | hhTranslate:'Nước tiểu' }}</mat-option>
+                      <mat-option value="stool">{{ 'labOrderForm.specimen.stool' | hhTranslate:'Phân' }}</mat-option>
+                      <mat-option value="sputum">{{ 'labOrderForm.specimen.sputum' | hhTranslate:'Đờm' }}</mat-option>
+                      <mat-option value="csf">{{ 'labOrderForm.specimen.csf' | hhTranslate:'Dịch não tủy' }}</mat-option>
+                      <mat-option value="tissue">{{ 'labOrderForm.specimen.tissue' | hhTranslate:'Mô' }}</mat-option>
+                      <mat-option value="other">{{ 'labOrderForm.specimen.other' | hhTranslate:'Khác' }}</mat-option>
                     </mat-select>
                   </mat-form-field>
 
@@ -224,7 +224,7 @@ export class LabOrderFormComponent implements OnInit, OnDestroy {
     this.tests.push(this.fb.group({
       testCode: ['', Validators.required],
       testName: ['', Validators.required],
-      specimenType: ['Máu', Validators.required],
+      specimenType: ['blood', Validators.required],
     }));
     this.cdr.markForCheck();
   }

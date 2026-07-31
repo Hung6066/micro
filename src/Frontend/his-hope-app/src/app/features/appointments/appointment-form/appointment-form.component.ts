@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnDestroy, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Router, ActivatedRoute, RouterModule } from '@angular/router';
@@ -18,7 +18,7 @@ import { Patient } from '@core/models/patient.model';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import {
   HisHopePageLayoutComponent, HisHopePageHeaderComponent,
-  HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeTranslatePipe,
+  HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeTranslatePipe, HisHopeI18nService,
 } from '@his-hope/frontend-foundation';
 
 interface ProviderOption {
@@ -157,6 +157,7 @@ interface ProviderOption {
 })
 export class AppointmentFormComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   submitting = false;
   filteredPatients: Patient[] = [];
@@ -266,13 +267,13 @@ export class AppointmentFormComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã đặt lịch hẹn thành công', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('appointmentForm.saveSuccess', 'Đã đặt lịch hẹn thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.router.navigate(['/appointments']);
           this.cdr.markForCheck();
         },
         error: () => {
           this.submitting = false;
-          this.snackBar.open('Không thể đặt lịch hẹn', 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('appointmentForm.saveFailed', 'Không thể đặt lịch hẹn'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });

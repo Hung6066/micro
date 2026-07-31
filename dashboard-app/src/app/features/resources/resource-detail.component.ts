@@ -1,4 +1,4 @@
-import { Component, Inject, ChangeDetectionStrategy } from '@angular/core';
+import { Component, Inject, ChangeDetectionStrategy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatCardModule } from '@angular/material/card';
@@ -6,7 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatChipsModule } from '@angular/material/chips';
-import { HisHopeStatusBadgeComponent, HisHopeStatusTone, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
+import { HisHopeI18nService, HisHopeStatusBadgeComponent, HisHopeStatusTone, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { Resource, HealthCheckResult } from '../../core/models/resource.model';
 
 @Component({
@@ -307,7 +307,9 @@ export class ResourceDetailComponent {
     this.resource = data.resource;
   }
 
-  statusLabel(status: string): string { return ({ Running: 'Đang chạy', Healthy: 'Khỏe mạnh', Stopped: 'Đã dừng', Degraded: 'Suy giảm', Unhealthy: 'Mất sức khỏe', Unknown: 'Không xác định' } as Record<string, string>)[status] ?? status; }
+  private readonly i18n = inject(HisHopeI18nService);
+
+  statusLabel(status: string): string { return ({ Running: this.i18n.t('dashboard.resources.status.running', 'Đang chạy'), Healthy: this.i18n.t('dashboard.resources.status.healthy', 'Khỏe mạnh'), Stopped: this.i18n.t('dashboard.resources.status.stopped', 'Đã dừng'), Degraded: this.i18n.t('dashboard.resources.status.degraded', 'Suy giảm'), Unhealthy: this.i18n.t('dashboard.resources.status.unhealthy', 'Mất sức khỏe'), Unknown: this.i18n.t('dashboard.resources.status.unknown', 'Không xác định') } as Record<string, string>)[status] ?? status; }
   statusTone(status: string): HisHopeStatusTone { if (status === 'Running' || status === 'Healthy') return 'success'; if (status === 'Degraded') return 'warning'; if (status === 'Stopped') return 'neutral'; return 'danger'; }
 
   get endpoints(): string[] {

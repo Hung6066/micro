@@ -1,4 +1,4 @@
-import { Component, Inject, OnDestroy, OnInit, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Inject, OnDestroy, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,7 +16,7 @@ import { AuthService } from '@core/services/auth.service';
 import { Medication } from '@core/models/medication.model';
 import {
   HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
-  HisHopeFormSectionComponent, HisHopeTranslatePipe,
+  HisHopeFormSectionComponent, HisHopeTranslatePipe, HisHopeI18nService,
 } from '@his-hope/frontend-foundation';
 
 export interface PrescribeData {
@@ -47,6 +47,7 @@ export interface PrescribeData {
 })
 export class PrescribeDialogComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   form: FormGroup;
   saving = false;
@@ -130,12 +131,12 @@ export class PrescribeDialogComponent implements OnInit, OnDestroy {
         }).pipe(takeUntil(this.destroy$))
           .subscribe({
             next: () => {
-              this.snackBar.open('Đã kê đơn thuốc thành công', 'Đóng', { duration: 3000 });
+              this.snackBar.open(this.i18n.t('prescribe.saveSuccess', 'Đã kê đơn thuốc thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
               this.dialogRef.close(true);
             },
             error: () => {
               this.saving = false;
-              this.snackBar.open('Không thể kê đơn thuốc', 'Đóng', { duration: 5000 });
+              this.snackBar.open(this.i18n.t('prescribe.saveFailed', 'Không thể kê đơn thuốc'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
               this.cdr.markForCheck();
             },
           });

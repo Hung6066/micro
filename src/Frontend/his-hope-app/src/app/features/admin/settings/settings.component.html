@@ -1,10 +1,10 @@
     <hh-page-layout>
-      <hh-page-header hhPageHeader [title]="'Cài đặt hệ thống' | hhTranslate"
-                      [subtitle]="'Cấu hình các tham số và giá trị mặc định toàn hệ thống' | hhTranslate">
+      <hh-page-header hhPageHeader [title]="'adminPage.settings' | hhTranslate:'Cài đặt hệ thống'"
+                      [subtitle]="'adminPage.settingsSubtitle' | hhTranslate:'Cấu hình các tham số và giá trị mặc định toàn hệ thống'">
         <button mat-raised-button color="primary" (click)="saveAll()" [disabled]="saving">
           <mat-icon>save</mat-icon>
           @if (!saving) {
-          <span>Lưu tất cả</span>
+          <span>{{ 'adminPage.saveAll' | hhTranslate:'Lưu tất cả' }}</span>
           }
           @if (saving) {
           <mat-spinner diameter="20"></mat-spinner>
@@ -13,7 +13,7 @@
       </hh-page-header>
 
       @if (loading) {
-      <hh-state kind="loading" [message]="'Đang tải cài đặt...' | hhTranslate" />
+      <hh-state kind="loading" [message]="'adminPage.loadingSettings' | hhTranslate:'Đang tải cài đặt...'" />
       } @else if (error) {
       <hh-state kind="error" [message]="error">
         <button mat-stroked-button type="button" (click)="loadSettings()">{{ 'common.retry' | hhTranslate }}</button>
@@ -66,7 +66,7 @@
                   <div class="toggle-wrapper">
                     <mat-slide-toggle [checked]="settingValues[setting.key] === true"
                                       (change)="onSettingToggle(setting.key, $event)">
-                      {{ settingValues[setting.key] ? 'Đã bật' : 'Đã tắt' }}
+                      {{ settingValues[setting.key] ? ('adminPage.enabled' | hhTranslate:'Đã bật') : ('adminPage.disabled' | hhTranslate:'Đã tắt') }}
                     </mat-slide-toggle>
                   </div>
                   }
@@ -79,10 +79,10 @@
 
         @if (hasChanges) {
         <div class="save-bar">
-          <span class="changes-hint">Có thay đổi chưa được lưu</span>
+          <span class="changes-hint">{{ 'adminPage.unsavedChanges' | hhTranslate:'Có thay đổi chưa được lưu' }}</span>
           <button mat-raised-button color="primary" (click)="saveAll()" [disabled]="saving">
             <mat-icon>save</mat-icon>
-            Lưu tất cả
+            {{ 'adminPage.saveAll' | hhTranslate:'Lưu tất cả' }}
           </button>
         </div>
         }

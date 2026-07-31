@@ -73,7 +73,7 @@ export class AppComponent {
 
   }
 
-  toggleTheme(): void { this.themeService.setTheme(this.themeService.theme() === 'dark' ? 'light' : 'dark'); }
+  toggleTheme(): void { this.themeService.setTheme(this.themeService.resolvedTheme() === 'dark' ? 'light' : 'dark'); }
 
   toggleSidenav(): void {
     this.sidenavOpened$.next(!this.sidenavOpened$.value);

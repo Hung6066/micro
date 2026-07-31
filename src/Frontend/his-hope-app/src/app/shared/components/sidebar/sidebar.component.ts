@@ -15,7 +15,7 @@ import { AuthService } from '@core/services/auth.service';
 import { PatientService } from '@core/services/patient.service';
 import { User } from '@core/models/auth.model';
 import { Patient } from '@core/models/patient.model';
-import { HisHopeBrandComponent } from '@his-hope/frontend-foundation';
+import { HisHopeBrandComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-sidebar',
@@ -25,6 +25,7 @@ import { HisHopeBrandComponent } from '@his-hope/frontend-foundation';
         MatListModule, MatIconModule, MatBadgeModule, MatTooltipModule,
         MatButtonModule, MatFormFieldModule, MatInputModule, MatAutocompleteModule,
         HisHopeBrandComponent,
+        HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './sidebar.component.html',

@@ -5,12 +5,14 @@ import { catchError, map, retry } from 'rxjs/operators';
 import { environment } from '@env/environment';
 import { AdminUser, Role, PermissionGroup, Setting, AuditLog, AdminDashboardStats } from '@core/models/admin.model';
 import { PagedResult } from '@core/models/paged-result.model';
+import { HisHopeI18nService } from '@his-hope/frontend-foundation';
 
 @Injectable({ providedIn: 'root' })
 export class AdminService {
   private readonly baseUrl = `${environment.apiUrl}/admin`;
 
   private http = inject(HttpClient);
+  private i18n = inject(HisHopeI18nService);
 
   // ─── Users ──────────────────────────────────────────────────────────────────
 
@@ -221,11 +223,11 @@ export class AdminService {
   // ─── Error Handler ──────────────────────────────────────────────────────────
 
   private handleError(error: HttpErrorResponse): Observable<never> {
-    let errorMessage = 'Lỗi không xác định';
+    let errorMessage = this.i18n.t('adminPage.errorUnknown', 'Lỗi không xác định');
     if (error.error instanceof ErrorEvent) {
-      errorMessage = `Lỗi máy khách: ${error.error.message}`;
+      errorMessage = this.i18n.t('adminPage.errorClient', 'Lỗi máy khách: {{message}}', { message: error.error.message });
     } else {
-      errorMessage = `Lỗi máy chủ: ${error.status} - ${error.message}`;
+      errorMessage = this.i18n.t('adminPage.errorServer', 'Lỗi máy chủ: {{status}} - {{message}}', { status: error.status, message: error.message });
     }
     console.error('[AdminService]', errorMessage);
     return throwError(() => error);

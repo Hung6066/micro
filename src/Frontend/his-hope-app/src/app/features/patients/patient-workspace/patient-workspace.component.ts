@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -30,6 +30,7 @@ import { OrderLabDialogComponent, OrderLabData } from './dialogs/order-lab.dialo
 import { PrescribeDialogComponent, PrescribeData } from './dialogs/prescribe.dialog';
 import { ScheduleDialogComponent, ScheduleData } from './dialogs/schedule.dialog';
 import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/record-payment.dialog';
+import { HisHopeTranslatePipe, HisHopeI18nService } from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-patient-workspace',
@@ -44,6 +45,7 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
         MatChipsModule,
         MatProgressSpinnerModule,
         MatTooltipModule,
+        HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     templateUrl: './patient-workspace.component.html',
@@ -51,6 +53,7 @@ import { RecordPaymentDialogComponent, RecordPaymentData } from './dialogs/recor
 })
 export class PatientWorkspaceComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   patient?: Patient;
   error: string | null = null;
@@ -79,6 +82,21 @@ export class PatientWorkspaceComponent implements OnInit, OnDestroy {
 
   get activeConditions() {
     return this.patient?.conditions.filter(c => c.isActive) || [];
+  }
+
+  allergyTooltip(a: any): string {
+    const reaction = a.reaction || this.i18n.t('patient.unknown', 'Không rõ');
+    const severity = a.severity || 'N/A';
+    return this.i18n.t('patient.allergyReaction', 'Phản ứng: {{reaction}}', { reaction })
+      + ' | ' + this.i18n.t('patient.allergySeverity', 'Mức độ: {{severity}}', { severity });
+  }
+
+  conditionTooltip(c: any): string {
+    const chronicity = c.isChronic
+      ? this.i18n.t('patient.chronic', 'Mạn tính')
+      : this.i18n.t('patient.acute', 'Cấp tính');
+    const code = c.icd10Code || 'N/A';
+    return chronicity + ' | ' + this.i18n.t('patient.icd10', 'ICD-10: {{code}}', { code });
   }
 
   private patientId = '';
@@ -115,7 +133,7 @@ export class PatientWorkspaceComponent implements OnInit, OnDestroy {
           this.cdr.markForCheck();
         },
         error: () => {
-          this.error = 'Không thể tải thông tin bệnh nhân';
+          this.error = this.i18n.t('patients.loadFailed', 'Không thể tải thông tin bệnh nhân');
           this.cdr.markForCheck();
         },
       });
@@ -211,10 +229,10 @@ export class PatientWorkspaceComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã check-in lịch hẹn', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('patients.checkInSuccess', 'Đã check-in lịch hẹn'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadAppointments();
         },
-        error: () => this.snackBar.open('Không thể check-in', 'Đóng', { duration: 5000 }),
+        error: () => this.snackBar.open(this.i18n.t('patients.checkInFailed', 'Không thể check-in'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 }),
       });
   }
 
@@ -223,10 +241,10 @@ export class PatientWorkspaceComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã check-out lịch hẹn', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('patients.checkOutSuccess', 'Đã check-out lịch hẹn'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadAppointments();
         },
-        error: () => this.snackBar.open('Không thể check-out', 'Đóng', { duration: 5000 }),
+        error: () => this.snackBar.open(this.i18n.t('patients.checkOutFailed', 'Không thể check-out'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 }),
       });
   }
 
@@ -235,10 +253,10 @@ export class PatientWorkspaceComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã hủy lịch hẹn', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('patients.cancelAppointmentSuccess', 'Đã hủy lịch hẹn'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadAppointments();
         },
-        error: () => this.snackBar.open('Không thể hủy lịch hẹn', 'Đóng', { duration: 5000 }),
+        error: () => this.snackBar.open(this.i18n.t('patients.cancelAppointmentFailed', 'Không thể hủy lịch hẹn'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 }),
       });
   }
 

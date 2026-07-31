@@ -1,15 +1,15 @@
 <hh-page-layout>
-  <hh-page-header hhPageHeader [title]="'Agent Harness Dashboard' | hhTranslate"
-                  [subtitle]="'Giám sát và quản lý các pipeline Agent Harness' | hhTranslate">
+  <hh-page-header hhPageHeader [title]="'adminPage.harness.title' | hhTranslate:'Agent Harness Dashboard'"
+                  [subtitle]="'adminPage.harness.subtitle' | hhTranslate:'Giám sát và quản lý các pipeline Agent Harness'">
     <button mat-stroked-button (click)="refresh()" [disabled]="loading">
       <mat-icon>refresh</mat-icon>
-      Làm mới
+      {{ 'adminPage.harness.refresh' | hhTranslate:'Làm mới' }}
     </button>
   </hh-page-header>
 
-  <hh-data-table label="Pipeline gần đây" [columns]="columns" [rows]="pipelineRows"
+  <hh-data-table [label]="'adminPage.harness.recentPipelines' | hhTranslate:'Pipeline gần đây'" [columns]="columns" [rows]="pipelineRows"
                  [loading]="loading" [error]="error ?? ''"
-                 [empty]="pipelineRows.length === 0 && !loading" emptyMessage="Chưa có pipeline nào"
+                 [empty]="pipelineRows.length === 0 && !loading" [emptyMessage]="'adminPage.harness.noPipelines' | hhTranslate:'Chưa có pipeline nào'"
                  [pageSize]="20" [searchable]="false" [expandedRowKeys]="expandedRowKeys"
                  (rowExpandChange)="onRowExpand($event)" (retry)="refresh()">
     <ng-template hhDataTableCell="workflowId" let-row>
@@ -28,7 +28,7 @@
     <ng-template hhDataTableDetail let-row>
       <div class="detail-row-inner">
         <div class="detail-header">
-          <span class="detail-title">Agent Tasks — {{ row['workflowId'] }}</span>
+          <span class="detail-title">{{ 'adminPage.harness.agentTasks' | hhTranslate:'Agent Tasks — {{id}}':{id: row['workflowId']} }}</span>
           <span class="detail-id">ID: {{ row['id'] }}</span>
         </div>
 
@@ -36,11 +36,11 @@
         <table class="agent-table">
           <thead>
             <tr>
-              <th>Agent</th>
-              <th>Task</th>
-              <th>Status</th>
-              <th>Confidence</th>
-              <th>Thời gian</th>
+              <th>{{ 'adminPage.harness.columnAgent' | hhTranslate:'Agent' }}</th>
+              <th>{{ 'adminPage.harness.columnTask' | hhTranslate:'Task' }}</th>
+              <th>{{ 'adminPage.harness.columnStatus' | hhTranslate:'Status' }}</th>
+              <th>{{ 'adminPage.harness.columnConfidence' | hhTranslate:'Confidence' }}</th>
+              <th>{{ 'adminPage.harness.columnDuration' | hhTranslate:'Thời gian' }}</th>
             </tr>
           </thead>
           <tbody>
@@ -88,7 +88,7 @@
         } @else {
         <div class="no-agents">
           <mat-icon>info_outline</mat-icon>
-          <span>Đang tải thông tin agent tasks...</span>
+          <span>{{ 'adminPage.harness.loadingTasks' | hhTranslate:'Đang tải thông tin agent tasks...' }}</span>
         </div>
         }
       </div>

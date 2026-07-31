@@ -1,8 +1,8 @@
     <hh-page-layout>
-      <hh-page-header hhPageHeader [title]="'Quản lý người dùng' | hhTranslate"
-                      [subtitle]="'Quản lý tài khoản bác sĩ, điều dưỡng và nhân viên' | hhTranslate">
+      <hh-page-header hhPageHeader [title]="'adminPage.manageUsers' | hhTranslate:'Quản lý người dùng'"
+                      [subtitle]="'adminPage.manageUsersSubtitle' | hhTranslate:'Quản lý tài khoản bác sĩ, điều dưỡng và nhân viên'">
         <mat-form-field appearance="outline" subscriptSizing="dynamic" class="role-filter">
-          <mat-select [formControl]="roleFilter" (selectionChange)="onFilterChange()" [attr.aria-label]="'Bộ lọc vai trò'">
+          <mat-select [formControl]="roleFilter" (selectionChange)="onFilterChange()" [attr.aria-label]="'adminPage.roleFilter' | hhTranslate:'Bộ lọc vai trò'">
             @for (f of roleFilters; track f.value) {
             <mat-option [value]="f.value">{{ f.label }}</mat-option>
             }
@@ -10,15 +10,15 @@
         </mat-form-field>
         <button mat-raised-button color="primary" (click)="openAddUserDialog()">
           <mat-icon>person_add</mat-icon>
-          Thêm người dùng
+          {{ 'adminPage.addUser' | hhTranslate:'Thêm người dùng' }}
         </button>
       </hh-page-header>
 
-      <hh-data-table label="Danh sách người dùng" [columns]="columns" [rows]="rows" mode="server"
+      <hh-data-table [label]="'adminPage.userList' | hhTranslate:'Danh sách người dùng'" [columns]="columns" [rows]="rows" mode="server"
                      [loading]="loading" [error]="error ?? ''"
-                     [empty]="rows.length === 0 && !loading" emptyMessage="Không tìm thấy người dùng"
+                     [empty]="rows.length === 0 && !loading" [emptyMessage]="'adminPage.noUsersFound' | hhTranslate:'Không tìm thấy người dùng'"
                      [pageSize]="20" [totalItems]="totalCount" [query]="query"
-                     [searchable]="true" searchPlaceholder="Tìm kiếm theo tên, email, ID..."
+                     [searchable]="true" [searchPlaceholder]="'adminPage.searchUsers' | hhTranslate:'Tìm kiếm theo tên, email, ID...'"
                      (queryChange)="onQueryChange($event)" (retry)="loadUsers()">
         <ng-template hhDataTableCell="fullName" let-row>
           <div class="user-name-cell">
@@ -35,20 +35,20 @@
         </ng-template>
         <ng-template hhDataTableCell="status" let-row>
           <span class="status-badge" [ngClass]="row['isActive'] ? 'active' : 'inactive'">
-            {{ row['isActive'] ? 'Hoạt động' : 'Ngưng hoạt động' }}
+            {{ row['isActive'] ? ('adminPage.active' | hhTranslate:'Hoạt động') : ('adminPage.inactive' | hhTranslate:'Ngưng hoạt động') }}
           </span>
         </ng-template>
         <ng-template hhDataTableCell="actions" let-row>
           <button mat-icon-button color="primary" (click)="openEditUserDialog(userFromRow(row))"
-                  matTooltip="Chỉnh sửa người dùng">
+                  [matTooltip]="'adminPage.editUser' | hhTranslate:'Chỉnh sửa người dùng'">
             <mat-icon>edit</mat-icon>
           </button>
           <button mat-icon-button (click)="openAssignRolesDialog(userFromRow(row))"
-                  matTooltip="Phân vai trò">
+                  [matTooltip]="'adminPage.assignRoles' | hhTranslate:'Phân vai trò'">
             <mat-icon>admin_panel_settings</mat-icon>
           </button>
           <button mat-icon-button (click)="toggleUserStatus(userFromRow(row))"
-                  [matTooltip]="row['isActive'] ? 'Vô hiệu hóa' : 'Kích hoạt'">
+                  [matTooltip]="row['isActive'] ? ('adminPage.deactivate' | hhTranslate:'Vô hiệu hóa') : ('adminPage.activate' | hhTranslate:'Kích hoạt')">
             <mat-icon [color]="row['isActive'] ? 'warn' : 'primary'">
               {{ row['isActive'] ? 'block' : 'check_circle' }}
             </mat-icon>
@@ -57,7 +57,7 @@
       </hh-data-table>
 
       <hh-confirm-dialog [open]="showConfirmDialog" [title]="confirmDialogTitle" [message]="confirmDialogMessage"
-        [confirmLabel]="confirmDialogConfirmLabel" [cancelLabel]="'Hủy'"
+        [confirmLabel]="confirmDialogConfirmLabel"         [cancelLabel]="'common.cancel' | hhTranslate:'Hủy'"
         (confirmed)="onConfirmDialogConfirmed()" (cancelled)="onConfirmDialogCancelled()">
       </hh-confirm-dialog>
     </hh-page-layout>

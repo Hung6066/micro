@@ -1,4 +1,4 @@
-import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,7 +14,7 @@ import { LabService } from '@core/services/lab.service';
 import { AuthService } from '@core/services/auth.service';
 import {
   HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
-  HisHopeFormSectionComponent, HisHopeTranslatePipe,
+  HisHopeFormSectionComponent, HisHopeTranslatePipe, HisHopeI18nService,
 } from '@his-hope/frontend-foundation';
 
 export interface OrderLabData {
@@ -57,6 +57,7 @@ const AVAILABLE_TESTS = [
 })
 export class OrderLabDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   form: FormGroup;
   saving = false;
@@ -107,12 +108,12 @@ export class OrderLabDialogComponent implements OnDestroy {
         }).pipe(takeUntil(this.destroy$))
           .subscribe({
             next: () => {
-              this.snackBar.open('Đã gửi chỉ định xét nghiệm', 'Đóng', { duration: 3000 });
+              this.snackBar.open(this.i18n.t('orderLab.saveSuccess', 'Đã gửi chỉ định xét nghiệm'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
               this.dialogRef.close(true);
             },
             error: () => {
               this.saving = false;
-              this.snackBar.open('Không thể gửi chỉ định', 'Đóng', { duration: 5000 });
+              this.snackBar.open(this.i18n.t('orderLab.saveFailed', 'Không thể gửi chỉ định'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
               this.cdr.markForCheck();
             },
           });

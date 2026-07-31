@@ -158,11 +158,11 @@ export class PrescriptionDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã cấp phát thuốc thành công', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('prescriptions.fillSuccess', 'Đã cấp phát thuốc thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadPrescription();
         },
         error: () => {
-          this.snackBar.open('Không thể cấp phát thuốc', 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('prescriptions.fillFailed', 'Không thể cấp phát thuốc'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });
@@ -174,11 +174,11 @@ export class PrescriptionDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã hủy đơn thuốc', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('prescriptions.cancelSuccess', 'Đã hủy đơn thuốc'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadPrescription();
         },
         error: () => {
-          this.snackBar.open('Không thể hủy đơn thuốc', 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('prescriptions.cancelFailed', 'Không thể hủy đơn thuốc'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });

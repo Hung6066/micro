@@ -78,15 +78,15 @@ import {
               <mat-form-field appearance="outline">
                 <mat-label>{{ 'prescriptionForm.route' | hhTranslate:'Đường dùng' }}</mat-label>
                 <mat-select formControlName="route" required [attr.aria-label]="'prescriptionForm.routeAria' | hhTranslate:'Chọn đường dùng'">
-                  <mat-option value="Uống">{{ 'prescriptionForm.route.oral' | hhTranslate:'Uống' }}</mat-option>
-                  <mat-option value="Tiêm tĩnh mạch">{{ 'prescriptionForm.route.iv' | hhTranslate:'Tiêm tĩnh mạch' }}</mat-option>
-                  <mat-option value="Tiêm bắp">{{ 'prescriptionForm.route.im' | hhTranslate:'Tiêm bắp' }}</mat-option>
-                  <mat-option value="Tiêm dưới da">{{ 'prescriptionForm.route.sc' | hhTranslate:'Tiêm dưới da' }}</mat-option>
-                  <mat-option value="Bôi ngoài da">{{ 'prescriptionForm.route.topical' | hhTranslate:'Bôi ngoài da' }}</mat-option>
-                  <mat-option value="Nhỏ mắt">{{ 'prescriptionForm.route.eye' | hhTranslate:'Nhỏ mắt' }}</mat-option>
-                  <mat-option value="Xịt mũi">{{ 'prescriptionForm.route.nasal' | hhTranslate:'Xịt mũi' }}</mat-option>
-                  <mat-option value="Đặt trực tràng">{{ 'prescriptionForm.route.rectal' | hhTranslate:'Đặt trực tràng' }}</mat-option>
-                  <mat-option value="Hít">{{ 'prescriptionForm.route.inhaled' | hhTranslate:'Hít' }}</mat-option>
+                  <mat-option value="oral">{{ 'prescriptionForm.route.oral' | hhTranslate:'Uống' }}</mat-option>
+                  <mat-option value="iv">{{ 'prescriptionForm.route.iv' | hhTranslate:'Tiêm tĩnh mạch' }}</mat-option>
+                  <mat-option value="im">{{ 'prescriptionForm.route.im' | hhTranslate:'Tiêm bắp' }}</mat-option>
+                  <mat-option value="sc">{{ 'prescriptionForm.route.sc' | hhTranslate:'Tiêm dưới da' }}</mat-option>
+                  <mat-option value="topical">{{ 'prescriptionForm.route.topical' | hhTranslate:'Bôi ngoài da' }}</mat-option>
+                  <mat-option value="eye">{{ 'prescriptionForm.route.eye' | hhTranslate:'Nhỏ mắt' }}</mat-option>
+                  <mat-option value="nasal">{{ 'prescriptionForm.route.nasal' | hhTranslate:'Xịt mũi' }}</mat-option>
+                  <mat-option value="rectal">{{ 'prescriptionForm.route.rectal' | hhTranslate:'Đặt trực tràng' }}</mat-option>
+                  <mat-option value="inhaled">{{ 'prescriptionForm.route.inhaled' | hhTranslate:'Hít' }}</mat-option>
                 </mat-select>
               </mat-form-field>
 
@@ -154,7 +154,7 @@ export class PrescriptionFormComponent implements OnInit, OnDestroy {
     patientId: ['', Validators.required],
     providerId: ['', Validators.required],
     medicationId: ['', Validators.required],
-    route: ['Uống', Validators.required],
+    route: ['oral', Validators.required],
     dosageInstructions: ['', Validators.required],
     quantity: [1, [Validators.required, Validators.min(1)]],
     refills: [0, [Validators.min(0)]],

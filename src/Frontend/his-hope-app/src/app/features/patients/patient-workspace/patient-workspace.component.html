@@ -6,8 +6,8 @@
     <div class="patient-details">
       <h1>{{ patient.fullName }}</h1>
       <div class="patient-meta">
-        <span class="meta-item"><mat-icon>badge</mat-icon> Mã BN: {{ patient.id }}</span>
-        <span class="meta-item"><mat-icon>cake</mat-icon> {{ patient.age }} tuổi ({{ patient.dateOfBirth | date:'dd/MM/yyyy' }})</span>
+        <span class="meta-item"><mat-icon>badge</mat-icon> {{ 'patient.idLabel' | hhTranslate:'Mã BN: {{id}}':{id: patient.id} }}</span>
+        <span class="meta-item"><mat-icon>cake</mat-icon> {{ 'dashboard.age' | hhTranslate:'{{age}} tuổi':{age: patient.age} }} ({{ patient.dateOfBirth | date:'dd/MM/yyyy' }})</span>
         <span class="meta-item"><mat-icon>wc</mat-icon> {{ patient.genderName }}</span>
         @if (patient.bloodTypeName) {
         <span class="meta-item">
@@ -23,7 +23,7 @@
     <mat-chip-set>
       @for (a of patient.allergies; track a) {
       <mat-chip class="allergy-chip"
-                [matTooltip]="'Phản ứng: ' + (a.reaction || 'Không rõ') + ' | Mức độ: ' + (a.severity || 'N/A')">
+                [matTooltip]="allergyTooltip(a)">
         <mat-icon matChipAvatar>warning</mat-icon>
         {{ a.allergen }}
       </mat-chip>
@@ -37,7 +37,7 @@
     <mat-chip-set>
       @for (c of activeConditions; track c) {
       <mat-chip class="condition-chip"
-                [matTooltip]="(c.isChronic ? 'Mạn tính' : 'Cấp tính') + ' | ICD-10: ' + (c.icd10Code || 'N/A')">
+                [matTooltip]="conditionTooltip(c)">
         <mat-icon matChipAvatar>info</mat-icon>
         {{ c.conditionName }}
       </mat-chip>
@@ -48,16 +48,16 @@
 
   <div class="quick-actions">
     <button mat-raised-button color="primary" (click)="startNewEncounter()">
-      <mat-icon>add_circle</mat-icon> Khám mới
+      <mat-icon>add_circle</mat-icon> {{ 'patient.newEncounter' | hhTranslate:'Khám mới' }}
     </button>
     <button mat-raised-button color="accent" (click)="orderLab()">
-      <mat-icon>science</mat-icon> Xét nghiệm
+      <mat-icon>science</mat-icon> {{ 'patient.labTest' | hhTranslate:'Xét nghiệm' }}
     </button>
     <button mat-raised-button color="primary" (click)="prescribe()">
-      <mat-icon>medication</mat-icon> Kê đơn
+      <mat-icon>medication</mat-icon> {{ 'patient.prescribe' | hhTranslate:'Kê đơn' }}
     </button>
     <button mat-stroked-button (click)="scheduleAppointment()">
-      <mat-icon>calendar_today</mat-icon> Lịch hẹn
+      <mat-icon>calendar_today</mat-icon> {{ 'patient.appointment' | hhTranslate:'Lịch hẹn' }}
     </button>
   </div>
 </div>
@@ -66,7 +66,7 @@
 @if (!patient && !error) {
 <div class="loading-header">
   <mat-spinner diameter="32"></mat-spinner>
-  <span>Đang tải thông tin bệnh nhân...</span>
+  <span>{{ 'patient.loading' | hhTranslate:'Đang tải thông tin bệnh nhân...' }}</span>
 </div>
 }
 
@@ -74,7 +74,7 @@
 <div class="error-box">
   <mat-icon>error_outline</mat-icon>
   <span>{{ error }}</span>
-  <button mat-stroked-button (click)="loadPatient()">Thử lại</button>
+  <button mat-stroked-button (click)="loadPatient()">{{ 'common.retry' | hhTranslate:'Thử lại' }}</button>
 </div>
 }
 
@@ -83,12 +83,12 @@
 <div class="workspace-tabs">
   <mat-tab-group dynamicHeight>
     <!-- Tab 1: Encounters -->
-    <mat-tab label="Lịch sử khám ({{ encounters.length }})">
+    <mat-tab [label]="'patient.tab.encounters' | hhTranslate:'Lịch sử khám ({{count}})':{count: encounters.length}">
       <div class="tab-body">
         <div class="tab-toolbar">
-          <h3>Lịch sử khám bệnh</h3>
+          <h3>{{ 'patient.tab.encounterHistory' | hhTranslate:'Lịch sử khám bệnh' }}</h3>
           <button mat-stroked-button color="primary" (click)="startNewEncounter()">
-            <mat-icon>add</mat-icon> Bắt đầu khám
+            <mat-icon>add</mat-icon> {{ 'patient.tab.startEncounter' | hhTranslate:'Bắt đầu khám' }}
           </button>
         </div>
         @if (loadingEncounters) {
@@ -97,25 +97,25 @@
         @if (!loadingEncounters && encounters.length === 0) {
         <div class="tab-empty">
           <mat-icon>inbox</mat-icon>
-          <p>Bệnh nhân chưa có lượt khám nào</p>
+          <p>{{ 'patient.tab.noEncounters' | hhTranslate:'Bệnh nhân chưa có lượt khám nào' }}</p>
         </div>
         }
         @if (!loadingEncounters && encounters.length > 0) {
         <table mat-table [dataSource]="encounters" class="workspace-table">
           <ng-container matColumnDef="encounterDate">
-            <th mat-header-cell *matHeaderCellDef>Ngày khám</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'patient.tab.encounterDate' | hhTranslate:'Ngày khám' }}</th>
             <td mat-cell *matCellDef="let e">{{ e.encounterDate | date:'dd/MM/yyyy HH:mm' }}</td>
           </ng-container>
           <ng-container matColumnDef="encounterType">
-            <th mat-header-cell *matHeaderCellDef>Loại</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.column.type' | hhTranslate:'Loại' }}</th>
             <td mat-cell *matCellDef="let e">{{ e.encounterTypeName || e.encounterType }}</td>
           </ng-container>
           <ng-container matColumnDef="chiefComplaint">
-            <th mat-header-cell *matHeaderCellDef>Lý do khám</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'patient.tab.reason' | hhTranslate:'Lý do khám' }}</th>
             <td mat-cell *matCellDef="let e">{{ e.chiefComplaint || '-' }}</td>
           </ng-container>
           <ng-container matColumnDef="status">
-            <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.column.status' | hhTranslate:'Trạng thái' }}</th>
             <td mat-cell *matCellDef="let e">
               <span class="status-badge" [class]="'status-' + e.status.toLowerCase()">{{ e.statusName || e.status }}</span>
             </td>
@@ -123,7 +123,7 @@
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef></th>
             <td mat-cell *matCellDef="let e">
-              <button mat-icon-button [routerLink]="['/clinical', e.id]" matTooltip="Xem chi tiết">
+              <button mat-icon-button [routerLink]="['/clinical', e.id]" [matTooltip]="'patient.tab.viewDetail' | hhTranslate:'Xem chi tiết'">
                 <mat-icon>visibility</mat-icon>
               </button>
             </td>
@@ -137,32 +137,32 @@
               <div class="soap-content">
                 @if (row.hpi) {
                 <div class="soap-section">
-                  <h4>Bệnh sử (HPI)</h4>
-                  @if (row.hpi.onset) {<p><strong>Khởi phát:</strong> {{ row.hpi.onset }}</p>}
-                  @if (row.hpi.characteristics) {<p><strong>Tính chất:</strong> {{ row.hpi.characteristics }}</p>}
-                  @if (row.hpi.duration) {<p><strong>Thời gian:</strong> {{ row.hpi.duration }}</p>}
+                  <h4>{{ 'patient.tab.hpi' | hhTranslate:'Bệnh sử (HPI)' }}</h4>
+                  @if (row.hpi.onset) {<p><strong>{{ 'patient.tab.onset' | hhTranslate:'Khởi phát:' }}</strong> {{ row.hpi.onset }}</p>}
+                  @if (row.hpi.characteristics) {<p><strong>{{ 'patient.tab.characteristics' | hhTranslate:'Tính chất:' }}</strong> {{ row.hpi.characteristics }}</p>}
+                  @if (row.hpi.duration) {<p><strong>{{ 'patient.tab.duration' | hhTranslate:'Thời gian:' }}</strong> {{ row.hpi.duration }}</p>}
                 </div>
                 }
                 @if (row.vitalSigns) {
                 <div class="soap-section">
-                  <h4>Dấu hiệu sinh tồn</h4>
+                  <h4>{{ 'patient.tab.vitalSigns' | hhTranslate:'Dấu hiệu sinh tồn' }}</h4>
                   <div class="vitals-row">
-                    @if (row.vitalSigns.temperature) {<span>Nhiệt độ: {{ row.vitalSigns.temperature }}°C</span>}
-                    @if (row.vitalSigns.heartRate) {<span>Mạch: {{ row.vitalSigns.heartRate }} l/ph</span>}
-                    @if (row.vitalSigns.systolicBP) {<span>Huyết áp: {{ row.vitalSigns.systolicBP }}/{{ row.vitalSigns.diastolicBP }}</span>}
-                    @if (row.vitalSigns.oxygenSaturation) {<span>SpO2: {{ row.vitalSigns.oxygenSaturation }}%</span>}
+                    @if (row.vitalSigns.temperature) {<span>{{ 'patient.tab.temperature' | hhTranslate:'Nhiệt độ: {{value}}°C':{value: row.vitalSigns.temperature} }}</span>}
+                    @if (row.vitalSigns.heartRate) {<span>{{ 'patient.tab.heartRate' | hhTranslate:'Mạch: {{rate}} l/ph':{rate: row.vitalSigns.heartRate} }}</span>}
+                    @if (row.vitalSigns.systolicBP) {<span>{{ 'patient.tab.bloodPressure' | hhTranslate:'Huyết áp: {{systolic}}/{{diastolic}}':{systolic: row.vitalSigns.systolicBP, diastolic: row.vitalSigns.diastolicBP} }}</span>}
+                    @if (row.vitalSigns.oxygenSaturation) {<span>{{ 'patient.tab.spo2' | hhTranslate:'SpO2: {{value}}%':{value: row.vitalSigns.oxygenSaturation} }}</span>}
                   </div>
                 </div>
                 }
                 @if (row.assessment) {
                 <div class="soap-section">
-                  <h4>Đánh giá</h4>
+                  <h4>{{ 'patient.tab.assessment' | hhTranslate:'Đánh giá' }}</h4>
                   <p>{{ row.assessment }}</p>
                 </div>
                 }
                 @if (row.plan) {
                 <div class="soap-section">
-                  <h4>Kế hoạch</h4>
+                  <h4>{{ 'patient.tab.plan' | hhTranslate:'Kế hoạch' }}</h4>
                   <pre>{{ row.plan }}</pre>
                 </div>
                 }
@@ -175,12 +175,12 @@
     </mat-tab>
 
     <!-- Tab 2: Appointments -->
-    <mat-tab label="Lịch hẹn ({{ appointments.length }})">
+    <mat-tab [label]="'patient.tab.appointments' | hhTranslate:'Lịch hẹn ({{count}})':{count: appointments.length}">
       <div class="tab-body">
         <div class="tab-toolbar">
-          <h3>Lịch hẹn</h3>
+          <h3>{{ 'patient.tab.appointmentsTitle' | hhTranslate:'Lịch hẹn' }}</h3>
           <button mat-stroked-button color="primary" (click)="scheduleAppointment()">
-            <mat-icon>add</mat-icon> Đặt lịch
+            <mat-icon>add</mat-icon> {{ 'patient.tab.schedule' | hhTranslate:'Đặt lịch' }}
           </button>
         </div>
         @if (loadingAppointments) {
@@ -189,25 +189,25 @@
         @if (!loadingAppointments && appointments.length === 0) {
         <div class="tab-empty">
           <mat-icon>event_busy</mat-icon>
-          <p>Bệnh nhân chưa có lịch hẹn</p>
+          <p>{{ 'patient.tab.noAppointments' | hhTranslate:'Bệnh nhân chưa có lịch hẹn' }}</p>
         </div>
         }
         @if (!loadingAppointments && appointments.length > 0) {
         <table mat-table [dataSource]="appointments" class="workspace-table">
           <ng-container matColumnDef="scheduledDate">
-            <th mat-header-cell *matHeaderCellDef>Ngày</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'patient.tab.date' | hhTranslate:'Ngày' }}</th>
             <td mat-cell *matCellDef="let a">{{ a.scheduledDate | date:'dd/MM/yyyy' }}</td>
           </ng-container>
           <ng-container matColumnDef="startTime">
-            <th mat-header-cell *matHeaderCellDef>Giờ</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'patient.tab.time' | hhTranslate:'Giờ' }}</th>
             <td mat-cell *matCellDef="let a">{{ a.startTime }} - {{ a.endTime }}</td>
           </ng-container>
           <ng-container matColumnDef="type">
-            <th mat-header-cell *matHeaderCellDef>Loại</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.column.type' | hhTranslate:'Loại' }}</th>
             <td mat-cell *matCellDef="let a">{{ a.typeName || a.type }}</td>
           </ng-container>
           <ng-container matColumnDef="status">
-            <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.column.status' | hhTranslate:'Trạng thái' }}</th>
             <td mat-cell *matCellDef="let a">
               <span class="status-badge" [class]="'apt-status-' + a.status.toLowerCase()">{{ a.statusName || a.status }}</span>
             </td>
@@ -216,17 +216,17 @@
             <th mat-header-cell *matHeaderCellDef></th>
             <td mat-cell *matCellDef="let a">
               @if (a.status === 'scheduled') {
-              <button mat-icon-button (click)="checkInAppointment(a.id)" matTooltip="Check-in">
+              <button mat-icon-button (click)="checkInAppointment(a.id)" [matTooltip]="'patient.tab.checkIn' | hhTranslate:'Check-in'">
                 <mat-icon>login</mat-icon>
               </button>
               }
               @if (a.status === 'checked_in') {
-              <button mat-icon-button (click)="checkOutAppointment(a.id)" matTooltip="Check-out">
+              <button mat-icon-button (click)="checkOutAppointment(a.id)" [matTooltip]="'patient.tab.checkOut' | hhTranslate:'Check-out'">
                 <mat-icon>logout</mat-icon>
               </button>
               }
               @if (a.status === 'scheduled' || a.status === 'checked_in') {
-              <button mat-icon-button (click)="cancelAppointment(a.id)" matTooltip="Hủy">
+              <button mat-icon-button (click)="cancelAppointment(a.id)" [matTooltip]="'patient.tab.cancel' | hhTranslate:'Hủy'">
                 <mat-icon>cancel</mat-icon>
               </button>
               }
@@ -240,12 +240,12 @@
     </mat-tab>
 
     <!-- Tab 3: Lab Orders -->
-    <mat-tab label="Xét nghiệm ({{ labOrders.length }})">
+    <mat-tab [label]="'patient.tab.labs' | hhTranslate:'Xét nghiệm ({{count}})':{count: labOrders.length}">
       <div class="tab-body">
         <div class="tab-toolbar">
-          <h3>Xét nghiệm</h3>
+          <h3>{{ 'patient.tab.labsTitle' | hhTranslate:'Xét nghiệm' }}</h3>
           <button mat-stroked-button color="primary" (click)="orderLab()">
-            <mat-icon>add</mat-icon> Chỉ định mới
+            <mat-icon>add</mat-icon> {{ 'patient.tab.newLab' | hhTranslate:'Chỉ định mới' }}
           </button>
         </div>
         @if (loadingLabs) {
@@ -254,17 +254,17 @@
         @if (!loadingLabs && labOrders.length === 0) {
         <div class="tab-empty">
           <mat-icon>science</mat-icon>
-          <p>Bệnh nhân chưa có xét nghiệm nào</p>
+          <p>{{ 'patient.tab.noLabs' | hhTranslate:'Bệnh nhân chưa có xét nghiệm nào' }}</p>
         </div>
         }
         @if (!loadingLabs && labOrders.length > 0) {
         <table mat-table [dataSource]="labOrders" class="workspace-table">
           <ng-container matColumnDef="orderDate">
-            <th mat-header-cell *matHeaderCellDef>Ngày chỉ định</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'patient.tab.orderDate' | hhTranslate:'Ngày chỉ định' }}</th>
             <td mat-cell *matCellDef="let l">{{ l.orderDate | date:'dd/MM/yyyy' }}</td>
           </ng-container>
           <ng-container matColumnDef="testName">
-            <th mat-header-cell *matHeaderCellDef>Xét nghiệm</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'patient.tab.testName' | hhTranslate:'Xét nghiệm' }}</th>
             <td mat-cell *matCellDef="let l">
               @for (t of l.tests; track t) {
               <div>{{ t.testName }}</div>
@@ -272,21 +272,21 @@
             </td>
           </ng-container>
           <ng-container matColumnDef="status">
-            <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.column.status' | hhTranslate:'Trạng thái' }}</th>
             <td mat-cell *matCellDef="let l">
               <span class="status-badge" [class]="'lab-status-' + l.statusCode.toLowerCase()">{{ l.statusName || l.statusCode }}</span>
             </td>
           </ng-container>
           <ng-container matColumnDef="result">
-            <th mat-header-cell *matHeaderCellDef>Kết quả</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'patient.tab.result' | hhTranslate:'Kết quả' }}</th>
             <td mat-cell *matCellDef="let l">
               @if (hasAbnormalFlag(l)) {
               <span class="abnormal-flag">
-                <mat-icon>error</mat-icon> Bất thường
+                <mat-icon>error</mat-icon> {{ 'patient.tab.abnormal' | hhTranslate:'Bất thường' }}
               </span>
               }
               @if (!hasAbnormalFlag(l) && isCompleted(l)) {
-              <span>Bình thường</span>
+              <span>{{ 'patient.tab.normal' | hhTranslate:'Bình thường' }}</span>
               }
               @if (!isCompleted(l)) {
               <span>-</span>
@@ -301,12 +301,12 @@
     </mat-tab>
 
     <!-- Tab 4: Prescriptions -->
-    <mat-tab label="Đơn thuốc ({{ prescriptions.length }})">
+    <mat-tab [label]="'patient.tab.prescriptions' | hhTranslate:'Đơn thuốc ({{count}})':{count: prescriptions.length}">
       <div class="tab-body">
         <div class="tab-toolbar">
-          <h3>Đơn thuốc</h3>
+          <h3>{{ 'patient.tab.prescriptionsTitle' | hhTranslate:'Đơn thuốc' }}</h3>
           <button mat-stroked-button color="primary" (click)="prescribe()">
-            <mat-icon>add</mat-icon> Kê đơn
+            <mat-icon>add</mat-icon> {{ 'patient.tab.newPrescription' | hhTranslate:'Kê đơn' }}
           </button>
         </div>
         @if (loadingPrescriptions) {
@@ -315,29 +315,29 @@
         @if (!loadingPrescriptions && prescriptions.length === 0) {
         <div class="tab-empty">
           <mat-icon>medication</mat-icon>
-          <p>Bệnh nhân chưa có đơn thuốc nào</p>
+          <p>{{ 'patient.tab.noPrescriptions' | hhTranslate:'Bệnh nhân chưa có đơn thuốc nào' }}</p>
         </div>
         }
         @if (!loadingPrescriptions && prescriptions.length > 0) {
         <table mat-table [dataSource]="prescriptions" class="workspace-table">
           <ng-container matColumnDef="prescribedAt">
-            <th mat-header-cell *matHeaderCellDef>Ngày kê</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'patient.tab.prescribedAt' | hhTranslate:'Ngày kê' }}</th>
             <td mat-cell *matCellDef="let p">{{ p.prescribedAt | date:'dd/MM/yyyy' }}</td>
           </ng-container>
           <ng-container matColumnDef="medicationName">
-            <th mat-header-cell *matHeaderCellDef>Thuốc</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'patient.tab.medication' | hhTranslate:'Thuốc' }}</th>
             <td mat-cell *matCellDef="let p">{{ p.medicationName }} ({{ p.strength }})</td>
           </ng-container>
           <ng-container matColumnDef="dosageInstructions">
-            <th mat-header-cell *matHeaderCellDef>Liều dùng</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'patient.tab.dosage' | hhTranslate:'Liều dùng' }}</th>
             <td mat-cell *matCellDef="let p">{{ p.dosageInstructions }}</td>
           </ng-container>
           <ng-container matColumnDef="quantity">
-            <th mat-header-cell *matHeaderCellDef>SL</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'patient.tab.quantity' | hhTranslate:'SL' }}</th>
             <td mat-cell *matCellDef="let p">{{ p.quantity }}</td>
           </ng-container>
           <ng-container matColumnDef="status">
-            <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.column.status' | hhTranslate:'Trạng thái' }}</th>
             <td mat-cell *matCellDef="let p">
               <span class="status-badge" [class]="'rx-status-' + p.statusCode.toLowerCase()">{{ p.statusName || p.statusCode }}</span>
             </td>
@@ -350,12 +350,12 @@
     </mat-tab>
 
     <!-- Tab 5: Billing -->
-    <mat-tab label="Thanh toán ({{ invoices.length }})">
+    <mat-tab [label]="'patient.tab.billing' | hhTranslate:'Thanh toán ({{count}})':{count: invoices.length}">
       <div class="tab-body">
         <div class="tab-toolbar">
-          <h3>Thanh toán</h3>
+          <h3>{{ 'patient.tab.billingTitle' | hhTranslate:'Thanh toán' }}</h3>
           <button mat-stroked-button color="primary" (click)="recordPayment()">
-            <mat-icon>payments</mat-icon> Ghi nhận thanh toán
+            <mat-icon>payments</mat-icon> {{ 'patient.tab.recordPayment' | hhTranslate:'Ghi nhận thanh toán' }}
           </button>
         </div>
         @if (loadingInvoices) {
@@ -364,31 +364,31 @@
         @if (!loadingInvoices && invoices.length === 0) {
         <div class="tab-empty">
           <mat-icon>receipt</mat-icon>
-          <p>Bệnh nhân chưa có hóa đơn</p>
+          <p>{{ 'patient.tab.noInvoices' | hhTranslate:'Bệnh nhân chưa có hóa đơn' }}</p>
         </div>
         }
         @if (!loadingInvoices && invoices.length > 0) {
         <table mat-table [dataSource]="invoices" class="workspace-table">
           <ng-container matColumnDef="invoiceNumber">
-            <th mat-header-cell *matHeaderCellDef>Số HĐ</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'patient.tab.invoiceNumber' | hhTranslate:'Số HĐ' }}</th>
             <td mat-cell *matCellDef="let i">{{ i.invoiceNumber }}</td>
           </ng-container>
           <ng-container matColumnDef="invoiceDate">
-            <th mat-header-cell *matHeaderCellDef>Ngày</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'patient.tab.date' | hhTranslate:'Ngày' }}</th>
             <td mat-cell *matCellDef="let i">{{ i.invoiceDate | date:'dd/MM/yyyy' }}</td>
           </ng-container>
           <ng-container matColumnDef="totalAmount">
-            <th mat-header-cell *matHeaderCellDef>Tổng tiền</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'patient.tab.totalAmount' | hhTranslate:'Tổng tiền' }}</th>
             <td mat-cell *matCellDef="let i">{{ i.totalAmount | number }}₫</td>
           </ng-container>
           <ng-container matColumnDef="balanceDue">
-            <th mat-header-cell *matHeaderCellDef>Còn nợ</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'patient.tab.balanceDue' | hhTranslate:'Còn nợ' }}</th>
             <td mat-cell *matCellDef="let i" [class.text-danger]="i.balanceDue > 0">
               {{ i.balanceDue | number }}₫
             </td>
           </ng-container>
           <ng-container matColumnDef="status">
-            <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'dashboard.column.status' | hhTranslate:'Trạng thái' }}</th>
             <td mat-cell *matCellDef="let i">
               <span class="status-badge" [class]="'inv-status-' + i.statusCode.toLowerCase()">{{ i.statusName || i.statusCode }}</span>
             </td>

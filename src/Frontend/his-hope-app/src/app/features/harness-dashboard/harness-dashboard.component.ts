@@ -14,6 +14,7 @@ import {
   HisHopePageLayoutComponent,
   HisHopeStatusBadgeComponent,
   HisHopeTranslatePipe,
+  HisHopeI18nService,
 } from '@his-hope/frontend-foundation';
 
 interface AgentRun {
@@ -58,6 +59,7 @@ export class HarnessDashboardComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
   private snackBar = inject(MatSnackBar);
+  private i18n = inject(HisHopeI18nService);
 
   private readonly harnessApiUrl = 'http://localhost:5200/mcp';
 
@@ -67,11 +69,11 @@ export class HarnessDashboardComponent implements OnInit, OnDestroy {
   expandedRowKeys: string[] = [];
 
   readonly columns: HisHopeDataTableColumn[] = [
-    { key: 'workflowId', label: 'Workflow' },
-    { key: 'status', label: 'Trạng thái' },
-    { key: 'startedAt', label: 'Bắt đầu' },
-    { key: 'duration', label: 'Thời gian' },
-    { key: 'agentCount', label: 'Số Agent' },
+    { key: 'workflowId', label: this.i18n.t('adminPage.harness.columnWorkflow', 'Workflow') },
+    { key: 'status', label: this.i18n.t('adminPage.harness.columnStatus', 'Trạng thái') },
+    { key: 'startedAt', label: this.i18n.t('adminPage.harness.columnStartedAt', 'Bắt đầu') },
+    { key: 'duration', label: this.i18n.t('adminPage.harness.columnDuration', 'Thời gian') },
+    { key: 'agentCount', label: this.i18n.t('adminPage.harness.columnAgentCount', 'Số Agent') },
   ];
   pipelineRows: Record<string, unknown>[] = [];
 
@@ -102,7 +104,7 @@ export class HarnessDashboardComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.snackBar.open(
-            'Không thể kết nối tới Agent Harness API — hiển thị dữ liệu từ database', 'Đóng',
+            this.i18n.t('adminPage.harness.apiConnectionFailed', 'Không thể kết nối tới Agent Harness API — hiển thị dữ liệu từ database'), this.i18n.t('common.close', 'Đóng'),
             { duration: 6000 },
           );
           this.loadFromDatabase();
@@ -228,14 +230,14 @@ export class HarnessDashboardComponent implements OnInit, OnDestroy {
   }
 
   statusLabel(status: string): string {
-    switch (status) {
-      case 'Completed': return 'Hoàn thành';
-      case 'Running': return 'Đang chạy';
-      case 'Failed': return 'Thất bại';
-      case 'Cancelled': return 'Đã hủy';
-      case 'Pending': return 'Chờ xử lý';
-      default: return status;
-    }
+    const labels: Record<string, string> = {
+      Completed: this.i18n.t('adminPage.harness.statusCompleted', 'Hoàn thành'),
+      Running: this.i18n.t('adminPage.harness.statusRunning', 'Đang chạy'),
+      Failed: this.i18n.t('adminPage.harness.statusFailed', 'Thất bại'),
+      Cancelled: this.i18n.t('adminPage.harness.statusCancelled', 'Đã hủy'),
+      Pending: this.i18n.t('adminPage.harness.statusPending', 'Chờ xử lý'),
+    };
+    return labels[status] ?? status;
   }
 
   agentStatusChipClass(status: string): string {

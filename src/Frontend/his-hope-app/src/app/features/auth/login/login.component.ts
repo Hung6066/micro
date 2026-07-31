@@ -7,6 +7,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { AuthService } from '@core/services/auth.service';
 
 @Component({
@@ -15,6 +16,7 @@ import { AuthService } from '@core/services/auth.service';
   imports: [
     CommonModule, RouterModule,
     MatCardModule, MatButtonModule, MatIconModule, MatDividerModule,
+    HisHopeTranslatePipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -23,25 +25,25 @@ import { AuthService } from '@core/services/auth.service';
         <mat-card-header>
           <span class="card-logo" aria-hidden="true"></span>
           <mat-card-title>His.Hope</mat-card-title>
-          <mat-card-subtitle>Sign in to continue</mat-card-subtitle>
+          <mat-card-subtitle>{{ 'auth.signInContinue' | hhTranslate:'Sign in to continue' }}</mat-card-subtitle>
         </mat-card-header>
 
         <mat-card-content>
           <button mat-raised-button color="primary" class="full-width oidc-btn" (click)="signIn()">
             <mat-icon>login</mat-icon>
-            Sign in with His.Hope
+            {{ 'auth.signInWithHisHope' | hhTranslate:'Sign in with His.Hope' }}
           </button>
 
-          <mat-divider class="divider"><span>or</span></mat-divider>
+          <mat-divider class="divider"><span>{{ 'auth.or' | hhTranslate:'or' }}</span></mat-divider>
 
           <button mat-stroked-button class="full-width oidc-btn" (click)="signInGoogle()">
             <mat-icon>account_circle</mat-icon>
-            Continue with Google
+            {{ 'auth.continueWithGoogle' | hhTranslate:'Continue with Google' }}
           </button>
 
           <button mat-stroked-button class="full-width oidc-btn" (click)="signInMicrosoft()">
             <mat-icon>workspaces</mat-icon>
-            Continue with Microsoft
+            {{ 'auth.continueWithMicrosoft' | hhTranslate:'Continue with Microsoft' }}
           </button>
         </mat-card-content>
       </mat-card>

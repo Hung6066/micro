@@ -6,6 +6,7 @@ import { Router } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AuthService } from '@core/services/auth.service';
 import { AuditService } from '@core/services/audit.service';
+import { HisHopeI18nService } from '@his-hope/frontend-foundation';
 
 @Injectable()
 export class ErrorInterceptor implements HttpInterceptor {
@@ -20,6 +21,7 @@ export class ErrorInterceptor implements HttpInterceptor {
   private snackBar = inject(MatSnackBar);
   private ngZone = inject(NgZone);
   private auditService = inject(AuditService);
+  private i18n = inject(HisHopeI18nService);
 
   intercept(req: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
     return next.handle(req).pipe(
@@ -47,7 +49,7 @@ export class ErrorInterceptor implements HttpInterceptor {
 
         if (error.status === 0) {
           this.showNotification(
-            'Network error: Unable to connect to the server. Please check your connection.',
+            this.i18n.t('errors.networkError', 'Network error: Unable to connect to the server. Please check your connection.'),
             'error-snackbar-critical',
             false,
           );
@@ -73,7 +75,7 @@ export class ErrorInterceptor implements HttpInterceptor {
           case 403: {
             if (shouldNotify) {
               this.showNotification(
-                'Access denied. You do not have permission to perform this action.',
+                this.i18n.t('errors.accessDenied', 'Access denied. You do not have permission to perform this action.'),
                 'error-snackbar',
                 true,
               );
@@ -83,14 +85,14 @@ export class ErrorInterceptor implements HttpInterceptor {
           case 422: {
             // Sanitize: kh├┤ng lß╗Ö raw error.message tß╗½ server
             if (shouldNotify) {
-              this.showNotification('Validation failed. Please check your input.', 'error-snackbar', true);
+              this.showNotification(this.i18n.t('errors.validationFailed', 'Validation failed. Please check your input.'), 'error-snackbar', true);
             }
             break;
           }
           case 429: {
             if (shouldNotify) {
               this.showNotification(
-                'Too many requests. Please wait before trying again.',
+                this.i18n.t('errors.tooManyRequests', 'Too many requests. Please wait before trying again.'),
                 'error-snackbar',
                 true,
               );
@@ -101,13 +103,13 @@ export class ErrorInterceptor implements HttpInterceptor {
             if (error.status >= 500) {
               if (shouldNotify) {
                 this.showNotification(
-                  'A server error occurred. Please try again later.',
+                  this.i18n.t('errors.serverError', 'A server error occurred. Please try again later.'),
                   'error-snackbar-critical',
                   false,
                 );
               }
             } else if (shouldNotify && error.status && error.status >= 400) {
-              this.showNotification('An unexpected error occurred.', 'error-snackbar', true);
+              this.showNotification(this.i18n.t('errors.unexpectedError', 'An unexpected error occurred.'), 'error-snackbar', true);
             }
             break;
           }
@@ -124,7 +126,7 @@ export class ErrorInterceptor implements HttpInterceptor {
 
   private showNotification(message: string, panelClass: string, autoDismiss: boolean): void {
     this.ngZone.run(() => {
-      this.snackBar.open(message, 'Close', {
+      this.snackBar.open(message, this.i18n.t('common.close', 'Close'), {
         duration: autoDismiss ? 5000 : undefined,
         panelClass: [panelClass],
       });

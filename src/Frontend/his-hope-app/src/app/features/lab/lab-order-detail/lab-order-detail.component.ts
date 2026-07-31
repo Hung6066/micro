@@ -329,10 +329,10 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã gửi phiếu xét nghiệm', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('labOrders.submitSuccess', 'Đã gửi phiếu xét nghiệm'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadLabOrder();
         },
-        error: () => this.snackBar.open('Không thể gửi phiếu xét nghiệm', 'Đóng', { duration: 5000 }),
+        error: () => this.snackBar.open(this.i18n.t('labOrders.submitFailed', 'Không thể gửi phiếu xét nghiệm'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 }),
       });
   }
 
@@ -342,10 +342,10 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã ghi nhận lấy mẫu bệnh phẩm', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('labOrders.collectSuccess', 'Đã ghi nhận lấy mẫu bệnh phẩm'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadLabOrder();
         },
-        error: () => this.snackBar.open('Không thể ghi nhận lấy mẫu', 'Đóng', { duration: 5000 }),
+        error: () => this.snackBar.open(this.i18n.t('labOrders.collectFailed', 'Không thể ghi nhận lấy mẫu'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 }),
       });
   }
 
@@ -371,7 +371,7 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã lưu kết quả xét nghiệm', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('labOrders.resultSaved', 'Đã lưu kết quả xét nghiệm'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.selectedTest = null;
           this.resultForm.reset();
           this.recordingResult = false;
@@ -379,7 +379,7 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.recordingResult = false;
-          this.snackBar.open('Không thể lưu kết quả', 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('labOrders.resultSaveFailed', 'Không thể lưu kết quả'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });
@@ -391,10 +391,10 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã hủy phiếu xét nghiệm', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('labOrders.cancelSuccess', 'Đã hủy phiếu xét nghiệm'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadLabOrder();
         },
-        error: () => this.snackBar.open('Không thể hủy phiếu xét nghiệm', 'Đóng', { duration: 5000 }),
+        error: () => this.snackBar.open(this.i18n.t('labOrders.cancelFailed', 'Không thể hủy phiếu xét nghiệm'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 }),
       });
   }
 
@@ -403,7 +403,7 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.notify('Đã ghi nhận cảnh báo nghiêm trọng');
+          this.notify(this.i18n.t('labOrders.alertAcknowledged', 'Đã ghi nhận cảnh báo nghiêm trọng'));
           this.loadCriticalAlerts();
         },
       });
@@ -423,6 +423,6 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
   }
 
   private notify(message: string): void {
-    this.snackBar.open(message, 'Đóng', { duration: 3000 });
+    this.snackBar.open(message, this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
   }
 }

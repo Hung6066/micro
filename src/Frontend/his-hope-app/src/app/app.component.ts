@@ -41,7 +41,7 @@ import {
           <div class="shell-sidebar__header">
             <hh-brand [caption]="'app.name' | hhTranslate"></hh-brand>
             <button mat-icon-button class="shell-sidebar__close" (click)="toggleSidenav()"
-                    [attr.aria-label]="'Đóng menu điều hướng' | hhTranslate">
+                    [attr.aria-label]="'app.sidebar.closeMenu' | hhTranslate:'Đóng menu điều hướng'">
               <mat-icon aria-hidden="true">close</mat-icon>
             </button>
           </div>

@@ -144,18 +144,18 @@ export class MedicationDetailComponent implements OnInit, OnDestroy {
 
   toggleActive(): void {
     if (!this.medication) return;
-    const action = this.medication.isActive ? 'ngừng' : 'kích hoạt';
+    const activate = !this.medication.isActive;
 
     this.pharmacyService.deactivateMedication(this.medication.id)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
           this.medication!.isActive = !this.medication!.isActive;
-          this.snackBar.open(`Đã ${action} thuốc thành công`, 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t(activate ? 'medications.activatedSuccess' : 'medications.deactivatedSuccess', activate ? 'Đã kích hoạt thuốc thành công' : 'Đã ngừng thuốc thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.cdr.markForCheck();
         },
         error: () => {
-          this.snackBar.open(`Không thể ${action} thuốc`, 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t(activate ? 'medications.activateFailed' : 'medications.deactivateFailed', activate ? 'Không thể kích hoạt thuốc' : 'Không thể ngừng thuốc'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });

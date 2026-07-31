@@ -29,7 +29,7 @@
     "Clusters": {
       "patient-service": {
         "Destinations": {
-          "patient": { "Address": "http://patientservice:5010/" }
+          "patient": { "Address": "http://patientservice:5002/" }
         }
       }
     }

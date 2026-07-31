@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { Subject, takeUntil } from 'rxjs';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
@@ -18,6 +18,7 @@ import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeTranslatePipe,
+  HisHopeI18nService,
 } from '@his-hope/frontend-foundation';
 
 @Component({
@@ -36,17 +37,18 @@ import {
 })
 export class ManageRolesComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   roles: Role[] = [];
   loading = true;
   error: string | null = null;
 
   readonly columns: HisHopeDataTableColumn[] = [
-    { key: 'name', label: 'Tên vai trò' },
-    { key: 'usersCount', label: 'Người dùng' },
-    { key: 'system', label: 'Hệ thống' },
-    { key: 'permissions', label: 'Quyền', computed: (row) => `${row['permissionCount']} quyền` },
-    { key: 'actions', label: 'Thao tác' },
+    { key: 'name', label: this.i18n.t('manageRoles.column.name', 'Tên vai trò') },
+    { key: 'usersCount', label: this.i18n.t('manageRoles.column.users', 'Người dùng') },
+    { key: 'system', label: this.i18n.t('manageRoles.column.system', 'Hệ thống') },
+    { key: 'permissions', label: this.i18n.t('manageRoles.column.permissions', 'Quyền'), computed: (row) => this.i18n.t('manageRoles.permissionCount', '{{count}} quyền', { count: row['permissionCount'] as number }) },
+    { key: 'actions', label: this.i18n.t('manageRoles.column.actions', 'Thao tác') },
   ];
   rows: Record<string, unknown>[] = [];
 
@@ -97,23 +99,15 @@ export class ManageRolesComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.loading = false;
-          this.error = 'Không thể tải danh sách vai trò';
-          this.snackBar.open('Không thể tải danh sách vai trò', 'Đóng', { duration: 5000 });
+          this.error = this.i18n.t('manageRoles.loadFailed', 'Không thể tải danh sách vai trò');
+          this.snackBar.open(this.error, this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });
   }
 
   getRoleLabel(name: string): string {
-    const labels: Record<string, string> = {
-      admin: 'Quản trị viên',
-      doctor: 'Bác sĩ',
-      nurse: 'Điều dưỡng',
-      pharmacist: 'Dược sĩ',
-      receptionist: 'Lễ tân',
-      manager: 'Quản lý',
-    };
-    return labels[name] || name;
+    return this.i18n.t(`manageRoles.role.${name}`, name);
   }
 
   roleFromRow(row: Record<string, unknown>): Role {
@@ -151,9 +145,9 @@ export class ManageRolesComponent implements OnInit, OnDestroy {
   deleteRole(role: Role): void {
     if (role.isSystem) return;
 
-    this.confirmDialogTitle = 'Xóa vai trò';
-    this.confirmDialogMessage = `Bạn có chắc muốn xóa vai trò "${this.getRoleLabel(role.name)}"? Hành động này không thể hoàn tác.`;
-    this.confirmDialogConfirmLabel = 'Xóa';
+    this.confirmDialogTitle = this.i18n.t('manageRoles.confirmDeleteTitle', 'Xóa vai trò');
+    this.confirmDialogMessage = this.i18n.t('manageRoles.confirmDeleteMessage', 'Bạn có chắc muốn xóa vai trò "{{name}}"? Hành động này không thể hoàn tác.', { name: this.getRoleLabel(role.name) });
+    this.confirmDialogConfirmLabel = this.i18n.t('common.delete', 'Xóa');
     this.pendingRoleDelete = role;
     this.showConfirmDialog = true;
     this.cdr.markForCheck();
@@ -169,11 +163,11 @@ export class ManageRolesComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã xóa vai trò thành công', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('manageRoles.deleteSuccess', 'Đã xóa vai trò thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadRoles();
         },
         error: () => {
-          this.snackBar.open('Không thể xóa vai trò', 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('manageRoles.deleteFailed', 'Không thể xóa vai trò'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
         },
       });
   }
