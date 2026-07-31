@@ -15,4 +15,7 @@ import { AuthService } from '@core/services/auth.service';
  */
 export const authInterceptor = createHisHopeBearerTokenInterceptor(
   () => inject(AuthService).getAccessToken(),
+  {
+    matches: (url) => url.includes("/api/") && !url.includes("/localization"),
+  },
 );

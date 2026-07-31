@@ -25,7 +25,7 @@ import { environment } from '../environments/environment';
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    { provide: HIS_HOPE_LOCALIZATION_API_URL, useValue: `${environment.oidc.authority}/api/v1` },
+    { provide: HIS_HOPE_LOCALIZATION_API_URL, useValue: '/api/v1' },
     { provide: HisHopeI18nService, useFactory: (document: Document, platformId: object) => new HisHopeI18nService(document, platformId), deps: [DOCUMENT, PLATFORM_ID] },
     { provide: HisHopeLocalizationApiService, useFactory: (http: HttpClient, i18n: HisHopeI18nService, apiUrl: string) => new HisHopeLocalizationApiService(http, i18n, apiUrl), deps: [HttpClient, HisHopeI18nService, HIS_HOPE_LOCALIZATION_API_URL] },
     provideRouter(routes),
