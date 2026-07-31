@@ -3,7 +3,8 @@ using His.Hope.IdentityService.Domain.Entities;
 namespace His.Hope.IdentityService.Infrastructure.Persistence;
 
 /// <summary>
-/// Baseline labels shared by the native mobile admin shell and its security screens.
+/// Baseline labels shared by the native mobile admin shell, its security screens,
+/// the dashboard observability app, and the main His.Hope clinical app.
 /// The catalog is deliberately keyed by feature rather than by translated text so
 /// Angular and native clients can consume the same API contract.
 /// </summary>
@@ -37,7 +38,178 @@ internal static class LocalizationSeedData
         new() { Key = "mobile.mfa.setupFailed", Description = "MFA setup error" },
         new() { Key = "mobile.mfa.alreadyEnabled", Description = "MFA enabled status" },
         new() { Key = "mobile.providers.ldap", Description = "LDAP directory provider" },
-        new() { Key = "mobile.providers.saml", Description = "SAML identity provider" }
+        new() { Key = "mobile.providers.saml", Description = "SAML identity provider" },
+
+        // ── Dashboard shell ──────────────────────────────────────────
+        new() { Key = "app.dashboard.title", Description = "Dashboard shell: app title" },
+        new() { Key = "app.dashboard.toggleNav", Description = "Dashboard shell: toggle navigation" },
+        new() { Key = "app.dashboard.openPalette", Description = "Dashboard shell: open command palette" },
+        new() { Key = "app.dashboard.toggleTheme", Description = "Dashboard shell: toggle dark mode" },
+        new() { Key = "app.dashboard.userMenu", Description = "Dashboard shell: user menu" },
+        new() { Key = "app.dashboard.logout", Description = "Dashboard shell: logout" },
+        new() { Key = "app.dashboard.login", Description = "Dashboard shell: login" },
+        new() { Key = "app.dashboard.workspace", Description = "Dashboard shell: workspace caption" },
+        new() { Key = "app.dashboard.resources", Description = "Dashboard shell: resources nav" },
+        new() { Key = "app.dashboard.logs", Description = "Dashboard shell: logs nav" },
+        new() { Key = "app.dashboard.traces", Description = "Dashboard shell: traces nav" },
+        new() { Key = "app.dashboard.slo", Description = "Dashboard shell: SLO nav" },
+        new() { Key = "app.dashboard.metrics", Description = "Dashboard shell: metrics nav" },
+        new() { Key = "app.dashboard.openResources", Description = "Dashboard shell: cmd palette resources" },
+        new() { Key = "app.dashboard.openLogs", Description = "Dashboard shell: cmd palette logs" },
+        new() { Key = "app.dashboard.openTraces", Description = "Dashboard shell: cmd palette traces" },
+
+        // ── Dashboard resources ──────────────────────────────────────
+        new() { Key = "dashboard.resources.title", Description = "Dashboard: system resources title" },
+        new() { Key = "dashboard.resources.loading", Description = "Dashboard: loading resources" },
+        new() { Key = "dashboard.resources.retry", Description = "Dashboard: retry" },
+        new() { Key = "dashboard.resources.refreshing", Description = "Dashboard: refreshing" },
+        new() { Key = "dashboard.resources.noResources", Description = "Dashboard: no resources found" },
+        new() { Key = "dashboard.resources.cards", Description = "Dashboard: cards view" },
+        new() { Key = "dashboard.resources.graph", Description = "Dashboard: graph view" },
+        new() { Key = "dashboard.resources.refresh", Description = "Dashboard: refresh" },
+        new() { Key = "dashboard.resources.basicInfo", Description = "Dashboard: basic info" },
+        new() { Key = "dashboard.resources.name", Description = "Dashboard: name" },
+        new() { Key = "dashboard.resources.version", Description = "Dashboard: version" },
+        new() { Key = "dashboard.resources.status", Description = "Dashboard: status" },
+        new() { Key = "dashboard.resources.health", Description = "Dashboard: health" },
+        new() { Key = "dashboard.resources.healthChecks", Description = "Dashboard: health checks" },
+        new() { Key = "dashboard.resources.envVars", Description = "Dashboard: environment variables" },
+        new() { Key = "dashboard.resources.operations", Description = "Dashboard: operations info" },
+        new() { Key = "dashboard.resources.replicas", Description = "Dashboard: replicas" },
+        new() { Key = "dashboard.resources.close", Description = "Dashboard: close" },
+        new() { Key = "dashboard.resources.endpoints", Description = "Dashboard: endpoints" },
+
+        // ── Dashboard graphs & timeline ──────────────────────────────
+        new() { Key = "dashboard.dependencyGraph.title", Description = "Dashboard: dependency graph" },
+        new() { Key = "dashboard.dependencyGraph.healthy", Description = "Dashboard: healthy" },
+        new() { Key = "dashboard.dependencyGraph.degraded", Description = "Dashboard: degraded" },
+        new() { Key = "dashboard.healthTimeline.title", Description = "Dashboard: health timeline" },
+        new() { Key = "dashboard.healthTimeline.incidents", Description = "Dashboard: incident count" },
+        new() { Key = "dashboard.healthTimeline.allHealthy", Description = "Dashboard: all healthy" },
+        new() { Key = "dashboard.healthTimeline.waiting", Description = "Dashboard: waiting for data" },
+        new() { Key = "dashboard.healthTimeline.healthy", Description = "Dashboard: healthy" },
+        new() { Key = "dashboard.healthTimeline.degraded", Description = "Dashboard: degraded" },
+        new() { Key = "dashboard.healthTimeline.down", Description = "Dashboard: down" },
+        new() { Key = "dashboard.healthTimeline.unknown", Description = "Dashboard: unknown" },
+        new() { Key = "dashboard.healthTimeline.incident", Description = "Dashboard: incident" },
+        new() { Key = "dashboard.healthTimeline.started", Description = "Dashboard: started" },
+        new() { Key = "dashboard.healthTimeline.duration", Description = "Dashboard: duration" },
+
+        // ── Dashboard logs ───────────────────────────────────────────
+        new() { Key = "dashboard.logs.pageTitle", Description = "Dashboard logs: page title" },
+        new() { Key = "dashboard.logs.refresh", Description = "Dashboard logs: refresh" },
+        new() { Key = "dashboard.logs.clearFilters", Description = "Dashboard logs: clear filters" },
+        new() { Key = "dashboard.logs.tabSearch", Description = "Dashboard logs: search tab" },
+        new() { Key = "dashboard.logs.tabStream", Description = "Dashboard logs: stream tab" },
+        new() { Key = "dashboard.logs.timeRange", Description = "Dashboard logs: time range" },
+        new() { Key = "dashboard.logs.service", Description = "Dashboard logs: service" },
+        new() { Key = "dashboard.logs.allServices", Description = "Dashboard logs: all services" },
+        new() { Key = "dashboard.logs.fullTextSearch", Description = "Dashboard logs: full text search" },
+        new() { Key = "dashboard.logs.searchPlaceholder", Description = "Dashboard logs: search placeholder" },
+        new() { Key = "dashboard.logs.level", Description = "Dashboard logs: level" },
+        new() { Key = "dashboard.logs.searchBtn", Description = "Dashboard logs: search button" },
+        new() { Key = "dashboard.logs.loading", Description = "Dashboard logs: loading" },
+        new() { Key = "dashboard.logs.noLogs", Description = "Dashboard logs: no logs" },
+        new() { Key = "dashboard.logs.loadMore", Description = "Dashboard logs: load more" },
+        new() { Key = "dashboard.logs.retry", Description = "Dashboard logs: retry" },
+        new() { Key = "dashboard.logs.time", Description = "Dashboard logs: time column" },
+        new() { Key = "dashboard.logs.message", Description = "Dashboard logs: message" },
+        new() { Key = "dashboard.logs.traceId", Description = "Dashboard logs: trace ID" },
+        new() { Key = "dashboard.logs.spanId", Description = "Dashboard logs: span ID" },
+        new() { Key = "dashboard.logs.exception", Description = "Dashboard logs: exception" },
+        new() { Key = "dashboard.logs.properties", Description = "Dashboard logs: properties" },
+        new() { Key = "dashboard.logs.results", Description = "Dashboard logs: results" },
+
+        // ── Dashboard log stream ─────────────────────────────────────
+        new() { Key = "dashboard.logStream.following", Description = "Dashboard stream: following" },
+        new() { Key = "dashboard.logStream.realTime", Description = "Dashboard stream: real-time" },
+        new() { Key = "dashboard.logStream.newRecords", Description = "Dashboard stream: new records" },
+        new() { Key = "dashboard.logStream.streaming", Description = "Dashboard stream: streaming" },
+        new() { Key = "dashboard.logStream.disconnected", Description = "Dashboard stream: disconnected" },
+        new() { Key = "dashboard.logStream.entries", Description = "Dashboard stream: entries" },
+        new() { Key = "dashboard.logStream.pause", Description = "Dashboard stream: pause" },
+        new() { Key = "dashboard.logStream.start", Description = "Dashboard stream: start" },
+        new() { Key = "dashboard.logStream.clear", Description = "Dashboard stream: clear" },
+        new() { Key = "dashboard.logStream.autoScrollOn", Description = "Dashboard stream: auto scroll on" },
+        new() { Key = "dashboard.logStream.scrollToBottom", Description = "Dashboard stream: scroll to bottom" },
+        new() { Key = "dashboard.logStream.clickStartToBegin", Description = "Dashboard stream: click start" },
+
+        // ── Dashboard metrics ────────────────────────────────────────
+        new() { Key = "dashboard.metrics.pageTitle", Description = "Dashboard metrics: page title" },
+        new() { Key = "dashboard.metrics.live", Description = "Dashboard metrics: live" },
+        new() { Key = "dashboard.metrics.refresh", Description = "Dashboard metrics: refresh" },
+        new() { Key = "dashboard.metrics.service", Description = "Dashboard metrics: service" },
+        new() { Key = "dashboard.metrics.metricType", Description = "Dashboard metrics: metric type" },
+        new() { Key = "dashboard.metrics.timeRange", Description = "Dashboard metrics: time range" },
+        new() { Key = "dashboard.metrics.apply", Description = "Dashboard metrics: apply" },
+        new() { Key = "dashboard.metrics.selectServiceHint", Description = "Dashboard metrics: select service" },
+        new() { Key = "dashboard.metrics.loading", Description = "Dashboard metrics: loading" },
+        new() { Key = "dashboard.metrics.retry", Description = "Dashboard metrics: retry" },
+        new() { Key = "dashboard.metrics.timeRangeLabel", Description = "Dashboard metrics: time range" },
+        new() { Key = "dashboard.metrics.servicesSelected", Description = "Dashboard metrics: services selected" },
+        new() { Key = "dashboard.metrics.emptyState", Description = "Dashboard metrics: empty state" },
+        new() { Key = "dashboard.metricsOverview.running", Description = "Dashboard metrics: running" },
+        new() { Key = "dashboard.metricsOverview.stopped", Description = "Dashboard metrics: stopped" },
+        new() { Key = "dashboard.metricsOverview.degraded", Description = "Dashboard metrics: degraded" },
+        new() { Key = "dashboard.metricsOverview.totalServices", Description = "Dashboard metrics: total services" },
+
+        // ── Dashboard SLO ────────────────────────────────────────────
+        new() { Key = "dashboard.slo.pageTitle", Description = "Dashboard SLO: page title" },
+        new() { Key = "dashboard.slo.refresh", Description = "Dashboard SLO: refresh" },
+        new() { Key = "dashboard.slo.loading", Description = "Dashboard SLO: loading" },
+        new() { Key = "dashboard.slo.retry", Description = "Dashboard SLO: retry" },
+        new() { Key = "dashboard.slo.availability", Description = "Dashboard SLO: availability" },
+        new() { Key = "dashboard.slo.errorBudget", Description = "Dashboard SLO: error budget" },
+        new() { Key = "dashboard.slo.burn1h", Description = "Dashboard SLO: burn rate 1h" },
+        new() { Key = "dashboard.slo.burn6h", Description = "Dashboard SLO: burn rate 6h" },
+        new() { Key = "dashboard.slo.p99Latency", Description = "Dashboard SLO: p99 latency" },
+        new() { Key = "dashboard.slo.latencyTrend", Description = "Dashboard SLO: latency trend" },
+        new() { Key = "dashboard.slo.last24h", Description = "Dashboard SLO: last 24h" },
+        new() { Key = "dashboard.slo.emptyState", Description = "Dashboard SLO: empty state" },
+
+        // ── Dashboard traces ─────────────────────────────────────────
+        new() { Key = "dashboard.traces.title", Description = "Dashboard traces: page title" },
+        new() { Key = "dashboard.traces.refresh", Description = "Dashboard traces: refresh" },
+        new() { Key = "dashboard.traces.loading", Description = "Dashboard traces: loading" },
+        new() { Key = "dashboard.traces.retry", Description = "Dashboard traces: retry" },
+        new() { Key = "dashboard.traces.emptyState", Description = "Dashboard traces: empty state" },
+        new() { Key = "dashboard.traces.traceId", Description = "Dashboard traces: trace ID" },
+        new() { Key = "dashboard.traces.service", Description = "Dashboard traces: service" },
+        new() { Key = "dashboard.traces.operation", Description = "Dashboard traces: operation" },
+        new() { Key = "dashboard.traces.duration", Description = "Dashboard traces: duration" },
+        new() { Key = "dashboard.traces.spans", Description = "Dashboard traces: spans" },
+        new() { Key = "dashboard.traces.startTime", Description = "Dashboard traces: start time" },
+        new() { Key = "dashboard.traces.viewDetail", Description = "Dashboard traces: view detail" },
+        new() { Key = "dashboard.traces.detailTitle", Description = "Dashboard traces: detail title" },
+        new() { Key = "dashboard.traces.spanId", Description = "Dashboard traces: span ID" },
+        new() { Key = "dashboard.traces.parentSpanId", Description = "Dashboard traces: parent" },
+        new() { Key = "dashboard.traces.tags", Description = "Dashboard traces: tags" },
+        new() { Key = "dashboard.traces.logs", Description = "Dashboard traces: logs" },
+        new() { Key = "dashboard.traces.back", Description = "Dashboard traces: back" },
+
+        // ── Dashboard alerts ─────────────────────────────────────────
+        new() { Key = "dashboard.alerts.critical", Description = "Dashboard alerts: critical" },
+        new() { Key = "dashboard.alerts.warning", Description = "Dashboard alerts: warning" },
+        new() { Key = "dashboard.alerts.info", Description = "Dashboard alerts: info" },
+        new() { Key = "dashboard.alerts.systemAlerts", Description = "Dashboard alerts: system alerts" },
+        new() { Key = "dashboard.alerts.noAlerts", Description = "Dashboard alerts: no alerts" },
+        new() { Key = "dashboard.alerts.criticalAlert", Description = "Dashboard alerts: critical alert" },
+        new() { Key = "dashboard.alerts.view", Description = "Dashboard alerts: view" },
+
+        // ── Dashboard time ───────────────────────────────────────────
+        new() { Key = "dashboard.time.minutesAgo", Description = "Dashboard time: minutes ago" },
+        new() { Key = "dashboard.time.hoursAgo", Description = "Dashboard time: hours ago" },
+        new() { Key = "dashboard.time.daysAgo", Description = "Dashboard time: days ago" },
+        new() { Key = "dashboard.time.ago", Description = "Dashboard time: ago" },
+
+        // ── Dashboard auth ───────────────────────────────────────────
+        new() { Key = "dashboard.auth.completingSignIn", Description = "Dashboard auth: completing sign in" },
+
+        // ── His-Hope app shell ───────────────────────────────────────
+        new() { Key = "app.hishope.title", Description = "His-Hope shell: app title" },
+        new() { Key = "app.navigation.openMenu", Description = "His-Hope shell: open menu" },
+        new() { Key = "app.navigation.changed", Description = "His-Hope shell: navigation changed" },
+        new() { Key = "app.theme.toggle", Description = "His-Hope shell: toggle theme" },
     ];
 
     public static readonly LocalizationTranslation[] Translations =
