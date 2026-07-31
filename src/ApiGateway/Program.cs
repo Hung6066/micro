@@ -192,13 +192,15 @@ app.Use(async (context, next) =>
     var hasSessionCookie = context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
         !string.IsNullOrWhiteSpace(sessionId);
 
-    // Identity's policy scheme intentionally selects its browser cookie when
-    // no bearer is present. Do not replace that cookie flow with the legacy
-    // HMAC session token on admin/settings/audit endpoints; those endpoints
-    // validate OIDC bearer tokens or the Identity application cookie.
+    // When the session cookie is present, inject the session JWT into the
+    // Authorization header for downstream services.  The SPA always sends an
+    // OIDC Bearer token, but that token carries the issuer URL as its audience
+    // (http://localhost:5000/), which downstream JwtBearer handlers reject.
+    // The session JWT carries the correct internal audience.  Admin/settings/
+    // audit endpoints are excluded because IdentityService validates the OIDC
+    // token directly with OpenIddict (lenient audience checking).
     if (hasSessionCookie &&
-        !cookieBackedIdentityRoute &&
-        !context.Request.Headers.ContainsKey("Authorization"))
+        !cookieBackedIdentityRoute)
     {
         var redis = context.RequestServices.GetRequiredService<IConnectionMultiplexer>();
         var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
@@ -208,10 +210,6 @@ app.Use(async (context, next) =>
             if (document.RootElement.TryGetProperty("Jwt", out var jwtElement) &&
                 !string.IsNullOrWhiteSpace(jwtElement.GetString()))
             {
-                // Use the server session only when the caller did not provide
-                // an OIDC bearer token. A valid bearer must pass through to
-                // downstream services; replacing it with the legacy BFF JWT
-                // makes OIDC-signed requests fail at service boundaries.
                 context.Request.Headers.Authorization =
                     $"Bearer {jwtElement.GetString()}";
             }
