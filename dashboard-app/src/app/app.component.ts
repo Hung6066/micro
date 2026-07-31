@@ -50,7 +50,6 @@ export class AppComponent {
   private readonly i18n = inject(HisHopeI18nService);
   private readonly themeService = inject(HisHopeThemeService);
   private readonly router = inject(Router);
-  readonly isDarkMode$ = new BehaviorSubject<boolean>(this.themeService.resolvedTheme() === 'dark');
   paletteOpen = false;
 
   get commands() { this.i18n.locale(); return [
@@ -74,11 +73,7 @@ export class AppComponent {
 
   }
 
-  toggleTheme(): void {
-    const next = this.themeService.resolvedTheme() === 'dark' ? 'light' : 'dark';
-    this.themeService.setTheme(next);
-    this.isDarkMode$.next(next === 'dark');
-  }
+  toggleTheme(): void { this.themeService.setTheme(this.themeService.theme() === 'dark' ? 'light' : 'dark'); }
 
   toggleSidenav(): void {
     this.sidenavOpened$.next(!this.sidenavOpened$.value);

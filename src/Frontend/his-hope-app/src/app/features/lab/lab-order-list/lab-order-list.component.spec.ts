@@ -2,22 +2,13 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { MatTableModule } from '@angular/material/table';
-import { MatPaginatorModule } from '@angular/material/paginator';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
-import { MatIconModule } from '@angular/material/icon';
-import { MatButtonModule } from '@angular/material/button';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { ReactiveFormsModule } from '@angular/forms';
-import { CommonModule } from '@angular/common';
 import { of } from 'rxjs';
 import { LabOrderListComponent } from './lab-order-list.component';
 import { LabService } from '@core/services/lab.service';
 import { LabCriticalAlertStreamService } from '@core/services/lab-critical-alert-stream.service';
 import { createMockLabOrder, createMockPagedResult } from '@testing/mock-data';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
+import { HisHopePageQuery } from '@his-hope/frontend-foundation';
 
 describe('LabOrderListComponent', () => {
   let component: LabOrderListComponent;
@@ -38,12 +29,8 @@ describe('LabOrderListComponent', () => {
     } as any;
 
     await TestBed.configureTestingModule({
-    
     imports: [
-        LabOrderListComponent, RouterTestingModule, NoopAnimationsModule,
-        MatTableModule, MatPaginatorModule, MatFormFieldModule, MatInputModule,
-        MatSelectModule, MatIconModule, MatButtonModule, MatProgressBarModule,
-        ReactiveFormsModule, CommonModule],
+        LabOrderListComponent, RouterTestingModule, NoopAnimationsModule],
     providers: [
         { provide: LabService, useValue: spy },
         { provide: LabCriticalAlertStreamService, useValue: streamService },
@@ -84,8 +71,14 @@ describe('LabOrderListComponent', () => {
 
   it('should display lab order rows', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    const rows = compiled.querySelectorAll('mat-row');
+    const rows = compiled.querySelectorAll('.hh-data-table tbody tr');
     expect(rows.length).toBe(2);
+  });
+
+  it('should search lab orders when the query changes', () => {
+    const query: HisHopePageQuery = { page: 1, pageSize: 20, search: 'lab' };
+    component.onQueryChange(query);
+    expect(labService.searchLabOrders).toHaveBeenCalledWith(jasmine.objectContaining({ searchTerm: 'lab' }));
   });
 
   it('should have component initialized', () => {

@@ -2,20 +2,12 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { MatTableModule } from '@angular/material/table';
-import { MatPaginatorModule } from '@angular/material/paginator';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatIconModule } from '@angular/material/icon';
-import { MatButtonModule } from '@angular/material/button';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { ReactiveFormsModule } from '@angular/forms';
-import { CommonModule } from '@angular/common';
 import { of } from 'rxjs';
 import { MedicationListComponent } from './medication-list.component';
 import { PharmacyService } from '@core/services/pharmacy.service';
 import { createMockMedication, createMockPagedResult } from '@testing/mock-data';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
+import { HisHopePageQuery } from '@his-hope/frontend-foundation';
 
 describe('MedicationListComponent', () => {
   let component: MedicationListComponent;
@@ -29,11 +21,8 @@ describe('MedicationListComponent', () => {
     spy.searchMedications.and.returnValue(of(createMockPagedResult(mockMedications, 2)));
 
     await TestBed.configureTestingModule({
-    
     imports: [
-        MedicationListComponent, RouterTestingModule, NoopAnimationsModule,
-        MatTableModule, MatPaginatorModule, MatFormFieldModule, MatInputModule,
-        MatIconModule, MatButtonModule, MatProgressBarModule, ReactiveFormsModule, CommonModule],
+        MedicationListComponent, RouterTestingModule, NoopAnimationsModule],
     providers: [
         { provide: PharmacyService, useValue: spy },
         provideHttpClient(withInterceptorsFromDi()),
@@ -68,8 +57,14 @@ describe('MedicationListComponent', () => {
 
   it('should display medication rows', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    const rows = compiled.querySelectorAll('mat-row');
+    const rows = compiled.querySelectorAll('.hh-data-table tbody tr');
     expect(rows.length).toBe(2);
+  });
+
+  it('should search medications when the query changes', () => {
+    const query: HisHopePageQuery = { page: 1, pageSize: 20, search: 'amoxicillin' };
+    component.onQueryChange(query);
+    expect(pharmacyService.searchMedications).toHaveBeenCalledWith(jasmine.objectContaining({ searchTerm: 'amoxicillin' }));
   });
 
   it('should have component initialized', () => {

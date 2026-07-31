@@ -1,4 +1,4 @@
-import { HttpClient, HttpParams } from "@angular/common/http";
+import { HttpClient } from "@angular/common/http";
 import { Inject, Injectable, InjectionToken } from "@angular/core";
 import { catchError, map, Observable, of, tap } from "rxjs";
 import { HisHopeI18nService } from "./his-hope-i18n.service";
@@ -26,8 +26,7 @@ export class HisHopeLocalizationApiService {
 
   load(locale = this.i18n.apiLocale()): Observable<Record<string, string>> {
     const canonicalLocale = locale === "en" ? "en-US" : locale;
-    const params = new HttpParams().set("locale", canonicalLocale);
-    return this.http.get<LocalizationResponse>(`${this.apiUrl}/localization`, { params }).pipe(
+    return this.http.get<LocalizationResponse>(`${this.apiUrl}/localization`, { params: { locale: canonicalLocale } }).pipe(
       tap(response => this.i18n.registerTranslations(canonicalLocale, response.values ?? {})),
       map(response => response.values ?? {}),
       catchError(() => of({})),

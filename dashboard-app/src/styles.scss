@@ -10,75 +10,11 @@
 @import '@fontsource/inter/600.css';
 @import '@fontsource/inter/700.css';
 
-// Semantic states inherit the active foundation theme in every mode.
-.error-state { background: var(--surface-danger); border-color: var(--border-default); }
-.error-icon, .error-message { color: var(--color-danger); }
-.level-error, .level-critical, .error-inline { background: var(--surface-danger); color: var(--color-danger); }
+// Ops-specific semantic states inherit the active foundation theme in every mode.
+// Page shell, state, filter/table and responsive rules ship with the foundation.
+.level-error, .level-critical { background: var(--surface-danger); color: var(--color-danger); }
 .level-warning { background: var(--surface-warning); color: var(--color-warning); }
 .level-information { background: var(--surface-info); color: var(--color-info); }
 .level-debug { background: var(--surface-muted); color: var(--text-secondary); }
-.detail-row, .detail-field-value.json, .detail-field-value code, .group-count { background: var(--surface-muted); }
-.detail-field-value.exception { background: var(--surface-danger); color: var(--color-danger); }
+.detail-row { background: var(--surface-muted); }
 .load-more { border-top-color: var(--border-default); }
-
-// ── Mobile responsive overrides ──
-@media (max-width: 768px) {
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .page-title {
-    font-size: var(--font-size-title, 24px);
-    line-height: 1.25;
-  }
-
-  .mat-mdc-table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .loading-state {
-    padding: 32px 16px;
-  }
-
-  .empty-state {
-    padding: 32px 16px;
-  }
-
-  .filters-row {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .filters-row mat-form-field {
-    width: 100%;
-    min-width: 0 !important;
-  }
-
-  .controls-row {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .controls-row mat-form-field {
-    width: 100%;
-    min-width: 0 !important;
-  }
-
-  .page-shell,
-  .content,
-  .main-content {
-    min-width: 0;
-    max-width: 100%;
-  }
-
-  .page-header .actions,
-  .page-header .header-actions,
-  .toolbar-actions {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-}

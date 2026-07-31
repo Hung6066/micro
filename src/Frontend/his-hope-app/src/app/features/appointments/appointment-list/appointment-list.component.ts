@@ -1,137 +1,95 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
-import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
+import { Subject, takeUntil } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
-import { MatTableModule } from '@angular/material/table';
-import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AppointmentService } from '@core/services/appointment.service';
-import { Appointment } from '@core/models/appointment.model';
-import { HisHopeDataTableComponent } from '@his-hope/frontend-foundation';
+import {
+  HisHopeDataTableCellDirective,
+  HisHopeDataTableColumn,
+  HisHopeDataTableComponent,
+  HisHopeI18nService,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopePageQuery,
+  HisHopeStatusBadgeComponent,
+  HisHopeToolbarComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-appointment-list',
     standalone: true,
     imports: [
-        CommonModule, RouterModule, ReactiveFormsModule,
-        MatCardModule, MatFormFieldModule, MatInputModule, MatIconModule,
-        MatTableModule, MatPaginatorModule, MatButtonModule, MatTooltipModule,
-        HisHopeDataTableComponent,
+        CommonModule, RouterModule,
+        MatIconModule, MatButtonModule, MatTooltipModule,
+        HisHopeDataTableComponent, HisHopeDataTableCellDirective, HisHopePageHeaderComponent,
+        HisHopePageLayoutComponent, HisHopeToolbarComponent, HisHopeStatusBadgeComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="appointments">
-      <div class="header">
-        <h1>Appointments</h1>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader
+                      [title]="'appointments.title' | hhTranslate:'Lịch hẹn'"
+                      [subtitle]="'appointments.subtitle' | hhTranslate:'Quản lý lịch hẹn khám bệnh'">
         <button mat-raised-button color="primary" routerLink="/appointments/new">
-          <mat-icon>add</mat-icon> Schedule Appointment
+          <mat-icon>add</mat-icon> {{ 'appointments.new' | hhTranslate:'Tạo lịch hẹn' }}
         </button>
-      </div>
+      </hh-page-header>
 
-      <mat-card>
-        <mat-card-header>
-          <mat-form-field appearance="outline" class="search-field">
-            <mat-label>Search by Patient ID</mat-label>
-            <input matInput [formControl]="searchControl" placeholder="Type to search...">
-            <mat-icon matSuffix>search</mat-icon>
-          </mat-form-field>
-        </mat-card-header>
+      <hh-toolbar hhPageToolbar [label]="'appointments.toolbar' | hhTranslate:'Danh sách lịch hẹn'">
+        <span hhToolbarTitle>{{ totalItems }} {{ 'appointments.count' | hhTranslate:'cuộc hẹn' }}</span>
+      </hh-toolbar>
 
-        <mat-card-content>
-          <hh-data-table label="Appointments" [loading]="loading" [error]="error"
-                         [empty]="!loading && !error && appointments.length === 0"
-                         emptyMessage="No appointments found." (retry)="loadAppointments()">
-          <div class="table-container">
-            <table mat-table [dataSource]="appointments" class="appointment-table">
-              <ng-container matColumnDef="scheduledDate">
-                <th mat-header-cell *matHeaderCellDef>Date</th>
-                <td mat-cell *matCellDef="let a">{{ a.scheduledDate | date:'mediumDate' }}</td>
-              </ng-container>
-
-              <ng-container matColumnDef="startTime">
-                <th mat-header-cell *matHeaderCellDef>Time</th>
-                <td mat-cell *matCellDef="let a">{{ a.startTime }} - {{ a.endTime }}</td>
-              </ng-container>
-
-              <ng-container matColumnDef="type">
-                <th mat-header-cell *matHeaderCellDef>Type</th>
-                <td mat-cell *matCellDef="let a">{{ a.typeName || a.type }}</td>
-              </ng-container>
-
-              <ng-container matColumnDef="status">
-                <th mat-header-cell *matHeaderCellDef>Status</th>
-                <td mat-cell *matCellDef="let a">
-                  <span class="status-badge" [class]="'status-' + a.status.toLowerCase()">
-                    {{ a.statusName || a.status }}
-                  </span>
-                </td>
-              </ng-container>
-
-              <ng-container matColumnDef="reason">
-                <th mat-header-cell *matHeaderCellDef>Reason</th>
-                <td mat-cell *matCellDef="let a">{{ a.reason || '-' }}</td>
-              </ng-container>
-
-              <ng-container matColumnDef="actions">
-                <th mat-header-cell *matHeaderCellDef></th>
-                <td mat-cell *matCellDef="let a">
-                  <button mat-icon-button (click)="viewDetail(a.id)" matTooltip="View details"
-                          aria-label="Xem chi tiết cuộc hẹn">
-                    <mat-icon>visibility</mat-icon>
-                  </button>
-                </td>
-              </ng-container>
-
-              <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-              <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row"
-                  (click)="viewDetail(row.id)" (keydown.enter)="viewDetail(row.id)"
-                  (keydown.space)="$event.preventDefault(); viewDetail(row.id)" tabindex="0" role="button"
-                  [attr.aria-label]="'Xem chi tiết cuộc hẹn ' + row.patientId"></tr>
-            </table>
-
-            <mat-paginator [length]="totalCount"
-              [pageSize]="pageSize"
-              [pageIndex]="page - 1"
-              (page)="onPageChange($event)"
-              [pageSizeOptions]="[10, 20, 50]"
-              showFirstLastButtons>
-            </mat-paginator>
-          </div>
-          </hh-data-table>
-        </mat-card-content>
-      </mat-card>
-    </div>
+      <hh-data-table [label]="'appointments.tableLabel' | hhTranslate:'Danh sách lịch hẹn'"
+                     [loading]="loading" [error]="error"
+                     [empty]="rows.length === 0 && !loading"
+                     [emptyMessage]="'appointments.empty' | hhTranslate:'Không tìm thấy lịch hẹn nào.'"
+                     [searchPlaceholder]="'appointments.search' | hhTranslate:'Tìm theo mã bệnh nhân...'"
+                     [columns]="columns" [rows]="rows"
+                     [pageSize]="20" [totalItems]="totalItems"
+                     [query]="query" [mode]="'server'" [urlSync]="false"
+                     [selection]="true" [rowClickable]="true"
+                     (queryChange)="onQueryChange($event)" (rowClick)="onRowClick($event)"
+                     (retry)="loadData()">
+        <ng-template hhDataTableCell="scheduledDate" let-row>{{ row['scheduledDate'] | date:'mediumDate' }}</ng-template>
+        <ng-template hhDataTableCell="startTime" let-row>{{ row['startTime'] }} – {{ row['endTime'] }}</ng-template>
+        <ng-template hhDataTableCell="type" let-row>{{ row['typeName'] || row['type'] }}</ng-template>
+        <ng-template hhDataTableCell="status" let-row>
+          <hh-status-badge [status]="statusOf(row)" [label]="statusLabel(row)" />
+        </ng-template>
+        <ng-template hhDataTableCell="reason" let-row>{{ row['reason'] || '-' }}</ng-template>
+        <ng-template hhDataTableCell="actions" let-row>
+          <a mat-icon-button [routerLink]="['/appointments', idOf(row)]" [matTooltip]="'common.details' | hhTranslate:'Xem chi tiết'"
+             [attr.aria-label]="'common.details' | hhTranslate:'Xem chi tiết'" (click)="$event.stopPropagation()">
+            <mat-icon>visibility</mat-icon>
+          </a>
+        </ng-template>
+      </hh-data-table>
+    </hh-page-layout>
   `,
-    styles: [`
-    .appointments { padding: 24px; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    .search-field { width: 100%; max-width: 400px; }
-    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .appointment-table { width: 100%; }
-    .clickable-row { cursor: pointer; }
-    .clickable-row:hover { background: #f5f5f5; }
-    .clickable-row:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: -2px; }
-    .placeholder { color: #999; text-align: center; padding: 48px; }
-
-  `],
+    styles: [``],
 })
 export class AppointmentListComponent implements OnInit, OnDestroy {
-  private destroy$ = new Subject<void>();
+  private readonly destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
-  displayedColumns = ['scheduledDate', 'startTime', 'type', 'status', 'reason', 'actions'];
-  appointments: Appointment[] = [];
-  totalCount = 0;
-  page = 1;
-  pageSize = 20;
+  columns: HisHopeDataTableColumn[] = [
+    { key: 'scheduledDate', label: this.i18n.t('appointments.column.date', 'Ngày hẹn'), sortable: true },
+    { key: 'startTime', label: this.i18n.t('appointments.column.time', 'Giờ') },
+    { key: 'type', label: this.i18n.t('appointments.column.type', 'Loại') },
+    { key: 'status', label: this.i18n.t('appointments.column.status', 'Trạng thái'), status: true },
+    { key: 'reason', label: this.i18n.t('appointments.column.reason', 'Lý do') },
+    { key: 'actions', label: this.i18n.t('common.actions', 'Thao tác'), hideable: false, align: 'end' as const },
+  ];
+
+  rows: Record<string, unknown>[] = [];
+  totalItems = 0;
   loading = false;
   error = '';
-  searchControl = new FormControl('');
+  query: HisHopePageQuery = { page: 1, pageSize: 20 };
 
   constructor(
     private appointmentService: AppointmentService,
@@ -140,16 +98,7 @@ export class AppointmentListComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.loadAppointments();
-    this.searchControl.valueChanges.pipe(
-      debounceTime(300),
-      distinctUntilChanged(),
-      takeUntil(this.destroy$),
-    ).subscribe(query => {
-      this.page = 1;
-      query ? this.searchAppointments(query) : this.loadAppointments();
-      this.cdr.markForCheck();
-    });
+    this.loadData();
   }
 
   ngOnDestroy(): void {
@@ -157,54 +106,50 @@ export class AppointmentListComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  loadAppointments(): void {
+  loadData(): void {
     this.error = '';
     this.loading = true;
-    this.appointmentService.list(this.page, this.pageSize)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: res => {
-          this.appointments = res.items;
-          this.totalCount = res.totalCount;
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          this.error = 'Unable to load appointments.';
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-      });
+    const { page, pageSize, search } = this.query;
+    const request = search?.trim()
+      ? this.appointmentService.search(search.trim(), page, pageSize)
+      : this.appointmentService.list(page, pageSize);
+    request.pipe(takeUntil(this.destroy$)).subscribe({
+      next: (result) => {
+        this.rows = result.items.map(item => ({ ...item }));
+        this.totalItems = result.totalCount;
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.error = this.i18n.t('appointments.loadFailed', 'Không thể tải danh sách cuộc hẹn.');
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+    });
   }
 
-  searchAppointments(query: string): void {
-    this.error = '';
-    this.loading = true;
-    this.appointmentService.search(query, this.page, this.pageSize)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: res => {
-          this.appointments = res.items;
-          this.totalCount = res.totalCount;
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          this.error = 'Unable to search appointments.';
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-      });
+  onQueryChange(query: HisHopePageQuery): void {
+    this.query = query;
+    this.loadData();
   }
 
-  onPageChange(event: any): void {
-    this.page = event.pageIndex + 1;
-    this.pageSize = event.pageSize;
-    const q = this.searchControl.value;
-    q ? this.searchAppointments(q) : this.loadAppointments();
+  onRowClick(row: Record<string, unknown>): void {
+    this.viewDetail(this.idOf(row));
   }
 
   viewDetail(id: string): void {
     this.router.navigate(['/appointments', id]);
+  }
+
+  statusOf(row: Record<string, unknown>): string {
+    return String(row['status'] ?? '');
+  }
+
+  statusLabel(row: Record<string, unknown>): string {
+    return String(row['statusName'] || row['status'] || '');
+  }
+
+  idOf(row: Record<string, unknown>): string {
+    return String(row['id'] ?? '');
   }
 }

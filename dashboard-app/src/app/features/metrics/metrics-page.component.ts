@@ -2,24 +2,27 @@ import { Component, OnInit, ChangeDetectionStrategy, inject, OnDestroy, ViewChil
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
-import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
-import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatDividerModule } from '@angular/material/divider';
 import { BehaviorSubject, Subject, of, combineLatest } from 'rxjs';
 import { catchError, finalize, debounceTime, takeUntil } from 'rxjs/operators';
 import { MetricsService } from '../../core/services/metrics.service';
 import { MetricsStreamService } from '../../core/services/metrics-stream.service';
 import { ResourceService } from '../../core/services/resource.service';
-import { MetricSnapshot, MetricDataPoint } from '../../core/models/metric-snapshot.model';
+import { MetricSnapshot } from '../../core/models/metric-snapshot.model';
 import { LiveMetricUpdate } from '../../core/models/live-metric-update.model';
 import { Resource } from '../../core/models/resource.model';
 import { MetricsOverviewComponent } from './metrics-overview.component';
-import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
+import { themeColor } from '../../shared/theme-color';
+import {
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopePageSectionComponent,
+  HisHopeStateComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 import { Chart, LineController, LineElement, PointElement, LinearScale, TimeScale, CategoryScale, Tooltip, Legend, Filler } from 'chart.js';
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, TimeScale, CategoryScale, Tooltip, Legend, Filler);
@@ -30,14 +33,15 @@ interface MetricConfig {
   key: MetricType;
   label: string;
   unit: string;
-  color: string;
+  token: string;
 }
 
+/** Design tokens used for chart line colors. */
 const METRIC_TYPES: MetricConfig[] = [
-  { key: 'cpu', label: 'CPU', unit: '%', color: '#2F6B4A' },
-  { key: 'memory', label: 'Memory', unit: 'MB', color: '#2563EB' },
-  { key: 'requests', label: 'Requests', unit: 'req/s', color: '#6B4FA0' },
-  { key: 'errors', label: 'Errors', unit: 'errors/min', color: '#C25450' },
+  { key: 'cpu', label: 'CPU', unit: '%', token: '--color-primary' },
+  { key: 'memory', label: 'Memory', unit: 'MB', token: '--color-info' },
+  { key: 'requests', label: 'Requests', unit: 'req/s', token: '--color-warning' },
+  { key: 'errors', label: 'Errors', unit: 'errors/min', token: '--color-danger' },
 ];
 
 const TIME_RANGES = [
@@ -48,10 +52,19 @@ const TIME_RANGES = [
   { value: '24h', label: '24 hours' },
 ];
 
-const SERVICE_COLORS = [
-  '#2F6B4A', '#5B8C5A', '#2563EB', '#6B4FA0', '#B6581C',
-  '#C25450', '#0D9488', '#7C3AED', '#0891B2', '#D97706',
+const SERVICE_TOKENS = [
+  '--color-primary', '--color-success', '--color-info', '--color-warning', '--color-danger',
 ];
+
+interface ChartDataset {
+  label: string;
+  data: { x: string; y: number }[];
+  borderColor: string;
+  backgroundColor: string;
+  fill: boolean;
+  tension: number;
+  pointRadius: number;
+}
 
 @Component({
   selector: 'app-metrics-page',
@@ -59,166 +72,129 @@ const SERVICE_COLORS = [
   imports: [
     CommonModule,
     FormsModule,
-    MatCardModule,
     MatIconModule,
     MatButtonModule,
     MatFormFieldModule,
     MatSelectModule,
-    MatCheckboxModule,
-    MatProgressSpinnerModule,
-    MatDividerModule,
     MetricsOverviewComponent,
+    HisHopePageHeaderComponent,
+    HisHopePageLayoutComponent,
+    HisHopePageSectionComponent,
+    HisHopeStateComponent,
     HisHopeTranslatePipe,
   ],
   template: `
-    <div class="page-header">
-      <h1 class="page-title">
-        {{ 'dashboard.metrics.pageTitle' | hhTranslate:'System Metrics' }}
+    <hh-page-layout>
+      <hh-page-header hhPageHeader [title]="'dashboard.metrics.pageTitle' | hhTranslate:'System Metrics'"
+                      [subtitle]="'dashboard.metrics.pageSubtitle' | hhTranslate:'Real-time resource metrics across all services'">
         @if (liveConnected) {
           <span class="live-badge">● {{ 'dashboard.metrics.live' | hhTranslate:'LIVE' }}</span>
         }
-      </h1>
-      <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
-        <mat-icon>refresh</mat-icon>
-        {{ 'dashboard.metrics.refresh' | hhTranslate:'Refresh' }}
-      </button>
-    </div>
+        <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
+          <mat-icon>refresh</mat-icon>
+          {{ 'dashboard.metrics.refresh' | hhTranslate:'Refresh' }}
+        </button>
+      </hh-page-header>
 
-    <!-- Overview cards -->
-    <app-metrics-overview></app-metrics-overview>
+      <!-- Overview cards -->
+      <app-metrics-overview></app-metrics-overview>
 
-    <!-- Controls card -->
-    <mat-card class="controls-card">
-      <mat-card-content>
-        <div class="controls-row">
-          <!-- Service multi-select -->
-          <mat-form-field appearance="outline" subscriptSizing="dynamic" class="services-field">
-            <mat-label>{{ 'dashboard.metrics.service' | hhTranslate:'Service' }}</mat-label>
-            <mat-select [(ngModel)]="selectedServices" multiple (selectionChange)="onServicesChange()">
-              @for (svc of availableServices; track svc.name) {
-                <mat-option [value]="svc.name">
-                  {{ svc.displayName || svc.name }}
-                </mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-
-          <!-- Metric type selector -->
-          <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>{{ 'dashboard.metrics.metricType' | hhTranslate:'Metric Type' }}</mat-label>
-            <mat-select [(ngModel)]="selectedMetricType" (selectionChange)="onMetricTypeChange()">
-              @for (mt of metricTypes; track mt.key) {
-                <mat-option [value]="mt.key">
-                  {{ mt.label }}
-                </mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-
-          <!-- Time range selector -->
-          <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>{{ 'dashboard.metrics.timeRange' | hhTranslate:'Time Range' }}</mat-label>
-            <mat-select [(ngModel)]="selectedTimeRange" (selectionChange)="onTimeRangeChange()">
-              @for (tr of timeRanges; track tr.value) {
-                <mat-option [value]="tr.value">
-                  {{ tr.label }}
-                </mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-
-          <button mat-raised-button color="primary" (click)="applyFilters()">
-            <mat-icon>refresh</mat-icon>
-            {{ 'dashboard.metrics.apply' | hhTranslate:'Apply' }}
-          </button>
-        </div>
-
-        <!-- Selected services chips -->
-        @if (selectedServices.length > 0) {
-          <div class="service-chips">
-            @for (svc of selectedServices; track svc; let i = $index) {
-              <span class="chip" [style.--chip-color]="getServiceColor(svc)">
-                {{ svc }}
-                <mat-icon class="chip-remove" (click)="removeService(svc)">close</mat-icon>
-              </span>
+      <!-- Controls -->
+      <hh-filter-toolbar label="dashboard.metrics.controlsLabel">
+        <!-- Service multi-select -->
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="services-field">
+          <mat-label>{{ 'dashboard.metrics.service' | hhTranslate:'Service' }}</mat-label>
+          <mat-select [(ngModel)]="selectedServices" multiple (selectionChange)="onServicesChange()">
+            @for (svc of availableServices; track svc.name) {
+              <mat-option [value]="svc.name">
+                {{ svc.displayName || svc.name }}
+              </mat-option>
             }
-          </div>
-        }
-        @if (selectedServices.length === 0) {
-          <div class="service-chips empty-chips">
-            <span class="chip-hint">{{ 'dashboard.metrics.selectServiceHint' | hhTranslate:'Select at least one service to view metrics' }}</span>
-          </div>
-        }
-      </mat-card-content>
-    </mat-card>
+          </mat-select>
+        </mat-form-field>
 
-    <!-- Loading -->
-    @if ((loading$ | async)) {
-      <div class="loading-state">
-        <mat-spinner diameter="32"></mat-spinner>
-        <span class="loading-text">{{ 'dashboard.metrics.loading' | hhTranslate:'Loading metrics...' }}</span>
-      </div>
-    }
+        <!-- Metric type selector -->
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>{{ 'dashboard.metrics.metricType' | hhTranslate:'Metric Type' }}</mat-label>
+          <mat-select [(ngModel)]="selectedMetricType" (selectionChange)="onMetricTypeChange()">
+            @for (mt of metricTypes; track mt.key) {
+              <mat-option [value]="mt.key">
+                {{ mt.label }}
+              </mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
 
-    <!-- Error -->
-    @if (error$ | async; as err) {
-      <div class="error-state">
-        <mat-icon class="error-icon">error_outline</mat-icon>
-        <p class="error-message">{{ err }}</p>
-        <button mat-raised-button color="primary" (click)="refresh()">{{ 'dashboard.metrics.retry' | hhTranslate:'Retry' }}</button>
-      </div>
-    }
+        <!-- Time range selector -->
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>{{ 'dashboard.metrics.timeRange' | hhTranslate:'Time Range' }}</mat-label>
+          <mat-select [(ngModel)]="selectedTimeRange" (selectionChange)="onTimeRangeChange()">
+            @for (tr of timeRanges; track tr.value) {
+              <mat-option [value]="tr.value">
+                {{ tr.label }}
+              </mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
 
-    <!-- Chart card -->
-    @if (hasData && !(loading$ | async)) {
-      <mat-card class="chart-card">
-        <mat-card-header>
-          <mat-card-title>{{ currentMetric.label }}</mat-card-title>
-          <mat-card-subtitle>
-            {{ 'dashboard.metrics.timeRangeLabel' | hhTranslate:'Time range' }}: {{ getTimeRangeLabel() }} &mdash;
-            {{ selectedServices.length }} {{ 'dashboard.metrics.servicesSelected' | hhTranslate:'services selected' }}
-          </mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
+        <button mat-raised-button color="primary" (click)="applyFilters()">
+          <mat-icon>refresh</mat-icon>
+          {{ 'dashboard.metrics.apply' | hhTranslate:'Apply' }}
+        </button>
+      </hh-filter-toolbar>
+
+      <!-- Selected services chips -->
+      @if (selectedServices.length > 0) {
+        <div class="service-chips">
+          @for (svc of selectedServices; track svc) {
+            <span class="chip" [style.color]="serviceColor(svc)" [style.background]="serviceChipBg(svc)">
+              {{ svc }}
+              <mat-icon class="chip-remove" (click)="removeService(svc)">close</mat-icon>
+            </span>
+          }
+        </div>
+      } @else {
+        <div class="service-chips empty-chips">
+          <span class="chip-hint">{{ 'dashboard.metrics.selectServiceHint' | hhTranslate:'Select at least one service to view metrics' }}</span>
+        </div>
+      }
+
+      <!-- Loading -->
+      @if ((loading$ | async)) {
+        <hh-state kind="loading" [message]="'dashboard.metrics.loading' | hhTranslate:'Loading metrics...'" />
+      }
+
+      <!-- Error -->
+      @if (error$ | async; as err) {
+        <hh-state kind="error" icon="error_outline" [message]="err">
+          <button mat-raised-button color="primary" (click)="refresh()">{{ 'dashboard.metrics.retry' | hhTranslate:'Retry' }}</button>
+        </hh-state>
+      }
+
+      <!-- Chart -->
+      @if (hasData && !(loading$ | async)) {
+        <hh-page-section [title]="currentMetric.label"
+                         [subtitle]="('dashboard.metrics.timeRangeLabel' | hhTranslate:'Time range') + ': ' + getTimeRangeLabel() + ' — ' + selectedServices.length + ' ' + ('dashboard.metrics.servicesSelected' | hhTranslate:'services selected')">
           <div class="chart-wrapper">
             <canvas #chartCanvas></canvas>
           </div>
-        </mat-card-content>
-      </mat-card>
-    }
+        </hh-page-section>
+      }
 
-    <!-- Empty state -->
-    @if (!hasData && !(loading$ | async) && !(error$ | async)) {
-      <div class="empty-state">
-        <mat-icon>monitoring</mat-icon>
-        <p>{{ 'dashboard.metrics.emptyState' | hhTranslate:'Select services and metric to view chart' }}</p>
-      </div>
-    }
+      <!-- Empty state -->
+      @if (!hasData && !(loading$ | async) && !(error$ | async)) {
+        <hh-state kind="empty" icon="monitoring" [message]="'dashboard.metrics.emptyState' | hhTranslate:'Select services and metric to view chart'" />
+      }
+    </hh-page-layout>
   `,
   styles: [`
-    .page-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-    }
-    .page-title {
-      font-size: var(--font-size-title, 24px);
-      line-height: 1.25;
-      font-weight: 700;
-      color: var(--text-primary);
-      margin: 0;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
     .live-badge {
       font-size: 11px;
-      font-weight: 600;
-      color: #2F6B4A;
-      background: #EDF3EC;
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-success);
+      background: var(--surface-success);
       padding: 2px 8px;
-      border-radius: 4px;
+      border-radius: var(--radius-badge);
       letter-spacing: 0.04em;
       animation: live-pulse 2s ease-in-out infinite;
     }
@@ -226,43 +202,25 @@ const SERVICE_COLORS = [
       0%, 100% { opacity: 1; }
       50% { opacity: 0.6; }
     }
-    .controls-card {
-      margin-bottom: 16px;
-    }
-    .controls-row {
-      display: flex;
-      gap: 16px;
-      align-items: flex-start;
-      flex-wrap: wrap;
-    }
-    .controls-row mat-form-field {
-      flex: 1;
-      min-width: 160px;
-    }
+
     .services-field {
       min-width: 220px;
       flex: 1.5;
     }
-    .controls-row button {
-      margin-top: 4px;
-      height: 40px;
-    }
+
     .service-chips {
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
-      margin-top: 8px;
     }
     .chip {
       display: inline-flex;
       align-items: center;
       gap: 4px;
       padding: 2px 8px 2px 10px;
-      border-radius: 4px;
+      border-radius: var(--radius-badge);
       font-size: 12px;
-      font-weight: 500;
-      color: var(--chip-color);
-      background: color-mix(in srgb, var(--chip-color) 12%, transparent);
+      font-weight: var(--font-weight-medium);
     }
     .chip-remove {
       font-size: 14px;
@@ -279,34 +237,10 @@ const SERVICE_COLORS = [
     }
     .chip-hint {
       font-size: 12px;
-      color: #A1A09B;
+      color: var(--text-muted);
       font-style: italic;
     }
-    .loading-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 64px 24px;
-      color: #787774;
-    }
-    .loading-text {
-      margin-top: 12px;
-      font-size: 14px;
-    }
-    .error-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 48px 24px;
-      text-align: center;
-      background: #FDEBEC;
-      border: 1px solid #F5C6C4;
-      border-radius: 8px;
-      gap: 12px;
-    }
-    .error-icon { font-size: 40px; width: 40px; height: 40px; color: #C25450; }
-    .error-message { font-size: 14px; color: #C25450; max-width: 400px; }
-    .chart-card { margin-bottom: 16px; }
+
     .chart-wrapper {
       position: relative;
       width: 100%;
@@ -318,22 +252,6 @@ const SERVICE_COLORS = [
       height: 100% !important;
       max-height: 400px;
     }
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 64px 24px;
-      color: #A1A09B;
-      text-align: center;
-    }
-    .empty-state mat-icon {
-      font-size: 48px;
-      width: 48px;
-      height: 48px;
-      margin-bottom: 16px;
-      opacity: 0.4;
-    }
-    .empty-state p { font-size: 14px; }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -425,13 +343,23 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
     this.destroyChart();
   }
 
-  getServiceColor(service: string): string {
+  /** Deterministically map a service name to a theme token. */
+  private serviceToken(service: string): string {
     let hash = 0;
     for (let i = 0; i < service.length; i++) {
       hash = ((hash << 5) - hash) + service.charCodeAt(i);
       hash |= 0;
     }
-    return SERVICE_COLORS[Math.abs(hash) % SERVICE_COLORS.length];
+    return SERVICE_TOKENS[Math.abs(hash) % SERVICE_TOKENS.length];
+  }
+
+  /** CSS var() string for a service (used in template chips). */
+  serviceColor(service: string): string {
+    return `var(${this.serviceToken(service)})`;
+  }
+
+  serviceChipBg(service: string): string {
+    return `color-mix(in srgb, ${this.serviceColor(service)} 12%, transparent)`;
   }
 
   getTimeRangeLabel(): string {
@@ -505,13 +433,13 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
     this.destroyChart();
 
     // Build datasets: one line per service
-    const datasets: { label: string; data: { x: string; y: number }[]; borderColor: string; backgroundColor: string; fill: boolean; tension: number; pointRadius: number; }[] = [];
+    const datasets: ChartDataset[] = [];
     const allLabels = new Set<string>();
 
     for (let i = 0; i < allMetrics.length; i++) {
       const snapshots = allMetrics[i];
       const service = this.selectedServices[i] ?? `Service ${i}`;
-      const color = this.getServiceColor(service);
+      const color = themeColor(this.serviceToken(service), '#5F6D65');
 
       // Collect all data points from snapshots
       const points: { x: string; y: number }[] = [];
@@ -561,7 +489,7 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
     setTimeout(() => this.createChart(datasets), 0);
   }
 
-  private createChart(datasets: { label: string; data: { x: string; y: number }[]; borderColor: string; backgroundColor: string; fill: boolean; tension: number; pointRadius: number; }[]): void {
+  private createChart(datasets: ChartDataset[]): void {
     if (!this.chartCanvas) return;
 
     const ctx = this.chartCanvas.nativeElement.getContext('2d');
@@ -590,7 +518,7 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
             },
           },
           tooltip: {
-            backgroundColor: '#1A1A1A',
+            backgroundColor: themeColor('--shell-header-bg', '#123B29'),
             titleFont: { size: 12 },
             bodyFont: { size: 12 },
             padding: 10,
@@ -604,18 +532,18 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
             ticks: {
               maxTicksLimit: 10,
               font: { size: 11 },
-              color: '#787774',
+              color: themeColor('--text-secondary', '#5F6D65'),
             },
           },
           y: {
             display: true,
             beginAtZero: true,
             grid: {
-              color: '#EAEAEA',
+              color: themeColor('--border-light', '#EAF0EB'),
             },
             ticks: {
               font: { size: 11 },
-              color: '#787774',
+              color: themeColor('--text-secondary', '#5F6D65'),
               callback: (value) => {
                 const v = Number(value);
                 if (v >= 1000) return (v / 1000).toFixed(1) + 'k';

@@ -1,167 +1,121 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
-import { MatTableModule } from '@angular/material/table';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
+import { Subject, takeUntil } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
-import { MatSelectModule } from '@angular/material/select';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatButtonModule } from '@angular/material/button';
 import { BillingService } from '@core/services/billing.service';
-import { Invoice } from '@core/models/invoice.model';
-import { HisHopeDataTableComponent } from '@his-hope/frontend-foundation';
+import {
+  HisHopeDataTableCellDirective,
+  HisHopeDataTableColumn,
+  HisHopeDataTableComponent,
+  HisHopeI18nService,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopePageQuery,
+  HisHopeStatusBadgeComponent,
+  HisHopeToolbarComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-invoice-list',
     standalone: true,
     imports: [
-        CommonModule, RouterModule, ReactiveFormsModule,
-        MatTableModule, MatFormFieldModule, MatInputModule, MatIconModule,
-        MatSelectModule, MatProgressBarModule, MatPaginatorModule, MatButtonModule,
-        HisHopeDataTableComponent,
+        CommonModule, RouterModule,
+        MatIconModule, MatButtonModule,
+        HisHopeDataTableComponent, HisHopeDataTableCellDirective, HisHopePageHeaderComponent,
+        HisHopePageLayoutComponent, HisHopeToolbarComponent, HisHopeStatusBadgeComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="invoice-list">
-      <div class="header">
-        <h1>Hóa đơn thanh toán</h1>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader
+                      [title]="'invoices.title' | hhTranslate:'Hóa đơn thanh toán'"
+                      [subtitle]="'invoices.subtitle' | hhTranslate:'Quản lý hóa đơn và thanh toán'">
         <button mat-raised-button color="primary" routerLink="/billing/new"
-                aria-label="Tạo hóa đơn mới">
-          <mat-icon>add</mat-icon> Tạo hóa đơn
+                [attr.aria-label]="'invoices.new' | hhTranslate:'Tạo hóa đơn mới'">
+          <mat-icon>add</mat-icon> {{ 'invoices.new' | hhTranslate:'Tạo hóa đơn' }}
         </button>
-      </div>
+      </hh-page-header>
 
-      <div class="filters">
-        <mat-form-field appearance="outline" class="search-field">
-          <mat-label>Tìm kiếm</mat-label>
-          <input matInput [formControl]="searchControl" placeholder="Số hóa đơn, bệnh nhân..."
-                 aria-label="Tìm kiếm hóa đơn">
-          <mat-icon matPrefix>search</mat-icon>
-        </mat-form-field>
+      <hh-toolbar hhPageToolbar [label]="'invoices.toolbar' | hhTranslate:'Hóa đơn thanh toán'">
+        <span hhToolbarTitle>{{ totalItems }} {{ 'invoices.count' | hhTranslate:'hóa đơn' }}</span>
+        <label class="hh-status-filter" hh-toolbar-controls>
+          <span>{{ 'common.status' | hhTranslate:'Trạng thái' }}</span>
+          <select [value]="statusCode" (change)="onStatusFilterChange($event)"
+                  [attr.aria-label]="'invoices.statusFilter' | hhTranslate:'Lọc theo trạng thái'">
+            <option value="">{{ 'common.all' | hhTranslate:'Tất cả' }}</option>
+            <option value="draft">{{ 'invoices.status.draft' | hhTranslate:'Nháp' }}</option>
+            <option value="issued">{{ 'invoices.status.issued' | hhTranslate:'Đã phát hành' }}</option>
+            <option value="partially_paid">{{ 'invoices.status.partial' | hhTranslate:'Đã thanh toán một phần' }}</option>
+            <option value="paid">{{ 'invoices.status.paid' | hhTranslate:'Đã thanh toán' }}</option>
+            <option value="overdue">{{ 'invoices.status.overdue' | hhTranslate:'Quá hạn' }}</option>
+            <option value="cancelled">{{ 'invoices.status.cancelled' | hhTranslate:'Đã hủy' }}</option>
+            <option value="voided">{{ 'invoices.status.voided' | hhTranslate:'Vô hiệu' }}</option>
+          </select>
+        </label>
+      </hh-toolbar>
 
-        <mat-form-field appearance="outline" class="status-filter">
-          <mat-label>Trạng thái</mat-label>
-          <mat-select [formControl]="statusControl" aria-label="Lọc theo trạng thái">
-            <mat-option value="">Tất cả</mat-option>
-            <mat-option value="draft">Nháp</mat-option>
-            <mat-option value="issued">Đã phát hành</mat-option>
-            <mat-option value="partially_paid">Đã thanh toán một phần</mat-option>
-            <mat-option value="paid">Đã thanh toán</mat-option>
-            <mat-option value="overdue">Quá hạn</mat-option>
-            <mat-option value="cancelled">Đã hủy</mat-option>
-            <mat-option value="voided">Vô hiệu</mat-option>
-          </mat-select>
-        </mat-form-field>
-      </div>
-
-      <hh-data-table label="Hóa đơn thanh toán" [loading]="loading" [error]="error"
-                     [empty]="!loading && !error && invoices.length === 0"
-                     emptyMessage="Không tìm thấy hóa đơn nào." (retry)="loadInvoices()">
-      <div class="table-container">
-        <mat-table [dataSource]="invoices" class="mat-elevation-z2">
-          <ng-container matColumnDef="invoiceNumber">
-            <mat-header-cell *matHeaderCellDef>Số hóa đơn</mat-header-cell>
-            <mat-cell *matCellDef="let inv">{{ inv.invoiceNumber }}</mat-cell>
-          </ng-container>
-
-        <ng-container matColumnDef="patientName">
-          <mat-header-cell *matHeaderCellDef>Bệnh nhân</mat-header-cell>
-          <mat-cell *matCellDef="let inv">{{ inv.patientName || inv.patientId }}</mat-cell>
-        </ng-container>
-
-        <ng-container matColumnDef="invoiceDate">
-          <mat-header-cell *matHeaderCellDef>Ngày</mat-header-cell>
-          <mat-cell *matCellDef="let inv">{{ inv.invoiceDate | date:'mediumDate' }}</mat-cell>
-        </ng-container>
-
-        <ng-container matColumnDef="totalAmount">
-          <mat-header-cell *matHeaderCellDef>Tổng tiền</mat-header-cell>
-          <mat-cell *matCellDef="let inv">{{ inv.totalAmount | number:'1.0-0' }} đ</mat-cell>
-        </ng-container>
-
-        <ng-container matColumnDef="balanceDue">
-          <mat-header-cell *matHeaderCellDef>Còn nợ</mat-header-cell>
-          <mat-cell *matCellDef="let inv">
-            <span [class.text-danger]="inv.balanceDue > 0" [class.text-success]="inv.balanceDue === 0">
-              {{ inv.balanceDue | number:'1.0-0' }} đ
-            </span>
-          </mat-cell>
-        </ng-container>
-
-        <ng-container matColumnDef="statusCode">
-          <mat-header-cell *matHeaderCellDef>Trạng thái</mat-header-cell>
-          <mat-cell *matCellDef="let inv">
-            <span class="status-badge" [class.status-draft]="inv.statusCode === 'draft'"
-                  [class.status-issued]="inv.statusCode === 'issued'"
-                  [class.status-partial]="inv.statusCode === 'partially_paid'"
-                  [class.status-paid]="inv.statusCode === 'paid'"
-                  [class.status-overdue]="inv.statusCode === 'overdue'"
-                  [class.status-cancelled]="inv.statusCode === 'cancelled'"
-                  [class.status-voided]="inv.statusCode === 'voided'">
-              {{ inv.statusName }}
-            </span>
-          </mat-cell>
-        </ng-container>
-
-          <ng-container matColumnDef="actions">
-            <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
-            <mat-cell *matCellDef="let inv">
-              <button mat-icon-button color="primary" (click)="viewDetail(inv.id)"
-                      aria-label="Xem chi tiết hóa đơn">
-                <mat-icon>visibility</mat-icon>
-              </button>
-            </mat-cell>
-          </ng-container>
-
-          <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
-          <mat-row *matRowDef="let row; columns: displayedColumns;" (click)="viewDetail(row.id)" (keydown.enter)="viewDetail(row.id)"
-                   (keydown.space)="$event.preventDefault(); viewDetail(row.id)" class="clickable-row" tabindex="0" role="button"
-                   [attr.aria-label]="'Xem chi tiết hóa đơn ' + row.invoiceNumber"></mat-row>
-        </mat-table>
-      </div>
-      @if (!loading && totalCount > 0) {
-      <mat-paginator [length]="totalCount" [pageSize]="pageSize" [pageSizeOptions]="[10, 20, 50]"
-                     (page)="onPageChange($event)" [pageIndex]="page - 1" showFirstLastButtons>
-      </mat-paginator>
-      }
+      <hh-data-table [label]="'invoices.tableLabel' | hhTranslate:'Hóa đơn thanh toán'"
+                     [loading]="loading" [error]="error"
+                     [empty]="rows.length === 0 && !loading"
+                     [emptyMessage]="'invoices.empty' | hhTranslate:'Không tìm thấy hóa đơn nào.'"
+                     [searchPlaceholder]="'invoices.search' | hhTranslate:'Số hóa đơn, bệnh nhân...'"
+                     [columns]="columns" [rows]="rows"
+                     [pageSize]="20" [totalItems]="totalItems"
+                     [query]="query" [mode]="'server'" [urlSync]="false"
+                     [selection]="true" [rowClickable]="true"
+                     (queryChange)="onQueryChange($event)" (rowClick)="onRowClick($event)"
+                     (retry)="loadData()">
+        <ng-template hhDataTableCell="invoiceNumber" let-row>{{ row['invoiceNumber'] }}</ng-template>
+        <ng-template hhDataTableCell="patientName" let-row>{{ row['patientName'] || row['patientId'] }}</ng-template>
+        <ng-template hhDataTableCell="invoiceDate" let-row>{{ row['invoiceDate'] | date:'mediumDate' }}</ng-template>
+        <ng-template hhDataTableCell="totalAmount" let-row>{{ amountOf(row, 'totalAmount') | number:'1.0-0' }} đ</ng-template>
+        <ng-template hhDataTableCell="balanceDue" let-row>
+          <span [class.text-danger]="amountOf(row, 'balanceDue') > 0" [class.text-success]="amountOf(row, 'balanceDue') === 0">
+            {{ amountOf(row, 'balanceDue') | number:'1.0-0' }} đ
+          </span>
+        </ng-template>
+        <ng-template hhDataTableCell="statusCode" let-row>
+          <hh-status-badge [status]="statusOf(row)" [label]="statusLabel(row)" />
+        </ng-template>
+        <ng-template hhDataTableCell="actions" let-row>
+          <a mat-icon-button [routerLink]="['/billing', idOf(row)]"
+             [attr.aria-label]="'common.details' | hhTranslate:'Xem chi tiết'" (click)="$event.stopPropagation()">
+            <mat-icon>visibility</mat-icon>
+          </a>
+        </ng-template>
       </hh-data-table>
-    </div>
+    </hh-page-layout>
   `,
     styles: [`
-    .invoice-list { padding: 24px; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    .filters { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
-    .search-field { flex: 1; min-width: 250px; }
-    .status-filter { width: 220px; }
-    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    mat-table { width: 100%; cursor: pointer; }
-    mat-row:hover { background: #f5f5f5; }
-    .clickable-row { cursor: pointer; }
-    .clickable-row:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: -2px; }
+    .hh-status-filter { display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: var(--font-size-caption); }
+    .hh-status-filter select { min-height: var(--control-height); min-width: 180px; padding: 0 10px; border: 1px solid var(--border-default); border-radius: var(--radius-input); background: var(--surface-white); color: var(--text-primary); font: inherit; }
     .text-danger { color: var(--pastel-red-text, #C25450); font-weight: 500; }
     .text-success { color: var(--pastel-green-text, #2F6B4A); font-weight: 500; }
-    .loading-shimmer { margin-bottom: 16px; }
-    .empty-state { text-align: center; padding: 48px; color: #999; }
-    .empty-icon { font-size: 48px; width: 48px; height: 48px; margin-bottom: 16px; }
   `],
 })
 export class InvoiceListComponent implements OnInit, OnDestroy {
-  private destroy$ = new Subject<void>();
+  private readonly destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
-  displayedColumns = ['invoiceNumber', 'patientName', 'invoiceDate', 'totalAmount', 'balanceDue', 'statusCode', 'actions'];
-  invoices: Invoice[] = [];
-  totalCount = 0;
-  page = 1;
-  pageSize = 20;
+  columns: HisHopeDataTableColumn[] = [
+    { key: 'invoiceNumber', label: this.i18n.t('invoices.column.number', 'Số hóa đơn'), sortable: true },
+    { key: 'patientName', label: this.i18n.t('invoices.column.patient', 'Bệnh nhân') },
+    { key: 'invoiceDate', label: this.i18n.t('invoices.column.date', 'Ngày'), sortable: true },
+    { key: 'totalAmount', label: this.i18n.t('invoices.column.total', 'Tổng tiền'), align: 'end' as const },
+    { key: 'balanceDue', label: this.i18n.t('invoices.column.balance', 'Còn nợ'), align: 'end' as const },
+    { key: 'statusCode', label: this.i18n.t('invoices.column.status', 'Trạng thái'), status: true },
+    { key: 'actions', label: this.i18n.t('common.actions', 'Thao tác'), hideable: false, align: 'end' as const },
+  ];
+
+  rows: Record<string, unknown>[] = [];
+  totalItems = 0;
   loading = false;
   error = '';
-  searchControl = new FormControl('');
-  statusControl = new FormControl('');
-  private searchTerm = '';
+  query: HisHopePageQuery = { page: 1, pageSize: 20 };
+  statusCode = '';
 
   constructor(
     private billingService: BillingService,
@@ -170,24 +124,7 @@ export class InvoiceListComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.searchControl.valueChanges
-      .pipe(debounceTime(300), distinctUntilChanged(), takeUntil(this.destroy$))
-      .subscribe((term) => {
-        this.searchTerm = term ?? '';
-        this.page = 1;
-        this.loadInvoices();
-        this.cdr.markForCheck();
-      });
-
-    this.statusControl.valueChanges
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        this.page = 1;
-        this.loadInvoices();
-        this.cdr.markForCheck();
-      });
-
-    this.loadInvoices();
+    this.loadData();
   }
 
   ngOnDestroy(): void {
@@ -195,38 +132,62 @@ export class InvoiceListComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  loadInvoices(): void {
+  loadData(): void {
     this.error = '';
     this.loading = true;
     this.billingService.searchInvoices({
-      searchTerm: this.searchTerm,
-      statusCode: this.statusControl.value || undefined,
-      page: this.page,
-      pageSize: this.pageSize,
-    })
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (result) => {
-          this.invoices = result.items;
-          this.totalCount = result.totalCount;
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          this.error = 'Không thể tải danh sách hóa đơn.';
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-      });
+      searchTerm: this.query.search,
+      statusCode: this.statusCode || undefined,
+      page: this.query.page,
+      pageSize: this.query.pageSize,
+    }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (result) => {
+        this.rows = result.items.map(item => ({ ...item }));
+        this.totalItems = result.totalCount;
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.error = this.i18n.t('invoices.loadFailed', 'Không thể tải danh sách hóa đơn.');
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  onQueryChange(query: HisHopePageQuery): void {
+    this.query = query;
+    this.loadData();
+  }
+
+  onStatusFilterChange(event: Event): void {
+    this.statusCode = (event.target as HTMLSelectElement).value;
+    this.query = { ...this.query, page: 1 };
+    this.loadData();
+    this.cdr.markForCheck();
+  }
+
+  onRowClick(row: Record<string, unknown>): void {
+    this.viewDetail(this.idOf(row));
   }
 
   viewDetail(id: string): void {
     this.router.navigate(['/billing', id]);
   }
 
-  onPageChange(event: any): void {
-    this.page = event.pageIndex + 1;
-    this.pageSize = event.pageSize;
-    this.loadInvoices();
+  amountOf(row: Record<string, unknown>, key: string): number {
+    return Number(row[key] ?? 0);
+  }
+
+  statusOf(row: Record<string, unknown>): string {
+    return String(row['statusCode'] ?? '');
+  }
+
+  statusLabel(row: Record<string, unknown>): string {
+    return String(row['statusName'] ?? row['statusCode'] ?? '');
+  }
+
+  idOf(row: Record<string, unknown>): string {
+    return String(row['id'] ?? '');
   }
 }

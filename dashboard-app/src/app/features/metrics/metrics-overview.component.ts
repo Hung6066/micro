@@ -1,11 +1,8 @@
 import { Component, OnInit, ChangeDetectionStrategy, inject, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatCardModule } from '@angular/material/card';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { BehaviorSubject, Subject, of } from 'rxjs';
-import { catchError, finalize, takeUntil } from 'rxjs/operators';
-import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
+import { Subject, of } from 'rxjs';
+import { catchError, takeUntil } from 'rxjs/operators';
+import { HisHopeMetricCardComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { ResourceService } from '../../core/services/resource.service';
 import { Resource } from '../../core/models/resource.model';
 
@@ -14,111 +11,37 @@ import { Resource } from '../../core/models/resource.model';
   standalone: true,
   imports: [
     CommonModule,
-    MatCardModule,
-    MatIconModule,
-    MatProgressSpinnerModule,
+    HisHopeMetricCardComponent,
     HisHopeTranslatePipe,
   ],
   template: `
-    <div class="overview-grid">
-      <mat-card class="overview-card running">
-        <mat-card-content>
-          <div class="overview-inner">
-            <div class="overview-icon">
-              <mat-icon>check_circle</mat-icon>
-            </div>
-            <div class="overview-info">
-              <span class="overview-value">{{ runningCount }}</span>
-              <span class="overview-label">{{ 'dashboard.metricsOverview.running' | hhTranslate:'Đang chạy' }}</span>
-            </div>
-          </div>
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card class="overview-card stopped">
-        <mat-card-content>
-          <div class="overview-inner">
-            <div class="overview-icon">
-              <mat-icon>stop_circle</mat-icon>
-            </div>
-            <div class="overview-info">
-              <span class="overview-value">{{ stoppedCount }}</span>
-              <span class="overview-label">{{ 'dashboard.metricsOverview.stopped' | hhTranslate:'Đã dừng' }}</span>
-            </div>
-          </div>
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card class="overview-card degraded">
-        <mat-card-content>
-          <div class="overview-inner">
-            <div class="overview-icon">
-              <mat-icon>warning</mat-icon>
-            </div>
-            <div class="overview-info">
-              <span class="overview-value">{{ degradedCount }}</span>
-              <span class="overview-label">{{ 'dashboard.metricsOverview.degraded' | hhTranslate:'Suy giảm' }}</span>
-            </div>
-          </div>
-        </mat-card-content>
-      </mat-card>
-
-      <mat-card class="overview-card total">
-        <mat-card-content>
-          <div class="overview-inner">
-            <div class="overview-icon">
-              <mat-icon>dns</mat-icon>
-            </div>
-            <div class="overview-info">
-              <span class="overview-value">{{ totalCount }}</span>
-              <span class="overview-label">{{ 'dashboard.metricsOverview.totalServices' | hhTranslate:'Tổng dịch vụ' }}</span>
-            </div>
-          </div>
-        </mat-card-content>
-      </mat-card>
+    <div class="stats-grid">
+      <hh-metric-card icon="check_circle" [label]="'dashboard.metricsOverview.running' | hhTranslate:'Đang chạy'"
+                      [value]="runningCount" link="/resources"
+                      [action]="'dashboard.metricsOverview.viewResources' | hhTranslate:'Xem tài nguyên'" />
+      <hh-metric-card icon="stop_circle" [label]="'dashboard.metricsOverview.stopped' | hhTranslate:'Đã dừng'"
+                      [value]="stoppedCount" link="/resources" tone="danger"
+                      [action]="'dashboard.metricsOverview.viewResources' | hhTranslate:'Xem tài nguyên'" />
+      <hh-metric-card icon="warning" [label]="'dashboard.metricsOverview.degraded' | hhTranslate:'Suy giảm'"
+                      [value]="degradedCount" link="/resources" tone="warning"
+                      [action]="'dashboard.metricsOverview.viewResources' | hhTranslate:'Xem tài nguyên'" />
+      <hh-metric-card icon="dns" [label]="'dashboard.metricsOverview.totalServices' | hhTranslate:'Tổng dịch vụ'"
+                      [value]="totalCount" link="/resources" tone="info"
+                      [action]="'dashboard.metricsOverview.viewResources' | hhTranslate:'Xem tài nguyên'" />
     </div>
   `,
   styles: [`
-    .overview-grid {
+    .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 16px;
       margin-bottom: 24px;
     }
-    .overview-card {
-      cursor: default;
+    @media (max-width: 900px) {
+      .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
-    .overview-card mat-card-content {
-      padding: 20px !important;
-    }
-    .overview-inner {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-    .overview-icon mat-icon {
-      font-size: 36px;
-      width: 36px;
-      height: 36px;
-    }
-.overview-card.running .overview-icon mat-icon { color: var(--color-success); }
-.overview-card.stopped .overview-icon mat-icon { color: var(--text-secondary); }
-.overview-card.degraded .overview-icon mat-icon { color: var(--color-warning); }
-.overview-card.total .overview-icon mat-icon { color: var(--color-info); }
-    .overview-info {
-      display: flex;
-      flex-direction: column;
-    }
-    .overview-value {
-      font-size: 28px;
-      font-weight: 700;
-color: var(--text-primary);
-      line-height: 1.1;
-    }
-    .overview-label {
-      font-size: 12px;
-color: var(--text-secondary);
-      margin-top: 2px;
+    @media (max-width: 600px) {
+      .stats-grid { grid-template-columns: 1fr; }
     }
   `],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -133,8 +56,6 @@ export class MetricsOverviewComponent implements OnInit, OnDestroy {
   degradedCount = 0;
   totalCount = 0;
 
-  private readonly loading$ = new BehaviorSubject<boolean>(true);
-
   ngOnInit(): void {
     this.loadResources();
   }
@@ -145,10 +66,8 @@ export class MetricsOverviewComponent implements OnInit, OnDestroy {
   }
 
   private loadResources(): void {
-    this.loading$.next(true);
     this.resourceService.getAll().pipe(
       catchError(() => of([] as Resource[])),
-      finalize(() => this.loading$.next(false)),
       takeUntil(this.destroy$),
     ).subscribe(resources => {
       const services = resources.filter(r => r.type?.toLowerCase() === 'service');
