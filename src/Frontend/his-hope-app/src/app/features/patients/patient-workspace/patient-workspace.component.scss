@@ -1,0 +1,232 @@
+:host { display: block; height: 100%; }
+
+/* ── Patient Header ── */
+.patient-header {
+  background: var(--surface-white, #FFFFFF);
+  border-bottom: 1px solid var(--border-default, #EAEAEA);
+  padding: 16px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: none;
+}
+
+.patient-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.patient-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: var(--pastel-blue, #E1F3FE);
+  color: var(--pastel-blue-text, #1A6BB5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.patient-details h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.patient-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 4px;
+  color: var(--text-secondary, #787774);
+  font-size: 13px;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.meta-item mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  opacity: 0.6;
+}
+
+.patient-alerts { margin: 8px 0; }
+
+.allergy-chip {
+  background: var(--pastel-red, #FDEBEC) !important;
+  color: var(--pastel-red-text, #C25450) !important;
+}
+
+.condition-chip {
+  background: var(--pastel-blue, #E1F3FE) !important;
+  color: var(--pastel-blue-text, #1A6BB5) !important;
+}
+
+.quick-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-light, #F0F0EE);
+}
+
+.loading-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px;
+  color: var(--text-secondary, #787774);
+}
+
+.error-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--pastel-red, #FDEBEC);
+  color: var(--pastel-red-text, #C25450);
+  border-radius: var(--radius-card, 8px);
+  margin: 24px;
+}
+
+/* ── Tabs ── */
+.workspace-tabs {
+  padding: 0 24px 24px;
+}
+
+.tab-body {
+  padding: 16px 0;
+  min-height: 200px;
+}
+
+.tab-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.tab-toolbar h3 {
+  margin: 0;
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--text-primary, #1A1A1A);
+}
+
+.tab-loading {
+  display: flex;
+  justify-content: center;
+  padding: 32px;
+}
+
+.tab-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 48px;
+  color: var(--text-muted, #A1A09B);
+}
+
+.tab-empty mat-icon {
+  font-size: 48px;
+  width: 48px;
+  height: 48px;
+  opacity: 0.4;
+}
+
+/* ── Tables ── */
+.workspace-table { width: 100%; }
+
+.clickable-row {
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.clickable-row:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.expanded-row td { padding: 0 !important; }
+
+.soap-preview {
+  background: var(--bg-warm-alt, #FBFBFA);
+  border-bottom: 1px solid var(--border-light, #F0F0EE);
+}
+
+.soap-content { padding: 16px 24px; }
+.soap-section { margin-bottom: 12px; }
+
+.soap-section h4 {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary, #787774);
+}
+
+.soap-section p {
+  margin: 2px 0;
+  font-size: 13px;
+  color: var(--text-primary, #1A1A1A);
+}
+
+.soap-section pre {
+  margin: 4px 0;
+  font-size: 13px;
+  white-space: pre-wrap;
+  color: var(--text-primary, #1A1A1A);
+  background: var(--surface-white, #FFFFFF);
+  padding: 8px;
+  border-radius: var(--radius-input, 4px);
+  border: 1px solid var(--border-light, #F0F0EE);
+}
+
+.vitals-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.vitals-row span {
+  background: var(--surface-white, #FFFFFF);
+  padding: 4px 12px;
+  border-radius: var(--radius-badge, 4px);
+  font-size: 13px;
+  border: 1px solid var(--border-light, #F0F0EE);
+}
+
+/* ── Status Badges (minimal overrides; bulk handled in global styles) ── */
+.abnormal-flag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--pastel-red-text, #C25450);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.abnormal-flag mat-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+}
+
+.text-danger {
+  color: var(--pastel-red-text, #C25450);
+  font-weight: 600;
+}
+
+::ng-deep .mat-mdc-tab-body-content { overflow: hidden; }

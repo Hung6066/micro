@@ -79,7 +79,8 @@ var auth = app.MapGroup("/api/v1/auth");
 
 auth.MapPost("/login", async (LoginRequest request, IIdentityService identityService,
     UserManager<User> userManager, SignInManager<User> signInManager,
-    IConnectionMultiplexer redis, HttpContext httpContext, CancellationToken ct) =>
+    IConnectionMultiplexer redis, SessionTokenProtector tokenProtector,
+    HttpContext httpContext, CancellationToken ct) =>
 {
     try
     {
@@ -115,8 +116,8 @@ auth.MapPost("/login", async (LoginRequest request, IIdentityService identitySer
         var sessionData = new SessionData
         {
             UserId = result.User.Id.ToString(),
-            Jwt = result.AccessToken,
-            RefreshToken = result.RefreshToken,
+            Jwt = tokenProtector.Protect(result.AccessToken),
+            RefreshToken = tokenProtector.Protect(result.RefreshToken),
             Permissions = permissions,
             CsrfToken = csrfToken,
             UserAgentHash = BffHelpers.ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
@@ -202,7 +203,8 @@ auth.MapPost("/register", async (RegisterRequest request, IIdentityService ident
 .AllowAnonymous();
 
 auth.MapPost("/refresh", async (RefreshTokenRequest request, IIdentityService identityService,
-    IConnectionMultiplexer redis, HttpContext httpContext, ILogger<Program> logger, CancellationToken ct) =>
+    IConnectionMultiplexer redis, SessionTokenProtector tokenProtector,
+    HttpContext httpContext, ILogger<Program> logger, CancellationToken ct) =>
 {
     try
     {
@@ -231,8 +233,8 @@ auth.MapPost("/refresh", async (RefreshTokenRequest request, IIdentityService id
                     {
                         request = request with
                         {
-                            AccessToken = session.Jwt,
-                            RefreshToken = session.RefreshToken
+                            AccessToken = tokenProtector.Unprotect(session.Jwt),
+                            RefreshToken = tokenProtector.Unprotect(session.RefreshToken!)
                         };
                     }
                 }
@@ -254,6 +256,7 @@ auth.MapPost("/refresh", async (RefreshTokenRequest request, IIdentityService id
 auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpContext,
     IIdentityService identityService, IUserSessionTracker sessionTracker,
     ITokenBlacklistService tokenBlacklist, SignInManager<User> signInManager,
+    SessionTokenProtector tokenProtector,
     ILogger<Program> logger, CancellationToken ct) =>
 {
     var sessionId = httpContext.Request.Cookies["hishop_sid"];
@@ -269,7 +272,7 @@ auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpCon
             var session = JsonSerializer.Deserialize<SessionData>(sessionJson!);
             if (session is not null)
             {
-                refreshToken = session.RefreshToken;
+                refreshToken = tokenProtector.UnprotectOptional(session.RefreshToken);
                 userId = session.UserId;
             }
         }
@@ -359,7 +362,9 @@ auth.MapGet("/session-status", async (HttpContext httpContext) =>
 auth.MapPost("/session/exchange", async (
     HttpContext httpContext,
     UserManager<User> userManager,
+    IdentityDbContext db,
     JwtTokenGenerator tokenGenerator,
+    SessionTokenProtector tokenProtector,
     IConnectionMultiplexer redis,
     CancellationToken ct) =>
 {
@@ -381,9 +386,15 @@ auth.MapPost("/session/exchange", async (
     }
 
     var roles = await userManager.GetRolesAsync(user);
-    var permissions = httpContext.User.FindAll("permission")
-        .Concat(httpContext.User.FindAll("permissions"))
-        .SelectMany(c => c.Value.Split(',', ' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    var roleIds = await db.Roles
+        .Where(role => roles.Contains(role.Name!))
+        .Select(role => role.Id)
+        .ToArrayAsync(ct);
+    var permissions = await db.RolePermissions
+        .Where(rolePermission => roleIds.Contains(rolePermission.RoleId))
+        .Select(rolePermission => rolePermission.PermissionCode)
+        .ToArrayAsync(ct);
+    permissions = permissions
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToArray();
     var (jwt, expiresAt) = tokenGenerator.GenerateAccessToken(user, roles, permissions);
@@ -392,7 +403,7 @@ auth.MapPost("/session/exchange", async (
     var session = new SessionData
     {
         UserId = user.Id.ToString(),
-        Jwt = jwt,
+        Jwt = tokenProtector.Protect(jwt),
         RefreshToken = null,
         Permissions = permissions,
         CsrfToken = csrfToken,
@@ -430,7 +441,8 @@ auth.MapPost("/session/exchange", async (
 
 // BFF internal: exchange session ID for new JWT (transparent refresh)
 auth.MapPost("/internal/refresh", async (IConnectionMultiplexer redis, HttpContext httpContext,
-    IIdentityService identityService, CancellationToken ct) =>
+    IIdentityService identityService, SessionTokenProtector tokenProtector,
+    CancellationToken ct) =>
 {
     var sessionId = httpContext.Request.Cookies["hishop_sid"];
     if (string.IsNullOrEmpty(sessionId))
@@ -441,16 +453,33 @@ auth.MapPost("/internal/refresh", async (IConnectionMultiplexer redis, HttpConte
     if (!sessionJson.HasValue)
         return Results.Unauthorized();
 
-    var session = JsonSerializer.Deserialize<SessionData>(sessionJson!);
+    SessionData? session;
+    try
+    {
+        session = JsonSerializer.Deserialize<SessionData>(sessionJson!);
+        if (session is not null)
+        {
+            session = session with
+            {
+                Jwt = tokenProtector.Unprotect(session.Jwt),
+                RefreshToken = tokenProtector.UnprotectOptional(session.RefreshToken)
+            };
+        }
+    }
+    catch (System.Security.Cryptography.CryptographicException)
+    {
+        return Results.Unauthorized();
+    }
     if (session is null || session.IsExpired)
         return Results.Unauthorized();
 
     var refreshResult = await identityService.RefreshTokenAsync(
-        new RefreshTokenRequest(session.Jwt, ""), ct);
+        new RefreshTokenRequest(session.Jwt, session.RefreshToken ?? ""), ct);
 
     session = session with
     {
-        Jwt = refreshResult.AccessToken,
+        Jwt = tokenProtector.Protect(refreshResult.AccessToken),
+        RefreshToken = tokenProtector.Protect(refreshResult.RefreshToken),
         ExpiresAt = refreshResult.ExpiresAt,
         CsrfToken = Guid.NewGuid().ToString("N"),
         UserAgentHash = BffHelpers.ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
@@ -644,12 +673,15 @@ admin.MapTableViewEndpoints();
         admin.MapTableAnalysisEndpoints();
 
         app.MapMobilePlatformEndpoints();
-        app.MapGet("/api/v1/auth/identity-login.js", () =>
+        app.MapGet("/api/v1/auth/identity-login.js", (HttpContext context) =>
         {
             var scriptPath = ResolveIdentityLoginScriptPath(app.Environment);
-            return File.Exists(scriptPath)
-                ? Results.File(scriptPath, "text/javascript; charset=utf-8")
-                : Results.NotFound();
+            if (!File.Exists(scriptPath))
+                return Results.NotFound();
+
+            context.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+            context.Response.Headers.Pragma = "no-cache";
+            return Results.File(scriptPath, "text/javascript; charset=utf-8");
         })
             .AllowAnonymous();
         app.MapPasskeyEndpoints();
@@ -1160,6 +1192,8 @@ app.MapGet("/Account/Login", async (HttpContext httpContext, SignInManager<User>
     httpContext.Response.OnStarting(() =>
     {
         httpContext.Response.Headers.Remove("Content-Security-Policy");
+        httpContext.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+        httpContext.Response.Headers.Pragma = "no-cache";
         return Task.CompletedTask;
     });
 
@@ -1176,6 +1210,8 @@ app.MapGet("/Account/Mfa", async (HttpContext httpContext, string? error, OidcLo
     httpContext.Response.OnStarting(() =>
     {
         httpContext.Response.Headers.Remove("Content-Security-Policy");
+        httpContext.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate";
+        httpContext.Response.Headers.Pragma = "no-cache";
         return Task.CompletedTask;
     });
 
@@ -1504,7 +1540,7 @@ h1{margin:0 0 10px;font-size:30px;line-height:1.12}
       <p class="support">Verification methods stay bound to the pending browser session. The page never asks for your account email again.</p>
     </section>
   </main>
-  <script src="/api/v1/auth/identity-login.js" defer></script>
+  <script src="/api/v1/auth/identity-login.js?v=20260801-passkey" defer></script>
 </body>
 </html>
 """;
@@ -1564,7 +1600,7 @@ static string BuildPasskeyManagementPage(bool ldapAvailable, bool samlAvailable)
         ? "<a class='provider-action' href='/api/v1/federation/saml/login?returnUrl=%2FAccount%2FPasskeys'>Continue with SAML SSO</a><span class='provider-status ready'>Configured</span>"
         : "<span class='provider-action disabled'>SAML SSO unavailable</span><span class='provider-status'>Configure IdP metadata</span>";
 
-    return @"<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Security methods - His.Hope</title><style>body{margin:0;background:#eef3ef;color:#18251f;font:15px Arial,sans-serif}.page{max-width:920px;margin:40px auto;padding:32px;background:#fff;border:1px solid #dbe6df;border-radius:22px;box-shadow:0 18px 45px #153b2a18}h1{margin:0 0 8px;font-size:30px}p{color:#66756c}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:24px}.card{display:grid;gap:10px;padding:20px;border:1px solid #dbe6df;border-radius:16px;background:#f8fbf8}.card h2{margin:0;font-size:18px}.provider-action{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 14px;border-radius:10px;background:#216344;color:#fff;text-decoration:none;font-weight:700}.provider-action.disabled{background:#e6ece8;color:#738078;cursor:not-allowed}.provider-status{font-size:12px;color:#738078}.provider-status.ready{color:#216344;font-weight:700}#register{min-height:46px;padding:0 18px;border:0;border-radius:10px;background:#216344;color:#fff;font-weight:700;cursor:pointer}#status{min-height:20px}</style></head><body><main class='page'><h1>Security methods</h1><p>Register a passkey for this account or use an enabled hospital identity provider.</p><div class='grid'><section class='card'><h2>Passkey</h2><p>Use Face ID, fingerprint or your device security key for OIDC sign-in.</p><button id='register' type='button'>Create passkey</button><p id='status' role='status'></p></section><section class='card'><h2>LDAP/AD</h2><p>Hospital directory authentication.</p>" + ldapCard + @"</section><section class='card'><h2>SAML SSO</h2><p>Enterprise identity provider authentication.</p>" + samlCard + @"</section></div></main><script src='/api/v1/auth/identity-login.js' defer></script></body></html>";
+    return @"<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Security methods - His.Hope</title><style>body{margin:0;background:#eef3ef;color:#18251f;font:15px Arial,sans-serif}.page{max-width:920px;margin:40px auto;padding:32px;background:#fff;border:1px solid #dbe6df;border-radius:22px;box-shadow:0 18px 45px #153b2a18}h1{margin:0 0 8px;font-size:30px}p{color:#66756c}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:24px}.card{display:grid;gap:10px;padding:20px;border:1px solid #dbe6df;border-radius:16px;background:#f8fbf8}.card h2{margin:0;font-size:18px}.provider-action{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 14px;border-radius:10px;background:#216344;color:#fff;text-decoration:none;font-weight:700}.provider-action.disabled{background:#e6ece8;color:#738078;cursor:not-allowed}.provider-status{font-size:12px;color:#738078}.provider-status.ready{color:#216344;font-weight:700}#register{min-height:46px;padding:0 18px;border:0;border-radius:10px;background:#216344;color:#fff;font-weight:700;cursor:pointer}#status{min-height:20px}</style></head><body><main class='page'><h1>Security methods</h1><p>Register a passkey for this account or use an enabled hospital identity provider.</p><div class='grid'><section class='card'><h2>Passkey</h2><p>Use Face ID, fingerprint or your device security key for OIDC sign-in.</p><button id='register' type='button'>Create passkey</button><p id='status' role='status'></p></section><section class='card'><h2>LDAP/AD</h2><p>Hospital directory authentication.</p>" + ldapCard + @"</section><section class='card'><h2>SAML SSO</h2><p>Enterprise identity provider authentication.</p>" + samlCard + @"</section></div></main><script src='/api/v1/auth/identity-login.js?v=20260801-passkey' defer></script></body></html>";
 }
 
 static string BuildLoginPage(bool hasError, string errorMessage, string encodedReturnUrl, List<string> externalProviders, bool samlAvailable)
@@ -1806,70 +1842,73 @@ static string BuildAlreadySignedInPage(string userName, string returnUrl)
 <title>Already signed in — His.Hope HIS</title>
 <style>
 *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
-html,body{{height:100%}}
+html,body{{min-height:100%}}
 body{{
-  font-family:Roboto,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  font-size:14px;font-weight:400;line-height:1.5;
-  color:rgba(0,0,0,.87);background:#fafafa;
+  min-height:100%;font-family:'Aptos','Segoe UI',Roboto,-apple-system,BlinkMacSystemFont,sans-serif;
+  font-size:15px;line-height:1.5;color:#18251f;background:#eef3ef;
   -webkit-font-smoothing:antialiased
 }}
 .login-page{{
-  min-height:100vh;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;padding:16px;
-  background:linear-gradient(135deg,#3f51b5,#303f9f)
+  min-height:100dvh;display:grid;place-items:center;padding:32px 18px;
+  background:radial-gradient(circle at 16% 18%,rgba(46,125,84,.16),transparent 30%),radial-gradient(circle at 78% 12%,rgba(37,70,58,.13),transparent 28%),linear-gradient(135deg,#f7faf6 0%,#edf3ee 44%,#dfe9e2 100%);position:relative;overflow:hidden
 }}
+.login-page::before{{content:"";position:absolute;inset:0;pointer-events:none;opacity:.32;background-image:linear-gradient(rgba(24,37,31,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(24,37,31,.05) 1px,transparent 1px);background-size:44px 44px;mask-image:linear-gradient(to bottom,rgba(0,0,0,.75),transparent 82%)}}
 .card{{
-  width:100%;max-width:400px;background:#fff;border-radius:4px;
-  box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12);
-  overflow:hidden;animation:card-in .3s cubic-bezier(.4,0,.2,1)
+  width:min(100%,940px);display:grid;grid-template-columns:minmax(300px,.9fr) minmax(340px,1fr);position:relative;z-index:1;background:rgba(255,255,255,.78);border:1px solid rgba(50,74,63,.16);border-radius:28px;overflow:hidden;box-shadow:0 24px 70px rgba(21,45,35,.18),0 8px 24px rgba(21,45,35,.09);animation:card-in .42s cubic-bezier(.2,.8,.2,1);backdrop-filter:blur(18px)
 }}
-@keyframes card-in{{from{{opacity:0;transform:translateY(24px) scale(.98)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
-.card-header{{
-  background:linear-gradient(135deg,#3f51b5,#303f9f);color:#fff;
-  padding:40px 24px 32px;text-align:center
-}}
-.card-header svg{{width:48px;height:48px;margin-bottom:12px;opacity:.9}}
-.card-header h1{{font-size:24px;font-weight:400;margin:0 0 4px;letter-spacing:.25px}}
-.card-header p{{font-size:14px;font-weight:300;opacity:.8;letter-spacing:.1px}}
-.card-body{{padding:24px}}
+@keyframes card-in{{from{{opacity:0;transform:translateY(18px) scale(.985)}}to{{opacity:1;transform:translateY(0) scale(1)}}}}
+.brand-panel{{min-height:520px;padding:36px;display:flex;flex-direction:column;justify-content:space-between;color:#f7fbf8;background:radial-gradient(circle at 24% 18%,rgba(255,255,255,.18),transparent 28%),linear-gradient(145deg,#153b2a 0%,#23533d 58%,#2f6e50 100%)}}
+.brand-mark{{display:flex;align-items:center;gap:12px;font-weight:700;font-size:20px}}
+.brand-mark span{{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:#f7fbf8;color:#236344;box-shadow:0 12px 30px rgba(0,0,0,.18)}}
+.brand-mark svg{{width:24px;height:24px}}
+.brand-copy h1{{font-size:44px;line-height:.98;font-weight:750;margin-bottom:18px}}
+.brand-copy p{{max-width:29rem;color:rgba(247,251,248,.78);font-size:16px;line-height:1.7}}
+.assurance{{display:grid;gap:10px;color:rgba(247,251,248,.78);font-size:13px}}
+.assurance div{{display:flex;align-items:center;gap:10px}}
+.assurance svg{{width:17px;height:17px;color:#bfe7cf}}
+.card-body{{padding:48px 44px;background:rgba(255,255,255,.94);display:flex;flex-direction:column;justify-content:center}}
+svg{{display:block}}
+.eyebrow{{font-size:12px;font-weight:700;color:#2c684a;letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px}}
+.card-body h2{{font-size:32px;line-height:1.1;font-weight:760;color:#14221b;margin-bottom:10px}}
+.intro{{color:#65736b;margin-bottom:30px;line-height:1.6}}
+.identity{{display:flex;align-items:center;gap:12px;margin-bottom:24px;padding:14px 16px;border:1px solid #dbe7df;border-radius:14px;background:#f7faf8;color:#34483d}}
+.identity svg{{width:22px;height:22px;color:#2f7d55;flex:0 0 auto}}
+.identity strong{{display:block;color:#14221b;font-size:16px}}
+.identity small{{display:block;margin-top:2px;color:#748279;font-size:12px}}
 .btn{{
   display:inline-flex;align-items:center;justify-content:center;gap:8px;
-  width:100%;min-height:36px;padding:0 16px;border:none;border-radius:4px;
-  font-family:inherit;font-size:14px;font-weight:500;
-  letter-spacing:.75px;text-transform:uppercase;cursor:pointer;text-decoration:none;
-  background:#3f51b5;color:#fff;
-  box-shadow:0 3px 1px -2px rgba(0,0,0,.2),0 2px 2px 0 rgba(0,0,0,.14),0 1px 5px 0 rgba(0,0,0,.12);
-  transition:background .2s,box-shadow .2s;user-select:none
+  width:100%;min-height:50px;padding:0 18px;border:1px solid #216344;border-radius:14px;
+  font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;text-decoration:none;background:#216344;color:#fff;
+  box-shadow:0 12px 24px rgba(33,99,68,.16);transition:background .18s,transform .18s,box-shadow .18s;user-select:none
 }}
-.btn:hover{{background:#3949ab;box-shadow:0 2px 4px -1px rgba(0,0,0,.2),0 4px 5px 0 rgba(0,0,0,.14),0 1px 10px 0 rgba(0,0,0,.12)}}
-.btn:active{{background:#303f9f;box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12)}}
+.btn:hover{{background:#1b5439;transform:translateY(-1px);box-shadow:0 16px 28px rgba(33,99,68,.22)}}
+.btn:active{{background:#174b35;transform:translateY(0)}}
 .btn svg{{width:18px;height:18px}}
-.footer{{
-  text-align:center;padding:24px 0 0;font-size:12px;font-weight:400;
-  color:rgba(255,255,255,.7)
-}}
-.footer strong{{color:#fff;font-weight:500}}
+.secondary-actions{{display:grid;gap:12px;margin-top:16px}}
+.text-link{{display:inline-flex;justify-content:center;padding:9px;color:#216344;text-decoration:none;font-size:14px;font-weight:650;border-radius:10px}}
+.text-link:hover{{background:#f1f7f3;text-decoration:underline}}
+.footer{{position:relative;z-index:1;text-align:center;padding:18px 0 0;font-size:12px;color:#718078}}
+.footer strong{{color:#23533d;font-weight:700}}
+@media(max-width:720px){{.card{{grid-template-columns:1fr;max-width:560px}}.brand-panel{{min-height:250px;padding:28px}}.brand-copy h1{{font-size:36px}}.assurance{{display:none}}.card-body{{padding:34px 26px}}}}
 </style>
 </head>
 <body>
 <div class=""login-page"">
   <div class=""card"">
-    <div class=""card-header"">
-      <svg viewBox=""0 0 24 24"" fill=""none"" stroke=""currentColor"" stroke-width=""1.5""><path d=""M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z""/></svg>
-      <h1>His.Hope</h1>
-      <p>Hospital Information System</p>
+    <div class=""brand-panel"">
+      <div class=""brand-mark""><span><svg viewBox=""0 0 24 24"" fill=""currentColor""><path d=""M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53 2.19 6.24 2.19c.48.38.76.97.76 1.58V19z""/></svg></span>His.Hope</div>
+      <div class=""brand-copy""><div class=""eyebrow"" style=""color:#bfe7cf"">Identity Service</div><h1>Clinical access,<br>protected.</h1><p>Continue to the His.Hope hospital information workspace with audited, role-aware access.</p></div>
+      <div class=""assurance""><div><svg viewBox=""0 0 24 24"" fill=""currentColor""><path d=""M12 2 4 5v6c0 5.2 3.4 10 8 11 4.6-1 8-5.8 8-11V5l-8-3zm-1 14-3-3 1.4-1.4L11 13.2l3.6-3.6L16 11l-5 5z""/></svg>HIPAA-oriented security controls</div><div><svg viewBox=""0 0 24 24"" fill=""currentColor""><path d=""M12 3a9 9 0 1 0 8.5 12H18a6 6 0 1 1-1.8-6.2L14 11h7V4l-2.1 2.1A8.9 8.9 0 0 0 12 3z""/></svg>Session sync across His.Hope apps</div></div>
     </div>
     <div class=""card-body"">
-      <p style=""margin-bottom:24px;font-size:15px;text-align:center;color:rgba(0,0,0,.87);line-height:1.6"">You are already signed in as<br><strong>{encodedUserName}</strong>.</p>
-      <a href=""{encodedReturnUrl}"" class=""btn""><svg viewBox=""0 0 24 24"" fill=""currentColor""><path d=""M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z""/></svg>GO TO DASHBOARD</a>
-      <div style=""text-align:center;margin-top:16px""><a href=""/Account/Passkeys"" style=""color:#3f51b5;text-decoration:none;font-size:14px;font-weight:500"">Manage passkeys</a></div>
-      <div style=""text-align:center;margin-top:16px"">
-        <a href=""/Account/Logout?returnUrl={encodedReturnUrl}"" style=""color:#3f51b5;text-decoration:none;font-size:14px;font-weight:500;letter-spacing:.25px"">SIGN OUT</a>
-      </div>
+      <div class=""eyebrow"">Identity Service</div><h2>Welcome back</h2><p class=""intro"">Your session is active and ready to continue.</p>
+      <div class=""identity""><svg viewBox=""0 0 24 24"" fill=""currentColor""><path d=""M12 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 10c-4.4 0-8 2.2-8 5v3h16v-3c0-2.8-3.6-5-8-5zm-6 6c.2-1.1 2.6-3 6-3s5.8 1.9 6 3H6z""/></svg><div><small>Signed in as</small><strong>{encodedUserName}</strong></div></div>
+      <a href=""{encodedReturnUrl}"" class=""btn""><svg viewBox=""0 0 24 24"" fill=""currentColor""><path d=""M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z""/></svg>Continue to workspace</a>
+      <div class=""secondary-actions""><a href=""/Account/Passkeys"" class=""text-link"">Manage passkeys</a><a href=""/Account/Logout?returnUrl={encodedReturnUrl}"" class=""text-link"">Sign out</a></div>
     </div>
   </div>
   <div class=""footer"">
-    <strong>His.Hope</strong> v1.0 &bull; HIPAA-Compliant Security
+    <strong>His.Hope</strong> v1.0 &bull; Identity and access management
   </div>
 </div>
 </body>

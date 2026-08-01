@@ -1,9 +1,8 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { FormBuilder, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTableModule } from '@angular/material/table';
@@ -16,277 +15,255 @@ import { LabService } from '@core/services/lab.service';
 import { LabOrder, LabTest, AbnormalFlag } from '@core/models/lab-order.model';
 import { CriticalAlert } from '@core/models/critical-alert.model';
 import { LabCriticalAlertService } from '@core/services/lab-critical-alert.service';
+import {
+  HisHopeI18nService,
+  HisHopeMetaItemComponent,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopePageSectionComponent,
+  HisHopeStateComponent,
+  HisHopeStatusBadgeComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-lab-order-detail',
     standalone: true,
     imports: [
         CommonModule, RouterModule, ReactiveFormsModule,
-        MatCardModule, MatIconModule, MatButtonModule, MatTableModule,
+        MatIconModule, MatButtonModule, MatTableModule,
         MatFormFieldModule, MatInputModule, MatSelectModule, MatProgressSpinnerModule,
         MatSnackBarModule,
+        HisHopePageLayoutComponent, HisHopePageHeaderComponent, HisHopePageSectionComponent,
+        HisHopeStateComponent, HisHopeStatusBadgeComponent, HisHopeMetaItemComponent,
+        HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    @if (labOrder) {
-    <div class="lab-order-detail">
-      <div class="header">
-        <div>
-          <h1>Phiếu xét nghiệm #{{ labOrder.id | slice:0:8 }}...</h1>
-          <p class="subtitle">
-            <span class="status-badge" [class.status-ordered]="labOrder.statusCode === 'ordered'"
-                  [class.status-collected]="labOrder.statusCode === 'specimen_collected'"
-                  [class.status-progress]="labOrder.statusCode === 'in_progress'"
-                  [class.status-completed]="labOrder.statusCode === 'completed'"
-                  [class.status-cancelled]="labOrder.statusCode === 'cancelled'">
-              {{ labOrder.statusName }}
-            </span>
-            <span class="priority-badge" [class.priority-high]="labOrder.priorityCode === 'high'"
-                  [class.priority-urgent]="labOrder.priorityCode === 'urgent'"
-                  [class.priority-routine]="labOrder.priorityCode === 'routine'" style="margin-left: 8px;">
-              {{ labOrder.priorityName }}
-            </span>
-          </p>
-        </div>
-        <div class="header-actions">
-          @if (labOrder.statusCode === 'ordered') {
-          <button mat-raised-button color="primary"
-                  (click)="submitLabOrder()"
-                  aria-label="Gửi phiếu xét nghiệm">
-            <mat-icon>send</mat-icon> Gửi phiếu
-          </button>
-          }
-          @if (labOrder.statusCode === 'ordered' || labOrder.statusCode === 'in_progress') {
-          <button mat-raised-button color="accent"
-                  (click)="collectSpecimen()"
-                  aria-label="Lấy mẫu bệnh phẩm">
-            <mat-icon>science</mat-icon> Lấy mẫu
-          </button>
-          }
-          @if (labOrder.statusCode !== 'completed' && labOrder.statusCode !== 'cancelled') {
-          <button mat-stroked-button color="warn"
-                  (click)="cancelLabOrder()"
-                  aria-label="Hủy phiếu xét nghiệm">
-            <mat-icon>cancel</mat-icon> Hủy phiếu
-          </button>
-          }
-        </div>
-      </div>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader
+                      [title]="'labOrders.detail' | hhTranslate:'Phiếu xét nghiệm'"
+                      [subtitle]="labOrder ? ('labOrders.detailSubtitle' | hhTranslate:'Mã phiếu: {{id}}':{id: (labOrder.id | slice:0:8)}) : ''">
+        <button mat-stroked-button (click)="goBack()">
+          <mat-icon>arrow_back</mat-icon> {{ 'common.back' | hhTranslate:'Quay lại' }}
+        </button>
+        @if (labOrder) {
+        <hh-status-badge [status]="labOrder.statusCode" [label]="labOrder.statusName" />
+        <span class="priority-badge" [class.priority-high]="labOrder.priorityCode === 'high'"
+              [class.priority-urgent]="labOrder.priorityCode === 'urgent'"
+              [class.priority-routine]="labOrder.priorityCode === 'routine'" style="margin-left: 8px;">
+          {{ labOrder.priorityName }}
+        </span>
+        @if (labOrder.statusCode === 'ordered') {
+        <button mat-raised-button color="primary"
+                (click)="submitLabOrder()"
+                [attr.aria-label]="'labOrders.submitLabel' | hhTranslate:'Gửi phiếu xét nghiệm'">
+          <mat-icon>send</mat-icon> {{ 'labOrders.submit' | hhTranslate:'Gửi phiếu' }}
+        </button>
+        }
+        @if (labOrder.statusCode === 'ordered' || labOrder.statusCode === 'in_progress') {
+        <button mat-raised-button color="accent"
+                (click)="collectSpecimen()"
+                [attr.aria-label]="'labOrders.collectLabel' | hhTranslate:'Lấy mẫu bệnh phẩm'">
+          <mat-icon>science</mat-icon> {{ 'labOrders.collect' | hhTranslate:'Lấy mẫu' }}
+        </button>
+        }
+        @if (labOrder.statusCode !== 'completed' && labOrder.statusCode !== 'cancelled') {
+        <button mat-stroked-button color="warn"
+                (click)="cancelLabOrder()"
+                [attr.aria-label]="'labOrders.cancelLabel' | hhTranslate:'Hủy phiếu xét nghiệm'">
+          <mat-icon>cancel</mat-icon> {{ 'labOrders.cancel' | hhTranslate:'Hủy phiếu' }}
+        </button>
+        }
+        }
+      </hh-page-header>
 
+      @if (loading) {
+      <hh-state kind="loading" [message]="'common.loading' | hhTranslate" />
+      } @else if (loadError) {
+      <hh-state kind="error" [message]="errorMessage">
+        <button mat-stroked-button (click)="loadLabOrder()">{{ 'common.retry' | hhTranslate }}</button>
+      </hh-state>
+      } @else if (labOrder) {
       @if (criticalAlerts.length > 0) {
-      <mat-card class="critical-alerts-card">
-        <mat-card-header>
-          <mat-card-title>Cảnh báo nghiêm trọng</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          @for (alert of criticalAlerts; track alert.id) {
-          <div class="critical-alert-row">
-            <div>
-              <p class="critical-alert-title">{{ alert.message }}</p>
-              <p class="critical-alert-meta">{{ alert.resultValue }} {{ alert.resultUnit }} • {{ alert.status }}</p>
-            </div>
-            <div class="critical-alert-actions">
-              <button mat-stroked-button color="primary" (click)="acknowledgeCriticalAlert(alert)" [disabled]="alert.status !== 'OPEN'">Ghi nhận</button>
-            </div>
+      <hh-page-section [title]="'labOrders.section.criticalAlerts' | hhTranslate:'Cảnh báo nghiêm trọng'">
+        @for (alert of criticalAlerts; track alert.id) {
+        <div class="critical-alert-row">
+          <div>
+            <p class="critical-alert-title">{{ alert.message }}</p>
+            <p class="critical-alert-meta">{{ alert.resultValue }} {{ alert.resultUnit }} • {{ alert.status }}</p>
           </div>
-          }
-        </mat-card-content>
-      </mat-card>
+          <div class="critical-alert-actions">
+            <button mat-stroked-button color="primary" (click)="acknowledgeCriticalAlert(alert)" [disabled]="alert.status !== 'OPEN'">
+              {{ 'labOrders.acknowledge' | hhTranslate:'Ghi nhận' }}
+            </button>
+          </div>
+        </div>
+        }
+      </hh-page-section>
       }
 
-      <div class="detail-grid">
-        <mat-card>
-          <mat-card-header><mat-card-title>Thông tin phiếu</mat-card-title></mat-card-header>
-          <mat-card-content>
-            <p><strong>Bệnh nhân:</strong> {{ labOrder.patientName || labOrder.patientId }}</p>
-            <p><strong>Bác sĩ:</strong> {{ labOrder.providerName || labOrder.providerId }}</p>
-            @if (labOrder.encounterId) {
-            <p><strong>Mã hồ sơ:</strong> {{ labOrder.encounterId | slice:0:8 }}...</p>
-            }
-            <p><strong>Ngày chỉ định:</strong> {{ labOrder.orderDate | date:'medium' }}</p>
-            @if (labOrder.notes) {
-            <p><strong>Ghi chú:</strong> {{ labOrder.notes }}</p>
-            }
-          </mat-card-content>
-        </mat-card>
-      </div>
-
-      <mat-card class="tests-card">
-        <mat-card-header>
-          <mat-card-title>Danh sách xét nghiệm ({{ labOrder.tests.length }})</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          @if (labOrder.tests.length > 0) {
-          <mat-table [dataSource]="labOrder.tests">
-            <ng-container matColumnDef="testName">
-              <mat-header-cell *matHeaderCellDef>Xét nghiệm</mat-header-cell>
-              <mat-cell *matCellDef="let t">{{ t.testName }}</mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="specimenType">
-              <mat-header-cell *matHeaderCellDef>Loại mẫu</mat-header-cell>
-              <mat-cell *matCellDef="let t">{{ t.specimenType }}</mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="statusName">
-              <mat-header-cell *matHeaderCellDef>Trạng thái</mat-header-cell>
-              <mat-cell *matCellDef="let t">
-                <span class="status-badge" [class.status-ordered]="t.statusCode === 'ordered'"
-                      [class.status-collected]="t.statusCode === 'collected'"
-                      [class.status-completed]="t.statusCode === 'completed'">
-                  {{ t.statusName }}
-                </span>
-              </mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="result">
-              <mat-header-cell *matHeaderCellDef>Kết quả</mat-header-cell>
-              <mat-cell *matCellDef="let t">
-                @if (t.result) {
-                <span>
-                  <span [class.abnormal]="t.result.abnormalFlagCode !== 'none'">
-                    {{ t.result.value }} {{ t.result.unit }}
-                  </span>
-                  @if (t.result.abnormalFlagCode !== 'none') {
-                  <span class="abnormal-flag">
-                    ({{ t.result.abnormalFlagName }})
-                  </span>
-                  }
-                </span>
-                } @else {
-                <span>-</span>
-                }
-              </mat-cell>
-            </ng-container>
-
-            <ng-container matColumnDef="actions">
-              <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
-              <mat-cell *matCellDef="let t">
-                @if (t.statusCode === 'collected') {
-                <button mat-stroked-button color="primary"
-                        (click)="openResultForm(t)" [attr.aria-label]="'Nhập kết quả cho ' + t.testName">
-                  <mat-icon>edit_note</mat-icon> Nhập KQ
-                </button>
-                }
-              </mat-cell>
-            </ng-container>
-
-            <mat-header-row *matHeaderRowDef="testColumns"></mat-header-row>
-            <mat-row *matRowDef="let row; columns: testColumns;"></mat-row>
-          </mat-table>
+      <hh-page-section [title]="'labOrders.section.info' | hhTranslate:'Thông tin phiếu'">
+        <div class="meta-grid">
+          <hh-meta-item [label]="'labOrders.field.patient' | hhTranslate:'Bệnh nhân'" [value]="labOrder.patientName || labOrder.patientId" icon="person" />
+          <hh-meta-item [label]="'labOrders.field.provider' | hhTranslate:'Bác sĩ'" [value]="labOrder.providerName || labOrder.providerId" icon="medical_services" />
+          @if (labOrder.encounterId) {
+          <hh-meta-item [label]="'labOrders.field.encounter' | hhTranslate:'Mã hồ sơ'" [value]="labOrder.encounterId | slice:0:8" icon="folder" />
           }
-
-          @if (labOrder.tests.length === 0) {
-          <p class="empty">Chưa có xét nghiệm nào.</p>
+          <hh-meta-item [label]="'labOrders.field.orderDate' | hhTranslate:'Ngày chỉ định'" [value]="(labOrder.orderDate | date:'medium') || '-'" icon="event" />
+          @if (labOrder.notes) {
+          <hh-meta-item [label]="'labOrders.field.notes' | hhTranslate:'Ghi chú'" [value]="labOrder.notes" icon="notes" />
           }
-        </mat-card-content>
-      </mat-card>
+        </div>
+      </hh-page-section>
+
+      <hh-page-section [title]="'labOrders.section.tests' | hhTranslate:'Danh sách xét nghiệm ({{count}})':{count: labOrder.tests.length}">
+        @if (labOrder.tests.length > 0) {
+        <mat-table [dataSource]="labOrder.tests">
+          <ng-container matColumnDef="testName">
+            <mat-header-cell *matHeaderCellDef>{{ 'labOrders.column.test' | hhTranslate:'Xét nghiệm' }}</mat-header-cell>
+            <mat-cell *matCellDef="let t">{{ t.testName }}</mat-cell>
+          </ng-container>
+
+          <ng-container matColumnDef="specimenType">
+            <mat-header-cell *matHeaderCellDef>{{ 'labOrders.column.specimen' | hhTranslate:'Loại mẫu' }}</mat-header-cell>
+            <mat-cell *matCellDef="let t">{{ t.specimenType }}</mat-cell>
+          </ng-container>
+
+          <ng-container matColumnDef="statusName">
+            <mat-header-cell *matHeaderCellDef>{{ 'common.status' | hhTranslate:'Trạng thái' }}</mat-header-cell>
+            <mat-cell *matCellDef="let t">
+              <hh-status-badge [status]="t.statusCode" [label]="t.statusName" />
+            </mat-cell>
+          </ng-container>
+
+          <ng-container matColumnDef="result">
+            <mat-header-cell *matHeaderCellDef>{{ 'labOrders.column.result' | hhTranslate:'Kết quả' }}</mat-header-cell>
+            <mat-cell *matCellDef="let t">
+              @if (t.result) {
+              <span>
+                <span [class.abnormal]="t.result.abnormalFlagCode !== 'none'">
+                  {{ t.result.value }} {{ t.result.unit }}
+                </span>
+                @if (t.result.abnormalFlagCode !== 'none') {
+                <span class="abnormal-flag">
+                  ({{ t.result.abnormalFlagName }})
+                </span>
+                }
+              </span>
+              } @else {
+              <span>-</span>
+              }
+            </mat-cell>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <mat-header-cell *matHeaderCellDef>{{ 'labOrders.column.actions' | hhTranslate:'Thao tác' }}</mat-header-cell>
+            <mat-cell *matCellDef="let t">
+              @if (t.statusCode === 'collected') {
+              <button mat-stroked-button color="primary"
+                      (click)="openResultForm(t)" [attr.aria-label]="'labOrders.enterResultLabel' | hhTranslate:'Nhập kết quả'">
+                <mat-icon>edit_note</mat-icon> {{ 'labOrders.enterResult' | hhTranslate:'Nhập KQ' }}
+              </button>
+              }
+            </mat-cell>
+          </ng-container>
+
+          <mat-header-row *matHeaderRowDef="testColumns"></mat-header-row>
+          <mat-row *matRowDef="let row; columns: testColumns;"></mat-row>
+        </mat-table>
+        }
+
+        @if (labOrder.tests.length === 0) {
+        <p class="empty">{{ 'labOrders.empty.tests' | hhTranslate:'Chưa có xét nghiệm nào.' }}</p>
+        }
+      </hh-page-section>
 
       <!-- Result recording form -->
       @if (selectedTest) {
-      <mat-card class="result-form-card">
-        <mat-card-header>
-          <mat-card-title>Nhập kết quả: {{ selectedTest.testName }}</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <form [formGroup]="resultForm" (ngSubmit)="recordResult()" class="result-form">
-            <div class="form-row">
-              <mat-form-field appearance="outline">
-                <mat-label>Giá trị</mat-label>
-                <input matInput formControlName="value" required aria-label="Giá trị kết quả">
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Đơn vị</mat-label>
-                <input matInput formControlName="unit" required aria-label="Đơn vị đo">
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Khoảng tham chiếu</mat-label>
-                <input matInput formControlName="referenceRange" aria-label="Khoảng tham chiếu">
-              </mat-form-field>
-
-              <mat-form-field appearance="outline">
-                <mat-label>Bất thường</mat-label>
-                <mat-select formControlName="abnormalFlagCode" aria-label="Mức độ bất thường">
-                  <mat-option value="none">Bình thường</mat-option>
-                  <mat-option value="low">Thấp</mat-option>
-                  <mat-option value="high">Cao</mat-option>
-                  <mat-option value="critically_low">Thấp nghiêm trọng</mat-option>
-                  <mat-option value="critically_high">Cao nghiêm trọng</mat-option>
-                  <mat-option value="abnormal">Bất thường</mat-option>
-                </mat-select>
-              </mat-form-field>
-            </div>
-
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Ghi chú</mat-label>
-              <textarea matInput formControlName="notes" rows="2" aria-label="Ghi chú kết quả"></textarea>
+      <hh-page-section [title]="'labOrders.section.result' | hhTranslate:'Nhập kết quả: {{test}}':{test: selectedTest.testName}">
+        <form [formGroup]="resultForm" (ngSubmit)="recordResult()" class="result-form">
+          <div class="form-row">
+            <mat-form-field appearance="outline">
+              <mat-label>{{ 'labOrders.field.value' | hhTranslate:'Giá trị' }}</mat-label>
+              <input matInput formControlName="value" required [attr.aria-label]="'labOrders.field.valueLabel' | hhTranslate:'Giá trị kết quả'">
             </mat-form-field>
 
-            <div class="form-actions">
-              <button mat-button type="button" (click)="cancelResultForm()">Hủy</button>
-              <button mat-raised-button color="primary" type="submit"
-                      [disabled]="resultForm.invalid || recordingResult">
-                @if (recordingResult) {
-                <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
-                }
-                {{ recordingResult ? 'Đang lưu...' : 'Lưu kết quả' }}
-              </button>
-            </div>
-          </form>
-        </mat-card-content>
-      </mat-card>
+            <mat-form-field appearance="outline">
+              <mat-label>{{ 'labOrders.field.unit' | hhTranslate:'Đơn vị' }}</mat-label>
+              <input matInput formControlName="unit" required [attr.aria-label]="'labOrders.field.unitLabel' | hhTranslate:'Đơn vị đo'">
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>{{ 'labOrders.field.referenceRange' | hhTranslate:'Khoảng tham chiếu' }}</mat-label>
+              <input matInput formControlName="referenceRange" [attr.aria-label]="'labOrders.field.referenceRangeLabel' | hhTranslate:'Khoảng tham chiếu'">
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>{{ 'labOrders.field.abnormal' | hhTranslate:'Bất thường' }}</mat-label>
+              <mat-select formControlName="abnormalFlagCode" [attr.aria-label]="'labOrders.field.abnormalLabel' | hhTranslate:'Mức độ bất thường'">
+                <mat-option value="none">{{ 'labOrders.abnormal.none' | hhTranslate:'Bình thường' }}</mat-option>
+                <mat-option value="low">{{ 'labOrders.abnormal.low' | hhTranslate:'Thấp' }}</mat-option>
+                <mat-option value="high">{{ 'labOrders.abnormal.high' | hhTranslate:'Cao' }}</mat-option>
+                <mat-option value="critically_low">{{ 'labOrders.abnormal.criticallyLow' | hhTranslate:'Thấp nghiêm trọng' }}</mat-option>
+                <mat-option value="critically_high">{{ 'labOrders.abnormal.criticallyHigh' | hhTranslate:'Cao nghiêm trọng' }}</mat-option>
+                <mat-option value="abnormal">{{ 'labOrders.abnormal.abnormal' | hhTranslate:'Bất thường' }}</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>{{ 'labOrders.field.notes' | hhTranslate:'Ghi chú' }}</mat-label>
+            <textarea matInput formControlName="notes" rows="2" [attr.aria-label]="'labOrders.field.notesLabel' | hhTranslate:'Ghi chú kết quả'"></textarea>
+          </mat-form-field>
+
+          <div class="form-actions">
+            <button mat-button type="button" (click)="cancelResultForm()">{{ 'common.cancel' | hhTranslate:'Hủy' }}</button>
+            <button mat-raised-button color="primary" type="submit"
+                    [disabled]="resultForm.invalid || recordingResult">
+              @if (recordingResult) {
+              <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
+              }
+              {{ recordingResult ? ('labOrders.saving' | hhTranslate:'Đang lưu...') : ('labOrders.saveResult' | hhTranslate:'Lưu kết quả') }}
+            </button>
+          </div>
+        </form>
+      </hh-page-section>
       }
-    </div>
-    }
-
-    @if (!labOrder && !loadError) {
-    <div class="loading-container">
-      <mat-spinner diameter="40" aria-label="Đang tải"></mat-spinner>
-      <p>Đang tải thông tin phiếu xét nghiệm...</p>
-    </div>
-    }
-
-    @if (loadError) {
-    <div class="error-container">
-      <mat-icon color="warn">error_outline</mat-icon>
-      <p>Không thể tải thông tin phiếu xét nghiệm.</p>
-      <button mat-stroked-button color="primary" (click)="loadLabOrder()">Thử lại</button>
-    </div>
-    }
+      }
+    </hh-page-layout>
   `,
     styles: [`
-    .lab-order-detail { padding: 24px; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-    .header-actions { display: flex; gap: 12px; flex-wrap: wrap; }
-    .subtitle { color: #666; font-size: 14px; display: flex; align-items: center; }
-    .critical-alerts-card { margin-bottom: 20px; border: 1px solid #EAEAEA; }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
     .critical-alert-row { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid #EAEAEA; }
     .critical-alert-row:first-child { border-top: 0; }
     .critical-alert-title { margin: 0; font-weight: 600; }
     .critical-alert-meta { margin: 4px 0 0; color: #787774; font-size: 13px; }
-    .detail-grid { display: grid; grid-template-columns: 1fr; gap: 20px; margin-bottom: 20px; }
-    .tests-card { margin-bottom: 20px; }
-    mat-card-content p { margin: 8px 0; }
-    mat-table { width: 100%; }
+
     .abnormal { color: var(--pastel-red-text, #C25450); font-weight: 500; }
     .abnormal-flag { color: #c62828; font-size: 11px; font-weight: 500; }
-    .result-form-card { margin-bottom: 20px; }
+
     .result-form { display: flex; flex-direction: column; gap: 16px; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .full-width { width: 100%; }
     .form-actions { display: flex; gap: 12px; justify-content: flex-end; }
     .btn-spinner { display: inline-block; margin-right: 8px; }
     .empty { color: #999; font-style: italic; padding: 12px; }
-    .loading-container, .error-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 24px; gap: 16px; color: #666; }
   `],
 })
 export class LabOrderDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   labOrder?: LabOrder;
   loadError = false;
+  loading = true;
+  errorMessage = '';
   selectedTest: LabTest | null = null;
   recordingResult = false;
   testColumns = ['testName', 'specimenType', 'statusName', 'result', 'actions'];
@@ -321,18 +298,26 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
+  goBack(): void {
+    this.router.navigate(['/lab']);
+  }
+
   loadLabOrder(): void {
     this.loadError = false;
+    this.loading = true;
     this.labService.getLabOrder(this.labOrderId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (order) => {
           this.labOrder = order;
           this.loadCriticalAlerts();
+          this.loading = false;
           this.cdr.markForCheck();
         },
         error: () => {
           this.loadError = true;
+          this.loading = false;
+          this.errorMessage = this.i18n.t('labOrders.loadFailed', 'Không thể tải thông tin phiếu xét nghiệm.');
           this.cdr.markForCheck();
         },
       });
@@ -344,10 +329,10 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã gửi phiếu xét nghiệm', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('labOrders.submitSuccess', 'Đã gửi phiếu xét nghiệm'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadLabOrder();
         },
-        error: () => this.snackBar.open('Không thể gửi phiếu xét nghiệm', 'Đóng', { duration: 5000 }),
+        error: () => this.snackBar.open(this.i18n.t('labOrders.submitFailed', 'Không thể gửi phiếu xét nghiệm'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 }),
       });
   }
 
@@ -357,10 +342,10 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã ghi nhận lấy mẫu bệnh phẩm', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('labOrders.collectSuccess', 'Đã ghi nhận lấy mẫu bệnh phẩm'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadLabOrder();
         },
-        error: () => this.snackBar.open('Không thể ghi nhận lấy mẫu', 'Đóng', { duration: 5000 }),
+        error: () => this.snackBar.open(this.i18n.t('labOrders.collectFailed', 'Không thể ghi nhận lấy mẫu'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 }),
       });
   }
 
@@ -386,7 +371,7 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã lưu kết quả xét nghiệm', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('labOrders.resultSaved', 'Đã lưu kết quả xét nghiệm'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.selectedTest = null;
           this.resultForm.reset();
           this.recordingResult = false;
@@ -394,7 +379,7 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.recordingResult = false;
-          this.snackBar.open('Không thể lưu kết quả', 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('labOrders.resultSaveFailed', 'Không thể lưu kết quả'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });
@@ -406,10 +391,10 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã hủy phiếu xét nghiệm', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('labOrders.cancelSuccess', 'Đã hủy phiếu xét nghiệm'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadLabOrder();
         },
-        error: () => this.snackBar.open('Không thể hủy phiếu xét nghiệm', 'Đóng', { duration: 5000 }),
+        error: () => this.snackBar.open(this.i18n.t('labOrders.cancelFailed', 'Không thể hủy phiếu xét nghiệm'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 }),
       });
   }
 
@@ -418,7 +403,7 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.notify('Đã ghi nhận cảnh báo nghiêm trọng');
+          this.notify(this.i18n.t('labOrders.alertAcknowledged', 'Đã ghi nhận cảnh báo nghiêm trọng'));
           this.loadCriticalAlerts();
         },
       });
@@ -438,6 +423,6 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
   }
 
   private notify(message: string): void {
-    this.snackBar.open(message, 'Đóng', { duration: 3000 });
+    this.snackBar.open(message, this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
   }
 }

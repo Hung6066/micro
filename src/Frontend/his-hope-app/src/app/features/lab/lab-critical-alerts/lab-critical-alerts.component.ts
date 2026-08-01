@@ -9,6 +9,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { LabCriticalAlertService } from '@core/services/lab-critical-alert.service';
 import { LabCriticalAlertStreamService } from '@core/services/lab-critical-alert-stream.service';
 import { CriticalAlert, CriticalAlertStatus } from '@core/models/critical-alert.model';
+import { HisHopeI18nService } from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-lab-critical-alerts',
@@ -79,6 +80,7 @@ export class LabCriticalAlertsComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
   private readonly snackBar = inject(MatSnackBar);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly i18n = inject(HisHopeI18nService);
 
   readonly filters: Array<{ status: CriticalAlertStatus | 'ALL'; label: string }> = [
     { status: 'ALL', label: 'Tất cả' },
@@ -126,7 +128,7 @@ export class LabCriticalAlertsComponent implements OnInit, OnDestroy {
         }
 
         this.lastToastAlertId = alert.id;
-        this.notify('Có cảnh báo xét nghiệm nghiêm trọng mới');
+        this.notify(this.i18n.t('labOrders.criticalAlertToast', 'Có cảnh báo xét nghiệm nghiêm trọng mới'));
       });
 
     this.alertService.listCriticalAlerts()
@@ -154,7 +156,7 @@ export class LabCriticalAlertsComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.notify('Đã ghi nhận cảnh báo nghiêm trọng');
+          this.notify(this.i18n.t('labOrders.alertAcknowledged', 'Đã ghi nhận cảnh báo nghiêm trọng'));
           this.streamService.markAllRead();
           this.refreshAlerts();
         },
@@ -182,6 +184,6 @@ export class LabCriticalAlertsComponent implements OnInit, OnDestroy {
   }
 
   private notify(message: string): void {
-    this.snackBar.open(message, 'Đóng', { duration: 2500 });
+    this.snackBar.open(message, this.i18n.t('common.close', 'Đóng'), { duration: 2500 });
   }
 }

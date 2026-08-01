@@ -282,8 +282,10 @@ services:
       # Keep the internal hostname as an explicit legacy issuer during migration.
       Jwt__ValidIssuers__0: http://localhost:5000/
       Jwt__ValidIssuers__1: his-hope-identity
-      Jwt__Audience: his-hope-services
+      Jwt__Audience: http://localhost:5000/
       Jwt__Expiry: "08:00:00"
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__AllowHttp: "true"
       Redis__ConnectionString: redis:6379
       Vault__Address: ${VAULT_ADDR:-}
       Vault__Token: ${VAULT_TOKEN:-}
@@ -292,6 +294,10 @@ services:
       OpenIddict__Signing__PrivateKeyPath: ${OPENIDDICT_SIGNING_PRIVATE_KEY_PATH:-/etc/hishop/certs/jwt-private-key.pem}
       # Nested legacy JWTs used by session exchange must remain JWE encrypted.
       Jwt__RsaEncryptionPrivateKeyPath: ${JWT_RSA_ENCRYPTION_PRIVATE_KEY_PATH:-/etc/hishop/certs/jwt-encryption-private-key.pem}
+      # OIDC access-token encryption must use the same persistent key as every
+      # downstream JWT validator. Do not fall back to an ephemeral development key.
+      OpenIddict__Encryption__PrivateKeyPath: ${JWT_RSA_ENCRYPTION_PRIVATE_KEY_PATH:-/etc/hishop/certs/jwt-encryption-private-key.pem}
+      OpenIddict__Encryption__KeyId: oidc-encryption-v1
       Otlp__Endpoint: http://otel-collector:4317
       # ─── OpenIddict OIDC Configuration ───
       OpenIddict__Issuer: ${OIDC_ISSUER:-http://localhost:5000}
@@ -305,6 +311,8 @@ services:
       Passkeys__Origins__0: ${PASSKEYS_ORIGIN_0:-http://localhost:5000}
       Passkeys__Origins__1: ${PASSKEYS_ORIGIN_1:-http://localhost:8083}
       Passkeys__Origins__2: ${PASSKEYS_ORIGIN_2:-https://localhost}
+      Passkeys__Origins__3: ${PASSKEYS_ORIGIN_3:-http://localhost:8081}
+      Passkeys__Origins__4: ${PASSKEYS_ORIGIN_4:-http://localhost:8082}
       Mobile__AppPolicy__MinimumVersion: 1.0.0
       Mobile__AppPolicy__LatestVersion: 1.0.0
       Mobile__AppPolicy__ForceUpgrade: "false"
@@ -348,8 +356,9 @@ services:
       Jwt__MetadataAddress: http://identityservice:5001/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
-      Jwt__Audience: his-hope-services
+      Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
@@ -386,8 +395,9 @@ services:
       Jwt__MetadataAddress: http://identityservice:5001/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
-      Jwt__Audience: his-hope-services
+      Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
@@ -424,8 +434,9 @@ services:
       Jwt__MetadataAddress: http://identityservice:5001/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
-      Jwt__Audience: his-hope-services
+      Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
@@ -463,8 +474,9 @@ services:
       Jwt__MetadataAddress: http://identityservice:5001/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
-      Jwt__Audience: his-hope-services
+      Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
@@ -503,8 +515,9 @@ services:
       Jwt__MetadataAddress: http://identityservice:5001/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
-      Jwt__Audience: his-hope-services
+      Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
@@ -541,8 +554,9 @@ services:
       Jwt__MetadataAddress: http://identityservice:5001/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
-      Jwt__Audience: his-hope-services
+      Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       Otlp__Endpoint: http://otel-collector:4317
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
@@ -568,6 +582,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:5000
+      DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2SUPPORT: "0"
       Redis__ConnectionString: redis:6379
       CORS__AllowedOrigins: "http://localhost,http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4300,http://localhost:8081,http://localhost:8082,http://localhost:8083,http://frontend:8080,https://app.his-hope.internal,https://localhost,capacitor://localhost"
     depends_on:
@@ -620,8 +635,9 @@ services:
       - Jwt__Issuer=http://localhost:5000/
       - Jwt__ValidIssuers__0=http://localhost:5000/
       - Jwt__ValidIssuers__1=his-hope-identity
-      - Jwt__Audience=his-hope-services
+      - Jwt__Audience=http://localhost:5000/
       - Jwt__RsaPublicKeyPath=/etc/hishop/certs/jwt-public-key.pem
+      - Jwt__RsaEncryptionPrivateKeyPath=/etc/hishop/certs/jwt-encryption-private-key.pem
       - Jwt__SessionKey=ThisIsADevelopmentKeyThatIsLongEnoughForHmacSha256!
       - Redis__ConnectionString=redis:6379
       - Docker__Enabled=false

@@ -3,18 +3,19 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterModule } from '@angular/router';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-forgot-password',
   standalone: true,
-  imports: [CommonModule, MatIconModule, MatButtonModule, RouterModule],
+  imports: [CommonModule, MatIconModule, MatButtonModule, RouterModule, HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="auth-placeholder">
       <mat-icon>lock_reset</mat-icon>
-      <h1>Khôi phục mật khẩu</h1>
-      <p>Chức năng đặt lại mật khẩu sẽ được bổ sung sau. Nếu cần hỗ trợ, vui lòng liên hệ quản trị hệ thống.</p>
-      <button mat-stroked-button routerLink="/auth/login">Quay lại đăng nhập</button>
+      <h1>{{ 'auth.forgotPasswordTitle' | hhTranslate:'Khôi phục mật khẩu' }}</h1>
+      <p>{{ 'auth.forgotPasswordComingSoon' | hhTranslate:'Chức năng đặt lại mật khẩu sẽ được bổ sung sau. Nếu cần hỗ trợ, vui lòng liên hệ quản trị hệ thống.' }}</p>
+      <button mat-stroked-button routerLink="/auth/login">{{ 'auth.backToLogin' | hhTranslate:'Quay lại đăng nhập' }}</button>
     </div>
   `,
   styles: [`

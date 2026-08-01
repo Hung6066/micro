@@ -20,8 +20,6 @@ import { CommonModule } from '@angular/common';
 import { of } from 'rxjs';
 import { ManageUsersComponent } from './manage-users.component';
 import { AdminService } from '@core/services/admin.service';
-import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('ManageUsersComponent', () => {
@@ -44,7 +42,7 @@ describe('ManageUsersComponent', () => {
     await TestBed.configureTestingModule({
     
     imports: [
-        ManageUsersComponent, LoadingSpinnerComponent, EmptyStateComponent, RouterTestingModule, NoopAnimationsModule,
+        ManageUsersComponent, RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatTableModule, MatPaginatorModule, MatButtonModule,
         MatIconModule, MatFormFieldModule, MatInputModule, MatSelectModule,
         MatMenuModule, MatChipsModule, MatProgressSpinnerModule, MatTooltipModule,

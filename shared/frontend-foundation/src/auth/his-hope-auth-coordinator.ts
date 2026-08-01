@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { EMPTY, Observable, ReplaySubject, of, timer } from 'rxjs';
-import { catchError, exhaustMap, finalize, map, switchMap, take, tap } from 'rxjs/operators';
+import { catchError, exhaustMap, finalize, map, shareReplay, switchMap, take, tap } from 'rxjs/operators';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 
 export interface HisHopeAuthOptions {
@@ -11,6 +11,8 @@ export interface HisHopeAuthOptions {
   mfaStatusUrl?: string;
   sessionExchangeUrl?: string;
   logoutUrl?: string;
+  /** Use the server-side HttpOnly session contract instead of browser OIDC tokens. */
+  bffOnly?: boolean;
 }
 
 export interface IdentitySessionStatus {
@@ -37,8 +39,10 @@ export class HisHopeAuthCoordinator {
   private readonly logoutUrl: string;
   private readonly defaultReturnUrl: string;
   private readonly loginRoute: string;
+  private readonly bffOnly: boolean;
   private lastAuthenticated = false;
   private ssoLoginInProgress = false;
+  private refreshAccessTokenInFlight$?: Observable<boolean>;
 
   readonly isAuthenticated$: Observable<boolean> = this.authenticatedSubject.asObservable();
 
@@ -50,6 +54,7 @@ export class HisHopeAuthCoordinator {
   ) {
     this.defaultReturnUrl = options.defaultReturnUrl;
     this.loginRoute = options.loginRoute ?? '/auth/login';
+    this.bffOnly = options.bffOnly ?? false;
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     this.sessionStatusUrl =
       options.sessionStatusUrl ??
@@ -58,12 +63,27 @@ export class HisHopeAuthCoordinator {
     this.mfaStatusUrl = options.mfaStatusUrl ?? this.sessionStatusUrl.replace(/\/session-status$/, '/mfa/status');
     this.logoutUrl = options.logoutUrl ?? this.sessionStatusUrl.replace(/\/session-status$/, '/logout');
 
-    this.oidcSecurityService.isAuthenticated$.subscribe((result) => {
-      this.lastAuthenticated = result.isAuthenticated;
-      this.authenticatedSubject.next(result.isAuthenticated);
-    });
+    if (!this.bffOnly) {
+      this.oidcSecurityService.isAuthenticated$.subscribe((result) => {
+        this.lastAuthenticated = result.isAuthenticated;
+        this.authenticatedSubject.next(result.isAuthenticated);
+      });
+    }
 
-    if (!this.isAuthCallbackRoute()) {
+    if (this.bffOnly) {
+      this.getIdentitySessionStatus().pipe(
+        take(1),
+        switchMap((status) => status.authenticated
+          ? this.exchangeBffSession().pipe(map(() => true))
+          : of(false)),
+        catchError(() => of(false)),
+        tap((authenticated) => {
+          this.lastAuthenticated = authenticated;
+          this.authenticatedSubject.next(authenticated);
+        }),
+        finalize(() => this.completeCheckAuthInit()),
+      ).subscribe();
+    } else if (!this.isAuthCallbackRoute()) {
       this.oidcSecurityService
         .checkAuth()
         .pipe(
@@ -86,12 +106,23 @@ export class HisHopeAuthCoordinator {
 
   login(returnUrl?: string): void {
     const safeReturnUrl = this.safeReturnUrl(returnUrl);
-    if (safeReturnUrl) localStorage.setItem(RETURN_URL_KEY, safeReturnUrl);
-    else localStorage.removeItem(RETURN_URL_KEY);
+    if (safeReturnUrl) sessionStorage.setItem(RETURN_URL_KEY, safeReturnUrl);
+    else sessionStorage.removeItem(RETURN_URL_KEY);
+    if (this.bffOnly) {
+      this.markSsoLoginInProgress();
+      const authorityOrigin = new URL(this.sessionStatusUrl, window.location.origin).origin;
+      const target = safeReturnUrl ?? this.defaultReturnUrl;
+      window.location.assign(`${authorityOrigin}/Account/Login?returnUrl=${encodeURIComponent(target)}`);
+      return;
+    }
     this.oidcLogin();
   }
 
   oidcLogin(): void {
+    if (this.bffOnly) {
+      this.login();
+      return;
+    }
     this.markSsoLoginInProgress();
     this.oidcSecurityService.authorize();
   }
@@ -99,10 +130,18 @@ export class HisHopeAuthCoordinator {
   logout(): void {
     this.markSsoLogout();
     this.broadcastLogout();
-    localStorage.removeItem(RETURN_URL_KEY);
+    sessionStorage.removeItem(RETURN_URL_KEY);
     this.http.post(this.logoutUrl, {}, { withCredentials: true }).pipe(
       catchError(() => of(void 0)),
-      finalize(() => this.oidcSecurityService.logoff().subscribe()),
+      finalize(() => {
+        if (this.bffOnly) {
+          this.lastAuthenticated = false;
+          this.authenticatedSubject.next(false);
+          this.router.navigate([this.loginRoute]);
+        } else {
+          this.oidcSecurityService.logoff().subscribe();
+        }
+      }),
     ).subscribe();
   }
 
@@ -113,21 +152,95 @@ export class HisHopeAuthCoordinator {
 
     return this.getIdentitySessionStatus().pipe(
       take(1),
-      tap((status) => {
-        if (status.authenticated) {
-          this.login(returnUrl);
+      switchMap((status) => {
+        if (!status.authenticated) return of(false);
+
+        // The browser can arrive at the SPA login route after the Identity
+        // provider has already completed passkey/MFA. In BFF mode, reuse that
+        // authenticated Identity cookie and establish the local BFF session;
+        // restarting /Account/Login here creates a redirect loop.
+        if (this.bffOnly) {
+          return this.exchangeBffSession().pipe(
+            map(() => true),
+            tap(() => {
+              const target = this.safeReturnUrl(returnUrl) ?? this.safeReturnUrl(this.defaultReturnUrl) ?? '/';
+              this.lastAuthenticated = true;
+              this.authenticatedSubject.next(true);
+              this.clearSsoLoginInProgress();
+              sessionStorage.removeItem(RETURN_URL_KEY);
+              this.router.navigateByUrl(target);
+            }),
+          );
         }
+
+        this.login(returnUrl);
+        return of(true);
       }),
-      map((status) => status.authenticated),
       catchError(() => of(false)),
     );
   }
 
   getAccessToken(): Observable<string> {
+    if (this.bffOnly) return of('');
     return this.oidcSecurityService.getAccessToken();
   }
 
+  /**
+   * Refreshes the OIDC access token once for all concurrent 401 responses.
+   * The shared interceptor uses this seam so every web app follows the same
+   * recovery policy without issuing a refresh storm.
+   */
+  refreshAccessToken(): Observable<boolean> {
+    if (this.bffOnly) {
+      return this.exchangeBffSession().pipe(
+        map(() => true),
+        catchError(() => of(false)),
+      );
+    }
+    if (!this.refreshAccessTokenInFlight$) {
+      this.refreshAccessTokenInFlight$ = this.oidcSecurityService.forceRefreshSession().pipe(
+        map(({ isAuthenticated }) => isAuthenticated),
+        catchError(() => of(false)),
+        tap((refreshed) => {
+          if (!refreshed) this.forceLocalLogout();
+        }),
+        finalize(() => {
+          this.refreshAccessTokenInFlight$ = undefined;
+        }),
+        shareReplay({ bufferSize: 1, refCount: false }),
+      );
+    }
+
+    return this.refreshAccessTokenInFlight$;
+  }
+
+  /** Ends the local session when the refresh token/session is no longer valid. */
+  handleSessionExpired(): void {
+    this.forceLocalLogout();
+  }
+
   handleCallback(): Observable<boolean> {
+    if (this.bffOnly) {
+      return this.getIdentitySessionStatus().pipe(
+        switchMap((status) => status.authenticated
+          ? this.exchangeBffSession().pipe(map(() => true))
+          : of(false)),
+        tap((authenticated) => {
+          this.lastAuthenticated = authenticated;
+          this.authenticatedSubject.next(authenticated);
+          this.clearSsoLoginInProgress();
+          if (authenticated) {
+            const returnUrl = this.safeReturnUrl(sessionStorage.getItem(RETURN_URL_KEY))
+              ?? this.safeReturnUrl(this.defaultReturnUrl) ?? '/';
+            sessionStorage.removeItem(RETURN_URL_KEY);
+            this.router.navigateByUrl(returnUrl);
+          } else {
+            this.router.navigate([this.loginRoute]);
+          }
+        }),
+        catchError(() => of(false)),
+      );
+    }
     return this.oidcSecurityService.checkAuth().pipe(
       switchMap(({ isAuthenticated }) => isAuthenticated
         ? this.requireCompletedMfa().pipe(
@@ -139,8 +252,8 @@ export class HisHopeAuthCoordinator {
       tap((isAuthenticated) => {
         this.clearSsoLoginInProgress();
         if (isAuthenticated) {
-          const returnUrl = this.safeReturnUrl(localStorage.getItem(RETURN_URL_KEY)) ?? this.safeReturnUrl(this.defaultReturnUrl) ?? '/';
-          localStorage.removeItem(RETURN_URL_KEY);
+          const returnUrl = this.safeReturnUrl(sessionStorage.getItem(RETURN_URL_KEY)) ?? this.safeReturnUrl(this.defaultReturnUrl) ?? '/';
+          sessionStorage.removeItem(RETURN_URL_KEY);
           this.router.navigateByUrl(returnUrl);
         } else {
           this.router.navigate([this.loginRoute]);
@@ -232,8 +345,8 @@ export class HisHopeAuthCoordinator {
   private forceLocalLogout(): void {
     this.markSsoLogout();
     this.broadcastLogout();
-    localStorage.removeItem(RETURN_URL_KEY);
-    this.oidcSecurityService.logoffLocal();
+    sessionStorage.removeItem(RETURN_URL_KEY);
+    if (!this.bffOnly) this.oidcSecurityService.logoffLocal();
     this.lastAuthenticated = false;
     this.authenticatedSubject.next(false);
     if (!this.router.url.includes(this.loginRoute)) {

@@ -96,8 +96,9 @@ public sealed class OidcLoginCompletionService(
 {
     private const string CookieName = "hishop_oidc_mfa";
     private const string SessionCookieName = "hishop_oidc_mfa_session";
-    private const string TrustedDeviceCookieName = "hishop_trusted_device";
-    private const string BrowserSessionCookieName = "hishop_sid";
+      private const string TrustedDeviceCookieName = "hishop_trusted_device";
+      private const string BrowserSessionCookieName = "hishop_sid";
+      private const string BrowserCsrfCookieName = "hishop_csrf";
     private static readonly TimeSpan PendingMfaLifetime = TimeSpan.FromMinutes(5);
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector("HisHope.OidcMfa.v1");
     private readonly IDatabase redisDb = redis.GetDatabase();
@@ -310,12 +311,13 @@ public sealed class OidcLoginCompletionService(
         if (!string.IsNullOrWhiteSpace(existingBrowserSession))
         {
             var existingSession = await TryGetLiveSessionAsync(existingBrowserSession);
-            if (existingSession is not null
-                && string.Equals(existingSession.UserId, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)
-                && string.Equals(existingSession.UserAgentHash, GetUserAgentHash(context), StringComparison.Ordinal))
-            {
-                return (existingBrowserSession, true);
-            }
+              if (existingSession is not null
+                  && string.Equals(existingSession.UserId, user.Id.ToString(), StringComparison.OrdinalIgnoreCase)
+                  && string.Equals(existingSession.UserAgentHash, GetUserAgentHash(context), StringComparison.Ordinal))
+              {
+                  AppendBrowserCsrfCookie(context, existingSession.CsrfToken);
+                  return (existingBrowserSession, true);
+              }
         }
 
         var sessionId = CreateOpaqueToken();
@@ -335,17 +337,33 @@ public sealed class OidcLoginCompletionService(
             GetBrowserSessionKey(sessionId),
             JsonSerializer.Serialize(pendingSession),
             PendingMfaLifetime);
-        context.Response.Cookies.Append(BrowserSessionCookieName, sessionId, new CookieOptions
-        {
+          context.Response.Cookies.Append(BrowserSessionCookieName, sessionId, new CookieOptions
+          {
             HttpOnly = true,
             Secure = context.Request.IsHttps,
             SameSite = SameSiteMode.Lax,
             Path = "/",
-            MaxAge = PendingMfaLifetime
-        });
+              MaxAge = PendingMfaLifetime
+          });
+        AppendBrowserCsrfCookie(context, pendingSession.CsrfToken);
 
-        return (sessionId, false);
-    }
+          return (sessionId, false);
+      }
+
+      private static void AppendBrowserCsrfCookie(HttpContext context, string csrfToken)
+      {
+          if (string.IsNullOrWhiteSpace(csrfToken))
+              return;
+
+          context.Response.Cookies.Append(BrowserCsrfCookieName, csrfToken, new CookieOptions
+          {
+              HttpOnly = false,
+              Secure = context.Request.IsHttps,
+              SameSite = SameSiteMode.Strict,
+              Path = "/",
+              MaxAge = PendingMfaLifetime
+          });
+      }
 
     private static string CreateOpaqueToken() =>
         WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));

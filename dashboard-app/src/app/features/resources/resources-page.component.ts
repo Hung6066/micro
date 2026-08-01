@@ -17,7 +17,7 @@ import { ResourceCardComponent } from '../../shared/resource-card/resource-card.
 import { ResourceDetailComponent } from './resource-detail.component';
 import { HealthTimelineComponent } from './health-timeline.component';
 import { DependencyGraphComponent } from './dependency-graph.component';
-import { HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent } from '@his-hope/frontend-foundation';
+import { HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 interface GroupedResources {
   services: Resource[];
@@ -40,13 +40,14 @@ interface GroupedResources {
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeStateComponent,
+    HisHopeTranslatePipe,
     ResourceCardComponent,
     DependencyGraphComponent,
     HealthTimelineComponent,
   ],
   template: `
     <hh-page-layout>
-    <hh-page-header hhPageHeader title="System Resources">
+    <hh-page-header hhPageHeader [title]="'dashboard.resources.pageTitle' | hhTranslate:'System Resources'">
         <mat-button-toggle-group
           [value]="viewMode()"
           (change)="viewMode.set($event.value)"
@@ -54,115 +55,128 @@ interface GroupedResources {
           aria-label="View mode">
           <mat-button-toggle value="cards" aria-label="Card view">
             <mat-icon>grid_view</mat-icon>
-            Cards
+            {{ 'dashboard.resources.cardView' | hhTranslate:'Cards' }}
           </mat-button-toggle>
           <mat-button-toggle value="graph" aria-label="Graph view">
             <mat-icon>hub</mat-icon>
-            Graph
+            {{ 'dashboard.resources.graphView' | hhTranslate:'Graph' }}
           </mat-button-toggle>
         </mat-button-toggle-group>
         <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
           <mat-icon>refresh</mat-icon>
-          Refresh
+          {{ 'dashboard.resources.refresh' | hhTranslate:'Refresh' }}
         </button>
     </hh-page-header>
 
     <!-- Loading spinner -->
-    <hh-state
-      *ngIf="(loading$ | async) && !(error$ | async)"
-      kind="loading"
-      message="Loading resources...">
-    </hh-state>
+    @if ((loading$ | async) && !(error$ | async)) {
+      <hh-state kind="loading" [message]="'dashboard.resources.loading' | hhTranslate:'Loading resources...'"></hh-state>
+    }
 
     <!-- Error state -->
-    <hh-state *ngIf="error$ | async as err" kind="error" icon="error_outline" [message]="err">
-      <button mat-raised-button color="primary" (click)="refresh()">
-        <mat-icon>refresh</mat-icon>
-        Retry
-      </button>
-    </hh-state>
+    @if (error$ | async; as err) {
+      <hh-state kind="error" icon="error_outline" [message]="err">
+        <button mat-raised-button color="primary" (click)="refresh()">
+          <mat-icon>refresh</mat-icon>
+          {{ 'dashboard.resources.retry' | hhTranslate:'Retry' }}
+        </button>
+      </hh-state>
+    }
 
     <!-- Card view -->
-    <ng-container *ngIf="viewMode() === 'cards'">
-      <ng-container *ngIf="grouped$ | async as grouped">
+    @if (viewMode() === 'cards') {
+      @if (grouped$ | async; as grouped) {
         <!-- Loading overlay for existing content -->
-        <div class="loading-overlay" *ngIf="(loading$ | async) && !(error$ | async) && grouped.total > 0">
-          <mat-spinner diameter="20"></mat-spinner>
-          <span>Refreshing...</span>
-        </div>
+        @if ((loading$ | async) && !(error$ | async) && grouped.total > 0) {
+          <div class="loading-overlay">
+            <mat-spinner diameter="20"></mat-spinner>
+            <span>{{ 'dashboard.resources.refreshing' | hhTranslate:'Refreshing...' }}</span>
+          </div>
+        }
 
         <!-- Services -->
-        <section class="resource-group" *ngIf="grouped.services.length > 0">
-          <div class="group-header">
-            <mat-icon>dns</mat-icon>
-            <h2 class="group-title">Services</h2>
-            <span class="group-count">{{ grouped.services.length }}</span>
-          </div>
-          <div class="card-grid">
-            <app-resource-card
-              *ngFor="let r of grouped.services"
-              [resource]="r"
-              [pulseTrigger]="pulseTriggerMap.get(r.name) ?? 0"
-              (cardClick)="openDetail($event)"
-              (start)="onStart($event)"
-              (stop)="onStop($event)"
-              (restart)="onRestart($event)">
-            </app-resource-card>
-          </div>
-        </section>
+        @if (grouped.services.length > 0) {
+          <section class="resource-group">
+            <div class="group-header">
+              <mat-icon>dns</mat-icon>
+              <h2 class="group-title">{{ 'dashboard.resources.services' | hhTranslate:'Services' }}</h2>
+              <span class="group-count">{{ grouped.services.length }}</span>
+            </div>
+            <div class="card-grid">
+              @for (r of grouped.services; track r.name) {
+                <app-resource-card
+                  [resource]="r"
+                  [pulseTrigger]="pulseTriggerMap.get(r.name) ?? 0"
+                  (cardClick)="openDetail($event)"
+                  (start)="onStart($event)"
+                  (stop)="onStop($event)"
+                  (restart)="onRestart($event)">
+                </app-resource-card>
+              }
+            </div>
+          </section>
+        }
 
         <!-- Databases -->
-        <section class="resource-group" *ngIf="grouped.databases.length > 0">
-          <div class="group-header">
-            <mat-icon>storage</mat-icon>
-            <h2 class="group-title">Databases</h2>
-            <span class="group-count">{{ grouped.databases.length }}</span>
-          </div>
-          <div class="card-grid">
-            <app-resource-card
-              *ngFor="let r of grouped.databases"
-              [resource]="r"
-              (cardClick)="openDetail($event)"
-              (start)="onStart($event)"
-              (stop)="onStop($event)"
-              (restart)="onRestart($event)">
-            </app-resource-card>
-          </div>
-        </section>
+        @if (grouped.databases.length > 0) {
+          <section class="resource-group">
+            <div class="group-header">
+              <mat-icon>storage</mat-icon>
+              <h2 class="group-title">{{ 'dashboard.resources.databases' | hhTranslate:'Databases' }}</h2>
+              <span class="group-count">{{ grouped.databases.length }}</span>
+            </div>
+            <div class="card-grid">
+              @for (r of grouped.databases; track r.name) {
+                <app-resource-card
+                  [resource]="r"
+                  (cardClick)="openDetail($event)"
+                  (start)="onStart($event)"
+                  (stop)="onStop($event)"
+                  (restart)="onRestart($event)">
+                </app-resource-card>
+              }
+            </div>
+          </section>
+        }
 
         <!-- Infrastructure -->
-        <section class="resource-group" *ngIf="grouped.infrastructure.length > 0">
-          <div class="group-header">
-            <mat-icon>cloud</mat-icon>
-            <h2 class="group-title">Infrastructure</h2>
-            <span class="group-count">{{ grouped.infrastructure.length }}</span>
-          </div>
-          <div class="card-grid">
-            <app-resource-card
-              *ngFor="let r of grouped.infrastructure"
-              [resource]="r"
-              (cardClick)="openDetail($event)"
-              (start)="onStart($event)"
-              (stop)="onStop($event)"
-              (restart)="onRestart($event)">
-            </app-resource-card>
-          </div>
-        </section>
+        @if (grouped.infrastructure.length > 0) {
+          <section class="resource-group">
+            <div class="group-header">
+              <mat-icon>cloud</mat-icon>
+              <h2 class="group-title">{{ 'dashboard.resources.infrastructure' | hhTranslate:'Infrastructure' }}</h2>
+              <span class="group-count">{{ grouped.infrastructure.length }}</span>
+            </div>
+            <div class="card-grid">
+              @for (r of grouped.infrastructure; track r.name) {
+                <app-resource-card
+                  [resource]="r"
+                  (cardClick)="openDetail($event)"
+                  (start)="onStart($event)"
+                  (stop)="onStop($event)"
+                  (restart)="onRestart($event)">
+                </app-resource-card>
+              }
+            </div>
+          </section>
+        }
 
         <!-- Empty state when loaded with no data -->
-        <hh-state *ngIf="grouped.total === 0" icon="inventory_2" message="No resources found"></hh-state>
-      </ng-container>
-    </ng-container>
+        @if (grouped.total === 0) {
+          <hh-state icon="inventory_2" [message]="'dashboard.resources.noResources' | hhTranslate:'No resources found'"></hh-state>
+        }
+      }
+    }
 
     <!-- Graph view -->
-    <ng-container *ngIf="viewMode() === 'graph'">
-      <ng-container *ngIf="resources$ | async as allResources">
+    @if (viewMode() === 'graph') {
+      @if (resources$ | async; as allResources) {
         <app-dependency-graph
           [resources]="allResources"
           (nodeClick)="openDetail($event)">
         </app-dependency-graph>
-      </ng-container>
-    </ng-container>
+      }
+    }
 
     <!-- Health Timeline — always visible -->
     <app-health-timeline></app-health-timeline>

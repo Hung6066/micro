@@ -450,6 +450,6 @@ export class MobileShellComponent implements OnInit, OnDestroy {
     this.auth.logout();
   }
   toggleTheme(): void {
-    this.theme.setTheme(this.theme.theme() === "dark" ? "light" : "dark");
+    this.theme.setTheme(this.theme.resolvedTheme() === "dark" ? "light" : "dark");
   }
 }

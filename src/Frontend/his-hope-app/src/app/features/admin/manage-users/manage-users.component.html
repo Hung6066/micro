@@ -1,0 +1,63 @@
+    <hh-page-layout>
+      <hh-page-header hhPageHeader [title]="'adminPage.manageUsers' | hhTranslate:'Quản lý người dùng'"
+                      [subtitle]="'adminPage.manageUsersSubtitle' | hhTranslate:'Quản lý tài khoản bác sĩ, điều dưỡng và nhân viên'">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="role-filter">
+          <mat-select [formControl]="roleFilter" (selectionChange)="onFilterChange()" [attr.aria-label]="'adminPage.roleFilter' | hhTranslate:'Bộ lọc vai trò'">
+            @for (f of roleFilters; track f.value) {
+            <mat-option [value]="f.value">{{ f.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <button mat-raised-button color="primary" (click)="openAddUserDialog()">
+          <mat-icon>person_add</mat-icon>
+          {{ 'adminPage.addUser' | hhTranslate:'Thêm người dùng' }}
+        </button>
+      </hh-page-header>
+
+      <hh-data-table [label]="'adminPage.userList' | hhTranslate:'Danh sách người dùng'" [columns]="columns" [rows]="rows" mode="server"
+                     [loading]="loading" [error]="error ?? ''"
+                     [empty]="rows.length === 0 && !loading" [emptyMessage]="'adminPage.noUsersFound' | hhTranslate:'Không tìm thấy người dùng'"
+                     [pageSize]="20" [totalItems]="totalCount" [query]="query"
+                     [searchable]="true" [searchPlaceholder]="'adminPage.searchUsers' | hhTranslate:'Tìm kiếm theo tên, email, ID...'"
+                     (queryChange)="onQueryChange($event)" (retry)="loadUsers()">
+        <ng-template hhDataTableCell="fullName" let-row>
+          <div class="user-name-cell">
+            <span class="name">{{ row['fullName'] }}</span>
+            <span class="email">{{ row['email'] }}</span>
+          </div>
+        </ng-template>
+        <ng-template hhDataTableCell="roles" let-row>
+          <div class="roles-cell">
+            @for (r of row['roles']; track r) {
+            <span class="role-badge" [ngClass]="'role-' + r">{{ getRoleLabel(r) }}</span>
+            }
+          </div>
+        </ng-template>
+        <ng-template hhDataTableCell="status" let-row>
+          <span class="status-badge" [ngClass]="row['isActive'] ? 'active' : 'inactive'">
+            {{ row['isActive'] ? ('adminPage.active' | hhTranslate:'Hoạt động') : ('adminPage.inactive' | hhTranslate:'Ngưng hoạt động') }}
+          </span>
+        </ng-template>
+        <ng-template hhDataTableCell="actions" let-row>
+          <button mat-icon-button color="primary" (click)="openEditUserDialog(userFromRow(row))"
+                  [matTooltip]="'adminPage.editUser' | hhTranslate:'Chỉnh sửa người dùng'">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button (click)="openAssignRolesDialog(userFromRow(row))"
+                  [matTooltip]="'adminPage.assignRoles' | hhTranslate:'Phân vai trò'">
+            <mat-icon>admin_panel_settings</mat-icon>
+          </button>
+          <button mat-icon-button (click)="toggleUserStatus(userFromRow(row))"
+                  [matTooltip]="row['isActive'] ? ('adminPage.deactivate' | hhTranslate:'Vô hiệu hóa') : ('adminPage.activate' | hhTranslate:'Kích hoạt')">
+            <mat-icon [color]="row['isActive'] ? 'warn' : 'primary'">
+              {{ row['isActive'] ? 'block' : 'check_circle' }}
+            </mat-icon>
+          </button>
+        </ng-template>
+      </hh-data-table>
+
+      <hh-confirm-dialog [open]="showConfirmDialog" [title]="confirmDialogTitle" [message]="confirmDialogMessage"
+        [confirmLabel]="confirmDialogConfirmLabel"         [cancelLabel]="'common.cancel' | hhTranslate:'Hủy'"
+        (confirmed)="onConfirmDialogConfirmed()" (cancelled)="onConfirmDialogCancelled()">
+      </hh-confirm-dialog>
+    </hh-page-layout>

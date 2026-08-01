@@ -57,10 +57,10 @@ describe('MedicationDetailComponent', () => {
     expect(compiled.querySelector('h1')?.textContent).toContain(mockMedication.name);
   });
 
-  it('should render detail cards', () => {
+  it('should render detail sections', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    const cards = compiled.querySelectorAll('mat-card');
-    expect(cards.length).toBeGreaterThanOrEqual(2);
+    const sections = compiled.querySelectorAll('hh-page-section');
+    expect(sections.length).toBeGreaterThanOrEqual(2);
   });
 
   it('should show edit button', () => {

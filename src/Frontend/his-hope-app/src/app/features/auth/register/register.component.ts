@@ -3,18 +3,19 @@ import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { RouterModule } from '@angular/router';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-register',
   standalone: true,
-  imports: [CommonModule, MatIconModule, MatButtonModule, RouterModule],
+  imports: [CommonModule, MatIconModule, MatButtonModule, RouterModule, HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="auth-placeholder">
       <mat-icon>person_add</mat-icon>
-      <h1>Đăng ký tài khoản</h1>
-      <p>Chức năng đăng ký sẽ mở sau. Hiện tại, hãy dùng tài khoản được cấp để đăng nhập.</p>
-      <button mat-stroked-button routerLink="/auth/login">Quay lại đăng nhập</button>
+      <h1>{{ 'auth.registerTitle' | hhTranslate:'Đăng ký tài khoản' }}</h1>
+      <p>{{ 'auth.registerComingSoon' | hhTranslate:'Chức năng đăng ký sẽ mở sau. Hiện tại, hãy dùng tài khoản được cấp để đăng nhập.' }}</p>
+      <button mat-stroked-button routerLink="/auth/login">{{ 'auth.backToLogin' | hhTranslate:'Quay lại đăng nhập' }}</button>
     </div>
   `,
   styles: [`

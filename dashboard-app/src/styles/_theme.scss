@@ -1,3 +1,4 @@
 @use '@his-hope/frontend-foundation/styles' as his;
 
-@include his.theme(-1);
+@include his.theme(-2);
+@include his.theme(-2, true, 'html[data-theme="dark"]');

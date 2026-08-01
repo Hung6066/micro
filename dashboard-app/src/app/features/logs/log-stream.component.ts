@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { Subscription } from 'rxjs';
 import { LogStreamService } from '../../core/services/log-stream.service';
 import { LogEntry } from '../../core/models/log-entry.model';
@@ -15,6 +16,7 @@ import { LogEntry } from '../../core/models/log-entry.model';
     MatButtonModule,
     MatIconModule,
     MatSlideToggleModule,
+    HisHopeTranslatePipe,
   ],
   template: `
     <div class="stream-controls">
@@ -23,13 +25,15 @@ import { LogEntry } from '../../core/models/log-entry.model';
         (toggleChange)="toggleStream()"
         color="primary">
         <span class="stream-label">
-          {{ enabled ? 'Đang theo dõi' : 'Theo dõi thời gian thực' }}
+          {{ enabled ? ('dashboard.logStream.following' | hhTranslate:'Đang theo dõi') : ('dashboard.logStream.realTime' | hhTranslate:'Theo dõi thời gian thực') }}
         </span>
       </mat-slide-toggle>
       <span class="stream-indicator" [class.active]="enabled"></span>
-      <span class="stream-count" *ngIf="enabled && newCount > 0">
-        +{{ newCount }} bản ghi mới
-      </span>
+      @if (enabled && newCount > 0) {
+        <span class="stream-count">
+          +{{ newCount }} {{ 'dashboard.logStream.newRecords' | hhTranslate:'bản ghi mới' }}
+        </span>
+      }
     </div>
   `,
   styles: [`

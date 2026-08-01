@@ -1,29 +1,35 @@
 import { Component, OnInit, ChangeDetectionStrategy, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
-import { MatTableModule } from '@angular/material/table';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
-import { MatChipsModule } from '@angular/material/chips';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 
-import { BehaviorSubject, of, combineLatest, interval, merge } from 'rxjs';
+import {
+  HisHopeDataTableCellDirective,
+  HisHopeDataTableColumn,
+  HisHopeDataTableComponent,
+  HisHopeDataTableDetailDirective,
+  HisHopeFilterToolbarComponent,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopePageQuery,
+  HisHopeStatusBadgeComponent,
+  HisHopeStatusTone,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
+import { BehaviorSubject, of, interval, merge } from 'rxjs';
 import { catchError, switchMap, finalize, debounceTime, map } from 'rxjs/operators';
 import { LogsService } from '../../core/services/logs.service';
 import { LogEntry } from '../../core/models/log-entry.model';
 import { TimeRangePickerComponent, TimeRange } from '../../shared/time-range-picker/time-range-picker.component';
 import { LogStreamViewComponent } from './log-stream-view.component';
-
-interface ExpandedRow {
-  [logId: string]: boolean;
-}
 
 interface LevelOption {
   value: string;
@@ -49,10 +55,26 @@ const ALL_SERVICES = [
   'pharmacy-service',
 ];
 
-const SERVICE_COLORS = [
-  '#2F6B4A', '#5B8C5A', '#2563EB', '#6B4FA0', '#B6581C',
-  '#C25450', '#0D9488',
-];
+const SERVICE_TONES: HisHopeStatusTone[] = ['neutral', 'info', 'success', 'warning'];
+
+/** Map a log level to a status-badge tone. */
+function levelToneFor(level: string): HisHopeStatusTone {
+  const l = level.toLowerCase();
+  if (l === 'error' || l === 'critical' || l === 'fatal') return 'danger';
+  if (l === 'warning' || l === 'warn') return 'warning';
+  if (l === 'information' || l === 'info') return 'info';
+  return 'neutral';
+}
+
+/** Deterministically map a service name to a status-badge tone. */
+function serviceToneFor(service: string): HisHopeStatusTone {
+  let hash = 0;
+  for (let i = 0; i < service.length; i++) {
+    hash = ((hash << 5) - hash) + service.charCodeAt(i);
+    hash |= 0;
+  }
+  return SERVICE_TONES[Math.abs(hash) % SERVICE_TONES.length];
+}
 
 @Component({
   selector: 'app-logs-page',
@@ -62,260 +84,206 @@ const SERVICE_COLORS = [
     FormsModule,
     RouterModule,
     MatCardModule,
-    MatTableModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
     MatButtonModule,
     MatIconModule,
-    MatProgressSpinnerModule,
     MatTabsModule,
-    MatChipsModule,
     MatAutocompleteModule,
     TimeRangePickerComponent,
     LogStreamViewComponent,
+    HisHopeDataTableCellDirective,
+    HisHopeDataTableComponent,
+    HisHopeDataTableDetailDirective,
+    HisHopeFilterToolbarComponent,
+    HisHopePageHeaderComponent,
+    HisHopePageLayoutComponent,
+    HisHopeStatusBadgeComponent,
+    HisHopeTranslatePipe,
   ],
   template: `
-    <div class="page-header">
-      <h1 class="page-title">System Logs</h1>
-      <div class="page-header-actions">
-        <span class="result-count" *ngIf="totalCount > 0">{{ totalCount }} results</span>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader [title]="'dashboard.logs.pageTitle' | hhTranslate:'System Logs'"
+                      [subtitle]="'dashboard.logs.pageSubtitle' | hhTranslate:'Centralized log viewer across all services'">
         <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
           <mat-icon>refresh</mat-icon>
-          Refresh
+          {{ 'dashboard.logs.refresh' | hhTranslate:'Refresh' }}
         </button>
-      </div>
-    </div>
+      </hh-page-header>
 
-    <!-- Query summary bar -->
-    <div class="query-summary" *ngIf="querySummary">
-      <span class="query-summary-text">{{ querySummary }}</span>
-      <button mat-icon-button size="small" (click)="clearAllFilters()" title="Clear all filters">
-        <mat-icon>close</mat-icon>
-      </button>
-    </div>
-
-    <mat-tab-group (selectedIndexChange)="onTabChange($event)" class="logs-tabs">
-      <!-- ═══════════════ Search Tab ═══════════════ -->
-      <mat-tab label="Search">
-        <ng-template matTabContent>
-          <!-- Filters card -->
-          <mat-card class="filters-card">
-            <mat-card-content>
-              <!-- Row 1: Time range + Service autocomplete -->
-              <div class="filters-row">
-                <div class="filter-group time-range-group">
-                  <label class="filter-label">Time range</label>
-                  <app-time-range-picker (rangeChange)="onTimeRangeChange($event)"></app-time-range-picker>
-                </div>
-
-                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="service-filter">
-                  <mat-label>Service</mat-label>
-                  <input
-                    matInput
-                    [matAutocomplete]="autoService"
-                    [(ngModel)]="serviceInput"
-                    (ngModelChange)="onServiceInputChange()"
-                    placeholder="All services"
-                  />
-                  <mat-icon matSuffix>search</mat-icon>
-                  <mat-autocomplete #autoService="matAutocomplete" (optionSelected)="onServiceSelected($event.option.value)">
-                    <mat-option value="">All services</mat-option>
-                    <mat-option *ngFor="let svc of filteredServices" [value]="svc">
-                      {{ svc }}
-                    </mat-option>
-                  </mat-autocomplete>
-                </mat-form-field>
+      <mat-tab-group (selectedIndexChange)="onTabChange()" class="logs-tabs">
+        <!-- ═══════════════ Search Tab ═══════════════ -->
+        <mat-tab [label]="'dashboard.logs.tabSearch' | hhTranslate:'Search'">
+          <ng-template matTabContent>
+            <hh-filter-toolbar label="Log filters" [resultCount]="totalCount">
+              <!-- Time range -->
+              <div class="filter-group time-range-group">
+                <span class="filter-label">{{ 'dashboard.logs.timeRange' | hhTranslate:'Time range' }}</span>
+                <app-time-range-picker (rangeChange)="onTimeRangeChange($event)"></app-time-range-picker>
               </div>
 
-              <!-- Row 2: Search + level chips -->
-              <div class="filters-row filters-second-row">
-                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="search-field">
-                  <mat-label>Full-text search</mat-label>
-                  <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()" placeholder="Keywords, trace ID, message..." />
-                  <button matSuffix mat-icon-button *ngIf="searchQuery" (click)="clearSearch()" type="button">
+              <!-- Service autocomplete -->
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="service-filter">
+                <mat-label>{{ 'dashboard.logs.service' | hhTranslate:'Service' }}</mat-label>
+                <input
+                  matInput
+                  [matAutocomplete]="autoService"
+                  [(ngModel)]="serviceInput"
+                  (ngModelChange)="onServiceInputChange()"
+                  [placeholder]="'dashboard.logs.allServices' | hhTranslate:'All services'"
+                />
+                <mat-icon matSuffix>search</mat-icon>
+                <mat-autocomplete #autoService="matAutocomplete" (optionSelected)="onServiceSelected($event.option.value)">
+                  <mat-option value="">{{ 'dashboard.logs.allServices' | hhTranslate:'All services' }}</mat-option>
+                  @for (svc of filteredServices; track svc) {
+                    <mat-option [value]="svc">{{ svc }}</mat-option>
+                  }
+                </mat-autocomplete>
+              </mat-form-field>
+
+              <!-- Full-text search -->
+              <mat-form-field appearance="outline" subscriptSizing="dynamic" class="search-field">
+                <mat-label>{{ 'dashboard.logs.fullTextSearch' | hhTranslate:'Full-text search' }}</mat-label>
+                <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()" [placeholder]="'dashboard.logs.searchPlaceholder' | hhTranslate:'Keywords, trace ID, message...'" />
+                @if (searchQuery) {
+                  <button matSuffix mat-icon-button (click)="clearSearch()" type="button">
                     <mat-icon>close</mat-icon>
                   </button>
-                </mat-form-field>
+                }
+              </mat-form-field>
 
-                <div class="level-filter-group">
-                  <label class="filter-label">Level</label>
-                  <div class="level-chips">
+              <!-- Level chips -->
+              <div class="level-filter-group">
+                <span class="filter-label">{{ 'dashboard.logs.level' | hhTranslate:'Level' }}</span>
+                <div class="level-chips">
+                  @for (level of levelOptions; track level.value) {
                     <button
-                      *ngFor="let level of levelOptions"
                       class="level-chip"
                       [class.selected]="selectedLevels.includes(level.value)"
                       (click)="toggleLevel(level.value)">
                       {{ level.label }}
                     </button>
-                  </div>
+                  }
                 </div>
+              </div>
 
-                <button mat-raised-button color="primary" (click)="search()" class="search-btn">
-                  <mat-icon>search</mat-icon>
-                  Search
+              <button mat-raised-button color="primary" (click)="search()" class="search-btn">
+                <mat-icon>search</mat-icon>
+                {{ 'dashboard.logs.searchBtn' | hhTranslate:'Search' }}
+              </button>
+            </hh-filter-toolbar>
+
+            <!-- Query summary bar -->
+            @if (querySummary) {
+              <div class="query-summary">
+                <span class="query-summary-text">{{ querySummary }}</span>
+                <button mat-icon-button size="small" (click)="clearAllFilters()" [title]="'dashboard.logs.clearFilters' | hhTranslate:'Clear all filters'">
+                  <mat-icon>close</mat-icon>
                 </button>
               </div>
-            </mat-card-content>
-          </mat-card>
+            }
 
-          <!-- Results card -->
-          <mat-card>
-            <mat-card-content class="table-content">
-              <!-- Loading -->
-              <div class="loading-state" *ngIf="(loading$ | async) && !(error$ | async)">
-                <mat-spinner diameter="28"></mat-spinner>
-              </div>
-
-              <!-- Error -->
-              <div class="error-inline" *ngIf="error$ | async as err">
-                <span class="error-text">{{ err }}</span>
-                <button mat-stroked-button size="small" (click)="refresh()">Retry</button>
-              </div>
-
-              <!-- Table -->
-              <table mat-table [dataSource]="logs" class="mat-elevation-z0" multiTemplateDataRows>
-                <ng-container matColumnDef="timestamp">
-                  <th mat-header-cell *matHeaderCellDef>Time</th>
-                  <td mat-cell *matCellDef="let l" class="cell-timestamp">{{ l.timestamp | date:'dd/MM HH:mm:ss' }}</td>
-                </ng-container>
-
-                <ng-container matColumnDef="level">
-                  <th mat-header-cell *matHeaderCellDef>Level</th>
-                  <td mat-cell *matCellDef="let l">
-                    <span class="level-badge" [class]="'level-' + l.level.toLowerCase()">
-                      {{ l.level }}
-                    </span>
-                  </td>
-                </ng-container>
-
-                <ng-container matColumnDef="service">
-                  <th mat-header-cell *matHeaderCellDef>Service</th>
-                  <td mat-cell *matCellDef="let l">
-                    <span class="service-chip" [style.--chip-color]="getServiceColor(l.service)">
-                      {{ l.service }}
-                    </span>
-                  </td>
-                </ng-container>
-
-                <ng-container matColumnDef="message">
-                  <th mat-header-cell *matHeaderCellDef>Message</th>
-                  <td mat-cell *matCellDef="let l" class="cell-message">
-                    <span class="message-text">{{ l.message }}</span>
-                    <span class="trace-link" *ngIf="l.traceId" (click)="goToTrace($event, l.traceId!)">
-                      [{{ l.traceId | slice:0:8 }}...]
-                    </span>
-                  </td>
-                </ng-container>
-
-                <ng-container matColumnDef="expand">
-                  <th mat-header-cell *matHeaderCellDef></th>
-                  <td mat-cell *matCellDef="let l">
-                    <button mat-icon-button size="small" (click)="toggleExpand($event, l)">
-                      <mat-icon>{{ expanded[l.id] ? 'expand_less' : 'expand_more' }}</mat-icon>
-                    </button>
-                  </td>
-                </ng-container>
-
-                <!-- Expanded detail row -->
-                <ng-container matColumnDef="expandedDetail">
-                  <td mat-cell *matCellDef="let l" [attr.colspan]="displayedColumns.length">
-                    <div class="expanded-detail" *ngIf="expanded[l.id]">
-                      <div class="detail-field" *ngIf="l.traceId">
-                        <span class="detail-field-label">Trace ID</span>
-                        <code class="detail-field-value trace-link-inline" (click)="goToTrace($event, l.traceId!)">
-                          {{ l.traceId }}
-                        </code>
-                      </div>
-                      <div class="detail-field" *ngIf="l.spanId">
-                        <span class="detail-field-label">Span ID</span>
-                        <code class="detail-field-value">{{ l.spanId }}</code>
-                      </div>
-                      <div class="detail-field" *ngIf="l.exception">
-                        <span class="detail-field-label">Exception</span>
-                        <pre class="detail-field-value exception">{{ l.exception }}</pre>
-                      </div>
-                      <div class="detail-field" *ngIf="l.properties">
-                        <span class="detail-field-label">Properties (JSON)</span>
-                        <pre class="detail-field-value json">{{ l.properties | json }}</pre>
-                      </div>
+            <!-- Results table -->
+            @let loading = (loading$ | async) ?? false;
+            @let error = (error$ | async) ?? '';
+            <hh-data-table
+              label="System logs"
+              [columns]="columns"
+              [rows]="tableRows"
+              [loading]="loading"
+              [error]="error"
+              [empty]="!loading && !error && logs.length === 0"
+              mode="server"
+              [pageSize]="20"
+              [totalItems]="totalCount"
+              [query]="query"
+              [urlSync]="false"
+              [searchable]="false"
+              [expandedRowKeys]="expandedRowKeys"
+              emptyMessage="No logs found."
+              (queryChange)="onQueryChange($event)"
+              (rowExpandChange)="onRowExpandChange($event)"
+              (retry)="refresh()">
+              <ng-template hhDataTableCell="timestamp" let-row>
+                <span class="cell-timestamp">{{ logOf(row).timestamp | date:'dd/MM HH:mm:ss' }}</span>
+              </ng-template>
+              <ng-template hhDataTableCell="level" let-row>
+                <hh-status-badge [status]="logOf(row).level" [label]="logOf(row).level" [tone]="levelTone(logOf(row).level)" />
+              </ng-template>
+              <ng-template hhDataTableCell="service" let-row>
+                <hh-status-badge [status]="logOf(row).service" [label]="logOf(row).service" [tone]="serviceTone(logOf(row).service)" />
+              </ng-template>
+              <ng-template hhDataTableCell="message" let-row>
+                <span class="message-text">{{ logOf(row).message }}</span>
+                @if (logOf(row).traceId) {
+                  <a class="trace-link" [routerLink]="['/traces', logOf(row).traceId!]" (click)="$event.stopPropagation()">
+                    [{{ logOf(row).traceId! | slice:0:8 }}...]
+                  </a>
+                }
+              </ng-template>
+              <ng-template hhDataTableDetail let-row>
+                @let log = logOf(row);
+                <div class="expanded-detail">
+                  @if (log.traceId) {
+                    <div class="detail-field">
+                      <span class="detail-field-label">{{ 'dashboard.logs.traceId' | hhTranslate:'Trace ID' }}</span>
+                      <a class="detail-field-value trace-link-inline" [routerLink]="['/traces', log.traceId!]">
+                        {{ log.traceId }}
+                      </a>
                     </div>
-                  </td>
-                </ng-container>
+                  }
+                  @if (log.spanId) {
+                    <div class="detail-field">
+                      <span class="detail-field-label">{{ 'dashboard.logs.spanId' | hhTranslate:'Span ID' }}</span>
+                      <code class="detail-field-value">{{ log.spanId }}</code>
+                    </div>
+                  }
+                  @if (log.exception) {
+                    <div class="detail-field">
+                      <span class="detail-field-label">{{ 'dashboard.logs.exception' | hhTranslate:'Exception' }}</span>
+                      <pre class="detail-field-value exception">{{ log.exception }}</pre>
+                    </div>
+                  }
+                  @if (log.properties) {
+                    <div class="detail-field">
+                      <span class="detail-field-label">{{ 'dashboard.logs.properties' | hhTranslate:'Properties (JSON)' }}</span>
+                      <pre class="detail-field-value json">{{ log.properties | json }}</pre>
+                    </div>
+                  }
+                </div>
+              </ng-template>
+            </hh-data-table>
+          </ng-template>
+        </mat-tab>
 
-                <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-                <tr mat-row *matRowDef="let row; columns: displayedColumns"
-                    (click)="toggleExpand($event, row)" class="log-row"></tr>
-                <tr mat-row *matRowDef="let row; columns: ['expandedDetail']" class="detail-row"></tr>
-
-                <tr class="mat-row" *matNoDataRow>
-                  <td class="mat-cell empty-state" [attr.colspan]="displayedColumns.length">
-                    <mat-icon>article</mat-icon>
-                    <p>{{ (loading$ | async) ? 'Loading...' : 'No logs found' }}</p>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Load more -->
-              <div class="load-more" *ngIf="hasMore && !(loading$ | async)">
-                <button mat-stroked-button (click)="loadMore()" [disabled]="loadingMore.value">
-                  <mat-icon *ngIf="!loadingMore.value">expand_more</mat-icon>
-                  <mat-spinner *ngIf="loadingMore.value" diameter="16"></mat-spinner>
-                  Load More
-                </button>
-              </div>
-            </mat-card-content>
-          </mat-card>
-        </ng-template>
-      </mat-tab>
-
-      <!-- ═══════════════ Stream Tab ═══════════════ -->
-      <mat-tab label="Stream">
-        <ng-template matTabContent>
-          <mat-card class="stream-card">
-            <mat-card-content class="stream-card-content">
-              <app-log-stream-view
-                [service]="selectedService"
-                [level]="selectedLevels.length === 1 ? selectedLevels[0] : ''">
-              </app-log-stream-view>
-            </mat-card-content>
-          </mat-card>
-        </ng-template>
-      </mat-tab>
-    </mat-tab-group>
+        <!-- ═══════════════ Stream Tab ═══════════════ -->
+        <mat-tab [label]="'dashboard.logs.tabStream' | hhTranslate:'Stream'">
+          <ng-template matTabContent>
+            <mat-card class="stream-card">
+              <mat-card-content class="stream-card-content">
+                <app-log-stream-view
+                  [service]="selectedService"
+                  [level]="selectedLevels.length === 1 ? selectedLevels[0] : ''">
+                </app-log-stream-view>
+              </mat-card-content>
+            </mat-card>
+          </ng-template>
+        </mat-tab>
+      </mat-tab-group>
+    </hh-page-layout>
   `,
   styles: [`
-    .page-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-    .page-header-actions {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .result-count {
-      font-size: 13px;
-      color: var(--text-secondary, #787774);
-      background: #F0F0EE;
-      padding: 4px 12px;
-      border-radius: 4px;
-      font-weight: 500;
-    }
     .query-summary {
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 8px 12px;
-      background: #F0F0EE;
-      border-radius: 4px;
-      margin-bottom: 16px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-input);
       font-size: 12px;
-      color: var(--text-secondary, #787774);
+      color: var(--text-secondary);
     }
     .query-summary-text {
       flex: 1;
@@ -325,16 +293,6 @@ const SERVICE_COLORS = [
     }
 
     /* ── Filters ── */
-    .filters-row {
-      display: flex;
-      gap: 16px;
-      align-items: flex-start;
-      flex-wrap: wrap;
-    }
-    .filters-second-row {
-      margin-top: 12px;
-      align-items: center;
-    }
     .filter-group {
       display: flex;
       flex-direction: column;
@@ -342,10 +300,10 @@ const SERVICE_COLORS = [
     }
     .filter-label {
       font-size: 11px;
-      font-weight: 600;
+      font-weight: var(--font-weight-semibold);
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--text-muted, #A1A09B);
+      color: var(--text-muted);
     }
     .time-range-group {
       min-width: 320px;
@@ -372,87 +330,65 @@ const SERVICE_COLORS = [
       display: inline-flex;
       align-items: center;
       padding: 4px 12px;
-      border-radius: 4px;
-      border: 1px solid var(--border-default, #EAEAEA);
+      border-radius: var(--radius-badge);
+      border: 1px solid var(--border-default);
       background: transparent;
       font-size: 12px;
-      font-weight: 500;
-      color: var(--text-secondary, #787774);
+      font-weight: var(--font-weight-medium);
+      color: var(--text-secondary);
       cursor: pointer;
       transition: all 150ms ease;
       line-height: 1.4;
     }
     .level-chip:hover {
-      background: rgba(0, 0, 0, 0.03);
+      background: var(--surface-hover);
     }
     .level-chip.selected {
-      background: var(--color-primary, #2F6B4A);
-      color: #fff;
-      border-color: var(--color-primary, #2F6B4A);
+      background: var(--color-primary);
+      color: var(--surface-white);
+      border-color: var(--color-primary);
     }
     .search-btn {
       margin-top: 18px;
     }
 
-    /* ── Table ── */
-    .table-content {
-      padding: 0 !important;
-    }
-    table {
-      width: 100%;
-    }
+    /* ── Table cells ── */
     .cell-timestamp {
       white-space: nowrap;
-      font-family: var(--font-mono, monospace);
+      font-family: var(--font-mono);
       font-size: 12px;
     }
-    .cell-message {
-      max-width: 360px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
     .message-text {
-      font-family: var(--font-mono, 'Cascadia Mono', Consolas, monospace);
+      font-family: var(--font-mono);
       font-size: 12px;
       line-height: 1.5;
     }
     .trace-link {
-      color: #2563EB;
-      font-family: var(--font-mono, monospace);
+      color: var(--color-info);
+      font-family: var(--font-mono);
       font-size: 11px;
       cursor: pointer;
       margin-left: 6px;
       white-space: nowrap;
       text-decoration: none;
-      border-bottom: 1px dashed #2563EB;
+      border-bottom: 1px dashed var(--color-info);
     }
     .trace-link:hover {
-      color: #1D4ED8;
+      opacity: 0.8;
     }
     .trace-link-inline {
-      color: #2563EB !important;
+      color: var(--color-info) !important;
       cursor: pointer !important;
       text-decoration: none !important;
-      border-bottom: 1px dashed #2563EB !important;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      border-bottom: 1px dashed var(--color-info) !important;
     }
     .trace-link-inline:hover {
-      color: #1D4ED8 !important;
+      opacity: 0.8 !important;
     }
-    .log-row {
-      cursor: pointer;
-      transition: background-color 150ms ease;
-    }
-    .log-row:hover {
-      background-color: rgba(0, 0, 0, 0.02);
-    }
-    .detail-row {
-      background: var(--bg-warm, #F7F6F3);
-    }
-    .detail-row > td {
-      padding: 0 !important;
-      border-bottom: 1px solid var(--border-default, #EAEAEA);
-    }
+
+    /* ── Expanded detail row ── */
     .expanded-detail {
       padding: 16px 24px;
       display: flex;
@@ -466,134 +402,42 @@ const SERVICE_COLORS = [
     }
     .detail-field-label {
       font-size: 11px;
-      font-weight: 600;
+      font-weight: var(--font-weight-semibold);
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--text-muted, #A1A09B);
+      color: var(--text-muted);
     }
     .detail-field-value {
       font-size: 13px;
-      color: var(--text-primary, #1A1A1A);
+      color: var(--text-primary);
       margin: 0;
     }
     .detail-field-value.exception {
-      color: #C25450;
+      color: var(--color-danger);
       white-space: pre-wrap;
-      font-family: var(--font-mono, monospace);
+      font-family: var(--font-mono);
       font-size: 12px;
-      background: #FDEBEC;
+      background: var(--surface-danger);
       padding: 8px 12px;
-      border-radius: 4px;
+      border-radius: var(--radius-input);
       line-height: 1.5;
     }
     .detail-field-value.json {
-      font-family: var(--font-mono, monospace);
+      font-family: var(--font-mono);
       font-size: 12px;
-      background: var(--bg-warm, #F7F6F3);
+      background: var(--surface-muted);
       padding: 8px 12px;
-      border-radius: 4px;
+      border-radius: var(--radius-input);
       line-height: 1.5;
       max-height: 200px;
       overflow-y: auto;
     }
     .detail-field-value code {
-      font-family: var(--font-mono, monospace);
+      font-family: var(--font-mono);
       font-size: 12px;
-      background: var(--bg-warm, #F7F6F3);
+      background: var(--surface-muted);
       padding: 2px 6px;
       border-radius: 3px;
-    }
-
-    /* ── Level badges ── */
-    .level-badge {
-      display: inline-block;
-      padding: 1px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 500;
-      letter-spacing: 0.02em;
-    }
-    .level-error, .level-critical {
-      background: #FDEBEC;
-      color: #C25450;
-    }
-    .level-warning {
-      background: #FDF0E2;
-      color: #B6581C;
-    }
-    .level-information {
-      /* INFO: no background per design spec */
-      color: #2563EB;
-      background: transparent;
-    }
-    .level-debug {
-      background: transparent;
-      color: var(--text-muted, #A1A09B);
-    }
-
-    /* ── Service chips ── */
-    .service-chip {
-      display: inline-block;
-      padding: 1px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--chip-color, #787774);
-      background: color-mix(in srgb, var(--chip-color, #787774) 12%, transparent);
-      max-width: 140px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    /* ── Loading / Error / Empty ── */
-    .loading-state {
-      display: flex;
-      justify-content: center;
-      padding: 32px;
-    }
-    .error-inline {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      padding: 16px;
-      background: #FDEBEC;
-      color: #C25450;
-      font-size: 13px;
-    }
-    .error-text {
-      font-size: 13px;
-    }
-    .load-more {
-      display: flex;
-      justify-content: center;
-      padding: 16px;
-      border-top: 1px solid var(--border-default, #EAEAEA);
-    }
-    .load-more button {
-      min-width: 140px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .load-more mat-spinner {
-      display: inline-block;
-    }
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 48px 24px;
-      color: var(--text-muted, #A1A09B);
-      text-align: center;
-    }
-    .empty-state mat-icon {
-      font-size: 48px;
-      width: 48px;
-      height: 48px;
-      margin-bottom: 16px;
-      opacity: 0.4;
     }
 
     /* ── Stream tab ── */
@@ -606,15 +450,11 @@ const SERVICE_COLORS = [
 export class LogsPageComponent implements OnInit {
   private readonly logsService = inject(LogsService);
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
 
   private readonly refreshTrigger = new BehaviorSubject<void>(undefined);
-  private readonly pageTrigger = new BehaviorSubject<number>(0);
-  private readonly searchDebounce = new BehaviorSubject<string>('');
 
   readonly loading$ = new BehaviorSubject<boolean>(true);
-  readonly loadingMore = new BehaviorSubject<boolean>(false);
   readonly error$ = new BehaviorSubject<string | null>(null);
 
   selectedService = '';
@@ -623,34 +463,42 @@ export class LogsPageComponent implements OnInit {
   serviceInput = '';
 
   logs: LogEntry[] = [];
-  hasMore = true;
-  expanded: ExpandedRow = {};
+  expandedRowKeys: string[] = [];
   totalCount = 0;
   querySummary = '';
-  private currentPage = 0;
+  query: HisHopePageQuery = { page: 1, pageSize: PAGE_SIZE };
+
+  columns: HisHopeDataTableColumn[] = [
+    { key: 'timestamp', label: 'Time', responsivePriority: 1 },
+    { key: 'level', label: 'Level', responsivePriority: 2 },
+    { key: 'service', label: 'Service', responsivePriority: 2 },
+    { key: 'message', label: 'Message', responsivePriority: 1 },
+  ];
 
   private timeRange: TimeRange = { from: new Date(Date.now() - 60 * 60 * 1000), to: new Date(), label: 'Last 1h' };
 
-  readonly displayedColumns = ['timestamp', 'level', 'service', 'message', 'expand'];
   readonly levelOptions = LEVELS;
   readonly allServices = ALL_SERVICES;
 
   filteredServices: string[] = ALL_SERVICES;
 
-  private readonly queryParams$ = combineLatest([
-    merge(this.refreshTrigger, interval(10000).pipe(map(() => void 0))),
-    this.pageTrigger,
-  ]).pipe(
+  private readonly searchDebounce = new BehaviorSubject<string>('');
+
+  private readonly query$ = merge(
+    this.refreshTrigger,
+    interval(10000).pipe(map(() => void 0)),
+  ).pipe(
     debounceTime(100),
-    switchMap(([, page]) => {
-      const loading = page === 0 ? this.loading$ : this.loadingMore;
+    switchMap(() => {
+      const loading = this.loading$;
       loading.next(true);
+      const from = (this.query.page - 1) * this.query.pageSize;
       return this.logsService.query({
         service: this.selectedService || undefined,
         level: this.selectedLevels.length > 0 ? this.selectedLevels.join(',') : undefined,
         query: this.searchQuery || undefined,
-        from: (page * PAGE_SIZE).toString(),
-        size: PAGE_SIZE,
+        from: from.toString(),
+        size: this.query.pageSize,
         fromDate: this.timeRange.from.toISOString(),
         toDate: this.timeRange.to.toISOString(),
       }).pipe(
@@ -660,13 +508,7 @@ export class LogsPageComponent implements OnInit {
           loading.next(false);
           return of([] as LogEntry[]);
         }),
-        finalize(() => {
-          if (page === 0) {
-            this.loading$.next(false);
-          } else {
-            this.loadingMore.next(false);
-          }
-        }),
+        finalize(() => loading.next(false)),
       );
     }),
   );
@@ -679,14 +521,9 @@ export class LogsPageComponent implements OnInit {
       this.refresh();
     });
 
-    this.queryParams$.subscribe(entries => {
-      if (this.currentPage === 0) {
-        this.logs = entries;
-      } else {
-        this.logs = [...this.logs, ...entries];
-      }
-      this.hasMore = entries.length >= PAGE_SIZE;
-      this.totalCount = this.logs.length;
+    this.query$.subscribe(entries => {
+      this.logs = entries;
+      this.totalCount = this.estimateTotal(entries.length);
       this.updateQuerySummary();
       this.cdr.markForCheck();
     });
@@ -700,6 +537,49 @@ export class LogsPageComponent implements OnInit {
 
     // Initial load
     this.refresh();
+  }
+
+  /**
+   * The logs API returns pages without a total count. A full page implies more
+   * records exist, so expose one extra item to keep the table's "Next" active.
+   */
+  private estimateTotal(loaded: number): number {
+    const offset = (this.query.page - 1) * this.query.pageSize;
+    return loaded >= this.query.pageSize ? offset + loaded + 1 : offset + loaded;
+  }
+
+  get tableRows(): Record<string, unknown>[] {
+    return this.logs.map(log => ({
+      id: log.id,
+      timestamp: log.timestamp,
+      level: log.level,
+      service: log.service,
+      message: log.message,
+      entity: log,
+    }));
+  }
+
+  logOf(row: Record<string, unknown>): LogEntry {
+    return row['entity'] as LogEntry;
+  }
+
+  levelTone(level: string): HisHopeStatusTone {
+    return levelToneFor(level);
+  }
+
+  serviceTone(service: string): HisHopeStatusTone {
+    return serviceToneFor(service);
+  }
+
+  onQueryChange(query: HisHopePageQuery): void {
+    this.query = query;
+    this.refresh();
+  }
+
+  onRowExpandChange(event: { rowKey: string; expanded: boolean }): void {
+    this.expandedRowKeys = event.expanded
+      ? [...this.expandedRowKeys, event.rowKey]
+      : this.expandedRowKeys.filter(key => key !== event.rowKey);
   }
 
   private updateQuerySummary(): void {
@@ -717,6 +597,7 @@ export class LogsPageComponent implements OnInit {
     this.serviceInput = '';
     this.selectedLevels = [];
     this.timeRange = { from: new Date(Date.now() - 60 * 60 * 1000), to: new Date(), label: 'Last 1h' };
+    this.query = { page: 1, pageSize: PAGE_SIZE };
     this.refresh();
   }
 
@@ -726,21 +607,12 @@ export class LogsPageComponent implements OnInit {
   }
 
   refresh(): void {
-    this.currentPage = 0;
-    this.logs = [];
-    this.hasMore = true;
     this.error$.next(null);
     this.refreshTrigger.next();
   }
 
   search(): void {
     this.refresh();
-  }
-
-  loadMore(): void {
-    if (this.loadingMore.value || !this.hasMore) return;
-    this.currentPage++;
-    this.pageTrigger.next(this.currentPage);
   }
 
   onFilterChange(): void {
@@ -779,34 +651,7 @@ export class LogsPageComponent implements OnInit {
     this.refresh();
   }
 
-  toggleExpand(event: MouseEvent, entry: LogEntry): void {
-    event.stopPropagation();
-    this.expanded[entry.id] = !this.expanded[entry.id];
-    this.expanded = { ...this.expanded };
-  }
-
-  onStreamLog(entry: LogEntry): void {
-    this.logs = [entry, ...this.logs];
-    this.totalCount = this.logs.length;
-    this.cdr.markForCheck();
-  }
-
-  onTabChange(index: number): void {
+  onTabChange(): void {
     // No special handling needed
-  }
-
-  goToTrace(event: MouseEvent, traceId: string): void {
-    event.stopPropagation();
-    this.router.navigate(['/traces', traceId]);
-  }
-
-  getServiceColor(service: string): string {
-    let hash = 0;
-    for (let i = 0; i < service.length; i++) {
-      hash = ((hash << 5) - hash) + service.charCodeAt(i);
-      hash |= 0;
-    }
-    const idx = Math.abs(hash) % SERVICE_COLORS.length;
-    return SERVICE_COLORS[idx];
   }
 }

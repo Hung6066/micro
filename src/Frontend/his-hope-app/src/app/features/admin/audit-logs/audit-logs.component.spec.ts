@@ -19,8 +19,6 @@ import { CommonModule } from '@angular/common';
 import { of } from 'rxjs';
 import { AuditLogsComponent } from './audit-logs.component';
 import { AdminService } from '@core/services/admin.service';
-import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('AuditLogsComponent', () => {
@@ -43,7 +41,7 @@ describe('AuditLogsComponent', () => {
     await TestBed.configureTestingModule({
     
     imports: [
-        AuditLogsComponent, LoadingSpinnerComponent, EmptyStateComponent, RouterTestingModule, NoopAnimationsModule,
+        AuditLogsComponent, RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatTableModule, MatPaginatorModule, MatButtonModule,
         MatIconModule, MatFormFieldModule, MatInputModule, MatSelectModule,
         MatDatepickerModule, MatNativeDateModule, MatProgressSpinnerModule,

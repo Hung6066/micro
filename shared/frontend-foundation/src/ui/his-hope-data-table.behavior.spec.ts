@@ -1,6 +1,7 @@
 import {
   createHisHopeCursorQuery,
   parseHisHopeDataTableQuery,
+  sameHisHopeDataTableQuery,
   serializeHisHopeDataTableQuery,
   toggleHisHopeDataTableSort,
 } from './his-hope-data-table.component';
@@ -28,6 +29,17 @@ describe('HisHopeDataTable enterprise behavior', () => {
       ...query,
       search: 'patient',
     });
+  });
+
+  it('does not treat equivalent initial URL state as a new server query', () => {
+    expect(sameHisHopeDataTableQuery(
+      { page: 1, pageSize: 20 },
+      { page: 1, pageSize: 20, search: '  ', cursor: undefined },
+    )).toBe(true);
+    expect(sameHisHopeDataTableQuery(
+      { page: 1, pageSize: 20 },
+      { page: 2, pageSize: 20 },
+    )).toBe(false);
   });
 
   it('cycles one sort term and appends shift-style terms without losing priority', () => {

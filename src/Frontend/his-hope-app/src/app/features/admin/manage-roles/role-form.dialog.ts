@@ -1,4 +1,4 @@
-import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, FormArray, ReactiveFormsModule } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -13,6 +13,10 @@ import { CommonModule } from '@angular/common';
 import { Subject, takeUntil } from 'rxjs';
 import { AdminService } from '@core/services/admin.service';
 import { Role, PermissionGroup, Permission } from '@core/models/admin.model';
+import {
+  HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
+  HisHopeFormSectionComponent, HisHopeTranslatePipe, HisHopeI18nService,
+} from '@his-hope/frontend-foundation';
 
 export interface RoleFormData {
   role?: Role;
@@ -33,103 +37,16 @@ export interface RoleFormData {
         MatIconModule,
         MatProgressSpinnerModule,
         MatSnackBarModule,
+        HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
+        HisHopeFormSectionComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    template: `
-    <h2 mat-dialog-title>{{ data.mode === 'create' ? 'Thêm vai trò' : 'Chỉnh sửa vai trò' }}</h2>
-    <mat-dialog-content>
-      <form [formGroup]="form" class="dialog-form">
-        <mat-form-field appearance="outline">
-          <mat-label>Tên vai trò</mat-label>
-          <input matInput formControlName="name" placeholder="Nhập tên vai trò" required>
-          @if (form.get('name')?.hasError('required')) {
-          <mat-error>Vui lòng nhập tên vai trò</mat-error>
-          }
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Mô tả</mat-label>
-          <textarea matInput formControlName="description" rows="3" placeholder="Mô tả vai trò..." required></textarea>
-          @if (form.get('description')?.hasError('required')) {
-          <mat-error>Vui lòng nhập mô tả</mat-error>
-          }
-        </mat-form-field>
-
-        <div class="section-label">
-          <mat-icon>security</mat-icon>
-          <span>Ma trận quyền</span>
-        </div>
-
-        @if (permissionGroups.length > 0) {
-        <mat-accordion class="permission-accordion">
-          @for (group of permissionGroups; track group.groupName) {
-          <mat-expansion-panel expanded>
-            <mat-expansion-panel-header>
-              <mat-panel-title>
-                <mat-checkbox [checked]="isGroupFullySelected(group)" [indeterminate]="isGroupPartiallySelected(group)"
-                              (change)="toggleGroup($event.checked, group)"
-                              (click)="$event.stopPropagation()">
-                  {{ group.groupName }}
-                </mat-checkbox>
-              </mat-panel-title>
-              <mat-panel-description>
-                {{ group.permissions.length }} quyền
-              </mat-panel-description>
-            </mat-expansion-panel-header>
-            <div class="perm-grid">
-              @for (perm of group.permissions; track perm.code) {
-              <div class="perm-item">
-                <mat-checkbox [checked]="isPermissionSelected(perm.code)"
-                              (change)="togglePermission(perm.code, $event.checked)">
-                  <div class="perm-info">
-                    <span class="perm-name">{{ perm.name }}</span>
-                    <span class="perm-desc">{{ perm.description }}</span>
-                  </div>
-                </mat-checkbox>
-              </div>
-              }
-            </div>
-          </mat-expansion-panel>
-          }
-        </mat-accordion>
-        } @else {
-        <div class="loading-state">
-          <mat-spinner diameter="24"></mat-spinner>
-          <span>Đang tải quyền...</span>
-        </div>
-        }
-      </form>
-    </mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close [disabled]="saving">Hủy</button>
-      <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid || saving">
-        <mat-icon>{{ data.mode === 'create' ? 'add_moderator' : 'save' }}</mat-icon>
-        @if (!saving) {
-        <span>{{ data.mode === 'create' ? 'Thêm vai trò' : 'Lưu thay đổi' }}</span>
-        }
-        @if (saving) {
-        <mat-spinner diameter="20"></mat-spinner>
-        }
-      </button>
-    </mat-dialog-actions>
-  `,
-    styles: [`
-    .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 520px; padding-top: 8px; }
-    .section-label { display: flex; align-items: center; gap: 8px; font-weight: 600; color: #1A1A1A; margin-top: 8px; }
-    .section-label mat-icon { color: var(--mat-sys-primary); }
-    .permission-accordion { margin-top: 4px; }
-    .perm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; padding: 4px 0; }
-    .perm-item { padding: 4px 0; }
-    .perm-info { display: flex; flex-direction: column; margin-left: 4px; }
-    .perm-name { font-weight: 500; font-size: 13px; color: #1A1A1A; }
-    .perm-desc { font-size: 11px; color: #787774; margin-top: 1px; }
-    .loading-state { display: flex; align-items: center; gap: 12px; justify-content: center; padding: 48px; color: #787774; }
-    ::ng-deep .mat-expansion-panel-header-title .mat-checkbox { pointer-events: auto; }
-    ::ng-deep .mat-expansion-panel-header-description { justify-content: flex-end; margin-right: 0; }
-  `]
+    templateUrl: './role-form.dialog.html',
+    styleUrls: ['./role-form.dialog.scss']
 })
 export class RoleFormDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   form: FormGroup;
   saving = false;
@@ -224,14 +141,14 @@ export class RoleFormDialogComponent implements OnDestroy {
       .subscribe({
         next: () => {
           this.snackBar.open(
-            this.data.mode === 'create' ? 'Đã thêm vai trò thành công' : 'Đã cập nhật vai trò thành công',
-            'Đóng', { duration: 3000 },
+            this.i18n.t(this.data.mode === 'create' ? 'roleForm.createSuccess' : 'roleForm.updateSuccess', this.data.mode === 'create' ? 'Đã thêm vai trò thành công' : 'Đã cập nhật vai trò thành công'),
+            this.i18n.t('common.close', 'Đóng'), { duration: 3000 },
           );
           this.dialogRef.close(true);
         },
         error: () => {
           this.saving = false;
-          this.snackBar.open('Không thể lưu vai trò', 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('roleForm.saveFailed', 'Không thể lưu vai trò'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });

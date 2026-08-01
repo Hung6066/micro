@@ -61,32 +61,18 @@ export class AuthService {
         sessionStatusUrl: this.sessionStatusUrl,
         sessionExchangeUrl: `${environment.apiUrl}/auth/session/exchange`,
         logoutUrl: `${environment.apiUrl}/auth/logout`,
+        bffOnly: true,
       },
     );
 
-    this.oidcSecurityService.isAuthenticated$.subscribe(({ isAuthenticated }) => {
+    this.authCoordinator.isAuthenticated$.subscribe((isAuthenticated) => {
       this.lastAuthenticated = isAuthenticated;
+      if (isAuthenticated) this.loadUserFromOidc().pipe(take(1)).subscribe({ error: () => {} });
     });
-
-    this.oidcSecurityService
-      .checkAuth()
-      .pipe(take(1))
-      .subscribe({
-        next: ({ isAuthenticated }) => {
-          this.lastAuthenticated = isAuthenticated;
-          if (isAuthenticated) {
-            this.loadUserFromOidc()
-              .pipe(switchMap(() => this.ensureBffSession()), take(1))
-              .subscribe({ error: () => {} });
-          }
-          this.checkAuthInit$.next();
-          this.checkAuthInit$.complete();
-        },
-        error: () => {
-          this.checkAuthInit$.next();
-          this.checkAuthInit$.complete();
-        },
-      });
+    this.authCoordinator.checkAuth().pipe(take(1)).subscribe(() => {
+      this.checkAuthInit$.next();
+      this.checkAuthInit$.complete();
+    });
 
     this.initBroadcastChannel();
     this.startSsoSessionMonitor();
@@ -153,6 +139,7 @@ export class AuthService {
           this.currentUserSubject.next(null);
           this.clearStoredAccessToken();
           this.permissionCache.clear();
+          this.currentUserLoad$ = undefined;
           this.redirectToCentralLogout();
         }),
         retry(1),
@@ -161,6 +148,7 @@ export class AuthService {
           this.oidcSecurityService.logoffLocal();
           this.clearStoredAccessToken();
           this.permissionCache.clear();
+          this.currentUserLoad$ = undefined;
           this.redirectToCentralLogout();
           return of(void 0);
         }),
@@ -179,6 +167,7 @@ export class AuthService {
     this.authCoordinator.logout();
     this.currentUserSubject.next(null);
     this.permissionCache.clear();
+    this.currentUserLoad$ = undefined;
   }
 
   trySsoLogin(returnUrl?: string): Observable<boolean> {
@@ -186,20 +175,10 @@ export class AuthService {
   }
 
   handleCallback(): Observable<boolean> {
-    return this.oidcSecurityService.checkAuth().pipe(
-      switchMap(({ isAuthenticated }) => {
-        if (!isAuthenticated) {
-          this.markSsoLogout();
-          this.ssoLoginInProgress = false;
-          return of(false);
-        }
-
-        return this.loadUserFromOidc().pipe(
-          switchMap(() => this.ensureBffSession()),
-          map(() => true),
-          catchError(() => of(true)),
-        );
-      }),
+    return this.authCoordinator.handleCallback().pipe(
+      switchMap((isAuthenticated) => isAuthenticated
+        ? this.loadUserFromOidc().pipe(map(() => true), catchError(() => of(true)))
+        : of(false)),
     );
   }
 
@@ -209,9 +188,7 @@ export class AuthService {
   }
 
   isAuthenticated(): Observable<boolean> {
-    return this.oidcSecurityService.isAuthenticated$.pipe(
-      map(({ isAuthenticated }) => isAuthenticated),
-    );
+    return this.authCoordinator.isAuthenticated$;
   }
 
   getAccessToken(): Observable<string> {
@@ -223,6 +200,14 @@ export class AuthService {
       take(1),
       switchMap(() => this.authCoordinator.getAccessToken()),
     );
+  }
+
+  refreshAccessToken(): Observable<boolean> {
+    return this.authCoordinator.refreshAccessToken();
+  }
+
+  handleSessionExpired(): void {
+    this.authCoordinator.handleSessionExpired();
   }
 
   getUserData(): Observable<any> {
@@ -264,12 +249,7 @@ export class AuthService {
 
   /** Retrieve the stored access token from OIDC */
   getStoredAccessToken(): string | null {
-    let token: string | null = null;
-    this.oidcSecurityService
-      .getAccessToken()
-      .pipe(take(1))
-      .subscribe((t) => (token = t));
-    return token;
+    return null;
   }
 
   /** No-op: OIDC manages tokens */

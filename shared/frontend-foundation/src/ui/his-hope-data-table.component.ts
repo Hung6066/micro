@@ -57,6 +57,15 @@ export function serializeHisHopeDataTableQuery(query: HisHopePageQuery): HisHope
   };
 }
 
+/**
+ * Compares query state after applying the same defaults/normalization used by
+ * the URL serializer. This prevents the initial ActivatedRoute emission from
+ * reloading a server-backed table with an equivalent query.
+ */
+export function sameHisHopeDataTableQuery(left: HisHopePageQuery, right: HisHopePageQuery): boolean {
+  return JSON.stringify(serializeHisHopeDataTableQuery(left)) === JSON.stringify(serializeHisHopeDataTableQuery(right));
+}
+
 export function parseHisHopeDataTableQuery(params: URLSearchParams | Record<string, string | null | undefined>): HisHopePageQuery {
   const read = (key: string): string | undefined => params instanceof URLSearchParams ? params.get(key) ?? undefined : params[key] ?? undefined;
   const parseJson = <T>(key: string): T | undefined => {
@@ -710,7 +719,7 @@ export class HisHopeDataTableComponent {
       if (!this.urlSync()) return;
       const next: HisHopePageQuery = { ...this.query(), ...parseHisHopeDataTableQuery(params as Record<string, string | null | undefined>) };
       this.urlReady = true;
-      this.queryChange.emit(next);
+      if (!sameHisHopeDataTableQuery(this.query(), next)) this.queryChange.emit(next);
     });
     effect(() => {
       const query = this.query();

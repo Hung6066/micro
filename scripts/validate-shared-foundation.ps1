@@ -14,7 +14,7 @@ foreach ($component in $catalog.components) {
     if (-not (Test-Path $sourcePath)) { throw "Catalog source does not exist: $sourcePath" }
   }
 }
-if ($index -notmatch "export \* from './ui/his-hope-data-table.component';") { throw 'DataTable is not exported publicly.' }
-if ($index -notmatch "export \* from './i18n/his-hope-language-switcher.component';") { throw 'Language switcher is not exported publicly.' }
+if ($index -notmatch 'export \* from "\./ui/his-hope-data-table\.component"') { throw 'DataTable is not exported publicly.' }
+if ($index -notmatch 'export \* from "\./i18n/his-hope-language-switcher\.component"') { throw 'Language switcher is not exported publicly.' }
 
 Write-Host "Catalog validation passed: $($catalog.components.Count) component entries."

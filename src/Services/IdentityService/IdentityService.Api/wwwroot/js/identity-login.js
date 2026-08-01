@@ -51,6 +51,24 @@
     }
   };
 
+  const csrfHeaders = (contentType = false) => {
+    const headers = {};
+    if (contentType) headers['Content-Type'] = 'application/json';
+    const match = document.cookie.match(/(?:^|; )hishop_csrf=([^;]*)/);
+    if (match) headers['X-CSRF-Token'] = decodeURIComponent(match[1]);
+    return headers;
+  };
+
+  const establishBrowserSession = async () => {
+    const response = await fetch('/api/v1/auth/session/exchange', {
+      method: 'POST',
+      headers: csrfHeaders()
+    });
+    if (!response.ok) {
+      throw new Error(await readProblem(response, 'Unable to establish the browser session.'));
+    }
+  };
+
   const wait = timeoutMs => new Promise(resolve => window.setTimeout(resolve, timeoutMs));
   const DEFAULT_NATIVE_APPROVAL_TICKET_LIFETIME_MS = 5 * 60 * 1000;
   const NATIVE_APPROVAL_CLIENT_BUFFER_MS = 15 * 1000;
@@ -75,7 +93,7 @@
 
         const optionsResponse = await fetch('/api/v1/auth/passkeys/authenticate/options', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: csrfHeaders(true),
           body: JSON.stringify({ userName })
         });
         if (!optionsResponse.ok) throw new Error(await readProblem(optionsResponse, 'No passkey is registered for this account.'));
@@ -85,11 +103,16 @@
 
         const complete = await fetch('/api/v1/auth/passkeys/authenticate/complete', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: csrfHeaders(true),
           body: JSON.stringify({ userId: payload.userId, returnUrl, response: serialize(credential) })
         });
         if (!complete.ok) throw new Error(await readProblem(complete, 'Passkey authentication failed.'));
         const result = await complete.json();
+        if (result.requiresMfa) {
+          window.location.assign(result.redirectUrl || returnUrl);
+          return;
+        }
+        await establishBrowserSession();
         window.location.assign(result.redirectUrl || returnUrl);
       } catch (exception) {
         showError(error, exception);
@@ -107,13 +130,13 @@
       try {
         if (!window.PublicKeyCredential || !navigator.credentials)
           throw new Error('This browser does not support passkeys.');
-        const start = await fetch('/api/v1/auth/passkeys/register/options', { method: 'POST' });
+        const start = await fetch('/api/v1/auth/passkeys/register/options', { method: 'POST', headers: csrfHeaders() });
         if (!start.ok) throw new Error(await readProblem(start, 'Unable to start passkey registration.'));
         const credential = await navigator.credentials.create({ publicKey: prepare(await start.json()) });
         if (!credential) throw new Error('Registration was cancelled.');
         const complete = await fetch('/api/v1/auth/passkeys/register/complete', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: csrfHeaders(true),
           body: JSON.stringify(serialize(credential))
         });
         if (!complete.ok) throw new Error(await readProblem(complete, 'Passkey registration failed.'));
@@ -129,6 +152,7 @@
   if (!verificationRoot) return;
 
   const methodsEndpoint = verificationRoot.getAttribute('data-mfa-methods-endpoint') || '/api/v1/auth/mfa/methods';
+  const mfaReturnUrl = new URLSearchParams(window.location.search).get('returnUrl') || '/';
   const initialPreferredMethod = verificationRoot.getAttribute('data-preferred-method') || '';
   const initialAvailableMethods = (verificationRoot.getAttribute('data-available-methods') || '')
     .split(',')
@@ -256,7 +280,7 @@
       if (!window.PublicKeyCredential || !navigator.credentials)
         throw new Error('This device does not support passkeys. Use another method to continue.');
 
-      const start = await fetch('/api/v1/auth/passkeys/mfa/options', { method: 'POST' });
+      const start = await fetch('/api/v1/auth/passkeys/mfa/options', { method: 'POST', headers: csrfHeaders() });
       if (!start.ok) throw new Error(await readProblem(start, 'Unable to start passkey verification.'));
       const payload = await start.json();
 
@@ -265,12 +289,13 @@
 
       const complete = await fetch('/api/v1/auth/passkeys/mfa/complete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: csrfHeaders(true),
         body: JSON.stringify({ response: serialize(credential) })
       });
       if (!complete.ok) throw new Error(await readProblem(complete, 'Passkey verification failed.'));
       const result = await complete.json();
-      window.location.assign(result.redirectUrl || '/');
+      await establishBrowserSession();
+      window.location.assign(mfaReturnUrl || result.redirectUrl || '/');
     } catch (exception) {
       state.alternateOpen = true;
       setError(exception instanceof Error ? exception.message : String(exception));
@@ -362,14 +387,15 @@
     const launchWindow = openNativeApprovalWindow();
 
     try {
-      const start = await fetch('/api/v1/auth/passkeys/mfa/native/start', { method: 'POST' });
+      const start = await fetch('/api/v1/auth/passkeys/mfa/native/start', { method: 'POST', headers: csrfHeaders() });
       if (!start.ok) throw new Error(await readProblem(start, 'Unable to start mobile approval.'));
 
       const payload = await start.json();
       navigateNativeApprovalWindow(launchWindow, payload.deepLink);
 
       const result = await pollNativeApproval(payload.ticket, getNativeApprovalPollTimeout(payload.expiresInMs));
-      window.location.assign(result.redirectUrl || '/');
+      await establishBrowserSession();
+      window.location.assign(mfaReturnUrl || result.redirectUrl || '/');
     } catch (exception) {
       if (launchWindow && !launchWindow.closed) {
         launchWindow.close();
@@ -400,13 +426,14 @@
     try {
       const response = await fetch('/api/v1/auth/mfa/verify', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: csrfHeaders(true),
         body: JSON.stringify({ code })
       });
       if (!response.ok) throw new Error(await readProblem(response, 'TOTP verification failed.'));
 
       const result = await response.json();
-      window.location.assign(result.redirectUrl || '/');
+      await establishBrowserSession();
+      window.location.assign(mfaReturnUrl || result.redirectUrl || '/');
     } catch (exception) {
       setError(exception instanceof Error ? exception.message : String(exception));
     } finally {

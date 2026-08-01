@@ -1,6 +1,7 @@
-import { ApplicationConfig, ErrorHandler, provideZoneChangeDetection } from '@angular/core';
+import { ApplicationConfig, ErrorHandler, PLATFORM_ID, provideZoneChangeDetection } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { provideRouter } from '@angular/router';
-import { provideHttpClient, withInterceptors, withInterceptorsFromDi, HTTP_INTERCEPTORS } from '@angular/common/http';
+import { HttpClient, provideHttpClient, withInterceptors, withInterceptorsFromDi, HTTP_INTERCEPTORS } from '@angular/common/http';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideStore } from '@ngrx/store';
 import { provideEffects } from '@ngrx/effects';
@@ -13,21 +14,23 @@ import { patientsReducer } from '@store/patients/patients.reducer';
 import { errorReducer } from '@store/error/error.reducer';
 import { AuthEffects } from '@store/auth/auth.effects';
 import { PatientsEffects } from '@store/patients/patients.effects';
-import { ErrorInterceptor } from '@core/interceptors/error.interceptor';
 import { csrfInterceptor } from '@core/interceptors/csrf.interceptor';
 import { authInterceptor } from '@core/interceptors/auth.interceptor';
+import { ErrorInterceptor } from '@core/interceptors/error.interceptor';
 import { GlobalErrorHandler } from '@core/errors/global-error-handler';
 
 import { environment } from '@env/environment';
 import { mockServiceProviders } from '@core/services/mock/mock-providers';
-import { HIS_HOPE_LOCALIZATION_API_URL, hisHopeInternationalizationInterceptor } from '@his-hope/frontend-foundation';
+import { HisHopeI18nService, HisHopeLocalizationApiService, HIS_HOPE_LOCALIZATION_API_URL, hisHopeInternationalizationInterceptor, hisHopeCookieSessionInterceptor } from '@his-hope/frontend-foundation';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     { provide: HIS_HOPE_LOCALIZATION_API_URL, useValue: environment.apiUrl },
+    { provide: HisHopeI18nService, useFactory: (document: Document, platformId: object) => new HisHopeI18nService(document, platformId), deps: [DOCUMENT, PLATFORM_ID] },
+    { provide: HisHopeLocalizationApiService, useFactory: (http: HttpClient, i18n: HisHopeI18nService, apiUrl: string) => new HisHopeLocalizationApiService(http, i18n, apiUrl), deps: [HttpClient, HisHopeI18nService, HIS_HOPE_LOCALIZATION_API_URL] },
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    provideHttpClient(withInterceptorsFromDi(), withInterceptors([hisHopeInternationalizationInterceptor, authInterceptor, csrfInterceptor])),
+    provideHttpClient(withInterceptorsFromDi(), withInterceptors([hisHopeInternationalizationInterceptor, hisHopeCookieSessionInterceptor, authInterceptor, csrfInterceptor])),
     provideAuth({
       config: {
         authority: environment.oidc.authority,
@@ -37,7 +40,7 @@ export const appConfig: ApplicationConfig = {
         scope: environment.oidc.scope,
         responseType: environment.oidc.responseType,
         silentRenew: true,
-        useRefreshToken: true,
+        useRefreshToken: false,
         silentRenewUrl: environment.oidc.silentRenewUrl,
         renewTimeBeforeTokenExpiresInSeconds: 120,
         secureRoutes: [environment.apiUrl + '/'],

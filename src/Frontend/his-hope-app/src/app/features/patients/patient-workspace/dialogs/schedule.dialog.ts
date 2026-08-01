@@ -1,4 +1,4 @@
-import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,6 +14,10 @@ import { CommonModule } from '@angular/common';
 import { Subject, takeUntil } from 'rxjs';
 import { AppointmentService } from '@core/services/appointment.service';
 import { AuthService } from '@core/services/auth.service';
+import {
+  HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
+  HisHopeFormSectionComponent, HisHopeTranslatePipe, HisHopeI18nService,
+} from '@his-hope/frontend-foundation';
 
 export interface ScheduleData {
   patientId: string;
@@ -41,82 +45,96 @@ const TIME_SLOTS = [
         MatIconModule,
         MatProgressSpinnerModule,
         MatSnackBarModule,
+        HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
+        HisHopeFormSectionComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <h2 mat-dialog-title>Đặt lịch hẹn</h2>
-    <mat-dialog-content>
-      @if (data.patientName) {
-      <div class="patient-info">
-        <mat-icon>person</mat-icon>
-        <span>{{ data.patientName }}</span>
-      </div>
-      }
-      <form [formGroup]="form" class="dialog-form">
-        <mat-form-field appearance="outline">
-          <mat-label>Ngày hẹn</mat-label>
-          <input matInput [matDatepicker]="picker" formControlName="scheduledDate" required>
-          <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
-          <mat-datepicker #picker></mat-datepicker>
-          @if (form.get('scheduledDate')?.hasError('required')) {
-          <mat-error>Vui lòng chọn ngày</mat-error>
+    <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+      <hh-create-dialog-shell
+        [title]="'schedule.title' | hhTranslate:'Đặt lịch hẹn'"
+        [subtitle]="'schedule.subtitle' | hhTranslate:'Lên lịch hẹn khám cho bệnh nhân'">
+        <div hhCreateDialogContent>
+          @if (data.patientName) {
+          <div class="patient-info">
+            <mat-icon>person</mat-icon>
+            <span>{{ data.patientName }}</span>
+          </div>
           }
-        </mat-form-field>
+          <hh-form-layout>
+            <hh-form-section [title]="'schedule.section.appointment' | hhTranslate:'Thông tin lịch hẹn'" [span]="2">
+              <div class="form-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'schedule.date' | hhTranslate:'Ngày hẹn' }}</mat-label>
+                  <input matInput [matDatepicker]="picker" formControlName="scheduledDate" required>
+                  <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+                  <mat-datepicker #picker></mat-datepicker>
+                  @if (form.get('scheduledDate')?.hasError('required')) {
+                  <mat-error>{{ 'schedule.dateRequired' | hhTranslate:'Vui lòng chọn ngày' }}</mat-error>
+                  }
+                </mat-form-field>
 
-        <mat-form-field appearance="outline">
-          <mat-label>Giờ hẹn</mat-label>
-          <mat-select formControlName="startTime" required>
-            @for (slot of timeSlots; track slot) {
-            <mat-option [value]="slot">{{ slot }}</mat-option>
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'schedule.time' | hhTranslate:'Giờ hẹn' }}</mat-label>
+                  <mat-select formControlName="startTime" required>
+                    @for (slot of timeSlots; track slot) {
+                    <mat-option [value]="slot">{{ slot }}</mat-option>
+                    }
+                  </mat-select>
+                  @if (form.get('startTime')?.hasError('required')) {
+                  <mat-error>{{ 'schedule.timeRequired' | hhTranslate:'Vui lòng chọn giờ' }}</mat-error>
+                  }
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'schedule.type' | hhTranslate:'Loại hẹn' }}</mat-label>
+                  <mat-select formControlName="typeCode" required>
+                    <mat-option value="consultation">{{ 'schedule.type.consultation' | hhTranslate:'Khám bệnh' }}</mat-option>
+                    <mat-option value="follow_up">{{ 'schedule.type.followup' | hhTranslate:'Tái khám' }}</mat-option>
+                    <mat-option value="emergency">{{ 'schedule.type.emergency' | hhTranslate:'Cấp cứu' }}</mat-option>
+                    <mat-option value="procedure">{{ 'schedule.type.procedure' | hhTranslate:'Thủ thuật' }}</mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'schedule.location' | hhTranslate:'Phòng / Địa điểm' }}</mat-label>
+                  <input matInput formControlName="location" [placeholder]="'schedule.locationPlaceholder' | hhTranslate:'VD: Phòng khám số 2 - Tầng 1'">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>{{ 'schedule.reason' | hhTranslate:'Lý do hẹn' }}</mat-label>
+                  <textarea matInput formControlName="reason" rows="3"
+                            [placeholder]="'schedule.reasonPlaceholder' | hhTranslate:'Lý do đến khám...'"></textarea>
+                </mat-form-field>
+              </div>
+            </hh-form-section>
+          </hh-form-layout>
+        </div>
+        <div hhCreateDialogFooter>
+          <button mat-button type="button" mat-dialog-close [disabled]="saving">{{ 'common.cancel' | hhTranslate:'Hủy' }}</button>
+          <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid || saving">
+            <mat-icon>calendar_today</mat-icon>
+            @if (!saving) {
+            <span>{{ 'schedule.save' | hhTranslate:'Đặt lịch' }}</span>
             }
-          </mat-select>
-          @if (form.get('startTime')?.hasError('required')) {
-          <mat-error>Vui lòng chọn giờ</mat-error>
-          }
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Loại hẹn</mat-label>
-          <mat-select formControlName="typeCode" required>
-            <mat-option value="consultation">Khám bệnh</mat-option>
-            <mat-option value="follow_up">Tái khám</mat-option>
-            <mat-option value="emergency">Cấp cứu</mat-option>
-            <mat-option value="procedure">Thủ thuật</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Lý do hẹn</mat-label>
-          <textarea matInput formControlName="reason" rows="3"
-                    placeholder="Lý do đến khám..."></textarea>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Phòng / Địa điểm</mat-label>
-          <input matInput formControlName="location" placeholder="VD: Phòng khám số 2 - Tầng 1">
-        </mat-form-field>
-      </form>
-    </mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close [disabled]="saving">Hủy</button>
-      <button mat-raised-button color="primary" (click)="save()" [disabled]="form.invalid || saving">
-        <mat-icon>calendar_today</mat-icon>
-        @if (!saving) {
-        <span>Đặt lịch</span>
-        }
-        @if (saving) {
-        <mat-spinner diameter="20"></mat-spinner>
-        }
-      </button>
-    </mat-dialog-actions>
+            @if (saving) {
+            <mat-spinner diameter="20"></mat-spinner>
+            }
+          </button>
+        </div>
+      </hh-create-dialog-shell>
+    </form>
   `,
     styles: [`
     .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: var(--pastel-orange, #FDF0E2); border-radius: 8px; color: var(--pastel-orange-text, #B6581C); font-weight: 500; }
-    .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 380px; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--form-field-gap, 16px); }
+    .form-grid .full-width { grid-column: 1 / -1; }
+    @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } }
   `]
 })
 export class ScheduleDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   form: FormGroup;
   saving = false;
@@ -174,12 +192,12 @@ export class ScheduleDialogComponent implements OnDestroy {
         }).pipe(takeUntil(this.destroy$))
           .subscribe({
             next: () => {
-              this.snackBar.open('Đã đặt lịch hẹn thành công', 'Đóng', { duration: 3000 });
+              this.snackBar.open(this.i18n.t('schedule.saveSuccess', 'Đã đặt lịch hẹn thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
               this.dialogRef.close(true);
             },
             error: () => {
               this.saving = false;
-              this.snackBar.open('Không thể đặt lịch hẹn', 'Đóng', { duration: 5000 });
+              this.snackBar.open(this.i18n.t('schedule.saveFailed', 'Không thể đặt lịch hẹn'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
               this.cdr.markForCheck();
             },
           });

@@ -1,0 +1,39 @@
+
+    .audit-logs { padding: 24px; max-width: 1200px; margin: 0 auto; }
+    .page-header { margin-bottom: 20px; }
+    .page-header h1 { margin: 0; font-size: 24px; font-weight: 600; color: #1A1A1A; }
+    .subtitle { margin: 4px 0 0; color: #787774; font-size: 14px; }
+
+    .filter-bar { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; align-items: flex-start; }
+    .filter-user { flex: 1; min-width: 200px; max-width: 280px; }
+    .filter-action { width: 160px; }
+    .filter-resource { width: 180px; }
+    .filter-date { width: 170px; }
+    .clear-btn { margin-top: 4px; }
+
+    .table-container { background: #FFFFFF; border-radius: 8px; border: 1px solid #EAEAEA; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .audit-table { width: 100%; }
+    .cell-mono { font-family: var(--font-mono); font-size: 12px; color: #787774; }
+
+    .action-badge { display: inline-flex; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .action-create { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
+    .action-read { background: var(--mat-sys-tertiary-container); color: var(--mat-sys-on-tertiary-container); }
+    .action-update { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
+    .action-delete { background: var(--mat-sys-error-container); color: var(--mat-sys-on-error-container); }
+
+    .resource-badge { display: inline-flex; padding: 2px 8px; border-radius: 4px; font-size: 11px; background: #f5f5f5; color: #666; }
+
+    .clickable-row { cursor: pointer; }
+    .clickable-row:hover { background: #F7F6F3; }
+    .clickable-row:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: -2px; }
+    .detail-row { background: #FAFAF8; }
+    .detail-row > td { padding: 0; }
+
+    .detail-row-inner { padding: 16px 24px; display: flex; flex-direction: column; gap: 12px; }
+    .detail-section { display: flex; flex-direction: column; gap: 4px; }
+    .detail-label { font-size: 12px; font-weight: 600; color: #787774; text-transform: uppercase; letter-spacing: 0.3px; }
+    .detail-value { font-size: 13px; color: #1A1A1A; word-break: break-all; }
+    .detail-json { background: #F7F6F3; padding: 12px; border-radius: 6px; font-size: 12px; line-height: 1.5; overflow-x: auto; max-height: 200px; margin: 0; }
+
+    .mat-mdc-header-cell { font-weight: 600; color: #787774; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  

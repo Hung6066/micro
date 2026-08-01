@@ -76,6 +76,8 @@ public static class OidcSetup
 
                 try
                 {
+                    var tokenProtector = ctx.HttpContext.RequestServices
+                        .GetRequiredService<SessionTokenProtector>();
                     var sessionId = Guid.NewGuid().ToString("N");
                     var accessToken = ctx.TokenEndpointResponse.AccessToken;
                     var refreshToken = ctx.TokenEndpointResponse.RefreshToken;
@@ -86,8 +88,8 @@ public static class OidcSetup
                     var sessionData = new
                     {
                         UserId = subjectId,
-                        Jwt = accessToken ?? "",
-                        RefreshToken = refreshToken ?? "",
+                        Jwt = tokenProtector.Protect(accessToken ?? ""),
+                        RefreshToken = tokenProtector.ProtectOptional(refreshToken ?? ""),
                         Permissions = Array.Empty<string>(),
                         CsrfToken = Guid.NewGuid().ToString("N"),
                         UserAgentHash = ComputeSha256(

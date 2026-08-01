@@ -3,6 +3,7 @@ import { MatSnackBar, MatSnackBarRef, SimpleSnackBar } from '@angular/material/s
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { AlertService } from '../../core/services/alert.service';
+import { HisHopeI18nService } from '@his-hope/frontend-foundation';
 
 @Injectable({ providedIn: 'root' })
 export class AlertToastService implements OnDestroy {
@@ -12,6 +13,7 @@ export class AlertToastService implements OnDestroy {
   constructor(
     private readonly snackBar: MatSnackBar,
     private readonly alertService: AlertService,
+    private readonly i18n: HisHopeI18nService,
   ) {
     this.alertService.newCriticalAlert$
       .pipe(takeUntil(this.destroy$))
@@ -24,11 +26,13 @@ export class AlertToastService implements OnDestroy {
 
     const isCritical = alert.severity === 'critical';
     const panelClass = isCritical ? 'toast-critical' : 'toast-warning';
-    const title = isCritical ? 'Cảnh báo nghiêm trọng' : 'Cảnh báo';
+    const title = isCritical
+      ? this.i18n.t('dashboard.alerts.criticalAlert', 'Cảnh báo nghiêm trọng')
+      : this.i18n.t('dashboard.alerts.warningAlert', 'Cảnh báo');
 
     this.activeToastRef = this.snackBar.open(
       `🔔 ${title}: ${alert.summary} (${alert.service})`,
-      'Xem',
+      this.i18n.t('dashboard.alerts.view', 'Xem'),
       {
         duration: 10_000,
         panelClass: [panelClass],

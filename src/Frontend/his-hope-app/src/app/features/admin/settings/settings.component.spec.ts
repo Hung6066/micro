@@ -17,7 +17,6 @@ import { CommonModule } from '@angular/common';
 import { of } from 'rxjs';
 import { SettingsComponent } from './settings.component';
 import { AdminService } from '@core/services/admin.service';
-import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('SettingsComponent', () => {
@@ -39,7 +38,7 @@ describe('SettingsComponent', () => {
     await TestBed.configureTestingModule({
     
     imports: [
-        SettingsComponent, LoadingSpinnerComponent, RouterTestingModule, NoopAnimationsModule,
+        SettingsComponent, RouterTestingModule, NoopAnimationsModule,
         ReactiveFormsModule, MatButtonModule, MatIconModule, MatFormFieldModule,
         MatInputModule, MatSelectModule, MatSlideToggleModule, MatExpansionModule,
         MatProgressSpinnerModule, MatProgressBarModule, MatSnackBarModule, CommonModule],

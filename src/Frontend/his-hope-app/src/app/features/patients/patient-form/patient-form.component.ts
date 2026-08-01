@@ -12,6 +12,10 @@ import { MatNativeDateModule } from '@angular/material/core';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { PatientService } from '@core/services/patient.service';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import {
+  HisHopePageLayoutComponent, HisHopePageHeaderComponent,
+  HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-patient-form',
@@ -21,108 +25,120 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
         MatFormFieldModule, MatInputModule, MatSelectModule,
         MatButtonModule, MatDatepickerModule, MatNativeDateModule,
         MatProgressSpinnerModule, MatSnackBarModule,
+        HisHopePageLayoutComponent, HisHopePageHeaderComponent,
+        HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="patient-form">
-      <h1>{{ isEdit ? 'Chỉnh sửa bệnh nhân' : 'Thêm bệnh nhân mới' }}</h1>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader
+                      [title]="(isEdit ? 'patientForm.title.edit' : 'patientForm.title.create') | hhTranslate:(isEdit ? 'Chỉnh sửa bệnh nhân' : 'Thêm bệnh nhân mới')"
+                      [subtitle]="'patientForm.subtitle' | hhTranslate:'Quản lý thông tin hồ sơ bệnh nhân'" />
 
-      <form [formGroup]="patientForm" (ngSubmit)="onSubmit()">
-        <div class="form-grid">
-          <mat-form-field appearance="outline">
-            <mat-label>Họ</mat-label>
-            <input matInput formControlName="lastName" required>
-          </mat-form-field>
+      <form [formGroup]="patientForm" (ngSubmit)="onSubmit()" novalidate>
+        <hh-form-layout>
+          <hh-form-section [title]="'patientForm.section.identity' | hhTranslate:'Thông tin cá nhân'" [span]="2">
+            <div class="form-grid">
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'patientForm.lastName' | hhTranslate:'Họ' }}</mat-label>
+                <input matInput formControlName="lastName" required>
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Tên đệm</mat-label>
-            <input matInput formControlName="middleName">
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'patientForm.middleName' | hhTranslate:'Tên đệm' }}</mat-label>
+                <input matInput formControlName="middleName">
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Tên</mat-label>
-            <input matInput formControlName="firstName" required>
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'patientForm.firstName' | hhTranslate:'Tên' }}</mat-label>
+                <input matInput formControlName="firstName" required>
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Ngày sinh</mat-label>
-            <input matInput [matDatepicker]="picker" formControlName="dateOfBirth" required>
-            <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
-            <mat-datepicker #picker></mat-datepicker>
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'patientForm.dateOfBirth' | hhTranslate:'Ngày sinh' }}</mat-label>
+                <input matInput [matDatepicker]="picker" formControlName="dateOfBirth" required>
+                <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+                <mat-datepicker #picker></mat-datepicker>
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Giới tính</mat-label>
-            <mat-select formControlName="genderCode" required>
-              <mat-option value="M">Nam</mat-option>
-              <mat-option value="F">Nữ</mat-option>
-              <mat-option value="O">Khác</mat-option>
-            </mat-select>
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'patientForm.gender' | hhTranslate:'Giới tính' }}</mat-label>
+                <mat-select formControlName="genderCode" required>
+                  <mat-option value="M">{{ 'patientForm.gender.male' | hhTranslate:'Nam' }}</mat-option>
+                  <mat-option value="F">{{ 'patientForm.gender.female' | hhTranslate:'Nữ' }}</mat-option>
+                  <mat-option value="O">{{ 'patientForm.gender.other' | hhTranslate:'Khác' }}</mat-option>
+                </mat-select>
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Số điện thoại</mat-label>
-            <input matInput formControlName="phone" required placeholder="+84...">
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'patientForm.phone' | hhTranslate:'Số điện thoại' }}</mat-label>
+                <input matInput formControlName="phone" required placeholder="+84...">
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Email</mat-label>
-            <input matInput formControlName="email" type="email">
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'patientForm.email' | hhTranslate:'Email' }}</mat-label>
+                <input matInput formControlName="email" type="email">
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>CMND/CCCD</mat-label>
-            <input matInput formControlName="nationalId">
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'patientForm.nationalId' | hhTranslate:'CMND/CCCD' }}</mat-label>
+                <input matInput formControlName="nationalId">
+              </mat-form-field>
+            </div>
+          </hh-form-section>
 
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Địa chỉ</mat-label>
-            <input matInput formControlName="street" required>
-          </mat-form-field>
+          <hh-form-section [title]="'patientForm.section.address' | hhTranslate:'Địa chỉ'" [span]="2">
+            <div class="form-grid">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>{{ 'patientForm.street' | hhTranslate:'Địa chỉ' }}</mat-label>
+                <input matInput formControlName="street" required>
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Quận/Huyện</mat-label>
-            <input matInput formControlName="district">
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'patientForm.district' | hhTranslate:'Quận/Huyện' }}</mat-label>
+                <input matInput formControlName="district">
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Thành phố</mat-label>
-            <input matInput formControlName="city" required>
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'patientForm.city' | hhTranslate:'Thành phố' }}</mat-label>
+                <input matInput formControlName="city" required>
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Tỉnh</mat-label>
-            <input matInput formControlName="province" required>
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'patientForm.province' | hhTranslate:'Tỉnh' }}</mat-label>
+                <input matInput formControlName="province" required>
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Quốc gia</mat-label>
-            <input matInput formControlName="country" required>
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'patientForm.country' | hhTranslate:'Quốc gia' }}</mat-label>
+                <input matInput formControlName="country" required>
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Mã BHYT</mat-label>
-            <input matInput formControlName="insuranceId">
-          </mat-form-field>
-        </div>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'patientForm.insuranceId' | hhTranslate:'Mã BHYT' }}</mat-label>
+                <input matInput formControlName="insuranceId">
+              </mat-form-field>
+            </div>
+          </hh-form-section>
+        </hh-form-layout>
 
         <div class="form-actions">
-          <button mat-button type="button" routerLink="/patients">Hủy</button>
+          <button mat-button type="button" routerLink="/patients">{{ 'common.cancel' | hhTranslate:'Hủy' }}</button>
           <button mat-raised-button color="primary" type="submit"
                   [disabled]="patientForm.invalid || submitting">
             @if (submitting) {
-            <mat-spinner diameter="18" class="btn-spinner" aria-label="Đang lưu"></mat-spinner>
+            <mat-spinner diameter="18" class="btn-spinner" [attr.aria-label]="'common.saving' | hhTranslate:'Đang lưu'"></mat-spinner>
             }
-            {{ submitting ? 'Đang lưu...' : 'Lưu bệnh nhân' }}
+            {{ submitting ? ('common.saving' | hhTranslate:'Đang lưu...') : ('patientForm.save' | hhTranslate:'Lưu bệnh nhân') }}
           </button>
         </div>
       </form>
-    </div>
+    </hh-page-layout>
   `,
     styles: [`
-    .patient-form { padding: 24px; max-width: 900px; }
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .full-width { grid-column: 1 / -1; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--form-field-gap, 16px); }
+    .form-grid .full-width { grid-column: 1 / -1; }
+    @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } }
     .form-actions { margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end; }
   `],
 })

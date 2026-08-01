@@ -2,10 +2,11 @@ import { Component, ChangeDetectionStrategy } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-access-denied',
-    imports: [RouterModule, MatButtonModule, MatIconModule],
+    imports: [RouterModule, MatButtonModule, MatIconModule, HisHopeTranslatePipe],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
     <div class="access-denied-container">
@@ -13,19 +14,18 @@ import { MatIconModule } from '@angular/material/icon';
         <div class="icon-wrapper">
           <mat-icon class="lock-icon">lock</mat-icon>
         </div>
-        <h1 class="title">Truy cập bị từ chối</h1>
+        <h1 class="title">{{ 'state.accessDeniedTitle' | hhTranslate:'Truy cập bị từ chối' }}</h1>
         <p class="message">
-          Bạn không có quyền truy cập vào trang này.
-          Vui lòng liên hệ quản trị viên nếu bạn cần được cấp quyền.
+          {{ 'state.accessDeniedMessage' | hhTranslate:'Bạn không có quyền truy cập vào trang này. Vui lòng liên hệ quản trị viên nếu bạn cần được cấp quyền.' }}
         </p>
         <div class="actions">
           <a mat-raised-button color="primary" routerLink="/dashboard">
             <mat-icon>dashboard</mat-icon>
-            Về trang chính
+            {{ 'state.accessDeniedGoHome' | hhTranslate:'Về trang chính' }}
           </a>
           <a mat-stroked-button routerLink="/auth/login">
             <mat-icon>login</mat-icon>
-            Đăng nhập lại
+            {{ 'state.accessDeniedReLogin' | hhTranslate:'Đăng nhập lại' }}
           </a>
         </div>
       </div>
@@ -42,8 +42,8 @@ import { MatIconModule } from '@angular/material/icon';
       padding: 24px;
     }
     .access-denied-card {
-      background: #FFFFFF;
-      border: 1px solid #EAEAEA;
+      background: var(--surface-white, #FFFFFF);
+      border: 1px solid var(--border-default, #EAEAEA);
       border-radius: 8px;
       padding: 48px 40px;
       max-width: 440px;
@@ -70,14 +70,14 @@ import { MatIconModule } from '@angular/material/icon';
       font-family: var(--font-sans);
       font-size: 24px;
       font-weight: 600;
-      color: #1A1A1A;
+      color: var(--text-primary, #1A1A1A);
       margin: 0 0 12px;
       line-height: 1.3;
     }
     .message {
       font-family: var(--font-sans);
       font-size: 15px;
-      color: #787774;
+      color: var(--text-secondary, #787774);
       line-height: 1.6;
       margin: 0 0 32px;
     }

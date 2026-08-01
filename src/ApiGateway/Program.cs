@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using System.Threading.RateLimiting;
@@ -9,6 +10,8 @@ using His.Hope.AspNetCore;
 using His.Hope.Observability;
 using Serilog;
 using StackExchange.Redis;
+using His.Hope.Bff.Core.Authentication;
+using Microsoft.AspNetCore.DataProtection;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -43,13 +46,33 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddReverseProxy()
     .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"))
-    .AddTransforms<DpopHeaderTransform>();
+    .AddTransforms<DpopHeaderTransform>()
+    .ConfigureHttpClient((context, handler) =>
+    {
+        // Recycle connections every 2 minutes to prevent stale connections
+        // across container restarts, while still benefiting from pooling.
+        handler.PooledConnectionLifetime = TimeSpan.FromMinutes(2);
+        handler.MaxConnectionsPerServer = 20;
+    });
 
 // BFF session bridge: keep access tokens server-side in Redis and attach the
 // current session JWT only to internal downstream proxy requests.
 var redisConnection = builder.Configuration["Redis:ConnectionString"] ?? "redis:6379";
-builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
-    ConnectionMultiplexer.Connect(redisConnection));
+var redis = ConnectionMultiplexer.Connect(new ConfigurationOptions
+    {
+        EndPoints = { redisConnection },
+        AbortOnConnectFail = false,
+        ConnectTimeout = 2000,
+        SyncTimeout = 1000
+    });
+builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+builder.Services.AddDataProtection()
+    .SetApplicationName("His.Hope.IdentityService")
+    .PersistKeysToStackExchangeRedis(
+        redis,
+        builder.Configuration["DataProtection:KeyName"]
+            ?? "HisHope:IdentityService:DataProtection:Keys");
+builder.Services.AddSingleton<SessionTokenProtector>();
 
 builder.Services.AddGrpc();
 builder.Services.AddHealthChecks();
@@ -180,40 +203,93 @@ app.Use(async (context, next) =>
         // here makes Identity select JWT validation and breaks /connect/authorize.
         context.Request.Path.StartsWithSegments("/connect") ||
         context.Request.Path.StartsWithSegments("/Account") ||
-        context.Request.Path.StartsWithSegments("/api/v1/admin") ||
-        context.Request.Path.StartsWithSegments("/api/v1/settings") ||
-        context.Request.Path.StartsWithSegments("/api/v1/audit-logs") ||
-        context.Request.Path.StartsWithSegments("/api/v1/audit") ||
-        context.Request.Path.Equals("/api/v1/auth/me") ||
-        context.Request.Path.Equals("/api/v1/auth/check-permission") ||
-        context.Request.Path.Equals("/api/v1/auth/session/exchange") ||
-        context.Request.Path.Equals("/api/v1/auth/session-status");
+        context.Request.Path.StartsWithSegments("/api/v1/auth");
 
     var hasSessionCookie = context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
         !string.IsNullOrWhiteSpace(sessionId);
 
     // Identity's policy scheme intentionally selects its browser cookie when
-    // no bearer is present. Do not replace that cookie flow with the legacy
-    // HMAC session token on admin/settings/audit endpoints; those endpoints
-    // validate OIDC bearer tokens or the Identity application cookie.
+    // no bearer is present. Do not replace that cookie flow with the session
+    // JWT on admin/settings/audit/auth endpoints; those endpoints validate
+    // OIDC bearer tokens or the Identity application cookie.
     if (hasSessionCookie &&
         !cookieBackedIdentityRoute &&
         !context.Request.Headers.ContainsKey("Authorization"))
     {
         var redis = context.RequestServices.GetRequiredService<IConnectionMultiplexer>();
-        var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
+        var tokenProtector = context.RequestServices.GetRequiredService<SessionTokenProtector>();
+        var db = redis.GetDatabase();
+        var sessionJson = await db.StringGetAsync($"session:{sessionId}");
         if (sessionJson.HasValue)
         {
-            using var document = JsonDocument.Parse((string)sessionJson!);
-            if (document.RootElement.TryGetProperty("Jwt", out var jwtElement) &&
-                !string.IsNullOrWhiteSpace(jwtElement.GetString()))
+            try
             {
-                // Use the server session only when the caller did not provide
-                // an OIDC bearer token. A valid bearer must pass through to
-                // downstream services; replacing it with the legacy BFF JWT
-                // makes OIDC-signed requests fail at service boundaries.
-                context.Request.Headers.Authorization =
-                    $"Bearer {jwtElement.GetString()}";
+                using var document = JsonDocument.Parse((string)sessionJson!);
+                if (document.RootElement.TryGetProperty("Jwt", out var jwtElement))
+                {
+                    var protectedJwt = jwtElement.GetString();
+                    if (!string.IsNullOrWhiteSpace(protectedJwt))
+                    {
+                        var jwt = tokenProtector.Unprotect(protectedJwt);
+                        context.Request.Headers.Authorization = $"Bearer {jwt}";
+                        // Mark the internal BFF session token so IdentityService
+                        // selects its RSA/JWE validator instead of treating it
+                        // as an OpenIddict access token.
+                        context.Request.Headers["X-HisHope-Session"] = "1";
+                    }
+                }
+            }
+            catch (System.Security.Cryptography.CryptographicException)
+            {
+                // Never forward plaintext or invalid session tokens.
+            }
+        }
+    }
+
+    await next();
+});
+
+// Cookie-authenticated browser mutations must present the synchronizer token.
+// The session exchange is exempt because it creates the CSRF cookie.
+app.Use(async (context, next) =>
+{
+      if (context.Request.Method is "POST" or "PUT" or "PATCH" or "DELETE"
+          && context.Request.Path.StartsWithSegments("/api")
+          && !context.Request.Path.StartsWithSegments("/api/v1/auth/session/exchange")
+          // Preserve logout for sessions issued before the CSRF cookie rollout.
+          && !context.Request.Path.StartsWithSegments("/api/v1/auth/logout"))
+    {
+        var sessionId = context.Request.Cookies["hishop_sid"];
+        if (!string.IsNullOrWhiteSpace(sessionId))
+        {
+            var csrfCookie = context.Request.Cookies["hishop_csrf"];
+            var csrfHeader = context.Request.Headers["X-CSRF-Token"].FirstOrDefault();
+            var redis = context.RequestServices.GetRequiredService<IConnectionMultiplexer>();
+            var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
+            var valid = false;
+            if (sessionJson.HasValue && !string.IsNullOrWhiteSpace(csrfCookie) && !string.IsNullOrWhiteSpace(csrfHeader))
+            {
+                try
+                {
+                    using var document = JsonDocument.Parse((string)sessionJson!);
+                    var expected = document.RootElement.TryGetProperty("CsrfToken", out var csrf)
+                        ? csrf.GetString()
+                        : null;
+                    valid = !string.IsNullOrWhiteSpace(expected)
+                        && CryptographicOperations.FixedTimeEquals(
+                            System.Text.Encoding.UTF8.GetBytes(expected),
+                            System.Text.Encoding.UTF8.GetBytes(csrfCookie))
+                        && CryptographicOperations.FixedTimeEquals(
+                            System.Text.Encoding.UTF8.GetBytes(expected),
+                            System.Text.Encoding.UTF8.GetBytes(csrfHeader));
+                }
+                catch (JsonException) { }
+            }
+
+            if (!valid)
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return;
             }
         }
     }
@@ -230,6 +306,157 @@ app.Use(async (context, next) =>
     context.Request.Headers["X-Forwarded-Host"] = context.Request.Host.Value;
     await next();
 });
+
+app.MapGet("/diag/patients", async (HttpContext ctx) =>
+{
+    using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+    var sw = System.Diagnostics.Stopwatch.StartNew();
+    try
+    {
+        var resp = await http.GetAsync("http://patientservice:5002/api/v1/patients/search?q=&page=1&pageSize=1");
+        sw.Stop();
+        await ctx.Response.WriteAsync($"OK: {resp.StatusCode} in {sw.ElapsedMilliseconds}ms");
+    }
+    catch (Exception ex)
+    {
+        sw.Stop();
+        await ctx.Response.WriteAsync($"FAIL: {ex.GetType().Name}: {ex.Message} after {sw.ElapsedMilliseconds}ms");
+    }
+});
+
+// Shared proxy helper — bypasses YARP HttpForwarder connection pool issues
+// that cause 60s timeouts when proxying to backend services.
+// Direct HttpClient works instantly (14ms vs 60000ms through YARP).
+var proxyHandler = new System.Net.Http.SocketsHttpHandler
+{
+    PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+    MaxConnectionsPerServer = 20,
+    ConnectTimeout = TimeSpan.FromSeconds(5),
+};
+var proxyClient = new HttpClient(proxyHandler)
+{
+    Timeout = TimeSpan.FromSeconds(25),
+};
+
+void MapDirectProxy(
+    string pathPrefix,
+    string serviceHost,
+    int servicePort,
+    Func<HttpContext, bool>? additionalMatch = null)
+{
+    app.Use(async (ctx, next) =>
+    {
+        if (!ctx.Request.Path.StartsWithSegments(pathPrefix) ||
+            (additionalMatch is not null && !additionalMatch(ctx)))
+        {
+            await next();
+            return;
+        }
+
+        var logger = ctx.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("DirectProxy");
+        logger.LogInformation("DirectProxy MATCH: path={Path} -> {Host}:{Port}", ctx.Request.Path, serviceHost, servicePort);
+
+        var catchAll = ctx.Request.Path.Value![pathPrefix.Length..];
+        var targetUrl = $"http://{serviceHost}:{servicePort}{pathPrefix}{catchAll}{ctx.Request.QueryString}";
+        using var request = new HttpRequestMessage(new HttpMethod(ctx.Request.Method), targetUrl);
+
+        if (ctx.Request.ContentLength > 0)
+        {
+            request.Content = new StreamContent(ctx.Request.Body);
+            if (ctx.Request.Headers.TryGetValue("Content-Type", out var ct))
+                request.Content.Headers.TryAddWithoutValidation("Content-Type", ct.ToArray());
+        }
+
+        foreach (var h in ctx.Request.Headers)
+        {
+            if (h.Key is "Authorization" or "X-HisHope-Session" or "Accept" or "Accept-Language"
+                or "X-Correlation-ID" or "X-Timezone" or "X-Currency" or "Content-Type")
+                try { request.Headers.TryAddWithoutValidation(h.Key, h.Value.ToArray()); } catch { }
+        }
+
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ctx.RequestAborted);
+            cts.CancelAfter(TimeSpan.FromSeconds(25));
+            using var resp = await proxyClient.SendAsync(request, cts.Token);
+            logger.LogInformation("DirectProxy RESP: status={Status} contentType={CT} contentLen={Len}",
+                (int)resp.StatusCode, resp.Content.Headers.ContentType, resp.Content.Headers.ContentLength);
+            ctx.Response.StatusCode = (int)resp.StatusCode;
+            foreach (var h in resp.Headers)
+            {
+                if (h.Key is not ("Connection" or "Keep-Alive" or "Proxy-Authenticate" or
+                    "Proxy-Authorization" or "TE" or "Trailer" or "Transfer-Encoding" or "Upgrade"))
+                    ctx.Response.Headers[h.Key] = h.Value.ToArray();
+            }
+
+            foreach (var h in resp.Content.Headers)
+            {
+                if (h.Key is "Content-Length" or "Transfer-Encoding")
+                    continue;
+
+                ctx.Response.Headers[h.Key] = h.Value.ToArray();
+            }
+
+            if (resp.Content.Headers.ContentLength is long contentLength)
+                ctx.Response.ContentLength = contentLength;
+
+            await resp.Content.CopyToAsync(ctx.Response.Body, cts.Token);
+            logger.LogInformation("DirectProxy DONE: path={Path}", ctx.Request.Path);
+        }
+        catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested)
+        {
+            logger.LogInformation("DirectProxy CANCELED by client: path={Path}", ctx.Request.Path);
+            if (!ctx.Response.HasStarted)
+                ctx.Response.StatusCode = 499;
+        }
+        catch (OperationCanceledException ex)
+        {
+            logger.LogError(ex, "DirectProxy TIMEOUT: path={Path}", ctx.Request.Path);
+            if (!ctx.Response.HasStarted)
+            {
+                ctx.Response.StatusCode = StatusCodes.Status504GatewayTimeout;
+                await ctx.Response.WriteAsync("Proxy upstream timeout");
+            }
+        }
+        catch (Exception ex)
+        {
+            ctx.Response.StatusCode = 502;
+            await ctx.Response.WriteAsync($"Proxy error: {ex.GetType().Name}: {ex.Message}");
+        }
+    });
+}
+
+static bool MatchesPatientAggregate(HttpContext ctx, string resource)
+{
+    var segments = ctx.Request.Path.Value?
+        .Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+    return segments is { Length: 5 } &&
+        segments[0].Equals("api", StringComparison.OrdinalIgnoreCase) &&
+        segments[1].Equals("v1", StringComparison.OrdinalIgnoreCase) &&
+        segments[2].Equals("patients", StringComparison.OrdinalIgnoreCase) &&
+        Guid.TryParse(segments[3], out _) &&
+        segments[4].Equals(resource, StringComparison.OrdinalIgnoreCase);
+}
+
+// Patient aggregate routes must be registered before the broad patient proxy;
+// otherwise /api/v1/patients/{id}/... is incorrectly sent to PatientService.
+MapDirectProxy("/api/v1/patients", "clinicalservice", 5004,
+    ctx => MatchesPatientAggregate(ctx, "encounters"));
+MapDirectProxy("/api/v1/patients", "appointmentservice", 5003,
+    ctx => MatchesPatientAggregate(ctx, "appointments"));
+MapDirectProxy("/api/v1/patients", "labservice", 5010,
+    ctx => MatchesPatientAggregate(ctx, "lab-orders"));
+MapDirectProxy("/api/v1/patients", "pharmacyservice", 5030,
+    ctx => MatchesPatientAggregate(ctx, "prescriptions"));
+MapDirectProxy("/api/v1/patients", "billingservice", 5020,
+    ctx => MatchesPatientAggregate(ctx, "invoices"));
+
+MapDirectProxy("/api/v1/patients", "patientservice", 5002);
+MapDirectProxy("/api/v1/encounters", "clinicalservice", 5004);
+MapDirectProxy("/api/v1/medications", "pharmacyservice", 5030);
+MapDirectProxy("/api/v1/lab-orders", "labservice", 5010);
+MapDirectProxy("/api/v1/invoices", "billingservice", 5020);
 
 app.MapReverseProxy();
 

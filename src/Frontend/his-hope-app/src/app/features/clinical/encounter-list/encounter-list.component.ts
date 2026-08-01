@@ -1,137 +1,94 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
-import { MatCardModule } from '@angular/material/card';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
+import { Subject, takeUntil } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
-import { MatTableModule } from '@angular/material/table';
-import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ClinicalService } from '@core/services/clinical.service';
-import { Encounter } from '@core/models/encounter.model';
-import { HisHopeDataTableComponent } from '@his-hope/frontend-foundation';
+import {
+  HisHopeDataTableCellDirective,
+  HisHopeDataTableColumn,
+  HisHopeDataTableComponent,
+  HisHopeI18nService,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopePageQuery,
+  HisHopeStatusBadgeComponent,
+  HisHopeToolbarComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-encounter-list',
     standalone: true,
     imports: [
-        CommonModule, RouterModule, ReactiveFormsModule,
-        MatCardModule, MatFormFieldModule, MatInputModule, MatIconModule,
-        MatTableModule, MatPaginatorModule, MatButtonModule, MatTooltipModule,
-        HisHopeDataTableComponent,
+        CommonModule, RouterModule,
+        MatIconModule, MatButtonModule, MatTooltipModule,
+        HisHopeDataTableComponent, HisHopeDataTableCellDirective, HisHopePageHeaderComponent,
+        HisHopePageLayoutComponent, HisHopeToolbarComponent, HisHopeStatusBadgeComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="encounters">
-      <div class="header">
-        <h1>Clinical Encounters</h1>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader
+                      [title]="'encounters.title' | hhTranslate:'Hồ sơ lâm sàng'"
+                      [subtitle]="'encounters.subtitle' | hhTranslate:'Quản lý hồ sơ khám bệnh và điều trị'">
         <button mat-raised-button color="primary">
-          <mat-icon>add</mat-icon> New Encounter
+          <mat-icon>add</mat-icon> {{ 'encounters.new' | hhTranslate:'Tạo hồ sơ lâm sàng' }}
         </button>
-      </div>
+      </hh-page-header>
 
-      <mat-card>
-        <mat-card-header>
-          <mat-form-field appearance="outline" class="search-field">
-            <mat-label>Search by Patient ID</mat-label>
-            <input matInput [formControl]="searchControl" placeholder="Type to search...">
-            <mat-icon matSuffix>search</mat-icon>
-          </mat-form-field>
-        </mat-card-header>
+      <hh-toolbar hhPageToolbar [label]="'encounters.toolbar' | hhTranslate:'Hồ sơ lâm sàng'">
+        <span hhToolbarTitle>{{ totalItems }} {{ 'encounters.count' | hhTranslate:'hồ sơ' }}</span>
+      </hh-toolbar>
 
-        <mat-card-content>
-          <hh-data-table label="Clinical encounters" [loading]="loading" [error]="error"
-                         [empty]="!loading && !error && encounters.length === 0"
-                         emptyMessage="No encounters found." (retry)="loadEncounters()">
-          <div class="table-container">
-            <table mat-table [dataSource]="encounters" class="encounter-table">
-              <ng-container matColumnDef="encounterDate">
-                <th mat-header-cell *matHeaderCellDef>Date</th>
-                <td mat-cell *matCellDef="let e">{{ e.encounterDate | date:'medium' }}</td>
-              </ng-container>
-
-              <ng-container matColumnDef="patientId">
-                <th mat-header-cell *matHeaderCellDef>Patient</th>
-                <td mat-cell *matCellDef="let e">{{ e.patientId }}</td>
-              </ng-container>
-
-              <ng-container matColumnDef="encounterType">
-                <th mat-header-cell *matHeaderCellDef>Type</th>
-                <td mat-cell *matCellDef="let e">{{ e.encounterTypeName || e.encounterType }}</td>
-              </ng-container>
-
-              <ng-container matColumnDef="status">
-                <th mat-header-cell *matHeaderCellDef>Status</th>
-                <td mat-cell *matCellDef="let e">
-                  <span class="status-badge" [class]="'status-' + e.status.toLowerCase()">
-                    {{ e.statusName || e.status }}
-                  </span>
-                </td>
-              </ng-container>
-
-              <ng-container matColumnDef="chiefComplaint">
-                <th mat-header-cell *matHeaderCellDef>Chief Complaint</th>
-                <td mat-cell *matCellDef="let e">{{ e.chiefComplaint || '-' }}</td>
-              </ng-container>
-
-              <ng-container matColumnDef="actions">
-                <th mat-header-cell *matHeaderCellDef></th>
-                <td mat-cell *matCellDef="let e">
-                  <button mat-icon-button (click)="viewDetail(e.id)" matTooltip="View details"
-                          aria-label="Xem chi tiết hồ sơ lâm sàng">
-                    <mat-icon>visibility</mat-icon>
-                  </button>
-                </td>
-              </ng-container>
-
-              <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-              <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row"
-                  (click)="viewDetail(row.id)" (keydown.enter)="viewDetail(row.id)"
-                  (keydown.space)="$event.preventDefault(); viewDetail(row.id)" tabindex="0" role="button"
-                  [attr.aria-label]="'Xem chi tiết hồ sơ lâm sàng ' + row.patientId"></tr>
-            </table>
-
-            <mat-paginator [length]="totalCount"
-              [pageSize]="pageSize"
-              [pageIndex]="page - 1"
-              (page)="onPageChange($event)"
-              [pageSizeOptions]="[10, 20, 50]"
-              showFirstLastButtons>
-            </mat-paginator>
-          </div>
-          </hh-data-table>
-        </mat-card-content>
-      </mat-card>
-    </div>
+      <hh-data-table [label]="'encounters.tableLabel' | hhTranslate:'Hồ sơ lâm sàng'"
+                     [loading]="loading" [error]="error"
+                     [empty]="rows.length === 0 && !loading"
+                     [emptyMessage]="'encounters.empty' | hhTranslate:'Không tìm thấy hồ sơ lâm sàng nào.'"
+                     [searchPlaceholder]="'encounters.search' | hhTranslate:'Tìm theo mã bệnh nhân...'"
+                     [columns]="columns" [rows]="rows"
+                     [pageSize]="20" [totalItems]="totalItems"
+                     [query]="query" [mode]="'server'" [urlSync]="false"
+                     [selection]="true" [rowClickable]="true"
+                     (queryChange)="onQueryChange($event)" (rowClick)="onRowClick($event)"
+                     (retry)="loadData()">
+        <ng-template hhDataTableCell="encounterDate" let-row>{{ row['encounterDate'] | date:'medium' }}</ng-template>
+        <ng-template hhDataTableCell="patientId" let-row>{{ row['patientId'] }}</ng-template>
+        <ng-template hhDataTableCell="encounterType" let-row>{{ row['encounterTypeName'] || row['encounterType'] }}</ng-template>
+        <ng-template hhDataTableCell="status" let-row>
+          <hh-status-badge [status]="statusOf(row)" [label]="statusLabel(row)" />
+        </ng-template>
+        <ng-template hhDataTableCell="chiefComplaint" let-row>{{ row['chiefComplaint'] || '-' }}</ng-template>
+        <ng-template hhDataTableCell="actions" let-row>
+          <a mat-icon-button [routerLink]="['/clinical', idOf(row)]" [matTooltip]="'common.details' | hhTranslate:'Xem chi tiết'"
+             [attr.aria-label]="'common.details' | hhTranslate:'Xem chi tiết'" (click)="$event.stopPropagation()">
+            <mat-icon>visibility</mat-icon>
+          </a>
+        </ng-template>
+      </hh-data-table>
+    </hh-page-layout>
   `,
-    styles: [`
-    .encounters { padding: 24px; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    .search-field { width: 100%; max-width: 400px; }
-    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .encounter-table { width: 100%; }
-    .clickable-row { cursor: pointer; }
-    .clickable-row:hover { background: #f5f5f5; }
-    .clickable-row:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: -2px; }
-    .placeholder { color: #999; text-align: center; padding: 48px; }
-
-  `],
 })
 export class EncounterListComponent implements OnInit, OnDestroy {
-  private destroy$ = new Subject<void>();
+  private readonly destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
-  displayedColumns = ['encounterDate', 'patientId', 'encounterType', 'status', 'chiefComplaint', 'actions'];
-  encounters: Encounter[] = [];
-  totalCount = 0;
-  page = 1;
-  pageSize = 20;
+  columns: HisHopeDataTableColumn[] = [
+    { key: 'encounterDate', label: this.i18n.t('encounters.column.date', 'Ngày khám'), sortable: true },
+    { key: 'patientId', label: this.i18n.t('encounters.column.patient', 'Bệnh nhân') },
+    { key: 'encounterType', label: this.i18n.t('encounters.column.type', 'Loại') },
+    { key: 'status', label: this.i18n.t('encounters.column.status', 'Trạng thái'), status: true },
+    { key: 'chiefComplaint', label: this.i18n.t('encounters.column.chiefComplaint', 'Triệu chứng chính') },
+    { key: 'actions', label: this.i18n.t('common.actions', 'Thao tác'), hideable: false, align: 'end' as const },
+  ];
+
+  rows: Record<string, unknown>[] = [];
+  totalItems = 0;
   loading = false;
   error = '';
-  searchControl = new FormControl('');
+  query: HisHopePageQuery = { page: 1, pageSize: 20 };
 
   constructor(
     private clinicalService: ClinicalService,
@@ -140,16 +97,7 @@ export class EncounterListComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.loadEncounters();
-    this.searchControl.valueChanges.pipe(
-      debounceTime(300),
-      distinctUntilChanged(),
-      takeUntil(this.destroy$),
-    ).subscribe(query => {
-      this.page = 1;
-      query ? this.searchEncounters(query) : this.loadEncounters();
-      this.cdr.markForCheck();
-    });
+    this.loadData();
   }
 
   ngOnDestroy(): void {
@@ -157,54 +105,50 @@ export class EncounterListComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  loadEncounters(): void {
+  loadData(): void {
     this.error = '';
     this.loading = true;
-    this.clinicalService.list(this.page, this.pageSize)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: res => {
-          this.encounters = res.items;
-          this.totalCount = res.totalCount;
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          this.error = 'Unable to load clinical encounters.';
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-      });
+    const { page, pageSize, search } = this.query;
+    const request = search?.trim()
+      ? this.clinicalService.search(search.trim(), page, pageSize)
+      : this.clinicalService.list(page, pageSize);
+    request.pipe(takeUntil(this.destroy$)).subscribe({
+      next: (result) => {
+        this.rows = result.items.map(item => ({ ...item }));
+        this.totalItems = result.totalCount;
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.error = this.i18n.t('encounters.loadFailed', 'Không thể tải danh sách hồ sơ lâm sàng.');
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+    });
   }
 
-  searchEncounters(query: string): void {
-    this.error = '';
-    this.loading = true;
-    this.clinicalService.search(query, this.page, this.pageSize)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: res => {
-          this.encounters = res.items;
-          this.totalCount = res.totalCount;
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          this.error = 'Unable to search clinical encounters.';
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-      });
+  onQueryChange(query: HisHopePageQuery): void {
+    this.query = query;
+    this.loadData();
   }
 
-  onPageChange(event: any): void {
-    this.page = event.pageIndex + 1;
-    this.pageSize = event.pageSize;
-    const q = this.searchControl.value;
-    q ? this.searchEncounters(q) : this.loadEncounters();
+  onRowClick(row: Record<string, unknown>): void {
+    this.viewDetail(this.idOf(row));
   }
 
   viewDetail(id: string): void {
     this.router.navigate(['/clinical', id]);
+  }
+
+  statusOf(row: Record<string, unknown>): string {
+    return String(row['status'] ?? '');
+  }
+
+  statusLabel(row: Record<string, unknown>): string {
+    return String(row['statusName'] || row['status'] || '');
+  }
+
+  idOf(row: Record<string, unknown>): string {
+    return String(row['id'] ?? '');
   }
 }

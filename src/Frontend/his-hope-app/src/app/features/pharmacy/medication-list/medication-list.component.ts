@@ -1,135 +1,98 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
-import { MatTableModule } from '@angular/material/table';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
+import { Subject, takeUntil } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatButtonModule } from '@angular/material/button';
 import { PharmacyService } from '@core/services/pharmacy.service';
-import { Medication } from '@core/models/medication.model';
-import { HisHopeDataTableComponent } from '@his-hope/frontend-foundation';
+import {
+  HisHopeDataTableCellDirective,
+  HisHopeDataTableColumn,
+  HisHopeDataTableComponent,
+  HisHopeI18nService,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopePageQuery,
+  HisHopeStatusBadgeComponent,
+  HisHopeToolbarComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-medication-list',
     standalone: true,
     imports: [
-        CommonModule, RouterModule, ReactiveFormsModule,
-        MatTableModule, MatFormFieldModule, MatInputModule, MatIconModule,
-        MatProgressBarModule, MatPaginatorModule, MatButtonModule,
-        HisHopeDataTableComponent,
+        CommonModule, RouterModule,
+        MatIconModule, MatButtonModule,
+        HisHopeDataTableComponent, HisHopeDataTableCellDirective, HisHopePageHeaderComponent,
+        HisHopePageLayoutComponent, HisHopeToolbarComponent, HisHopeStatusBadgeComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="medication-list">
-      <div class="header">
-        <h1>Danh mục thuốc</h1>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader
+                      [title]="'medications.title' | hhTranslate:'Danh mục thuốc'"
+                      [subtitle]="'medications.subtitle' | hhTranslate:'Quản lý danh mục thuốc của bệnh viện'">
         <button mat-raised-button color="primary" routerLink="/pharmacy/medications/new"
-                aria-label="Thêm thuốc mới">
-          <mat-icon>add</mat-icon> Thêm thuốc
+                [attr.aria-label]="'medications.new' | hhTranslate:'Thêm thuốc mới'">
+          <mat-icon>add</mat-icon> {{ 'medications.new' | hhTranslate:'Thêm thuốc' }}
         </button>
-      </div>
+      </hh-page-header>
 
-      <mat-form-field appearance="outline" class="search-field">
-        <mat-label>Tìm kiếm thuốc</mat-label>
-        <input matInput [formControl]="searchControl" placeholder="Tên thuốc, hoạt chất, hoặc mã..."
-               aria-label="Tìm kiếm thuốc">
-        <mat-icon matPrefix>search</mat-icon>
-      </mat-form-field>
+      <hh-toolbar hhPageToolbar [label]="'medications.toolbar' | hhTranslate:'Danh mục thuốc'">
+        <span hhToolbarTitle>{{ totalItems }} {{ 'medications.count' | hhTranslate:'loại thuốc' }}</span>
+      </hh-toolbar>
 
-      <hh-data-table label="Danh mục thuốc" [loading]="loading" [error]="error"
-                     [empty]="!loading && !error && medications.length === 0"
-                     emptyMessage="Không tìm thấy thuốc nào." (retry)="loadMedications()">
-      <div class="table-container">
-        <mat-table [dataSource]="medications" class="mat-elevation-z2">
-          <ng-container matColumnDef="name">
-            <mat-header-cell *matHeaderCellDef>Tên thuốc</mat-header-cell>
-            <mat-cell *matCellDef="let m">{{ m.name }}</mat-cell>
-          </ng-container>
-
-        <ng-container matColumnDef="genericName">
-          <mat-header-cell *matHeaderCellDef>Hoạt chất</mat-header-cell>
-          <mat-cell *matCellDef="let m">{{ m.genericName }}</mat-cell>
-        </ng-container>
-
-        <ng-container matColumnDef="strength">
-          <mat-header-cell *matHeaderCellDef>Hàm lượng</mat-header-cell>
-          <mat-cell *matCellDef="let m">{{ m.strength }}</mat-cell>
-        </ng-container>
-
-        <ng-container matColumnDef="dosageForm">
-          <mat-header-cell *matHeaderCellDef>Dạng bào chế</mat-header-cell>
-          <mat-cell *matCellDef="let m">{{ m.dosageForm }}</mat-cell>
-        </ng-container>
-
-        <ng-container matColumnDef="isActive">
-          <mat-header-cell *matHeaderCellDef>Trạng thái</mat-header-cell>
-          <mat-cell *matCellDef="let m">
-            <span class="status-badge" [class.status-active]="m.isActive" [class.status-inactive]="!m.isActive">
-              {{ m.isActive ? 'Hoạt động' : 'Ngừng' }}
-            </span>
-          </mat-cell>
-        </ng-container>
-
-          <ng-container matColumnDef="actions">
-            <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
-            <mat-cell *matCellDef="let m">
-              <button mat-icon-button color="primary" (click)="viewDetail(m.id)"
-                      [attr.aria-label]="'Xem chi tiết thuốc ' + m.name">
-                <mat-icon>visibility</mat-icon>
-              </button>
-              <button mat-icon-button color="accent" [routerLink]="['/pharmacy/medications', m.id, 'edit']"
-                      [attr.aria-label]="'Chỉnh sửa thuốc ' + m.name">
-                <mat-icon>edit</mat-icon>
-              </button>
-            </mat-cell>
-          </ng-container>
-
-          <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
-          <mat-row *matRowDef="let row; columns: displayedColumns;" (click)="viewDetail(row.id)" (keydown.enter)="viewDetail(row.id)"
-                   (keydown.space)="$event.preventDefault(); viewDetail(row.id)" class="clickable-row" tabindex="0" role="button"
-                   [attr.aria-label]="'Xem chi tiết thuốc ' + row.name"></mat-row>
-        </mat-table>
-      </div>
-      @if (!loading && totalCount > 0) {
-      <mat-paginator [length]="totalCount" [pageSize]="pageSize" [pageSizeOptions]="[10, 20, 50]"
-                     (page)="onPageChange($event)" [pageIndex]="page - 1" showFirstLastButtons>
-      </mat-paginator>
-      }
+      <hh-data-table [label]="'medications.tableLabel' | hhTranslate:'Danh mục thuốc'"
+                     [loading]="loading" [error]="error"
+                     [empty]="rows.length === 0 && !loading"
+                     [emptyMessage]="'medications.empty' | hhTranslate:'Không tìm thấy thuốc nào.'"
+                     [searchPlaceholder]="'medications.search' | hhTranslate:'Tên thuốc, hoạt chất, hoặc mã...'"
+                     [columns]="columns" [rows]="rows"
+                     [pageSize]="20" [totalItems]="totalItems"
+                     [query]="query" [mode]="'server'" [urlSync]="false"
+                     [selection]="true" [rowClickable]="true"
+                     (queryChange)="onQueryChange($event)" (rowClick)="onRowClick($event)"
+                     (retry)="loadData()">
+        <ng-template hhDataTableCell="name" let-row>{{ row['name'] }}</ng-template>
+        <ng-template hhDataTableCell="genericName" let-row>{{ row['genericName'] }}</ng-template>
+        <ng-template hhDataTableCell="strength" let-row>{{ row['strength'] }}</ng-template>
+        <ng-template hhDataTableCell="dosageForm" let-row>{{ row['dosageForm'] }}</ng-template>
+        <ng-template hhDataTableCell="isActive" let-row>
+          <hh-status-badge [status]="isActiveOf(row) ? 'active' : 'inactive'" [label]="isActiveLabel(row)" />
+        </ng-template>
+        <ng-template hhDataTableCell="actions" let-row>
+          <a mat-icon-button [routerLink]="['/pharmacy/medications', idOf(row)]"
+             [attr.aria-label]="'common.details' | hhTranslate:'Xem chi tiết'" (click)="$event.stopPropagation()">
+            <mat-icon>visibility</mat-icon>
+          </a>
+          <a mat-icon-button color="accent" [routerLink]="['/pharmacy/medications', idOf(row), 'edit']"
+             [attr.aria-label]="'common.edit' | hhTranslate:'Chỉnh sửa'" (click)="$event.stopPropagation()">
+            <mat-icon>edit</mat-icon>
+          </a>
+        </ng-template>
       </hh-data-table>
-    </div>
+    </hh-page-layout>
   `,
-    styles: [`
-    .medication-list { padding: 24px; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    .search-field { width: 100%; max-width: 500px; margin-bottom: 20px; }
-    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    mat-table { width: 100%; cursor: pointer; }
-    mat-row:hover { background: #f5f5f5; }
-    .clickable-row { cursor: pointer; }
-    .clickable-row:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: -2px; }
-
-    .loading-shimmer { margin-bottom: 16px; }
-    .empty-state { text-align: center; padding: 48px; color: #999; }
-    .empty-icon { font-size: 48px; width: 48px; height: 48px; margin-bottom: 16px; }
-  `],
 })
 export class MedicationListComponent implements OnInit, OnDestroy {
-  private destroy$ = new Subject<void>();
+  private readonly destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
-  displayedColumns = ['name', 'genericName', 'strength', 'dosageForm', 'isActive', 'actions'];
-  medications: Medication[] = [];
-  totalCount = 0;
-  page = 1;
-  pageSize = 20;
+  columns: HisHopeDataTableColumn[] = [
+    { key: 'name', label: this.i18n.t('medications.column.name', 'Tên thuốc'), sortable: true },
+    { key: 'genericName', label: this.i18n.t('medications.column.genericName', 'Hoạt chất') },
+    { key: 'strength', label: this.i18n.t('medications.column.strength', 'Hàm lượng') },
+    { key: 'dosageForm', label: this.i18n.t('medications.column.dosageForm', 'Dạng bào chế') },
+    { key: 'isActive', label: this.i18n.t('medications.column.status', 'Trạng thái'), status: true },
+    { key: 'actions', label: this.i18n.t('common.actions', 'Thao tác'), hideable: false, align: 'end' as const },
+  ];
+
+  rows: Record<string, unknown>[] = [];
+  totalItems = 0;
   loading = false;
   error = '';
-  searchControl = new FormControl('');
-  private searchTerm = '';
+  query: HisHopePageQuery = { page: 1, pageSize: 20 };
 
   constructor(
     private pharmacyService: PharmacyService,
@@ -138,19 +101,7 @@ export class MedicationListComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.searchControl.valueChanges
-      .pipe(
-        debounceTime(300),
-        distinctUntilChanged(),
-        takeUntil(this.destroy$),
-      )
-      .subscribe((term) => {
-        this.searchTerm = term ?? '';
-        this.page = 1;
-        this.loadMedications();
-        this.cdr.markForCheck();
-      });
-    this.loadMedications();
+    this.loadData();
   }
 
   ngOnDestroy(): void {
@@ -158,33 +109,52 @@ export class MedicationListComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  loadMedications(): void {
+  loadData(): void {
     this.error = '';
     this.loading = true;
-    this.pharmacyService.searchMedications({ searchTerm: this.searchTerm, page: this.page, pageSize: this.pageSize })
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (result) => {
-          this.medications = result.items;
-          this.totalCount = result.totalCount;
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          this.error = 'Không thể tải danh mục thuốc.';
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-      });
+    this.pharmacyService.searchMedications({
+      searchTerm: this.query.search,
+      page: this.query.page,
+      pageSize: this.query.pageSize,
+    }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (result) => {
+        this.rows = result.items.map(item => ({ ...item }));
+        this.totalItems = result.totalCount;
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.error = this.i18n.t('medications.loadFailed', 'Không thể tải danh mục thuốc.');
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  onQueryChange(query: HisHopePageQuery): void {
+    this.query = query;
+    this.loadData();
+  }
+
+  onRowClick(row: Record<string, unknown>): void {
+    this.viewDetail(this.idOf(row));
   }
 
   viewDetail(id: string): void {
     this.router.navigate(['/pharmacy/medications', id]);
   }
 
-  onPageChange(event: any): void {
-    this.page = event.pageIndex + 1;
-    this.pageSize = event.pageSize;
-    this.loadMedications();
+  isActiveOf(row: Record<string, unknown>): boolean {
+    return row['isActive'] === true;
+  }
+
+  isActiveLabel(row: Record<string, unknown>): string {
+    return this.isActiveOf(row)
+      ? this.i18n.t('medications.active', 'Hoạt động')
+      : this.i18n.t('medications.inactive', 'Ngừng');
+  }
+
+  idOf(row: Record<string, unknown>): string {
+    return String(row['id'] ?? '');
   }
 }

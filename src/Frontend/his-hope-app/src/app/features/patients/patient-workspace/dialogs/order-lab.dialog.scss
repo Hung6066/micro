@@ -1,0 +1,4 @@
+.patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: var(--pastel-purple, #F3EDF8); border-radius: 8px; color: var(--pastel-purple-text, #6B4FA0); font-weight: 500; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--form-field-gap, 16px); }
+.form-grid .full-width { grid-column: 1 / -1; }
+@media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } }

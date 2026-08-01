@@ -1,0 +1,42 @@
+    <hh-page-layout>
+      <hh-page-header hhPageHeader [title]="'adminPage.manageRoles' | hhTranslate:'Quản lý vai trò & quyền'"
+                      [subtitle]="'adminPage.manageRolesSubtitle' | hhTranslate:'Cấu hình kiểm soát truy cập dựa trên vai trò (RBAC)'">
+        <button mat-raised-button color="primary" (click)="openAddRoleDialog()">
+          <mat-icon>add_moderator</mat-icon>
+          {{ 'adminPage.addRole' | hhTranslate:'Thêm vai trò' }}
+        </button>
+      </hh-page-header>
+
+      <hh-data-table [label]="'adminPage.roleList' | hhTranslate:'Danh sách vai trò'" [columns]="columns" [rows]="rows"
+                     [loading]="loading" [error]="error ?? ''"
+                     [empty]="rows.length === 0 && !loading" [emptyMessage]="'adminPage.noRolesFound' | hhTranslate:'Không có vai trò nào'"
+                     [pageSize]="20" [searchable]="true" (retry)="loadRoles()">
+        <ng-template hhDataTableCell="name" let-row>
+          <div class="role-name-cell">
+            <span class="name">{{ getRoleLabel(row['name']) }}</span>
+            <span class="desc">{{ row['description'] }}</span>
+          </div>
+        </ng-template>
+        <ng-template hhDataTableCell="system" let-row>
+          <span class="system-badge" [ngClass]="row['isSystem'] ? 'system' : 'custom'">
+            {{ row['isSystem'] ? ('adminPage.system' | hhTranslate:'Hệ thống') : ('adminPage.custom' | hhTranslate:'Tùy chỉnh') }}
+          </span>
+        </ng-template>
+        <ng-template hhDataTableCell="actions" let-row>
+          <button mat-icon-button color="primary" (click)="openEditRoleDialog(roleFromRow(row))"
+                  [matTooltip]="'adminPage.editRole' | hhTranslate:'Chỉnh sửa vai trò'">
+            <mat-icon>edit</mat-icon>
+          </button>
+          <button mat-icon-button color="warn" (click)="deleteRole(roleFromRow(row))"
+                  [disabled]="row['isSystem']"
+                  [matTooltip]="row['isSystem'] ? ('adminPage.cannotDeleteSystemRole' | hhTranslate:'Không thể xóa vai trò hệ thống') : ('adminPage.deleteRole' | hhTranslate:'Xóa vai trò')">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </ng-template>
+      </hh-data-table>
+
+      <hh-confirm-dialog [open]="showConfirmDialog" [title]="confirmDialogTitle" [message]="confirmDialogMessage"
+        [confirmLabel]="confirmDialogConfirmLabel"         [cancelLabel]="'common.cancel' | hhTranslate:'Hủy'"
+        (confirmed)="onConfirmDialogConfirmed()" (cancelled)="onConfirmDialogCancelled()">
+      </hh-confirm-dialog>
+    </hh-page-layout>

@@ -91,6 +91,6 @@ export class AppComponent {
     this.authService.login();
   }
 
-  toggleTheme(): void { this.themeService.setTheme(this.themeService.theme() === 'dark' ? 'light' : 'dark'); }
+  toggleTheme(): void { this.themeService.setTheme(this.themeService.resolvedTheme() === 'dark' ? 'light' : 'dark'); }
   onCommand(id: string): void { this.router.navigate(['/', id]); }
 }

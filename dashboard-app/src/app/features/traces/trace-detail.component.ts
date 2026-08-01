@@ -1,24 +1,33 @@
-import { Component, OnInit, ChangeDetectionStrategy, inject, ElementRef, ViewChild, AfterViewInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, inject, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
-import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDividerModule } from '@angular/material/divider';
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import { catchError, finalize, switchMap, takeUntil, tap } from 'rxjs/operators';
+import { BehaviorSubject, Subject } from 'rxjs';
+import { catchError, finalize, takeUntil } from 'rxjs/operators';
 import { TracesService } from '../../core/services/traces.service';
 import { TraceDetail, TraceSpan } from '../../core/models/trace.model';
-import { Router } from '@angular/router';
+import {
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopePageSectionComponent,
+  HisHopeStateComponent,
+  HisHopeStatusBadgeComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 interface ExpandedSpan {
   [spanId: string]: boolean;
 }
 
+/** Theme-token color variables used for service identity in the waterfall. */
 const SERVICE_COLORS = [
-  '#2F6B4A', '#5B8C5A', '#2563EB', '#6B4FA0', '#B6581C',
-  '#C25450', '#0D9488', '#7C3AED', '#0891B2', '#D97706',
+  'var(--color-primary)',
+  'var(--color-info)',
+  'var(--color-success)',
+  'var(--color-warning)',
+  'var(--color-danger)',
 ];
 
 @Component({
@@ -27,166 +36,162 @@ const SERVICE_COLORS = [
   imports: [
     CommonModule,
     RouterModule,
-    MatCardModule,
     MatButtonModule,
     MatIconModule,
-    MatProgressSpinnerModule,
     MatDividerModule,
+    HisHopePageHeaderComponent,
+    HisHopePageLayoutComponent,
+    HisHopePageSectionComponent,
+    HisHopeStateComponent,
+    HisHopeStatusBadgeComponent,
+    HisHopeTranslatePipe,
   ],
   template: `
-    <div class="page-header">
-      <div class="page-header-left">
+    <hh-page-layout>
+      <hh-page-header hhPageHeader [title]="'dashboard.traces.detailTitle' | hhTranslate:'Trace Detail'"
+                      [subtitle]="trace ? trace.traceId : ''">
         <button mat-stroked-button routerLink="/traces" class="back-btn">
           <mat-icon>arrow_back</mat-icon>
-          Back
+          {{ 'dashboard.common.back' | hhTranslate:'Back' }}
         </button>
-        <h1 class="page-title">Trace Detail</h1>
-      </div>
-      <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
-        <mat-icon>refresh</mat-icon>
-        Refresh
-      </button>
-    </div>
+        <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
+          <mat-icon>refresh</mat-icon>
+          {{ 'dashboard.common.refresh' | hhTranslate:'Refresh' }}
+        </button>
+      </hh-page-header>
 
-    <!-- Loading -->
-    <div class="loading-state" *ngIf="(loading$ | async) && !trace">
-      <mat-spinner diameter="32"></mat-spinner>
-      <span class="loading-text">Loading trace...</span>
-    </div>
+      @let loading = loading$ | async;
+      @let error = error$ | async;
 
-    <!-- Error -->
-    <div class="error-state" *ngIf="error$ | async as err">
-      <mat-icon class="error-icon">error_outline</mat-icon>
-      <p class="error-message">{{ err }}</p>
-      <button mat-raised-button color="primary" (click)="refresh()">Retry</button>
-    </div>
+      <!-- Loading -->
+      @if (loading && !trace) {
+        <hh-state kind="loading" [message]="'dashboard.traces.loadingTrace' | hhTranslate:'Loading trace...'" />
+      }
 
-    <!-- Trace detail -->
-    <ng-container *ngIf="trace">
-      <!-- Header card -->
-      <mat-card class="detail-header-card">
-        <mat-card-content>
+      <!-- Error -->
+      @if (error) {
+        <hh-state kind="error" icon="error_outline" [message]="error">
+          <button mat-raised-button color="primary" (click)="refresh()">{{ 'dashboard.common.retry' | hhTranslate:'Retry' }}</button>
+        </hh-state>
+      }
+
+      <!-- Trace detail -->
+      @if (trace) {
+        <hh-page-section [title]="'dashboard.traces.overview' | hhTranslate:'Overview'">
           <div class="header-grid">
             <div class="header-field">
-              <span class="field-label">Trace ID</span>
+              <span class="field-label">{{ 'dashboard.traces.traceId' | hhTranslate:'Trace ID' }}</span>
               <code class="field-value mono">{{ trace.traceId }}</code>
             </div>
             <div class="header-field">
-              <span class="field-label">Time</span>
+              <span class="field-label">{{ 'dashboard.traces.time' | hhTranslate:'Time' }}</span>
               <span class="field-value">{{ trace.startTime | date:'dd/MM/yyyy HH:mm:ss' }}</span>
             </div>
             <div class="header-field">
-              <span class="field-label">Total Duration</span>
+              <span class="field-label">{{ 'dashboard.traces.totalDuration' | hhTranslate:'Total Duration' }}</span>
               <span class="field-value">{{ trace.durationMs | number }} ms</span>
             </div>
             <div class="header-field">
-              <span class="field-label">Services</span>
+              <span class="field-label">{{ 'dashboard.traces.services' | hhTranslate:'Services' }}</span>
               <span class="field-value">{{ trace.services.length }}</span>
             </div>
             <div class="header-field">
-              <span class="field-label">Spans</span>
+              <span class="field-label">{{ 'dashboard.traces.spans' | hhTranslate:'Spans' }}</span>
               <span class="field-value">{{ trace.spanCount }}</span>
             </div>
             <div class="header-field">
-                  <span class="field-label">Status</span>
+              <span class="field-label">{{ 'dashboard.common.status' | hhTranslate:'Status' }}</span>
               <span class="field-value">
-                <span class="status-pill" [class.status-ok]="trace.status === 'Ok'"
-                      [class.status-error]="trace.status === 'Error'">
-                  {{ trace.status }}
-                </span>
+                <hh-status-badge [status]="trace.status" [label]="trace.status" [tone]="trace.status === 'Error' ? 'danger' : 'success'" />
               </span>
             </div>
           </div>
           <div class="service-chips">
-            <span class="service-chip-label">Services:</span>
-            <span class="service-chip" *ngFor="let svc of trace.services; let i = index"
-                  [style.--chip-color]="getServiceColor(svc)">
-              {{ svc }}
-            </span>
+            <span class="service-chip-label">{{ 'dashboard.traces.servicesLabel' | hhTranslate:'Services:' }}</span>
+            @for (svc of trace.services; track svc) {
+              <span class="service-chip" [style.color]="getServiceColor(svc)" [style.background]="serviceChipBg(svc)">
+                {{ svc }}
+              </span>
+            }
           </div>
-        </mat-card-content>
-      </mat-card>
+        </hh-page-section>
 
-      <!-- Waterfall chart -->
-      <mat-card class="waterfall-card">
-        <mat-card-header>
-          <mat-card-title>Waterfall Chart</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <div class="waterfall-container" #waterfallContainer>
+        <!-- Waterfall chart -->
+        <hh-page-section [title]="'dashboard.traces.waterfallChart' | hhTranslate:'Waterfall Chart'">
+          <div class="waterfall-container">
             <div class="waterfall-labels">
               <div class="waterfall-label-row header-row">
-                <span class="label-service">Service</span>
-                <span class="label-operation">Operation</span>
-                <span class="label-duration">Duration</span>
+                <span class="label-service">{{ 'dashboard.traces.service' | hhTranslate:'Service' }}</span>
+                <span class="label-operation">{{ 'dashboard.traces.operation' | hhTranslate:'Operation' }}</span>
+                <span class="label-duration">{{ 'dashboard.traces.duration' | hhTranslate:'Duration' }}</span>
               </div>
-              <div *ngFor="let span of trace.spans" class="waterfall-label-row"
-                   (click)="toggleSpan(span.spanId)"
-                   [class.expanded]="expanded[span.spanId]">
-                <span class="label-service" [style.color]="getServiceColor(span.service)">
-                  {{ span.service }}
-                </span>
-                <span class="label-operation">{{ span.name }}</span>
-                <span class="label-duration">{{ span.durationMs }}ms</span>
-                <mat-icon class="expand-icon">
-                  {{ expanded[span.spanId] ? 'expand_less' : 'expand_more' }}
-                </mat-icon>
-              </div>
+              @for (span of trace.spans; track span.spanId) {
+                <div class="waterfall-label-row"
+                     (click)="toggleSpan(span.spanId)"
+                     (keydown.enter)="toggleSpan(span.spanId)"
+                     tabindex="0"
+                     role="button"
+                     [attr.aria-expanded]="expanded[span.spanId]"
+                     [class.expanded]="expanded[span.spanId]">
+                  <span class="label-service" [style.color]="getServiceColor(span.service)">
+                    {{ span.service }}
+                  </span>
+                  <span class="label-operation">{{ span.name }}</span>
+                  <span class="label-duration">{{ span.durationMs }}ms</span>
+                  <mat-icon class="expand-icon">
+                    {{ expanded[span.spanId] ? 'expand_less' : 'expand_more' }}
+                  </mat-icon>
+                </div>
+              }
             </div>
-            <div class="waterfall-bars" #waterfallBars>
+            <div class="waterfall-bars">
               <div class="waterfall-time-axis">
-                <span *ngFor="let tick of timeTicks" class="time-tick">
-                  {{ tick }}ms
-                </span>
+                @for (tick of timeTicks; track tick) {
+                  <span class="time-tick">{{ tick }}ms</span>
+                }
               </div>
-              <div *ngFor="let span of trace.spans" class="waterfall-bar-row"
-                   (click)="toggleSpan(span.spanId)"
-                   [class.expanded]="expanded[span.spanId]">
-                <div class="waterfall-bar-track">
-                  <div class="waterfall-bar"
-                       [style.left.%]="getSpanLeft(span)"
-                       [style.width.%]="getSpanWidth(span)"
-                       [style.background]="getServiceColor(span.service)"
-                       [title]="span.name + ' - ' + span.durationMs + 'ms'">
+              @for (span of trace.spans; track span.spanId) {
+                <div class="waterfall-bar-row"
+                     (click)="toggleSpan(span.spanId)"
+                     (keydown.enter)="toggleSpan(span.spanId)"
+                     tabindex="0"
+                     role="button"
+                     [attr.aria-expanded]="expanded[span.spanId]"
+                     [class.expanded]="expanded[span.spanId]">
+                  <div class="waterfall-bar-track">
+                    <div class="waterfall-bar"
+                         [style.left.%]="getSpanLeft(span)"
+                         [style.width.%]="getSpanWidth(span)"
+                         [style.background]="getServiceColor(span.service)"
+                         [title]="span.name + ' - ' + span.durationMs + 'ms'">
+                    </div>
                   </div>
                 </div>
-              </div>
+              }
             </div>
           </div>
-        </mat-card-content>
-      </mat-card>
+        </hh-page-section>
 
-      <!-- Expanded span details -->
-      <ng-container *ngFor="let span of trace.spans">
-        <div class="span-detail-card" *ngIf="expanded[span.spanId]">
-          <mat-card>
-            <mat-card-header>
-              <mat-card-subtitle>
-                <span class="span-detail-service" [style.color]="getServiceColor(span.service)">
-                  {{ span.service }}
-                </span>
-                &mdash; {{ span.name }}
-              </mat-card-subtitle>
-              <mat-card-title>
-                Span: <code class="mono">{{ span.spanId }}</code>
-              </mat-card-title>
-            </mat-card-header>
-            <mat-card-content>
+        <!-- Expanded span details -->
+        @for (span of trace.spans; track span.spanId) {
+          @if (expanded[span.spanId]) {
+            <hh-page-section [title]="('dashboard.traces.span' | hhTranslate:'Span:') + ' ' + span.spanId"
+                             [subtitle]="span.service + ' — ' + span.name">
               <div class="span-meta-grid">
                 <div class="detail-field">
-                  <span class="field-label">Parent Span ID</span>
+                  <span class="field-label">{{ 'dashboard.traces.parentSpanId' | hhTranslate:'Parent Span ID' }}</span>
                   <code class="field-value mono">{{ span.parentSpanId || '—' }}</code>
                 </div>
                 <div class="detail-field">
-                  <span class="field-label">Start</span>
+                  <span class="field-label">{{ 'dashboard.traces.start' | hhTranslate:'Start' }}</span>
                   <span class="field-value">{{ span.startTime | date:'HH:mm:ss.SSS' }}</span>
                 </div>
                 <div class="detail-field">
-                  <span class="field-label">End</span>
+                  <span class="field-label">{{ 'dashboard.traces.end' | hhTranslate:'End' }}</span>
                   <span class="field-value">{{ span.endTime | date:'HH:mm:ss.SSS' }}</span>
                 </div>
                 <div class="detail-field">
-              <span class="field-label">Status</span>
+                  <span class="field-label">{{ 'dashboard.common.status' | hhTranslate:'Status' }}</span>
                   <span class="field-value">{{ span.status }}</span>
                 </div>
               </div>
@@ -194,61 +199,53 @@ const SERVICE_COLORS = [
               <mat-divider class="detail-divider"></mat-divider>
 
               <!-- Attributes / Tags -->
-              <div class="detail-section" *ngIf="span.attributes && objectKeys(span.attributes).length > 0">
-                <h4 class="detail-section-title">Tags</h4>
-                <div class="tags-grid">
-                  <div class="tag-item" *ngFor="let key of objectKeys(span.attributes)">
-                    <span class="tag-key">{{ key }}</span>
-                    <span class="tag-value">{{ span.attributes[key] }}</span>
+              @if (span.attributes && objectKeys(span.attributes).length > 0) {
+                <div class="detail-section">
+                  <h4 class="detail-section-title">{{ 'dashboard.traces.tags' | hhTranslate:'Tags' }}</h4>
+                  <div class="tags-grid">
+                    @for (key of objectKeys(span.attributes); track key) {
+                      <div class="tag-item">
+                        <span class="tag-key">{{ key }}</span>
+                        <span class="tag-value">{{ span.attributes[key] }}</span>
+                      </div>
+                    }
                   </div>
                 </div>
-              </div>
+              }
 
               <!-- Events / Logs -->
-              <div class="detail-section" *ngIf="span.events && span.events.length > 0">
-                <h4 class="detail-section-title">Events & Logs</h4>
-                <div class="events-list">
-                  <div class="event-item" *ngFor="let evt of span.events">
-                    <div class="event-header">
-                      <span class="event-name">{{ evt.name }}</span>
-                      <span class="event-time">{{ evt.timestamp | date:'HH:mm:ss.SSS' }}</span>
-                    </div>
-                    <ng-container *ngIf="evt.attributes && objectKeys(evt.attributes).length > 0">
-                      <div class="event-attributes">
-                        <div class="tag-item" *ngFor="let key of objectKeys(evt.attributes)">
-                          <span class="tag-key">{{ key }}</span>
-                          <span class="tag-value">{{ evt.attributes[key] }}</span>
+              @if (span.events && span.events.length > 0) {
+                <div class="detail-section">
+                  <h4 class="detail-section-title">{{ 'dashboard.traces.eventsLogs' | hhTranslate:'Events & Logs' }}</h4>
+                  <div class="events-list">
+                    @for (evt of span.events; track evt.timestamp) {
+                      <div class="event-item">
+                        <div class="event-header">
+                          <span class="event-name">{{ evt.name }}</span>
+                          <span class="event-time">{{ evt.timestamp | date:'HH:mm:ss.SSS' }}</span>
                         </div>
+                        @if (evt.attributes && objectKeys(evt.attributes).length > 0) {
+                          <div class="event-attributes">
+                            @for (key of objectKeys(evt.attributes); track key) {
+                              <div class="tag-item">
+                                <span class="tag-key">{{ key }}</span>
+                                <span class="tag-value">{{ evt.attributes[key] }}</span>
+                              </div>
+                            }
+                          </div>
+                        }
                       </div>
-                    </ng-container>
+                    }
                   </div>
                 </div>
-              </div>
-            </mat-card-content>
-          </mat-card>
-        </div>
-      </ng-container>
-    </ng-container>
+              }
+            </hh-page-section>
+          }
+        }
+      }
+    </hh-page-layout>
   `,
   styles: [`
-    .page-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 24px;
-    }
-    .page-header-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .page-title {
-      font-size: var(--font-size-title, 24px);
-      line-height: 1.25;
-      font-weight: 700;
-      color: var(--text-primary);
-      margin: 0;
-    }
     .back-btn {
       font-size: 13px;
     }
@@ -257,42 +254,7 @@ const SERVICE_COLORS = [
       width: 18px;
       height: 18px;
     }
-    .loading-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 64px 24px;
-      color: #787774;
-    }
-    .loading-text {
-      margin-top: 12px;
-      font-size: 14px;
-    }
-    .error-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 48px 24px;
-      text-align: center;
-      background: #FDEBEC;
-      border: 1px solid #F5C6C4;
-      border-radius: 8px;
-      gap: 12px;
-    }
-    .error-icon {
-      font-size: 40px;
-      width: 40px;
-      height: 40px;
-      color: #C25450;
-    }
-    .error-message {
-      font-size: 14px;
-      color: #C25450;
-      max-width: 400px;
-    }
-    .detail-header-card {
-      margin-bottom: 16px;
-    }
+
     .header-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -302,36 +264,21 @@ const SERVICE_COLORS = [
     .field-label {
       display: block;
       font-size: 11px;
-      font-weight: 600;
+      font-weight: var(--font-weight-semibold);
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: #A1A09B;
+      color: var(--text-muted);
       margin-bottom: 4px;
     }
     .field-value {
       font-size: 14px;
-      color: #1A1A1A;
-      font-weight: 500;
+      color: var(--text-primary);
+      font-weight: var(--font-weight-medium);
     }
     .field-value.mono {
       font-family: var(--font-mono);
       font-size: 12px;
       word-break: break-all;
-    }
-    .status-pill {
-      display: inline-block;
-      padding: 2px 10px;
-      border-radius: 4px;
-      font-size: 12px;
-      font-weight: 500;
-    }
-    .status-ok {
-      background: #EDF3EC;
-      color: #2F6B4A;
-    }
-    .status-error {
-      background: #FDEBEC;
-      color: #C25450;
     }
     .service-chips {
       display: flex;
@@ -341,26 +288,21 @@ const SERVICE_COLORS = [
     }
     .service-chip-label {
       font-size: 11px;
-      font-weight: 600;
+      font-weight: var(--font-weight-semibold);
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: #A1A09B;
+      color: var(--text-muted);
       margin-right: 4px;
     }
     .service-chip {
       display: inline-block;
       padding: 2px 10px;
-      border-radius: 4px;
+      border-radius: var(--radius-badge);
       font-size: 12px;
-      font-weight: 500;
-      color: var(--chip-color);
-      background: color-mix(in srgb, var(--chip-color) 12%, transparent);
+      font-weight: var(--font-weight-medium);
     }
 
     /* Waterfall */
-    .waterfall-card {
-      margin-bottom: 16px;
-    }
     .waterfall-container {
       display: flex;
       gap: 0;
@@ -369,7 +311,7 @@ const SERVICE_COLORS = [
     .waterfall-labels {
       flex: 0 0 320px;
       min-width: 0;
-      border-right: 1px solid #EAEAEA;
+      border-right: 1px solid var(--border-default);
     }
     .waterfall-bars {
       flex: 1;
@@ -380,12 +322,12 @@ const SERVICE_COLORS = [
       display: flex;
       justify-content: space-between;
       padding: 8px 0;
-      border-bottom: 1px solid #EAEAEA;
+      border-bottom: 1px solid var(--border-default);
       margin-bottom: 0;
     }
     .time-tick {
       font-size: 10px;
-      color: #A1A09B;
+      color: var(--text-muted);
       font-family: var(--font-mono);
     }
     .waterfall-label-row,
@@ -393,14 +335,14 @@ const SERVICE_COLORS = [
       display: flex;
       align-items: center;
       padding: 8px 12px;
-      border-bottom: 1px solid #F0F0EE;
+      border-bottom: 1px solid var(--border-light);
       cursor: pointer;
       transition: background-color 150ms ease;
       min-height: 36px;
     }
     .waterfall-label-row:hover,
     .waterfall-bar-row:hover {
-      background-color: rgba(0, 0, 0, 0.02);
+      background: var(--surface-hover);
     }
     .waterfall-label-row.header-row,
     .waterfall-bar-row:first-of-type {
@@ -408,7 +350,7 @@ const SERVICE_COLORS = [
     }
     .waterfall-label-row.expanded,
     .waterfall-bar-row.expanded {
-      background-color: #F7F6F3;
+      background: var(--surface-muted);
     }
     .waterfall-label-row {
       gap: 8px;
@@ -416,15 +358,15 @@ const SERVICE_COLORS = [
     }
     .label-service {
       flex: 0 0 100px;
-      font-weight: 600;
-      color: #1A1A1A;
+      font-weight: var(--font-weight-semibold);
+      color: var(--text-primary);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .label-operation {
       flex: 1;
-      color: #787774;
+      color: var(--text-secondary);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -434,20 +376,20 @@ const SERVICE_COLORS = [
       text-align: right;
       font-family: var(--font-mono);
       font-size: 11px;
-      color: #1A1A1A;
+      color: var(--text-primary);
     }
     .expand-icon {
       font-size: 16px;
       width: 16px;
       height: 16px;
-      color: #A1A09B;
+      color: var(--text-muted);
       flex-shrink: 0;
     }
     .waterfall-bar-track {
       width: 100%;
       height: 16px;
       position: relative;
-      background: #F7F6F3;
+      background: var(--surface-muted);
       border-radius: 3px;
       overflow: hidden;
     }
@@ -462,13 +404,7 @@ const SERVICE_COLORS = [
       opacity: 0.85;
     }
 
-    /* Span detail cards */
-    .span-detail-card {
-      margin-bottom: 12px;
-    }
-    .span-detail-service {
-      font-weight: 600;
-    }
+    /* Span detail */
     .span-meta-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -486,8 +422,8 @@ const SERVICE_COLORS = [
     }
     .detail-section-title {
       font-size: 13px;
-      font-weight: 600;
-      color: #1A1A1A;
+      font-weight: var(--font-weight-semibold);
+      color: var(--text-primary);
       margin: 0 0 8px 0;
     }
     .tags-grid {
@@ -499,17 +435,17 @@ const SERVICE_COLORS = [
       display: inline-flex;
       gap: 6px;
       padding: 3px 10px;
-      background: #F7F6F3;
-      border: 1px solid #EAEAEA;
-      border-radius: 4px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-input);
       font-size: 12px;
     }
     .tag-key {
-      font-weight: 600;
-      color: #787774;
+      font-weight: var(--font-weight-semibold);
+      color: var(--text-secondary);
     }
     .tag-value {
-      color: #1A1A1A;
+      color: var(--text-primary);
       font-family: var(--font-mono);
       font-size: 11px;
     }
@@ -520,9 +456,9 @@ const SERVICE_COLORS = [
     }
     .event-item {
       padding: 8px 12px;
-      background: #F7F6F3;
-      border: 1px solid #EAEAEA;
-      border-radius: 6px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-input);
     }
     .event-header {
       display: flex;
@@ -532,12 +468,12 @@ const SERVICE_COLORS = [
     }
     .event-name {
       font-size: 13px;
-      font-weight: 600;
-      color: #1A1A1A;
+      font-weight: var(--font-weight-semibold);
+      color: var(--text-primary);
     }
     .event-time {
       font-size: 11px;
-      color: #A1A09B;
+      color: var(--text-muted);
       font-family: var(--font-mono);
     }
     .event-attributes {
@@ -638,6 +574,10 @@ export class TraceDetailComponent implements OnInit, OnDestroy {
     }
     const idx = Math.abs(hash) % SERVICE_COLORS.length;
     return SERVICE_COLORS[idx];
+  }
+
+  serviceChipBg(service: string): string {
+    return `color-mix(in srgb, ${this.getServiceColor(service)} 12%, transparent)`;
   }
 
   getSpanLeft(span: TraceSpan): number {

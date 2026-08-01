@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { Subject, takeUntil } from 'rxjs';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
@@ -14,23 +14,19 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { CommonModule } from '@angular/common';
 import { AdminService } from '@core/services/admin.service';
 import { Setting } from '@core/models/admin.model';
-import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
+import {
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopeStateComponent,
+  HisHopeTranslatePipe,
+  HisHopeI18nService,
+} from '@his-hope/frontend-foundation';
 
 interface CategoryConfig {
   key: string;
   label: string;
   icon: string;
 }
-
-const CATEGORIES: CategoryConfig[] = [
-  { key: 'hospital', label: 'Thông tin bệnh viện', icon: 'local_hospital' },
-  { key: 'system', label: 'Hệ thống', icon: 'settings_applications' },
-  { key: 'clinical', label: 'Lâm sàng', icon: 'medical_services' },
-  { key: 'billing', label: 'Thanh toán', icon: 'receipt' },
-  { key: 'appointment', label: 'Lịch hẹn', icon: 'calendar_today' },
-  { key: 'lab', label: 'Xét nghiệm', icon: 'biotech' },
-  { key: 'pharmacy', label: 'Dược', icon: 'medication' },
-];
 
 @Component({
   selector: 'app-admin-settings',
@@ -40,124 +36,15 @@ const CATEGORIES: CategoryConfig[] = [
     MatSnackBarModule, MatButtonModule, MatIconModule, MatFormFieldModule,
     MatInputModule, MatSelectModule, MatSlideToggleModule, MatExpansionModule,
     MatProgressSpinnerModule, MatProgressBarModule,
-    LoadingSpinnerComponent,
+    HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTranslatePipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <div class="settings-page">
-      <div class="page-header">
-        <div>
-          <h1>Cài đặt hệ thống</h1>
-          <p class="subtitle">Cấu hình các tham số và giá trị mặc định toàn hệ thống</p>
-        </div>
-        <button mat-raised-button color="primary" (click)="saveAll()" [disabled]="saving">
-          <mat-icon>save</mat-icon>
-          @if (!saving) {
-          <span>Lưu tất cả</span>
-          }
-          @if (saving) {
-          <mat-spinner diameter="20"></mat-spinner>
-          }
-        </button>
-      </div>
-
-      <app-loading-spinner [loading]="loading" message="Đang tải cài đặt..."></app-loading-spinner>
-
-      @if (!loading) {
-      <div class="settings-content">
-        <mat-accordion class="settings-accordion" [multi]="true">
-          @for (cat of categories; track cat.key) {
-          <mat-expansion-panel expanded>
-            <mat-expansion-panel-header>
-              <mat-panel-title>
-                <mat-icon>{{ cat.icon }}</mat-icon>
-                {{ cat.label }}
-              </mat-panel-title>
-            </mat-expansion-panel-header>
-
-            <div class="settings-grid">
-              @for (setting of getSettingsByCategory(cat.key); track setting.key) {
-                <div class="setting-item">
-                  <label class="setting-label">{{ setting.label }}</label>
-
-                  @if (setting.type === 'text') {
-                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                    <input matInput [value]="settingValues[setting.key] || ''"
-                           (input)="onSettingChange(setting.key, $event, setting.type)">
-                  </mat-form-field>
-                  }
-
-                  @if (setting.type === 'number') {
-                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                    <input matInput type="number" [value]="settingValues[setting.key] ?? 0"
-                           (input)="onSettingChange(setting.key, $event, setting.type)">
-                  </mat-form-field>
-                  }
-
-                  @if (setting.type === 'select') {
-                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                    <mat-select [value]="settingValues[setting.key]"
-                                (selectionChange)="onSettingSelect(setting.key, $event)">
-                      @for (opt of setting.options; track opt.value) {
-                      <mat-option [value]="opt.value">
-                        {{ opt.label }}
-                      </mat-option>
-                      }
-                    </mat-select>
-                  </mat-form-field>
-                  }
-
-                  @if (setting.type === 'boolean') {
-                  <div class="toggle-wrapper">
-                    <mat-slide-toggle [checked]="settingValues[setting.key] === true"
-                                      (change)="onSettingToggle(setting.key, $event)">
-                      {{ settingValues[setting.key] ? 'Đã bật' : 'Đã tắt' }}
-                    </mat-slide-toggle>
-                  </div>
-                  }
-                </div>
-              }
-            </div>
-          </mat-expansion-panel>
-          }
-        </mat-accordion>
-
-        @if (hasChanges) {
-        <div class="save-bar">
-          <span class="changes-hint">Có thay đổi chưa được lưu</span>
-          <button mat-raised-button color="primary" (click)="saveAll()" [disabled]="saving">
-            <mat-icon>save</mat-icon>
-            Lưu tất cả
-          </button>
-        </div>
-        }
-      </div>
-      }
-    </div>
-  `,
-  styles: [`
-    .settings-page { padding: 24px; max-width: 900px; margin: 0 auto; }
-    .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-    .page-header h1 { margin: 0; font-size: 24px; font-weight: 600; color: #1A1A1A; }
-    .subtitle { margin: 4px 0 0; color: #787774; font-size: 14px; }
-
-    .settings-content { display: flex; flex-direction: column; gap: 0; }
-    .settings-accordion { background: transparent; }
-
-    .settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; padding: 8px 0; }
-    .setting-item { display: flex; flex-direction: column; gap: 6px; }
-    .setting-label { font-size: 13px; font-weight: 500; color: #1A1A1A; }
-    .toggle-wrapper { display: flex; align-items: center; padding: 8px 0; }
-
-    ::ng-deep .mat-expansion-panel-header-title { display: flex; align-items: center; gap: 8px; }
-    ::ng-deep .mat-expansion-panel-header-title mat-icon { color: var(--mat-sys-primary); }
-
-    .save-bar { display: flex; align-items: center; justify-content: flex-end; gap: 16px; margin-top: 24px; padding: 16px 24px; background: #FFFFFF; border: 1px solid #EAEAEA; border-radius: 8px; }
-    .changes-hint { color: #e65100; font-size: 13px; font-weight: 500; }
-  `],
+  templateUrl: './settings.component.html',
+  styleUrls: ['./settings.component.scss'],
 })
 export class SettingsComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   settings: Setting[] = [];
   settingValues: Record<string, any> = {};
@@ -165,8 +52,17 @@ export class SettingsComponent implements OnInit, OnDestroy {
   loading = true;
   saving = false;
   hasChanges = false;
+  error: string | null = null;
 
-  categories = CATEGORIES;
+  readonly categories: CategoryConfig[] = [
+    { key: 'hospital', label: this.i18n.t('adminPage.settingsCategories.hospital', 'Thông tin bệnh viện'), icon: 'local_hospital' },
+    { key: 'system', label: this.i18n.t('adminPage.settingsCategories.system', 'Hệ thống'), icon: 'settings_applications' },
+    { key: 'clinical', label: this.i18n.t('adminPage.settingsCategories.clinical', 'Lâm sàng'), icon: 'medical_services' },
+    { key: 'billing', label: this.i18n.t('adminPage.settingsCategories.billing', 'Thanh toán'), icon: 'receipt' },
+    { key: 'appointment', label: this.i18n.t('adminPage.settingsCategories.appointment', 'Lịch hẹn'), icon: 'calendar_today' },
+    { key: 'lab', label: this.i18n.t('adminPage.settingsCategories.lab', 'Xét nghiệm'), icon: 'biotech' },
+    { key: 'pharmacy', label: this.i18n.t('adminPage.settingsCategories.pharmacy', 'Dược'), icon: 'medication' },
+  ];
 
   constructor(
     private adminService: AdminService,
@@ -185,6 +81,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   loadSettings(): void {
     this.loading = true;
+    this.error = null;
     this.cdr.markForCheck();
 
     this.adminService.getSettings()
@@ -204,7 +101,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.loading = false;
-          this.snackBar.open('Không thể tải cài đặt hệ thống', 'Đóng', { duration: 5000 });
+          this.error = this.i18n.t('settings.loadFailed', 'Không thể tải cài đặt hệ thống');
+          this.snackBar.open(this.error, this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });
@@ -251,12 +149,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
           this.originalValues = { ...this.settingValues };
           this.hasChanges = false;
           this.saving = false;
-          this.snackBar.open('Đã lưu cài đặt thành công', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('settings.saved', 'Đã lưu cài đặt thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.cdr.markForCheck();
         },
         error: () => {
           this.saving = false;
-          this.snackBar.open('Không thể lưu cài đặt', 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('settings.saveFailed', 'Không thể lưu cài đặt'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });

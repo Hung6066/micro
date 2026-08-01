@@ -67,10 +67,10 @@ describe('EncounterDetailComponent', () => {
     expect(compiled.querySelector('h1')?.textContent).toContain('Chi tiết lượt khám');
   });
 
-  it('should render SOAP cards', () => {
+  it('should render SOAP sections', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    const cards = compiled.querySelectorAll('mat-card');
-    expect(cards.length).toBeGreaterThanOrEqual(3);
+    const sections = compiled.querySelectorAll('hh-page-section');
+    expect(sections.length).toBeGreaterThanOrEqual(3);
   });
 
   it('should show overview section', () => {

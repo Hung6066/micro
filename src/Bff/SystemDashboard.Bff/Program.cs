@@ -1,13 +1,12 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
-using System.IdentityModel.Tokens.Jwt;
-using System.Text;
-using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.DataProtection;
 using StackExchange.Redis;
 using His.Hope.Infrastructure;
 using His.Hope.Infrastructure.Security;
 using His.Hope.AspNetCore;
+using His.Hope.Bff.Core.Authentication;
 using His.Hope.Observability;
 using His.Hope.Observability.OpenTelemetry;
 using His.Hope.Resilience;
@@ -24,9 +23,16 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHisHopeAspNetCore();
 builder.Services.AddObservability(options => options.ServiceName = "SystemDashboard.Bff");
 builder.Services.AddHisHopeResilience(builder.Configuration);
-builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
-    ConnectionMultiplexer.Connect(
-        builder.Configuration["Redis:ConnectionString"] ?? "redis:6379"));
+var redis = ConnectionMultiplexer.Connect(
+    builder.Configuration["Redis:ConnectionString"] ?? "redis:6379");
+builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
+builder.Services.AddDataProtection()
+    .SetApplicationName("His.Hope.IdentityService")
+    .PersistKeysToStackExchangeRedis(
+        redis,
+        builder.Configuration["DataProtection:KeyName"]
+            ?? "HisHope:IdentityService:DataProtection:Keys");
+builder.Services.AddSingleton<SessionTokenProtector>();
 
 // Configuration
 builder.Services.Configure<ConsulOptions>(builder.Configuration.GetSection(ConsulOptions.SectionName));
@@ -190,16 +196,19 @@ var app = builder.Build();
 
 app.UseHisHopeAspNetCore();
 
-// The three local apps share the Identity BFF session cookie.  Forward the
-// session JWT to this BFF when the browser did not send a Bearer token so
-// controller authorization works consistently across ports.
+// The three local apps share the Identity BFF session cookie.  The SPA
+// auth interceptor always sends an Authorization header with the OIDC
+// access token, but that token may carry an audience that does not match
+// the BFF's JwtBearer configuration.  When the session cookie is present,
+// inject the session JWT as the authenticated principal so that controller
+// authorization works consistently across ports.
 app.Use(async (context, next) =>
 {
-    if (!context.Request.Headers.ContainsKey("Authorization") &&
-        context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
+    if (context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
         !string.IsNullOrWhiteSpace(sessionId))
     {
         var redis = context.RequestServices.GetRequiredService<IConnectionMultiplexer>();
+        var tokenProtector = context.RequestServices.GetRequiredService<SessionTokenProtector>();
         var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
         if (sessionJson.HasValue)
         {
@@ -207,36 +216,21 @@ app.Use(async (context, next) =>
             if (document.RootElement.TryGetProperty("Jwt", out var jwtElement) &&
                 !string.IsNullOrWhiteSpace(jwtElement.GetString()))
             {
-                var sessionJwt = jwtElement.GetString()!;
-                var sessionKey = context.RequestServices
-                    .GetRequiredService<IConfiguration>()["Jwt:SessionKey"];
-                if (!string.IsNullOrWhiteSpace(sessionKey))
+                string sessionJwt;
+                try
                 {
-                    try
-                    {
-                        var principal = new JwtSecurityTokenHandler().ValidateToken(
-                            sessionJwt,
-                            new TokenValidationParameters
-                            {
-                                ValidateIssuer = true,
-                                ValidIssuer = "his-hope-identity",
-                                ValidateAudience = true,
-                                ValidAudience = "His.Hope",
-                                ValidateLifetime = true,
-                                ValidateIssuerSigningKey = true,
-                                IssuerSigningKey = new SymmetricSecurityKey(
-                                    Encoding.UTF8.GetBytes(sessionKey)),
-                                ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
-                                ClockSkew = TimeSpan.FromMinutes(1)
-                            },
-                            out _);
-                        context.User = principal;
-                    }
-                    catch (SecurityTokenException)
-                    {
-                        // Let the normal bearer handler issue the 401 challenge.
-                    }
+                    sessionJwt = tokenProtector.Unprotect(jwtElement.GetString()!);
                 }
+                catch (System.Security.Cryptography.CryptographicException)
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    return;
+                }
+                // Session exchange stores the same RSA/JWE access token used by
+                // the other APIs. Forward it to the standard JWT middleware so
+                // this BFF uses the shared key/issuer/audience validation instead
+                // of the obsolete local HMAC session-key contract.
+                context.Request.Headers.Authorization = $"Bearer {sessionJwt}";
             }
         }
     }

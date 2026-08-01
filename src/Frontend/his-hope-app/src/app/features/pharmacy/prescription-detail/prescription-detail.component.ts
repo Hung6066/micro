@@ -1,127 +1,113 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Subject, takeUntil } from 'rxjs';
 import { PharmacyService } from '@core/services/pharmacy.service';
 import { Prescription } from '@core/models/prescription.model';
+import {
+  HisHopeI18nService,
+  HisHopeMetaItemComponent,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopePageSectionComponent,
+  HisHopeStateComponent,
+  HisHopeStatusBadgeComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-prescription-detail',
     standalone: true,
     imports: [
         CommonModule, RouterModule,
-        MatCardModule, MatIconModule, MatButtonModule, MatProgressSpinnerModule,
-        MatSnackBarModule,
+        MatIconModule, MatButtonModule, MatSnackBarModule,
+        HisHopePageLayoutComponent, HisHopePageHeaderComponent, HisHopePageSectionComponent,
+        HisHopeStateComponent, HisHopeStatusBadgeComponent, HisHopeMetaItemComponent,
+        HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    @if (prescription) {
-    <div class="prescription-detail">
-      <div class="header">
-        <div>
-          <h1>Đơn thuốc #{{ prescription.id | slice:0:8 }}...</h1>
-          <p class="subtitle">
-            <span class="status-badge" [class.status-active]="prescription.statusCode === 'active'"
-                  [class.status-filled]="prescription.statusCode === 'filled'"
-                  [class.status-partial]="prescription.statusCode === 'partially_filled'"
-                  [class.status-cancelled]="prescription.statusCode === 'cancelled'"
-                  [class.status-expired]="prescription.statusCode === 'expired'">
-              {{ prescription.statusName }}
-            </span>
-          </p>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader
+                      [title]="'prescriptions.detail' | hhTranslate:'Chi tiết đơn thuốc'"
+                      [subtitle]="prescription ? ('prescriptions.detailSubtitle' | hhTranslate:'Đơn thuốc #{{id}}':{id: (prescription.id | slice:0:8)}) : ''">
+        <button mat-stroked-button (click)="goBack()">
+          <mat-icon>arrow_back</mat-icon> {{ 'common.back' | hhTranslate:'Quay lại' }}
+        </button>
+        @if (prescription) {
+        <hh-status-badge [status]="prescription.statusCode" [label]="prescription.statusName" />
+        @if (prescription.statusCode === 'active') {
+        <button mat-raised-button color="primary"
+                (click)="fillPrescription()"
+                [attr.aria-label]="'prescriptions.fillLabel' | hhTranslate:'Cấp phát thuốc'">
+          <mat-icon>medication</mat-icon> {{ 'prescriptions.fill' | hhTranslate:'Cấp phát' }}
+        </button>
+        }
+        @if (prescription.statusCode === 'active' || prescription.statusCode === 'partially_filled') {
+        <button mat-stroked-button color="warn"
+                (click)="cancelPrescription()"
+                [attr.aria-label]="'prescriptions.cancelLabel' | hhTranslate:'Hủy đơn thuốc'">
+          <mat-icon>cancel</mat-icon> {{ 'prescriptions.cancel' | hhTranslate:'Hủy đơn' }}
+        </button>
+        }
+        }
+      </hh-page-header>
+
+      @if (loading) {
+      <hh-state kind="loading" [message]="'common.loading' | hhTranslate" />
+      } @else if (loadError) {
+      <hh-state kind="error" [message]="errorMessage">
+        <button mat-stroked-button (click)="loadPrescription()">{{ 'common.retry' | hhTranslate }}</button>
+      </hh-state>
+      } @else if (prescription) {
+      <hh-page-section [title]="'prescriptions.section.info' | hhTranslate:'Thông tin đơn thuốc'">
+        <div class="meta-grid">
+          <hh-meta-item [label]="'prescriptions.field.patient' | hhTranslate:'Bệnh nhân'" [value]="prescription.patientName || prescription.patientId" icon="person" />
+          <hh-meta-item [label]="'prescriptions.field.provider' | hhTranslate:'Bác sĩ'" [value]="prescription.providerName || prescription.providerId" icon="medical_services" />
+          <hh-meta-item [label]="'prescriptions.field.medication' | hhTranslate:'Thuốc'" [value]="prescription.medicationName" icon="medication" />
+          <hh-meta-item [label]="'prescriptions.field.strength' | hhTranslate:'Hàm lượng'" [value]="prescription.strength" icon="scale" />
+          <hh-meta-item [label]="'prescriptions.field.dosageForm' | hhTranslate:'Dạng bào chế'" [value]="prescription.dosageForm" icon="category" />
+          <hh-meta-item [label]="'prescriptions.field.instructions' | hhTranslate:'Hướng dẫn sử dụng'" [value]="prescription.dosageInstructions" icon="description" />
+          <hh-meta-item [label]="'prescriptions.field.route' | hhTranslate:'Đường dùng'" [value]="prescription.route" icon="route" />
+          <hh-meta-item [label]="'prescriptions.field.quantity' | hhTranslate:'Số lượng'" [value]="prescription.quantity + ''" icon="inventory_2" />
+          <hh-meta-item [label]="'prescriptions.field.refills' | hhTranslate:'Số lần tái kê'" [value]="prescription.refills + ''" icon="replay" />
         </div>
-        <div class="header-actions">
-          @if (prescription.statusCode === 'active') {
-          <button mat-raised-button color="primary"
-                  (click)="fillPrescription()"
-                  aria-label="Cấp phát thuốc">
-            <mat-icon>medication</mat-icon> Cấp phát
-          </button>
+      </hh-page-section>
+
+      <hh-page-section [title]="'prescriptions.section.timeline' | hhTranslate:'Thời gian'">
+        <div class="meta-grid">
+          <hh-meta-item [label]="'prescriptions.field.prescribedAt' | hhTranslate:'Ngày kê đơn'" [value]="(prescription.prescribedAt | date:'medium') || '-'" icon="event" />
+          @if (prescription.filledAt) {
+          <hh-meta-item [label]="'prescriptions.field.filledAt' | hhTranslate:'Ngày cấp phát'" [value]="(prescription.filledAt | date:'medium') || '-'" icon="check_circle" />
           }
-          @if (prescription.statusCode === 'active' || prescription.statusCode === 'partially_filled') {
-          <button mat-stroked-button color="warn"
-                  (click)="cancelPrescription()"
-                  aria-label="Hủy đơn thuốc">
-            <mat-icon>cancel</mat-icon> Hủy đơn
-          </button>
+          <hh-meta-item [label]="'prescriptions.field.createdAt' | hhTranslate:'Ngày tạo'" [value]="(prescription.createdAt | date:'medium') || '-'" icon="event_note" />
+          @if (prescription.updatedAt) {
+          <hh-meta-item [label]="'prescriptions.field.updatedAt' | hhTranslate:'Cập nhật'" [value]="(prescription.updatedAt | date:'medium') || '-'" icon="update" />
           }
         </div>
-      </div>
-
-      <div class="detail-grid">
-        <mat-card>
-          <mat-card-header><mat-card-title>Thông tin đơn thuốc</mat-card-title></mat-card-header>
-          <mat-card-content>
-            <p><strong>Bệnh nhân:</strong> {{ prescription.patientName || prescription.patientId }}</p>
-            <p><strong>Bác sĩ:</strong> {{ prescription.providerName || prescription.providerId }}</p>
-            <p><strong>Thuốc:</strong> {{ prescription.medicationName }}</p>
-            <p><strong>Hàm lượng:</strong> {{ prescription.strength }}</p>
-            <p><strong>Dạng bào chế:</strong> {{ prescription.dosageForm }}</p>
-            <p><strong>Hướng dẫn sử dụng:</strong> {{ prescription.dosageInstructions }}</p>
-            <p><strong>Đường dùng:</strong> {{ prescription.route }}</p>
-            <p><strong>Số lượng:</strong> {{ prescription.quantity }}</p>
-            <p><strong>Số lần tái kê:</strong> {{ prescription.refills }}</p>
-          </mat-card-content>
-        </mat-card>
-
-        <mat-card>
-          <mat-card-header><mat-card-title>Thời gian</mat-card-title></mat-card-header>
-          <mat-card-content>
-            <p><strong>Ngày kê đơn:</strong> {{ prescription.prescribedAt | date:'medium' }}</p>
-            @if (prescription.filledAt) {
-            <p><strong>Ngày cấp phát:</strong> {{ prescription.filledAt | date:'medium' }}</p>
-            }
-            <p><strong>Ngày tạo:</strong> {{ prescription.createdAt | date:'medium' }}</p>
-            @if (prescription.updatedAt) {
-            <p><strong>Cập nhật:</strong> {{ prescription.updatedAt | date:'medium' }}</p>
-            }
-          </mat-card-content>
-        </mat-card>
-      </div>
-    </div>
-    }
-
-    @if (!prescription && !loadError) {
-    <div class="loading-container">
-      <mat-spinner diameter="40" aria-label="Đang tải"></mat-spinner>
-      <p>Đang tải thông tin đơn thuốc...</p>
-    </div>
-    }
-
-    @if (loadError) {
-    <div class="error-container">
-      <mat-icon color="warn">error_outline</mat-icon>
-      <p>Không thể tải thông tin đơn thuốc. Vui lòng thử lại sau.</p>
-      <button mat-stroked-button color="primary" (click)="loadPrescription()">Thử lại</button>
-    </div>
-    }
+      </hh-page-section>
+      }
+    </hh-page-layout>
   `,
     styles: [`
-    .prescription-detail { padding: 24px; }
-    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
-    .header-actions { display: flex; gap: 12px; }
-    .subtitle { color: #666; font-size: 14px; }
-    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-    mat-card-content p { margin: 8px 0; }
-    .status-badge { padding: 4px 16px; border-radius: 16px; font-weight: 500; font-size: 14px; display: inline-block; }
-    .status-active { background: #e3f2fd; color: #1565c0; }
-    .status-filled { background: #e8f5e9; color: #2e7d32; }
-    .status-partial { background: #fff3e0; color: #e65100; }
-    .status-cancelled { background: #fbe9e7; color: #c62828; }
-    .status-expired { background: #f3e5f5; color: #6a1b9a; }
-    .loading-container, .error-container { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 24px; gap: 16px; color: #666; }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
   `],
 })
 export class PrescriptionDetailComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   prescription?: Prescription;
   loadError = false;
+  loading = true;
+  errorMessage = '';
   private prescriptionId = '';
 
   constructor(
@@ -142,17 +128,25 @@ export class PrescriptionDetailComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
+  goBack(): void {
+    this.router.navigate(['/pharmacy/prescriptions']);
+  }
+
   loadPrescription(): void {
     this.loadError = false;
+    this.loading = true;
     this.pharmacyService.getPrescription(this.prescriptionId)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (p) => {
           this.prescription = p;
+          this.loading = false;
           this.cdr.markForCheck();
         },
         error: () => {
           this.loadError = true;
+          this.loading = false;
+          this.errorMessage = this.i18n.t('prescriptions.loadFailed', 'Không thể tải thông tin đơn thuốc. Vui lòng thử lại sau.');
           this.cdr.markForCheck();
         },
       });
@@ -164,11 +158,11 @@ export class PrescriptionDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã cấp phát thuốc thành công', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('prescriptions.fillSuccess', 'Đã cấp phát thuốc thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadPrescription();
         },
         error: () => {
-          this.snackBar.open('Không thể cấp phát thuốc', 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('prescriptions.fillFailed', 'Không thể cấp phát thuốc'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });
@@ -180,11 +174,11 @@ export class PrescriptionDetailComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã hủy đơn thuốc', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('prescriptions.cancelSuccess', 'Đã hủy đơn thuốc'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.loadPrescription();
         },
         error: () => {
-          this.snackBar.open('Không thể hủy đơn thuốc', 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('prescriptions.cancelFailed', 'Không thể hủy đơn thuốc'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });

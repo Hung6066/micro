@@ -1,166 +1,124 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
-import { MatTableModule } from '@angular/material/table';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
+import { Subject, takeUntil } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
-import { MatSelectModule } from '@angular/material/select';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatPaginatorModule } from '@angular/material/paginator';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { LabService } from '@core/services/lab.service';
 import { LabCriticalAlertStreamService } from '@core/services/lab-critical-alert-stream.service';
-import { LabOrder } from '@core/models/lab-order.model';
-import { HisHopeDataTableComponent } from '@his-hope/frontend-foundation';
+import {
+  HisHopeDataTableCellDirective,
+  HisHopeDataTableColumn,
+  HisHopeDataTableComponent,
+  HisHopeI18nService,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopePageQuery,
+  HisHopeStatusBadgeComponent,
+  HisHopeToolbarComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-lab-order-list',
     standalone: true,
     imports: [
-        CommonModule, RouterModule, ReactiveFormsModule,
-        MatTableModule, MatFormFieldModule, MatInputModule, MatIconModule,
-        MatSelectModule, MatProgressBarModule, MatPaginatorModule, MatButtonModule, MatSnackBarModule,
-        HisHopeDataTableComponent,
+        CommonModule, RouterModule,
+        MatIconModule, MatButtonModule, MatSnackBarModule,
+        HisHopeDataTableComponent, HisHopeDataTableCellDirective, HisHopePageHeaderComponent,
+        HisHopePageLayoutComponent, HisHopeToolbarComponent, HisHopeStatusBadgeComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="lab-order-list">
-      <div class="header">
-        <h1>Phiếu xét nghiệm</h1>
-        <div class="header-actions">
-          <div class="critical-badge" aria-live="polite">{{ unreadCriticalAlertCount }} cảnh báo mới</div>
-          <a mat-stroked-button routerLink="/lab/critical-alerts">Hộp cảnh báo</a>
-          <button mat-raised-button color="primary" routerLink="/lab/new"
-                  aria-label="Tạo phiếu xét nghiệm mới">
-            <mat-icon>add</mat-icon> Tạo phiếu xét nghiệm
-          </button>
-        </div>
-      </div>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader
+                      [title]="'labOrders.title' | hhTranslate:'Phiếu xét nghiệm'"
+                      [subtitle]="'labOrders.subtitle' | hhTranslate:'Quản lý phiếu xét nghiệm và mẫu bệnh phẩm'">
+        <span class="critical-badge" aria-live="polite">{{ unreadCriticalAlertCount }} {{ 'labOrders.criticalAlert' | hhTranslate:'cảnh báo mới' }}</span>
+        <a mat-stroked-button routerLink="/lab/critical-alerts">{{ 'labOrders.alertBox' | hhTranslate:'Hộp cảnh báo' }}</a>
+        <button mat-raised-button color="primary" routerLink="/lab/new"
+                [attr.aria-label]="'labOrders.new' | hhTranslate:'Tạo phiếu xét nghiệm mới'">
+          <mat-icon>add</mat-icon> {{ 'labOrders.new' | hhTranslate:'Tạo phiếu xét nghiệm' }}
+        </button>
+      </hh-page-header>
 
-      <div class="filters">
-        <mat-form-field appearance="outline" class="search-field">
-          <mat-label>Tìm kiếm</mat-label>
-          <input matInput [formControl]="searchControl" placeholder="Mã phiếu, bệnh nhân..."
-                 aria-label="Tìm kiếm phiếu xét nghiệm">
-          <mat-icon matPrefix>search</mat-icon>
-        </mat-form-field>
+      <hh-toolbar hhPageToolbar [label]="'labOrders.toolbar' | hhTranslate:'Phiếu xét nghiệm'">
+        <span hhToolbarTitle>{{ totalItems }} {{ 'labOrders.count' | hhTranslate:'phiếu xét nghiệm' }}</span>
+        <label class="hh-status-filter" hh-toolbar-controls>
+          <span>{{ 'common.status' | hhTranslate:'Trạng thái' }}</span>
+          <select [value]="statusCode" (change)="onStatusFilterChange($event)"
+                  [attr.aria-label]="'labOrders.statusFilter' | hhTranslate:'Lọc theo trạng thái'">
+            <option value="">{{ 'common.all' | hhTranslate:'Tất cả' }}</option>
+            <option value="ordered">{{ 'labOrders.status.ordered' | hhTranslate:'Đã chỉ định' }}</option>
+            <option value="specimen_collected">{{ 'labOrders.status.collected' | hhTranslate:'Đã lấy mẫu' }}</option>
+            <option value="in_progress">{{ 'labOrders.status.inProgress' | hhTranslate:'Đang xử lý' }}</option>
+            <option value="completed">{{ 'labOrders.status.completed' | hhTranslate:'Hoàn thành' }}</option>
+            <option value="cancelled">{{ 'labOrders.status.cancelled' | hhTranslate:'Đã hủy' }}</option>
+          </select>
+        </label>
+      </hh-toolbar>
 
-        <mat-form-field appearance="outline" class="status-filter">
-          <mat-label>Trạng thái</mat-label>
-          <mat-select [formControl]="statusControl" aria-label="Lọc theo trạng thái">
-            <mat-option value="">Tất cả</mat-option>
-            <mat-option value="ordered">Đã chỉ định</mat-option>
-            <mat-option value="specimen_collected">Đã lấy mẫu</mat-option>
-            <mat-option value="in_progress">Đang xử lý</mat-option>
-            <mat-option value="completed">Hoàn thành</mat-option>
-            <mat-option value="cancelled">Đã hủy</mat-option>
-          </mat-select>
-        </mat-form-field>
-      </div>
-
-      <hh-data-table label="Phiếu xét nghiệm" [loading]="loading" [error]="error"
-                     [empty]="!loading && !error && labOrders.length === 0"
-                     emptyMessage="Không tìm thấy phiếu xét nghiệm nào." (retry)="loadLabOrders()">
-      <mat-table [dataSource]="labOrders" class="mat-elevation-z2">
-        <ng-container matColumnDef="id">
-          <mat-header-cell *matHeaderCellDef>Mã phiếu</mat-header-cell>
-          <mat-cell *matCellDef="let o">{{ o.id | slice:0:8 }}...</mat-cell>
-        </ng-container>
-
-        <ng-container matColumnDef="patientName">
-          <mat-header-cell *matHeaderCellDef>Bệnh nhân</mat-header-cell>
-          <mat-cell *matCellDef="let o">{{ o.patientName || o.patientId }}</mat-cell>
-        </ng-container>
-
-        <ng-container matColumnDef="orderDate">
-          <mat-header-cell *matHeaderCellDef>Ngày chỉ định</mat-header-cell>
-          <mat-cell *matCellDef="let o">{{ o.orderDate | date:'mediumDate' }}</mat-cell>
-        </ng-container>
-
-        <ng-container matColumnDef="priorityName">
-          <mat-header-cell *matHeaderCellDef>Mức ưu tiên</mat-header-cell>
-          <mat-cell *matCellDef="let o">
-            <span class="priority-badge" [class.priority-high]="o.priorityCode === 'high'"
-                  [class.priority-urgent]="o.priorityCode === 'urgent'"
-                  [class.priority-routine]="o.priorityCode === 'routine'">
-              {{ o.priorityName }}
-            </span>
-          </mat-cell>
-        </ng-container>
-
-        <ng-container matColumnDef="testsCount">
-          <mat-header-cell *matHeaderCellDef>Số xét nghiệm</mat-header-cell>
-          <mat-cell *matCellDef="let o">{{ o.tests?.length || 0 }}</mat-cell>
-        </ng-container>
-
-        <ng-container matColumnDef="statusCode">
-          <mat-header-cell *matHeaderCellDef>Trạng thái</mat-header-cell>
-          <mat-cell *matCellDef="let o">
-            <span class="status-badge" [class.status-ordered]="o.statusCode === 'ordered'"
-                  [class.status-collected]="o.statusCode === 'specimen_collected'"
-                  [class.status-progress]="o.statusCode === 'in_progress'"
-                  [class.status-completed]="o.statusCode === 'completed'"
-                  [class.status-cancelled]="o.statusCode === 'cancelled'">
-              {{ o.statusName }}
-            </span>
-          </mat-cell>
-        </ng-container>
-
-        <ng-container matColumnDef="actions">
-          <mat-header-cell *matHeaderCellDef>Thao tác</mat-header-cell>
-          <mat-cell *matCellDef="let o">
-            <button mat-icon-button color="primary" (click)="viewDetail(o.id)"
-                    aria-label="Xem chi tiết phiếu xét nghiệm">
-              <mat-icon>visibility</mat-icon>
-            </button>
-          </mat-cell>
-        </ng-container>
-
-        <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
-        <mat-row *matRowDef="let row; columns: displayedColumns;" (click)="viewDetail(row.id)" class="clickable-row"></mat-row>
-      </mat-table>
-      @if (!loading && totalCount > 0) {
-      <mat-paginator [length]="totalCount" [pageSize]="pageSize" [pageSizeOptions]="[10, 20, 50]"
-                     (page)="onPageChange($event)" [pageIndex]="page - 1" showFirstLastButtons>
-      </mat-paginator>
-      }
+      <hh-data-table [label]="'labOrders.tableLabel' | hhTranslate:'Phiếu xét nghiệm'"
+                     [loading]="loading" [error]="error"
+                     [empty]="rows.length === 0 && !loading"
+                     [emptyMessage]="'labOrders.empty' | hhTranslate:'Không tìm thấy phiếu xét nghiệm nào.'"
+                     [searchPlaceholder]="'labOrders.search' | hhTranslate:'Mã phiếu, bệnh nhân...'"
+                     [columns]="columns" [rows]="rows"
+                     [pageSize]="20" [totalItems]="totalItems"
+                     [query]="query" [mode]="'server'" [urlSync]="false"
+                     [selection]="true" [rowClickable]="true"
+                     (queryChange)="onQueryChange($event)" (rowClick)="onRowClick($event)"
+                     (retry)="loadData()">
+        <ng-template hhDataTableCell="id" let-row>{{ shortId(row) }}</ng-template>
+        <ng-template hhDataTableCell="patientName" let-row>{{ row['patientName'] || row['patientId'] }}</ng-template>
+        <ng-template hhDataTableCell="orderDate" let-row>{{ row['orderDate'] | date:'mediumDate' }}</ng-template>
+        <ng-template hhDataTableCell="priorityName" let-row>
+          <span class="priority-badge" [class.priority-high]="priorityOf(row) === 'high'"
+                [class.priority-urgent]="priorityOf(row) === 'urgent'"
+                [class.priority-routine]="priorityOf(row) === 'routine'">
+            {{ row['priorityName'] }}
+          </span>
+        </ng-template>
+        <ng-template hhDataTableCell="testsCount" let-row>{{ testsCountOf(row) }}</ng-template>
+        <ng-template hhDataTableCell="statusCode" let-row>
+          <hh-status-badge [status]="statusOf(row)" [label]="statusLabel(row)" />
+        </ng-template>
+        <ng-template hhDataTableCell="actions" let-row>
+          <a mat-icon-button [routerLink]="['/lab', idOf(row)]"
+             [attr.aria-label]="'common.details' | hhTranslate:'Xem chi tiết'" (click)="$event.stopPropagation()">
+            <mat-icon>visibility</mat-icon>
+          </a>
+        </ng-template>
       </hh-data-table>
-    </div>
+    </hh-page-layout>
   `,
     styles: [`
-    .lab-order-list { padding: 24px; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-    .header-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .filters { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
-    .search-field { flex: 1; min-width: 250px; }
-    .status-filter { width: 220px; }
-    .critical-badge { color: #2F6B4A; border: 1px solid #EAEAEA; border-radius: 4px; padding: 8px 12px; background: #FFFFFF; }
-    mat-table { width: 100%; cursor: pointer; }
-    mat-row:hover { background: #f5f5f5; }
-    .clickable-row { cursor: pointer; }
-
-    .loading-shimmer { margin-bottom: 16px; }
-    .empty-state { text-align: center; padding: 48px; color: #999; }
-    .empty-icon { font-size: 48px; width: 48px; height: 48px; margin-bottom: 16px; }
+    .hh-status-filter { display: inline-flex; align-items: center; gap: 8px; color: var(--text-secondary); font-size: var(--font-size-caption); }
+    .hh-status-filter select { min-height: var(--control-height); min-width: 180px; padding: 0 10px; border: 1px solid var(--border-default); border-radius: var(--radius-input); background: var(--surface-white); color: var(--text-primary); font: inherit; }
+    .critical-badge { color: var(--color-primary); border: 1px solid var(--border-default); border-radius: var(--radius-input); padding: 8px 12px; background: var(--surface-white); }
   `],
 })
 export class LabOrderListComponent implements OnInit, OnDestroy {
-  private destroy$ = new Subject<void>();
+  private readonly destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
-  displayedColumns = ['id', 'patientName', 'orderDate', 'priorityName', 'testsCount', 'statusCode', 'actions'];
-  labOrders: LabOrder[] = [];
-  totalCount = 0;
-  page = 1;
-  pageSize = 20;
+  columns: HisHopeDataTableColumn[] = [
+    { key: 'id', label: this.i18n.t('labOrders.column.id', 'Mã phiếu'), sortable: true, width: '120px' },
+    { key: 'patientName', label: this.i18n.t('labOrders.column.patient', 'Bệnh nhân') },
+    { key: 'orderDate', label: this.i18n.t('labOrders.column.orderDate', 'Ngày chỉ định'), sortable: true },
+    { key: 'priorityName', label: this.i18n.t('labOrders.column.priority', 'Mức ưu tiên') },
+    { key: 'testsCount', label: this.i18n.t('labOrders.column.testsCount', 'Số xét nghiệm'), align: 'end' as const },
+    { key: 'statusCode', label: this.i18n.t('labOrders.column.status', 'Trạng thái'), status: true },
+    { key: 'actions', label: this.i18n.t('common.actions', 'Thao tác'), hideable: false, align: 'end' as const },
+  ];
+
+  rows: Record<string, unknown>[] = [];
+  totalItems = 0;
   loading = false;
   error = '';
-  searchControl = new FormControl('');
-  statusControl = new FormControl('');
-  private searchTerm = '';
+  query: HisHopePageQuery = { page: 1, pageSize: 20 };
+  statusCode = '';
   unreadCriticalAlertCount = 0;
   private lastToastAlertId: string | null = null;
 
@@ -190,28 +148,11 @@ export class LabOrderListComponent implements OnInit, OnDestroy {
         }
 
         this.lastToastAlertId = alert.id;
-        this.snackBar.open('Có cảnh báo xét nghiệm nghiêm trọng mới', 'Đóng', { duration: 3000 });
+        this.snackBar.open(this.i18n.t('labOrders.criticalAlertToast', 'Có cảnh báo xét nghiệm nghiêm trọng mới'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
         this.cdr.markForCheck();
       });
 
-    this.searchControl.valueChanges
-      .pipe(debounceTime(300), distinctUntilChanged(), takeUntil(this.destroy$))
-      .subscribe((term) => {
-        this.searchTerm = term ?? '';
-        this.page = 1;
-        this.loadLabOrders();
-        this.cdr.markForCheck();
-      });
-
-    this.statusControl.valueChanges
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        this.page = 1;
-        this.loadLabOrders();
-        this.cdr.markForCheck();
-      });
-
-    this.loadLabOrders();
+    this.loadData();
   }
 
   ngOnDestroy(): void {
@@ -220,38 +161,72 @@ export class LabOrderListComponent implements OnInit, OnDestroy {
     void this.criticalAlertStreamService.disconnect();
   }
 
-  loadLabOrders(): void {
+  loadData(): void {
     this.error = '';
     this.loading = true;
     this.labService.searchLabOrders({
-      searchTerm: this.searchTerm,
-      statusCode: this.statusControl.value || undefined,
-      page: this.page,
-      pageSize: this.pageSize,
-    })
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (result) => {
-          this.labOrders = result.items;
-          this.totalCount = result.totalCount;
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          this.error = 'Không thể tải danh sách phiếu xét nghiệm.';
-          this.loading = false;
-          this.cdr.markForCheck();
-        },
-      });
+      searchTerm: this.query.search,
+      statusCode: this.statusCode || undefined,
+      page: this.query.page,
+      pageSize: this.query.pageSize,
+    }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (result) => {
+        this.rows = result.items.map(item => ({ ...item }));
+        this.totalItems = result.totalCount;
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.error = this.i18n.t('labOrders.loadFailed', 'Không thể tải danh sách phiếu xét nghiệm.');
+        this.loading = false;
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  onQueryChange(query: HisHopePageQuery): void {
+    this.query = query;
+    this.loadData();
+  }
+
+  onStatusFilterChange(event: Event): void {
+    this.statusCode = (event.target as HTMLSelectElement).value;
+    this.query = { ...this.query, page: 1 };
+    this.loadData();
+    this.cdr.markForCheck();
+  }
+
+  onRowClick(row: Record<string, unknown>): void {
+    this.viewDetail(this.idOf(row));
   }
 
   viewDetail(id: string): void {
     this.router.navigate(['/lab', id]);
   }
 
-  onPageChange(event: any): void {
-    this.page = event.pageIndex + 1;
-    this.pageSize = event.pageSize;
-    this.loadLabOrders();
+  shortId(row: Record<string, unknown>): string {
+    const id = String(row['id'] ?? '');
+    return id.length > 8 ? `${id.slice(0, 8)}...` : id;
+  }
+
+  priorityOf(row: Record<string, unknown>): string {
+    return String(row['priorityCode'] ?? '');
+  }
+
+  testsCountOf(row: Record<string, unknown>): number {
+    const tests = row['tests'];
+    return Array.isArray(tests) ? tests.length : 0;
+  }
+
+  statusOf(row: Record<string, unknown>): string {
+    return String(row['statusCode'] ?? '');
+  }
+
+  statusLabel(row: Record<string, unknown>): string {
+    return String(row['statusName'] ?? row['statusCode'] ?? '');
+  }
+
+  idOf(row: Record<string, unknown>): string {
+    return String(row['id'] ?? '');
   }
 }

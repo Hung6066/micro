@@ -1,4 +1,4 @@
-import { Component, Inject, ChangeDetectionStrategy } from '@angular/core';
+import { Component, Inject, ChangeDetectionStrategy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatCardModule } from '@angular/material/card';
@@ -6,7 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatChipsModule } from '@angular/material/chips';
-import { HisHopeStatusBadgeComponent, HisHopeStatusTone } from '@his-hope/frontend-foundation';
+import { HisHopeI18nService, HisHopeStatusBadgeComponent, HisHopeStatusTone, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { Resource, HealthCheckResult } from '../../core/models/resource.model';
 
 @Component({
@@ -21,6 +21,7 @@ import { Resource, HealthCheckResult } from '../../core/models/resource.model';
     MatDividerModule,
     MatChipsModule,
     HisHopeStatusBadgeComponent,
+    HisHopeTranslatePipe,
   ],
   template: `
     <div class="detail-overlay">
@@ -39,22 +40,24 @@ import { Resource, HealthCheckResult } from '../../core/models/resource.model';
 
       <!-- Basic Info -->
       <section class="detail-section">
-        <h3 class="section-title">Thông tin cơ bản</h3>
+        <h3 class="section-title">{{ 'dashboard.resources.basicInfo' | hhTranslate:'Thông tin cơ bản' }}</h3>
         <div class="info-grid">
           <div class="info-item">
-            <span class="info-label">Tên</span>
+            <span class="info-label">{{ 'dashboard.resources.name' | hhTranslate:'Tên' }}</span>
             <span class="info-value">{{ resource.name }}</span>
           </div>
-          <div class="info-item" *ngIf="resource.version">
-            <span class="info-label">Phiên bản</span>
-            <span class="info-value">{{ resource.version }}</span>
-          </div>
+          @if (resource.version) {
+            <div class="info-item">
+              <span class="info-label">{{ 'dashboard.resources.version' | hhTranslate:'Phiên bản' }}</span>
+              <span class="info-value">{{ resource.version }}</span>
+            </div>
+          }
           <div class="info-item">
-            <span class="info-label">Trạng thái</span>
+            <span class="info-label">{{ 'dashboard.resources.status' | hhTranslate:'Trạng thái' }}</span>
             <span class="info-value">{{ resource.status }}</span>
           </div>
           <div class="info-item">
-            <span class="info-label">Sức khỏe</span>
+            <span class="info-label">{{ 'dashboard.resources.health' | hhTranslate:'Sức khỏe' }}</span>
             <span class="info-value" [class.text-green]="resource.healthStatus === 'Healthy'"
                                          [class.text-red]="resource.healthStatus === 'Unhealthy'">
               {{ resource.healthStatus }}
@@ -66,55 +69,69 @@ import { Resource, HealthCheckResult } from '../../core/models/resource.model';
       <mat-divider></mat-divider>
 
       <!-- Endpoints -->
-      <section class="detail-section" *ngIf="endpoints.length > 0">
-        <h3 class="section-title">Endpoints</h3>
-        <div class="endpoint-list">
-          <div class="endpoint-item" *ngFor="let ep of endpoints">
-            <mat-icon>link</mat-icon>
-            <code>{{ ep }}</code>
+      @if (endpoints.length > 0) {
+        <section class="detail-section">
+          <h3 class="section-title">{{ 'dashboard.resources.endpoints' | hhTranslate:'Endpoints' }}</h3>
+          <div class="endpoint-list">
+            @for (ep of endpoints; track ep) {
+              <div class="endpoint-item">
+                <mat-icon>link</mat-icon>
+                <code>{{ ep }}</code>
+              </div>
+            }
           </div>
-        </div>
-      </section>
+        </section>
+      }
 
       <mat-divider></mat-divider>
 
       <!-- Health Checks -->
-      <section class="detail-section" *ngIf="healthChecks.length > 0">
-        <h3 class="section-title">Health Checks</h3>
-        <div class="health-list">
-          <div class="health-item" *ngFor="let hc of healthChecks">
-            <span class="health-dot" [class.pass]="hc.status === 'Pass'"
-                                     [class.fail]="hc.status === 'Fail'"
-                                     [class.warn]="hc.status !== 'Pass' && hc.status !== 'Fail'"></span>
-            <div class="health-info">
-              <span class="health-name">{{ hc.description || hc.status }}</span>
-              <span class="health-duration" *ngIf="hc.duration">{{ hc.duration }}</span>
-            </div>
+      @if (healthChecks.length > 0) {
+        <section class="detail-section">
+          <h3 class="section-title">{{ 'dashboard.resources.healthChecks' | hhTranslate:'Health Checks' }}</h3>
+          <div class="health-list">
+            @for (hc of healthChecks; track hc.description) {
+              <div class="health-item">
+                <span class="health-dot" [class.pass]="hc.status === 'Pass'"
+                                         [class.fail]="hc.status === 'Fail'"
+                                         [class.warn]="hc.status !== 'Pass' && hc.status !== 'Fail'"></span>
+                <div class="health-info">
+                  <span class="health-name">{{ hc.description || hc.status }}</span>
+                  @if (hc.duration) {
+                    <span class="health-duration">{{ hc.duration }}</span>
+                  }
+                </div>
+              </div>
+            }
           </div>
-        </div>
-      </section>
+        </section>
+      }
 
       <mat-divider></mat-divider>
 
       <!-- Environment Variables -->
-      <section class="detail-section" *ngIf="envVars.length > 0">
-        <h3 class="section-title">Biến môi trường</h3>
-        <div class="env-list">
-          <div class="env-item" *ngFor="let ev of envVars">
-            <span class="env-key">{{ ev.key }}</span>
-            <span class="env-value">{{ ev.value }}</span>
+      @if (envVars.length > 0) {
+        <section class="detail-section">
+          <h3 class="section-title">{{ 'dashboard.resources.envVars' | hhTranslate:'Biến môi trường' }}</h3>
+          <div class="env-list">
+            @for (ev of envVars; track ev.key) {
+              <div class="env-item">
+                <span class="env-key">{{ ev.key }}</span>
+                <span class="env-value">{{ ev.value }}</span>
+              </div>
+            }
           </div>
-        </div>
-      </section>
+        </section>
+      }
 
       <mat-divider></mat-divider>
 
       <!-- Replicas & Uptime -->
       <section class="detail-section">
-        <h3 class="section-title">Thông tin vận hành</h3>
+        <h3 class="section-title">{{ 'dashboard.resources.operations' | hhTranslate:'Thông tin vận hành' }}</h3>
         <div class="info-grid">
           <div class="info-item">
-            <span class="info-label">Số replicas</span>
+            <span class="info-label">{{ 'dashboard.resources.replicas' | hhTranslate:'Số replicas' }}</span>
             <span class="info-value">{{ instanceCount }}</span>
           </div>
           <div class="info-item">
@@ -125,7 +142,7 @@ import { Resource, HealthCheckResult } from '../../core/models/resource.model';
       </section>
 
       <mat-dialog-actions align="end">
-        <button mat-stroked-button (click)="close()">Đóng</button>
+        <button mat-stroked-button (click)="close()">{{ 'dashboard.resources.close' | hhTranslate:'Đóng' }}</button>
       </mat-dialog-actions>
     </div>
   `,
@@ -290,7 +307,9 @@ export class ResourceDetailComponent {
     this.resource = data.resource;
   }
 
-  statusLabel(status: string): string { return ({ Running: 'Đang chạy', Healthy: 'Khỏe mạnh', Stopped: 'Đã dừng', Degraded: 'Suy giảm', Unhealthy: 'Mất sức khỏe', Unknown: 'Không xác định' } as Record<string, string>)[status] ?? status; }
+  private readonly i18n = inject(HisHopeI18nService);
+
+  statusLabel(status: string): string { return ({ Running: this.i18n.t('dashboard.resources.status.running', 'Đang chạy'), Healthy: this.i18n.t('dashboard.resources.status.healthy', 'Khỏe mạnh'), Stopped: this.i18n.t('dashboard.resources.status.stopped', 'Đã dừng'), Degraded: this.i18n.t('dashboard.resources.status.degraded', 'Suy giảm'), Unhealthy: this.i18n.t('dashboard.resources.status.unhealthy', 'Mất sức khỏe'), Unknown: this.i18n.t('dashboard.resources.status.unknown', 'Không xác định') } as Record<string, string>)[status] ?? status; }
   statusTone(status: string): HisHopeStatusTone { if (status === 'Running' || status === 'Healthy') return 'success'; if (status === 'Degraded') return 'warning'; if (status === 'Stopped') return 'neutral'; return 'danger'; }
 
   get endpoints(): string[] {

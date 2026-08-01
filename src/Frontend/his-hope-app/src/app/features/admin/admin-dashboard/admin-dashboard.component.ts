@@ -1,166 +1,94 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { MatCardModule } from '@angular/material/card';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { CommonModule } from '@angular/common';
-import { Router, RouterModule } from '@angular/router';
+import { RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
 import { AdminService } from '@core/services/admin.service';
 import { AdminDashboardStats } from '@core/models/admin.model';
-import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
+import {
+  HisHopeMetricCardComponent,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopeStateComponent,
+  HisHopeTranslatePipe,
+  HisHopeI18nService,
+} from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-admin-dashboard',
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule, RouterModule, LoadingSpinnerComponent],
+  imports: [
+    CommonModule, MatButtonModule, MatIconModule, RouterModule,
+    HisHopeMetricCardComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent,
+    HisHopeStateComponent, HisHopeTranslatePipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="admin-dashboard">
-      <div class="page-header">
-        <h1>Quản trị hệ thống</h1>
-        <p class="subtitle">Tổng quan về hệ thống và điều hướng nhanh</p>
-      </div>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader [title]="'adminPage.dashboardTitle' | hhTranslate:'Quản trị hệ thống'"
+                      [subtitle]="'adminPage.dashboardSubtitle' | hhTranslate:'Tổng quan về hệ thống và điều hướng nhanh'" />
 
-      <app-loading-spinner [loading]="loading" message="Đang tải dữ liệu..."></app-loading-spinner>
-
-      @if (!loading) {
-      <div class="stats-grid">
-        <mat-card class="stat-card" routerLink="/admin/manage-users" tabindex="0" role="link"
-                  (keydown.enter)="goTo('/admin/manage-users')"
-                  (keydown.space)="$event.preventDefault(); goTo('/admin/manage-users')">
-          <mat-card-content>
-            <div class="stat-icon users">
-              <mat-icon>people</mat-icon>
-            </div>
-            <div class="stat-info">
-              <span class="stat-value">{{ stats?.totalUsers ?? 0 }}</span>
-              <span class="stat-label">Người dùng</span>
-            </div>
-          </mat-card-content>
-          <mat-card-actions>
-            <button mat-button color="primary">Quản lý người dùng</button>
-          </mat-card-actions>
-        </mat-card>
-
-        <mat-card class="stat-card" routerLink="/admin/manage-roles" tabindex="0" role="link"
-                  (keydown.enter)="goTo('/admin/manage-roles')"
-                  (keydown.space)="$event.preventDefault(); goTo('/admin/manage-roles')">
-          <mat-card-content>
-            <div class="stat-icon roles">
-              <mat-icon>admin_panel_settings</mat-icon>
-            </div>
-            <div class="stat-info">
-              <span class="stat-value">{{ stats?.activeRoles ?? 0 }}</span>
-              <span class="stat-label">Vai trò hoạt động</span>
-            </div>
-          </mat-card-content>
-          <mat-card-actions>
-            <button mat-button color="primary">Quản lý vai trò</button>
-          </mat-card-actions>
-        </mat-card>
-
-        <mat-card class="stat-card" routerLink="/admin/audit-logs" tabindex="0" role="link"
-                  (keydown.enter)="goTo('/admin/audit-logs')"
-                  (keydown.space)="$event.preventDefault(); goTo('/admin/audit-logs')">
-          <mat-card-content>
-            <div class="stat-icon audit">
-              <mat-icon>receipt_long</mat-icon>
-            </div>
-            <div class="stat-info">
-              <span class="stat-value">{{ lastAuditDate }}</span>
-              <span class="stat-label">Nhật ký gần nhất</span>
-            </div>
-          </mat-card-content>
-          <mat-card-actions>
-            <button mat-button color="primary">Xem nhật ký</button>
-          </mat-card-actions>
-        </mat-card>
-
-        <mat-card class="stat-card" routerLink="/admin/settings" tabindex="0" role="link"
-                  (keydown.enter)="goTo('/admin/settings')"
-                  (keydown.space)="$event.preventDefault(); goTo('/admin/settings')">
-          <mat-card-content>
-            <div class="stat-icon" [ngClass]="healthClass">
-              <mat-icon>{{ healthIcon }}</mat-icon>
-            </div>
-            <div class="stat-info">
-              <span class="stat-value">{{ healthLabel }}</span>
-              <span class="stat-label">Trạng thái hệ thống</span>
-            </div>
-          </mat-card-content>
-          <mat-card-actions>
-            <button mat-button color="primary">Xem cài đặt</button>
-          </mat-card-actions>
-        </mat-card>
-      </div>
-      }
-
-      @if (!loading) {
-      <div class="quick-links">
-        <h2>Truy cập nhanh</h2>
-        <div class="links-grid">
-          <a mat-stroked-button routerLink="/admin/manage-users">
-            <mat-icon>people</mat-icon> Quản lý người dùng
-          </a>
-          <a mat-stroked-button routerLink="/admin/manage-roles">
-            <mat-icon>admin_panel_settings</mat-icon> Vai trò & quyền
-          </a>
-          <a mat-stroked-button routerLink="/admin/settings">
-            <mat-icon>settings</mat-icon> Cài đặt hệ thống
-          </a>
-          <a mat-stroked-button routerLink="/admin/audit-logs">
-            <mat-icon>receipt_long</mat-icon> Nhật ký truy cập
-          </a>
+      @if (loading) {
+        <hh-state kind="loading" [message]="'common.loading' | hhTranslate:'Đang tải dữ liệu...'" />
+      } @else if (error) {
+        <hh-state kind="error" [message]="error">
+          <button mat-stroked-button type="button" (click)="loadStats()">{{ 'common.retry' | hhTranslate }}</button>
+        </hh-state>
+      } @else if (stats) {
+        <div class="stats-grid">
+          <hh-metric-card icon="people" [label]="'adminPage.totalUsers' | hhTranslate:'Người dùng'" [value]="stats.totalUsers"
+                          link="/admin/manage-users" [action]="'adminPage.manageUsers' | hhTranslate:'Quản lý người dùng'" />
+          <hh-metric-card icon="admin_panel_settings" [label]="'adminPage.activeRolesLabel' | hhTranslate:'Vai trò hoạt động'" [value]="stats.activeRoles"
+                          link="/admin/manage-roles" [action]="'adminPage.manageRoles' | hhTranslate:'Quản lý vai trò'" tone="info" />
+          <hh-metric-card icon="receipt_long" [label]="'adminPage.recentLogs' | hhTranslate:'Nhật ký gần nhất'" [value]="lastAuditDate"
+                          link="/admin/audit-logs" [action]="'adminPage.viewLogs' | hhTranslate:'Xem nhật ký'" tone="warning" />
+          <hh-metric-card [icon]="healthIcon" [label]="'adminPage.systemHealth' | hhTranslate:'Trạng thái hệ thống'" [value]="healthLabel"
+                          link="/admin/settings" [action]="'adminPage.viewSettings' | hhTranslate:'Xem cài đặt'" [tone]="healthTone" />
         </div>
-      </div>
+
+        <div class="quick-links">
+          <h2>{{ 'adminPage.quickAccess' | hhTranslate:'Truy cập nhanh' }}</h2>
+          <div class="links-grid">
+            <a mat-stroked-button routerLink="/admin/manage-users">
+              <mat-icon>people</mat-icon> {{ 'adminPage.manageUsers' | hhTranslate:'Quản lý người dùng' }}
+            </a>
+            <a mat-stroked-button routerLink="/admin/manage-roles">
+              <mat-icon>admin_panel_settings</mat-icon> {{ 'adminPage.rolesAndPermissions' | hhTranslate:'Vai trò & quyền' }}
+            </a>
+            <a mat-stroked-button routerLink="/admin/settings">
+              <mat-icon>settings</mat-icon> {{ 'adminPage.settings' | hhTranslate:'Cài đặt hệ thống' }}
+            </a>
+            <a mat-stroked-button routerLink="/admin/audit-logs">
+              <mat-icon>receipt_long</mat-icon> {{ 'adminPage.auditLogs' | hhTranslate:'Nhật ký truy cập' }}
+            </a>
+          </div>
+        </div>
       }
-    </div>
+    </hh-page-layout>
   `,
   styles: [`
-    .admin-dashboard { padding: 0; max-width: 1200px; margin: 0 auto; font-family: var(--font-sans) !important; }
-    .admin-dashboard :not(mat-icon):not(.material-icons) { font-family: var(--font-sans) !important; }
-    .page-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; margin-bottom: 28px; }
-    .page-header h1 { margin: 0; font-size: var(--font-size-title, 24px); line-height: 1.25; font-weight: 700; color: var(--text-primary); letter-spacing: 0; }
-    .subtitle { margin: 0 0 3px; color: var(--text-secondary); font-size: 13px; }
-
     .stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 36px; }
-    .stat-card { min-height: 172px; border-radius: 10px; border: 1px solid var(--border-default); cursor: pointer; transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
-    .stat-card:hover { border-color: var(--color-primary); box-shadow: 0 8px 22px rgba(47, 107, 74, 0.1); transform: translateY(-2px); }
-    .stat-card:active { transform: scale(0.98); }
-    .stat-card:focus-visible { outline: 2px solid var(--mat-sys-primary); outline-offset: 2px; }
-    .stat-card mat-card-content { display: flex; align-items: center; gap: 16px; padding: 20px 20px 12px; }
-    .stat-icon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0; }
-    .stat-icon mat-icon { font-size: 24px; width: 24px; height: 24px; }
-    .stat-icon.users { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
-    .stat-icon.roles { background: var(--mat-sys-tertiary-container); color: var(--mat-sys-on-tertiary-container); }
-    .stat-icon.audit { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
-    .stat-icon.healthy { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
-    .stat-icon.degraded { background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
-    .stat-icon.down { background: var(--mat-sys-error-container); color: var(--mat-sys-on-error-container); }
-    .stat-info { display: flex; flex-direction: column; }
-    .stat-value { font-size: 23px; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
-    .stat-label { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
-    mat-card-actions { padding: 0 16px 12px; }
 
     .quick-links h2 { font-size: 18px; font-weight: 700; color: var(--text-primary); margin: 0 0 16px; }
     .links-grid { display: flex; flex-wrap: wrap; gap: 12px; }
     .links-grid a { display: flex; align-items: center; gap: 8px; min-width: 180px; border-radius: 6px; border: 1px solid var(--border-default); }
     .links-grid a:hover { border-color: var(--mat-sys-primary); background: rgba(47, 107, 74, 0.03); }
     @media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-    @media (max-width: 600px) { .page-header { align-items: flex-start; flex-direction: column; gap: 6px; } .stats-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 600px) { .stats-grid { grid-template-columns: 1fr; } }
   `],
 })
 export class AdminDashboardComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
+  private i18n = inject(HisHopeI18nService);
 
   loading = true;
+  error: string | null = null;
   stats: AdminDashboardStats | null = null;
 
   constructor(
     private adminService: AdminService,
     private cdr: ChangeDetectorRef,
-    private router: Router,
   ) {}
 
   ngOnInit(): void {
@@ -174,6 +102,7 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
   loadStats(): void {
     this.loading = true;
+    this.error = null;
     this.cdr.markForCheck();
 
     this.adminService.getDashboardStats()
@@ -186,24 +115,21 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.loading = false;
+          this.error = this.i18n.t('adminPage.loadError', 'Không thể tải dữ liệu tổng quan');
           this.cdr.markForCheck();
         },
       });
   }
 
   get lastAuditDate(): string {
-    if (!this.stats?.lastAuditEntry) return 'Chưa có';
+    if (!this.stats?.lastAuditEntry) return this.i18n.t('adminPage.noData', 'Chưa có');
     const d = new Date(this.stats.lastAuditEntry);
     const now = new Date();
     const diffHours = Math.floor((now.getTime() - d.getTime()) / 3600000);
-    if (diffHours < 1) return 'Vừa xong';
-    if (diffHours < 24) return `${diffHours} giờ trước`;
+    if (diffHours < 1) return this.i18n.t('adminPage.justNow', 'Vừa xong');
+    if (diffHours < 24) return this.i18n.t('adminPage.hoursAgo', '{{n}} giờ trước', { n: diffHours });
     const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays} ngày trước`;
-  }
-
-  get healthClass(): string {
-    return this.stats?.systemHealth || 'healthy';
+    return this.i18n.t('adminPage.daysAgo', '{{n}} ngày trước', { n: diffDays });
   }
 
   get healthIcon(): string {
@@ -217,14 +143,19 @@ export class AdminDashboardComponent implements OnInit, OnDestroy {
 
   get healthLabel(): string {
     switch (this.stats?.systemHealth) {
-      case 'healthy': return 'Hoạt động tốt';
-      case 'degraded': return 'Suy giảm';
-      case 'down': return 'Ngừng hoạt động';
-      default: return 'Không xác định';
+      case 'healthy': return this.i18n.t('adminPage.healthHealthy', 'Hoạt động tốt');
+      case 'degraded': return this.i18n.t('adminPage.healthDegraded', 'Suy giảm');
+      case 'down': return this.i18n.t('adminPage.healthDown', 'Ngừng hoạt động');
+      default: return this.i18n.t('adminPage.healthUnknown', 'Không xác định');
     }
   }
 
-  goTo(path: string): void {
-    this.router.navigate([path]);
+  get healthTone(): string {
+    switch (this.stats?.systemHealth) {
+      case 'healthy': return 'success';
+      case 'degraded': return 'warning';
+      case 'down': return 'danger';
+      default: return 'neutral';
+    }
   }
 }

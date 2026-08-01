@@ -1,10 +1,11 @@
 // His.Hope EMR - Global Styles
-// Warm clinical utilitarian minimalism — Angular Material 3 overrides
-// Palette: #F7F6F3 bone; #FFFFFF cards; #EAEAEA borders; 8px/6px/4px radii
+// Warm clinical utilitarian minimalism — Angular Material 3 overrides.
+// Shared foundation rules (reset, typography, cards, buttons, tables, forms,
+// tabs, paginator, dialog, snackbar, chip, states, page headers, status-badge
+// base) are owned by @his-hope/frontend-foundation and applied via ./theme.
+// This file keeps ONLY the app-unique utilities the foundation does not own.
 
-@use '@angular/material' as mat;
 @use './theme';
-@use '@his-hope/frontend-foundation/styles';
 @import 'material-icons/iconfont/material-icons.css';
 @import '@fontsource/inter/400.css';
 @import '@fontsource/inter/500.css';
@@ -12,60 +13,8 @@
 @import '@fontsource/inter/700.css';
 
 // ═══════════════════════════════════════════
-// Base Layout
-// ═══════════════════════════════════════════
-*, *::before, *::after {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-html {
-  scroll-behavior: smooth;
-}
-
-body {
-  margin: 0;
-  font-family: var(--font-sans);
-  font-size: var(--font-size-body, 14px);
-  background-color: var(--bg-warm, #F7F6F3);
-  color: var(--text-primary, #1A1A1A);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  line-height: 1.5;
-  text-rendering: optimizeLegibility;
-  font-variant-numeric: tabular-nums;
-}
-
-.mat-icon.material-icons,
-.mat-icon.mat-ligature-font {
-  font-family: 'Material Icons' !important;
-  font-weight: normal;
-  font-style: normal;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  font-feature-settings: 'liga';
-  -webkit-font-feature-settings: 'liga';
-  -webkit-font-smoothing: antialiased;
-}
-
-// ═══════════════════════════════════════════
 // App Container — max-width constrained
 // ═══════════════════════════════════════════
-.main-content {
-  min-height: 100vh;
-  // padding handled by individual feature pages
-
-  @media (max-width: 599px) {
-    padding: 12px;
-  }
-}
-
-// Container utility
 .container {
   max-width: var(--max-width-container, 1200px);
   margin: 0 auto;
@@ -88,291 +37,6 @@ body {
 
 .section-compact {
   margin-bottom: 16px;
-}
-
-// ═══════════════════════════════════════════
-// Card overrides — flat, 1px border, 8px radius
-// ═══════════════════════════════════════════
-.mat-mdc-card {
-  border-radius: var(--radius-card, 8px) !important;
-  border: 1px solid var(--border-default, #EAEAEA) !important;
-  box-shadow: none !important;
-  background: var(--surface-white, #FFFFFF);
-}
-
-.mat-mdc-card-header {
-  padding: 20px 20px 0;
-}
-
-.mat-mdc-card-content {
-  padding: 20px;
-}
-
-.mat-mdc-card-actions {
-  padding: 0 20px 12px;
-}
-
-// ═══════════════════════════════════════════
-// Button styles — 6px radius, no shadow, clean
-// ═══════════════════════════════════════════
-.mat-mdc-button,
-.mat-mdc-raised-button,
-.mat-mdc-stroked-button,
-.mat-mdc-outlined-button,
-.mat-mdc-unelevated-button {
-  border-radius: var(--radius-button, 6px) !important;
-  box-shadow: none !important;
-  font-family: var(--font-sans) !important;
-  font-size: var(--button-font-size, 14px) !important;
-  font-weight: var(--button-font-weight, 600) !important;
-  letter-spacing: 0 !important;
-}
-
-.mat-mdc-raised-button:not(:disabled):active,
-.mat-mdc-unelevated-button:not(:disabled):active {
-  transform: scale(0.98);
-  transition: transform 50ms ease;
-}
-
-.mat-mdc-stroked-button {
-  border-width: 1px;
-}
-
-// Remove focus ring overrides — keep accessible
-.mat-mdc-button,
-.mat-mdc-raised-button,
-.mat-mdc-stroked-button {
-  --mdc-text-button-container-shape: 6px;
-  --mdc-filled-button-container-shape: 6px;
-  --mdc-outlined-button-container-shape: 6px;
-  --mdc-protected-button-container-shape: 6px;
-}
-
-// ═══════════════════════════════════════════
-// Elevation override — kill all Material elevation classes
-// ═══════════════════════════════════════════
-[class*="mat-elevation-z"] {
-  box-shadow: none !important;
-}
-
-// Keep elevation only for overlay elements (menus, dialogs)
-.cdk-overlay-pane [class*="mat-elevation-z"] {
-  box-shadow: var(--shadow-dropdown, 0 2px 8px rgba(0, 0, 0, 0.08)) !important;
-}
-
-// ═══════════════════════════════════════════
-// Table styling — border-bottom dividers, no shadow
-// ═══════════════════════════════════════════
-.mat-mdc-table {
-  border-radius: 0;
-  overflow: hidden;
-  background: transparent;
-}
-
-.mat-mdc-header-row {
-  border-bottom: 1px solid var(--border-default, #EAEAEA);
-}
-
-.mat-mdc-row {
-  border-bottom: 1px solid var(--border-light, #F0F0EE);
-  transition: background-color 150ms ease;
-
-  &:hover {
-    background-color: rgba(0, 0, 0, 0.02);
-  }
-
-  &:last-child {
-    border-bottom: none;
-  }
-}
-
-.mat-mdc-cell,
-.mat-mdc-header-cell {
-  border-bottom: none;
-}
-
-// ═══════════════════════════════════════════
-// Form fields — 4px radius inputs
-// ═══════════════════════════════════════════
-.mat-mdc-form-field {
-  --mdc-outlined-text-field-container-shape: var(--radius-input, 4px);
-  --mdc-filled-text-field-container-shape: var(--radius-input, 4px);
-}
-
-.mdc-text-field--outlined {
-  --mdc-outlined-text-field-outline-width: 1px;
-  --mdc-outlined-text-field-focus-outline-width: 2px;
-}
-
-// ═══════════════════════════════════════════
-// Tabs — clean underline, no background
-// ═══════════════════════════════════════════
-.mat-mdc-tab-group,
-.mat-mdc-tab-nav-bar {
-  --mdc-tab-indicator-active-indicator-height: 2px;
-  --mat-tab-header-active-label-text-color: var(--color-primary, #2F6B4A);
-  --mat-tab-header-active-ripple-color: rgba(47, 107, 74, 0.1);
-  --mat-tab-header-inactive-label-text-color: var(--text-secondary, #787774);
-  --mat-tab-header-inactive-ripple-color: rgba(0, 0, 0, 0.05);
-  --mat-tab-header-active-focus-label-text-color: var(--color-primary, #2F6B4A);
-  --mat-tab-header-active-hover-label-text-color: var(--color-primary, #2F6B4A);
-  --mat-tab-header-pagination-icon-color: var(--text-secondary, #787774);
-  --mat-tab-header-divider-color: var(--border-light, #F0F0EE);
-}
-
-.mat-mdc-tab-header {
-  --mat-tab-header-divider-height: 1px;
-}
-
-.mat-mdc-tab {
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
-
-// ═══════════════════════════════════════════
-// Status badges — pastel palette, 4px radius
-// ═══════════════════════════════════════════
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 10px;
-  border-radius: var(--radius-badge, 4px);
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.6;
-  white-space: nowrap;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-
-  // -- Status-specific overrides via M3 container tokens --
-  &.status-in_progress,
-  &.status-active,
-  &.status-ordered,
-  &.status-collected,
-  &.status-progress,
-  &.status-scheduled,
-  &.status-checked_in,
-  &.apt-status-scheduled,
-  &.rx-status-active,
-  &.lab-status-ordered,
-  &.lab-status-collected,
-  &.lab-status-in_progress {
-    background: var(--mat-sys-tertiary-container);
-    color: var(--mat-sys-on-tertiary-container);
-  }
-
-  &.status-completed,
-  &.status-filled,
-  &.status-paid,
-  &.apt-status-checked_in,
-  &.apt-status-completed,
-  &.lab-status-completed,
-  &.rx-status-filled,
-  &.inv-status-paid {
-    background: var(--mat-sys-secondary-container);
-    color: var(--mat-sys-on-secondary-container);
-  }
-
-  &.status-signed,
-  &.status-expired,
-  &.rx-status-expired,
-  &.inv-status-voided,
-  &.status-voided {
-    background: var(--pastel-purple);
-    color: var(--pastel-purple-text);
-  }
-
-  &.status-cancelled,
-  &.apt-status-cancelled,
-  &.lab-status-cancelled,
-  &.rx-status-cancelled,
-  &.inv-status-cancelled {
-    background: var(--mat-sys-error-container);
-    color: var(--mat-sys-on-error-container);
-  }
-
-  &.status-pending,
-  &.status-draft,
-  &.status-partial,
-  &.status-issued,
-  &.status-partially_paid,
-  &.inv-status-draft,
-  &.inv-status-issued,
-  &.inv-status-partially_paid,
-  &.lab-status-pending {
-    background: var(--mat-sys-primary-container);
-    color: var(--mat-sys-on-primary-container);
-  }
-
-  &.status-overdue,
-  &.inv-status-overdue,
-  &.lab-status-abnormal,
-  &.status-abnormal {
-    background: var(--mat-sys-error-container);
-    color: var(--mat-sys-on-error-container);
-    font-weight: 600;
-  }
-
-  &.status-inactive {
-    background: var(--mat-sys-surface-variant);
-    color: var(--mat-sys-on-surface-variant);
-  }
-}
-
-// Priority badges
-.priority-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 10px;
-  border-radius: var(--radius-badge, 4px);
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.6;
-  white-space: nowrap;
-  text-transform: uppercase;
-
-  &.priority-high,
-  &.priority-urgent {
-    background: var(--pastel-orange);
-    color: var(--pastel-orange-text);
-  }
-
-  &.priority-routine {
-    background: var(--mat-sys-secondary-container);
-    color: var(--mat-sys-on-secondary-container);
-  }
-}
-
-// ═══════════════════════════════════════════
-// Paginator
-// ═══════════════════════════════════════════
-.mat-mdc-paginator {
-  border-top: 1px solid var(--border-light, #F0F0EE);
-}
-
-// ═══════════════════════════════════════════
-// Dialog / Modal
-// ═══════════════════════════════════════════
-.mat-mdc-dialog-container {
-  --mdc-dialog-container-shape: var(--radius-card, 8px);
-}
-
-.mdc-dialog__surface {
-  box-shadow: var(--shadow-modal, 0 8px 24px rgba(0, 0, 0, 0.12)) !important;
-}
-
-// ═══════════════════════════════════════════
-// Snackbar
-// ═══════════════════════════════════════════
-.mat-mdc-snack-bar-container {
-  --mdc-snackbar-container-shape: var(--radius-card, 8px);
-}
-
-// ═══════════════════════════════════════════
-// Chip
-// ═══════════════════════════════════════════
-.mat-mdc-chip {
-  border-radius: var(--radius-badge, 4px) !important;
 }
 
 // ═══════════════════════════════════════════
@@ -431,7 +95,7 @@ body {
 }
 
 // ═══════════════════════════════════════════
-// Scrollbar (material-compatible)
+// Scrollbar (material-compatible, token-driven)
 // ═══════════════════════════════════════════
 ::-webkit-scrollbar {
   width: 6px;
@@ -440,11 +104,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
+  background: var(--border-strong);
   border-radius: 3px;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--text-muted);
   }
 }
 
@@ -479,64 +143,109 @@ body {
 }
 
 // ═══════════════════════════════════════════
-// Loading + empty states (consistent styling)
+// Status badges — pastel/M3 tone variants.
+// Foundation owns the .status-badge base shape; keep the app's uppercase look
+// and the status-specific color map the foundation does not provide.
 // ═══════════════════════════════════════════
-.loading-state {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 48px;
-  color: var(--text-muted, #A1A09B);
+.status-badge {
+  text-transform: uppercase;
 }
 
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
-  color: var(--text-muted, #A1A09B);
-  text-align: center;
-
-  mat-icon {
-    font-size: 48px;
-    width: 48px;
-    height: 48px;
-    margin-bottom: 16px;
-    opacity: 0.4;
-  }
-
-  p {
-    font-size: 14px;
-    line-height: 1.6;
-    max-width: 320px;
-  }
+.status-badge.status-in_progress,
+.status-badge.status-active,
+.status-badge.status-ordered,
+.status-badge.status-collected,
+.status-badge.status-progress,
+.status-badge.status-scheduled,
+.status-badge.status-checked_in,
+.status-badge.apt-status-scheduled,
+.status-badge.rx-status-active,
+.status-badge.lab-status-ordered,
+.status-badge.lab-status-collected,
+.status-badge.lab-status-in_progress {
+  background: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
 }
 
-// ═══════════════════════════════════════════
-// Section headers
-// ═══════════════════════════════════════════
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
-  gap: 12px;
+.status-badge.status-completed,
+.status-badge.status-filled,
+.status-badge.status-paid,
+.status-badge.apt-status-checked_in,
+.status-badge.apt-status-completed,
+.status-badge.lab-status-completed,
+.status-badge.rx-status-filled,
+.status-badge.inv-status-paid {
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
 }
 
-.page-title {
-  font-size: 24px;
+.status-badge.status-signed,
+.status-badge.status-expired,
+.status-badge.rx-status-expired,
+.status-badge.inv-status-voided,
+.status-badge.status-voided {
+  background: var(--pastel-purple, #F0ECFA);
+  color: var(--pastel-purple-text, #6B4FA0);
+}
+
+.status-badge.status-cancelled,
+.status-badge.apt-status-cancelled,
+.status-badge.lab-status-cancelled,
+.status-badge.rx-status-cancelled,
+.status-badge.inv-status-cancelled {
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.status-badge.status-pending,
+.status-badge.status-draft,
+.status-badge.status-partial,
+.status-badge.status-issued,
+.status-badge.status-partially_paid,
+.status-badge.inv-status-draft,
+.status-badge.inv-status-issued,
+.status-badge.inv-status-partially_paid,
+.status-badge.lab-status-pending {
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.status-badge.status-overdue,
+.status-badge.inv-status-overdue,
+.status-badge.lab-status-abnormal,
+.status-badge.status-abnormal {
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
   font-weight: 600;
-  color: var(--text-primary, #1A1A1A);
-  line-height: 1.3;
-  letter-spacing: 0;
 }
 
-.page-subtitle {
-  color: var(--text-secondary, #787774);
-  font-size: 14px;
-  margin-top: 4px;
+.status-badge.status-inactive {
+  background: var(--mat-sys-surface-variant);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// Priority badges
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: var(--radius-badge, 4px);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: nowrap;
+  text-transform: uppercase;
+
+  &.priority-high,
+  &.priority-urgent {
+    background: var(--pastel-orange, #FEF0E0);
+    color: var(--pastel-orange-text, #B6581C);
+  }
+
+  &.priority-routine {
+    background: var(--mat-sys-secondary-container);
+    color: var(--mat-sys-on-secondary-container);
+  }
 }
 
 // ═══════════════════════════════════════════

@@ -3,23 +3,26 @@ import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { Subscription } from 'rxjs';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { LogStreamService } from '../../core/services/log-stream.service';
 import { LogEntry } from '../../core/models/log-entry.model';
 
 @Component({
   selector: 'app-log-stream-view',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatIconModule],
+  imports: [CommonModule, MatButtonModule, MatIconModule, HisHopeTranslatePipe],
   template: `
     <div class="stream-container">
       <!-- Controls bar -->
       <div class="stream-controls">
         <div class="stream-status">
           <span class="status-dot" [class.active]="connected"></span>
-          <span class="status-text">{{ connected ? 'Streaming' : 'Disconnected' }}</span>
-          <span class="log-count" *ngIf="streamLogs.length > 0">
-            {{ streamLogs.length }} entries
-          </span>
+          <span class="status-text">{{ connected ? ('dashboard.logStream.streaming' | hhTranslate:'Streaming') : ('dashboard.logStream.disconnected' | hhTranslate:'Disconnected') }}</span>
+          @if (streamLogs.length > 0) {
+            <span class="log-count">
+              {{ streamLogs.length }} {{ 'dashboard.logStream.entries' | hhTranslate:'entries' }}
+            </span>
+          }
         </div>
         <div class="stream-actions">
           <button
@@ -28,7 +31,7 @@ import { LogEntry } from '../../core/models/log-entry.model';
             (click)="toggleStream()"
             [disabled]="connecting">
             <mat-icon>{{ connected ? 'pause' : 'play_arrow' }}</mat-icon>
-            {{ connected ? 'Pause' : 'Start' }}
+            {{ connected ? ('dashboard.logStream.pause' | hhTranslate:'Pause') : ('dashboard.logStream.start' | hhTranslate:'Start') }}
           </button>
           <button
             mat-stroked-button
@@ -36,7 +39,7 @@ import { LogEntry } from '../../core/models/log-entry.model';
             (click)="clearLogs()"
             [disabled]="streamLogs.length === 0">
             <mat-icon>clear_all</mat-icon>
-            Clear
+            {{ 'dashboard.logStream.clear' | hhTranslate:'Clear' }}
           </button>
           <button
             mat-stroked-button
@@ -44,36 +47,41 @@ import { LogEntry } from '../../core/models/log-entry.model';
             (click)="scrollToBottom()"
             [disabled]="autoScroll">
             <mat-icon>vertical_align_bottom</mat-icon>
-            {{ autoScroll ? 'Auto-scroll ON' : 'Scroll to bottom' }}
+            {{ autoScroll ? ('dashboard.logStream.autoScrollOn' | hhTranslate:'Auto-scroll ON') : ('dashboard.logStream.scrollToBottom' | hhTranslate:'Scroll to bottom') }}
           </button>
         </div>
       </div>
 
       <!-- Stream list -->
       <div class="stream-list" #streamList>
-        <div
-          *ngFor="let entry of streamLogs"
-          class="stream-entry"
-          [class.level-error]="entry.level === 'Error' || entry.level === 'Critical'"
-          [class.level-warning]="entry.level === 'Warning'"
-          [class.level-debug]="entry.level === 'Debug'">
-          <div class="entry-header">
-            <span class="entry-time">{{ entry.timestamp | date:'HH:mm:ss.SSS' }}</span>
-            <span class="entry-level" [class]="'level-' + entry.level.toLowerCase()">
-              {{ entry.level }}
-            </span>
-            <span class="entry-service">{{ entry.service }}</span>
+        @for (entry of streamLogs; track entry.id) {
+          <div
+            class="stream-entry"
+            [class.level-error]="entry.level === 'Error' || entry.level === 'Critical'"
+            [class.level-warning]="entry.level === 'Warning'"
+            [class.level-debug]="entry.level === 'Debug'">
+            <div class="entry-header">
+              <span class="entry-time">{{ entry.timestamp | date:'HH:mm:ss.SSS' }}</span>
+              <span class="entry-level" [class]="'level-' + entry.level.toLowerCase()">
+                {{ entry.level }}
+              </span>
+              <span class="entry-service">{{ entry.service }}</span>
+            </div>
+            <div class="entry-message">{{ entry.message }}</div>
+            @if (entry.exception) {
+              <div class="entry-detail">
+                <pre class="entry-exception">{{ entry.exception }}</pre>
+              </div>
+            }
           </div>
-          <div class="entry-message">{{ entry.message }}</div>
-          <div class="entry-detail" *ngIf="entry.exception">
-            <pre class="entry-exception">{{ entry.exception }}</pre>
-          </div>
-        </div>
+        }
 
-        <div class="stream-empty" *ngIf="streamLogs.length === 0 && !connected">
-          <mat-icon>radio_button_unchecked</mat-icon>
-          <p>Click <strong>Start</strong> to begin streaming logs in real time.</p>
-        </div>
+        @if (streamLogs.length === 0 && !connected) {
+          <div class="stream-empty">
+            <mat-icon>radio_button_unchecked</mat-icon>
+            <p>{{ 'dashboard.logStream.clickStartToBegin' | hhTranslate:'Click Start to begin streaming logs in real time.' }}</p>
+          </div>
+        }
       </div>
     </div>
   `,

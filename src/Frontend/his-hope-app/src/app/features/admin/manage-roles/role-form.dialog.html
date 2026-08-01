@@ -1,0 +1,85 @@
+    <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+      <hh-create-dialog-shell
+        [title]="(data.mode === 'create' ? 'roleForm.title.create' : 'roleForm.title.edit') | hhTranslate:(data.mode === 'create' ? 'Thêm vai trò' : 'Chỉnh sửa vai trò')"
+        [subtitle]="'roleForm.subtitle' | hhTranslate:'Định nghĩa chính sách truy cập và quyền hạn'">
+        <div hhCreateDialogContent>
+          <hh-form-layout>
+            <hh-form-section [title]="'roleForm.section.basic' | hhTranslate:'Thông tin vai trò'" [span]="2">
+              <div class="form-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'roleForm.name' | hhTranslate:'Tên vai trò' }}</mat-label>
+                  <input matInput formControlName="name" [placeholder]="'roleForm.namePlaceholder' | hhTranslate:'Nhập tên vai trò'" required>
+                  @if (form.get('name')?.hasError('required')) {
+                  <mat-error>{{ 'roleForm.nameRequired' | hhTranslate:'Vui lòng nhập tên vai trò' }}</mat-error>
+                  }
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'roleForm.description' | hhTranslate:'Mô tả' }}</mat-label>
+                  <textarea matInput formControlName="description" rows="3" [placeholder]="'roleForm.descriptionPlaceholder' | hhTranslate:'Mô tả vai trò...'" required></textarea>
+                  @if (form.get('description')?.hasError('required')) {
+                  <mat-error>{{ 'roleForm.descriptionRequired' | hhTranslate:'Vui lòng nhập mô tả' }}</mat-error>
+                  }
+                </mat-form-field>
+              </div>
+            </hh-form-section>
+          </hh-form-layout>
+
+          <div class="section-label">
+            <mat-icon>security</mat-icon>
+            <span>{{ 'roleForm.permissionMatrix' | hhTranslate:'Ma trận quyền' }}</span>
+          </div>
+
+          @if (permissionGroups.length > 0) {
+          <mat-accordion class="permission-accordion">
+            @for (group of permissionGroups; track group.groupName) {
+            <mat-expansion-panel expanded>
+              <mat-expansion-panel-header>
+                <mat-panel-title>
+                  <mat-checkbox [checked]="isGroupFullySelected(group)" [indeterminate]="isGroupPartiallySelected(group)"
+                                (change)="toggleGroup($event.checked, group)"
+                                (click)="$event.stopPropagation()">
+                    {{ group.groupName }}
+                  </mat-checkbox>
+                </mat-panel-title>
+                <mat-panel-description>
+                  {{ group.permissions.length }} {{ 'roleForm.permissions' | hhTranslate:'quyền' }}
+                </mat-panel-description>
+              </mat-expansion-panel-header>
+              <div class="perm-grid">
+                @for (perm of group.permissions; track perm.code) {
+                <div class="perm-item">
+                  <mat-checkbox [checked]="isPermissionSelected(perm.code)"
+                                (change)="togglePermission(perm.code, $event.checked)">
+                    <div class="perm-info">
+                      <span class="perm-name">{{ perm.name }}</span>
+                      <span class="perm-desc">{{ perm.description }}</span>
+                    </div>
+                  </mat-checkbox>
+                </div>
+                }
+              </div>
+            </mat-expansion-panel>
+            }
+          </mat-accordion>
+          } @else {
+          <div class="loading-state">
+            <mat-spinner diameter="24"></mat-spinner>
+            <span>{{ 'roleForm.loadingPermissions' | hhTranslate:'Đang tải quyền...' }}</span>
+          </div>
+          }
+        </div>
+        <div hhCreateDialogFooter>
+          <button mat-button type="button" mat-dialog-close [disabled]="saving">{{ 'common.cancel' | hhTranslate:'Hủy' }}</button>
+          <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid || saving">
+            <mat-icon>{{ data.mode === 'create' ? 'add_moderator' : 'save' }}</mat-icon>
+            @if (!saving) {
+            <span>{{ (data.mode === 'create' ? 'roleForm.save' : 'roleForm.saveChanges') | hhTranslate:(data.mode === 'create' ? 'Thêm vai trò' : 'Lưu thay đổi') }}</span>
+            }
+            @if (saving) {
+            <mat-spinner diameter="20"></mat-spinner>
+            }
+          </button>
+        </div>
+      </hh-create-dialog-shell>
+    </form>

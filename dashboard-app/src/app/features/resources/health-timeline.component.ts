@@ -4,6 +4,7 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 import { interval, Subscription } from 'rxjs';
 import { startWith, switchMap } from 'rxjs/operators';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { ResourceService } from '../../core/services/resource.service';
 import { Resource } from '../../core/models/resource.model';
 
@@ -74,129 +75,145 @@ function fmtTime(ts: number): string {
 @Component({
   selector: 'app-health-timeline',
   standalone: true,
-  imports: [CommonModule, MatChipsModule, MatIconModule],
+  imports: [CommonModule, MatChipsModule, MatIconModule, HisHopeTranslatePipe],
   template: `
     <section class="ht-section">
       <!-- Header -->
       <div class="ht-header">
-        <h3 class="ht-title">Health Timeline (24h)</h3>
-        <mat-chip
-          *ngIf="incidentCount > 0"
-          class="incident-chip"
-          color="warn"
-          highlighted
-          disableRipple>
-          {{ incidentCount }} incident{{ incidentCount !== 1 ? 's' : '' }}
-        </mat-chip>
-        <span class="ht-subtitle" *ngIf="incidentCount === 0 && serviceOrder.length > 0">All healthy</span>
+        <h3 class="ht-title">{{ 'dashboard.resources.healthTimeline' | hhTranslate:'Health Timeline (24h)' }}</h3>
+        @if (incidentCount > 0) {
+          <mat-chip
+            class="incident-chip"
+            color="warn"
+            highlighted
+            disableRipple>
+            {{ 'dashboard.resources.incidents' | hhTranslate:'{count} incident(s)':{ count: incidentCount } }}
+          </mat-chip>
+        }
+        @if (incidentCount === 0 && serviceOrder.length > 0) {
+          <span class="ht-subtitle">{{ 'dashboard.resources.allHealthy' | hhTranslate:'All healthy' }}</span>
+        }
       </div>
 
       <!-- Chart -->
       <div class="ht-chart-wrap" #chartWrap>
         <!-- Empty state -->
-        <div class="ht-empty" *ngIf="serviceOrder.length === 0">
-          <mat-icon>timeline</mat-icon>
-          <p>Waiting for health data…</p>
-        </div>
+        @if (serviceOrder.length === 0) {
+          <div class="ht-empty">
+            <mat-icon>timeline</mat-icon>
+            <p>{{ 'dashboard.resources.waitingHealthData' | hhTranslate:'Waiting for health data…' }}</p>
+          </div>
+        }
 
         <!-- SVG -->
-        <svg
-          *ngIf="serviceOrder.length > 0"
-          class="ht-svg"
-          [attr.viewBox]="'0 0 ' + SVG_VIEWBOX_W + ' ' + svgHeight"
-          preserveAspectRatio="xMidYMid meet"
-          (mouseleave)="hideTooltip()">
+        @if (serviceOrder.length > 0) {
+          <svg
+            class="ht-svg"
+            [attr.viewBox]="'0 0 ' + SVG_VIEWBOX_W + ' ' + svgHeight"
+            preserveAspectRatio="xMidYMid meet"
+            (mouseleave)="hideTooltip()">
 
-          <!-- Grid lines -->
-          <line
-            *ngFor="let t of ticks"
-            [attr.x1]="t.x" [attr.x2]="t.x"
-            y1="0" [attr.y2]="svgHeight - BOTTOM_PAD"
-            class="ht-gridline" />
+            <!-- Grid lines -->
+            @for (t of ticks; track $index) {
+              <line
+                [attr.x1]="t.x" [attr.x2]="t.x"
+                y1="0" [attr.y2]="svgHeight - BOTTOM_PAD"
+                class="ht-gridline" />
+            }
 
-          <!-- Per-service rows -->
-          <g *ngFor="let name of serviceOrder; let i = index" [attr.transform]="'translate(0,' + rowY(i) + ')'">
-            <!-- Label -->
-            <text
-              [attr.x]="LABEL_W - 8"
-              [attr.y]="ROW_H / 2 + 5"
-              text-anchor="end"
-              class="ht-label">{{ displayNameOf(name) }}</text>
+            <!-- Per-service rows -->
+            @for (name of serviceOrder; track name; let i = $index) {
+              <g [attr.transform]="'translate(0,' + rowY(i) + ')'">
+                <!-- Label -->
+                <text
+                  [attr.x]="LABEL_W - 8"
+                  [attr.y]="ROW_H / 2 + 5"
+                  text-anchor="end"
+                  class="ht-label">{{ displayNameOf(name) }}</text>
 
-            <!-- Bar background -->
-            <rect
-              [attr.x]="BAR_X0"
-              y="2"
-              [attr.width]="BAR_W"
-              [attr.height]="ROW_H - 4"
-              class="ht-bar-bg" />
+                <!-- Bar background -->
+                <rect
+                  [attr.x]="BAR_X0"
+                  y="2"
+                  [attr.width]="BAR_W"
+                  [attr.height]="ROW_H - 4"
+                  class="ht-bar-bg" />
 
-            <!-- Segments -->
-            <ng-container *ngFor="let seg of segmentsFor(name)">
-              <rect
-                *ngIf="seg.w > 0"
-                [attr.x]="seg.x"
-                y="2"
-                [attr.width]="seg.w"
-                [attr.height]="ROW_H - 4"
-                [attr.fill]="getStatusColor(seg.status)"
-                rx="3"
-                class="ht-seg"
-                (mouseenter)="showTooltip($event, seg)"
-                (mouseleave)="hideTooltip()"
-                (click)="onSegClick(seg)" />
-            </ng-container>
-          </g>
+                <!-- Segments -->
+                @for (seg of segmentsFor(name); track $index) {
+                  @if (seg.w > 0) {
+                    <rect
+                      [attr.x]="seg.x"
+                      y="2"
+                      [attr.width]="seg.w"
+                      [attr.height]="ROW_H - 4"
+                      [attr.fill]="getStatusColor(seg.status)"
+                      rx="3"
+                      class="ht-seg"
+                      (mouseenter)="showTooltip($event, seg)"
+                      (mouseleave)="hideTooltip()"
+                      (click)="onSegClick(seg)" />
+                  }
+                }
+              </g>
+            }
 
-          <!-- Time axis -->
-          <g [attr.transform]="'translate(0,' + (svgHeight - BOTTOM_PAD + 8) + ')'">
-            <text
-              *ngFor="let t of ticks"
-              [attr.x]="t.x"
-              y="12"
-              text-anchor="middle"
-              class="ht-axis">{{ t.label }}</text>
-          </g>
-        </svg>
+            <!-- Time axis -->
+            <g [attr.transform]="'translate(0,' + (svgHeight - BOTTOM_PAD + 8) + ')'">
+              @for (t of ticks; track $index) {
+                <text
+                  [attr.x]="t.x"
+                  y="12"
+                  text-anchor="middle"
+                  class="ht-axis">{{ t.label }}</text>
+              }
+            </g>
+          </svg>
+        }
 
         <!-- Tooltip -->
-        <div
-          class="ht-tooltip"
-          *ngIf="tooltip.visible"
-          [style.left.px]="tooltip.x"
-          [style.top.px]="tooltip.y">
-          <div class="ht-tooltip-name">{{ tooltip.displayName }}</div>
-          <div class="ht-tooltip-status" [style.color]="tooltip.color">{{ tooltip.status }}</div>
-          <div class="ht-tooltip-time">{{ tooltip.timeRange }}</div>
-        </div>
+        @if (tooltip.visible) {
+          <div
+            class="ht-tooltip"
+            [style.left.px]="tooltip.x"
+            [style.top.px]="tooltip.y">
+            <div class="ht-tooltip-name">{{ tooltip.displayName }}</div>
+            <div class="ht-tooltip-status" [style.color]="tooltip.color">{{ tooltip.status }}</div>
+            <div class="ht-tooltip-time">{{ tooltip.timeRange }}</div>
+          </div>
+        }
       </div>
 
       <!-- Legend -->
-      <div class="ht-legend" *ngIf="serviceOrder.length > 0">
-        <span class="ht-legend-item"><span class="ht-dot" style="background:#2F6B4A"></span>Healthy</span>
-        <span class="ht-legend-item"><span class="ht-dot" style="background:#B6581C"></span>Degraded</span>
-        <span class="ht-legend-item"><span class="ht-dot" style="background:#C25450"></span>Down</span>
-        <span class="ht-legend-item"><span class="ht-dot" style="background:#A1A09B"></span>Unknown</span>
-      </div>
+      @if (serviceOrder.length > 0) {
+        <div class="ht-legend">
+          <span class="ht-legend-item"><span class="ht-dot" style="background:#2F6B4A"></span>{{ 'dashboard.resources.healthy' | hhTranslate:'Healthy' }}</span>
+          <span class="ht-legend-item"><span class="ht-dot" style="background:#B6581C"></span>{{ 'dashboard.resources.degraded' | hhTranslate:'Degraded' }}</span>
+          <span class="ht-legend-item"><span class="ht-dot" style="background:#C25450"></span>{{ 'dashboard.resources.down' | hhTranslate:'Down' }}</span>
+          <span class="ht-legend-item"><span class="ht-dot" style="background:#A1A09B"></span>{{ 'dashboard.resources.unknown' | hhTranslate:'Unknown' }}</span>
+        </div>
+      }
 
       <!-- Incident detail -->
-      <div class="ht-incident" *ngIf="selectedIncident">
-        <div class="ht-incident-header">
-          <mat-icon>warning</mat-icon>
-          <span class="ht-incident-title">Incident: {{ selectedIncident.displayName }}</span>
-          <button class="ht-incident-close" (click)="selectedIncident = null">&times;</button>
-        </div>
-        <div class="ht-incident-body">
-          <div class="ht-incident-row">
-            <span class="ht-incident-label">Started</span>
-            <span>{{ selectedIncident.startedAt }}</span>
+      @if (selectedIncident) {
+        <div class="ht-incident">
+          <div class="ht-incident-header">
+            <mat-icon>warning</mat-icon>
+            <span class="ht-incident-title">{{ 'dashboard.resources.incidentLabel' | hhTranslate:'Incident' }}: {{ selectedIncident.displayName }}</span>
+            <button class="ht-incident-close" (click)="selectedIncident = null">&times;</button>
           </div>
-          <div class="ht-incident-row">
-            <span class="ht-incident-label">Duration</span>
-            <span>{{ selectedIncident.duration }}</span>
+          <div class="ht-incident-body">
+            <div class="ht-incident-row">
+              <span class="ht-incident-label">{{ 'dashboard.resources.started' | hhTranslate:'Started' }}</span>
+              <span>{{ selectedIncident.startedAt }}</span>
+            </div>
+            <div class="ht-incident-row">
+              <span class="ht-incident-label">{{ 'dashboard.resources.duration' | hhTranslate:'Duration' }}</span>
+              <span>{{ selectedIncident.duration }}</span>
+            </div>
           </div>
         </div>
-      </div>
+      }
     </section>
   `,
   styles: [`

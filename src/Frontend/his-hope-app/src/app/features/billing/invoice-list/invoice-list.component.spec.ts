@@ -2,21 +2,12 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { MatTableModule } from '@angular/material/table';
-import { MatPaginatorModule } from '@angular/material/paginator';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
-import { MatIconModule } from '@angular/material/icon';
-import { MatButtonModule } from '@angular/material/button';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { ReactiveFormsModule } from '@angular/forms';
-import { CommonModule } from '@angular/common';
 import { of } from 'rxjs';
 import { InvoiceListComponent } from './invoice-list.component';
 import { BillingService } from '@core/services/billing.service';
 import { createMockInvoice, createMockPagedResult } from '@testing/mock-data';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
+import { HisHopePageQuery } from '@his-hope/frontend-foundation';
 
 describe('InvoiceListComponent', () => {
   let component: InvoiceListComponent;
@@ -30,12 +21,8 @@ describe('InvoiceListComponent', () => {
     spy.searchInvoices.and.returnValue(of(createMockPagedResult(mockInvoices, 2)));
 
     await TestBed.configureTestingModule({
-    
     imports: [
-        InvoiceListComponent, RouterTestingModule, NoopAnimationsModule,
-        MatTableModule, MatPaginatorModule, MatFormFieldModule, MatInputModule,
-        MatSelectModule, MatIconModule, MatButtonModule, MatProgressBarModule,
-        ReactiveFormsModule, CommonModule],
+        InvoiceListComponent, RouterTestingModule, NoopAnimationsModule],
     providers: [
         { provide: BillingService, useValue: spy },
         provideHttpClient(withInterceptorsFromDi()),
@@ -70,8 +57,14 @@ describe('InvoiceListComponent', () => {
 
   it('should display invoice rows', () => {
     const compiled = fixture.nativeElement as HTMLElement;
-    const rows = compiled.querySelectorAll('mat-row');
+    const rows = compiled.querySelectorAll('.hh-data-table tbody tr');
     expect(rows.length).toBe(2);
+  });
+
+  it('should search invoices when the query changes', () => {
+    const query: HisHopePageQuery = { page: 1, pageSize: 20, search: 'INV-' };
+    component.onQueryChange(query);
+    expect(billingService.searchInvoices).toHaveBeenCalledWith(jasmine.objectContaining({ searchTerm: 'INV-' }));
   });
 
   it('should have component initialized', () => {

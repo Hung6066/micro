@@ -14,8 +14,6 @@ import { CommonModule } from '@angular/common';
 import { of } from 'rxjs';
 import { ManageRolesComponent } from './manage-roles.component';
 import { AdminService } from '@core/services/admin.service';
-import { LoadingSpinnerComponent } from '@shared/components/loading-spinner/loading-spinner.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 
 describe('ManageRolesComponent', () => {
@@ -35,7 +33,7 @@ describe('ManageRolesComponent', () => {
     await TestBed.configureTestingModule({
     
     imports: [
-        ManageRolesComponent, LoadingSpinnerComponent, EmptyStateComponent, RouterTestingModule, NoopAnimationsModule,
+        ManageRolesComponent, RouterTestingModule, NoopAnimationsModule,
         MatTableModule, MatButtonModule, MatIconModule, MatMenuModule,
         MatProgressSpinnerModule, MatTooltipModule, MatDialogModule,
         MatSnackBarModule, CommonModule],

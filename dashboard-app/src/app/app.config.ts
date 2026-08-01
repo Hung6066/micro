@@ -2,18 +2,23 @@ import {
   ApplicationConfig,
   ErrorHandler,
   importProvidersFrom,
+  PLATFORM_ID,
 } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { provideRouter } from '@angular/router';
 import { provideAnimations } from '@angular/platform-browser/animations';
-import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
 import { provideAuth } from 'angular-auth-oidc-client';
 import {
-  HisHopeGlobalErrorHandler,
   hisHopeCorrelationIdInterceptor,
   hisHopeErrorInterceptor,
+  HisHopeGlobalErrorHandler,
   hisHopeInternationalizationInterceptor,
+  HisHopeI18nService,
+  HisHopeLocalizationApiService,
   HIS_HOPE_LOCALIZATION_API_URL,
+  hisHopeCookieSessionInterceptor,
 } from '@his-hope/frontend-foundation';
 import { routes } from './app.routes';
 import { authInterceptor } from './core/services/auth-interceptor.service';
@@ -21,13 +26,16 @@ import { environment } from '../environments/environment';
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    { provide: HIS_HOPE_LOCALIZATION_API_URL, useValue: `${environment.oidc.authority}/api/v1` },
+    { provide: HIS_HOPE_LOCALIZATION_API_URL, useValue: '/api/v1' },
+    { provide: HisHopeI18nService, useFactory: (document: Document, platformId: object) => new HisHopeI18nService(document, platformId), deps: [DOCUMENT, PLATFORM_ID] },
+    { provide: HisHopeLocalizationApiService, useFactory: (http: HttpClient, i18n: HisHopeI18nService, apiUrl: string) => new HisHopeLocalizationApiService(http, i18n, apiUrl), deps: [HttpClient, HisHopeI18nService, HIS_HOPE_LOCALIZATION_API_URL] },
     provideRouter(routes),
     provideAnimations(),
     provideHttpClient(
       withInterceptors([
         hisHopeCorrelationIdInterceptor,
         hisHopeInternationalizationInterceptor,
+        hisHopeCookieSessionInterceptor,
         authInterceptor,
         hisHopeErrorInterceptor,
       ]),
@@ -43,7 +51,7 @@ export const appConfig: ApplicationConfig = {
         scope: environment.oidc.scope,
         responseType: environment.oidc.responseType,
         silentRenew: true,
-        useRefreshToken: true,
+        useRefreshToken: false,
         silentRenewUrl: environment.oidc.silentRenewUrl,
         renewTimeBeforeTokenExpiresInSeconds: 120,
         secureRoutes: environment.oidc.secureRoutes,

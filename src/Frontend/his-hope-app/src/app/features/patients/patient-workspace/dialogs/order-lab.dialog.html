@@ -1,0 +1,60 @@
+    <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+      <hh-create-dialog-shell
+        [title]="'orderLab.title' | hhTranslate:'Chỉ định xét nghiệm'"
+        [subtitle]="'orderLab.subtitle' | hhTranslate:'Gửi chỉ định xét nghiệm cho bệnh nhân'">
+        <div hhCreateDialogContent>
+          @if (data.patientName) {
+          <div class="patient-info">
+            <mat-icon>person</mat-icon>
+            <span>{{ data.patientName }}</span>
+          </div>
+          }
+          <hh-form-layout>
+            <hh-form-section [title]="'orderLab.section.test' | hhTranslate:'Thông tin xét nghiệm'" [span]="2">
+              <div class="form-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'orderLab.testType' | hhTranslate:'Loại xét nghiệm' }}</mat-label>
+                  <mat-select formControlName="testCode" required>
+                    @for (t of availableTests; track t.code) {
+                    <mat-option [value]="t.code">
+                      {{ t.name }}
+                    </mat-option>
+                    }
+                  </mat-select>
+                  @if (form.get('testCode')?.hasError('required')) {
+                  <mat-error>{{ 'orderLab.testTypeRequired' | hhTranslate:'Vui lòng chọn xét nghiệm' }}</mat-error>
+                  }
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'orderLab.priority' | hhTranslate:'Mức độ ưu tiên' }}</mat-label>
+                  <mat-select formControlName="priority" required>
+                    <mat-option value="routine">{{ 'orderLab.priority.routine' | hhTranslate:'Thường quy' }}</mat-option>
+                    <mat-option value="urgent">{{ 'orderLab.priority.urgent' | hhTranslate:'Khẩn' }}</mat-option>
+                    <mat-option value="stat">{{ 'orderLab.priority.stat' | hhTranslate:'Cấp cứu' }}</mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>{{ 'orderLab.notes' | hhTranslate:'Ghi chú' }}</mat-label>
+                  <textarea matInput formControlName="notes" rows="3"
+                            [placeholder]="'orderLab.notesPlaceholder' | hhTranslate:'Ghi chú cho kỹ thuật viên...'"></textarea>
+                </mat-form-field>
+              </div>
+            </hh-form-section>
+          </hh-form-layout>
+        </div>
+        <div hhCreateDialogFooter>
+          <button mat-button type="button" mat-dialog-close [disabled]="saving">{{ 'common.cancel' | hhTranslate:'Hủy' }}</button>
+          <button mat-raised-button color="primary" type="submit" [disabled]="form.invalid || saving">
+            <mat-icon>science</mat-icon>
+            @if (!saving) {
+            <span>{{ 'orderLab.submit' | hhTranslate:'Gửi chỉ định' }}</span>
+            }
+            @if (saving) {
+            <mat-spinner diameter="20"></mat-spinner>
+            }
+          </button>
+        </div>
+      </hh-create-dialog-shell>
+    </form>

@@ -1,0 +1,94 @@
+    <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+      <hh-create-dialog-shell
+        [title]="'recordPayment.title' | hhTranslate:'Ghi nhận thanh toán'"
+        [subtitle]="'recordPayment.subtitle' | hhTranslate:'Thu tiền thanh toán từ bệnh nhân'">
+        <div hhCreateDialogContent>
+          @if (data.patientName) {
+          <div class="patient-info">
+            <mat-icon>person</mat-icon>
+            <span>{{ data.patientName }}</span>
+          </div>
+          }
+
+          @if (data.invoices.length === 0) {
+          <div class="no-invoices">
+            <mat-icon>receipt</mat-icon>
+            <p>{{ 'recordPayment.noInvoices' | hhTranslate:'Bệnh nhân không có hóa đơn nào cần thanh toán' }}</p>
+          </div>
+          }
+
+          @if (data.invoices.length > 0) {
+          <hh-form-layout>
+            <hh-form-section [title]="'recordPayment.section.payment' | hhTranslate:'Thông tin thanh toán'" [span]="2">
+              <div class="form-grid">
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>{{ 'recordPayment.invoice' | hhTranslate:'Chọn hóa đơn' }}</mat-label>
+                  <mat-select formControlName="invoiceId" required>
+                    @for (inv of payableInvoices; track inv.id) {
+                    <mat-option [value]="inv.id">
+                      {{ inv.invoiceNumber }} - {{ 'recordPayment.balance' | hhTranslate:'Còn:' }} {{ inv.balanceDue | number }}₫
+                    </mat-option>
+                    }
+                  </mat-select>
+                  @if (form.get('invoiceId')?.hasError('required')) {
+                  <mat-error>{{ 'recordPayment.invoiceRequired' | hhTranslate:'Vui lòng chọn hóa đơn' }}</mat-error>
+                  }
+                </mat-form-field>
+
+                @if (selectedInvoice) {
+                <div class="balance-info full-width">
+                  <p><strong>{{ 'recordPayment.invoiceNumber' | hhTranslate:'Số hóa đơn:' }}</strong> {{ selectedInvoice.invoiceNumber }}</p>
+                  <p><strong>{{ 'recordPayment.totalAmount' | hhTranslate:'Tổng tiền:' }}</strong> {{ selectedInvoice.totalAmount | number }}₫</p>
+                  <p><strong>{{ 'recordPayment.paidAmount' | hhTranslate:'Đã thanh toán:' }}</strong> {{ selectedInvoice.paidAmount | number }}₫</p>
+                  <p><strong>{{ 'recordPayment.balanceDue' | hhTranslate:'Còn nợ:' }}</strong> {{ selectedInvoice.balanceDue | number }}₫</p>
+                </div>
+                }
+
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'recordPayment.amount' | hhTranslate:'Số tiền thanh toán' }}</mat-label>
+                  <input matInput type="number" formControlName="amount" min="1" required>
+                  <span matTextSuffix>₫</span>
+                  @if (form.get('amount')?.hasError('required')) {
+                  <mat-error>{{ 'recordPayment.amountRequired' | hhTranslate:'Vui lòng nhập số tiền' }}</mat-error>
+                  }
+                  @if (form.get('amount')?.hasError('min')) {
+                  <mat-error>{{ 'recordPayment.amountMin' | hhTranslate:'Số tiền phải > 0' }}</mat-error>
+                  }
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>{{ 'recordPayment.method' | hhTranslate:'Phương thức thanh toán' }}</mat-label>
+                  <mat-select formControlName="methodCode" required>
+                    <mat-option value="cash">{{ 'recordPayment.method.cash' | hhTranslate:'Tiền mặt' }}</mat-option>
+                    <mat-option value="credit_card">{{ 'recordPayment.method.creditCard' | hhTranslate:'Thẻ tín dụng' }}</mat-option>
+                    <mat-option value="debit_card">{{ 'recordPayment.method.debitCard' | hhTranslate:'Thẻ ghi nợ' }}</mat-option>
+                    <mat-option value="bank_transfer">{{ 'recordPayment.method.bankTransfer' | hhTranslate:'Chuyển khoản' }}</mat-option>
+                    <mat-option value="insurance">{{ 'recordPayment.method.insurance' | hhTranslate:'Bảo hiểm' }}</mat-option>
+                    <mat-option value="mobile_payment">{{ 'recordPayment.method.mobile' | hhTranslate:'Ví điện tử' }}</mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>{{ 'recordPayment.reference' | hhTranslate:'Số tham chiếu (nếu có)' }}</mat-label>
+                  <input matInput formControlName="referenceNumber" [placeholder]="'recordPayment.referencePlaceholder' | hhTranslate:'Mã giao dịch...'">
+                </mat-form-field>
+              </div>
+            </hh-form-section>
+          </hh-form-layout>
+          }
+        </div>
+        <div hhCreateDialogFooter>
+          <button mat-button type="button" mat-dialog-close [disabled]="saving">{{ 'common.close' | hhTranslate:'Đóng' }}</button>
+          <button mat-raised-button color="primary" type="submit"
+                  [disabled]="form.invalid || saving || data.invoices.length === 0">
+            <mat-icon>payments</mat-icon>
+            @if (!saving) {
+            <span>{{ 'recordPayment.save' | hhTranslate:'Ghi nhận thanh toán' }}</span>
+            }
+            @if (saving) {
+            <mat-spinner diameter="20"></mat-spinner>
+            }
+          </button>
+        </div>
+      </hh-create-dialog-shell>
+    </form>

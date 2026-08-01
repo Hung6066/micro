@@ -1,14 +1,13 @@
-import { inject, Injectable } from '@angular/core';
+import { inject } from '@angular/core';
 import {
-  CanActivate,
-  CanActivateChild,
+  CanActivateFn,
   ActivatedRouteSnapshot,
   RouterStateSnapshot,
   Router,
   UrlTree,
 } from '@angular/router';
 import { Observable, of } from 'rxjs';
-import { map, switchMap } from 'rxjs/operators';
+import { switchMap } from 'rxjs/operators';
 import { AuthService } from '@core/services/auth.service';
 
 /**
@@ -19,56 +18,40 @@ import { AuthService } from '@core/services/auth.service';
  * Uses AND logic — the user must have every listed permission.
  * Checks permissions locally from the JWT-sourced user object
  * (the backend enforces permissions on actual API calls).
- * Implements both CanActivate and CanActivateChild.
+ *
+ * Redirects to `/auth/login` if no user, or `/access-denied` if the user
+ * lacks the required permissions.
  */
-@Injectable({ providedIn: 'root' })
-export class PermissionGuard implements CanActivate, CanActivateChild {
-  private authService = inject(AuthService);
-  private router = inject(Router);
+export const permissionGuard: CanActivateFn = (
+  route: ActivatedRouteSnapshot,
+  state: RouterStateSnapshot,
+): Observable<boolean | UrlTree> => {
+  const authService = inject(AuthService);
+  const router = inject(Router);
+  const requiredPermissions: string[] = route.data?.['permissions'];
 
-  canActivate(
-    route: ActivatedRouteSnapshot,
-    _state: RouterStateSnapshot,
-  ): Observable<boolean | UrlTree> {
-    return this.checkPermissions(route, _state);
-  }
+  return authService.ensureCurrentUser().pipe(
+    switchMap((user) => {
+      if (!user) {
+        return of(
+          router.createUrlTree(['/auth/login'], {
+            queryParams: { returnUrl: state.url },
+          }),
+        );
+      }
 
-  canActivateChild(
-    childRoute: ActivatedRouteSnapshot,
-    _state: RouterStateSnapshot,
-  ): Observable<boolean | UrlTree> {
-    return this.checkPermissions(childRoute, _state);
-  }
-
-  private checkPermissions(
-    route: ActivatedRouteSnapshot,
-    state: RouterStateSnapshot,
-  ): Observable<boolean | UrlTree> {
-    const requiredPermissions: string[] = route.data?.['permissions'];
-
-    return this.authService.ensureCurrentUser().pipe(
-      switchMap((user) => {
-        if (!user) {
-          return of(
-            this.router.createUrlTree(['/auth/login'], {
-              queryParams: { returnUrl: state.url },
-            }),
-          );
-        }
-
-        // No permissions specified — allow through once auth is hydrated.
-        if (!requiredPermissions || requiredPermissions.length === 0) {
-          return of(true);
-        }
-
-        // Check permissions locally from JWT-sourced user object.
-        // The backend enforces permissions on actual API calls.
-        const allowed = this.authService.hasPermission(requiredPermissions);
-        if (!allowed) {
-          return of(this.router.createUrlTree(['/access-denied']));
-        }
+      // No permissions specified — allow through once auth is hydrated.
+      if (!requiredPermissions || requiredPermissions.length === 0) {
         return of(true);
-      }),
-    );
-  }
-}
+      }
+
+      // Check permissions locally from JWT-sourced user object.
+      // The backend enforces permissions on actual API calls.
+      const allowed = authService.hasPermission(requiredPermissions);
+      if (!allowed) {
+        return of(router.createUrlTree(['/access-denied']));
+      }
+      return of(true);
+    }),
+  );
+};

@@ -14,17 +14,20 @@ public sealed class SessionAuthMiddleware
     private readonly RequestDelegate _next;
     private readonly SessionCookieOptions _options;
     private readonly IConnectionMultiplexer _redis;
+    private readonly SessionTokenProtector _tokenProtector;
     private readonly ILogger<SessionAuthMiddleware> _logger;
 
     public SessionAuthMiddleware(
         RequestDelegate next,
         SessionCookieOptions options,
         IConnectionMultiplexer redis,
+        SessionTokenProtector tokenProtector,
         ILogger<SessionAuthMiddleware> logger)
     {
         _next = next;
         _options = options;
         _redis = redis;
+        _tokenProtector = tokenProtector;
         _logger = logger;
     }
 
@@ -52,7 +55,18 @@ public sealed class SessionAuthMiddleware
             return;
         }
 
-        var session = JsonSerializer.Deserialize<SessionData>(sessionJson!);
+        SessionData? session;
+        try
+        {
+            session = JsonSerializer.Deserialize<SessionData>(sessionJson!);
+            if (session is not null)
+                session = session with { Jwt = _tokenProtector.Unprotect(session.Jwt) };
+        }
+        catch (System.Security.Cryptography.CryptographicException)
+        {
+            _logger.LogWarning("Session '{SessionId}' contains an invalid or legacy token payload", cookieValue);
+            session = null;
+        }
 
         if (session is null || session.IsExpired)
         {

@@ -89,7 +89,7 @@ public class HybridCacheService : IHybridCacheService
 
     public HybridCacheService(
         IMemoryCacheService l1,
-        ICacheService l2,
+        DistributedCacheService l2,
         ILogger<HybridCacheService> logger,
         IOptions<HybridCacheOptions> options,
         AuthorizationCacheKeyPartitioner keyPartitioner)

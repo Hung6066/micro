@@ -1,4 +1,4 @@
-import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,6 +14,10 @@ import { CommonModule } from '@angular/common';
 import { Subject, takeUntil } from 'rxjs';
 import { BillingService } from '@core/services/billing.service';
 import { Invoice } from '@core/models/invoice.model';
+import {
+  HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
+  HisHopeFormSectionComponent, HisHopeTranslatePipe, HisHopeI18nService,
+} from '@his-hope/frontend-foundation';
 
 export interface RecordPaymentData {
   patientId: string;
@@ -36,106 +40,16 @@ export interface RecordPaymentData {
         MatIconModule,
         MatProgressSpinnerModule,
         MatSnackBarModule,
+        HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
+        HisHopeFormSectionComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    template: `
-    <h2 mat-dialog-title>Ghi nhận thanh toán</h2>
-    <mat-dialog-content>
-      @if (data.patientName) {
-      <div class="patient-info">
-        <mat-icon>person</mat-icon>
-        <span>{{ data.patientName }}</span>
-      </div>
-      }
-
-      @if (data.invoices.length === 0) {
-      <div class="no-invoices">
-        <mat-icon>receipt</mat-icon>
-        <p>Bệnh nhân không có hóa đơn nào cần thanh toán</p>
-      </div>
-      }
-
-      @if (data.invoices.length > 0) {
-      <form [formGroup]="form" class="dialog-form">
-        <mat-form-field appearance="outline">
-          <mat-label>Chọn hóa đơn</mat-label>
-          <mat-select formControlName="invoiceId" required>
-            @for (inv of payableInvoices; track inv.id) {
-            <mat-option [value]="inv.id">
-              {{ inv.invoiceNumber }} - Còn: {{ inv.balanceDue | number }}₫
-            </mat-option>
-            }
-          </mat-select>
-          @if (form.get('invoiceId')?.hasError('required')) {
-          <mat-error>Vui lòng chọn hóa đơn</mat-error>
-          }
-        </mat-form-field>
-
-        @if (selectedInvoice) {
-        <div class="balance-info">
-          <p><strong>Số hóa đơn:</strong> {{ selectedInvoice.invoiceNumber }}</p>
-          <p><strong>Tổng tiền:</strong> {{ selectedInvoice.totalAmount | number }}₫</p>
-          <p><strong>Đã thanh toán:</strong> {{ selectedInvoice.paidAmount | number }}₫</p>
-          <p><strong>Còn nợ:</strong> {{ selectedInvoice.balanceDue | number }}₫</p>
-        </div>
-        }
-
-        <mat-form-field appearance="outline">
-          <mat-label>Số tiền thanh toán</mat-label>
-          <input matInput type="number" formControlName="amount" min="1" required>
-          <span matTextSuffix>₫</span>
-          @if (form.get('amount')?.hasError('required')) {
-          <mat-error>Vui lòng nhập số tiền</mat-error>
-          }
-          @if (form.get('amount')?.hasError('min')) {
-          <mat-error>Số tiền phải > 0</mat-error>
-          }
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Phương thức thanh toán</mat-label>
-          <mat-select formControlName="methodCode" required>
-            <mat-option value="cash">Tiền mặt</mat-option>
-            <mat-option value="credit_card">Thẻ tín dụng</mat-option>
-            <mat-option value="debit_card">Thẻ ghi nợ</mat-option>
-            <mat-option value="bank_transfer">Chuyển khoản</mat-option>
-            <mat-option value="insurance">Bảo hiểm</mat-option>
-            <mat-option value="mobile_payment">Ví điện tử</mat-option>
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline">
-          <mat-label>Số tham chiếu (nếu có)</mat-label>
-          <input matInput formControlName="referenceNumber" placeholder="Mã giao dịch...">
-        </mat-form-field>
-      </form>
-      }
-    </mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close [disabled]="saving">Đóng</button>
-      <button mat-raised-button color="primary" (click)="save()"
-              [disabled]="form.invalid || saving || data.invoices.length === 0">
-        <mat-icon>payments</mat-icon>
-        @if (!saving) {
-        <span>Ghi nhận thanh toán</span>
-        }
-        @if (saving) {
-        <mat-spinner diameter="20"></mat-spinner>
-        }
-      </button>
-    </mat-dialog-actions>
-  `,
-    styles: [`
-    .patient-info { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; padding: 8px 12px; background: var(--pastel-red, #FDEBEC); border-radius: 8px; color: var(--pastel-red-text, #C25450); font-weight: 500; }
-    .no-invoices { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px; color: var(--text-muted, #787774); }
-    .no-invoices mat-icon { font-size: 48px; width: 48px; height: 48px; }
-    .dialog-form { display: flex; flex-direction: column; gap: 16px; min-width: 380px; }
-    .balance-info { background: var(--surface-white, #FFFFFF); padding: 12px; border-radius: 8px; border-left: 4px solid var(--pastel-orange-text, #B6581C); }
-    .balance-info p { margin: 4px 0; font-size: 14px; }
-  `]
+    templateUrl: './record-payment.dialog.html',
+    styleUrls: ['./record-payment.dialog.scss']
 })
 export class RecordPaymentDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();
+  private readonly i18n = inject(HisHopeI18nService);
 
   form: FormGroup;
   saving = false;
@@ -183,12 +97,12 @@ export class RecordPaymentDialogComponent implements OnDestroy {
     }).pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open('Đã ghi nhận thanh toán', 'Đóng', { duration: 3000 });
+          this.snackBar.open(this.i18n.t('recordPayment.saveSuccess', 'Đã ghi nhận thanh toán'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
           this.dialogRef.close(true);
         },
         error: () => {
           this.saving = false;
-          this.snackBar.open('Không thể ghi nhận thanh toán', 'Đóng', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('recordPayment.saveFailed', 'Không thể ghi nhận thanh toán'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
           this.cdr.markForCheck();
         },
       });

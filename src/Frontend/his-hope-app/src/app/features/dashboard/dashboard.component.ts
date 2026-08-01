@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
@@ -20,7 +20,14 @@ import { ClinicalService } from '@core/services/clinical.service';
 import { Encounter } from '@core/models/encounter.model';
 import { Appointment } from '@core/models/appointment.model';
 import { Patient } from '@core/models/patient.model';
-import { HisHopeDataTableComponent, HisHopePageLayoutComponent } from '@his-hope/frontend-foundation';
+import {
+    HisHopeDataTableComponent,
+    HisHopeI18nService,
+    HisHopeMetricCardComponent,
+    HisHopePageLayoutComponent,
+    HisHopeStateComponent,
+    HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-dashboard',
@@ -28,579 +35,13 @@ import { HisHopeDataTableComponent, HisHopePageLayoutComponent } from '@his-hope
     imports: [
         CommonModule, RouterModule, ReactiveFormsModule,
         MatCardModule, MatInputModule, MatFormFieldModule, MatIconModule, MatButtonModule,
-        MatProgressSpinnerModule, MatTableModule, MatChipsModule, MatAutocompleteModule,
-        HisHopeDataTableComponent, HisHopePageLayoutComponent,
+        MatTableModule, MatChipsModule, MatAutocompleteModule,
+        HisHopeDataTableComponent, HisHopeMetricCardComponent, HisHopePageLayoutComponent,
+        HisHopeStateComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    template: `
-    <hh-page-layout density="dense">
-    <div class="dashboard">
-      <div class="welcome-section">
-        <div>
-          <h1>Xin chào, {{ currentUserName }}</h1>
-          <p class="page-subtitle">Tổng quan bệnh viện</p>
-        </div>
-        <div class="date-display">
-          <mat-icon>calendar_today</mat-icon>
-          <span>{{ today | date:'EEEE, dd/MM/yyyy' }}</span>
-        </div>
-      </div>
-
-      @if (loading) {
-      <div class="loading-state" aria-live="polite" aria-busy="true">
-        <mat-spinner diameter="40"></mat-spinner>
-        <span class="sr-only">Đang tải dữ liệu...</span>
-      </div>
-      }
-
-      @if (error) {
-      <div class="error-message" role="alert" aria-live="assertive">
-        <mat-icon aria-hidden="true">error_outline</mat-icon>
-        <span>{{ error }}</span>
-      </div>
-      }
-
-      <!-- Row 1: Stat Cards — bento-grid layout -->
-      @defer (on viewport) {
-      @if (!loading && !error) {
-      <div class="stats-bento">
-        <mat-card class="stat-card card-patients">
-          <mat-card-content>
-            <div class="stat-icon"><mat-icon>people</mat-icon></div>
-            <div class="stat-info">
-              <span class="stat-value">{{ stats.totalPatients }}</span>
-              <span class="stat-label">Tổng bệnh nhân</span>
-              @if (stats.newPatientsToday > 0) {
-              <span class="stat-trend">
-                +{{ stats.newPatientsToday }} hôm nay
-              </span>
-              }
-            </div>
-          </mat-card-content>
-        </mat-card>
-
-        <mat-card class="stat-card card-appointments">
-          <mat-card-content>
-            <div class="stat-icon"><mat-icon>calendar_today</mat-icon></div>
-            <div class="stat-info">
-              <span class="stat-value">{{ stats.todayAppointments }}</span>
-              <span class="stat-label">Lịch hẹn hôm nay</span>
-              @if (stats.appointmentsTomorrow > 0) {
-              <span class="stat-trend">
-                {{ stats.appointmentsTomorrow }} ngày mai
-              </span>
-              }
-            </div>
-          </mat-card-content>
-        </mat-card>
-
-        <mat-card class="stat-card card-encounters">
-          <mat-card-content>
-            <div class="stat-icon"><mat-icon>emergency</mat-icon></div>
-            <div class="stat-info">
-              <span class="stat-value">{{ stats.activeEncounters }}</span>
-              <span class="stat-label">Điều trị đang mở</span>
-            </div>
-          </mat-card-content>
-        </mat-card>
-
-        <mat-card class="stat-card card-labs">
-          <mat-card-content>
-            <div class="stat-icon"><mat-icon>science</mat-icon></div>
-            <div class="stat-info">
-              <span class="stat-value">{{ stats.pendingLabs }}</span>
-              <span class="stat-label">Xét nghiệm chờ KQ</span>
-            </div>
-          </mat-card-content>
-        </mat-card>
-
-        <mat-card class="stat-card card-billing">
-          <mat-card-content>
-            <div class="stat-icon"><mat-icon>receipt</mat-icon></div>
-            <div class="stat-info">
-              <span class="stat-value">{{ stats.outstandingInvoices }}</span>
-              <span class="stat-label">Hóa đơn chưa TT</span>
-            </div>
-          </mat-card-content>
-        </mat-card>
-
-        <mat-card class="stat-card card-pharmacy">
-          <mat-card-content>
-            <div class="stat-icon"><mat-icon>medication</mat-icon></div>
-            <div class="stat-info">
-              <span class="stat-value">{{ stats.lowStockMedications }}</span>
-              <span class="stat-label">Thuốc sắp hết</span>
-            </div>
-          </mat-card-content>
-        </mat-card>
-      </div>
-      }
-      } @placeholder {
-      <div class="stats-bento">
-        @for (_ of [1,2,3,4,5,6]; track _) {
-        <mat-card class="stat-card">
-          <mat-card-content>
-            <div class="stat-icon-placeholder"></div>
-            <div class="stat-info">
-              <span class="stat-value-placeholder"></span>
-              <span class="stat-label-placeholder"></span>
-            </div>
-          </mat-card-content>
-        </mat-card>
-        }
-      </div>
-      }
-
-      <!-- Patient Quick Search -->
-      @if (!loading && !error) {
-      <mat-card class="section-card search-card">
-        <mat-card-header>
-          <mat-card-title>
-            <mat-icon>search</mat-icon> Tìm bệnh nhân
-          </mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          <mat-form-field appearance="outline" class="dashboard-search">
-            <mat-label>Nhập tên, số điện thoại hoặc mã bệnh nhân...</mat-label>
-            <input matInput [formControl]="patientSearchControl" [matAutocomplete]="auto">
-            <mat-icon matSuffix>search</mat-icon>
-          </mat-form-field>
-          <mat-autocomplete #auto="matAutocomplete" [displayWith]="displayPatientName"
-                            (optionSelected)="onPatientSelected($event)">
-            @for (p of patientSearchResults; track p.id) {
-            <mat-option [value]="p">
-              <div class="search-result-item">
-                <span class="result-name">{{ p.fullName }}</span>
-                <span class="result-meta">{{ p.genderName }} · {{ p.age }} tuổi · {{ p.phone }}</span>
-              </div>
-            </mat-option>
-            }
-            @if (patientSearchResults.length === 0 && (patientSearchControl.value?.length ?? 0) >= 2) {
-            <mat-option disabled>
-              <span class="no-results">Không tìm thấy bệnh nhân</span>
-            </mat-option>
-            }
-          </mat-autocomplete>
-        </mat-card-content>
-      </mat-card>
-      }
-
-      <!-- Recent Patients -->
-      @if (!loading && !error && recentPatients.length > 0) {
-      <mat-card class="section-card">
-        <mat-card-header>
-          <mat-card-title>
-            <mat-icon>history</mat-icon> Bệnh nhân gần đây
-          </mat-card-title>
-          <button mat-stroked-button size="small" routerLink="/patients">Xem tất cả</button>
-        </mat-card-header>
-        <mat-card-content>
-          <div class="recent-patients-grid">
-            @for (p of recentPatients; track p.id) {
-            <button
-              type="button"
-              class="recent-patient-card"
-              (click)="openPatientWorkspace(p.id)"
-              [attr.aria-label]="'Mở hồ sơ bệnh nhân ' + p.fullName"
-            >
-              <div class="rp-avatar">{{ p.fullName.charAt(0) }}</div>
-              <div class="rp-info">
-                <span class="rp-name">{{ p.fullName }}</span>
-                <span class="rp-meta">{{ p.genderName }} · {{ p.age }} tuổi</span>
-              </div>
-              <mat-icon class="rp-arrow">chevron_right</mat-icon>
-            </button>
-            }
-          </div>
-        </mat-card-content>
-      </mat-card>
-      }
-
-      <!-- Row 2: Recent Encounters -->
-      @defer (on viewport) {
-      @if (!loading && !error) {
-      <mat-card class="section-card">
-        <mat-card-header>
-          <mat-card-title>
-            <mat-icon>history</mat-icon> Lượt khám gần đây
-          </mat-card-title>
-          <button mat-stroked-button size="small" routerLink="/clinical">Xem tất cả</button>
-        </mat-card-header>
-        <mat-card-content>
-          <hh-data-table label="Lượt khám gần đây" density="compact" [columns]="encounterColumns" [rows]="encounterRows"
-                         [empty]="recentEncounters.length === 0" emptyMessage="Chưa có lượt khám nào"
-                         [rowClickable]="true" (rowClick)="viewEncounter(encounterFromRow($event).id)" />
-        </mat-card-content>
-      </mat-card>
-      }
-      } @placeholder {
-      <mat-card class="section-card"><mat-card-content><div class="section-empty">Đang tải...</div></mat-card-content></mat-card>
-      }
-
-      <!-- Row 3: Upcoming Appointments -->
-      @defer (on viewport) {
-      @if (!loading && !error) {
-      <mat-card class="section-card">
-        <mat-card-header>
-          <mat-card-title>
-            <mat-icon>upcoming</mat-icon> Lịch hẹn sắp tới
-          </mat-card-title>
-          <button mat-stroked-button size="small" routerLink="/appointments">Xem tất cả</button>
-        </mat-card-header>
-        <mat-card-content>
-          <hh-data-table label="Lịch hẹn sắp tới" density="compact" [columns]="appointmentColumns" [rows]="appointmentRows"
-                         [empty]="upcomingAppointments.length === 0" emptyMessage="Không có lịch hẹn nào"
-                         [rowClickable]="true" (rowClick)="viewAppointment(appointmentFromRow($event).id)" />
-        </mat-card-content>
-      </mat-card>
-      }
-      } @placeholder {
-      <mat-card class="section-card"><mat-card-content><div class="section-empty">Đang tải...</div></mat-card-content></mat-card>
-      }
-    </div>
-    </hh-page-layout>
-  `,
-    styles: [`
-    .dashboard {
-      width: 100%;
-      min-width: 0;
-      font-family: var(--font-sans);
-      font-size: var(--font-size-body, 14px);
-      line-height: 1.5;
-    }
-
-    .welcome-section {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 32px;
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-
-    .welcome-section h1 {
-      font-size: var(--font-size-title, 24px);
-      font-weight: 600;
-      letter-spacing: 0;
-      line-height: 1.25;
-    }
-
-    .date-display {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--text-secondary, #787774);
-      font-size: 14px;
-      padding: 8px 16px;
-      background: var(--surface-white, #FFFFFF);
-      border: 1px solid var(--border-default, #EAEAEA);
-      border-radius: var(--radius-card, 8px);
-    }
-
-    /* ── Bento Grid ── */
-    .stats-bento {
-      display: grid;
-      grid-template-columns: 2fr 1fr 1fr;
-      grid-auto-rows: auto;
-      gap: 16px;
-      margin-bottom: 32px;
-    }
-
-    .stat-card {
-      cursor: default;
-      transition: transform 150ms ease;
-      animation: fadeInUp 400ms ease forwards;
-    }
-
-    .stat-card:hover {
-      transform: translateY(-1px);
-    }
-
-    .stat-card mat-card-content {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      padding: 20px;
-    }
-
-    .stat-icon {
-      width: 44px;
-      height: 44px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-
-    .stat-icon mat-icon {
-      font-size: 22px;
-      width: 22px;
-      height: 22px;
-    }
-
-    .card-patients .stat-icon { background: var(--pastel-blue, #E1F3FE); }
-    .card-patients .stat-icon mat-icon { color: var(--pastel-blue-text, #1A6BB5); }
-
-    .card-appointments .stat-icon { background: var(--pastel-green, #EDF3EC); }
-    .card-appointments .stat-icon mat-icon { color: var(--pastel-green-text, #2F6B4A); }
-
-    .card-encounters .stat-icon { background: var(--pastel-red, #FDEBEC); }
-    .card-encounters .stat-icon mat-icon { color: var(--pastel-red-text, #C25450); }
-
-    .card-labs .stat-icon { background: var(--pastel-purple, #F0ECFA); }
-    .card-labs .stat-icon mat-icon { color: var(--pastel-purple-text, #6B4FA0); }
-
-    .card-billing .stat-icon { background: var(--pastel-yellow, #FBF3DB); }
-    .card-billing .stat-icon mat-icon { color: var(--pastel-yellow-text, #8D6E2B); }
-
-    .card-pharmacy .stat-icon { background: var(--pastel-orange, #FEF0E0); }
-    .card-pharmacy .stat-icon mat-icon { color: var(--pastel-orange-text, #B6581C); }
-
-    /* Make first card span wider */
-    .card-patients { grid-column: span 1; }
-    .card-appointments { grid-column: span 1; }
-
-    .stat-info {
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-
-    .stat-value {
-      font-size: 30px;
-      font-weight: 600;
-      line-height: 1.1;
-      font-variant-numeric: tabular-nums;
-      color: var(--text-primary, #1A1A1A);
-    }
-
-    .stat-label {
-      color: var(--text-secondary, #787774);
-      font-size: 11px;
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-top: 4px;
-    }
-
-    .stat-trend {
-      color: var(--color-primary, #2F6B4A);
-      font-size: 12px;
-      margin-top: 4px;
-      font-weight: 500;
-    }
-
-    /* ── Search Card ── */
-    .search-card mat-card-content {
-      padding: 16px 20px;
-    }
-
-    .dashboard-search {
-      width: 100%;
-      max-width: 600px;
-      min-width: 0;
-    }
-
-    .dashboard-search .mat-mdc-form-field-infix,
-    .dashboard-search input {
-      min-width: 0;
-      max-width: 100%;
-    }
-
-    .dashboard-search input {
-      text-overflow: ellipsis;
-    }
-
-    .dashboard-search .mat-mdc-floating-label {
-      max-width: calc(100% - 32px);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .search-result-item {
-      display: flex;
-      flex-direction: column;
-      padding: 4px 0;
-    }
-
-    .result-name {
-      font-weight: 500;
-      font-size: 13px;
-    }
-
-    .result-meta {
-      font-size: 11px;
-      color: var(--text-secondary, #787774);
-    }
-
-    .no-results {
-      color: var(--text-muted, #A1A09B);
-      font-style: italic;
-    }
-
-    /* ── Recent Patients ── */
-    .recent-patients-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 12px;
-    }
-
-    .recent-patient-card {
-      appearance: none;
-      font: inherit;
-      text-align: left;
-      width: 100%;
-      border: 1px solid var(--border-light, #F0F0EE);
-      background: #FFFFFF;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
-      border-radius: var(--radius-card, 8px);
-      cursor: pointer;
-      transition: background 150ms ease;
-      border: 1px solid var(--border-light, #F0F0EE);
-    }
-
-    .recent-patient-card:hover {
-      background: rgba(0, 0, 0, 0.02);
-    }
-
-    .recent-patient-card:focus-visible,
-    .clickable-row:focus-visible {
-      outline: 2px solid var(--color-primary, #2F6B4A);
-      outline-offset: 2px;
-    }
-
-    .rp-avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 8px;
-      background: var(--pastel-green, #EDF3EC);
-      color: var(--color-primary, #2F6B4A);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 16px;
-      font-weight: 600;
-      flex-shrink: 0;
-    }
-
-    .rp-info {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      min-width: 0;
-    }
-
-    .rp-name {
-      font-weight: 500;
-      font-size: 14px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .rp-meta {
-      font-size: 12px;
-      color: var(--text-secondary, #787774);
-    }
-
-    .rp-arrow {
-      color: var(--text-muted, #A1A09B);
-    }
-
-    .stat-icon-placeholder {
-      width: 44px; height: 44px; border-radius: 8px;
-      background: var(--border-light, #F0F0EE);
-      animation: pulse 1.5s ease-in-out infinite;
-    }
-    .stat-value-placeholder {
-      display: block; width: 60px; height: 30px;
-      background: var(--border-light, #F0F0EE);
-      border-radius: 4px;
-      animation: pulse 1.5s ease-in-out infinite;
-    }
-    .stat-label-placeholder {
-      display: block; width: 100px; height: 14px; margin-top: 8px;
-      background: var(--border-light, #F0F0EE);
-      border-radius: 4px;
-      animation: pulse 1.5s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-
-    /* ── Section Cards ── */
-    .section-card {
-      margin-bottom: 24px;
-    }
-
-    .section-card mat-card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .section-card mat-card-title {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 16px;
-      font-weight: 600;
-    }
-
-    .section-empty {
-      color: var(--text-muted, #A1A09B);
-      text-align: center;
-      padding: 32px;
-      font-style: italic;
-    }
-
-    /* ── Tables ── */
-    .dashboard-table {
-      width: 100%;
-    }
-
-    .clickable-row {
-      cursor: pointer;
-      transition: background-color 150ms ease;
-    }
-
-    .clickable-row:hover {
-      background: rgba(0, 0, 0, 0.02);
-    }
-
-    .table-scroll {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    /* ── Responsive ── */
-    @media (max-width: 960px) {
-      .stats-bento {
-        grid-template-columns: 1fr 1fr;
-      }
-    }
-
-    @media (max-width: 599px) {
-      .dashboard {
-        padding: 20px 12px;
-      }
-
-      .stats-bento {
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-      }
-
-      .stat-value {
-        font-size: 24px;
-      }
-    }
-  `],
+    templateUrl: './dashboard.component.html',
+    styleUrls: ['./dashboard.component.scss'],
 })
 export class DashboardComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
@@ -631,20 +72,22 @@ export class DashboardComponent implements OnInit, OnDestroy {
   loading = true;
   error: string | null = null;
 
-  readonly encounterColumns = [
-    { key: 'encounterDate', label: 'Ngày', sortable: true },
-    { key: 'patientId', label: 'Bệnh nhân' },
-    { key: 'encounterType', label: 'Loại' },
-    { key: 'chiefComplaint', label: 'Lý do' },
-    { key: 'status', label: 'Trạng thái' },
-  ];
-  readonly appointmentColumns = [
-    { key: 'scheduledDate', label: 'Ngày', sortable: true },
-    { key: 'startTime', label: 'Giờ', sortable: true },
-    { key: 'patientId', label: 'Bệnh nhân' },
-    { key: 'type', label: 'Loại' },
-    { key: 'status', label: 'Trạng thái' },
-  ];
+  private readonly i18n = inject(HisHopeI18nService);
+
+  get encounterColumns() { return [
+    { key: 'encounterDate', label: this.i18n.t('dashboard.column.date', 'Ngày'), sortable: true },
+    { key: 'patientId', label: this.i18n.t('dashboard.column.patient', 'Bệnh nhân') },
+    { key: 'encounterType', label: this.i18n.t('dashboard.column.type', 'Loại') },
+    { key: 'chiefComplaint', label: this.i18n.t('dashboard.column.reason', 'Lý do') },
+    { key: 'status', label: this.i18n.t('dashboard.column.status', 'Trạng thái') },
+  ]; }
+  get appointmentColumns() { return [
+    { key: 'scheduledDate', label: this.i18n.t('dashboard.column.date', 'Ngày'), sortable: true },
+    { key: 'startTime', label: this.i18n.t('dashboard.column.time', 'Giờ'), sortable: true },
+    { key: 'patientId', label: this.i18n.t('dashboard.column.patient', 'Bệnh nhân') },
+    { key: 'type', label: this.i18n.t('dashboard.column.type', 'Loại') },
+    { key: 'status', label: this.i18n.t('dashboard.column.status', 'Trạng thái') },
+  ]; }
 
   get encounterRows(): Record<string, unknown>[] {
     return this.recentEncounters.map(encounter => ({
@@ -726,7 +169,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  private loadAllData(): void {
+  loadAllData(): void {
     this.loading = true;
     this.error = null;
 
@@ -750,7 +193,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       },
       error: () => {
-        this.error = 'Không thể tải dữ liệu tổng quan';
+        this.error = this.i18n.t('dashboard.loadError', 'Không thể tải dữ liệu tổng quan');
         this.loading = false;
         this.cdr.markForCheck();
       },

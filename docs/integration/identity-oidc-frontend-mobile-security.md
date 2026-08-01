@@ -3,7 +3,7 @@
 **Audience:** Angular web apps, BFFs, Capacitor mobile app, partner integrations, and platform engineers  
 **Protocol:** OAuth 2.0 Authorization Code + PKCE, OpenID Connect  
 **Issuer:** environment-specific Identity Service origin  
-**Last reviewed:** 2026-07-29
+**Last reviewed:** 2026-08-01
 
 This is the integration contract for His.Hope clients. The discovery document
 and deployed server configuration are authoritative at runtime; examples below
@@ -12,6 +12,125 @@ use local development values only.
 For the final passkey-first adaptive MFA contract, replay handling, deployment
 checklist, and honest verification gates, see
 [`docs/security/adaptive-passkey-first-mfa.md`](../security/adaptive-passkey-first-mfa.md).
+
+## 0. Cơ chế runtime hiện tại (web BFF-only, mobile native OIDC)
+
+Đây là luồng chuẩn đang được triển khai. Angular web không giữ access token
+hoặc refresh token trong JavaScript, `localStorage` hay `sessionStorage`.
+Browser chỉ giữ `hishop_sid` (HttpOnly) và `hishop_csrf` (non-HttpOnly để
+gửi synchronizer token). Gateway dùng `hishop_sid` để đọc session trong Redis,
+giải bảo vệ token JWE ở server-side rồi gắn `Authorization: Bearer` cho API
+nội bộ.
+
+Passkey được ưu tiên trong màn hình xác thực. Nếu tài khoản hoặc thiết bị
+không dùng được passkey, người dùng có thể chọn phê duyệt trên His.Hope mobile
+app; TOTP là fallback cuối. Cả ba phương thức đều phải hoàn tất tại Identity
+Service trước khi OIDC cấp code và trước khi BFF tạo session.
+
+```mermaid
+flowchart LR
+    W[Angular web 8081/8082/8083] -->|cookie + CSRF| G[ApiGateway/BFF 5000]
+    G -->|Identity cookie / OIDC| I[Identity Service 5001]
+    I --> M{MFA policy}
+    M -->|mặc định| P[Browser WebAuthn passkey]
+    M -->|thiết bị khác| A[Mobile approval ticket]
+    M -->|fallback| T[TOTP / recovery code]
+    P --> I
+    A --> N[Android Credential Manager / iOS AuthenticationServices]
+    N --> I
+    T --> I
+    I -->|authorization code| G
+    G -->|session/exchange| R[(Redis session)]
+    R -->|HttpOnly hishop_sid| W
+    G -->|Bearer JWE, nội bộ| S[Protected microservices]
+```
+
+### 0.1 Luồng login và MFA
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant App as Angular app
+    participant G as Gateway/BFF
+    participant I as Identity Service
+    participant R as Redis
+    participant M as His.Hope mobile
+
+    U->>App: Mở route cần bảo vệ
+    App->>G: GET /api/v1/auth/session-status (cookie)
+    G-->>App: Chưa authenticated
+    App->>G: Mở /Account/Login?returnUrl=...
+    G->>I: /connect/authorize + state + nonce + PKCE S256
+    I-->>U: Password / passkey / SAML / LDAP UI
+    U->>I: Xác thực primary factor
+    I-->>U: MFA page nếu tài khoản yêu cầu MFA
+    alt Passkey mặc định
+        U->>I: POST passkeys/mfa/options
+        I-->>U: WebAuthn challenge
+        U->>I: POST passkeys/mfa/complete
+    else Mobile approval
+        U->>I: Start native MFA ticket
+        I-->>M: Opaque ticket qua hishope://auth/mfa
+        M->>I: options -> native assertion -> complete
+        I-->>U: Browser poll nhận approved ticket
+    else TOTP fallback
+        U->>I: POST /Account/Mfa với mã TOTP
+    end
+    I->>R: Lưu/tiêu thụ challenge, ticket, authorization code một lần
+    I-->>G: Redirect callback với code + state
+    G->>I: POST /connect/token (code + verifier)
+    I-->>G: OIDC result; token không trả cho browser JS
+    G->>I: POST /api/v1/auth/session/exchange
+    I->>R: Tạo session mới, lưu protected JWE
+    I-->>App: Set-Cookie hishop_sid + hishop_csrf
+    App-->>U: Điều hướng dashboard
+```
+
+### 0.2 Luồng gọi API, refresh và logout
+
+```mermaid
+flowchart TD
+    A[Angular gọi /api/v1/* với credentials] --> B[Gateway đọc hishop_sid]
+    B --> C{Session Redis hợp lệ?}
+    C -- Không --> L[401; về login]
+    C -- Có --> D[Unprotect token server-side]
+    D --> E[Forward Bearer JWE + X-HisHope-Session nội bộ]
+    E --> F[Shared RSA/JWS/JWE validator]
+    F --> G{Token và permission hợp lệ?}
+    G -- 403 --> F403[Forbidden state]
+    G -- 401 --> H{Đã refresh lần này?}
+    G -- Có --> OK[Trả dữ liệu]
+    H -- Chưa --> X[POST /api/v1/auth/internal/refresh]
+    X -->|204/200| RETRY[Retry request đúng một lần]
+    X -->|401/revoked| L
+    H -- Rồi --> L
+    LOG[POST /api/v1/auth/logout] --> REV[Revoke session/token family + xóa cookie]
+    REV --> SIGN[Signed-out state trên các app]
+```
+
+Trong local Docker, `Jwt__AllowHttp=true` chỉ phục vụ issuer localhost. Môi
+trường staging/production bắt buộc dùng HTTPS và không được dùng cờ này để
+che giấu cấu hình TLS sai. `Jwt__RsaPublicKeyPath` dùng để xác thực chữ ký;
+`Jwt__RsaEncryptionPrivateKeyPath` dùng để giải mã lớp JWE. Token runtime hiện
+tại là nested token: JWS `RS256` bên trong JWE `RSA-OAEP` +
+`A256CBC-HS512`, có `kid` để phục vụ rotation.
+
+### 0.3 Endpoint contract của cơ chế mới
+
+| Endpoint | Vai trò | Ghi chú |
+|---|---|---|
+| `GET /api/v1/auth/session-status` | Kiểm tra Identity cookie | Không cấp token |
+| `POST /api/v1/auth/session/exchange` | Tạo/rotate BFF session sau OIDC callback | Trả `204`, set cookies |
+| `POST /api/v1/auth/internal/refresh` | Refresh session server-side | Không nhận refresh token từ browser |
+| `POST /api/v1/auth/logout` | Revoke và xóa session/cookies | Dùng cho cross-port logout |
+| `GET /.well-known/openid-configuration` | OIDC discovery | Issuer và endpoint runtime là authoritative |
+| `POST /connect/token` | Code/refresh exchange | Mobile native gọi qua native boundary; web không expose token |
+
+Các app Angular phải dùng URL auth tương đối qua Gateway (ví dụ
+`/api/v1/auth/session-status`), không gọi trực tiếp `identityservice:5001`.
+Mobile dùng issuer/API origin theo runtime config của môi trường và chỉ lưu
+token trong Android Keystore/iOS Keychain.
 
 ## 1. Security boundaries
 
@@ -143,8 +262,10 @@ verifier. Do not accept a callback with a missing or mismatched state.
 
 ### 3.2 Browser/BFF sequence
 
-The browser flow is a server-side session flow. The access and refresh tokens
-remain inside the BFF session store.
+The browser flow is BFF-only. The Angular callback page performs the shared
+OIDC coordinator hand-off, but it never receives or stores a bearer token. The
+Identity application cookie is used for the OIDC/account flow; after callback,
+`/api/v1/auth/session/exchange` rotates the Redis-backed `hishop_sid` session.
 
 ```mermaid
 sequenceDiagram
@@ -157,28 +278,29 @@ sequenceDiagram
     participant Api as Protected API
 
     User->>Web: Open protected route
-    Web->>Bff: GET /app/route (cookie absent/expired)
-    Bff-->>Web: 302 /connect/authorize + state + nonce + PKCE
-    Web->>Id: GET /connect/authorize
+    Web->>Bff: GET /api/v1/auth/session-status (cookie)
+    Bff-->>Web: authenticated=false
+    Web->>Id: GET /connect/authorize via Gateway
     Id->>Id: Validate client, redirect URI, scopes, PKCE
-    Id-->>Web: Login and MFA UI
-    User->>Web: Password + MFA
-    Web->>Id: Submit credentials
+    Id-->>Web: Login, passkey and MFA UI
+    User->>Web: Password + passkey/mobile approval/TOTP
+    Web->>Id: Submit selected factor
     Id->>Id: Lockout/rate-limit/password/MFA checks
     Id-->>Web: Consent UI when grant is missing/changed
     User->>Web: Approve or deny scopes
     Web->>Id: Approve consent
     Id->>Store: Store single-use authorization code (TTL)
     Id-->>Web: 302 exact redirect_uri?code=...&state=...
-    Web->>Bff: GET callback with code and state
-    Bff->>Bff: Verify state and transaction binding
-    Bff->>Id: POST /connect/token (code + verifier)
+    Web->>Web: Verify state, nonce and PKCE transaction
+    Web->>Id: POST /connect/token through callback bridge
     Id->>Store: Consume code once and reject replay
-    Id-->>Bff: Access token + refresh token
-    Bff->>Store: Save token material in server session
-    Bff-->>Web: Set HttpOnly Secure hishop_sid
+    Id-->>Web: OIDC completion; token remains outside app state
+    Web->>Bff: POST /api/v1/auth/session/exchange (cookie)
+    Bff->>Store: Rotate session and store protected JWE
+    Bff-->>Web: Set HttpOnly hishop_sid + hishop_csrf
     Web->>Bff: API request + CSRF header where required
-    Bff->>Api: Bearer token from server session
+    Bff->>Bff: Unprotect JWE from Redis session
+    Bff->>Api: Bearer JWE + internal session marker
     Api-->>Bff: Data or ProblemDetails
     Bff-->>Web: Data/error without exposing token
 ```
@@ -204,8 +326,8 @@ flowchart TD
 
 ```text
 1. User opens a protected Angular route.
-2. BFF sees no valid hishop_sid session.
-3. BFF redirects to authorization_endpoint with:
+2. Angular checks `session-status`; no valid `hishop_sid` starts authorization.
+3. Angular opens authorization_endpoint with:
    response_type=code
    client_id=<registered-client>
    redirect_uri=<exact-registered-uri>
@@ -219,11 +341,13 @@ flowchart TD
 5. User completes password authentication and MFA when required.
 6. Identity displays consent if the client/scope grant is missing or changed.
 7. Identity returns one-time code + state to the exact redirect URI.
-8. BFF validates state and exchanges code + verifier at /connect/token.
+8. Shared frontend coordinator validates state and completes the callback.
 9. Identity validates code, client, redirect URI and PKCE; code is consumed.
-10. BFF stores token material server-side in Redis session storage.
-11. BFF sets HttpOnly, Secure, environment-scoped hishop_sid cookie.
-12. Angular calls BFF APIs with credentials; tokens never enter JavaScript.
+10. Angular calls `/api/v1/auth/session/exchange` once; Identity creates a new
+    Redis session containing protected JWE and returns no token to JavaScript.
+11. BFF sets HttpOnly, environment-scoped `hishop_sid` and CSRF cookie.
+12. Angular calls BFF APIs with credentials; Gateway resolves the session and
+    injects the bearer token only on the server-to-service hop.
 ```
 
 The authorization code is short-lived and single-use. Never put the code,
@@ -453,17 +577,26 @@ shared permission codes and keep backend authorization authoritative.
 
 ## 6. Refresh, revocation, and logout
 
+Web BFF và mobile có hai cơ chế khác nhau nhưng cùng một chính sách replay:
+
+- Angular web không gọi refresh token từ JavaScript. Shared foundation xử lý
+  một request `internal/refresh`/session exchange duy nhất, chờ các request
+  đồng thời, retry request gốc tối đa một lần; thất bại thì logout.
+- Mobile native dùng refresh-token rotation tại `/connect/token`, lưu token
+  trong Keystore/Keychain và ký DPoP theo cấu hình native. Refresh token bị
+  reuse hoặc revoked phải xóa toàn bộ secure session.
+
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Client as BFF or mobile client
+    participant Client as BFF web or mobile client
     participant Id as Identity Service
     participant Store as Redis/token store
     participant Api as Resource API
 
     Client->>Api: Request with access token
     Api-->>Client: 401 token expired
-    Client->>Id: POST /connect/token grant_type=refresh_token
+    Client->>Id: Web: internal/refresh; mobile: /connect/token
     Id->>Store: Check token family, expiry, revocation, client binding
     alt Valid refresh token
         Id->>Store: Revoke old token and persist replacement

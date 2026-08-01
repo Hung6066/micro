@@ -18,6 +18,10 @@ import { PatientService } from '@core/services/patient.service';
 import { Patient } from '@core/models/patient.model';
 import { CreateInvoiceRequest } from '@core/models/invoice.model';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import {
+  HisHopePageLayoutComponent, HisHopePageHeaderComponent,
+  HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-invoice-form',
@@ -28,91 +32,99 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
         MatSelectModule, MatButtonModule, MatAutocompleteModule,
         MatDatepickerModule, MatNativeDateModule, MatProgressSpinnerModule,
         MatSnackBarModule,
+        HisHopePageLayoutComponent, HisHopePageHeaderComponent,
+        HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="invoice-form">
-      <h1>Tạo hóa đơn mới</h1>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader
+                      [title]="'invoiceForm.title' | hhTranslate:'Tạo hóa đơn mới'"
+                      [subtitle]="'invoiceForm.subtitle' | hhTranslate:'Lập hóa đơn thanh toán cho bệnh nhân'" />
 
-      <form [formGroup]="invoiceForm" (ngSubmit)="onSubmit()">
-        <div class="form-grid">
-          <mat-form-field appearance="outline">
-            <mat-label>Bệnh nhân</mat-label>
-            <input matInput [formControl]="patientSearchControl" placeholder="Tìm bệnh nhân..."
-                   aria-label="Tìm kiếm bệnh nhân" [matAutocomplete]="patientAuto">
-            <mat-icon matSuffix>search</mat-icon>
-            <mat-autocomplete #patientAuto="matAutocomplete" [displayWith]="displayPatientFn">
-              @for (p of filteredPatients; track p.id) {
-              <mat-option [value]="p" (onSelectionChange)="onPatientSelected(p)">
-                {{ p.fullName }} - {{ p.id | slice:0:8 }}...
-              </mat-option>
-              }
-            </mat-autocomplete>
-            @if (invoiceForm.get('patientId')?.hasError('required')) {
-            <mat-error>Vui lòng chọn bệnh nhân</mat-error>
-            }
-          </mat-form-field>
+      <form [formGroup]="invoiceForm" (ngSubmit)="onSubmit()" novalidate>
+        <hh-form-layout>
+          <hh-form-section [title]="'invoiceForm.section.basic' | hhTranslate:'Thông tin hóa đơn'" [span]="2">
+            <div class="form-grid">
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'invoiceForm.patient' | hhTranslate:'Bệnh nhân' }}</mat-label>
+                <input matInput [formControl]="patientSearchControl" [placeholder]="'invoiceForm.patientPlaceholder' | hhTranslate:'Tìm bệnh nhân...'"
+                       [attr.aria-label]="'invoiceForm.patientSearchAria' | hhTranslate:'Tìm kiếm bệnh nhân'" [matAutocomplete]="patientAuto">
+                <mat-icon matSuffix>search</mat-icon>
+                <mat-autocomplete #patientAuto="matAutocomplete" [displayWith]="displayPatientFn">
+                  @for (p of filteredPatients; track p.id) {
+                  <mat-option [value]="p" (onSelectionChange)="onPatientSelected(p)">
+                    {{ p.fullName }} - {{ p.id | slice:0:8 }}...
+                  </mat-option>
+                  }
+                </mat-autocomplete>
+                @if (invoiceForm.get('patientId')?.hasError('required')) {
+                <mat-error>{{ 'invoiceForm.patientRequired' | hhTranslate:'Vui lòng chọn bệnh nhân' }}</mat-error>
+                }
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Ngày hóa đơn</mat-label>
-            <input matInput [matDatepicker]="datePicker" formControlName="invoiceDate" required
-                   aria-label="Ngày hóa đơn">
-            <mat-datepicker-toggle matSuffix [for]="datePicker"></mat-datepicker-toggle>
-            <mat-datepicker #datePicker></mat-datepicker>
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'invoiceForm.date' | hhTranslate:'Ngày hóa đơn' }}</mat-label>
+                <input matInput [matDatepicker]="datePicker" formControlName="invoiceDate" required
+                       [attr.aria-label]="'invoiceForm.dateAria' | hhTranslate:'Ngày hóa đơn'">
+                <mat-datepicker-toggle matSuffix [for]="datePicker"></mat-datepicker-toggle>
+                <mat-datepicker #datePicker></mat-datepicker>
+              </mat-form-field>
 
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Ghi chú</mat-label>
-            <textarea matInput formControlName="notes" rows="2" placeholder="Ghi chú hóa đơn..."
-                      aria-label="Ghi chú"></textarea>
-          </mat-form-field>
-        </div>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>{{ 'invoiceForm.notes' | hhTranslate:'Ghi chú' }}</mat-label>
+                <textarea matInput formControlName="notes" rows="2" [placeholder]="'invoiceForm.notesPlaceholder' | hhTranslate:'Ghi chú hóa đơn...'"
+                          [attr.aria-label]="'invoiceForm.notesAria' | hhTranslate:'Ghi chú'"></textarea>
+              </mat-form-field>
+            </div>
+          </hh-form-section>
+        </hh-form-layout>
 
         <!-- Line Items -->
         <mat-card class="items-section">
           <mat-card-header>
-            <mat-card-title>Dịch vụ</mat-card-title>
+            <mat-card-title>{{ 'invoiceForm.services' | hhTranslate:'Dịch vụ' }}</mat-card-title>
           </mat-card-header>
           <mat-card-content>
             <div formArrayName="lineItems">
               @for (item of lineItems.controls; track i; let i = $index) {
               <div [formGroupName]="i" class="item-row">
                 <mat-form-field appearance="outline">
-                  <mat-label>Mã dịch vụ</mat-label>
-                  <input matInput formControlName="itemCode" required placeholder="VD: KCB-001"
-                         aria-label="Mã dịch vụ">
+                  <mat-label>{{ 'invoiceForm.itemCode' | hhTranslate:'Mã dịch vụ' }}</mat-label>
+                  <input matInput formControlName="itemCode" required [placeholder]="'invoiceForm.itemCodePlaceholder' | hhTranslate:'VD: KCB-001'"
+                         [attr.aria-label]="'invoiceForm.itemCodeAria' | hhTranslate:'Mã dịch vụ'">
                 </mat-form-field>
 
                 <mat-form-field appearance="outline" class="flex-2">
-                  <mat-label>Mô tả</mat-label>
-                  <input matInput formControlName="description" required placeholder="Mô tả dịch vụ"
-                         aria-label="Mô tả dịch vụ">
+                  <mat-label>{{ 'invoiceForm.description' | hhTranslate:'Mô tả' }}</mat-label>
+                  <input matInput formControlName="description" required [placeholder]="'invoiceForm.descriptionPlaceholder' | hhTranslate:'Mô tả dịch vụ'"
+                         [attr.aria-label]="'invoiceForm.descriptionAria' | hhTranslate:'Mô tả dịch vụ'">
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
-                  <mat-label>Loại</mat-label>
-                  <mat-select formControlName="itemTypeCode" required aria-label="Loại dịch vụ">
-                    <mat-option value="examination">Khám bệnh</mat-option>
-                    <mat-option value="procedure">Thủ thuật</mat-option>
-                    <mat-option value="medication">Thuốc</mat-option>
-                    <mat-option value="lab">Xét nghiệm</mat-option>
-                    <mat-option value="imaging">Chẩn đoán hình ảnh</mat-option>
-                    <mat-option value="supply">Vật tư</mat-option>
-                    <mat-option value="room">Phòng</mat-option>
-                    <mat-option value="other">Khác</mat-option>
+                  <mat-label>{{ 'invoiceForm.itemType' | hhTranslate:'Loại' }}</mat-label>
+                  <mat-select formControlName="itemTypeCode" required [attr.aria-label]="'invoiceForm.itemTypeAria' | hhTranslate:'Loại dịch vụ'">
+                    <mat-option value="examination">{{ 'invoiceForm.type.exam' | hhTranslate:'Khám bệnh' }}</mat-option>
+                    <mat-option value="procedure">{{ 'invoiceForm.type.procedure' | hhTranslate:'Thủ thuật' }}</mat-option>
+                    <mat-option value="medication">{{ 'invoiceForm.type.medication' | hhTranslate:'Thuốc' }}</mat-option>
+                    <mat-option value="lab">{{ 'invoiceForm.type.lab' | hhTranslate:'Xét nghiệm' }}</mat-option>
+                    <mat-option value="imaging">{{ 'invoiceForm.type.imaging' | hhTranslate:'Chẩn đoán hình ảnh' }}</mat-option>
+                    <mat-option value="supply">{{ 'invoiceForm.type.supply' | hhTranslate:'Vật tư' }}</mat-option>
+                    <mat-option value="room">{{ 'invoiceForm.type.room' | hhTranslate:'Phòng' }}</mat-option>
+                    <mat-option value="other">{{ 'invoiceForm.type.other' | hhTranslate:'Khác' }}</mat-option>
                   </mat-select>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline" class="num-field">
-                  <mat-label>SL</mat-label>
+                  <mat-label>{{ 'invoiceForm.quantity' | hhTranslate:'SL' }}</mat-label>
                   <input matInput formControlName="quantity" type="number" required min="1"
-                         aria-label="Số lượng" (input)="updateItemAmount(i)">
+                         [attr.aria-label]="'invoiceForm.quantityAria' | hhTranslate:'Số lượng'" (input)="updateItemAmount(i)">
                 </mat-form-field>
 
                 <mat-form-field appearance="outline" class="num-field">
-                  <mat-label>Đơn giá</mat-label>
+                  <mat-label>{{ 'invoiceForm.unitPrice' | hhTranslate:'Đơn giá' }}</mat-label>
                   <input matInput formControlName="unitPrice" type="number" required min="0"
-                         aria-label="Đơn giá" (input)="updateItemAmount(i)">
+                         [attr.aria-label]="'invoiceForm.unitPriceAria' | hhTranslate:'Đơn giá'" (input)="updateItemAmount(i)">
                 </mat-form-field>
 
                 <div class="item-amount">
@@ -120,7 +132,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
                 </div>
 
                 <button mat-icon-button color="warn" type="button" (click)="removeItem(i)"
-                        aria-label="Xóa dịch vụ">
+                        [attr.aria-label]="'invoiceForm.removeItem' | hhTranslate:'Xóa dịch vụ'">
                   <mat-icon>delete</mat-icon>
                 </button>
               </div>
@@ -128,8 +140,8 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
             </div>
 
             <button mat-stroked-button color="primary" type="button" (click)="addItem()"
-                    aria-label="Thêm dịch vụ">
-              <mat-icon>add</mat-icon> Thêm dịch vụ
+                    [attr.aria-label]="'invoiceForm.addItem' | hhTranslate:'Thêm dịch vụ'">
+              <mat-icon>add</mat-icon> {{ 'invoiceForm.addItem' | hhTranslate:'Thêm dịch vụ' }}
             </button>
           </mat-card-content>
         </mat-card>
@@ -138,28 +150,28 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
         @if (lineItems.length > 0) {
         <mat-card class="totals-card">
           <mat-card-content>
-            <div class="total-row"><span>Tổng tạm tính:</span><span>{{ calculateSubTotal() | number:'1.0-0' }} đ</span></div>
+            <div class="total-row"><span>{{ 'invoiceForm.subtotal' | hhTranslate:'Tổng tạm tính:' }}</span><span>{{ calculateSubTotal() | number:'1.0-0' }} đ</span></div>
           </mat-card-content>
         </mat-card>
         }
 
         <div class="form-actions">
-          <button mat-button type="button" routerLink="/billing">Hủy</button>
+          <button mat-button type="button" routerLink="/billing">{{ 'common.cancel' | hhTranslate:'Hủy' }}</button>
           <button mat-raised-button color="primary" type="submit"
                   [disabled]="invoiceForm.invalid || lineItems.length === 0 || submitting">
             @if (submitting) {
-            <mat-spinner diameter="18" class="btn-spinner" aria-label="Đang lưu"></mat-spinner>
+            <mat-spinner diameter="18" class="btn-spinner" [attr.aria-label]="'common.saving' | hhTranslate:'Đang lưu'"></mat-spinner>
             }
-            {{ submitting ? 'Đang lưu...' : 'Tạo hóa đơn' }}
+            {{ submitting ? ('common.saving' | hhTranslate:'Đang lưu...') : ('invoiceForm.save' | hhTranslate:'Tạo hóa đơn') }}
           </button>
         </div>
       </form>
-    </div>
+    </hh-page-layout>
   `,
     styles: [`
-    .invoice-form { padding: 24px; max-width: 1000px; }
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .full-width { grid-column: 1 / -1; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--form-field-gap, 16px); }
+    .form-grid .full-width { grid-column: 1 / -1; }
+    @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } }
     .items-section { margin: 20px 0; }
     .item-row { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; }
     .item-row mat-form-field { flex: 1; min-width: 120px; }

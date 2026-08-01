@@ -1,19 +1,17 @@
-import { inject, Injectable } from '@angular/core';
-import { ActivatedRouteSnapshot, CanActivate, RouterStateSnapshot } from '@angular/router';
-import { Observable, filter, switchMap, tap } from 'rxjs';
+import { inject } from '@angular/core';
+import { CanActivateFn, Router, UrlTree } from '@angular/router';
+import { Observable, map, switchMap } from 'rxjs';
 import { AuthService } from '@core/services/auth.service';
-import { OidcSecurityService } from 'angular-auth-oidc-client';
 
-@Injectable({ providedIn: 'root' })
-export class AuthGuard implements CanActivate {
-  private authService = inject(AuthService);
-  private oidcSecurityService = inject(OidcSecurityService);
-
-  canActivate(_route: ActivatedRouteSnapshot, _state: RouterStateSnapshot): Observable<boolean> {
-    return this.authService.checkAuth().pipe(
-      switchMap(() => this.authService.isLoggedIn()),
-      tap(isAuth => { if (!isAuth) this.oidcSecurityService.authorize(); }),
-      filter(isAuth => isAuth),
-    );
-  }
-}
+/**
+ * Authentication guard that checks if the user is authenticated.
+ * Redirects to `/auth/login` if not authenticated.
+ */
+export const authGuard: CanActivateFn = (): Observable<boolean | UrlTree> => {
+  const authService = inject(AuthService);
+  const router = inject(Router);
+  return authService.checkAuth().pipe(
+    switchMap(() => authService.isLoggedIn()),
+    map(isAuth => (isAuth ? true : router.parseUrl('/auth/login'))),
+  );
+};

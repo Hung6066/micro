@@ -11,6 +11,10 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { PharmacyService } from '@core/services/pharmacy.service';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import {
+  HisHopePageLayoutComponent, HisHopePageHeaderComponent,
+  HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation';
 
 @Component({
     selector: 'app-medication-form',
@@ -20,101 +24,109 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
         MatFormFieldModule, MatInputModule, MatSelectModule,
         MatButtonModule, MatProgressSpinnerModule, MatCheckboxModule,
         MatSnackBarModule,
+        HisHopePageLayoutComponent, HisHopePageHeaderComponent,
+        HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-    <div class="medication-form">
-      <h1>{{ isEdit ? 'Chỉnh sửa thuốc' : 'Thêm thuốc mới' }}</h1>
+    <hh-page-layout>
+      <hh-page-header hhPageHeader
+                      [title]="(isEdit ? 'medicationForm.title.edit' : 'medicationForm.title.create') | hhTranslate:(isEdit ? 'Chỉnh sửa thuốc' : 'Thêm thuốc mới')"
+                      [subtitle]="'medicationForm.subtitle' | hhTranslate:'Quản lý thông tin thuốc'" />
 
-      <form [formGroup]="medicationForm" (ngSubmit)="onSubmit()">
-        <div class="form-grid">
-          <mat-form-field appearance="outline">
-            <mat-label>Tên thuốc</mat-label>
-            <input matInput formControlName="name" required placeholder="VD: Paracetamol 500mg">
-            @if (medicationForm.get('name')?.hasError('required')) {
-            <mat-error>Vui lòng nhập tên thuốc</mat-error>
-            }
-          </mat-form-field>
+      <form [formGroup]="medicationForm" (ngSubmit)="onSubmit()" novalidate>
+        <hh-form-layout>
+          <hh-form-section [title]="'medicationForm.section.basic' | hhTranslate:'Thông tin thuốc'" [span]="2">
+            <div class="form-grid">
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'medicationForm.name' | hhTranslate:'Tên thuốc' }}</mat-label>
+                <input matInput formControlName="name" required [placeholder]="'medicationForm.namePlaceholder' | hhTranslate:'VD: Paracetamol 500mg'">
+                @if (medicationForm.get('name')?.hasError('required')) {
+                <mat-error>{{ 'medicationForm.nameRequired' | hhTranslate:'Vui lòng nhập tên thuốc' }}</mat-error>
+                }
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Hoạt chất</mat-label>
-            <input matInput formControlName="genericName" required placeholder="VD: Paracetamol">
-            @if (medicationForm.get('genericName')?.hasError('required')) {
-            <mat-error>Vui lòng nhập hoạt chất</mat-error>
-            }
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'medicationForm.genericName' | hhTranslate:'Hoạt chất' }}</mat-label>
+                <input matInput formControlName="genericName" required [placeholder]="'medicationForm.genericNamePlaceholder' | hhTranslate:'VD: Paracetamol'">
+                @if (medicationForm.get('genericName')?.hasError('required')) {
+                <mat-error>{{ 'medicationForm.genericNameRequired' | hhTranslate:'Vui lòng nhập hoạt chất' }}</mat-error>
+                }
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Tên thương mại</mat-label>
-            <input matInput formControlName="brandName" placeholder="VD: Panadol">
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'medicationForm.brandName' | hhTranslate:'Tên thương mại' }}</mat-label>
+                <input matInput formControlName="brandName" [placeholder]="'medicationForm.brandNamePlaceholder' | hhTranslate:'VD: Panadol'">
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Hàm lượng</mat-label>
-            <input matInput formControlName="strength" required placeholder="VD: 500mg">
-            @if (medicationForm.get('strength')?.hasError('required')) {
-            <mat-error>Vui lòng nhập hàm lượng</mat-error>
-            }
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'medicationForm.strength' | hhTranslate:'Hàm lượng' }}</mat-label>
+                <input matInput formControlName="strength" required [placeholder]="'medicationForm.strengthPlaceholder' | hhTranslate:'VD: 500mg'">
+                @if (medicationForm.get('strength')?.hasError('required')) {
+                <mat-error>{{ 'medicationForm.strengthRequired' | hhTranslate:'Vui lòng nhập hàm lượng' }}</mat-error>
+                }
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Dạng bào chế</mat-label>
-            <mat-select formControlName="dosageForm" required>
-              <mat-option value="Viên nén">Viên nén</mat-option>
-              <mat-option value="Viên nang">Viên nang</mat-option>
-              <mat-option value="Dung dịch">Dung dịch</mat-option>
-              <mat-option value="Hỗn dịch">Hỗn dịch</mat-option>
-              <mat-option value="Bột pha">Bột pha</mat-option>
-              <mat-option value="Kem bôi">Kem bôi</mat-option>
-              <mat-option value="Thuốc mỡ">Thuốc mỡ</mat-option>
-              <mat-option value="Ống tiêm">Ống tiêm</mat-option>
-              <mat-option value="Khí dung">Khí dung</mat-option>
-            </mat-select>
-            @if (medicationForm.get('dosageForm')?.hasError('required')) {
-            <mat-error>Vui lòng chọn dạng bào chế</mat-error>
-            }
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'medicationForm.dosageForm' | hhTranslate:'Dạng bào chế' }}</mat-label>
+                <mat-select formControlName="dosageForm" required>
+                  <mat-option value="tablet">{{ 'medicationForm.dosageForm.tablet' | hhTranslate:'Viên nén' }}</mat-option>
+                  <mat-option value="capsule">{{ 'medicationForm.dosageForm.capsule' | hhTranslate:'Viên nang' }}</mat-option>
+                  <mat-option value="solution">{{ 'medicationForm.dosageForm.solution' | hhTranslate:'Dung dịch' }}</mat-option>
+                  <mat-option value="suspension">{{ 'medicationForm.dosageForm.suspension' | hhTranslate:'Hỗn dịch' }}</mat-option>
+                  <mat-option value="powder">{{ 'medicationForm.dosageForm.powder' | hhTranslate:'Bột pha' }}</mat-option>
+                  <mat-option value="cream">{{ 'medicationForm.dosageForm.cream' | hhTranslate:'Kem bôi' }}</mat-option>
+                  <mat-option value="ointment">{{ 'medicationForm.dosageForm.ointment' | hhTranslate:'Thuốc mỡ' }}</mat-option>
+                  <mat-option value="injection">{{ 'medicationForm.dosageForm.injection' | hhTranslate:'Ống tiêm' }}</mat-option>
+                  <mat-option value="inhalation">{{ 'medicationForm.dosageForm.inhalation' | hhTranslate:'Khí dung' }}</mat-option>
+                </mat-select>
+                @if (medicationForm.get('dosageForm')?.hasError('required')) {
+                <mat-error>{{ 'medicationForm.dosageFormRequired' | hhTranslate:'Vui lòng chọn dạng bào chế' }}</mat-error>
+                }
+              </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>Đường dùng</mat-label>
-            <mat-select formControlName="route" required>
-              <mat-option value="Uống">Uống</mat-option>
-              <mat-option value="Tiêm tĩnh mạch">Tiêm tĩnh mạch</mat-option>
-              <mat-option value="Tiêm bắp">Tiêm bắp</mat-option>
-              <mat-option value="Tiêm dưới da">Tiêm dưới da</mat-option>
-              <mat-option value="Bôi ngoài da">Bôi ngoài da</mat-option>
-              <mat-option value="Nhỏ mắt">Nhỏ mắt</mat-option>
-              <mat-option value="Xịt mũi">Xịt mũi</mat-option>
-              <mat-option value="Đặt trực tràng">Đặt trực tràng</mat-option>
-              <mat-option value="Hít">Hít</mat-option>
-            </mat-select>
-            @if (medicationForm.get('route')?.hasError('required')) {
-            <mat-error>Vui lòng chọn đường dùng</mat-error>
-            }
-          </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>{{ 'medicationForm.route' | hhTranslate:'Đường dùng' }}</mat-label>
+                <mat-select formControlName="route" required>
+                  <mat-option value="oral">{{ 'medicationForm.route.oral' | hhTranslate:'Uống' }}</mat-option>
+                  <mat-option value="iv">{{ 'medicationForm.route.iv' | hhTranslate:'Tiêm tĩnh mạch' }}</mat-option>
+                  <mat-option value="im">{{ 'medicationForm.route.im' | hhTranslate:'Tiêm bắp' }}</mat-option>
+                  <mat-option value="sc">{{ 'medicationForm.route.sc' | hhTranslate:'Tiêm dưới da' }}</mat-option>
+                  <mat-option value="topical">{{ 'medicationForm.route.topical' | hhTranslate:'Bôi ngoài da' }}</mat-option>
+                  <mat-option value="eye">{{ 'medicationForm.route.eye' | hhTranslate:'Nhỏ mắt' }}</mat-option>
+                  <mat-option value="nasal">{{ 'medicationForm.route.nasal' | hhTranslate:'Xịt mũi' }}</mat-option>
+                  <mat-option value="rectal">{{ 'medicationForm.route.rectal' | hhTranslate:'Đặt trực tràng' }}</mat-option>
+                  <mat-option value="inhaled">{{ 'medicationForm.route.inhaled' | hhTranslate:'Hít' }}</mat-option>
+                </mat-select>
+                @if (medicationForm.get('route')?.hasError('required')) {
+                <mat-error>{{ 'medicationForm.routeRequired' | hhTranslate:'Vui lòng chọn đường dùng' }}</mat-error>
+                }
+              </mat-form-field>
 
-          <mat-checkbox formControlName="requiresPrescription" class="full-width">
-            Yêu cầu kê đơn
-          </mat-checkbox>
-        </div>
+              <mat-checkbox formControlName="requiresPrescription" class="full-width">
+                {{ 'medicationForm.requiresPrescription' | hhTranslate:'Yêu cầu kê đơn' }}
+              </mat-checkbox>
+            </div>
+          </hh-form-section>
+        </hh-form-layout>
 
         <div class="form-actions">
-          <button mat-button type="button" routerLink="/pharmacy/medications">Hủy</button>
+          <button mat-button type="button" routerLink="/pharmacy/medications">{{ 'common.cancel' | hhTranslate:'Hủy' }}</button>
           <button mat-raised-button color="primary" type="submit"
                   [disabled]="medicationForm.invalid || submitting">
             @if (submitting) {
-            <mat-spinner diameter="18" class="btn-spinner" aria-label="Đang lưu"></mat-spinner>
+            <mat-spinner diameter="18" class="btn-spinner" [attr.aria-label]="'common.saving' | hhTranslate:'Đang lưu'"></mat-spinner>
             }
-            {{ submitting ? 'Đang lưu...' : (isEdit ? 'Cập nhật thuốc' : 'Thêm thuốc') }}
+            {{ submitting ? ('common.saving' | hhTranslate:'Đang lưu...') : (isEdit ? ('medicationForm.save.edit' | hhTranslate:'Cập nhật thuốc') : ('medicationForm.save.create' | hhTranslate:'Thêm thuốc')) }}
           </button>
         </div>
       </form>
-    </div>
+    </hh-page-layout>
   `,
     styles: [`
-    .medication-form { padding: 24px; max-width: 900px; }
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .full-width { grid-column: 1 / -1; margin: 8px 0; }
+    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--form-field-gap, 16px); }
+    .form-grid .full-width { grid-column: 1 / -1; }
+    @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } }
     .form-actions { margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end; }
     .btn-spinner { display: inline-block; margin-right: 8px; }
   `],

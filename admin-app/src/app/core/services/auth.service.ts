@@ -15,6 +15,7 @@ export class AuthService {
     {
       defaultReturnUrl: "/clients",
       sessionStatusUrl: `${environment.authApiUrl}/session-status`,
+      bffOnly: true,
     },
   );
 
@@ -43,6 +44,14 @@ export class AuthService {
 
   getAccessToken(): Observable<string> {
     return this.coordinator.getAccessToken();
+  }
+
+  refreshAccessToken(): Observable<boolean> {
+    return this.coordinator.refreshAccessToken();
+  }
+
+  handleSessionExpired(): void {
+    this.coordinator.handleSessionExpired();
   }
 
   handleCallback(): Observable<boolean> {
