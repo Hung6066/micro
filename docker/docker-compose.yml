@@ -284,6 +284,8 @@ services:
       Jwt__ValidIssuers__1: his-hope-identity
       Jwt__Audience: http://localhost:5000/
       Jwt__Expiry: "08:00:00"
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__AllowHttp: "true"
       Redis__ConnectionString: redis:6379
       Vault__Address: ${VAULT_ADDR:-}
       Vault__Token: ${VAULT_TOKEN:-}
@@ -309,6 +311,8 @@ services:
       Passkeys__Origins__0: ${PASSKEYS_ORIGIN_0:-http://localhost:5000}
       Passkeys__Origins__1: ${PASSKEYS_ORIGIN_1:-http://localhost:8083}
       Passkeys__Origins__2: ${PASSKEYS_ORIGIN_2:-https://localhost}
+      Passkeys__Origins__3: ${PASSKEYS_ORIGIN_3:-http://localhost:8081}
+      Passkeys__Origins__4: ${PASSKEYS_ORIGIN_4:-http://localhost:8082}
       Mobile__AppPolicy__MinimumVersion: 1.0.0
       Mobile__AppPolicy__LatestVersion: 1.0.0
       Mobile__AppPolicy__ForceUpgrade: "false"

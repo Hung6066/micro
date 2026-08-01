@@ -18,6 +18,7 @@ import {
   HisHopeI18nService,
   HisHopeLocalizationApiService,
   HIS_HOPE_LOCALIZATION_API_URL,
+  hisHopeCookieSessionInterceptor,
 } from '@his-hope/frontend-foundation';
 import { routes } from './app.routes';
 import { authInterceptor } from './core/services/auth-interceptor.service';
@@ -34,6 +35,7 @@ export const appConfig: ApplicationConfig = {
       withInterceptors([
         hisHopeCorrelationIdInterceptor,
         hisHopeInternationalizationInterceptor,
+        hisHopeCookieSessionInterceptor,
         authInterceptor,
         hisHopeErrorInterceptor,
       ]),
@@ -49,7 +51,7 @@ export const appConfig: ApplicationConfig = {
         scope: environment.oidc.scope,
         responseType: environment.oidc.responseType,
         silentRenew: true,
-        useRefreshToken: true,
+        useRefreshToken: false,
         silentRenewUrl: environment.oidc.silentRenewUrl,
         renewTimeBeforeTokenExpiresInSeconds: 120,
         secureRoutes: environment.oidc.secureRoutes,

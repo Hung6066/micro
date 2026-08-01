@@ -182,9 +182,12 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
                 if (context.Request.Path.StartsWithSegments("/connect") ||
                     context.Request.Path.StartsWithSegments("/Account"))
                     return IdentityConstants.ApplicationScheme;
-                // API calls with Bearer token → validate via OpenIddict (knows RSA keys)
+                // API bearer tokens use the shared RSA/JWS/JWE validator. This
+                // handles both OpenIddict access tokens and the BFF session
+                // token without relying on a proxy-specific header surviving
+                // every reverse-proxy path.
                 if (context.Request.Headers.ContainsKey("Authorization"))
-                    return OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme;
+                    return JwtBearerDefaults.AuthenticationScheme;
                 // Browser requests → cookie
                  return IdentityConstants.ApplicationScheme;
              };

@@ -21,7 +21,7 @@ import { GlobalErrorHandler } from '@core/errors/global-error-handler';
 
 import { environment } from '@env/environment';
 import { mockServiceProviders } from '@core/services/mock/mock-providers';
-import { HisHopeI18nService, HisHopeLocalizationApiService, HIS_HOPE_LOCALIZATION_API_URL, hisHopeInternationalizationInterceptor } from '@his-hope/frontend-foundation';
+import { HisHopeI18nService, HisHopeLocalizationApiService, HIS_HOPE_LOCALIZATION_API_URL, hisHopeInternationalizationInterceptor, hisHopeCookieSessionInterceptor } from '@his-hope/frontend-foundation';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -30,7 +30,7 @@ export const appConfig: ApplicationConfig = {
     { provide: HisHopeLocalizationApiService, useFactory: (http: HttpClient, i18n: HisHopeI18nService, apiUrl: string) => new HisHopeLocalizationApiService(http, i18n, apiUrl), deps: [HttpClient, HisHopeI18nService, HIS_HOPE_LOCALIZATION_API_URL] },
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    provideHttpClient(withInterceptorsFromDi(), withInterceptors([hisHopeInternationalizationInterceptor, authInterceptor, csrfInterceptor])),
+    provideHttpClient(withInterceptorsFromDi(), withInterceptors([hisHopeInternationalizationInterceptor, hisHopeCookieSessionInterceptor, authInterceptor, csrfInterceptor])),
     provideAuth({
       config: {
         authority: environment.oidc.authority,
@@ -40,7 +40,7 @@ export const appConfig: ApplicationConfig = {
         scope: environment.oidc.scope,
         responseType: environment.oidc.responseType,
         silentRenew: true,
-        useRefreshToken: true,
+        useRefreshToken: false,
         silentRenewUrl: environment.oidc.silentRenewUrl,
         renewTimeBeforeTokenExpiresInSeconds: 120,
         secureRoutes: [environment.apiUrl + '/'],

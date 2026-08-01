@@ -9,6 +9,7 @@ WORKDIR /src
 # --- Restore dependencies (layer cached) ---
 # Copy ONLY .csproj files first for layer caching
 COPY ["src/ApiGateway/*.csproj", "ApiGateway/"]
+COPY ["src/Bff/His.Hope.Bff.Core/*.csproj", "Bff/His.Hope.Bff.Core/"]
 COPY ["src/Shared/SharedKernel/Src/His.Hope.SharedKernel/*.csproj", "Shared/SharedKernel/Src/His.Hope.SharedKernel/"]
 COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/*.csproj", "Shared/Infrastructure/His.Hope.Infrastructure/"]
 COPY ["src/Shared/AspNetCore/His.Hope.AspNetCore/*.csproj", "Shared/AspNetCore/His.Hope.AspNetCore/"]
@@ -27,6 +28,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
 
 # --- Copy source and publish ---
 COPY ["src/ApiGateway/", "ApiGateway/"]
+COPY ["src/Bff/His.Hope.Bff.Core/", "Bff/His.Hope.Bff.Core/"]
 COPY ["src/Shared/SharedKernel/Src/His.Hope.SharedKernel/", "Shared/SharedKernel/Src/His.Hope.SharedKernel/"]
 COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/", "Shared/Infrastructure/His.Hope.Infrastructure/"]
 COPY ["src/Shared/AspNetCore/His.Hope.AspNetCore/", "Shared/AspNetCore/His.Hope.AspNetCore/"]

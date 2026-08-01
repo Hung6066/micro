@@ -17,6 +17,7 @@ export class AuthService {
       sessionStatusUrl: `${environment.authApiUrl}/session-status`,
       sessionExchangeUrl: `${environment.authApiUrl}/session/exchange`,
       logoutUrl: `${environment.authApiUrl}/logout`,
+      bffOnly: true,
     },
   );
 
@@ -49,6 +50,14 @@ export class AuthService {
 
   getAccessToken(): Observable<string> {
     return this.coordinator.getAccessToken();
+  }
+
+  refreshAccessToken(): Observable<boolean> {
+    return this.coordinator.refreshAccessToken();
+  }
+
+  handleSessionExpired(): void {
+    this.coordinator.handleSessionExpired();
   }
 
   handleCallback(): Observable<boolean> {

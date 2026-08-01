@@ -17,5 +17,7 @@ export const authInterceptor = createHisHopeBearerTokenInterceptor(
   () => inject(AuthService).getAccessToken(),
   {
     matches: (url) => url.includes("/api/") && !url.includes("/localization"),
+    refreshAccessToken: () => inject(AuthService).refreshAccessToken(),
+    onSessionExpired: () => inject(AuthService).handleSessionExpired(),
   },
 );

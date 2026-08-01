@@ -10,7 +10,7 @@ export const environment = {
     redirectUrl: window.location.origin + '/auth/callback',
     postLogoutRedirectUri: window.location.origin + '/auth/login',
     silentRenewUrl: window.location.origin + '/auth/silent-refresh',
-    scope: 'openid profile email roles hishop:permissions hishop:admin offline_access',
+    scope: 'openid profile email roles hishop:permissions hishop:admin',
     responseType: 'code',
     secureRoutes: ['/api/v1/admin/'],
     maxIdTokenIatOffsetInSeconds: 600,

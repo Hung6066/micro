@@ -8,7 +8,7 @@ export const environment = {
     redirectUrl: 'http://localhost:4202/auth/callback',
     postLogoutRedirectUri: 'http://localhost:4202/auth/login',
     silentRenewUrl: 'http://localhost:4202/auth/silent-refresh',
-    scope: 'openid profile email roles hishop:permissions hishop:admin offline_access',
+    scope: 'openid profile email roles hishop:permissions hishop:admin',
     responseType: 'code',
     secureRoutes: ['/api/v1/admin/'],
     maxIdTokenIatOffsetInSeconds: 600,

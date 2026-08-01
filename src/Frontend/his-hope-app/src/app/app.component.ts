@@ -9,11 +9,8 @@ import { MatSidenavModule } from '@angular/material/sidenav';
 import { Subject, takeUntil, filter } from 'rxjs';
 import { AuthService } from '@core/services/auth.service';
 import { RumService } from './monitoring/rum.service';
-import { ErrorBarComponent } from '@shared/components/error-bar/error-bar.component';
 import {
-  HisHopeAuditFeedbackService,
   HisHopeBrandComponent,
-  HisHopeI18nService,
   HisHopeLanguageSwitcherComponent,
   HisHopeOfflineBannerComponent,
   HisHopeThemeService,
@@ -29,7 +26,7 @@ import {
         CommonModule, RouterModule,
         MatButtonModule, MatIconModule, MatListModule,
         MatSidenavModule,
-        ErrorBarComponent, HisHopeBrandComponent, HisHopeLanguageSwitcherComponent, HisHopeOfflineBannerComponent, HisHopeWorkspaceHeaderComponent, HisHopeToastComponent, HisHopeTranslatePipe,
+        HisHopeBrandComponent, HisHopeLanguageSwitcherComponent, HisHopeOfflineBannerComponent, HisHopeWorkspaceHeaderComponent, HisHopeToastComponent, HisHopeTranslatePipe,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
@@ -88,7 +85,6 @@ import {
           <mat-icon aria-hidden="true">menu</mat-icon>
         </button>
         }
-        <app-error-bar></app-error-bar>
         @if (isLoggedIn) {
         <hh-workspace-header />
         }
@@ -106,6 +102,7 @@ import {
     <hh-toast-outlet />
   `,
     styles: [`
+    :host, .app-sidenav-container, .shell-sidebar, .shell-sidebar__nav { font-family: var(--font-sans) !important; }
     .app-sidenav-container { min-height: 100dvh; background: var(--bg-warm, #F2F6F3); }
     .app-sidenav-container .mat-drawer-side { width: var(--shell-sidebar-width, 264px); border-right: 1px solid var(--border-default, #EAEAEA); }
     .main-content { min-height: 100dvh; padding: 28px 32px; position: relative; max-width: var(--max-width-container, 1200px); width: 100%; margin: 0 auto; }
@@ -125,6 +122,7 @@ import {
     .shell-sidebar__close { color: var(--text-secondary); }
     .shell-sidebar__nav { flex: 1; padding: 4px 8px; overflow-y: auto; }
     .shell-sidebar__nav a { border-radius: 6px; margin-bottom: 2px; color: var(--text-primary); height: 44px; position: relative; transition: background-color 150ms ease; }
+    .shell-sidebar__nav .mdc-list-item__primary-text { font-family: var(--font-sans) !important; font-size: var(--font-size-body, 14px); line-height: 20px; font-weight: 500; }
     .shell-sidebar__nav a:hover { background: var(--surface-hover); }
     .shell-sidebar__nav a.active-link { background: var(--color-primary-soft); box-shadow: inset 3px 0 0 var(--color-primary); color: var(--color-primary); }
     .shell-sidebar__nav a.active-link:hover { background: var(--color-primary-soft); }
@@ -145,14 +143,10 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private authService = inject(AuthService);
   private readonly theme = inject(HisHopeThemeService);
-  private readonly i18n = inject(HisHopeI18nService);
   private router = inject(Router);
-  private auditFeedback = inject(HisHopeAuditFeedbackService);
   private cdr = inject(ChangeDetectorRef);
   private rum = inject(RumService);
   private breakpointObserver = inject(BreakpointObserver);
-  private previousUrl = '';
-
   toggleSidenav(): void {
     this.sidenavOpened = !this.sidenavOpened;
     this.cdr.markForCheck();
@@ -202,15 +196,6 @@ export class AppComponent implements OnInit, OnDestroy {
       filter((event): event is NavigationEnd => event instanceof NavigationEnd),
       takeUntil(this.destroy$),
     ).subscribe((event: NavigationEnd) => {
-      if (this.previousUrl && this.previousUrl !== event.url) {
-        this.auditFeedback.report({
-          action: 'navigation.change',
-          resource: 'route',
-          outcome: 'success',
-          message: this.i18n.t('app.navigation.changed', `Đã chuyển từ ${this.previousUrl} đến ${event.url}`, { from: this.previousUrl, to: event.url }),
-        });
-      }
-      this.previousUrl = event.url;
       if (this.isMobile && this.sidenavOpened) {
         this.sidenavOpened = false;
         this.cdr.markForCheck();

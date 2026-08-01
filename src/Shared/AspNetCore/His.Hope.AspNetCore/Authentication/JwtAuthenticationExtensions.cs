@@ -50,7 +50,10 @@ public static class JwtAuthenticationExtensions
 
         // Configuration templates intentionally contain ${...} markers. They
         // must never activate the legacy HMAC branch in production.
-        var useOidc = string.IsNullOrWhiteSpace(options.Key) || options.Key.Contains("${", StringComparison.Ordinal);
+        var useOidc = string.IsNullOrWhiteSpace(options.Key)
+            || options.Key.Contains("${", StringComparison.Ordinal)
+            || !string.IsNullOrWhiteSpace(options.PublicKeyPath)
+            || !string.IsNullOrWhiteSpace(options.EncryptionPrivateKeyPath);
         services.AddHttpClient("HisHopeJwtBackchannel", client =>
         {
             client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.BackchannelTimeoutSeconds));
@@ -127,10 +130,17 @@ public static class JwtAuthenticationExtensions
                 ? settings.ValidIssuers
                 : null,
             ValidAudience = settings.Audience ?? "His.Hope",
-            // Include both signing (RsaSha256) and content encryption (Aes256CbcHmacSha512)
-            // algorithms. The content encryption algorithm must be explicitly listed
-            // otherwise JWE decryption fails with IDX10696: algorithm not accepted.
-            ValidAlgorithms = [SecurityAlgorithms.RsaSha256, SecurityAlgorithms.Aes256CbcHmacSha512],
+            // The session token is a nested JWT: RSA-SHA256 signs the inner JWS,
+            // while RSA-OAEP/RSA-OAEP-256 wraps the JWE content-encryption key.
+            // Include both key-wrapping variants and the content algorithm so
+            // rotated OpenIddict and BFF session tokens reach the decryption keys.
+            ValidAlgorithms =
+            [
+                SecurityAlgorithms.RsaSha256,
+                SecurityAlgorithms.RsaOAEP,
+                SecurityAlgorithms.RsaOaepKeyWrap,
+                SecurityAlgorithms.Aes256CbcHmacSha512
+            ],
             ClockSkew = TimeSpan.FromMinutes(Math.Max(0, settings.ClockSkewMinutes))
         };
 
@@ -148,21 +158,25 @@ public static class JwtAuthenticationExtensions
             // across RSA implementation boundaries (RSAOpenSsl / RSACng).
             var rsaParams = encryptionRsa.ExportParameters(true);
             var decryptionRsa = RSA.Create(rsaParams);
-            var decryptionKey = new RsaSecurityKey(decryptionRsa)
+            var decryptionKey = new RsaSecurityKey(decryptionRsa);
+            var oidcDecryptionKey = new RsaSecurityKey(decryptionRsa)
             {
-                // Must match the kid set by IdentityService in the JWE encryption header.
-                // If kid mismatch occurs, the handler silently skips the key.
                 KeyId = "oidc-encryption-v1"
             };
+            var jwtDecryptionKey = new RsaSecurityKey(decryptionRsa)
+            {
+                KeyId = "jwt-encryption-v1"
+            };
+            var decryptionKeys = new[] { decryptionKey, oidcDecryptionKey, jwtDecryptionKey };
 
             // Register via multiple mechanisms for resilience:
             // - TokenDecryptionKey: direct single-key fallback
             // - TokenDecryptionKeys: multi-key list
             // - TokenDecryptionKeyResolver: dynamic lookup (called per-request)
             parameters.TokenDecryptionKey = decryptionKey;
-            parameters.TokenDecryptionKeys = [decryptionKey];
+            parameters.TokenDecryptionKeys = decryptionKeys;
             parameters.TokenDecryptionKeyResolver = (token, securityToken, kid, validationParameters) =>
-                [decryptionKey];
+                decryptionKeys;
         }
 
         return parameters;
@@ -170,11 +184,20 @@ public static class JwtAuthenticationExtensions
 
     private static RSA? LoadRsaPrivateKey(string? pem, string? path)
     {
-        var material = !string.IsNullOrWhiteSpace(pem)
+        var material = !string.IsNullOrWhiteSpace(pem) && !pem.Contains("${", StringComparison.Ordinal)
             ? pem
             : !string.IsNullOrWhiteSpace(path) && File.Exists(path)
                 ? File.ReadAllText(path)
-                : null;
+                : new[]
+                {
+                    "/etc/hishop/certs/jwt-encryption-private-key.pem",
+                    "/etc/hishop/certs/oidc-encryption-private-key.pem",
+                    Path.Combine(AppContext.BaseDirectory, "Certificates", "jwt-encryption-private-key.pem"),
+                    Path.Combine(AppContext.BaseDirectory, "Certificates", "oidc-encryption-private-key.pem")
+                }
+                .Where(File.Exists)
+                .Select(File.ReadAllText)
+                .FirstOrDefault();
         if (string.IsNullOrWhiteSpace(material)) return null;
 
         var rsa = RSA.Create();

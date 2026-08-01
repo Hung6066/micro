@@ -5,6 +5,7 @@ export * from "./http/his-hope-correlation-id.interceptor";
 export * from "./http/his-hope-error-reporting.service";
 export * from "./http/his-hope-error.interceptor";
 export * from "./http/his-hope-bearer-token.interceptor";
+export * from "./http/his-hope-cookie-session.interceptor";
 export * from "./errors/his-hope-global-error-handler";
 export * from "./contracts/his-hope-ui-contracts";
 export * from "./query/his-hope-query-state.service";

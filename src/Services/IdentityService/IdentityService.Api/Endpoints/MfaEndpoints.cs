@@ -196,8 +196,8 @@ public static class MfaEndpoints
             var sessionData = new SessionData
             {
                 UserId = user.Id.ToString(),
-                Jwt = accessToken,
-                RefreshToken = refreshTokenValue,
+                Jwt = services.GetRequiredService<SessionTokenProtector>().Protect(accessToken),
+                RefreshToken = services.GetRequiredService<SessionTokenProtector>().Protect(refreshTokenValue),
                 Permissions = permissions.ToArray(),
                 CsrfToken = csrfToken,
                 UserAgentHash = ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),

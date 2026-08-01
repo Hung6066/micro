@@ -17,5 +17,6 @@
     <ProjectReference Include="..\Shared\Messaging\His.Hope.Messaging.Abstractions\His.Hope.Messaging.Abstractions.csproj" />
     <ProjectReference Include="..\Shared\Observability\His.Hope.Observability\His.Hope.Observability.csproj" />
     <ProjectReference Include="..\Shared\Infrastructure\His.Hope.Infrastructure\His.Hope.Infrastructure.csproj" />
+    <ProjectReference Include="..\Bff\His.Hope.Bff.Core\His.Hope.Bff.Core.csproj" />
   </ItemGroup>
 </Project>

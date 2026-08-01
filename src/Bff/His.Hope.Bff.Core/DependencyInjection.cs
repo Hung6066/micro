@@ -6,6 +6,7 @@ using His.Hope.Bff.Core.Telemetry;
 using His.Hope.AspNetCore;
 using His.Hope.Observability;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -32,8 +33,14 @@ public static class DependencyInjection
             ?? configuration["Redis:Connection"]
             ?? throw new InvalidOperationException("Redis connection string not configured");
 
-        services.AddSingleton<IConnectionMultiplexer>(_ =>
-            ConnectionMultiplexer.Connect(redisConnection));
+        var redis = ConnectionMultiplexer.Connect(redisConnection);
+        services.AddSingleton<IConnectionMultiplexer>(redis);
+        var dataProtectionKeyName = configuration["DataProtection:KeyName"]
+            ?? "HisHope:IdentityService:DataProtection:Keys";
+        services.AddDataProtection()
+            .SetApplicationName("His.Hope.IdentityService")
+            .PersistKeysToStackExchangeRedis(redis, dataProtectionKeyName);
+        services.AddSingleton<SessionTokenProtector>();
 
         services.AddBffResilience();
 

@@ -122,4 +122,63 @@ describe("createHisHopeBearerTokenInterceptor", () => {
     expect(req.request.headers.get("Authorization")).toBe("DPoP proof-bound-token");
     req.flush({});
   });
+
+  it("refreshes once and retries a request after a 401", () => {
+    let refreshCalls = 0;
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(
+          withInterceptors([
+            createHisHopeBearerTokenInterceptor(() => of("fresh-token"), {
+              refreshAccessToken: () => {
+                refreshCalls += 1;
+                return of(true);
+              },
+            }),
+          ]),
+        ),
+        provideHttpClientTesting(),
+      ],
+    });
+    httpMock = TestBed.inject(HttpTestingController);
+    http = TestBed.inject(HttpClient);
+
+    let response: unknown;
+    http.get("/api/v1/clients").subscribe((value) => { response = value; });
+
+    const first = httpMock.expectOne("/api/v1/clients");
+    first.flush({ message: "expired" }, { status: 401, statusText: "Unauthorized" });
+    const retryRequest = httpMock.expectOne("/api/v1/clients");
+    expect(retryRequest.request.headers.get("Authorization")).toBe("Bearer fresh-token");
+    retryRequest.flush({ ok: true });
+
+    expect(refreshCalls).toBe(1);
+    expect(response).toEqual({ ok: true });
+  });
+
+  it("notifies session expiry when refresh cannot recover a 401", () => {
+    let sessionExpired = 0;
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(
+          withInterceptors([
+            createHisHopeBearerTokenInterceptor(() => of("expired-token"), {
+              refreshAccessToken: () => of(false),
+              onSessionExpired: () => { sessionExpired += 1; },
+            }),
+          ]),
+        ),
+        provideHttpClientTesting(),
+      ],
+    });
+    httpMock = TestBed.inject(HttpTestingController);
+    http = TestBed.inject(HttpClient);
+
+    let status = 0;
+    http.get("/api/v1/clients").subscribe({ error: (error) => { status = error.status; } });
+    httpMock.expectOne("/api/v1/clients").flush({}, { status: 401, statusText: "Unauthorized" });
+
+    expect(status).toBe(401);
+    expect(sessionExpired).toBe(1);
+  });
 });

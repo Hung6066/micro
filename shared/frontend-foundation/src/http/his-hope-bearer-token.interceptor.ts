@@ -1,5 +1,5 @@
-import { HttpInterceptorFn } from "@angular/common/http";
-import { Observable, switchMap } from "rxjs";
+import { HttpErrorResponse, HttpEvent, HttpHandlerFn, HttpInterceptorFn, HttpRequest } from "@angular/common/http";
+import { Observable, catchError, finalize, of, shareReplay, switchMap, throwError } from "rxjs";
 
 export interface HisHopeBearerTokenOptions {
   /** Only requests matched by this predicate get an Authorization header. Defaults to any URL containing "/api/". */
@@ -7,6 +7,10 @@ export interface HisHopeBearerTokenOptions {
   withCredentials?: boolean;
   /** Authorization scheme used for the access token. Defaults to Bearer. */
   tokenType?: "Bearer" | "DPoP";
+  /** Refreshes the access token once after a 401, then retries the request once. */
+  refreshAccessToken?: () => Observable<boolean>;
+  /** Called when refresh is unavailable or has failed. */
+  onSessionExpired?: () => void;
 }
 
 const defaultMatcher = (url: string): boolean => url.includes("/api/");
@@ -22,20 +26,51 @@ export function createHisHopeBearerTokenInterceptor(
   const withCredentials = options.withCredentials ?? true;
   const tokenType = options.tokenType ?? "Bearer";
 
+  let refreshInFlight$: Observable<boolean> | undefined;
+
+  const refreshOnce = (): Observable<boolean> => {
+    if (!options.refreshAccessToken) return of(false);
+    if (!refreshInFlight$) {
+      refreshInFlight$ = options.refreshAccessToken().pipe(
+        catchError(() => of(false)),
+        finalize(() => { refreshInFlight$ = undefined; }),
+        shareReplay({ bufferSize: 1, refCount: false }),
+      );
+    }
+    return refreshInFlight$;
+  };
+
+  const sendWithToken = (request: HttpRequest<unknown>, retrying: boolean, next: HttpHandlerFn): Observable<HttpEvent<unknown>> =>
+    getAccessToken().pipe(
+      switchMap((token) => {
+        const authenticatedRequest = request.clone({
+          withCredentials,
+          ...(token ? { setHeaders: { Authorization: `${tokenType} ${token}` } } : {}),
+        });
+        return next(authenticatedRequest).pipe(
+          catchError((error: unknown) => {
+            if (!(error instanceof HttpErrorResponse) || error.status !== 401 || retrying || !options.refreshAccessToken) {
+              return throwError(() => error);
+            }
+
+            return refreshOnce().pipe(
+              switchMap((refreshed) => refreshed
+                ? sendWithToken(request, true, next)
+                : throwError(() => error)),
+              catchError((refreshError) => {
+                options.onSessionExpired?.();
+                return throwError(() => refreshError);
+              }),
+            );
+          }),
+        );
+      }),
+    );
+
   return (req, next) => {
     if (!matches(req.url)) {
       return next(withCredentials ? req.clone({ withCredentials: true }) : req);
     }
-    return getAccessToken().pipe(
-      switchMap((token) => {
-        const request = req.clone({
-          withCredentials,
-          ...(token
-            ? { setHeaders: { Authorization: `${tokenType} ${token}` } }
-            : {}),
-        });
-        return next(request);
-      }),
-    );
+    return sendWithToken(req, false, next);
   };
 }

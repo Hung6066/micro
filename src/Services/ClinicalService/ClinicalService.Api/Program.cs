@@ -308,10 +308,26 @@ encounters.MapGet("/patient/{patientId:guid}", async (
     return Results.Ok(result);
 }).RequireAuthorization("Permission:clinical.view").WithOpenApi();
 
-// Patient-specific encounters aggregate endpoint (routed via YARP from /api/v1/patients/{patientId:guid}/encounters)
-app.MapGet("/api/v1/patients/{patientId:guid}/encounters", async (Guid patientId) =>
+// Patient-specific encounters aggregate endpoint (routed via the gateway from
+// /api/v1/patients/{patientId:guid}/encounters).
+app.MapGet("/api/v1/patients/{patientId:guid}/encounters", async (
+    Guid patientId,
+    int page,
+    int pageSize,
+    DateTime? fromDate,
+    DateTime? toDate,
+    IMediator mediator,
+    ICacheService cache,
+    CancellationToken ct) =>
 {
-    return Results.Ok(new { patientId, items = new List<object>() });
+    var cacheKey = $"encounters:patient:{patientId}:{page}:{pageSize}:{fromDate}:{toDate}";
+    var result = await cache.GetOrSetAsync(
+        cacheKey,
+        async () => await mediator.Send(
+            new GetEncountersByPatientQuery(patientId, page, pageSize, fromDate, toDate), ct),
+        TimeSpan.FromMinutes(5), ct);
+
+    return Results.Ok(result);
 }).RequireAuthorization("Permission:clinical.view").WithOpenApi();
 
 // Dashboard Stats Endpoint - requires clinical.view permission

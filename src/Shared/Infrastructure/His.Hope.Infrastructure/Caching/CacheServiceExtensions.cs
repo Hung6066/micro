@@ -27,8 +27,9 @@ public static class CacheServiceExtensions
         this IServiceCollection services,
         string redisConnectionString = "localhost:6379")
     {
-        // Register L2 (Redis) - uses shared IConnectionMultiplexer registered by the service
-        services.AddHisHopeCaching();
+        // Register L2 explicitly. HybridCacheService is the public ICacheService
+        // facade, so injecting ICacheService into it would create a DI cycle.
+        services.AddSingleton<DistributedCacheService>();
 
         // Register L1 (in-memory) with size limit of 500 entries
         services.AddMemoryCache();
