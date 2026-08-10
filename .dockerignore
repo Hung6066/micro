@@ -1,0 +1,95 @@
+# ============================================================
+# Global .dockerignore for His.Hope monorepo
+# ============================================================
+
+# --- .NET build artifacts ---
+**/bin/
+**/obj/
+**/packages/
+**/.vs/
+**/.vscode/
+*.user
+*.suo
+*.cache
+*.vspscc
+
+# --- Node.js / Angular ---
+**/node_modules/
+**/dist/
+**/.angular/
+**/coverage/
+
+# --- Git ---
+**/.git/
+**/.gitignore
+**/.gitattributes
+
+# --- IDE & Editor ---
+**/.idea/
+**/.vs/
+**/.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- Documentation (large files) ---
+**/*.md
+!README.md
+!shared/frontend-foundation/README.md
+!shared/frontend-foundation/CHANGELOG.md
+!shared/frontend-foundation/COMPATIBILITY.md
+!shared/frontend-foundation/LICENSE
+!shared/frontend-foundation/docs/**
+
+# --- Test & Coverage ---
+**/TestResults/
+**/coverlet/
+**/coverage/
+*.trx
+*.testlog
+
+# --- Docker & Kubernetes ---
+**/docker-compose.override.yml
+**/.env
+!.env.example
+**/.env.*
+!**/*.env.example
+
+# Provider credentials must be mounted as runtime secrets, never copied into images.
+**/account.json
+**/*firebase*credentials*.json
+
+# --- Logs ---
+**/*.log
+**/logs/
+**/Logs/
+!dashboard-app/src/app/features/logs/
+!dashboard-app/src/app/features/logs/**
+
+# --- Temp files ---
+**/tmp/
+**/temp/
+**/.tmp/
+
+# --- CI/CD pipeline artifacts ---
+**/.tekton/
+**/pipeline-runs/
+
+# --- Python (ML services) ---
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/.venv/
+**/.pytest_cache/
+
+# --- Bazel ---
+**/bazel-*/
+**/.bazelrc.user
+
+# --- Archives ---
+*.zip
+*.tar.gz
+*.tgz
+*.7z

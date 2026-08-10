@@ -1,0 +1,30 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  namespace: his-hope
+  name: cpu-stress-80pct
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    chaos-mesh/experiment-type: cpu-stress
+    chaos-mesh/schedule: routine
+  annotations:
+    description: "Stresses one random pod to 80% CPU load using 4 workers every 6 hours to test CPU throttling and autoscaling behavior"
+    maintainer: "his-hope-sre@hishop.com"
+    game-day-scope: "weekly-chaos-wednesday,monthly-full-chaos"
+spec:
+  mode: one
+  selector:
+    namespaces:
+      - his-hope
+    labelSelectors:
+      app.kubernetes.io/part-of: his-hope
+    fieldSelectors:
+      - metadata.name!=postgres-0
+      - metadata.name!=redis-0
+  stressors:
+    cpu:
+      workers: 4
+      load: 80
+  duration: 5m
+  scheduler:
+    cron: "@every 6h"

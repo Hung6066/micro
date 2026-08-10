@@ -1,0 +1,242 @@
+# Production Gatekeeper policy bundle. Apply to staging first and promote only
+# after reject/allow tests pass. These policies intentionally fail closed.
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sapprovedimageregistry
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sApprovedImageRegistry
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            registries:
+              type: array
+              items: { type: string }
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sapprovedimageregistry
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.containers[_]
+          not approved(c.image)
+          msg := sprintf("image %v is outside the approved registry allow-list", [c.image])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.initContainers[_]
+          not approved(c.image)
+          msg := sprintf("init image %v is outside the approved registry allow-list", [c.image])
+        }
+
+        approved(image) {
+          prefix := input.parameters.registries[_]
+          startswith(image, prefix)
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.containers[_]
+          not re_match("@sha256:[0-9a-f]{64}$", c.image)
+          msg := sprintf("container %v must use an immutable digest", [c.name])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.initContainers[_]
+          not re_match("@sha256:[0-9a-f]{64}$", c.image)
+          msg := sprintf("init container %v must use an immutable digest", [c.name])
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sApprovedImageRegistry
+metadata:
+  name: production-approved-registries
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: [Pod]
+    namespaces: [his-hope]
+  parameters:
+    registries:
+      - harbor.his-hope.local:9443/his-hope/
+      - docker.io/library/
+      - cr.l5d.io/linkerd/
+      - ghcr.io/linkerd/
+      - registry.k8s.io/
+      - quay.io/jetstack/
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srestrictedworkload
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRestrictedWorkload
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srestrictedworkload
+
+        violation[ {"msg": "host namespaces and privileged pods are not allowed"} ] {
+          input.review.object.spec.hostNetwork == true
+        }
+
+        violation[ {"msg": "host namespaces and privileged pods are not allowed"} ] {
+          input.review.object.spec.hostPID == true
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.containers[_]
+          c.securityContext.privileged == true
+          msg := sprintf("container %v must not be privileged", [c.name])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.containers[_]
+          not c.securityContext.runAsNonRoot == true
+          msg := sprintf("container %v must set runAsNonRoot=true", [c.name])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.containers[_]
+          not c.securityContext.allowPrivilegeEscalation == false
+          msg := sprintf("container %v must set allowPrivilegeEscalation=false", [c.name])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.containers[_]
+          not c.securityContext.seccompProfile.type == "RuntimeDefault"
+          msg := sprintf("container %v must use RuntimeDefault seccomp", [c.name])
+        }
+
+        violation[ {"msg": "hostPath volumes are not allowed in application workloads"} ] {
+          input.review.object.spec.volumes[_].hostPath
+        }
+
+        violation[ {"msg": "service account token automount must be disabled"} ] {
+          input.review.object.spec.automountServiceAccountToken == true
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.initContainers[_]
+          not c.securityContext.runAsNonRoot == true
+          msg := sprintf("init container %v must set runAsNonRoot=true", [c.name])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.initContainers[_]
+          not c.securityContext.allowPrivilegeEscalation == false
+          msg := sprintf("init container %v must set allowPrivilegeEscalation=false", [c.name])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.initContainers[_]
+          not c.securityContext.seccompProfile.type == "RuntimeDefault"
+          msg := sprintf("init container %v must use RuntimeDefault seccomp", [c.name])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.containers[_]
+          not c.securityContext.capabilities.drop[_] == "ALL"
+          msg := sprintf("container %v must drop all Linux capabilities", [c.name])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.initContainers[_]
+          not c.securityContext.capabilities.drop[_] == "ALL"
+          msg := sprintf("init container %v must drop all Linux capabilities", [c.name])
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRestrictedWorkload
+metadata:
+  name: production-restricted-workload
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: [Pod]
+    namespaces: [his-hope]
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredresources
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequiredResources
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequiredresources
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.containers[_]
+          not c.resources.requests.cpu
+          msg := sprintf("container %v must declare a CPU request", [c.name])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.containers[_]
+          not c.resources.requests.memory
+          msg := sprintf("container %v must declare a memory request", [c.name])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.containers[_]
+          not c.resources.limits.cpu
+          msg := sprintf("container %v must declare a CPU limit", [c.name])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.containers[_]
+          not c.resources.limits.memory
+          msg := sprintf("container %v must declare a memory limit", [c.name])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.initContainers[_]
+          not c.resources.requests.cpu
+          msg := sprintf("init container %v must declare a CPU request", [c.name])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.initContainers[_]
+          not c.resources.requests.memory
+          msg := sprintf("init container %v must declare a memory request", [c.name])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.initContainers[_]
+          not c.resources.limits.cpu
+          msg := sprintf("init container %v must declare a CPU limit", [c.name])
+        }
+
+        violation[ {"msg": msg} ] {
+          c := input.review.object.spec.initContainers[_]
+          not c.resources.limits.memory
+          msg := sprintf("init container %v must declare a memory limit", [c.name])
+        }
+---
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredResources
+metadata:
+  name: production-required-resources
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: [Pod]
+    namespaces: [his-hope]

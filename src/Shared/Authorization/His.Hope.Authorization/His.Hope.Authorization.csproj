@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>His.Hope.Authorization</RootNamespace>
+    <AssemblyName>His.Hope.Authorization</AssemblyName>
+    <PackageId>His.Hope.Authorization</PackageId>
+    <Version>1.0.0</Version>
+    <Description>Shared His.Hope permission and role authorization policies.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.10" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../SharedKernel/Src/His.Hope.SharedKernel/His.Hope.SharedKernel.csproj" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

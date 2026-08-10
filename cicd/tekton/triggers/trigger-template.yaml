@@ -1,0 +1,75 @@
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: ci-trigger-template
+  labels:
+    app.kubernetes.io/name: ci-trigger-template
+    app.kubernetes.io/component: trigger-template
+    app.kubernetes.io/part-of: his-hope-cicd
+spec:
+  description: >-
+    TriggerTemplate that creates a PipelineRun for the CI pipeline when
+    code is pushed to main or a pull request is opened against main.
+
+  params:
+    - name: git-revision
+      description: The git commit SHA to build
+    - name: git-repo-url
+      description: The full clone URL of the repository
+    - name: service-name
+      description: Name of the service to build (extracted from changed paths)
+    - name: trigger-type
+      description: Type of trigger (push or pull_request)
+    - name: pr-number
+      description: Pull request number (only for PR triggers)
+      default: ""
+
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1beta1
+      kind: PipelineRun
+      metadata:
+        name: ci-pipelinerun-$(uid)
+        labels:
+          tekton.dev/trigger-type: $(tt.params.trigger-type)
+          tekton.dev/service-name: $(tt.params.service-name)
+          tekton.dev/git-revision: $(tt.params.git-revision)
+        annotations:
+          tekton.dev/git-repo-url: $(tt.params.git-repo-url)
+          tekton.dev/pr-number: $(tt.params.pr-number)
+      spec:
+        pipelineRef:
+          name: ci-pipeline
+        serviceAccountName: tekton-pipeline-runner
+        params:
+          - name: SERVICE_NAME
+            value: $(tt.params.service-name)
+          - name: GIT_REVISION
+            value: $(tt.params.git-revision)
+          - name: PROJECT_PATH
+            value: src/$(tt.params.service-name)/$(tt.params.service-name).csproj
+          - name: DOCKERFILE
+            value: src/$(tt.params.service-name)/Dockerfile
+          - name: BUILD_CONTEXT
+            value: src/$(tt.params.service-name)
+          - name: MANIFEST_PATH
+            value: k8s/overlays/dev
+          - name: DEV_NAMESPACE
+            value: his-hope-dev
+          - name: REGISTRY_BASE
+            value: ghcr.io/hishop
+        workspaces:
+          - name: source
+            persistentVolumeClaim:
+              claimName: shared-workspace-pvc
+            subPath: source-$(tt.params.service-name)-$(uid)
+          - name: output
+            persistentVolumeClaim:
+              claimName: shared-workspace-pvc
+            subPath: output-$(tt.params.service-name)-$(uid)
+          - name: dockerconfig
+            secret:
+              secretName: docker-credentials
+          - name: sslcert
+            secret:
+              secretName: nuget-ssl-certs
+        timeout: 30m

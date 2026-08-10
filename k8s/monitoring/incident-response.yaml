@@ -1,0 +1,112 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: his-hope
+  name: incident-response
+data:
+  runbook-service-down.md: |
+    # Service Down Runbook
+
+    ## Severity: S0 - Critical
+
+    ## Steps
+    1. Confirm the alert - check Grafana
+    2. Check service status:
+       ```bash
+       kubectl get pods -n his-hope -l app=patient-service
+       kubectl describe pod -n his-hope patient-service-xxx
+       ```
+    3. Check logs:
+       ```bash
+       kubectl logs -n his-hope deployment/patient-service --tail=100
+       ```
+    4. Check Linkerd status:
+       ```bash
+       linkerd viz stat deploy/patient-service -n his-hope
+       ```
+    5. Check database connectivity:
+       ```bash
+       cockroach sql --host=cockroachdb-public:26257 -e "SELECT 1"
+       ```
+    6. Check RabbitMQ connectivity
+    7. Attempt restart:
+       ```bash
+       kubectl rollout restart deployment/patient-service -n his-hope
+       ```
+    8. Rollback if needed:
+       ```bash
+       kubectl rollout undo deployment/patient-service -n his-hope
+       ```
+
+    ## Escalation
+    - Level 1: SRE on-call (5min)
+    - Level 2: Service owner (15min)
+    - Level 3: Engineering manager (30min)
+
+    ## Postmortem
+    - Root cause analysis within 24h
+    - Blameless postmortem within 48h
+
+  runbook-high-latency.md: |
+    # High Latency Runbook
+
+    ## Steps
+    1. Identify which service has high latency
+    2. Check Linkerd metrics:
+       ```bash
+       linkerd viz routes -n his-hope deploy/patient-service
+       ```
+    3. Check if database is slow
+    4. Check if Redis cache is working
+    5. Scale up:
+       ```bash
+       kubectl scale deployment/patient-service -n his-hope --replicas=10
+       ```
+    6. Check for network issues
+
+  runbook-data-inconsistency.md: |
+    # Data Inconsistency Runbook
+
+    ## Steps
+    1. Identify which entities are inconsistent
+    2. Check Outbox table:
+       ```sql
+       SELECT * FROM patientdb.OutboxMessages WHERE ProcessedAt IS NULL;
+       ```
+    3. Force outbox processing
+    4. Check Saga state:
+       ```sql
+       SELECT * FROM clinicaldb.SagaState;
+       ```
+    5. Compensate failed sagas
+    6. Manual reconciliation if needed
+
+  postmortem-template.md: |
+    # Blameless Postmortem
+
+    ## Incident Summary
+    - Date:
+    - Duration:
+    - Severity:
+    - Impact:
+
+    ## Timeline
+    - Detection:
+    - Response:
+    - Mitigation:
+    - Resolution:
+
+    ## Root Cause
+    - What happened:
+    - Why it happened:
+    - Why it wasn't caught:
+
+    ## Action Items
+    | Action | Owner | Bug | Priority |
+    |--------|-------|-----|----------|
+    |        |       |     |          |
+
+    ## Lessons Learned
+    - What went well:
+    - What went wrong:
+    - What to improve:

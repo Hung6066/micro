@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: clinical-service
+          livenessProbe:
+            httpGet:
+              path: /health/live

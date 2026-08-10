@@ -1,0 +1,16 @@
+---
+- name: Install OpenTelemetry Collector with OTLP gRPC and HTTP receivers
+  ansible.builtin.command: >-
+    helm upgrade --install otel open-telemetry/opentelemetry-collector
+    --version {{ otel_collector_chart_version }} --namespace monitoring --create-namespace
+    --values "{{ observability_repo_root }}/artifacts/otel-collector-values.yaml"
+    --wait=false --timeout 10m
+  environment: { KUBECONFIG: "{{ observability_kubeconfig }}" }
+
+- name: Route browser OTLP through the application namespace
+  ansible.builtin.command: kubectl --kubeconfig "{{ observability_kubeconfig }}" apply -f "{{ observability_repo_root }}/artifacts/otel-browser-route-his-hope.yaml"
+  changed_when: true
+
+- name: Allow Traefik to forward browser OTLP traffic
+  ansible.builtin.command: kubectl --kubeconfig "{{ observability_kubeconfig }}" apply -f "{{ observability_repo_root }}/artifacts/allow-traefik-otel-egress.yaml"
+  changed_when: true

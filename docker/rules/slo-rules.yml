@@ -1,0 +1,43 @@
+# His.Hope Dashboard SLO Recording Rules — Docker Compose Dev
+# Uses short windows (5m) for immediate data in dev environment.
+# Production K8s rules use 30d/1h/6h windows for accurate SLO tracking.
+
+groups:
+  - name: his-hope.slo
+    interval: 15s
+    rules:
+      # ─── Intermediate: request rates per job (5m windows for dev) ───
+      - record: slo:requests:total:rate_5m
+        expr: sum by (job) (rate(http_server_request_duration_seconds_count{}[5m]))
+
+      - record: slo:requests:success:rate_5m
+        expr: sum by (job) (rate(http_server_request_duration_seconds_count{http_response_status_code!~"5.."}[5m]))
+
+      - record: slo:requests:error:rate_5m
+        expr: sum by (job) (rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m]))
+
+      # ─── Final: Availability ratio ───
+      - record: slo:availability:ratio
+        expr: slo:requests:success:rate_5m / slo:requests:total:rate_5m
+
+      # ─── Error budget remaining (5m approximation for dev) ───
+      - record: slo:error_budget:remaining
+        expr: (1 - (1 - slo:requests:error:rate_5m / slo:requests:total:rate_5m)) / (1 - 0.999) * 100
+
+      # ─── Burn rate (no window needed — uses rate_5m / rate_5m = 1) ───
+      - record: slo:burn_rate:1h
+        expr: |
+          (1 - slo:requests:error:rate_5m / slo:requests:total:rate_5m) / (1 - 0.999)
+
+      - record: slo:burn_rate:6h
+        expr: |
+          (1 - slo:requests:error:rate_5m / slo:requests:total:rate_5m) / (1 - 0.999)
+
+      # ─── Latency p99 ───
+      - record: slo:latency:p99
+        expr: |
+          histogram_quantile(0.99,
+            sum by (le, job) (
+              rate(http_server_request_duration_seconds_bucket{}[5m])
+            )
+          )

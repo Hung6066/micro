@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug-only override: permits cleartext HTTP so the app can reach the
+     local emulator host alias (10.0.2.2) / dev backend without HTTPS. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

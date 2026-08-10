@@ -1,0 +1,24 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: test-stack-db-partition
+  namespace: his-hope
+spec:
+  action: partition
+  mode: all
+  selector:
+    namespaces:
+      - his-hope
+    labelSelectors:
+      "app.kubernetes.io/component": "api"
+  direction: both
+  target:
+    mode: all
+    selector:
+      namespaces:
+        - his-hope
+      labelSelectors:
+        "app.kubernetes.io/component": "database"
+  duration: "30s"
+  scheduler:
+    cron: "@every 24h"

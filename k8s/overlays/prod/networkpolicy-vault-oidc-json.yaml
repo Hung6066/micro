@@ -1,0 +1,9 @@
+- op: replace
+  path: /spec/podSelector/matchLabels
+  value:
+    app.kubernetes.io/name: vault
+- op: replace
+  path: /spec/egress/1/to/0/podSelector
+  value:
+    matchLabels:
+      app.kubernetes.io/name: spire-oidc

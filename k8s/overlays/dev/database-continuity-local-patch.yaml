@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database-continuity
+spec:
+  template:
+    spec:
+      containers:
+        - name: database-continuity
+          env:
+            - name: DatabaseContinuity__Enabled
+              value: "true"
+            - name: DatabaseContinuity__SchedulerEnabled
+              value: "false"
+            - name: DatabaseContinuity__Provider
+              value: postgresql
+            - name: DatabaseContinuity__StorageUri
+              value: file:///var/lib/his-hope/backups
+            - name: DatabaseContinuity__StorageProvider
+              value: local
+            - name: DatabaseContinuity__StorageFallbackEnabled
+              value: "true"
+            - name: DatabaseContinuity__LocalStoragePath
+              value: /var/lib/his-hope/backups
+            - name: DatabaseContinuity__EncryptionProvider
+              value: vault-kms
+            - name: DatabaseContinuity__VaultAddress
+              value: http://vault:8200
+            - name: DatabaseContinuity__VaultToken
+              value: dev-root
+            - name: DatabaseContinuity__VaultTransitKeyName
+              value: his-hope-backup-encryption
+            - name: Vault__Address
+              value: http://vault:8200
+            - name: Vault__Token
+              value: dev-root
+            - name: Vault__AllowStaticToken
+              value: "true"
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Development
+            - name: Jwt__AllowHttp
+              value: "true"
+            - name: DatabaseContinuity__AuditConnectionString
+              value: Host=postgres;Database=postgres;Username=his_hope;Password=postgres
+            - name: DatabaseContinuity__PitrEnabled
+              value: "false"
+            - name: DatabaseContinuity__ExecutorPath
+              value: /opt/his-hope/bin/database-continuity-executor.sh
+            - name: DatabaseContinuity__ExecutorWorkingDirectory
+              value: /opt/his-hope/bin

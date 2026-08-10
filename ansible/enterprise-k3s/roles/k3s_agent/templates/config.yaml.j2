@@ -1,0 +1,13 @@
+server: "https://{{ k3s_api_registration_endpoint }}:{{ k3s_api_registration_port }}"
+token: "{{ k3s_token }}"
+node-ip: "{{ k3s_node_ip }}"
+node-name: "{{ inventory_hostname }}"
+protect-kernel-defaults: true
+node-label:
+{% for label in k3s_worker_labels | default([]) %}
+  - "{{ label }}"
+{% endfor %}
+kubelet-arg:
+  - "streaming-connection-idle-timeout=5m"
+  - "terminated-pod-gc-threshold=10"
+  - "tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"

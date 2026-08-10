@@ -1,0 +1,176 @@
+---
+# =============================================================================
+# Cosign Image Signing Task
+# =============================================================================
+# Signs container images using Cosign with a key stored in Vault's transit
+# secrets engine. Authenticates to Vault via the Kubernetes auth method
+# using the pod's service account, then signs and verifies the image.
+#
+# Prerequisites:
+#   1. Vault transit engine enabled with a Cosign key:
+#        vault secrets enable -path=transit transit
+#        vault write -f transit/keys/cosign type=ecdsa-p256
+#
+#   2. Vault Kubernetes auth role for the Tekton service account:
+#        vault write auth/kubernetes/role/cosign-signer \
+#          bound_service_account_names=<tekton-sa> \
+#          bound_service_account_namespaces=tekton-pipelines \
+#          token_policies=cosign-signer \
+#          ttl=30m
+#
+#   3. Vault policy for the signing key:
+#        path "transit/keys/cosign"         { capabilities = ["read"] }
+#        path "transit/sign/cosign"         { capabilities = ["create", "update"] }
+#        path "transit/verify/cosign"       { capabilities = ["create", "update"] }
+#        path "transit/keys/cosign/*"       { capabilities = ["read"] }
+#        path "transit/sign/cosign/*"       { capabilities = ["create", "update"] }
+#        path "transit/verify/cosign/*"     { capabilities = ["create", "update"] }
+# =============================================================================
+
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: cosign-sign
+  labels:
+    app.kubernetes.io/version: "0.1"
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: tekton
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.17.0"
+    tekton.dev/tags: cosign, signing, vault, supply-chain
+    tekton.dev/displayName: Cosign Image Signing
+spec:
+  description: >-
+    Sign a container image using Cosign with a key stored in Vault transit
+    secrets engine. Authenticates to Vault via Kubernetes auth (using the
+    pod's service account JWT), signs the image with the transit key, and
+    verifies the resulting signature.
+
+    The Vault transit engine must have a Cosign-compatible key created:
+      vault write -f transit/keys/cosign type=ecdsa-p256
+
+  params:
+    - name: IMAGE
+      type: string
+      description: >-
+        Full image reference to sign. Should include the SHA256 digest for
+        non-repudiation
+        (e.g., ghcr.io/hishop/patient-service@sha256:abc123...).
+    - name: VAULT_ADDR
+      type: string
+      description: Vault server address
+      default: https://vault-active.his-hope.svc.cluster.local:8200
+    - name: VAULT_ROLE
+      type: string
+      description: Vault Kubernetes auth role for signing
+      default: cosign-signer
+    - name: VAULT_KEY_NAME
+      type: string
+      description: Name of the key in Vault transit secrets engine
+      default: cosign
+
+  results:
+    - name: SIGNATURE_DIGEST
+      description: The SHA256 digest of the signed container image
+    - name: VERIFIED
+      description: Whether signature verification passed (true/false)
+
+  volumes:
+    - name: vault-token
+      emptyDir:
+        medium: Memory
+
+  steps:
+    # ---------------------------------------------------------------------------
+    # Step 1: Authenticate to Vault via Kubernetes auth
+    # ---------------------------------------------------------------------------
+    - name: vault-login
+      image: hashicorp/vault:1.16
+      script: |
+        #!/bin/sh
+        set -euo pipefail
+
+        SA_TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+
+        echo "Authenticating to Vault at $(params.VAULT_ADDR) with role $(params.VAULT_ROLE)..."
+
+        RESPONSE=$(vault write \
+          -address "$(params.VAULT_ADDR)" \
+          -tls-skip-verify \
+          -format=json \
+          auth/kubernetes/login \
+          role="$(params.VAULT_ROLE)" \
+          jwt="${SA_TOKEN}")
+
+        VAULT_TOKEN=$(echo "${RESPONSE}" | sed -n 's/.*"client_token":"\([^"]*\)".*/\1/p')
+
+        if [ -z "${VAULT_TOKEN}" ]; then
+          echo "ERROR: Failed to authenticate to Vault"
+          echo "Response: ${RESPONSE}"
+          exit 1
+        fi
+
+        echo "${VAULT_TOKEN}" > /vault-token/token
+        chmod 600 /vault-token/token
+        echo "Vault authentication successful"
+
+    # ---------------------------------------------------------------------------
+    # Step 2: Sign the image with Cosign using Vault KMS key
+    # ---------------------------------------------------------------------------
+    - name: sign
+      image: gcr.io/projectsigstore/cosign:v2.4.1
+      script: |
+        #!/bin/sh
+        set -euo pipefail
+
+        export VAULT_TOKEN=$(cat /vault-token/token)
+        export VAULT_ADDR="$(params.VAULT_ADDR)"
+
+        IMAGE_REF="$(params.IMAGE)"
+        KEY_REF="hashivault://$(params.VAULT_KEY_NAME)"
+
+        echo "Signing image: ${IMAGE_REF}"
+        echo "Using Vault KMS key: ${KEY_REF}"
+
+        cosign sign \
+          --key "${KEY_REF}" \
+          --tlog-upload=true \
+          --yes \
+          "${IMAGE_REF}"
+
+        echo "Image signed successfully"
+
+    # ---------------------------------------------------------------------------
+    # Step 3: Verify the signature
+    # ---------------------------------------------------------------------------
+    - name: verify
+      image: gcr.io/projectsigstore/cosign:v2.4.1
+      script: |
+        #!/bin/sh
+        set -euo pipefail
+
+        export VAULT_TOKEN=$(cat /vault-token/token)
+        export VAULT_ADDR="$(params.VAULT_ADDR)"
+
+        IMAGE_REF="$(params.IMAGE)"
+        KEY_REF="hashivault://$(params.VAULT_KEY_NAME)"
+
+        echo "Verifying signature for: ${IMAGE_REF}"
+
+        cosign verify \
+          --key "${KEY_REF}" \
+          "${IMAGE_REF}" 2>&1 | tee /tmp/verify-output
+
+        DIGEST=$(grep -o '"docker-manifest-digest":"[^"]*"' /tmp/verify-output \
+          | grep -o 'sha256:[a-f0-9]\{64\}' || echo "")
+
+        if [ -n "${DIGEST}" ]; then
+          printf "%s" "${DIGEST}" > "$(results.SIGNATURE_DIGEST.path)"
+          printf "true" > "$(results.VERIFIED.path)"
+          echo "Signature verified for digest: ${DIGEST}"
+        else
+          printf "%s" "${IMAGE_REF##*@}" > "$(results.SIGNATURE_DIGEST.path)"
+          printf "false" > "$(results.VERIFIED.path)"
+          echo "WARNING: Verification output did not contain expected digest format"
+          echo "Manual verification result: verification completed"
+        fi

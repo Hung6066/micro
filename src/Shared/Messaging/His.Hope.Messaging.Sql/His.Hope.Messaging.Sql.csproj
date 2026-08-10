@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>His.Hope.Messaging.Sql</RootNamespace>
+    <AssemblyName>His.Hope.Messaging.Sql</AssemblyName>
+    <PackageId>His.Hope.Messaging.Sql</PackageId>
+    <Version>1.0.0</Version>
+    <Description>Provider-neutral EF Core SQL adapters for His.Hope outbox, inbox and idempotency contracts.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../His.Hope.Messaging.Abstractions/His.Hope.Messaging.Abstractions.csproj" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.10" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.2" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

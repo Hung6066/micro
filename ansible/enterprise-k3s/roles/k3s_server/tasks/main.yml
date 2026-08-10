@@ -1,0 +1,108 @@
+---
+- name: Create K3s configuration directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  loop:
+    - /etc/rancher/k3s
+    - /var/lib/rancher/k3s/server
+    - /var/lib/rancher/k3s/server/logs
+
+- name: Write K3s Pod Security Admission policy
+  ansible.builtin.template:
+    src: psa.yaml.j2
+    dest: "{{ k3s_psa_policy_path }}"
+    owner: root
+    group: root
+    mode: '0600'
+  notify: Restart K3s server
+
+- name: Write Kubernetes API audit policy
+  ansible.builtin.template:
+    src: audit-policy.yaml.j2
+    dest: "{{ k3s_audit_policy_path }}"
+    owner: root
+    group: root
+    mode: '0600'
+  notify: Restart K3s server
+
+- name: Write K3s server configuration
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/rancher/k3s/config.yaml
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  notify: Restart K3s server
+
+- name: Wait for the registration endpoint before joining additional servers
+  ansible.builtin.wait_for:
+    host: "{{ k3s_api_registration_endpoint }}"
+    port: "{{ k3s_api_registration_port }}"
+    timeout: 120
+  when: inventory_hostname != groups['k3s_servers'][0]
+
+- name: Download the pinned K3s installer
+  ansible.builtin.get_url:
+    url: "{{ k3s_install_script_url }}"
+    dest: /usr/local/src/k3s-install.sh
+    checksum: "{{ k3s_install_script_checksum }}"
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Install version-pinned K3s server
+  ansible.builtin.command: /usr/local/src/k3s-install.sh
+  environment:
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+    INSTALL_K3S_EXEC: server
+  args:
+    creates: /usr/local/bin/k3s
+  no_log: "{{ k3s_install_no_log | bool }}"
+
+- name: Ensure K3s server is enabled and started
+  ansible.builtin.systemd_service:
+    name: k3s
+    enabled: true
+    state: started
+
+- name: Wait for local Kubernetes API readiness with redacted diagnostics
+  block:
+    - name: Probe local Kubernetes API readiness
+      ansible.builtin.command: /usr/local/bin/k3s kubectl get --raw=/readyz
+      register: k3s_readyz
+      retries: 30
+      delay: 5
+      until: k3s_readyz.rc == 0 and 'ok' in k3s_readyz.stdout
+      changed_when: false
+      # Read-only readiness probe; it must execute during --check so retries do
+      # not evaluate an empty stdout produced by Ansible's command skip behavior.
+      check_mode: false
+  rescue:
+    - name: Collect K3s service state without configuration contents
+      ansible.builtin.command: systemctl show k3s -p ActiveState -p SubState -p ExecMainStatus
+      register: k3s_service_state
+      changed_when: false
+      failed_when: false
+      check_mode: false
+    - name: Collect bounded K3s journal diagnostics
+      ansible.builtin.command: journalctl -u k3s -n 80 --no-pager -o cat
+      register: k3s_journal
+      changed_when: false
+      failed_when: false
+      check_mode: false
+    - name: Fail with redacted K3s readiness diagnostics
+      ansible.builtin.fail:
+        msg: >-
+          K3s API readiness failed on {{ inventory_hostname }}.
+          state={{ k3s_service_state.stdout | default('unavailable') | trim }}
+          journal={{ k3s_journal.stdout | default('unavailable')
+            | regex_replace('(?i)(token|sas|secret|password)[^\\n]*', '[REDACTED]')
+            | trim }}
+
+- name: Flush K3s server handlers
+  ansible.builtin.meta: flush_handlers

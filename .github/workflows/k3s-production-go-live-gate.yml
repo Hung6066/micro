@@ -1,0 +1,245 @@
+name: K3s Production Go-Live Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      storage_class:
+        description: Reviewed production storage class (longhorn or external Viettel CSI)
+        required: true
+        default: longhorn
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k3s-production-go-live-gate
+  cancel-in-progress: false
+
+jobs:
+  production-readiness:
+    name: Validate production cluster and DR evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install pinned kubectl
+        uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+        with:
+          version: 'v1.35.5'
+
+      - name: Materialize protected runtime inputs
+        id: runtime-inputs
+        shell: pwsh
+        env:
+          KUBECONFIG_PRODUCTION_B64: ${{ secrets.KUBECONFIG_PRODUCTION_B64 }}
+          AZURE_PRODUCTION_ENV_B64: ${{ secrets.AZURE_PRODUCTION_ENV_B64 }}
+          ANSIBLE_SSH_PRIVATE_KEY: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:KUBECONFIG_PRODUCTION_B64)) {
+            throw 'KUBECONFIG_PRODUCTION_B64 is required in the protected production environment.'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:AZURE_PRODUCTION_ENV_B64)) {
+            throw 'AZURE_PRODUCTION_ENV_B64 is required in the protected production environment.'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:ANSIBLE_SSH_PRIVATE_KEY)) {
+            throw 'ANSIBLE_SSH_PRIVATE_KEY is required for the read-only backup host audit.'
+          }
+          $kubeconfig = Join-Path $env:RUNNER_TEMP 'kubeconfig-production.yaml'
+          $azureEnv = Join-Path $env:RUNNER_TEMP 'azure-production.env'
+          $sshKey = Join-Path $env:RUNNER_TEMP 'his-hope-deploy.key'
+          [IO.File]::WriteAllBytes($kubeconfig, [Convert]::FromBase64String($env:KUBECONFIG_PRODUCTION_B64))
+          [IO.File]::WriteAllBytes($azureEnv, [Convert]::FromBase64String($env:AZURE_PRODUCTION_ENV_B64))
+          [IO.File]::WriteAllText($sshKey, $env:ANSIBLE_SSH_PRIVATE_KEY, [Text.UTF8Encoding]::new($false))
+          & chmod 600 $sshKey
+          "kubeconfig=$kubeconfig" >> $env:GITHUB_OUTPUT
+          "azure_env=$azureEnv" >> $env:GITHUB_OUTPUT
+          "ssh_key=$sshKey" >> $env:GITHUB_OUTPUT
+          $env:KUBECONFIG = $kubeconfig
+          kubectl version --request-timeout=10s
+
+      - name: Validate release invariants and live cluster
+        id: release_gate
+        continue-on-error: true
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
+          REVIEWED_STORAGE_CLASS: ${{ inputs.storage_class }}
+        run: |
+          New-Item -ItemType Directory -Force artifacts/evidence | Out-Null
+          ./scripts/validate-k3s-release.ps1 `
+            -Environment prod `
+            -StorageClassName $env:REVIEWED_STORAGE_CLASS `
+            -Kubeconfig $env:KUBECONFIG `
+            -RequireCluster `
+            -RequirePodSecurity `
+            -OutputPath artifacts/evidence/production-release-gate.json
+
+      - name: Capture sanitized K3s baseline
+        id: baseline
+        continue-on-error: true
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
+        run: ./scripts/capture-k3s-baseline.ps1 -Kubeconfig $env:KUBECONFIG -OutputPath artifacts/evidence/k3s-baseline.json
+
+      - name: Validate full go-live contract
+        id: go_live
+        continue-on-error: true
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
+        run: ./scripts/validate-k3s-go-live.ps1 -Environment production -StorageClassName '${{ inputs.storage_class }}' -Kubeconfig $env:KUBECONFIG -RequireCluster -OutputPath artifacts/evidence/production-go-live.json
+
+      - name: Validate observability and DORA contracts
+        id: observability_contract
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/evidence | Out-Null
+          ./scripts/validate-observability-contract.ps1 -OutputPath artifacts/evidence/production-observability-contract.json
+          python -m unittest discover -s scripts/tests -p 'test_*.py' -v
+          python scripts/validate-dora-metrics-contract.py
+
+      - name: Validate observability runtime health
+        id: observability_runtime
+        continue-on-error: true
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
+        run: ./scripts/validate-observability-runtime.ps1 -Kubeconfig $env:KUBECONFIG -Namespace monitoring -OutputPath artifacts/evidence/production-observability-runtime.json
+
+      - name: Validate reliability platform runtime
+        id: reliability
+        continue-on-error: true
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
+        run: ./scripts/validate-reliability-platform.ps1 -Kubeconfig $env:KUBECONFIG -RequireCluster -OutputPath artifacts/evidence/production-reliability-platform.json
+
+      - name: Execute admission positive and negative probes
+        id: admission
+        continue-on-error: true
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
+        run: ./scripts/test-admission-policy.ps1 -Kubeconfig $env:KUBECONFIG -Namespace his-hope -RequireCluster -OutputPath artifacts/evidence/production-admission-runtime.json
+
+      - name: Validate production HA and SPIRE runtime
+        id: ha_spire
+        continue-on-error: true
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
+        run: ./scripts/validate-production-ha-spire-k3s.ps1 -Kubeconfig $env:KUBECONFIG -OutputPath artifacts/evidence/production-ha-spire.json
+
+      - name: Validate Linkerd and SPIRE mTLS runtime
+        id: linkerd_mtls
+        continue-on-error: true
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
+        run: ./scripts/validate-linkerd-spire-mtls-k3s.ps1 -Kubeconfig $env:KUBECONFIG -Namespace his-hope
+
+      - name: Validate remaining platform gates
+        id: remaining
+        continue-on-error: true
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
+        run: ./scripts/validate-k3s-remaining-gates.ps1 -Kubeconfig $env:KUBECONFIG -InventoryPath ansible/enterprise-k3s/inventory/production.yml -SshKeyPath '${{ steps.runtime-inputs.outputs.ssh_key }}' -OutputPath artifacts/evidence/production-remaining-gates.json
+
+      - name: Hold promotion on live error-budget burn
+        id: error_budget
+        continue-on-error: true
+        shell: pwsh
+        env:
+          PROMETHEUS_URL: ${{ secrets.PROMETHEUS_PRODUCTION_URL }}
+        run: ./scripts/validate-error-budget-gate.ps1 -RequireLive -PrometheusUrl $env:PROMETHEUS_URL -OutputPath artifacts/evidence/production-error-budget.json
+
+      - name: Test Alertmanager notification delivery end-to-end
+        id: alertmanager_e2e
+        continue-on-error: true
+        shell: pwsh
+        env:
+          ALERTMANAGER_URL: ${{ secrets.ALERTMANAGER_PRODUCTION_URL }}
+          ALERTMANAGER_RECEIVER_URL: ${{ secrets.ALERTMANAGER_E2E_RECEIVER_URL }}
+          ALERTMANAGER_BEARER_TOKEN: ${{ secrets.ALERTMANAGER_PRODUCTION_BEARER_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:ALERTMANAGER_URL) -or [string]::IsNullOrWhiteSpace($env:ALERTMANAGER_RECEIVER_URL)) {
+            throw 'ALERTMANAGER_PRODUCTION_URL and ALERTMANAGER_E2E_RECEIVER_URL are required for the production notification gate.'
+          }
+          New-Item -ItemType Directory -Force artifacts/evidence | Out-Null
+          $args = @('-AlertmanagerUrl', $env:ALERTMANAGER_URL, '-TestReceiverUrl', $env:ALERTMANAGER_RECEIVER_URL, '-RunTest', '-AllowProduction', '-OutputPath', 'artifacts/evidence/production-alertmanager-notification-e2e.json')
+          ./scripts/test-alertmanager-notification.ps1 @args
+
+      - name: Validate Azure backup contract
+        id: azure_backup
+        continue-on-error: true
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
+        run: |
+          python scripts/validate-azure-blob-access.py --env-file '${{ steps.runtime-inputs.outputs.azure_env }}'
+          ./scripts/validate-storage-backup-contract.ps1 -SecureEnvFile '${{ steps.runtime-inputs.outputs.azure_env }}' -RequireSecureEnv -OutputPath artifacts/evidence/production-storage-backup.json
+
+      - name: Validate CNPG backup platform contract
+        id: cnpg_backup
+        continue-on-error: true
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
+        run: ./scripts/validate-cnpg-backup-platform.ps1 -Kubeconfig $env:KUBECONFIG -OutputPath artifacts/evidence/production-cnpg-backup-platform.json
+
+      - name: Validate DR evidence
+        id: dr_evidence
+        continue-on-error: true
+        shell: pwsh
+        run: ./scripts/validate-dr-evidence.ps1 -OutputPath artifacts/evidence/production-dr-evidence.json
+
+      - name: Enforce production gate result after collecting evidence
+        if: always()
+        shell: pwsh
+        run: |
+          $failed = @(
+            [pscustomobject]@{ name = 'release-gate'; outcome = '${{ steps.release_gate.outcome }}' }
+            [pscustomobject]@{ name = 'baseline'; outcome = '${{ steps.baseline.outcome }}' }
+            [pscustomobject]@{ name = 'go-live'; outcome = '${{ steps.go_live.outcome }}' }
+            [pscustomobject]@{ name = 'observability-contract'; outcome = '${{ steps.observability_contract.outcome }}' }
+            [pscustomobject]@{ name = 'reliability'; outcome = '${{ steps.reliability.outcome }}' }
+            [pscustomobject]@{ name = 'admission'; outcome = '${{ steps.admission.outcome }}' }
+            [pscustomobject]@{ name = 'ha-spire'; outcome = '${{ steps.ha_spire.outcome }}' }
+            [pscustomobject]@{ name = 'linkerd-mtls'; outcome = '${{ steps.linkerd_mtls.outcome }}' }
+            [pscustomobject]@{ name = 'remaining'; outcome = '${{ steps.remaining.outcome }}' }
+            [pscustomobject]@{ name = 'error-budget'; outcome = '${{ steps.error_budget.outcome }}' }
+            [pscustomobject]@{ name = 'alertmanager-e2e'; outcome = '${{ steps.alertmanager_e2e.outcome }}' }
+            [pscustomobject]@{ name = 'azure-backup'; outcome = '${{ steps.azure_backup.outcome }}' }
+            [pscustomobject]@{ name = 'cnpg-backup'; outcome = '${{ steps.cnpg_backup.outcome }}' }
+            [pscustomobject]@{ name = 'dr-evidence'; outcome = '${{ steps.dr_evidence.outcome }}' }
+          # Every listed production gate is required. A skipped step means its
+          # evidence is absent and must fail the release, not silently pass.
+          ) | Where-Object { $_.outcome -ne 'success' }
+          if ($failed.Count -gt 0) {
+            Write-Host "Production go-live gate failed after evidence collection: $($failed.name -join ', ')"
+            exit 1
+          }
+          Write-Host 'Production go-live gate PASS: every validation step completed successfully.'
+
+      - name: Upload production gate evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: k3s-production-go-live-${{ github.run_id }}
+          path: artifacts/evidence/
+          if-no-files-found: error
+
+      - name: Remove protected runtime inputs
+        if: always()
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath '${{ steps.runtime-inputs.outputs.kubeconfig }}' -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath '${{ steps.runtime-inputs.outputs.azure_env }}' -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath '${{ steps.runtime-inputs.outputs.ssh_key }}' -Force -ErrorAction SilentlyContinue

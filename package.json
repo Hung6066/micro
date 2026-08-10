@@ -1,0 +1,38 @@
+{
+  "name": "his-hope-frontend-workspace",
+  "private": true,
+  "workspaces": [
+    "shared/frontend-foundation",
+    "shared/mobile-foundation",
+    "admin-app",
+    "dashboard-app",
+    "src/Frontend/his-hope-app",
+    "mobile-app"
+  ],
+  "scripts": {
+    "build:shared": "npm --workspace @his-hope/frontend-foundation run build",
+    "storybook": "npm --workspace @his-hope/frontend-foundation run storybook",
+    "storybook:build": "npm --workspace @his-hope/frontend-foundation run build-storybook",
+    "test:visual": "npm --prefix tests/e2e run test:shared-foundation",
+    "test:a11y": "npm --prefix tests/e2e run test:shared-foundation",
+    "validate:foundation": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-shared-foundation.ps1",
+    "lint:design-tokens": "node scripts/validate-design-tokens.mjs",
+    "validate:i18n": "node scripts/validate-i18n-boundary.mjs",
+    "policy:gate": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-his-hope-policy.ps1 -Ci",
+    "validate:mobile-release": "node scripts/validate-mobile-release.mjs",
+    "prepare:mobile-release": "node scripts/prepare-mobile-release.mjs",
+    "hooks:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-git-hooks.ps1",
+    "lint:foundation": "npm --workspace @his-hope/frontend-foundation run lint",
+    "lint:mobile-foundation": "npm --workspace @his-hope/mobile-foundation run lint",
+    "lint:admin": "npm --workspace admin-app run lint",
+    "lint:dashboard": "npm --workspace dashboard-app run lint",
+    "lint:clinical": "npm --workspace his-hope-app run lint",
+    "lint:mobile": "npm --workspace @his-hope/mobile-app run lint",
+    "lint": "npm run lint:foundation && npm run lint:mobile-foundation && npm run lint:admin && npm run lint:dashboard && npm run lint:clinical && npm run lint:mobile",
+    "test:mobile-foundation": "npm --workspace @his-hope/mobile-foundation run test",
+    "test:e2e": "npm --prefix tests/e2e run test"
+  },
+  "devDependencies": {
+    "@angular/localize": "^21.2.19"
+  }
+}

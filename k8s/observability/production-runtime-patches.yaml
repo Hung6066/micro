@@ -1,0 +1,118 @@
+# Kustomize patches for the selected HA chart/StatefulSet. These patches are
+# intentionally not applied to the dev Deployment, which uses local-path RWO.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: enabled
+    spec:
+      serviceAccountName: grafana
+      containers:
+        - name: grafana
+          env:
+            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-oidc
+                  key: client_id
+            - name: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-oidc
+                  key: client_secret
+          volumeMounts:
+            - name: observability-secrets
+              mountPath: /mnt/secrets-store
+              readOnly: true
+            - name: grafana-config
+              mountPath: /etc/grafana/grafana.ini
+              subPath: grafana.ini
+              readOnly: true
+      volumes:
+        - name: observability-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: observability-secrets
+        - name: grafana-config
+          configMap:
+            name: grafana-production-config
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: enabled
+    spec:
+      serviceAccountName: alertmanager
+      containers:
+        - name: alertmanager
+          args:
+            - --config.file=/etc/alertmanager/alertmanager.yml
+            - --config.expand-env
+            - --storage.path=/alertmanager
+          env:
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-receivers
+                  key: smtp_host
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-receivers
+                  key: smtp_port
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-receivers
+                  key: smtp_username
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-receivers
+                  key: smtp_password
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-receivers
+                  key: smtp_from
+            - name: SMTP_TO
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-receivers
+                  key: smtp_to
+            - name: DISCORD_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-receivers
+                  key: discord_webhook_url
+          volumeMounts:
+            - name: observability-secrets
+              mountPath: /mnt/secrets-store
+              readOnly: true
+            - name: alertmanager-config
+              mountPath: /etc/alertmanager/alertmanager.yml
+              subPath: alertmanager.yml
+              readOnly: true
+      volumes:
+        - name: observability-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: observability-secrets
+        - name: alertmanager-config
+          configMap:
+            name: alertmanager-production-config

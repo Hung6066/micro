@@ -1,0 +1,44 @@
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: spire-postgres-azure-store
+  namespace: spire
+  labels:
+    app.kubernetes.io/name: spire-postgres-azure-store
+    app.kubernetes.io/component: backup-object-store
+    app.kubernetes.io/part-of: his-hope
+spec:
+  configuration:
+    destinationPath: https://REPLACE_ME.blob.core.windows.net/REPLACE_ME/his-hope/production/spire-postgres-v2
+    azureCredentials:
+      storageAccount:
+        name: spire-postgres-azure-backup-credentials
+        key: AZURE_STORAGE_ACCOUNT
+      storageSasToken:
+        name: spire-postgres-azure-backup-credentials
+        key: AZURE_STORAGE_SAS_TOKEN
+    wal:
+      compression: gzip
+      maxParallel: 2
+    data:
+      compression: gzip
+      jobs: 2
+  retentionPolicy: 30d
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: spire-postgres-azure-backup
+  namespace: spire
+  labels:
+    app.kubernetes.io/name: spire-postgres-azure-backup
+    app.kubernetes.io/component: backup-schedule
+    app.kubernetes.io/part-of: his-hope
+spec:
+  schedule: "0 0 */6 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: spire-postgres
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io

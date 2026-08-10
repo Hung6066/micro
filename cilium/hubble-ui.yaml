@@ -1,0 +1,43 @@
+# Hubble UI is installed via the Cilium Helm chart above
+# This is the NetworkPolicy to allow access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-hubble-ui
+  namespace: kube-system
+spec:
+  podSelector:
+    matchLabels:
+      k8s-app: hubble-ui
+  ingress:
+  - from:
+    - namespaceSelector: {}
+    ports:
+    - port: 8081
+---
+# Hubble UI Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hubble-ui
+  namespace: kube-system
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: hubble-ui-auth
+spec:
+  rules:
+  - host: hubble.hishop.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: hubble-ui
+            port:
+              number: 8081
+  tls:
+  - hosts:
+    - hubble.hishop.com
+    secretName: his-hope-tls

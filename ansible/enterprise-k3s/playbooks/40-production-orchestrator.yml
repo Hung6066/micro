@@ -1,0 +1,15 @@
+---
+# Single ordered entry point. Each imported play retains its own serial,
+# vars_files and fail-closed assertions; Ansible stops on the first failure.
+- import_playbook: 00-preflight.yml
+  tags: [phase-preflight]
+- import_playbook: 05-configure-external-lb.yml
+  tags: [phase-load-balancer]
+- import_playbook: 10-bootstrap-k3s.yml
+  tags: [phase-control-plane]
+- import_playbook: 20-verify-cluster.yml
+  tags: [phase-verify]
+- import_playbook: 15-bootstrap-workers.yml
+  tags: [phase-workers]
+- import_playbook: 30-backup-agents.yml
+  tags: [phase-backup]

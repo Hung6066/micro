@@ -1,0 +1,346 @@
+services:
+  patientservice:
+    environment:
+      Persistence__RunMigrationsOnStartup: "false"
+      Vault__Address: http://vault:8200
+      Vault__AuthMethod: spiffe-jwt
+      Vault__AuthMount: jwt-spiffe
+      Vault__Role: patient-service
+      Vault__SpiffeJwtTokenFile: /run/spire/jwt/vault.jwt
+      Vault__RequireVault: "true"
+      Vault__AllowStaticToken: "false"
+      Vault__Database__Enabled: "true"
+      Vault__Database__Role: patient-service-db
+      Vault__Database__MinimumLeaseSeconds: "900"
+    volumes:
+      - spire_jwt:/run/spire/jwt:ro
+    depends_on:
+      vault-hybrid-e2e-init: { condition: service_completed_successfully }
+      spire-jwt-fetcher: { condition: service_started }
+    profiles: ["spiffe-e2e"]
+
+  identityservice:
+    environment:
+      Vault__Address: http://vault:8200
+      Vault__AuthMethod: spiffe-jwt
+      Vault__AuthMount: jwt-spiffe
+      Vault__Role: identity-service
+      Vault__SpiffeJwtTokenFile: /run/spire/jwt/vault.jwt
+      Vault__RequireVault: "true"
+      Vault__AllowStaticToken: "false"
+      Vault__Database__Enabled: "true"
+      Vault__Database__Role: identity-service-db
+      Vault__Database__MinimumLeaseSeconds: "900"
+    volumes:
+      - spire_jwt_identity:/run/spire/jwt:ro
+    depends_on:
+      vault-hybrid-e2e-init: { condition: service_completed_successfully }
+      spire-jwt-fetcher-identity: { condition: service_started }
+    profiles: ["spiffe-e2e"]
+
+  appointmentservice:
+    environment:
+      Vault__Address: http://vault:8200
+      Vault__AuthMethod: spiffe-jwt
+      Vault__AuthMount: jwt-spiffe
+      Vault__Role: appointment-service
+      Vault__SpiffeJwtTokenFile: /run/spire/jwt/vault.jwt
+      Vault__RequireVault: "true"
+      Vault__AllowStaticToken: "false"
+      Vault__Database__Enabled: "true"
+      Vault__Database__Role: appointment-service-db
+      Vault__Database__MinimumLeaseSeconds: "900"
+    volumes:
+      - spire_jwt_appointment:/run/spire/jwt:ro
+    depends_on:
+      vault-hybrid-e2e-init: { condition: service_completed_successfully }
+      spire-jwt-fetcher-appointment: { condition: service_started }
+    profiles: ["spiffe-e2e"]
+
+  clinicalservice:
+    environment:
+      Vault__Address: http://vault:8200
+      Vault__AuthMethod: spiffe-jwt
+      Vault__AuthMount: jwt-spiffe
+      Vault__Role: clinical-service
+      Vault__SpiffeJwtTokenFile: /run/spire/jwt/vault.jwt
+      Vault__RequireVault: "true"
+      Vault__AllowStaticToken: "false"
+      Vault__Database__Enabled: "true"
+      Vault__Database__Role: clinical-service-db
+      Vault__Database__MinimumLeaseSeconds: "900"
+    volumes:
+      - spire_jwt_clinical:/run/spire/jwt:ro
+    depends_on:
+      vault-hybrid-e2e-init: { condition: service_completed_successfully }
+      spire-jwt-fetcher-clinical: { condition: service_started }
+    profiles: ["spiffe-e2e"]
+
+  labservice:
+    environment:
+      Vault__Address: http://vault:8200
+      Vault__AuthMethod: spiffe-jwt
+      Vault__AuthMount: jwt-spiffe
+      Vault__Role: lab-service
+      Vault__SpiffeJwtTokenFile: /run/spire/jwt/vault.jwt
+      Vault__RequireVault: "true"
+      Vault__AllowStaticToken: "false"
+      Vault__Database__Enabled: "true"
+      Vault__Database__Role: lab-service-db
+      Vault__Database__MinimumLeaseSeconds: "900"
+    volumes:
+      - spire_jwt_lab:/run/spire/jwt:ro
+    depends_on:
+      vault-hybrid-e2e-init: { condition: service_completed_successfully }
+      spire-jwt-fetcher-lab: { condition: service_started }
+    profiles: ["spiffe-e2e"]
+
+  billingservice:
+    environment:
+      Vault__Address: http://vault:8200
+      Vault__AuthMethod: spiffe-jwt
+      Vault__AuthMount: jwt-spiffe
+      Vault__Role: billing-service
+      Vault__SpiffeJwtTokenFile: /run/spire/jwt/vault.jwt
+      Vault__RequireVault: "true"
+      Vault__AllowStaticToken: "false"
+      Vault__Database__Enabled: "true"
+      Vault__Database__Role: billing-service-db
+      Vault__Database__MinimumLeaseSeconds: "900"
+    volumes:
+      - spire_jwt_billing:/run/spire/jwt:ro
+    depends_on:
+      vault-hybrid-e2e-init: { condition: service_completed_successfully }
+      spire-jwt-fetcher-billing: { condition: service_started }
+    profiles: ["spiffe-e2e"]
+
+  pharmacyservice:
+    environment:
+      Vault__Address: http://vault:8200
+      Vault__AuthMethod: spiffe-jwt
+      Vault__AuthMount: jwt-spiffe
+      Vault__Role: pharmacy-service
+      Vault__SpiffeJwtTokenFile: /run/spire/jwt/vault.jwt
+      Vault__RequireVault: "true"
+      Vault__AllowStaticToken: "false"
+      Vault__Database__Enabled: "true"
+      Vault__Database__Role: pharmacy-service-db
+      Vault__Database__MinimumLeaseSeconds: "900"
+    volumes:
+      - spire_jwt_pharmacy:/run/spire/jwt:ro
+    depends_on:
+      vault-hybrid-e2e-init: { condition: service_completed_successfully }
+      spire-jwt-fetcher-pharmacy: { condition: service_started }
+    profiles: ["spiffe-e2e"]
+
+  spire-server:
+    image: ghcr.io/spiffe/spire-server:1.12.4
+    container_name: his-hope-spire-server
+    command: ["-config", "/run/spire/config/server.conf"]
+    user: "0:0"
+    volumes:
+      - ./spire/server.conf:/run/spire/config/server.conf:ro
+      - spire_server_data:/run/spire/data
+      - spire_server_sockets:/run/spire/sockets
+      - spire_bootstrap:/run/spire/bootstrap
+    profiles: ["spiffe-e2e"]
+
+  spire-server-bootstrap:
+    build:
+      context: ./spire
+      dockerfile: bootstrap.Dockerfile
+    container_name: his-hope-spire-server-bootstrap
+    volumes:
+      - spire_server_sockets:/run/spire/sockets
+      - spire_bootstrap:/run/spire/bootstrap
+    depends_on:
+      spire-server: { condition: service_started }
+    profiles: ["spiffe-e2e"]
+
+  spire-agent:
+    build:
+      context: ./spire
+      dockerfile: agent.Dockerfile
+    container_name: his-hope-spire-agent
+    volumes:
+      - ./spire/agent.conf:/run/spire/config/agent.conf:ro
+      - spire_agent_data:/run/spire/data
+      - spire_agent_sockets:/run/spire/sockets
+      - spire_bootstrap:/run/spire/bootstrap:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      spire-server-bootstrap: { condition: service_completed_successfully }
+    profiles: ["spiffe-e2e"]
+
+  spire-jwt-fetcher:
+    build:
+      context: ./spire
+      dockerfile: fetcher.Dockerfile
+    container_name: his-hope-spire-jwt-fetcher
+    pid: "service:spire-agent"
+    volumes:
+      - spire_agent_sockets:/run/spire/sockets:ro
+      - spire_jwt:/run/spire/jwt
+    environment:
+      SPIFFE_ID: spiffe://his-hope.local/ns/his-hope/sa/patient-service
+    depends_on:
+      spire-agent: { condition: service_started }
+    profiles: ["spiffe-e2e"]
+
+  spire-jwt-fetcher-identity:
+    build:
+      context: ./spire
+      dockerfile: fetcher.Dockerfile
+    container_name: his-hope-spire-jwt-fetcher-identity
+    pid: "service:spire-agent"
+    environment:
+      SPIFFE_ID: spiffe://his-hope.local/ns/his-hope/sa/identity-service
+    volumes:
+      - spire_agent_sockets:/run/spire/sockets:ro
+      - spire_jwt_identity:/run/spire/jwt
+    depends_on:
+      spire-agent: { condition: service_started }
+    profiles: ["spiffe-e2e"]
+
+  spire-jwt-fetcher-appointment:
+    build: { context: ./spire, dockerfile: fetcher.Dockerfile }
+    container_name: his-hope-spire-jwt-fetcher-appointment
+    pid: "service:spire-agent"
+    environment: { SPIFFE_ID: spiffe://his-hope.local/ns/his-hope/sa/appointment-service }
+    volumes:
+      - spire_agent_sockets:/run/spire/sockets:ro
+      - spire_jwt_appointment:/run/spire/jwt
+    depends_on: { spire-agent: { condition: service_started } }
+    profiles: ["spiffe-e2e"]
+
+  spire-jwt-fetcher-clinical:
+    build: { context: ./spire, dockerfile: fetcher.Dockerfile }
+    container_name: his-hope-spire-jwt-fetcher-clinical
+    pid: "service:spire-agent"
+    environment: { SPIFFE_ID: spiffe://his-hope.local/ns/his-hope/sa/clinical-service }
+    volumes:
+      - spire_agent_sockets:/run/spire/sockets:ro
+      - spire_jwt_clinical:/run/spire/jwt
+    depends_on: { spire-agent: { condition: service_started } }
+    profiles: ["spiffe-e2e"]
+
+  spire-jwt-fetcher-lab:
+    build: { context: ./spire, dockerfile: fetcher.Dockerfile }
+    container_name: his-hope-spire-jwt-fetcher-lab
+    pid: "service:spire-agent"
+    environment: { SPIFFE_ID: spiffe://his-hope.local/ns/his-hope/sa/lab-service }
+    volumes:
+      - spire_agent_sockets:/run/spire/sockets:ro
+      - spire_jwt_lab:/run/spire/jwt
+    depends_on: { spire-agent: { condition: service_started } }
+    profiles: ["spiffe-e2e"]
+
+  spire-jwt-fetcher-billing:
+    build: { context: ./spire, dockerfile: fetcher.Dockerfile }
+    container_name: his-hope-spire-jwt-fetcher-billing
+    pid: "service:spire-agent"
+    environment: { SPIFFE_ID: spiffe://his-hope.local/ns/his-hope/sa/billing-service }
+    volumes:
+      - spire_agent_sockets:/run/spire/sockets:ro
+      - spire_jwt_billing:/run/spire/jwt
+    depends_on: { spire-agent: { condition: service_started } }
+    profiles: ["spiffe-e2e"]
+
+  spire-jwt-fetcher-pharmacy:
+    build: { context: ./spire, dockerfile: fetcher.Dockerfile }
+    container_name: his-hope-spire-jwt-fetcher-pharmacy
+    pid: "service:spire-agent"
+    environment: { SPIFFE_ID: spiffe://his-hope.local/ns/his-hope/sa/pharmacy-service }
+    volumes:
+      - spire_agent_sockets:/run/spire/sockets:ro
+      - spire_jwt_pharmacy:/run/spire/jwt
+    depends_on: { spire-agent: { condition: service_started } }
+    profiles: ["spiffe-e2e"]
+
+  postgres-management-init:
+    image: postgres:16-alpine
+    container_name: his-hope-postgres-management-init
+    entrypoint: ["/bin/sh", "/run/postgres/postgres-management-init.sh"]
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      VAULT_DB_ADMIN_PASSWORD: ${VAULT_DB_ADMIN_PASSWORD:-vault-e2e-admin-change-me}
+    volumes:
+      - ./postgres-management-init.sh:/run/postgres/postgres-management-init.sh:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["spiffe-e2e"]
+
+  vault-hybrid-e2e-init:
+    image: hashicorp/vault:1.17
+    container_name: his-hope-vault-hybrid-e2e-init
+    entrypoint: ["/bin/sh", "/run/vault/hybrid-e2e-init.sh"]
+    environment:
+      VAULT_ADDR: http://vault:8200
+      VAULT_TOKEN: ${VAULT_DEV_ROOT_TOKEN_ID:-root}
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID:-root}
+      VAULT_DB_ADMIN_PASSWORD: ${VAULT_DB_ADMIN_PASSWORD:-vault-e2e-admin-change-me}
+    volumes:
+      - ./vault/hybrid-e2e-init.sh:/run/vault/hybrid-e2e-init.sh:ro
+      - spire_bootstrap:/run/spire/bootstrap:ro
+    depends_on:
+      vault-init: { condition: service_completed_successfully }
+      postgres-management-init: { condition: service_completed_successfully }
+      spire-oidc: { condition: service_started }
+    profiles: ["spiffe-e2e"]
+
+  spire-oidc:
+    image: ghcr.io/spiffe/oidc-discovery-provider:1.12.4
+    container_name: his-hope-spire-oidc
+    pid: "service:spire-agent"
+    command: ["-config", "/run/spire/config/oidc-provider.conf"]
+    user: "0:0"
+    volumes:
+      - ./spire/oidc-provider.conf:/run/spire/config/oidc-provider.conf:ro
+      - spire_agent_sockets:/run/spire/sockets:ro
+    depends_on:
+      spire-agent: { condition: service_started }
+    profiles: ["spiffe-e2e"]
+
+  vault-hybrid-e2e-probe:
+    image: hashicorp/vault:1.17
+    container_name: his-hope-vault-hybrid-e2e-probe
+    user: "0:0"
+    entrypoint: ["/bin/sh", "/run/vault/hybrid-e2e-probe.sh"]
+    environment:
+      VAULT_ADDR: http://vault:8200
+    volumes:
+      - ./vault/hybrid-e2e-probe.sh:/run/vault/hybrid-e2e-probe.sh:ro
+      - spire_jwt:/run/spire/jwt:ro
+      - vault_e2e_credentials:/run/e2e
+    depends_on:
+      vault-hybrid-e2e-init: { condition: service_completed_successfully }
+      spire-jwt-fetcher: { condition: service_started }
+      spire-oidc: { condition: service_started }
+    profiles: ["spiffe-e2e"]
+
+  postgres-dynamic-credential-probe:
+    image: postgres:16-alpine
+    container_name: his-hope-postgres-dynamic-credential-probe
+    entrypoint: ["/bin/sh", "/run/postgres/dynamic-credential-probe.sh"]
+    volumes:
+      - ./vault/dynamic-credential-probe.sh:/run/postgres/dynamic-credential-probe.sh:ro
+      - vault_e2e_credentials:/run/e2e:ro
+    depends_on:
+      vault-hybrid-e2e-probe: { condition: service_completed_successfully }
+      postgres: { condition: service_healthy }
+    profiles: ["spiffe-e2e"]
+
+volumes:
+  spire_server_data:
+  spire_server_sockets:
+  spire_bootstrap:
+  spire_agent_data:
+  spire_agent_sockets:
+  spire_jwt:
+  spire_jwt_identity:
+  spire_jwt_appointment:
+  spire_jwt_clinical:
+  spire_jwt_lab:
+  spire_jwt_billing:
+  spire_jwt_pharmacy:
+  vault_e2e_credentials:

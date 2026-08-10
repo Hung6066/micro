@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: systemdashboard-bff-lifecycle
+  namespace: his-hope
+subjects:
+  - kind: ServiceAccount
+    name: his-hope-systemdashboard-bff
+    namespace: his-hope
+roleRef:
+  kind: Role
+  name: his-hope-systemdashboard-bff-lifecycle
+  apiGroup: rbac.authorization.k8s.io

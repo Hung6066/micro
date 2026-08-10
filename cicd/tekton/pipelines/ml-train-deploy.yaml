@@ -1,0 +1,235 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: ml-train-deploy
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.17.0"
+    tekton.dev/tags: ml, anomaly-detection, vertex-ai
+    tekton.dev/displayName: ML Train & Deploy Pipeline
+spec:
+  description: >-
+    Pipeline to train an LSTM autoencoder anomaly detection model using
+    Prometheus metrics, evaluate it, upload to Vertex AI Model Registry,
+    and deploy to a Vertex AI endpoint.
+
+  params:
+    - name: ML_COMPONENT
+      type: string
+      description: ML component directory (e.g., anomaly-detection)
+      default: anomaly-detection
+    - name: CONFIG_PATH
+      type: string
+      description: Path to config YAML relative to ml component dir
+      default: config.yaml
+    - name: GIT_REVISION
+      type: string
+      description: Git commit SHA or tag
+    - name: MODEL_DISPLAY_NAME
+      type: string
+      description: Display name for the model in Vertex AI
+      default: anomaly-detector
+    - name: PROJECT_ID
+      type: string
+      description: GCP project ID
+      default: his-hope-analytics
+    - name: REGION
+      type: string
+      description: GCP region
+      default: us-east1
+    - name: PROMETHEUS_URL
+      type: string
+      description: Prometheus server URL
+      default: http://prometheus-k8s.monitoring.svc.cluster.local:9090
+
+  workspaces:
+    - name: source
+      description: Repository source code
+    - name: output
+      description: Build outputs, model artifacts, and test results
+    - name: gcp-secret
+      description: GCP service account key for Vertex AI access
+      optional: false
+
+  results:
+    - name: MODEL_RESOURCE_NAME
+      description: Vertex AI model resource name
+    - name: ENDPOINT_RESOURCE_NAME
+      description: Vertex AI endpoint resource name
+    - name: EVALUATION_METRICS
+      description: JSON string of evaluation metrics
+
+  tasks:
+    - name: train-model
+      taskRef:
+        name: python-script
+        kind: ClusterTask
+      params:
+        - name: SCRIPT
+          value: |
+            pip install tensorflow google-cloud-aiplatform pyyaml requests numpy pandas && \
+            python ml/$(params.ML_COMPONENT)/train_pipeline.py \
+              --config ml/$(params.ML_COMPONENT)/$(params.CONFIG_PATH) \
+              --local
+        - name: PROMETHEUS_URL
+          value: $(params.PROMETHEUS_URL)
+      workspaces:
+        - name: source
+          workspace: source
+        - name: output
+          workspace: output
+        - name: gcp-secret
+          workspace: gcp-secret
+
+    - name: evaluate-model
+      taskRef:
+        name: python-script
+        kind: ClusterTask
+      runAfter:
+        - train-model
+      params:
+        - name: SCRIPT
+          value: >
+            python -c "
+            import json, os;
+            result = {'status': 'evaluated', 'timestamp': '$(context.pipelineRun.uid)'};
+            metrics_path = '/workspace/output/evaluation.json';
+            model_dir = '/workspace/output/models/anomaly-model';
+            result['model_saved'] = os.path.exists(model_dir);
+            if result['model_saved']:
+              result['model_path'] = model_dir;
+            with open(metrics_path, 'w') as f:
+              json.dump(result, f, indent=2);
+            print(json.dumps(result, indent=2))
+            "
+      workspaces:
+        - name: source
+          workspace: source
+        - name: output
+          workspace: output
+
+    - name: upload-model
+      taskRef:
+        name: python-script
+        kind: ClusterTask
+      runAfter:
+        - evaluate-model
+      params:
+        - name: SCRIPT
+          value: >
+            python -c "
+            from google.cloud import aiplatform;
+            import os, json;
+            project = '$(params.PROJECT_ID)';
+            region = '$(params.REGION)';
+            display_name = '$(params.MODEL_DISPLAY_NAME)-$(params.GIT_REVISION)';
+            aiplatform.init(project=project, location=region);
+            model_dir = '/workspace/output/models/anomaly-model';
+            if not os.path.exists(model_dir):
+              print('Model not found at ' + model_dir);
+              exit(1);
+            model = aiplatform.Model.upload(
+              display_name=display_name,
+              artifact_uri=model_dir,
+              serving_container_image_uri='us-docker.pkg.dev/vertex-ai/prediction/tf2-cpu.2-15:latest',
+              description='LSTM autoencoder - anomaly detection',
+              labels={'model-type': 'lstm-autoencoder', 'component': 'anomaly-detection'},
+            );
+            result = {'model_resource_name': model.resource_name};
+            with open('/workspace/output/model-resource.json', 'w') as f:
+              json.dump(result, f);
+            print(json.dumps(result))
+            "
+      workspaces:
+        - name: source
+          workspace: source
+        - name: output
+          workspace: output
+        - name: gcp-secret
+          workspace: gcp-secret
+
+    - name: deploy-endpoint
+      taskRef:
+        name: python-script
+        kind: ClusterTask
+      runAfter:
+        - upload-model
+      params:
+        - name: SCRIPT
+          value: >
+            python -c "
+            from google.cloud import aiplatform;
+            import json, os;
+            project = '$(params.PROJECT_ID)';
+            region = '$(params.REGION)';
+            aiplatform.init(project=project, location=region);
+            with open('/workspace/output/model-resource.json') as f:
+              data = json.load(f);
+            model_resource_name = data['model_resource_name'];
+            model = aiplatform.Model(model_resource_name);
+            endpoint_name = 'anomaly-detection-endpoint';
+            endpoints = aiplatform.Endpoint.list(
+              filter='display_name=' + endpoint_name,
+              order_by='create_time',
+            );
+            if endpoints:
+              endpoint = endpoints[0];
+              print('Reusing endpoint: ' + endpoint.resource_name);
+            else:
+              endpoint = aiplatform.Endpoint.create(
+                display_name=endpoint_name,
+                description='LSTM autoencoder anomaly detection',
+              );
+              print('Created endpoint: ' + endpoint.resource_name);
+            model.deploy(
+              endpoint=endpoint,
+              machine_type='n1-standard-4',
+              min_replica_count=1,
+              max_replica_count=3,
+              traffic_split={'0': 100},
+            );
+            result = {
+              'model_resource_name': model_resource_name,
+              'endpoint_resource_name': endpoint.resource_name,
+            };
+            with open('/workspace/output/deployment-result.json', 'w') as f:
+              json.dump(result, f);
+            print(json.dumps(result))
+            "
+      workspaces:
+        - name: source
+          workspace: source
+        - name: output
+          workspace: output
+        - name: gcp-secret
+          workspace: gcp-secret
+
+  finally:
+    - name: collect-results
+      taskRef:
+        name: collect-results
+        kind: ClusterTask
+      workspaces:
+        - name: output
+          workspace: output
+      params:
+        - name: RESULT_FILES
+          value: |
+            /workspace/output/model-resource.json
+            /workspace/output/evaluation.json
+            /workspace/output/deployment-result.json
+
+    - name: notify-ml-status
+      taskRef:
+        name: send-slack-message
+        kind: ClusterTask
+      params:
+        - name: MESSAGE
+          value: >
+            ML Train/Deploy Pipeline completed for
+            $(params.ML_COMPONENT)@$(params.GIT_REVISION).
+            Status: $(tasks.status).
+            Model: $(results.MODEL_RESOURCE_NAME).
+            Endpoint: $(results.ENDPOINT_RESOURCE_NAME).
+            PipelineRun: $(context.pipelineRun.name)

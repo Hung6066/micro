@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-service
+spec:
+  template:
+    metadata:
+      annotations:
+        config.linkerd.io/skip-outbound-ports: "8200"
+    spec:
+      # Vault already terminates TLS with its own CA. Do not let the local
+      # Linkerd proxy re-originate this TLS stream.
+      containers:
+        - name: identity-service
+          env:
+            - $patch: replace
+            - name: Vault__Address
+              value: https://vault-active.his-hope-dev.svc.cluster.local:8200
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: identity-service
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+            - name: Vault__Transit__KeyName
+              value: jwt-signing
+            # The base deployment has a fixed image default; override it in
+            # the local host-based K3s overlay so discovery issuer and clients
+            # use the same stable authority.
+            - name: OpenIddict__Issuer
+              value: http://identity.his-hope.local:9080
+            - name: Authentication__OidcClients__his-hope-spa__RedirectUris__3
+              value: http://app.his-hope.local:9080/auth/callback
+            - name: Authentication__OidcClients__his-hope-spa__PostLogoutRedirectUris__3
+              value: http://app.his-hope.local:9080/auth/login
+            - name: Authentication__OidcClients__his-hope-dashboard__RedirectUris__2
+              value: http://dashboard.his-hope.local:9080/auth/callback
+            - name: Authentication__OidcClients__his-hope-dashboard__PostLogoutRedirectUris__2
+              value: http://dashboard.his-hope.local:9080/auth/login
+            - name: Authentication__OidcClients__his-hope-admin__RedirectUris__2
+              value: http://admin.his-hope.local:9080/auth/callback
+            - name: Authentication__OidcClients__his-hope-admin__PostLogoutRedirectUris__2
+              value: http://admin.his-hope.local:9080/auth/login
+          volumeMounts:
+            - name: vault-tls-ca
+              mountPath: /etc/tls/vault
+              readOnly: true
+      volumes:
+        - name: vault-tls-ca
+          secret:
+            secretName: vault-tls-ca
+            defaultMode: 0440
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: identity-service-config
+data:
+  vault_address: https://vault-active.his-hope-dev.svc.cluster.local:8200

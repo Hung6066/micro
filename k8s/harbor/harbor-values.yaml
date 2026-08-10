@@ -1,0 +1,49 @@
+expose:
+  type: ingress
+  tls:
+    enabled: true
+    certSource: secret
+    secret:
+      secretName: harbor-tls
+  ingress:
+    hosts:
+      core: harbor.his-hope.local
+    controller: default
+    className: traefik
+    annotations:
+      traefik.ingress.kubernetes.io/router.tls: "true"
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+
+# k3d maps the local Traefik HTTPS entrypoint to host port 9443.
+# Production ingress should use the same hostname on standard port 443.
+externalURL: https://harbor.his-hope.local:9443
+
+persistence:
+  enabled: true
+  resourcePolicy: keep
+  persistentVolumeClaim:
+    registry:
+      storageClass: local-path
+      size: 50Gi
+    jobservice:
+      jobLog:
+        storageClass: local-path
+        size: 5Gi
+    database:
+      storageClass: local-path
+      size: 10Gi
+    redis:
+      storageClass: local-path
+      size: 5Gi
+    trivy:
+      storageClass: local-path
+      size: 10Gi
+
+database:
+  type: internal
+redis:
+  type: internal
+trivy:
+  enabled: true
+notary:
+  enabled: false

@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  template:
+    spec:
+      containers:
+        - name: api-gateway
+          env:
+            - name: HIS_HOPE_RELEASE_SHA
+              valueFrom:
+                configMapKeyRef:
+                  name: release-metadata
+                  key: HIS_HOPE_RELEASE_SHA
+            - name: HIS_HOPE_RELEASE_DIGEST
+              valueFrom:
+                configMapKeyRef:
+                  name: release-metadata
+                  key: HIS_HOPE_RELEASE_DIGEST

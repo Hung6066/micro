@@ -1,0 +1,16 @@
+all:
+  children:
+    load_balancers:
+      hosts:
+        lb-01:
+          ansible_host: 172.16.102.13
+          ansible_user: root
+          ansible_ssh_private_key_file: /home/liam/.ssh/id_deploy
+          keepalived_state: MASTER
+          keepalived_priority: 150
+        lb-02:
+          ansible_host: 172.16.102.14
+          ansible_user: root
+          ansible_ssh_private_key_file: /home/liam/.ssh/id_deploy
+          keepalived_state: BACKUP
+          keepalived_priority: 100

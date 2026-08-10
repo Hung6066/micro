@@ -1,0 +1,158 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: chaos-engineering
+  name: experiment-dashboard
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: chaos-dashboard-config
+  annotations:
+    description: "Chaos Dashboard configuration for visualizing His.Hope EMR chaos experiments"
+    maintainer: "his-hope-sre@hishop.com"
+data:
+  dashboard-config.json: |
+    {
+      "title": "His.Hope EMR - Chaos Engineering Dashboard",
+      "namespace": "chaos-engineering",
+      "refreshInterval": 30,
+      "timezone": "UTC",
+      "experimentGroups": [
+        {
+          "name": "Pod Failures",
+          "description": "Experiments that kill or disrupt pods",
+          "experiments": [
+            "pod-kill-every-6h",
+            "bulk-pod-kill-game-day"
+          ],
+          "color": "#FF6B6B",
+          "icon": "pod"
+        },
+        {
+          "name": "Network Degradation",
+          "description": "Experiments that inject latency, packet loss, or partitions",
+          "experiments": [
+            "network-delay-50ms",
+            "network-delay-heavy-game-day",
+            "network-loss-25pct",
+            "partition-clinical-from-db",
+            "partition-identity-from-redis"
+          ],
+          "color": "#FFA94D",
+          "icon": "network"
+        },
+        {
+          "name": "Resource Stress",
+          "description": "Experiments that stress CPU and memory",
+          "experiments": [
+            "cpu-stress-80pct",
+            "memory-stress-80pct"
+          ],
+          "color": "#FCC419",
+          "icon": "cpu"
+        },
+        {
+          "name": "Application Faults",
+          "description": "Experiments that inject HTTP/gRPC errors and delays",
+          "experiments": [
+            "http-500-errors",
+            "http-delay-billing",
+            "grpc-unavailable",
+            "grpc-delay-pharmacy"
+          ],
+          "color": "#74C0FC",
+          "icon": "code"
+        },
+        {
+          "name": "Infrastructure Faults",
+          "description": "Experiments that disrupt DNS, disk I/O, or external dependencies",
+          "experiments": [
+            "dns-error",
+            "dns-random",
+            "disk-delay",
+            "disk-fault"
+          ],
+          "color": "#B197FC",
+          "icon": "infrastructure"
+        }
+      ],
+      "gameDaySchedules": {
+        "weekly-chaos-wednesday": {
+          "displayName": "Weekly Chaos Wednesday",
+          "schedule": "0 10 * * 3",
+          "duration": "30m",
+          "enabled": true
+        },
+        "monthly-full-chaos": {
+          "displayName": "Monthly Full Chaos",
+          "schedule": "0 2 1 * *",
+          "duration": "60m",
+          "enabled": true
+        },
+        "quarterly-disaster-recovery": {
+          "displayName": "Quarterly DR Exercise",
+          "schedule": "0 2 1 */3 *",
+          "duration": "120m",
+          "enabled": true
+        }
+      },
+      "alerts": {
+        "rollbackTriggered": {
+          "severity": "critical",
+          "channels": ["slack:#his-hope-sre", "pagerduty:his-hope-chaos"],
+          "message": "EMERGENCY: Chaos rollback script executed at {{timestamp}}"
+        },
+        "experimentFailure": {
+          "severity": "warning",
+          "channels": ["slack:#his-hope-sre"],
+          "message": "Chaos experiment {{name}} failed to execute: {{error}}"
+        },
+        "gameDayStart": {
+          "severity": "info",
+          "channels": ["slack:#his-hope-sre"],
+          "message": "Game Day {{name}} started at {{timestamp}} - {{experimentCount}} experiments active"
+        },
+        "gameDayEnd": {
+          "severity": "info",
+          "channels": ["slack:#his-hope-sre"],
+          "message": "Game Day {{name}} completed at {{timestamp}} - Recovery status: {{recoveryStatus}}"
+        }
+      },
+      "metrics": {
+        "prometheus": {
+          "enabled": true,
+          "queries": {
+            "activeExperiments": "count(chaos_mesh_experiment_run{status='running'})",
+            "experimentTotal": "count(chaos_mesh_experiment_run)",
+            "experimentSuccessRate": "sum(rate(chaos_mesh_experiment_run{status='succeeded'}[24h])) / sum(rate(chaos_mesh_experiment_run[24h])) * 100",
+            "podRecoveryTime": "histogram_quantile(0.95, sum(rate(chaos_mesh_pod_recovery_duration_seconds_bucket[5m])) by (le))"
+          }
+        },
+        "grafana": {
+          "enabled": true,
+          "dashboards": [
+            {
+              "uid": "his-hope-chaos-overview",
+              "title": "Chaos Experiment Overview",
+              "url": "https://grafana.hishop.com/d/his-hope-chaos-overview"
+            },
+            {
+              "uid": "his-hope-game-day",
+              "title": "Game Day Runbook",
+              "url": "https://grafana.hishop.com/d/his-hope-game-day"
+            }
+          ]
+        }
+      },
+      "notifications": {
+        "slack": {
+          "channel": "#his-hope-sre",
+          "webhook_url": "${SLACK_WEBHOOK_URL}"
+        },
+        "email": {
+          "recipients": ["sre@hishop.com", "oncall@hishop.com"]
+        }
+      },
+      "experimentHistoryRetentionDays": 90,
+      "autoArchiveCompletedExperiments": true,
+      "archiveAfterDays": 7
+    }

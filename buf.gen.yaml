@@ -1,0 +1,5 @@
+version: v2
+plugins:
+  - plugin: buf.build/protocolbuffers/csharp
+    out: src/Shared/Protos/Generated
+    opt: file_extension=.g.cs

@@ -1,0 +1,182 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: monitoring
+  name: grafana-dashboard-bff
+  labels:
+    grafana_dashboard: "1"
+data:
+  bff-dashboard.json: |
+    {
+      "title": "His.Hope BFF Dashboard",
+      "version": 1,
+      "time": { "from": "now-24h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "BFF Request Rate by Module",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate(hishop_bff_requests_total[5m])) by (module)",
+              "legendFormat": "{{module}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "rps", "decimals": 2 },
+            "overrides": []
+          }
+        },
+        {
+          "id": 2,
+          "title": "BFF Error Rate by Module",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [
+            {
+              "expr": "sum(rate(hishop_bff_requests_total{status=~\"5..\"}[5m])) by (module)",
+              "legendFormat": "{{module}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "rps", "decimals": 2 },
+            "overrides": []
+          }
+        },
+        {
+          "id": 3,
+          "title": "BFF Request Latency p50 / p95 / p99",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum(rate(hishop_bff_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p50"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum(rate(hishop_bff_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p95"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(hishop_bff_request_duration_seconds_bucket[5m])) by (le))",
+              "legendFormat": "p99"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "ms", "decimals": 0 },
+            "overrides": []
+          }
+        },
+        {
+          "id": 4,
+          "title": "Session Cache Hit Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            {
+              "expr": "sum(rate(hishop_bff_session_hits_total[5m])) / (sum(rate(hishop_bff_session_hits_total[5m])) + sum(rate(hishop_bff_session_misses_total[5m])))",
+              "legendFormat": "Hit Rate"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "percentunit", "decimals": 2, "min": 0, "max": 1 },
+            "overrides": []
+          }
+        },
+        {
+          "id": 5,
+          "title": "Auth Failures",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+          "targets": [
+            {
+              "expr": "rate(hishop_bff_auth_failures_total[5m])",
+              "legendFormat": "401/s"
+            },
+            {
+              "expr": "rate(hishop_bff_session_expired_total[5m])",
+              "legendFormat": "Expired/s"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "rps", "decimals": 2 },
+            "overrides": []
+          }
+        },
+        {
+          "id": 6,
+          "title": "CSRF Rejections",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+          "targets": [
+            {
+              "expr": "rate(hishop_bff_csrf_failures_total[5m])",
+              "legendFormat": "403/s"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "rps", "decimals": 2 },
+            "overrides": []
+          }
+        },
+        {
+          "id": 7,
+          "title": "Aggregation Degradation Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+          "targets": [
+            {
+              "expr": "sum(rate(hishop_bff_aggregation_degraded_total[5m])) / sum(rate(hishop_bff_requests_total[5m]))",
+              "legendFormat": "Degradation %"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "percentunit", "decimals": 2, "min": 0, "max": 1 },
+            "overrides": []
+          }
+        },
+        {
+          "id": 8,
+          "title": "Downstream Error Rate",
+          "type": "timeseries",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+          "targets": [
+            {
+              "expr": "rate(hishop_bff_downstream_errors_total[5m])",
+              "legendFormat": "Errors/s"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "rps", "decimals": 2 },
+            "overrides": []
+          }
+        },
+        {
+          "id": 9,
+          "title": "Circuit Breaker State",
+          "type": "stat",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+          "targets": [
+            {
+              "expr": "max(hishop_bff_circuit_breaker_state)",
+              "legendFormat": "CB State"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "green", "value": 0 },
+                  { "color": "red", "value": 1 }
+                ]
+              }
+            },
+            "overrides": []
+          }
+        }
+      ]
+    }

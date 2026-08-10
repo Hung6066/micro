@@ -1,0 +1,11 @@
+apiVersion: backstage.io/v1alpha1
+kind: Location
+metadata:
+  name: his-hope-all
+  description: All His.Hope catalog entities
+spec:
+  targets:
+    - ./software.yaml
+    - ./apis.yaml
+    - ./resources.yaml
+    - ./domains.yaml

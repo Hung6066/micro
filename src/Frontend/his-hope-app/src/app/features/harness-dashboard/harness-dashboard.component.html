@@ -1,0 +1,97 @@
+<hh-page-layout>
+  <hh-page-header hhPageHeader [title]="'adminPage.harness.title' | hhTranslate:'Agent Harness Dashboard'"
+                  [subtitle]="'adminPage.harness.subtitle' | hhTranslate:'Giám sát và quản lý các pipeline Agent Harness'">
+    <button mat-stroked-button (click)="refresh()" [disabled]="loading">
+      <mat-icon>refresh</mat-icon>
+      {{ 'adminPage.harness.refresh' | hhTranslate:'Làm mới' }}
+    </button>
+  </hh-page-header>
+
+  <hh-data-table [label]="'adminPage.harness.recentPipelines' | hhTranslate:'Pipeline gần đây'" [columns]="columns" [rows]="pipelineRows"
+                 [loading]="loading" [error]="error ?? ''"
+                 [empty]="pipelineRows.length === 0 && !loading" [emptyMessage]="'adminPage.harness.noPipelines' | hhTranslate:'Chưa có pipeline nào'"
+                 [pageSize]="20" [searchable]="false" [expandedRowKeys]="expandedRowKeys"
+                 (rowExpandChange)="onRowExpand($event)" (retry)="refresh()">
+    <ng-template hhDataTableCell="workflowId" let-row>
+      <span class="cell-mono">{{ row['workflowId'] }}</span>
+    </ng-template>
+    <ng-template hhDataTableCell="status" let-row>
+      <hh-status-badge [status]="row['status']" [label]="row['statusLabel']"
+                       [tone]="statusTone(row['status'])" />
+    </ng-template>
+    <ng-template hhDataTableCell="startedAt" let-row>
+      {{ row['startedAt'] ? (row['startedAt'] | date:'HH:mm:ss dd/MM') : '—' }}
+    </ng-template>
+    <ng-template hhDataTableCell="duration" let-row>
+      {{ row['duration'] }}
+    </ng-template>
+    <ng-template hhDataTableDetail let-row>
+      <div class="detail-row-inner">
+        <div class="detail-header">
+          <span class="detail-title">{{ 'adminPage.harness.agentTasks' | hhTranslate:'Agent Tasks — {{id}}':{id: row['workflowId']} }}</span>
+          <span class="detail-id">ID: {{ row['id'] }}</span>
+        </div>
+
+        @if (row['entity'].agents && row['entity'].agents.length > 0) {
+        <table class="agent-table">
+          <thead>
+            <tr>
+              <th>{{ 'adminPage.harness.columnAgent' | hhTranslate:'Agent' }}</th>
+              <th>{{ 'adminPage.harness.columnTask' | hhTranslate:'Task' }}</th>
+              <th>{{ 'adminPage.harness.columnStatus' | hhTranslate:'Status' }}</th>
+              <th>{{ 'adminPage.harness.columnConfidence' | hhTranslate:'Confidence' }}</th>
+              <th>{{ 'adminPage.harness.columnDuration' | hhTranslate:'Thời gian' }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (agent of row['entity'].agents; track agent.id) {
+            <tr>
+              <td>
+                <span class="agent-name">{{ agent.agentName }}</span>
+              </td>
+              <td class="cell-desc">{{ agent.taskDescription }}</td>
+              <td>
+                <span class="agent-status-chip" [ngClass]="agentStatusChipClass(agent.status)">
+                  {{ statusLabel(agent.status) }}
+                </span>
+              </td>
+              <td>
+                @if (agent.confidenceScore != null) {
+                <span class="confidence">{{ agent.confidenceScore | percent:'1.0-0' }}</span>
+                } @else {
+                <span class="text-muted">—</span>
+                }
+              </td>
+              <td>
+                @if (agent.completedAt) {
+                <span class="text-muted">{{ duration(agent.attemptedAt, agent.completedAt) }}</span>
+                } @else if (agent.attemptedAt) {
+                <span class="text-muted">{{ duration(agent.attemptedAt, null) }}</span>
+                } @else {
+                <span class="text-muted">—</span>
+                }
+              </td>
+            </tr>
+            @if (agent.errorMessage) {
+            <tr class="error-row">
+              <td colspan="5">
+                <div class="agent-error">
+                  <mat-icon class="error-icon">error_outline</mat-icon>
+                  {{ agent.errorMessage }}
+                </div>
+              </td>
+            </tr>
+            }
+            }
+          </tbody>
+        </table>
+        } @else {
+        <div class="no-agents">
+          <mat-icon>info_outline</mat-icon>
+          <span>{{ 'adminPage.harness.loadingTasks' | hhTranslate:'Đang tải thông tin agent tasks...' }}</span>
+        </div>
+        }
+      </div>
+    </ng-template>
+  </hh-data-table>
+</hh-page-layout>

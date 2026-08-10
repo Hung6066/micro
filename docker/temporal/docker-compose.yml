@@ -1,0 +1,67 @@
+# Temporal.io distributed workflow engine for Agent Harness
+# Run standalone: docker compose -f docker/temporal/docker-compose.yml up -d
+# Or use with main docker-compose (which includes these services)
+
+services:
+  temporal:
+    image: temporalio/auto-setup:${TEMPORAL_IMAGE:-1.24}
+    container_name: his-hope-temporal
+    ports:
+      - "${TEMPORAL_GRPC_PORT:-7233}:7233"
+      - "${TEMPORAL_WEB_PORT:-8233}:8233"
+    environment:
+      - DB=postgresql
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PWD=${POSTGRES_PWD:-postgres}
+      - POSTGRES_SEEDS=postgres
+      - DYNAMIC_CONFIG_VALUE=frontend.visibilityMaxPageSize=1000
+      - SERVICES=seed,frontend,history,matching,worker
+    volumes:
+      - temporal_data:/etc/temporal/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "temporal", "workflow", "list", "--namespace", "default"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  temporal-admin-tools:
+    image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_IMAGE:-1.24}
+    container_name: his-hope-temporal-admin
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+    profiles: ["admin"]
+
+  temporal-worker:
+    build:
+      context: ../..
+      dockerfile: src/Infrastructure/AgentHarness/src/AgentHarness.TemporalWorker/Dockerfile
+    container_name: his-hope-temporal-worker
+    ports:
+      - "5270:5270"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Temporal__ServerUrl: temporal:7233
+      AgentHarness__DatabaseConnectionString: Host=postgres;Database=harnessdb;Username=postgres;Password=${POSTGRES_PASSWORD:-postgres}
+    depends_on:
+      temporal:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:5270/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  temporal_data:

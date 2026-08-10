@@ -1,0 +1,274 @@
+name: Container Release Supply Chain
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish to Harbor and sign with GitHub OIDC
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+  security-events: write
+
+env:
+  HARBOR_REGISTRY: ${{ vars.HARBOR_REGISTRY }}
+  HARBOR_PROJECT: ${{ vars.HARBOR_PROJECT }}
+  RELEASE_SHA: ${{ github.sha }}
+
+jobs:
+  quality-security:
+    name: Release quality and security preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '8.0.319'
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.14.0'
+          cache: npm
+
+      - name: Validate container release workflow contract
+        shell: bash
+        run: python scripts/validate-container-release-contract.py
+
+      - name: Restore and build backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet restore His.Hope.sln -warnAsError:NU1605 -warnAsError:NU1901 -warnAsError:NU1902 -warnAsError:NU1903 -warnAsError:NU1904
+          dotnet build His.Hope.sln --no-restore --warnaserror:NU1605 --warnaserror:NU1901 --warnaserror:NU1902 --warnaserror:NU1903 --warnaserror:NU1904
+
+      - name: Audit and build frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+          npm audit --omit=dev --audit-level=high
+          npm run build:shared
+          npm --workspace admin-app run build -- --configuration production
+          npm --workspace dashboard-app run build -- --configuration production
+          npm --workspace his-hope-app run build
+
+      - name: Run repository security scanners
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret,misconfig
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Validate release manifests and contracts
+        shell: pwsh
+        run: |
+          ./scripts/validate-kustomize-release.ps1 -Environment prod
+          ./scripts/config/validate-kustomize-runtime.ps1 -Overlay prod
+          ./scripts/verify-admission-policy.ps1
+          python scripts/validate-manifest-secret-contract.py
+          python scripts/validate-container-build-contract.py
+
+  release:
+    name: Build, scan, SBOM and sign ${{ matrix.name }}
+    needs: quality-security
+    runs-on: ubuntu-24.04
+    environment: production
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: api-gateway, context: ., dockerfile: src/ApiGateway/Dockerfile }
+          - { name: identity-service, context: ., dockerfile: src/Services/IdentityService/IdentityService.Api/Dockerfile }
+          - { name: appointment-service, context: ., dockerfile: src/Services/AppointmentService/AppointmentService.Api/Dockerfile }
+          - { name: billing-service, context: ., dockerfile: src/Services/BillingService/BillingService.Api/Dockerfile }
+          - { name: clinical-service, context: ., dockerfile: src/Services/ClinicalService/ClinicalService.Api/Dockerfile }
+          - { name: lab-service, context: ., dockerfile: src/Services/LabService/LabService.Api/Dockerfile }
+          - { name: patient-service, context: ., dockerfile: src/Services/PatientService/PatientService.Api/Dockerfile }
+          - { name: pharmacy-service, context: ., dockerfile: src/Services/PharmacyService/PharmacyService.Api/Dockerfile }
+          - { name: dashboard-bff, context: ., dockerfile: src/Bff/DashboardBff/Dockerfile }
+          - { name: systemdashboard-bff, context: ., dockerfile: src/Bff/SystemDashboard.Bff/Dockerfile }
+          - { name: patient-bff, context: ., dockerfile: src/Bff/PatientBff/Dockerfile }
+          - { name: clinical-bff, context: ., dockerfile: src/Bff/ClinicalBff/Dockerfile }
+          - { name: lab-bff, context: ., dockerfile: src/Bff/LabBff/Dockerfile }
+          - { name: billing-bff, context: ., dockerfile: src/Bff/BillingBff/Dockerfile }
+          - { name: pharmacy-bff, context: ., dockerfile: src/Bff/PharmacyBff/Dockerfile }
+          - { name: database-continuity, context: ., dockerfile: src/Services/DatabaseContinuityService/DatabaseContinuityService.Api/Dockerfile }
+          - { name: admin-app, context: ., dockerfile: admin-app/Dockerfile }
+          - { name: dashboard-app, context: ., dockerfile: dashboard-app/Dockerfile }
+          - { name: frontend, context: ., dockerfile: src/Frontend/his-hope-app/Dockerfile }
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Harbor trust chain
+        shell: bash
+        env:
+          HARBOR_CA_CHAIN_B64: ${{ secrets.HARBOR_CA_CHAIN_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${HARBOR_CA_CHAIN_B64:-}" || { echo 'HARBOR_CA_CHAIN_B64 environment secret is required for private Harbor TLS' >&2; exit 1; }
+          printf '%s' "$HARBOR_CA_CHAIN_B64" | base64 --decode > /tmp/harbor-ca.crt
+          test -s /tmp/harbor-ca.crt
+          openssl x509 -in /tmp/harbor-ca.crt -noout -subject -issuer >/dev/null
+          sudo install -m 0644 /tmp/harbor-ca.crt /usr/local/share/ca-certificates/his-hope-harbor.crt
+          sudo update-ca-certificates
+
+      - name: Validate Harbor release configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${HARBOR_REGISTRY:-}" || { echo 'HARBOR_REGISTRY repository variable is required' >&2; exit 1; }
+          test -n "${HARBOR_PROJECT:-}" || { echo 'HARBOR_PROJECT repository variable is required' >&2; exit 1; }
+
+      - name: Validate container build contract
+        run: python scripts/validate-container-build-contract.py
+
+      - name: Install pinned release tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/aquasecurity/trivy/936f06a57864d073aa77b38f77fe76c4fcb1f7c1/contrib/install.sh | sh -s -- -b "$RUNNER_TOOL_CACHE/trivy" v0.58.2
+          curl -fsSL https://raw.githubusercontent.com/anchore/syft/19ef6ad25a9c4dd753a29f7cc31ff91cd8dea28d/install.sh | sh -s -- -b "$RUNNER_TOOL_CACHE/syft" v1.18.1
+          curl -fsSL https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-amd64 -o "$RUNNER_TOOL_CACHE/cosign"
+          echo '8b24b946dd5809c6bd93de08033bcf6bc0ed7d336b7785787c080f574b89249b  '"$RUNNER_TOOL_CACHE/cosign" | sha256sum --check --status
+          chmod +x "$RUNNER_TOOL_CACHE/cosign"
+          echo "$RUNNER_TOOL_CACHE/trivy" >> "$GITHUB_PATH"
+          echo "$RUNNER_TOOL_CACHE/syft" >> "$GITHUB_PATH"
+          echo "$RUNNER_TOOL_CACHE" >> "$GITHUB_PATH"
+
+      - name: Validate production manifests before build
+        shell: pwsh
+        run: ./scripts/validate-kustomize-release.ps1 -Environment prod
+
+      - name: Install runtime contract validation dependency
+        shell: bash
+        run: python -m pip install --disable-pip-version-check --no-input pyyaml==6.0.2
+
+      - name: Validate production runtime contracts before build
+        shell: pwsh
+        run: ./scripts/config/validate-kustomize-runtime.ps1 -Overlay prod
+
+      - name: Log in to Harbor
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish == true }}
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ${{ env.HARBOR_REGISTRY }}
+          username: ${{ secrets.HARBOR_ROBOT_USERNAME }}
+          password: ${{ secrets.HARBOR_ROBOT_TOKEN }}
+
+      - name: Build image for scan
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          load: true
+          tags: his-hope/${{ matrix.name }}:${{ env.RELEASE_SHA }}
+          provenance: false
+
+      - name: Trivy image gate
+        shell: bash
+        run: trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --scanners vuln,secret,misconfig "his-hope/${{ matrix.name }}:${RELEASE_SHA}"
+
+      - name: Generate SBOM
+        shell: bash
+        run: syft "his-hope/${{ matrix.name }}:${RELEASE_SHA}" -o cyclonedx-json="${{ matrix.name }}.sbom.cdx.json"
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sbom-${{ matrix.name }}-${{ github.sha }}
+          path: ${{ matrix.name }}.sbom.cdx.json
+          if-no-files-found: error
+
+      - name: Push immutable SHA tag
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish == true }}
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        id: push
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/${{ matrix.name }}:${{ env.RELEASE_SHA }}
+          provenance: true
+          sbom: true
+
+      - name: Scan the exact pushed digest
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish == true }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          digest="${{ steps.push.outputs.digest }}"
+          test -n "$digest"
+          image="${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${{ matrix.name }}@${digest}"
+          docker pull "$image"
+          trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --scanners vuln,secret,misconfig "$image"
+
+      - name: Sign and attest digest with GitHub OIDC
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish == true }}
+        shell: bash
+        env:
+          COSIGN_EXPERIMENTAL: '1'
+        run: |
+          set -euo pipefail
+          digest="${{ steps.push.outputs.digest }}"
+          test -n "$digest"
+          image="${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${{ matrix.name }}@${digest}"
+          cosign sign --yes "$image"
+          export IMAGE_REF="$image" IMAGE_DIGEST="$digest"
+          python - <<'PY'
+          import json
+          import os
+
+          digest = os.environ["IMAGE_DIGEST"].removeprefix("sha256:")
+          commit = os.environ["GITHUB_SHA"]
+          repository = os.environ["GITHUB_REPOSITORY"]
+          workflow_ref = os.environ["GITHUB_WORKFLOW_REF"]
+          subject = os.environ["IMAGE_REF"]
+          predicate = {
+              "_type": "https://in-toto.io/Statement/v1",
+              "subject": [{"name": subject, "digest": {"sha256": digest}}],
+              "predicateType": "https://slsa.dev/provenance/v1",
+              "predicate": {
+                  "buildDefinition": {
+                      "buildType": "https://github.com/slsa-framework/slsa-github-generator@v2",
+                      "externalParameters": {"workflow": workflow_ref},
+                      "internalParameters": {},
+                      "resolvedDependencies": [{
+                          "uri": f"git+https://github.com/{repository}.git@{commit}",
+                          "digest": {"sha1": commit},
+                      }],
+                  },
+                  "runDetails": {
+                      "builder": {"id": "https://github.com/actions/runner"},
+                      "metadata": {"invocationId": os.environ["GITHUB_RUN_ID"]},
+                  },
+              },
+          }
+          with open("slsa-provenance.json", "w", encoding="utf-8") as handle:
+              json.dump(predicate, handle, separators=(",", ":"))
+          PY
+          cosign attest --yes --predicate slsa-provenance.json --type slsaprovenance "$image"
+          pwsh ./scripts/verify-image-attestations.ps1 \
+            -ImageRef "$image" \
+            -CertificateIdentityRegex "^https://github.com/${{ github.repository }}/.github/workflows/container-release.yml@refs/(heads/main|tags/v[0-9]+\\.[0-9]+\\.[0-9]+)$"
+          printf '%s\n' "$image" > "${{ matrix.name }}.image-ref.txt"
+
+      - name: Upload immutable image reference
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.publish == true }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: image-ref-${{ matrix.name }}-${{ github.sha }}
+          path: ${{ matrix.name }}.image-ref.txt
+          if-no-files-found: error

@@ -1,0 +1,43 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: spire-postgres
+  namespace: spire
+  labels:
+    app.kubernetes.io/name: spire-postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: his-hope
+spec:
+  instances: 3
+  imageName: ghcr.io/cloudnative-pg/postgresql:16
+  primaryUpdateStrategy: unsupervised
+  storage:
+    storageClass: local-path
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1
+      memory: 1Gi
+  affinity:
+    podAntiAffinityType: required
+  bootstrap:
+    initdb:
+      database: spiredb
+      owner: spire_server
+      secret:
+        name: spire-postgres-app
+  postgresql:
+    parameters:
+      password_encryption: scram-sha-256
+      max_connections: "200"
+    pg_hba:
+      - hostssl spiredb spire_server 10.42.0.0/16 scram-sha-256
+      - hostssl spiredb spire_server 10.43.0.0/16 scram-sha-256
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: spire-postgres-store

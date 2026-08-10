@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cockroachdb-init
+  namespace: his-hope
+spec:
+  template:
+    metadata:
+      name: cockroachdb-init
+    spec:
+      serviceAccountName: cockroachdb
+      initContainers:
+      - name: wait-for-cluster
+        image: cockroachdb/cockroach:v24.1.2
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/bash
+        - -c
+        - |
+          echo "Waiting for all 3 CockroachDB pods to be ready..."
+          for i in 0 1 2; do
+            until nslookup cockroachdb-$i.cockroachdb.his-hope.svc.cluster.local 2>/dev/null; do
+              echo "Waiting for pod cockroachdb-$i..."
+              sleep 3
+            done
+            echo "cockroachdb-$i resolved."
+          done
+          echo "All pods resolved. Waiting for SQL readiness..."
+          until cockroach sql --host=cockroachdb-0.cockroachdb:26257 --insecure -e "SELECT 1" 2>/dev/null; do
+            echo "Waiting for SQL on cockroachdb-0..."
+            sleep 3
+          done
+          echo "CockroachDB cluster ready."
+      containers:
+      - name: init-cluster
+        image: cockroachdb/cockroach:v24.1.2
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/bash
+        - -c
+        - |
+          cockroach init --host=cockroachdb-0.cockroachdb:26257 --insecure
+      restartPolicy: Never
+  backoffLimit: 5

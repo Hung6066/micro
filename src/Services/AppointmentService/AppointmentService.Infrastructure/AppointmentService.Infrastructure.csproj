@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>His.Hope.AppointmentService.Infrastructure</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.10" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="8.0.0" />
+    <PackageReference Include="EFCore.NamingConventions" Version="8.0.3" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AppointmentService.Domain\AppointmentService.Domain.csproj" />
+    <ProjectReference Include="..\AppointmentService.Application\AppointmentService.Application.csproj" />
+    <ProjectReference Include="..\..\..\Shared\SharedKernel\Src\His.Hope.SharedKernel\His.Hope.SharedKernel.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Authorization\His.Hope.Authorization\His.Hope.Authorization.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Infrastructure\His.Hope.Infrastructure\His.Hope.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\Shared\EventBus\Src\His.Hope.IntegrationEvents\His.Hope.IntegrationEvents.csproj" />
+    <ProjectReference Include="..\..\..\Shared\Persistence\His.Hope.Persistence\His.Hope.Persistence.csproj" />
+  </ItemGroup>
+</Project>

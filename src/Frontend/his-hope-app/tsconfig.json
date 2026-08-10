@@ -1,0 +1,46 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "baseUrl": "./",
+    "outDir": "./dist/out-tsc",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "declaration": false,
+    "downlevelIteration": true,
+    "experimentalDecorators": true,
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "importHelpers": true,
+    "target": "ES2023",
+    "module": "ES2022",
+    "useDefineForClassFields": false,
+    "lib": ["ES2023", "dom"],
+    "paths": {
+      "@core/*": ["src/app/core/*"],
+      "@shared/*": ["src/app/shared/*"],
+      "@features/*": ["src/app/features/*"],
+      "@env/*": ["src/environments/*"],
+      "@store/*": ["src/app/store/*"],
+      "@testing/*": ["src/app/testing/*"]
+      ,"tslib": ["./node_modules/tslib"]
+      ,"@angular/*": ["./node_modules/@angular/*"]
+      ,"rxjs": ["./node_modules/rxjs"]
+      ,"rxjs/*": ["./node_modules/rxjs/*"]
+      ,"angular-auth-oidc-client": ["./node_modules/angular-auth-oidc-client"]
+    }
+  },
+  "exclude": ["**/*.spec.ts", "**/*.d.ts"],
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true
+  }
+}

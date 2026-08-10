@@ -1,0 +1,48 @@
+name: Frontend Foundation
+
+on:
+  push:
+    paths:
+      - "shared/frontend-foundation/**"
+      - "admin-app/**"
+      - "dashboard-app/**"
+      - "src/Frontend/his-hope-app/**"
+      - "scripts/validate-shared-foundation.ps1"
+      - "scripts/validate-design-tokens.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/frontend-foundation.yml"
+  pull_request:
+    paths:
+      - "shared/frontend-foundation/**"
+      - "admin-app/**"
+      - "dashboard-app/**"
+      - "src/Frontend/his-hope-app/**"
+      - "scripts/validate-shared-foundation.ps1"
+      - "scripts/validate-design-tokens.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/frontend-foundation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  foundation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run validate:foundation
+      - run: npm run lint:design-tokens
+      - run: npm run build:shared
+      - run: npm --workspace @his-hope/frontend-foundation run test -- --watch=false --browsers=ChromeHeadless
+      - run: npm run storybook:build
+      - run: npm --prefix admin-app run build
+      - run: npm --prefix dashboard-app run build
+      - run: npm --prefix src/Frontend/his-hope-app run build

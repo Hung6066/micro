@@ -1,0 +1,30 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  namespace: his-hope
+  name: memory-stress-80pct
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    chaos-mesh/experiment-type: memory-stress
+    chaos-mesh/schedule: routine
+  annotations:
+    description: "Stresses one random pod to 80% memory usage using 4 workers every 8 hours to test OOM handling and memory limits"
+    maintainer: "his-hope-sre@hishop.com"
+    game-day-scope: "monthly-full-chaos"
+spec:
+  mode: one
+  selector:
+    namespaces:
+      - his-hope
+    labelSelectors:
+      app.kubernetes.io/part-of: his-hope
+    fieldSelectors:
+      - metadata.name!=postgres-0
+      - metadata.name!=redis-0
+  stressors:
+    memory:
+      workers: 4
+      size: 80%
+  duration: 3m
+  scheduler:
+    cron: "@every 8h"

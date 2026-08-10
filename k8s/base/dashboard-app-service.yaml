@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-app
+  labels:
+    app.kubernetes.io/name: dashboard-app
+    app.kubernetes.io/component: dashboard
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: dashboard-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP

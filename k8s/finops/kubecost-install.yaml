@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubecost-config
+  namespace: finops
+data:
+  values.yaml: |
+    global:
+      zone: us-east1
+    prometheus:
+      enabled: true
+      nodeExporter:
+        enabled: true
+      kubeStateMetrics:
+        enabled: true
+    kubecostProductConfigs:
+      clusterName: his-hope
+      currency: USD
+    networkCosts:
+      enabled: true
+      services:
+        enabled: true
+    grafana:
+      enabled: true
+      grafana.ini:
+        server:
+          root_url: https://grafana.hishop.com
+    notifications:
+      alertManager:
+        enabled: true
+        endpoint: http://alertmanager:9093
+    budgets:
+      - name: team-clinical
+        budget: 50000
+      - name: team-platform
+        budget: 30000
+      - name: production
+        budget: 100000
+      - name: staging
+        budget: 10000

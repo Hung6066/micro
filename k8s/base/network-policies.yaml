@@ -1,0 +1,2383 @@
+# =============================================================================
+# His.Hope Kubernetes Native NetworkPolicies
+# Defense-in-Depth: Default-deny with explicit allow rules
+# Complements CiliumNetworkPolicy eBPF-layer enforcement
+# =============================================================================
+
+---
+# ---------------------------------------------------------------------------
+# 1. DEFAULT DENY
+# ---------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+
+---
+# Traefik runs in the dedicated ingress namespace while production workloads
+# run in his-hope. Allow only the public HTTP entry points through the
+# namespace boundary; internal service-to-service traffic remains governed by
+# the narrower policies below.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-traefik-public-ingress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - identity-service
+          - admin-app
+          - dashboard-app
+          - frontend
+          - api-gateway
+          - patient-bff
+          - clinical-bff
+          - lab-bff
+          - billing-bff
+          - pharmacy-bff
+          - dashboard-bff
+          - systemdashboard-bff
+          - appointment-service
+          - lab-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: his-hope-dev
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik
+        - ipBlock:
+            cidr: 10.42.0.0/16
+      ports:
+        - port: 80
+          protocol: TCP
+        - port: 5000
+          protocol: TCP
+        - port: 5003
+          protocol: TCP
+        - port: 5100
+          protocol: TCP
+        - port: 5200
+          protocol: TCP
+        - port: 5300
+          protocol: TCP
+        - port: 5400
+          protocol: TCP
+        - port: 5500
+          protocol: TCP
+        - port: 5600
+          protocol: TCP
+        - port: 5700
+          protocol: TCP
+        - port: 5004
+          protocol: TCP
+        - port: 5010
+          protocol: TCP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+
+---
+# ---------------------------------------------------------------------------
+# 2. DNS RESOLUTION (all pods)
+# ---------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  # DNS is a platform dependency for every workload, including Vault and
+  # the Vault CSI provider. Restricting this to backend labels breaks
+  # projected secrets and external auto-unseal after a node restart.
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 3. KUBERNETES API SERVER (for services that need it)
+# ---------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-kube-api-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - vault
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+          protocol: TCP
+    # K3s exposes the Kubernetes API through the clusterIP service (10.43.0.1).
+    # Keep this narrower than the external HTTPS egress above so the metrics
+    # client can reach the in-cluster API without opening east-west traffic.
+    - to:
+        - ipBlock:
+            cidr: 10.43.0.0/16
+      ports:
+        - port: 443
+          protocol: TCP
+    - to:
+        - ipBlock:
+            cidr: 172.20.0.0/16
+      ports:
+        - port: 6443
+          protocol: TCP
+    - to:
+        - ipBlock:
+            cidr: 10.42.0.0/16
+      ports:
+        - port: 8200
+          protocol: TCP
+        - port: 8201
+          protocol: TCP
+    # k3d kube-proxy forwards the kubernetes Service to the server node's
+    # 6443 listener. This is restricted to the local k3d node subnet.
+    - to:
+        - ipBlock:
+            cidr: 172.20.0.0/16
+      ports:
+        - port: 6443
+          protocol: TCP
+    - to:
+        - ipBlock:
+            cidr: 10.42.0.0/16
+      ports:
+        - port: 8200
+          protocol: TCP
+        - port: 8201
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 3b. VAULT CSI PROVIDER (Kubernetes token + Vault API)
+# ---------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-vault-csi-provider-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - vault-csi-provider
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - ipBlock:
+            cidr: 10.43.0.0/16
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 8200
+          protocol: TCP
+    - to:
+        - ipBlock:
+            cidr: 172.20.0.0/16
+      ports:
+        - port: 6443
+          protocol: TCP
+
+    - to:
+        - ipBlock:
+            cidr: 10.42.0.0/16
+      ports:
+        - port: 8200
+          protocol: TCP
+        - port: 8201
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 3c. VAULT API AND RAFT INGRESS
+# ---------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-vault-ingress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - vault
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 10.42.0.0/16
+      ports:
+        - port: 8200
+          protocol: TCP
+        - port: 8201
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 4. FRONTEND TO API GATEWAY
+# ---------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-api-gateway
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: api-gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - port: 5000
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 5. API GATEWAY TO ALL BACKEND SERVICES (HTTP)
+# ---------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-gateway-to-services
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: backend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+      ports:
+        # patient-service HTTP
+        - port: 5002
+          protocol: TCP
+        # identity-service HTTP
+        - port: 5003
+          protocol: TCP
+        # appointment-service HTTP
+        - port: 5004
+          protocol: TCP
+        # clinical-service HTTP
+        - port: 5005
+          protocol: TCP
+        # lab-service HTTP
+        - port: 5010
+          protocol: TCP
+        # billing-service HTTP
+        - port: 5020
+          protocol: TCP
+        # pharmacy-service HTTP
+        - port: 5030
+          protocol: TCP
+        # lab-bff HTTP
+        - port: 5300
+          protocol: TCP
+        # clinical-bff HTTP
+        - port: 5200
+          protocol: TCP
+        # patient-bff HTTP
+        - port: 5100
+          protocol: TCP
+        # billing-bff HTTP
+        - port: 5400
+          protocol: TCP
+        # pharmacy-bff HTTP
+        - port: 5500
+          protocol: TCP
+        # dashboard-bff HTTP
+        - port: 5600
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 6. SERVICE-TO-SERVICE gRPC (patient-service)
+# ---------------------------------------------------------------------------
+# patient-service gRPC (5006) called by: clinical-service, lab-service, 
+#   billing-service, pharmacy-service, identity-service, appointment-service
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-grpc-to-patient-service
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: patient-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: identity-service
+        - podSelector:
+            matchLabels:
+              app: clinical-service
+        - podSelector:
+            matchLabels:
+              app: lab-service
+        - podSelector:
+            matchLabels:
+              app: billing-service
+        - podSelector:
+            matchLabels:
+              app: pharmacy-service
+        # k3d/Flannel cross-node traffic is SNATed to the pod CIDR gateway
+        # before it reaches the destination node. Linkerd remains the
+        # identity/authentication boundary for this transport allowance.
+        - ipBlock:
+            cidr: 10.42.0.0/16
+      ports:
+        # Linkerd redirects meshed inbound traffic to its proxy listener.
+        - port: 4143
+          protocol: TCP
+        - port: 5002
+          protocol: TCP
+        - port: 5006
+          protocol: TCP
+  # patient-service also needs egress to its dependencies
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: rabbitmq
+      ports:
+        - port: 5671
+          protocol: TCP
+        - port: 5672
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 7. SERVICE-TO-SERVICE gRPC (identity-service)
+# ----------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-grpc-to-identity-service
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: identity-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+      ports:
+        - port: 5003
+          protocol: TCP
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: rabbitmq
+      ports:
+        - port: 5671
+          protocol: TCP
+        - port: 5672
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 8. SERVICE-TO-SERVICE gRPC (appointment-service)
+# ----------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-grpc-to-appointment-service
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: appointment-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: billing-service
+      ports:
+        - port: 5008
+          protocol: TCP
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: rabbitmq
+      ports:
+        - port: 5671
+          protocol: TCP
+        - port: 5672
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 9. SERVICE-TO-SERVICE gRPC (clinical-service)
+# ----------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-grpc-to-clinical-service
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: clinical-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: lab-service
+        - podSelector:
+            matchLabels:
+              app: pharmacy-service
+      ports:
+        - port: 5009
+          protocol: TCP
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: rabbitmq
+      ports:
+        - port: 5671
+          protocol: TCP
+        - port: 5672
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 10. SERVICE-TO-SERVICE gRPC (lab-service)
+# ----------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-grpc-to-lab-service
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: lab-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: billing-service
+      ports:
+        - port: 5012
+          protocol: TCP
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: rabbitmq
+      ports:
+        - port: 5671
+          protocol: TCP
+        - port: 5672
+          protocol: TCP
+    # lab-service calls patient-service gRPC and clinical-service gRPC
+    - to:
+        - podSelector:
+            matchLabels:
+              app: patient-service
+      ports:
+        - port: 5006
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: clinical-service
+      ports:
+        - port: 5009
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 11. SERVICE-TO-SERVICE gRPC (billing-service)
+# ----------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-grpc-to-billing-service
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: billing-service
+  policyTypes:
+    - Ingress
+  # No services listed call billing-service gRPC in current configmaps
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: rabbitmq
+      ports:
+        - port: 5671
+          protocol: TCP
+        - port: 5672
+          protocol: TCP
+    # billing-service calls patient-service, appointment-service, lab-service, pharmacy-service gRPC
+    - to:
+        - podSelector:
+            matchLabels:
+              app: patient-service
+      ports:
+        - port: 5006
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: appointment-service
+      ports:
+        - port: 5008
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: lab-service
+      ports:
+        - port: 5012
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: pharmacy-service
+      ports:
+        - port: 5032
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 12. SERVICE-TO-SERVICE gRPC (pharmacy-service)
+# ----------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-grpc-to-pharmacy-service
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: pharmacy-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: billing-service
+      ports:
+        - port: 5032
+          protocol: TCP
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: rabbitmq
+      ports:
+        - port: 5671
+          protocol: TCP
+        - port: 5672
+          protocol: TCP
+    # pharmacy-service calls patient-service gRPC and clinical-service gRPC
+    - to:
+        - podSelector:
+            matchLabels:
+              app: patient-service
+      ports:
+        - port: 5006
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: clinical-service
+      ports:
+        - port: 5009
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 13. API GATEWAY EGRESS
+# ----------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-gateway-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: api-gateway
+  policyTypes:
+    - Egress
+  egress:
+    # The gateway's Linkerd proxy resolves destination/control-plane records
+    # independently of the application container.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # All backend services on HTTP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: patient-service
+      ports:
+        - port: 5002
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: identity-service
+      ports:
+        - port: 5003
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: appointment-service
+      ports:
+        - port: 5004
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: clinical-service
+      ports:
+        - port: 5005
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: lab-service
+      ports:
+        - port: 5010
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: billing-service
+      ports:
+        - port: 5020
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: pharmacy-service
+      ports:
+        - port: 5030
+          protocol: TCP
+    # Dashboard aggregation uses the backend gRPC listeners directly.
+    - to:
+        - podSelector:
+            matchLabels:
+              app: patient-service
+      ports:
+        - port: 5006
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: clinical-service
+      ports:
+        - port: 5009
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: lab-service
+      ports:
+        - port: 5012
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: billing-service
+      ports:
+        - port: 5022
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: pharmacy-service
+      ports:
+        - port: 5032
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: appointment-service
+      ports:
+        - port: 5008
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: rabbitmq
+      ports:
+        - port: 5671
+          protocol: TCP
+        - port: 5672
+          protocol: TCP
+    # BFF services
+    - to:
+        - podSelector:
+            matchLabels:
+              app: lab-bff
+      ports:
+        - port: 5300
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: clinical-bff
+      ports:
+        - port: 5200
+          protocol: TCP
+    # patient-bff
+    - to:
+        - podSelector:
+            matchLabels:
+              app: patient-bff
+      ports:
+        - port: 5100
+          protocol: TCP
+    # billing-bff
+    - to:
+        - podSelector:
+            matchLabels:
+              app: billing-bff
+      ports:
+        - port: 5400
+          protocol: TCP
+    # pharmacy-bff
+    - to:
+        - podSelector:
+            matchLabels:
+              app: pharmacy-bff
+      ports:
+        - port: 5500
+          protocol: TCP
+    # dashboard-bff
+    - to:
+        - podSelector:
+            matchLabels:
+              app: dashboard-bff
+      ports:
+        - port: 5600
+          protocol: TCP
+
+---
+# System dashboard resource health checks need inbound access to the same
+# service/BFF HTTP endpoints that are exposed through the gateway. This is
+# deliberately limited to the dashboard BFF identity and the health ports.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-systemdashboard-bff-health-ingress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - identity-service
+          - patient-service
+          - appointment-service
+          - clinical-service
+          - lab-service
+          - billing-service
+          - pharmacy-service
+          - patient-bff
+          - clinical-bff
+          - lab-bff
+          - billing-bff
+          - pharmacy-bff
+          - dashboard-bff
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: systemdashboard-bff
+      ports:
+        - port: 5002
+          protocol: TCP
+        - port: 5003
+          protocol: TCP
+        - port: 5004
+          protocol: TCP
+        - port: 5005
+          protocol: TCP
+        - port: 5010
+          protocol: TCP
+        - port: 5020
+          protocol: TCP
+        - port: 5030
+          protocol: TCP
+        - port: 5100
+          protocol: TCP
+        - port: 5200
+          protocol: TCP
+        - port: 5300
+          protocol: TCP
+        - port: 5400
+          protocol: TCP
+        - port: 5500
+          protocol: TCP
+        - port: 5600
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 14. FRONTEND EGRESS
+# ----------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+      ports:
+        - port: 5000
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 15. VAULT EGRESS (for Vault Agent sidecar and Vault clients)
+# ----------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-to-vault
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: his-hope
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - vault
+      ports:
+        - port: 8200
+          protocol: TCP
+        - port: 8201
+          protocol: TCP
+    # K3s service-cluster traffic is addressed through the Vault ClusterIP.
+    # Keep this explicit so kube-proxy can route Vault auth/secret requests
+    # without relying on pod-label matching for StatefulSet members.
+    - to:
+        - ipBlock:
+            cidr: 10.43.0.0/16
+      ports:
+        - port: 8200
+          protocol: TCP
+        - port: 8201
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: spire
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: spire-oidc
+      ports:
+        - port: 8082
+          protocol: TCP
+    - to:
+        - ipBlock:
+            cidr: 10.43.0.0/16
+      ports:
+        - port: 8082
+          protocol: TCP
+
+---
+# Vault itself needs a narrowly-scoped path to the SPIRE OIDC JWKS endpoint.
+# Application workloads use allow-egress-to-vault above; this policy keeps the
+# Vault server's own egress explicit under the namespace default-deny policy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-vault-oidc-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - vault
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: spire
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: spire-oidc
+      ports:
+        - port: 8082
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vault
+      ports:
+        - port: 8201
+          protocol: TCP
+
+---
+# Vault Database Secrets Engine must reach PostgreSQL directly to validate its
+# management connection and create/revoke short-lived roles.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-vault-postgres-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - vault
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - postgres
+      ports:
+        - port: 5432
+          protocol: TCP
+
+---
+# Complementary ingress rule for the namespace-wide default deny policy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-vault-postgres-ingress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - vault
+      ports:
+        - port: 5432
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
+# 16. MONITORING & OBSERVABILITY
+# ----------------------------------------------------------------------------
+# Allow Prometheus scraping from the monitoring namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scraping
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: his-hope
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 5000
+          protocol: TCP
+        - port: 5002
+          protocol: TCP
+        - port: 5003
+          protocol: TCP
+        - port: 5004
+          protocol: TCP
+        - port: 5005
+          protocol: TCP
+        - port: 5010
+          protocol: TCP
+        - port: 5020
+          protocol: TCP
+        - port: 5030
+          protocol: TCP
+        # lab-bff HTTP
+        - port: 5300
+          protocol: TCP
+        # clinical-bff HTTP
+        - port: 5200
+          protocol: TCP
+        # patient-bff HTTP
+        - port: 5100
+          protocol: TCP
+        # billing-bff HTTP
+        - port: 5400
+          protocol: TCP
+        # pharmacy-bff HTTP
+        - port: 5500
+          protocol: TCP
+        # dashboard-bff HTTP
+        - port: 5600
+          protocol: TCP
+        # Linkerd proxy metrics port
+        - port: 4190
+          protocol: TCP
+        - port: 4191
+          protocol: TCP
+
+---
+# Allow Linkerd's transparent proxy path for meshed backend-to-backend calls.
+# Application traffic is still authorized by the service-specific policies
+# above; these ports only carry traffic after Linkerd's CNI redirect.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-linkerd-backend-mesh
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: his-hope-dev
+      ports:
+        - port: 4143
+          protocol: TCP
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: his-hope-dev
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+      ports:
+        - port: 4140
+          protocol: TCP
+
+---
+# Linkerd proxies must reach identity, destination, and policy controllers.
+# Keep this separate from application traffic policies so service-to-service
+# authorization remains explicit while the mesh control path stays available.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-linkerd-control-plane-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: backend
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+      ports:
+        - port: 8080
+          protocol: TCP
+        - port: 8086
+          protocol: TCP
+        - port: 8090
+          protocol: TCP
+
+---
+# Platform services use the mesh control plane as well as their backing stores.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-bff-linkerd-control-plane-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values:
+          - bff
+          - dashboard
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+      ports:
+        - port: 8080
+          protocol: TCP
+        - port: 8086
+          protocol: TCP
+        - port: 8090
+          protocol: TCP
+
+---
+# Platform services use the mesh control plane as well as their backing stores.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-database-continuity-dependencies
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: database-continuity
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+      ports:
+        - port: 8080
+          protocol: TCP
+        - port: 8086
+          protocol: TCP
+        - port: 8090
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: vault
+      ports:
+        - port: 8200
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+
+---
+# System dashboard needs Redis, Kubernetes API, DNS, and Linkerd control plane.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-systemdashboard-bff-dependencies
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: systemdashboard-bff
+  policyTypes:
+    - Egress
+  egress:
+    # Resource health aggregation calls the in-cluster HTTP and gRPC service
+    # endpoints. Keep this allow-list explicit so the dashboard BFF does not
+    # gain unrestricted east-west egress.
+    - to:
+        - podSelector: {}
+      ports:
+        - port: 5002
+          protocol: TCP
+        - port: 5003
+          protocol: TCP
+        - port: 5004
+          protocol: TCP
+        - port: 5005
+          protocol: TCP
+        - port: 5006
+          protocol: TCP
+        - port: 5007
+          protocol: TCP
+        - port: 5008
+          protocol: TCP
+        - port: 5009
+          protocol: TCP
+        - port: 5010
+          protocol: TCP
+        - port: 5012
+          protocol: TCP
+        - port: 5020
+          protocol: TCP
+        - port: 5022
+          protocol: TCP
+        - port: 5030
+          protocol: TCP
+        - port: 5032
+          protocol: TCP
+        - port: 5100
+          protocol: TCP
+        - port: 5200
+          protocol: TCP
+        - port: 5300
+          protocol: TCP
+        - port: 5400
+          protocol: TCP
+        - port: 5500
+          protocol: TCP
+        - port: 5600
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 9090
+          protocol: TCP
+        - port: 9093
+          protocol: TCP
+        - port: 3100
+          protocol: TCP
+        - port: 16686
+          protocol: TCP
+        # OTLP export from the dashboard BFF to the collector.
+        - port: 4317
+          protocol: TCP
+        - port: 4318
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+      ports:
+        - port: 8080
+          protocol: TCP
+        - port: 8086
+          protocol: TCP
+        - port: 8090
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+
+---
+# Allow Linkerd proxy admin and tap ports
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-linkerd-proxy
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: his-hope
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd-viz
+      ports:
+        # Linkerd proxy admin (metrics, pprof)
+        - port: 4190
+          protocol: TCP
+        # Linkerd proxy tap
+        - port: 4191
+          protocol: TCP
+    # Allow Linkerd control plane to check proxy health
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+      ports:
+        - port: 4190
+          protocol: TCP
+        - port: 4191
+          protocol: TCP
+
+---
+# Frontend containers and their proxies need DNS, mesh control, and gateway
+# access; these are the only server-side egress paths they use.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-runtime-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: [admin-app, frontend]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+      ports:
+        - port: 8080
+          protocol: TCP
+        - port: 8086
+          protocol: TCP
+        - port: 8090
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+      ports:
+        - port: 5000
+          protocol: TCP
+
+---
+# Dashboard server-side rendering/proxy paths include SystemDashboard BFF.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dashboard-app-runtime-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: dashboard-app
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+      ports:
+        - port: 8080
+          protocol: TCP
+        - port: 8086
+          protocol: TCP
+        - port: 8090
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+      ports:
+        - port: 5000
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: systemdashboard-bff
+      ports:
+        - port: 5700
+          protocol: TCP
+
+---
+# Traefik needs DNS, mesh control, and HTTP access to in-cluster web services.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-traefik-runtime-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+      ports:
+        - port: 8080
+          protocol: TCP
+        - port: 8086
+          protocol: TCP
+        - port: 8090
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: his-hope-dev
+      ports:
+        - port: 80
+          protocol: TCP
+        - port: 443
+          protocol: TCP
+    # Public ingress is deployed in this namespace and must reach the
+    # in-cluster services referenced by Ingress rules. Keep this allow-list
+    # limited to the ports exposed through the production ingress.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: his-hope
+      ports:
+        - port: 80
+          protocol: TCP
+        - port: 5000
+          protocol: TCP
+        - port: 5003
+          protocol: TCP
+        - port: 5100
+          protocol: TCP
+        - port: 5200
+          protocol: TCP
+        - port: 5300
+          protocol: TCP
+        - port: 5400
+          protocol: TCP
+        - port: 5500
+          protocol: TCP
+        - port: 5700
+          protocol: TCP
+
+---
+# Linkerd proxy metrics are scraped on port 4191 by the monitoring namespace.
+# Keep this separate from application metrics so the mesh telemetry path is
+# explicit and does not widen the application ingress allow-list.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-linkerd-metrics
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      linkerd.io/control-plane-ns: linkerd
+  policyTypes:
+  - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 4191
+          protocol: TCP
+
+---
+# Dashboard BFF aggregates backend data over the protected gRPC listeners.
+# Keep this allow-list separate so the API/HTTP listeners remain unchanged.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dashboard-bff-backend-grpc-ingress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values:
+          - patient-service
+          - appointment-service
+          - clinical-service
+          - lab-service
+          - billing-service
+          - pharmacy-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: dashboard-bff
+      ports:
+        - port: 5006
+          protocol: TCP
+        - port: 5008
+          protocol: TCP
+        - port: 5009
+          protocol: TCP
+        - port: 5012
+          protocol: TCP
+        - port: 5022
+          protocol: TCP
+        - port: 5032
+          protocol: TCP
+
+---
+# Browser OTLP/HTTP traffic is forwarded by Traefik to the collector service.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-traefik-otel-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 4318
+          protocol: TCP
+
+---
+# Allow health check probes from nodes (kubelet)
+# kubelet originates from the node IP, so we allow all from node CIDRs
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-health-probes
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: his-hope
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - ipBlock:
+            # Allow kubelet health check probes from the cluster node CIDR
+            # Adjust this CIDR to match your cluster's node network
+            cidr: 0.0.0.0/0
+      ports:
+        - port: 5000
+          protocol: TCP
+        - port: 5002
+          protocol: TCP
+        - port: 5003
+          protocol: TCP
+        - port: 5004
+          protocol: TCP
+        - port: 5005
+          protocol: TCP
+        - port: 5010
+          protocol: TCP
+        - port: 5020
+          protocol: TCP
+        - port: 5030
+          protocol: TCP
+        - port: 5300
+          protocol: TCP
+        - port: 80
+          protocol: TCP
+        # Linkerd proxy liveness/readiness
+        - port: 4190
+          protocol: TCP
+
+---
+# Allow Jaeger agent traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-jaeger-ingest
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: his-hope
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd-jaeger
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: linkerd
+      ports:
+        # Jaeger gRPC ingestion
+        - port: 14250
+          protocol: TCP
+        # Jaeger HTTP Thrift ingestion
+        - port: 14268
+          protocol: TCP
+        # Jaeger agent compact thrift
+        - port: 6831
+          protocol: UDP
+        - port: 6832
+          protocol: UDP
+
+---
+# ---------------------------------------------------------------------------
+# 17. PER-BFF EGRESS POLICIES
+#     Each BFF has a least-privilege egress policy preventing lateral
+#     BFF-to-BFF movement.
+# ----------------------------------------------------------------------------
+# PatientBff egress — PatientService + ClinicalService + LabService + PharmacyService + Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-patient-bff-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: patient-bff
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: patient-service
+      ports:
+        - port: 5002
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: clinical-service
+      ports:
+        - port: 5005
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: lab-service
+      ports:
+        - port: 5010
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: pharmacy-service
+      ports:
+        - port: 5030
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+---
+# ClinicalBff egress — ClinicalService + PatientService + Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-clinical-bff-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: clinical-bff
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: clinical-service
+      ports:
+        - port: 5005
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: patient-service
+      ports:
+        - port: 5002
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+---
+# LabBff egress — LabService + Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-lab-bff-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: lab-bff
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: lab-service
+      ports:
+        - port: 5010
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+---
+# BillingBff egress — BillingService + Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-billing-bff-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: billing-bff
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: billing-service
+      ports:
+        - port: 5020
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+---
+# PharmacyBff egress — PharmacyService + Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-pharmacy-bff-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: pharmacy-bff
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: pharmacy-service
+      ports:
+        - port: 5030
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+---
+# DashboardBff egress — ALL backend services + Redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dashboard-bff-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: dashboard-bff
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: patient-service
+      ports:
+        - port: 5002
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: identity-service
+      ports:
+        - port: 5003
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: appointment-service
+      ports:
+        - port: 5004
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: clinical-service
+      ports:
+        - port: 5005
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: lab-service
+      ports:
+        - port: 5010
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: billing-service
+      ports:
+        - port: 5020
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: pharmacy-service
+      ports:
+        - port: 5030
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+---
+# Backend data-plane access. The production overlay prefixes the PostgreSQL
+# and Redis Services, but NetworkPolicy selects their stable app labels.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-data-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: backend
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - vault
+      ports:
+        - port: 8200
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-from-backends
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: backend
+        - podSelector:
+            matchLabels:
+              app: database-continuity
+      ports:
+        - port: 5432
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-from-backends
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: backend
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: gateway
+      ports:
+        - port: 6379
+          protocol: TCP
+    # Redis Cluster nodes must reach each other for slot gossip and failover.
+    - from:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+        - port: 16379
+          protocol: TCP
+        - port: 10000
+          protocol: TCP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-cluster-egress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+        - port: 16379
+          protocol: TCP
+        - port: 10000
+          protocol: TCP

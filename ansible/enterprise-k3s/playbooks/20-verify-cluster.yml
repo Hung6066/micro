@@ -1,0 +1,11 @@
+---
+- name: Verify K3s control plane security and quorum
+  hosts: k3s_servers[0]
+  gather_facts: false
+  become: true
+  any_errors_fatal: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/vault.yml
+  roles:
+    - role: verify_cluster

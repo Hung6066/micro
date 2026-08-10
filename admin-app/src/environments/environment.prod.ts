@@ -1,0 +1,19 @@
+export const environment = {
+  production: true,
+  adminApiUrl: '/api/v1/admin',
+  authApiUrl: '/api/v1/auth',
+  dashboardBffUrl: '/api/v1/bff/dashboard',
+  oidc: {
+    authority: window.location.origin === 'http://localhost:8083' || window.location.origin === 'http://localhost:4202'
+      ? 'http://localhost:5000'
+      : window.location.origin,
+    clientId: 'his-hope-admin',
+    redirectUrl: window.location.origin + '/auth/callback',
+    postLogoutRedirectUri: window.location.origin + '/auth/login',
+    silentRenewUrl: window.location.origin + '/auth/silent-refresh',
+    scope: 'openid profile email roles hishop:permissions hishop:admin',
+    responseType: 'code',
+    secureRoutes: ['/api/v1/admin/'],
+    maxIdTokenIatOffsetInSeconds: 600,
+  },
+};

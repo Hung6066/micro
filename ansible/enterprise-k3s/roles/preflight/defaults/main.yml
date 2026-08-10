@@ -1,0 +1,5 @@
+---
+# Safe fallback for callers that invoke the role with an inventory outside this
+# repository. Production group_vars/all.yml overrides this value explicitly.
+enterprise_minimum_root_free_mb: 20480
+enterprise_network_controls_verified: false

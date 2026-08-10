@@ -1,0 +1,30 @@
+name: hotfix
+description: "Emergency hotfix — manual trigger only, skip non-critical gates"
+version: "1.0"
+triggers:
+  paths: []  # Manual trigger only
+
+pipeline:
+  implement:
+    - agent: dotnet
+      task: "Apply hotfix"
+      timeout_minutes: 5
+      condition: "production_critical"
+
+  validate:
+    - agent: validate
+      depends_on: [dotnet]
+      gates: ["build-integrity"]
+      condition: "skip_non_critical"
+
+  commit:
+    agent: git
+    depends_on: [validate]
+    mode: direct_commit
+    require_confidence: 0.5
+
+loop:
+  agent: loop-engineer
+  max_iterations: 1
+  strategy: autofix_then_escalate
+  on_failure: any_gate

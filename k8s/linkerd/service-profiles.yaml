@@ -1,0 +1,439 @@
+# =============================================================================
+# Patient Service Profile
+# =============================================================================
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  namespace: his-hope
+  name: patient-service.his-hope.svc.cluster.local
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: patient-service
+spec:
+  routes:
+  - name: GET /health
+    condition:
+      method: GET
+      pathRegex: /health.*
+    isRetryable: true
+    timeout: 3s
+  - name: POST /grpc.health.v1.Health/Check
+    condition:
+      method: POST
+      pathRegex: /grpc.health.v1.Health/Check
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 5
+        retryRatio: 0.2
+    timeout: 3s
+  - name: POST /patient.PatientService/GetPatient
+    condition:
+      method: POST
+      pathRegex: /patient\\.PatientService/GetPatient
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 10
+        retryRatio: 0.2
+    timeout: 5s
+  - name: POST /patient.PatientService/CreatePatient
+    condition:
+      method: POST
+      pathRegex: /patient\\.PatientService/CreatePatient
+    isRetryable: false
+    timeout: 10s
+  - name: POST /patient.PatientService/UpdatePatient
+    condition:
+      method: POST
+      pathRegex: /patient\\.PatientService/UpdatePatient
+    isRetryable: false
+    timeout: 10s
+  - name: POST /patient.PatientService/SearchPatients
+    condition:
+      method: POST
+      pathRegex: /patient\\.PatientService/SearchPatients
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 5
+        retryRatio: 0.2
+    timeout: 15s
+  - name: POST /patient.PatientService/ValidatePatientExists
+    condition:
+      method: POST
+      pathRegex: /patient\\.PatientService/ValidatePatientExists
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 10
+        retryRatio: 0.2
+    timeout: 3s
+  - name: GET /api/patients/{id}
+    condition:
+      method: GET
+      pathRegex: /api/patients/[^/]+
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 10
+        retryRatio: 0.2
+    timeout: 5s
+  - name: POST /api/patients
+    condition:
+      method: POST
+      pathRegex: /api/patients
+    isRetryable: false
+    timeout: 10s
+  - name: PUT /api/patients/{id}
+    condition:
+      method: PUT
+      pathRegex: /api/patients/[^/]+
+    isRetryable: false
+    timeout: 10s
+  - name: GET /api/patients/search
+    condition:
+      method: GET
+      pathRegex: /api/patients/search.*
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 5
+        retryRatio: 0.2
+    timeout: 15s
+---
+# =============================================================================
+# Identity Service Profile
+# =============================================================================
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  namespace: his-hope
+  name: identity-service.his-hope.svc.cluster.local
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: identity-service
+spec:
+  routes:
+  - name: GET /health
+    condition:
+      method: GET
+      pathRegex: /health.*
+    isRetryable: true
+    timeout: 3s
+  - name: POST /grpc.health.v1.Health/Check
+    condition:
+      method: POST
+      pathRegex: /grpc.health.v1.Health/Check
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 5
+        retryRatio: 0.2
+    timeout: 3s
+  - name: POST /identity.IdentityService/ValidateToken
+    condition:
+      method: POST
+      pathRegex: /identity\\.IdentityService/ValidateToken
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 20
+        retryRatio: 0.2
+    timeout: 3s
+  - name: POST /identity.IdentityService/Login
+    condition:
+      method: POST
+      pathRegex: /identity\\.IdentityService/Login
+    isRetryable: false
+    timeout: 10s
+  - name: POST /identity.IdentityService/RefreshToken
+    condition:
+      method: POST
+      pathRegex: /identity\\.IdentityService/RefreshToken
+    isRetryable: false
+    timeout: 10s
+  - name: POST /identity.IdentityService/RevokeToken
+    condition:
+      method: POST
+      pathRegex: /identity\\.IdentityService/RevokeToken
+    isRetryable: false
+    timeout: 5s
+  - name: POST /identity.IdentityService/GetUserProfile
+    condition:
+      method: POST
+      pathRegex: /identity\\.IdentityService/GetUserProfile
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 10
+        retryRatio: 0.2
+    timeout: 5s
+  - name: POST /api/auth/login
+    condition:
+      method: POST
+      pathRegex: /api/auth/login
+    isRetryable: false
+    timeout: 10s
+  - name: POST /api/auth/refresh
+    condition:
+      method: POST
+      pathRegex: /api/auth/refresh
+    isRetryable: false
+    timeout: 10s
+  - name: POST /api/auth/validate
+    condition:
+      method: POST
+      pathRegex: /api/auth/validate
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 20
+        retryRatio: 0.2
+    timeout: 3s
+---
+# =============================================================================
+# Appointment Service Profile
+# =============================================================================
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  namespace: his-hope
+  name: appointment-service.his-hope.svc.cluster.local
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: appointment-service
+spec:
+  routes:
+  - name: GET /health
+    condition:
+      method: GET
+      pathRegex: /health.*
+    isRetryable: true
+    timeout: 3s
+  - name: POST /grpc.health.v1.Health/Check
+    condition:
+      method: POST
+      pathRegex: /grpc.health.v1.Health/Check
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 5
+        retryRatio: 0.2
+    timeout: 3s
+  - name: POST /appointment.AppointmentService/GetAppointment
+    condition:
+      method: POST
+      pathRegex: /appointment\\.AppointmentService/GetAppointment
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 10
+        retryRatio: 0.2
+    timeout: 5s
+  - name: POST /appointment.AppointmentService/ScheduleAppointment
+    condition:
+      method: POST
+      pathRegex: /appointment\\.AppointmentService/ScheduleAppointment
+    isRetryable: false
+    timeout: 10s
+  - name: POST /appointment.AppointmentService/CheckIn
+    condition:
+      method: POST
+      pathRegex: /appointment\\.AppointmentService/CheckIn
+    isRetryable: false
+    timeout: 5s
+  - name: POST /appointment.AppointmentService/CheckOut
+    condition:
+      method: POST
+      pathRegex: /appointment\\.AppointmentService/CheckOut
+    isRetryable: false
+    timeout: 5s
+  - name: POST /appointment.AppointmentService/CancelAppointment
+    condition:
+      method: POST
+      pathRegex: /appointment\\.AppointmentService/CancelAppointment
+    isRetryable: false
+    timeout: 10s
+  - name: POST /appointment.AppointmentService/RescheduleAppointment
+    condition:
+      method: POST
+      pathRegex: /appointment\\.AppointmentService/RescheduleAppointment
+    isRetryable: false
+    timeout: 10s
+  - name: POST /appointment.AppointmentService/ListAppointmentsByPatient
+    condition:
+      method: POST
+      pathRegex: /appointment\\.AppointmentService/ListAppointmentsByPatient
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 5
+        retryRatio: 0.2
+    timeout: 10s
+  - name: POST /appointment.AppointmentService/ListAppointmentsByClinician
+    condition:
+      method: POST
+      pathRegex: /appointment\\.AppointmentService/ListAppointmentsByClinician
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 5
+        retryRatio: 0.2
+    timeout: 10s
+  - name: GET /api/appointments/{id}
+    condition:
+      method: GET
+      pathRegex: /api/appointments/[^/]+
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 10
+        retryRatio: 0.2
+    timeout: 5s
+  - name: POST /api/appointments
+    condition:
+      method: POST
+      pathRegex: /api/appointments
+    isRetryable: false
+    timeout: 10s
+  - name: PUT /api/appointments/{id}
+    condition:
+      method: PUT
+      pathRegex: /api/appointments/[^/]+
+    isRetryable: false
+    timeout: 10s
+---
+# =============================================================================
+# Clinical Service Profile (PHI - most sensitive)
+# =============================================================================
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  namespace: his-hope
+  name: clinical-service.his-hope.svc.cluster.local
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: clinical-service
+spec:
+  routes:
+  - name: GET /health
+    condition:
+      method: GET
+      pathRegex: /health.*
+    isRetryable: true
+    timeout: 3s
+  - name: POST /grpc.health.v1.Health/Check
+    condition:
+      method: POST
+      pathRegex: /grpc.health.v1.Health/Check
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 5
+        retryRatio: 0.2
+    timeout: 3s
+  - name: POST /clinical.ClinicalService/StartEncounter
+    condition:
+      method: POST
+      pathRegex: /clinical\\.ClinicalService/StartEncounter
+    isRetryable: false
+    timeout: 10s
+  - name: POST /clinical.ClinicalService/AddVitalSign
+    condition:
+      method: POST
+      pathRegex: /clinical\\.ClinicalService/AddVitalSign
+    isRetryable: false
+    timeout: 5s
+  - name: POST /clinical.ClinicalService/AddDiagnosis
+    condition:
+      method: POST
+      pathRegex: /clinical\\.ClinicalService/AddDiagnosis
+    isRetryable: false
+    timeout: 5s
+  - name: POST /clinical.ClinicalService/AddProcedure
+    condition:
+      method: POST
+      pathRegex: /clinical\\.ClinicalService/AddProcedure
+    isRetryable: false
+    timeout: 10s
+  - name: POST /clinical.ClinicalService/AddMedication
+    condition:
+      method: POST
+      pathRegex: /clinical\\.ClinicalService/AddMedication
+    isRetryable: false
+    timeout: 5s
+  - name: POST /clinical.ClinicalService/AddAllergy
+    condition:
+      method: POST
+      pathRegex: /clinical\\.ClinicalService/AddAllergy
+    isRetryable: false
+    timeout: 5s
+  - name: POST /clinical.ClinicalService/AddLabResult
+    condition:
+      method: POST
+      pathRegex: /clinical\\.ClinicalService/AddLabResult
+    isRetryable: false
+    timeout: 10s
+  - name: POST /clinical.ClinicalService/CompleteEncounter
+    condition:
+      method: POST
+      pathRegex: /clinical\\.ClinicalService/CompleteEncounter
+    isRetryable: false
+    timeout: 10s
+  - name: POST /clinical.ClinicalService/GetEncounter
+    condition:
+      method: POST
+      pathRegex: /clinical\\.ClinicalService/GetEncounter
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 10
+        retryRatio: 0.2
+    timeout: 5s
+  - name: POST /clinical.ClinicalService/GetPatientClinicalHistory
+    condition:
+      method: POST
+      pathRegex: /clinical\\.ClinicalService/GetPatientClinicalHistory
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 5
+        retryRatio: 0.2
+    timeout: 15s
+  - name: POST /clinical.ClinicalService/SearchEncounters
+    condition:
+      method: POST
+      pathRegex: /clinical\\.ClinicalService/SearchEncounters
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 5
+        retryRatio: 0.2
+    timeout: 15s
+  - name: GET /api/encounters/{id}
+    condition:
+      method: GET
+      pathRegex: /api/encounters/[^/]+
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 10
+        retryRatio: 0.2
+    timeout: 5s
+  - name: POST /api/encounters
+    condition:
+      method: POST
+      pathRegex: /api/encounters
+    isRetryable: false
+    timeout: 10s
+  - name: GET /api/patients/{patientId}/clinical-history
+    condition:
+      method: GET
+      pathRegex: /api/patients/[^/]+/clinical-history
+    isRetryable: true
+    retries:
+      budget:
+        minRetriesPerSecond: 5
+        retryRatio: 0.2
+    timeout: 15s

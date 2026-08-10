@@ -1,0 +1,45 @@
+name: infra-change
+description: "Infrastructure changes — devops focus with deploy validation"
+version: "1.0"
+triggers:
+  paths: ["k8s/**", "cicd/**", "docker/**", "vault/**"]
+
+pipeline:
+  plan:
+    - agent: explore
+      task: "Analyze infrastructure changes and validate manifests"
+      timeout_minutes: 5
+
+  implement:
+    parallel:
+      - agent: devops
+        depends_on: [explore]
+        task: "Apply infrastructure configuration changes"
+        timeout_minutes: 15
+      - agent: security
+        depends_on: [explore]
+        task: "Audit security policies and secrets configuration"
+        timeout_minutes: 10
+
+  test:
+    - agent: validate
+      depends_on: [devops, security]
+      gates: ["k8s-manifest-lint", "docker-compose-validate"]
+      timeout_minutes: 5
+
+  validate:
+    - agent: devops
+      depends_on: [validate]
+      gates: ["deploy-dry-run", "linkerd-mtls-check", "cilium-policy-check"]
+
+  commit:
+    agent: git
+    depends_on: [devops]
+    mode: create-pr-light-review
+    require_confidence: 0.8
+
+loop:
+  agent: loop-engineer
+  max_iterations: 3
+  strategy: autofix_then_escalate
+  on_failure: any_gate

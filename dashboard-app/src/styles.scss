@@ -1,0 +1,20 @@
+// His.Hope Dashboard — Global Styles
+// Warm clinical utilitarian minimalism
+
+@use '@angular/material' as mat;
+@use './styles/theme';
+@use '@his-hope/frontend-foundation/styles';
+@import 'material-icons/iconfont/material-icons.css';
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+
+// Ops-specific semantic states inherit the active foundation theme in every mode.
+// Page shell, state, filter/table and responsive rules ship with the foundation.
+.level-error, .level-critical { background: var(--surface-danger); color: var(--color-danger); }
+.level-warning { background: var(--surface-warning); color: var(--color-warning); }
+.level-information { background: var(--surface-info); color: var(--color-info); }
+.level-debug { background: var(--surface-muted); color: var(--text-secondary); }
+.detail-row { background: var(--surface-muted); }
+.load-more { border-top-color: var(--border-default); }

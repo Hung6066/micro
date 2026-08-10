@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Sign in — His.Hope HIS</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:Roboto,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  font-size:14px;font-weight:400;line-height:1.5;
+  color:rgba(0,0,0,.87);background:#fafafa;
+  -webkit-font-smoothing:antialiased
+}
+.login-page{
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;padding:16px;
+  background:linear-gradient(135deg,#3f51b5,#303f9f)
+}
+.card{
+  width:100%;max-width:400px;background:#fff;border-radius:4px;
+  box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12);
+  overflow:hidden;animation:card-in .3s cubic-bezier(.4,0,.2,1)
+}
+@keyframes card-in{from{opacity:0;transform:translateY(24px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.card-header{
+  background:linear-gradient(135deg,#3f51b5,#303f9f);color:#fff;
+  padding:40px 24px 32px;text-align:center
+}
+.card-header svg{width:48px;height:48px;margin-bottom:12px;opacity:.9}
+.card-header h1{font-size:24px;font-weight:400;margin:0 0 4px;letter-spacing:.25px}
+.card-header p{font-size:14px;font-weight:300;opacity:.8;letter-spacing:.1px}
+.card-body{padding:24px}
+.mat-error{
+  display:flex;align-items:center;gap:10px;padding:12px 16px;margin-bottom:16px;
+  background:#fbe9e7;color:#d32f2f;border-radius:4px;font-size:13px;
+  border-left:3px solid #d32f2f;animation:shake .4s ease
+}
+@keyframes shake{
+0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-4px)}80%{transform:translateX(4px)}
+}
+.mat-error svg{width:20px;height:20px;flex-shrink:0}
+.field{display:block;margin-bottom:20px;position:relative}
+.field label{
+  display:block;font-size:12px;font-weight:500;color:rgba(0,0,0,.6);
+  margin-bottom:6px;letter-spacing:.4px;text-transform:uppercase
+}
+.field-inner{position:relative}
+.field-inner input{
+  width:100%;height:48px;padding:0 12px 0 44px;
+  border:1px solid rgba(0,0,0,.12);border-radius:4px 4px 0 0;
+  font-family:inherit;font-size:16px;font-weight:400;color:rgba(0,0,0,.87);
+  background:rgba(0,0,0,.02);outline:none;
+  transition:border-color .2s,background .2s,box-shadow .2s
+}
+.field-inner input::placeholder{color:rgba(0,0,0,.38)}
+.field-inner input:hover{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.38)}
+.field-inner input:focus{
+  background:transparent;border-color:#3f51b5;border-width:2px;
+  padding:0 11px 0 43px;box-shadow:inset 0 -2px 0 #3f51b5
+}
+.field-inner input:focus+.underline{transform:scaleX(1)}
+.underline{
+  position:absolute;bottom:0;left:0;right:0;height:2px;
+  background:#3f51b5;transform:scaleX(0);
+  transition:transform .2s cubic-bezier(.4,0,.2,1)
+}
+.field-icon{
+  position:absolute;left:12px;top:50%;transform:translateY(-50%);
+  pointer-events:none;transition:color .2s
+}
+.field-icon svg{width:20px;height:20px;color:rgba(0,0,0,.38);display:block}
+.field-inner input:focus~.field-icon svg{color:#3f51b5}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;min-height:36px;padding:0 16px;border:none;border-radius:4px;
+  font-family:inherit;font-size:14px;font-weight:500;
+  letter-spacing:.75px;text-transform:uppercase;cursor:pointer;
+  background:#3f51b5;color:#fff;
+  box-shadow:0 3px 1px -2px rgba(0,0,0,.2),0 2px 2px 0 rgba(0,0,0,.14),0 1px 5px 0 rgba(0,0,0,.12);
+  transition:background .2s,box-shadow .2s;user-select:none
+}
+.btn:hover{background:#3949ab;box-shadow:0 2px 4px -1px rgba(0,0,0,.2),0 4px 5px 0 rgba(0,0,0,.14),0 1px 10px 0 rgba(0,0,0,.12)}
+.btn:active{background:#303f9f;box-shadow:0 5px 5px -3px rgba(0,0,0,.2),0 8px 10px 1px rgba(0,0,0,.14),0 3px 14px 2px rgba(0,0,0,.12)}
+.btn svg{width:18px;height:18px}
+.external-section{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+.btn-outline{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;min-height:36px;padding:0 16px;
+  border:1px solid rgba(0,0,0,.12);border-radius:4px;
+  font-family:inherit;font-size:14px;font-weight:500;
+  color:rgba(0,0,0,.87);background:transparent;cursor:pointer;
+  letter-spacing:.25px;transition:background .2s
+}
+.btn-outline:hover{background:rgba(0,0,0,.04)}
+.btn-outline svg{width:20px;height:20px;color:#757575}
+.footer{
+  text-align:center;padding:24px 0 0;font-size:12px;font-weight:400;
+  color:rgba(255,255,255,.7)
+}
+.footer strong{color:#fff;font-weight:500}
+</style>
+</head>
+<body>
+<div class="login-page">
+  <div class="card">
+    <div class="card-header">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/></svg>
+      <h1>His.Hope</h1>
+      <p>Hospital Information System</p>
+    </div>
+    <div class="card-body">
+      
+      <form method="post" action="/Account/Login" autocomplete="off">
+        <input type="hidden" name="returnUrl" value="/"/>
+        <div class="field">
+          <label for="email">Email</label>
+          <div class="field-inner">
+            <input type="email" id="email" name="email" placeholder="you@hospital.vn" required autocomplete="username"/>
+            <span class="field-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg></span>
+            <span class="underline"></span>
+          </div>
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="field-inner">
+            <input type="password" id="password" name="password" placeholder="Enter your password" required autocomplete="current-password"/>
+            <span class="field-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg></span>
+            <span class="underline"></span>
+          </div>
+        </div>
+        <button type="submit" class="btn">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 7L9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>
+          SIGN IN
+        </button>
+      </form>
+      
+    </div>
+  </div>
+  <div class="footer">
+    <strong>His.Hope</strong> v1.0 &bull; HIPAA-Compliant Security
+  </div>
+</div>
+</body>
+</html>

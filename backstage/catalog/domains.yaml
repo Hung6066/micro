@@ -1,0 +1,55 @@
+apiVersion: backstage.io/v1alpha1
+kind: Domain
+metadata:
+  name: healthcare
+  description: Healthcare domain - patient management, clinical encounters, scheduling
+spec:
+  owner: team-clinical
+---
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: his-hope-emr
+  description: His.Hope Enterprise EMR System
+  tags:
+    - healthcare
+    - emr
+    - hipaa
+spec:
+  domain: healthcare
+  owner: team-clinical
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: team-clinical
+  description: Clinical Engineering Team
+spec:
+  type: team
+  profile:
+    displayName: Clinical Engineering
+    email: clinical-team@hishop.com
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: Group
+metadata:
+  name: team-platform
+  description: Platform Engineering Team
+spec:
+  type: team
+  profile:
+    displayName: Platform Engineering
+    email: platform-team@hishop.com
+  children: []
+---
+apiVersion: backstage.io/v1alpha1
+kind: User
+metadata:
+  name: admin
+  namespace: his-hope
+spec:
+  profile:
+    displayName: Admin User
+    email: admin@hishop.com
+  memberOf: [team-platform]

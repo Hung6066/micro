@@ -1,0 +1,85 @@
+---
+- name: Disable all active swap devices
+  ansible.builtin.command: swapoff -a
+  changed_when: false
+
+- name: Disable swap persistence in fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^(\s*)(?!#)([^\n]*\s+swap\s+[^\n]*)$'
+    replace: '\1# \2'
+    backup: true
+
+- name: Install K3s prerequisites
+  ansible.builtin.package:
+    name:
+      - curl
+      - ca-certificates
+      - chrony
+    state: present
+
+- name: Persist br_netfilter module loading
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k3s.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      br_netfilter
+
+- name: Load br_netfilter module
+  ansible.builtin.command: modprobe br_netfilter
+  changed_when: false
+
+- name: Install K3s kernel hardening sysctl profile
+  ansible.builtin.template:
+    src: 90-kubelet.conf.j2
+    dest: /etc/sysctl.d/90-kubelet.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Apply K3s kernel sysctls
+
+- name: Flush K3s kernel sysctl handlers
+  ansible.builtin.meta: flush_handlers
+
+- name: Install persistent K3s host-gw network ACL helper
+  ansible.builtin.copy:
+    dest: /usr/local/sbin/his-hope-k3s-network-acl
+    owner: root
+    group: root
+    mode: '0750'
+    content: |
+      #!/bin/sh
+      set -eu
+      iptables -C INPUT -p udp --dport 8472 -j ACCEPT 2>/dev/null || iptables -I INPUT -p udp --dport 8472 -j ACCEPT
+      iptables -C INPUT -p tcp --dport 6443 -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp --dport 6443 -j ACCEPT
+      iptables -C INPUT -p tcp --dport 10250 -j ACCEPT 2>/dev/null || iptables -I INPUT -p tcp --dport 10250 -j ACCEPT
+      iptables -C KUBE-ROUTER-FORWARD -i ens32 -o cni0 -j ACCEPT 2>/dev/null || iptables -I KUBE-ROUTER-FORWARD 1 -i ens32 -o cni0 -j ACCEPT
+      iptables -C KUBE-ROUTER-FORWARD -i cni0 -o ens32 -j ACCEPT 2>/dev/null || iptables -I KUBE-ROUTER-FORWARD 1 -i cni0 -o ens32 -j ACCEPT
+
+- name: Install persistent K3s network ACL service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/his-hope-k3s-network-acl.service
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=His.Hope K3s host-gw network ACLs
+      After=k3s.service k3s-agent.service
+      Wants=k3s.service k3s-agent.service
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/his-hope-k3s-network-acl
+      RemainAfterExit=yes
+      [Install]
+      WantedBy=multi-user.target
+  notify: Reload systemd
+
+- name: Enable persistent K3s network ACL service
+  ansible.builtin.systemd:
+    name: his-hope-k3s-network-acl.service
+    enabled: true
+    state: started
+    daemon_reload: true

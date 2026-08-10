@@ -1,0 +1,47 @@
+name: default-full-pipeline
+description: "Standard 5-phase pipeline — Plan, Implement, Test, Validate, Commit"
+version: "1.0"
+triggers:
+  paths: ["src/"]
+  exclude: ["**/*.md"]
+
+pipeline:
+  plan:
+    - agent: explore
+      task: "Analyze change scope and generate implementation plan"
+      timeout_minutes: 5
+
+  implement:
+    parallel:
+      - agent: dotnet
+        depends_on: [explore]
+        task: "Implement backend changes"
+      - agent: angular
+        depends_on: [explore]
+        task: "Implement frontend changes"
+
+  test:
+    - agent: testing-backend
+      depends_on: [dotnet]
+      gates: ["unit-tests", "integration-tests"]
+    - agent: testing-frontend
+      depends_on: [angular]
+      gates: ["component-tests"]
+
+  validate:
+    - agent: check-ui
+      depends_on: [testing-frontend]
+    - agent: validate
+      depends_on: [testing-backend]
+
+  commit:
+    agent: git
+    depends_on: [check-ui, validate]
+    mode: auto_pr
+    require_confidence: 0.7
+
+loop:
+  agent: loop-engineer
+  max_iterations: 3
+  strategy: autofix_then_escalate
+  on_failure: any_gate

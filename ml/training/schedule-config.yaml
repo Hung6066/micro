@@ -1,0 +1,23 @@
+schedules:
+  - name: no-show-weekly-training
+    display_name: No-Show Model Weekly Training
+    pipeline: ml/training/no-show-prediction/pipeline.yaml
+    schedule: 0 2 * * MON
+    max_concurrent_run_count: 1
+    catchup: false
+
+  - name: readmission-biweekly-training
+    display_name: Readmission Risk Training
+    pipeline: ml/training/readmission-prediction/pipeline.yaml
+    schedule: 0 2 1,15 * *
+    max_concurrent_run_count: 1
+
+  - name: icd10-monthly-training
+    display_name: ICD-10 Suggester Training
+    pipeline: ml/training/icd10-suggestion/pipeline.yaml
+    schedule: 0 2 1 * *
+    max_concurrent_run_count: 1
+    resources:
+      machine_type: n1-standard-16
+      accelerator: NVIDIA_TESLA_V100
+      accelerator_count: 1

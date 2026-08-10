@@ -1,0 +1,144 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-cluster
+  namespace: his-hope
+spec:
+  serviceName: redis-cluster-headless
+  replicas: 6
+  selector:
+    matchLabels:
+      app: redis-cluster
+  template:
+    metadata:
+      labels:
+        app: redis-cluster
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - redis-cluster
+              topologyKey: topology.kubernetes.io/zone
+      containers:
+      - name: redis
+        image: redis:7.2-alpine
+        command: ["/conf/redis-cluster.sh"]
+        ports:
+        - containerPort: 6379
+          name: client
+        - containerPort: 16379
+          name: gossip
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        volumeMounts:
+        - name: conf
+          mountPath: /conf
+        - name: data
+          mountPath: /data
+        livenessProbe:
+          tcpSocket:
+            port: 6379
+          initialDelaySeconds: 30
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - redis-cli -h 127.0.0.1 ping
+          initialDelaySeconds: 5
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2
+            memory: 4Gi
+      volumes:
+      - name: conf
+        configMap:
+          name: redis-cluster-config
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: ssd
+      resources:
+        requests:
+          storage: 20Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-cluster-config
+  namespace: his-hope
+data:
+  redis-cluster.conf: |
+    port 6379
+    cluster-enabled yes
+    cluster-config-file /data/nodes.conf
+    cluster-node-timeout 5000
+    cluster-migration-barrier 1
+    appendonly yes
+    appendfsync everysec
+    no-appendfsync-on-rewrite yes
+    auto-aof-rewrite-percentage 100
+    auto-aof-rewrite-min-size 64mb
+    protected-mode no
+    save ""
+    loglevel notice
+    maxmemory 4gb
+    maxmemory-policy allkeys-lru
+    activedefrag yes
+    tls-port 6380
+    tls-cert-file /tls/tls.crt
+    tls-key-file /tls/tls.key
+    tls-cluster yes
+    tls-replication yes
+  redis-cluster.sh: |
+    #!/bin/sh
+    cp /conf/redis-cluster.conf /data/redis.conf
+    redis-server /data/redis.conf
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-cluster
+  namespace: his-hope
+spec:
+  ports:
+  - port: 6379
+    name: client
+  - port: 6380
+    name: client-tls
+  selector:
+    app: redis-cluster
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-cluster-headless
+  namespace: his-hope
+spec:
+  clusterIP: None
+  ports:
+  - port: 6379
+    name: client
+  - port: 6380
+    name: client-tls
+  selector:
+    app: redis-cluster

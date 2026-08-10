@@ -1,0 +1,127 @@
+using System.Security.Claims;
+using His.Hope.IdentityService.Application.Interfaces;
+using His.Hope.IdentityService.Domain.Entities;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using OpenIddict.Abstractions;
+using OpenIddict.Server;
+
+namespace His.Hope.IdentityService.Application.OpenIddict;
+
+public class CustomValidateAuthorizationRequest :
+    IOpenIddictServerHandler<OpenIddictServerEvents.ValidateAuthorizationRequestContext>
+{
+    private readonly UserManager<User> _userManager;
+    private readonly ILogger<CustomValidateAuthorizationRequest> _logger;
+
+    public CustomValidateAuthorizationRequest(
+        UserManager<User> userManager,
+        ILogger<CustomValidateAuthorizationRequest> logger)
+    {
+        _userManager = userManager;
+        _logger = logger;
+    }
+
+    public static OpenIddictServerHandlerDescriptor Descriptor { get; }
+        = OpenIddictServerHandlerDescriptor.CreateBuilder<OpenIddictServerEvents.ValidateAuthorizationRequestContext>()
+            .UseScopedHandler<CustomValidateAuthorizationRequest>()
+            .SetOrder(int.MaxValue - 100_000)
+            .SetType(OpenIddictServerHandlerType.Custom)
+            .Build();
+
+    public ValueTask HandleAsync(OpenIddictServerEvents.ValidateAuthorizationRequestContext context)
+    {
+        return default;
+    }
+}
+
+public class CustomPopulateTokenClaims :
+    IOpenIddictServerHandler<OpenIddictServerEvents.HandleTokenRequestContext>
+{
+    private readonly UserManager<User> _userManager;
+    private readonly IApplicationDbContext _dbContext;
+    private readonly ILogger<CustomPopulateTokenClaims> _logger;
+
+    public CustomPopulateTokenClaims(
+        UserManager<User> userManager,
+        IApplicationDbContext dbContext,
+        ILogger<CustomPopulateTokenClaims> logger)
+    {
+        _userManager = userManager;
+        _dbContext = dbContext;
+        _logger = logger;
+    }
+
+    public static OpenIddictServerHandlerDescriptor Descriptor { get; }
+        = OpenIddictServerHandlerDescriptor.CreateBuilder<OpenIddictServerEvents.HandleTokenRequestContext>()
+            .UseScopedHandler<CustomPopulateTokenClaims>()
+            .SetOrder(int.MaxValue - 100_000)
+            .SetType(OpenIddictServerHandlerType.Custom)
+            .Build();
+
+    public async ValueTask HandleAsync(OpenIddictServerEvents.HandleTokenRequestContext context)
+    {
+        var principal = context.Principal;
+        if (principal is null) return;
+
+        var userId = principal.FindFirst(OpenIddictConstants.Claims.Subject)?.Value;
+        if (string.IsNullOrEmpty(userId)) return;
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user is null) return;
+
+        var identity = (ClaimsIdentity)principal.Identity!;
+
+        identity.AddClaim(new Claim("fullName", user.FullName ?? ""));
+        identity.AddClaim(new Claim("licenseNumber", user.LicenseNumber ?? ""));
+        identity.AddClaim(new Claim("license_number", user.LicenseNumber ?? ""));
+
+        var roles = await _userManager.GetRolesAsync(user);
+        foreach (var role in roles)
+        {
+            var roleClaim = new Claim(OpenIddictConstants.Claims.Role, role);
+            roleClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+            identity.AddClaim(roleClaim);
+        }
+
+        identity.AddClaim(new Claim("scope", "hishop:permissions"));
+
+        // The authentication cookie is the source of truth for the methods
+        // actually completed. OidcLoginCompletionService adds "otp" only
+        // after a successful MFA challenge. Do not infer "mfa" merely because
+        // the account is enrolled: that would misrepresent an unchallenged
+        // login and could weaken downstream step-up policy decisions.
+        if (!identity.FindAll("amr").Any())
+            identity.AddClaim(new Claim("amr", "pwd"));
+
+        var legacyClaims = await _userManager.GetClaimsAsync(user);
+        var legacyFacility = legacyClaims.FirstOrDefault(c => c.Type == "facility_id")?.Value;
+        var memberships = await _dbContext.UserFacilities
+            .Where(membership => membership.UserId == user.Id && membership.IsActive)
+            .OrderByDescending(membership => membership.IsPrimary)
+            .ThenBy(membership => membership.FacilityId)
+            .Select(membership => membership.FacilityId)
+            .ToListAsync();
+        if (memberships.Count == 0 && !string.IsNullOrWhiteSpace(legacyFacility))
+            memberships.Add(legacyFacility);
+        if (memberships.Count > 0)
+        {
+            identity.AddClaim(new Claim("facility_id", memberships[0]));
+            identity.AddClaim(new Claim("facility_ids", string.Join(",", memberships.Distinct(StringComparer.OrdinalIgnoreCase))));
+        }
+
+        var permissions = await _dbContext.RolePermissions
+            .Where(rp => roles.Contains(rp.Role.Name!))
+            .Select(rp => rp.PermissionCode)
+            .Distinct()
+            .ToListAsync();
+
+        if (permissions.Count > 0)
+        {
+            var permissionsClaim = new Claim("permissions", string.Join(",", permissions));
+            permissionsClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+            identity.AddClaim(permissionsClaim);
+        }
+    }
+}

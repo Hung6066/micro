@@ -1,0 +1,86 @@
+name: K3s Control-Plane Rebuild DR Drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Protected target environment
+        required: true
+        type: choice
+        options: [staging, production]
+      apply:
+        description: Run the destructive isolated rebuild drill (false is dry-run)
+        required: true
+        default: false
+        type: boolean
+      snapshot_path:
+        description: Reviewed etcd snapshot path on the control-plane hosts
+        required: true
+        type: string
+      rpo_minutes:
+        description: Measured age of the selected snapshot at drill start
+        required: true
+        default: '0'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: control-plane-rebuild-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+        with:
+          version: 'v1.35.5'
+      - name: Materialize protected inputs
+        id: inputs
+        shell: bash
+        env:
+          KUBECONFIG_B64: ${{ inputs.environment == 'production' && secrets.KUBECONFIG_PRODUCTION_B64 || secrets.KUBECONFIG_STAGING_B64 }}
+          ANSIBLE_SSH_PRIVATE_KEY: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
+          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KUBECONFIG_B64" -a -n "$ANSIBLE_SSH_PRIVATE_KEY" -a -n "$ANSIBLE_VAULT_PASSWORD"
+          kubeconfig="$RUNNER_TEMP/kubeconfig-${{ inputs.environment }}.yaml"
+          ssh_key="$RUNNER_TEMP/id_deploy"
+          vault_password="$RUNNER_TEMP/ansible-vault-password"
+          echo "$KUBECONFIG_B64" | base64 --decode > "$kubeconfig"
+          printf '%s\n' "$ANSIBLE_SSH_PRIVATE_KEY" > "$ssh_key"
+          printf '%s\n' "$ANSIBLE_VAULT_PASSWORD" > "$vault_password"
+          chmod 600 "$kubeconfig" "$ssh_key" "$vault_password"
+          echo "kubeconfig=$kubeconfig" >> "$GITHUB_OUTPUT"
+          echo "ssh_key=$ssh_key" >> "$GITHUB_OUTPUT"
+          echo "vault_password=$vault_password" >> "$GITHUB_OUTPUT"
+      - name: Install pinned Ansible
+        shell: bash
+        run: python -m pip install --disable-pip-version-check --no-input ansible-core==2.17.10
+      - name: Run control-plane rebuild drill
+        shell: pwsh
+        run: |
+          $args = @('-Inventory', 'ansible/enterprise-k3s/inventory/production.yml', '-RebuildPlaybook', 'ansible/enterprise-k3s/playbooks/50-control-plane-rebuild-drill.yml', '-SnapshotPath', '${{ inputs.snapshot_path }}', '-Kubeconfig', '${{ steps.inputs.outputs.kubeconfig }}', '-SshKeyPath', '${{ steps.inputs.outputs.ssh_key }}', '-VaultPasswordPath', '${{ steps.inputs.outputs.vault_password }}', '-Environment', '${{ inputs.environment }}', '-RpoMinutes', '${{ inputs.rpo_minutes }}', '-OutputPath', 'artifacts/evidence/control-plane-rebuild-drill.json')
+          if ('${{ inputs.apply }}' -eq 'true') { $args += @('-Apply'); if ('${{ inputs.environment }}' -eq 'production') { $args += @('-AllowProduction') } } else { $args += @('-WhatIf') }
+          & ./scripts/test-control-plane-rebuild-drill.ps1 @args
+      - name: Validate measured evidence
+        if: ${{ inputs.apply == true }}
+        shell: pwsh
+        run: ./scripts/validate-dr-evidence.ps1 -EvidenceDirectory artifacts/evidence -OnlyFile control-plane-rebuild-drill.json -OutputPath artifacts/evidence/dr-evidence-contract.json
+      - name: Upload control-plane evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: control-plane-rebuild-drill-${{ github.run_id }}
+          path: artifacts/evidence/control-plane-rebuild-drill.json
+          if-no-files-found: error
+      - name: Remove protected inputs
+        if: always()
+        shell: bash
+        run: rm -f '${{ steps.inputs.outputs.kubeconfig }}' '${{ steps.inputs.outputs.ssh_key }}' '${{ steps.inputs.outputs.vault_password }}'

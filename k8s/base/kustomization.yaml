@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+commonLabels:
+  app.kubernetes.io/part-of: his-hope
+  app.kubernetes.io/managed-by: kustomize
+  app.kubernetes.io/version: latest
+
+resources:
+  - namespace.yaml
+  - runtime-contract-configmap.yaml
+  - runtime-contract-rbac.yaml
+  - patient-service.yaml
+  - identity-service.yaml
+  - appointment-service.yaml
+  - clinical-service.yaml
+  - clinical-bff.yaml
+  - lab-service.yaml
+  - lab-bff.yaml
+  - pharmacy-bff.yaml
+  - billing-service.yaml
+  - billing-bff.yaml
+  - pharmacy-service.yaml
+  - patient-bff.yaml
+  - api-gateway.yaml
+  - frontend.yaml
+  - admin-app.yaml
+  - database-continuity.yaml
+  - systemdashboard-bff-deployment.yaml
+  - systemdashboard-bff-service.yaml
+  - systemdashboard-bff-rbac.yaml
+  - dashboard-app-deployment.yaml
+  - dashboard-app-service.yaml
+  - dashboard-bff.yaml
+  - postgres.yaml
+  - postgres-pdb.yaml
+  - rabbitmq.yaml
+  - redis.yaml
+  - network-policies.yaml

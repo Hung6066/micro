@@ -1,0 +1,3 @@
+vault_lb_keepalived_auth_pass: <mật khẩu VRRP tối thiểu 8 ký tự>
+vault_k3s_token: <token K3s ngẫu nhiên tối thiểu 40 ký tự>
+vault_backup_sas_token: <Azure SAS token>

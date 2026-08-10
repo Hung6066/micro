@@ -1,0 +1,61 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: create-microservice
+  title: Create a New Microservice
+  description: Scaffolds a new .NET 8 microservice with Clean Architecture
+  tags:
+    - dotnet
+    - microservice
+    - clean-architecture
+spec:
+  owner: team-platform
+  type: service
+  parameters:
+    - title: Service Details
+      properties:
+        serviceName:
+          title: Service Name
+          type: string
+          description: Name of the service (e.g., billing-service)
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          description: Brief description of the service
+        team:
+          title: Owning Team
+          type: string
+          enum: [team-clinical, team-platform, team-billing]
+        database:
+          title: Database Required
+          type: boolean
+          default: true
+  steps:
+    - id: fetch-template
+      name: Fetch Template
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          serviceName: ${{ parameters.serviceName }}
+          description: ${{ parameters.description }}
+          team: ${{ parameters.team }}
+          database: ${{ parameters.database }}
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        repoUrl: github.com?repo=${{ parameters.serviceName }}
+        branch: main
+    - id: register
+      name: Register in Catalog
+      action: catalog:register
+      input:
+        catalogInfoUrl: https://github.com/hishop/${{ parameters.serviceName }}/blob/main/catalog-info.yaml
+  output:
+    links:
+      - title: Repository
+        url: https://github.com/hishop/${{ parameters.serviceName }}
+      - title: Open in Developer Portal
+        url: https://developer.hishop.com/catalog/default/component/${{ parameters.serviceName }}

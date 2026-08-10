@@ -1,0 +1,51 @@
+name: Shared Platform Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: SemVer package version
+        required: true
+        type: string
+      publish:
+        description: Publish packages to the configured internal NuGet feed
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore with dependency gates
+        run: dotnet restore His.Hope.sln -warnAsError:NU1605 -warnAsError:NU1901 -warnAsError:NU1902 -warnAsError:NU1903 -warnAsError:NU1904
+      - name: Build and test
+        run: dotnet test His.Hope.sln --no-restore --configuration Release
+      - name: Pack signed shared packages
+        shell: pwsh
+        env:
+          NUGET_SIGN_CERTIFICATE: ${{ secrets.NUGET_SIGN_CERTIFICATE }}
+          NUGET_SIGN_PASSWORD: ${{ secrets.NUGET_SIGN_PASSWORD }}
+        run: ./scripts/pack-shared-platform.ps1 -Version '${{ inputs.version }}' -Sign
+      - name: Generate SBOM
+        uses: anchore/sbom-action@f5e124a5e5e1d497a692818ae907d3c45829d033 # v0.17.3
+        with:
+          path: .
+          artifact-name: his-hope-shared-platform-${{ inputs.version }}-sbom.cdx.json
+          output-file: his-hope-shared-platform-${{ inputs.version }}-sbom.cdx.json
+      - name: Publish to internal NuGet feed
+        if: ${{ inputs.publish }}
+        shell: pwsh
+        env:
+          NUGET_SOURCE_URL: ${{ secrets.NUGET_SOURCE_URL }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:NUGET_SOURCE_URL) -or [string]::IsNullOrWhiteSpace($env:NUGET_API_KEY)) { throw 'Internal NuGet feed secrets are required.' }
+          Get-ChildItem artifacts/packages -Filter '*.nupkg' | ForEach-Object { dotnet nuget push $_.FullName --source $env:NUGET_SOURCE_URL --api-key $env:NUGET_API_KEY --skip-duplicate }

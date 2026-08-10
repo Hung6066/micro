@@ -1,0 +1,35 @@
+name: code-review
+description: "Targeted code review for backend and shared library changes"
+version: "1.0"
+triggers:
+  paths: ["src/Backend/**/*.cs", "src/Shared/**/*.cs"]
+  exclude: ["**/Migrations/*.cs", "**/*.g.cs"]
+
+pipeline:
+  implement:
+    - agent: dotnet
+      task: "Review and improve code changes"
+      timeout_minutes: 10
+
+  test:
+    - agent: testing-backend
+      depends_on: [dotnet]
+      gates: ["unit-tests"]
+      timeout_minutes: 10
+
+  validate:
+    - agent: validate
+      depends_on: [testing-backend]
+      gates: ["code-style", "api-contract"]
+
+  commit:
+    agent: git
+    depends_on: [validate]
+    mode: auto_pr
+    require_confidence: 0.8
+
+loop:
+  agent: loop-engineer
+  max_iterations: 2
+  strategy: autofix_then_escalate
+  on_failure: any_gate

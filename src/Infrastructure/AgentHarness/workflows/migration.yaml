@@ -1,0 +1,40 @@
+name: migration
+description: "Database migration changes — extra migration-safety gate"
+version: "1.0"
+triggers:
+  paths: ["**/Migrations/*.cs", "**/Migrations/*.sql"]
+
+pipeline:
+  plan:
+    - agent: explore
+      task: "Analyze migration schema changes and impact"
+      timeout_minutes: 5
+
+  implement:
+    - agent: dotnet
+      depends_on: [explore]
+      task: "Apply migration changes and update data access layer"
+      timeout_minutes: 15
+
+  test:
+    - agent: testing-backend
+      depends_on: [dotnet]
+      gates: ["integration-tests", "migration-reversible"]
+      timeout_minutes: 15
+
+  validate:
+    - agent: dba
+      depends_on: [testing-backend]
+      gates: ["migration-safety", "schema-consistency", "index-optimization"]
+
+  commit:
+    agent: git
+    depends_on: [dba]
+    mode: create-pr-light-review
+    require_confidence: 0.85
+
+loop:
+  agent: loop-engineer
+  max_iterations: 3
+  strategy: autofix_then_escalate
+  on_failure: any_gate

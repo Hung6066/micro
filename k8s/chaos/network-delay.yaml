@@ -1,0 +1,20 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: NetworkChaos
+metadata:
+  name: test-stack-network-delay
+  namespace: his-hope
+spec:
+  action: delay
+  mode: all
+  selector:
+    namespaces:
+      - his-hope
+    labelSelectors:
+      "app.kubernetes.io/component": "test-runner"
+  delay:
+    latency: "200ms"
+    correlation: "50"
+    jitter: "50ms"
+  duration: "30s"
+  scheduler:
+    cron: "@every 6h"

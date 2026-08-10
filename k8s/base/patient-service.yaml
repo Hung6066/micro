@@ -1,0 +1,259 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: patient-service
+  labels:
+    app.kubernetes.io/name: patient-service
+    app.kubernetes.io/component: backend
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: patient-service-config
+  labels:
+    app.kubernetes.io/name: patient-service
+data:
+  ASPNETCORE_ENVIRONMENT: Production
+  ASPNETCORE_URLS: "http://0.0.0.0:5002;https://0.0.0.0:5003"
+  RabbitMQ__Host: rabbitmq
+  Redis__ConnectionString: redis:6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+  labels:
+    app.kubernetes.io/name: patient-service
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: patient-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: patient-service
+        app.kubernetes.io/component: backend
+        app: patient-service
+    spec:
+      serviceAccountName: patient-service
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        fsGroup: 1654
+        seccompProfile:
+          type: Localhost
+          localhostProfile: his-hope-dotnet-strict.json
+      containers:
+        - name: patient-service
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: Localhost
+              localhostProfile: his-hope-dotnet-strict.json
+            runAsUser: 1654
+            runAsGroup: 1654
+          image: his-hope/patient-service:latest
+          imagePullPolicy: Always
+          volumeMounts: []
+          ports:
+            - name: http
+              containerPort: 5002
+              protocol: TCP
+            - name: grpc
+              containerPort: 5006
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: patient-service-config
+            - configMapRef:
+                name: runtime-contract-config
+          env:
+            - name: ConnectionStrings__PatientDb
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_CONNECTIONSTRINGS_PATIENTDB
+            - name: Consul__Address
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_CONSUL_ADDRESS
+            - name: OpenTelemetry__JaegerEndpoint
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_JAEGER_TRACES_ENDPOINT
+          resources:
+            requests:
+              cpu: 512m
+              memory: 1Gi
+            limits:
+              cpu: 512m
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 5002
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 5002
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 2
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: 5002
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 40
+        # ── PgBouncer Sidecar ──────────────────────────────────────────────
+        # Lightweight connection pooler for PostgreSQL/CockroachDB
+        - name: pgbouncer
+          image: edoburu/pgbouncer:1.22.1-p0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            runAsUser: 100
+            runAsGroup: 100
+            seccompProfile:
+              type: Localhost
+              localhostProfile: his-hope-dotnet-strict.json
+          ports:
+            - name: pgbouncer
+              containerPort: 6432
+              protocol: TCP
+          env:
+            - name: POSTGRESQL_HOST
+              value: "postgres"
+            - name: POSTGRESQL_PORT
+              value: "5432"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            exec:
+              command:
+                - pgbouncer
+                - --version
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: 6432
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: pgbouncer-volume
+              mountPath: /etc/pgbouncer
+              readOnly: true
+      volumes:
+        - name: pgbouncer-volume
+          projected:
+            sources:
+              - configMap:
+                  name: pgbouncer-config
+                  items:
+                    - key: pgbouncer.ini
+                      path: pgbouncer.ini
+              - secret:
+                  name: pgbouncer-secret
+                  items:
+                    - key: userlist.txt
+                      path: userlist.txt
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: patient-service
+  labels:
+    app.kubernetes.io/name: patient-service
+    app.kubernetes.io/component: backend
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: patient-service
+  ports:
+    - name: http
+      port: 5002
+      targetPort: 5002
+      protocol: TCP
+    - name: grpc
+      port: 5006
+      targetPort: 5006
+      appProtocol: grpc
+      protocol: TCP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: patient-service
+  labels:
+    app.kubernetes.io/name: patient-service
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: patient-service
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Object
+      object:
+        describedObject:
+          kind: Service
+          name: patient-service
+        metric:
+          name: requests_per_second
+        target:
+          type: AverageValue
+          averageValue: "500"
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: patient-service-pdb
+  labels:
+    app.kubernetes.io/name: patient-service
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: patient-service

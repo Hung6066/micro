@@ -1,0 +1,89 @@
+groups:
+  - name: his-hope.database-platform
+    interval: 30s
+    rules:
+      - alert: HisHopePostgresExporterDown
+        expr: up{job="postgres"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: PostgreSQL exporter is unavailable
+          description: Database telemetry is unavailable; inspect PostgreSQL/exporter connectivity.
+
+      - alert: HisHopeRedisExporterDown
+        expr: up{job="redis"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Redis exporter is unavailable
+          description: Redis telemetry is unavailable; inspect Redis/exporter connectivity.
+
+      - alert: HisHopePostgresConnectionsHigh
+        expr: sum by (instance) (pg_stat_database_numbackends{datname!=""}) / on(instance) pg_settings_max_connections > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: PostgreSQL connection utilization is high
+          description: A database is using more than 80 percent of its configured connection budget.
+
+      - alert: HisHopeRedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Redis memory utilization is high
+          description: Redis memory utilization is above 80 percent; inspect eviction and key TTLs.
+
+      - alert: HisHopeDatabaseContinuityServiceDown
+        expr: up{job="database-continuity-service"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: database-continuity
+        annotations:
+          summary: Database continuity service is unavailable
+          description: Backup and restore verification orchestration is not reachable.
+
+      - alert: HisHopeDatabaseContinuityVaultUnavailable
+        expr: his_hope_database_continuity_vault_available == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: database-continuity
+        annotations:
+          summary: Vault Transit encryption is unavailable
+          description: Backup encryption cannot be validated against the configured Vault Transit key.
+
+      - alert: HisHopeDatabaseContinuityRestoreDrillFailed
+        expr: time() - his_hope_database_continuity_last_success_timestamp_seconds{operation="restore-drill"} > 8 * 24 * 3600
+        for: 5m
+        labels:
+          severity: critical
+          service: database-continuity
+        annotations:
+          summary: Latest database restore drill failed
+          description: Inspect the continuity job and executor logs before treating the recovery objective as met.
+
+      - alert: HisHopeDatabaseContinuityRestoreRtoExceeded
+        expr: his_hope_database_continuity_last_job_duration_seconds > 1800
+        for: 5m
+        labels:
+          severity: warning
+          service: database-continuity
+        annotations:
+          summary: Database restore drill exceeded the RTO target
+          description: The latest continuity job exceeded the default 30 minute RTO target.
+
+      - alert: HisHopeDatabaseContinuityBackupStale
+        expr: time() - his_hope_database_continuity_last_success_timestamp_seconds{operation="backup"} > 26 * 3600
+        for: 10m
+        labels:
+          severity: critical
+          service: database-continuity
+        annotations:
+          summary: Database backup is stale
+          description: No successful scheduled backup has completed within the configured daily window.

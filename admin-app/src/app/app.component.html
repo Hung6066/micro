@@ -1,0 +1,80 @@
+<mat-toolbar color="primary" class="app-toolbar">
+  <button mat-icon-button (click)="toggleSidenav()" [attr.aria-label]="'mobile.adminNavigation' | hhTranslate">
+    <mat-icon>menu</mat-icon>
+  </button>
+  <span class="app-brand-mark" aria-hidden="true">+</span>
+  <span class="app-title">{{ 'app.admin.title' | hhTranslate:'His.Hope Admin' }}</span>
+  <span class="toolbar-spacer"></span>
+  <hh-language-switcher></hh-language-switcher>
+  <button mat-icon-button type="button" (click)="paletteOpen = true" [attr.aria-label]="'admin.openCommandPalette' | hhTranslate">
+    <mat-icon>search</mat-icon>
+  </button>
+  <button mat-icon-button type="button" (click)="toggleTheme()" [attr.aria-label]="'admin.toggleTheme' | hhTranslate">
+    <mat-icon>brightness_6</mat-icon>
+  </button>
+  <button mat-icon-button [matMenuTriggerFor]="userMenu" [attr.aria-label]="'admin.userMenu' | hhTranslate">
+    <mat-icon>account_circle</mat-icon>
+  </button>
+  <mat-menu #userMenu="matMenu">
+    <button mat-menu-item *ngIf="isAuthenticated$ | async" (click)="onLogout()">
+      <mat-icon>logout</mat-icon>
+      <span>{{ 'admin.logout' | hhTranslate }}</span>
+    </button>
+    <button mat-menu-item *ngIf="!(isAuthenticated$ | async)" (click)="onLogin()">
+      <mat-icon>login</mat-icon>
+      <span>{{ 'admin.login' | hhTranslate }}</span>
+    </button>
+  </mat-menu>
+</mat-toolbar>
+
+<hh-offline-banner></hh-offline-banner>
+<hh-command-palette [open]="paletteOpen" [commands]="commands" (closed)="paletteOpen = false" (selected)="onCommand($event.id)" />
+
+<mat-sidenav-container class="sidenav-container">
+  <mat-sidenav #sidenav
+    [mode]="(isMobile$ | async) ? 'over' : 'side'"
+    [opened]="sidenavOpened$ | async"
+    class="app-sidenav">
+    <hh-brand [caption]="'admin.identityAdministration' | hhTranslate"></hh-brand>
+    <mat-nav-list>
+      <a mat-list-item routerLink="/clients" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>vpn_key</mat-icon>
+        <span matListItemTitle>{{ 'admin.clients' | hhTranslate }}</span>
+      </a>
+      <a mat-list-item routerLink="/users" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>people</mat-icon>
+        <span matListItemTitle>{{ 'admin.users' | hhTranslate }}</span>
+      </a>
+      <a mat-list-item routerLink="/roles" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>badge</mat-icon>
+        <span matListItemTitle>{{ 'admin.roles' | hhTranslate }}</span>
+      </a>
+      <a mat-list-item routerLink="/consents" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>checklist</mat-icon>
+        <span matListItemTitle>{{ 'admin.consents' | hhTranslate }}</span>
+      </a>
+      <a mat-list-item routerLink="/security-providers" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>security</mat-icon>
+        <span matListItemTitle>{{ 'admin.securityProviders' | hhTranslate }}</span>
+      </a>
+      <a mat-list-item routerLink="/dashboard" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>dashboard</mat-icon>
+        <span matListItemTitle>{{ 'admin.dashboard' | hhTranslate }}</span>
+      </a>
+      <a mat-list-item routerLink="/database-platform" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>storage</mat-icon>
+        <span matListItemTitle>{{ 'admin.databasePlatform' | hhTranslate:'Database platform' }}</span>
+      </a>
+      <a mat-list-item routerLink="/mobile-operations" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>phonelink_lock</mat-icon>
+        <span matListItemTitle>{{ 'admin.mobileOperations' | hhTranslate }}</span>
+      </a>
+    </mat-nav-list>
+  </mat-sidenav>
+  <mat-sidenav-content class="sidenav-content">
+    <main class="main-content">
+      <router-outlet></router-outlet>
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>
+<hh-toast-outlet />

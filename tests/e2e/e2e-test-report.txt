@@ -1,0 +1,13 @@
+
+╔══════════════════════════════════════════════╗
+║         HIS.HOPE E2E TEST REPORT             ║
+╚══════════════════════════════════════════════╝
+
+Total Tests: 1
+Passed:      0
+Failed:      0
+Pass Rate:   0.0%
+
+All tests passed!
+
+Screenshots saved in: D:\AI\micro\tests\e2e\screenshots

@@ -1,0 +1,306 @@
+# Production service runtime contract:
+# - use the prefixed K8s service names created by namePrefix
+# - provide the Vault CA to the native SPIFFE/Vault client
+# - provide writable /tmp for chiseled .NET and PgBouncer
+# - bind RabbitMQ credentials from the environment secret
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+spec:
+  template:
+    spec:
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: vault-tls-ca
+          secret:
+            secretName: vault-tls-ca
+            defaultMode: 0440
+      containers:
+        - name: patient-service
+          env:
+            - name: Redis__ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: systemdashboard-bff-secrets
+                  key: redis-connection
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: systemdashboard-bff-secrets
+                  key: redis-connection
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+            - name: Persistence__RunMigrationsOnStartup
+              value: "false"
+            - name: EventBus__HostName
+              value: his-hope-rabbitmq.his-hope.svc.cluster.local
+            - name: EventBus__Port
+              value: "5672"
+            - name: EventBus__UserName
+              value: his_hope
+            - name: EventBus__Password
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: password
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+            - name: vault-tls-ca
+              mountPath: /etc/tls/vault
+              readOnly: true
+        - name: pgbouncer
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+spec:
+  template:
+    spec:
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: vault-tls-ca
+          secret:
+            secretName: vault-tls-ca
+            defaultMode: 0440
+      containers:
+        - name: appointment-service
+          env:
+            - name: Redis__ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: systemdashboard-bff-secrets
+                  key: redis-connection
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: systemdashboard-bff-secrets
+                  key: redis-connection
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+            - name: Persistence__RunMigrationsOnStartup
+              value: "false"
+            - name: EventBus__HostName
+              value: his-hope-rabbitmq.his-hope.svc.cluster.local
+            - name: EventBus__Port
+              value: "5672"
+            - name: EventBus__UserName
+              value: his_hope
+            - name: EventBus__Password
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: password
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+            - name: vault-tls-ca
+              mountPath: /etc/tls/vault
+              readOnly: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-service
+spec:
+  template:
+    spec:
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: vault-tls-ca
+          secret:
+            secretName: vault-tls-ca
+            defaultMode: 0440
+      containers:
+        - name: clinical-service
+          env:
+            - name: Redis__ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: systemdashboard-bff-secrets
+                  key: redis-connection
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: systemdashboard-bff-secrets
+                  key: redis-connection
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+            - name: Persistence__RunMigrationsOnStartup
+              value: "false"
+            - name: EventBus__HostName
+              value: his-hope-rabbitmq.his-hope.svc.cluster.local
+            - name: EventBus__Port
+              value: "5672"
+            - name: EventBus__UserName
+              value: his_hope
+            - name: EventBus__Password
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: password
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+            - name: vault-tls-ca
+              mountPath: /etc/tls/vault
+              readOnly: true
+        - name: pgbouncer
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-service
+spec:
+  template:
+    spec:
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: vault-tls-ca
+          secret:
+            secretName: vault-tls-ca
+            defaultMode: 0440
+      containers:
+        - name: billing-service
+          env:
+            - name: Redis__ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: systemdashboard-bff-secrets
+                  key: redis-connection
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: systemdashboard-bff-secrets
+                  key: redis-connection
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+            - name: Persistence__RunMigrationsOnStartup
+              value: "false"
+            - name: EventBus__HostName
+              value: his-hope-rabbitmq.his-hope.svc.cluster.local
+            - name: EventBus__Port
+              value: "5672"
+            - name: EventBus__UserName
+              value: his_hope
+            - name: EventBus__Password
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: password
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+            - name: vault-tls-ca
+              mountPath: /etc/tls/vault
+              readOnly: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-service
+spec:
+  template:
+    spec:
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: vault-tls-ca
+          secret:
+            secretName: vault-tls-ca
+            defaultMode: 0440
+      containers:
+        - name: lab-service
+          env:
+            - name: Redis__ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: systemdashboard-bff-secrets
+                  key: redis-connection
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: systemdashboard-bff-secrets
+                  key: redis-connection
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+            - name: Persistence__RunMigrationsOnStartup
+              value: "false"
+            - name: EventBus__HostName
+              value: his-hope-rabbitmq.his-hope.svc.cluster.local
+            - name: EventBus__Port
+              value: "5672"
+            - name: EventBus__UserName
+              value: his_hope
+            - name: EventBus__Password
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: password
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+            - name: vault-tls-ca
+              mountPath: /etc/tls/vault
+              readOnly: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-service
+spec:
+  template:
+    spec:
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: vault-tls-ca
+          secret:
+            secretName: vault-tls-ca
+            defaultMode: 0440
+      containers:
+        - name: pharmacy-service
+          env:
+            - name: Redis__ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: systemdashboard-bff-secrets
+                  key: redis-connection
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: systemdashboard-bff-secrets
+                  key: redis-connection
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+            - name: Persistence__RunMigrationsOnStartup
+              value: "false"
+            - name: EventBus__HostName
+              value: his-hope-rabbitmq.his-hope.svc.cluster.local
+            - name: EventBus__Port
+              value: "5672"
+            - name: EventBus__UserName
+              value: his_hope
+            - name: EventBus__Password
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: password
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+            - name: vault-tls-ca
+              mountPath: /etc/tls/vault
+              readOnly: true

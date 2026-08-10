@@ -1,0 +1,40 @@
+global_defs {
+    router_id {{ inventory_hostname }}
+    enable_script_security
+    script_user root
+}
+
+vrrp_script chk_haproxy {
+    script "/usr/bin/systemctl is-active --quiet haproxy"
+    interval 2
+    timeout 2
+    rise 2
+    fall 2
+    # A failed HAProxy must drop below the BACKUP priority (100), otherwise
+    # Keepalived can keep the VIP on a node that no longer accepts 6443.
+    weight -60
+}
+
+vrrp_instance K3S_API_VIP {
+    state {{ keepalived_state }}
+    interface {{ lb_interface }}
+    virtual_router_id {{ lb_virtual_router_id }}
+    priority {{ keepalived_priority }}
+    advert_int 1
+    unicast_src_ip {{ ansible_host }}
+    unicast_peer {
+{% for host in groups['load_balancers'] if host != inventory_hostname %}
+        {{ hostvars[host].ansible_host }}
+{% endfor %}
+    }
+    authentication {
+        auth_type PASS
+        auth_pass {{ lb_keepalived_auth_pass }}
+    }
+    virtual_ipaddress {
+        {{ lb_vip }}/{{ lb_vip_cidr }} dev {{ lb_interface }}
+    }
+    track_script {
+        chk_haproxy
+    }
+}

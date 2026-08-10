@@ -1,0 +1,34 @@
+name: frontend-change
+description: "Frontend-only changes — skip backend phases"
+version: "1.0"
+triggers:
+  paths: ["src/Frontend/**/*.ts"]
+
+pipeline:
+  implement:
+    parallel:
+      - agent: angular
+        task: "Implement frontend changes"
+        timeout_minutes: 15
+
+  test:
+    - agent: testing-frontend
+      depends_on: [angular]
+      gates: ["component-tests"]
+
+  validate:
+    - agent: check-ui
+      depends_on: [testing-frontend]
+      gates: ["visual-regression", "accessibility"]
+
+  commit:
+    agent: git
+    depends_on: [check-ui]
+    mode: auto_pr
+    require_confidence: 0.7
+
+loop:
+  agent: loop-engineer
+  max_iterations: 3
+  strategy: autofix_then_escalate
+  on_failure: any_gate

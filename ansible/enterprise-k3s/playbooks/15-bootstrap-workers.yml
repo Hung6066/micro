@@ -1,0 +1,20 @@
+---
+- name: Bootstrap hardened K3s workers
+  hosts: k3s_workers
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+  serial: 1
+  pre_tasks:
+    - name: Gather control-plane facts for cross-host preflight assertions
+      ansible.builtin.setup:
+      delegate_to: "{{ item }}"
+      delegate_facts: true
+      loop: "{{ groups['k3s_servers'] }}"
+      run_once: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/vault.yml
+  roles:
+    - role: preflight
+    - role: k3s_agent

@@ -1,0 +1,57 @@
+name: new-service
+description: "New microservice creation — consensus mode enabled, full scaffold"
+version: "1.0"
+triggers:
+  paths: []  # Manual trigger only
+
+pipeline:
+  plan:
+    - agent: explore
+      task: "Analyze service requirements and generate scaffold plan"
+      timeout_minutes: 10
+
+  implement:
+    parallel:
+      - agent: dotnet
+        depends_on: [explore]
+        task: "Scaffold new .NET service with Clean Architecture"
+        timeout_minutes: 20
+      - agent: dba
+        depends_on: [explore]
+        task: "Create database schema and migrations"
+        timeout_minutes: 10
+      - agent: devops
+        depends_on: [explore]
+        task: "Create Kubernetes manifests and CI/CD pipeline"
+        timeout_minutes: 15
+
+  test:
+    - agent: testing-backend
+      depends_on: [dotnet]
+      gates: ["unit-tests", "integration-tests"]
+      timeout_minutes: 15
+
+  validate:
+    - agent: validate
+      depends_on: [testing-backend]
+      gates: ["build-integrity", "api-contract", "docker-compose"]
+    - agent: security
+      depends_on: [devops]
+      gates: ["vault-config", "network-policy"]
+
+  commit:
+    agent: git
+    depends_on: [validate, security]
+    mode: create-pr-full-review
+    require_confidence: 0.85
+
+consensus:
+  enabled: true
+  min_agents: 2
+  strategy: confidence_based
+
+loop:
+  agent: loop-engineer
+  max_iterations: 3
+  strategy: autofix_then_escalate
+  on_failure: any_gate

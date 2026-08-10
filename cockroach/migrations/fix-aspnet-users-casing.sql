@@ -1,0 +1,9 @@
+ALTER TABLE asp_net_users RENAME COLUMN "FirstName" TO first_name;
+ALTER TABLE asp_net_users RENAME COLUMN "LastName" TO last_name;
+ALTER TABLE asp_net_users RENAME COLUMN "MiddleName" TO middle_name;
+ALTER TABLE asp_net_users RENAME COLUMN "LicenseNumber" TO license_number;
+ALTER TABLE asp_net_users RENAME COLUMN "LastLoginAt" TO last_login_at;
+ALTER TABLE asp_net_users RENAME COLUMN "SecurityStamp" TO security_stamp;
+ALTER TABLE asp_net_users RENAME COLUMN "ConcurrencyStamp" TO concurrency_stamp;
+ALTER TABLE asp_net_users RENAME COLUMN "PhoneNumberConfirmed" TO phone_number_confirmed;
+ALTER TABLE asp_net_users RENAME COLUMN "LockoutEnd" TO lockout_end;

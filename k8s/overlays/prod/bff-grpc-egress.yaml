@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-bffs-backend-grpc-egress
+  namespace: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: bff
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - patient-service
+                  - clinical-service
+                  - lab-service
+                  - billing-service
+                  - pharmacy-service
+                  - appointment-service
+      ports:
+        - { port: 5006, protocol: TCP }
+        - { port: 5008, protocol: TCP }
+        - { port: 5009, protocol: TCP }
+        - { port: 5012, protocol: TCP }
+        - { port: 5022, protocol: TCP }
+        - { port: 5032, protocol: TCP }

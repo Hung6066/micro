@@ -1,0 +1,63 @@
+codecov:
+  require_ci_to_pass: true
+  notify:
+    wait_for_ci: true
+
+coverage:
+  precision: 2
+  round: down
+  range: "60...90"
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 2%
+        paths:
+          - "src/Services/"
+      frontend:
+        target: 75%
+        threshold: 2%
+        paths:
+          - "src/Frontend/"
+    patch:
+      default:
+        target: 80%
+
+comment:
+  layout: "header, diff, flags, components"
+  behavior: default
+  require_changes: false
+
+flags:
+  backend:
+    paths:
+      - src/Services/
+    carryforward: true
+  frontend:
+    paths:
+      - src/Frontend/
+    carryforward: true
+
+component_management:
+  individual_components:
+    - component_id: patient_service
+      paths:
+        - src/Services/PatientService/**
+    - component_id: identity_service
+      paths:
+        - src/Services/IdentityService/**
+    - component_id: clinical_service
+      paths:
+        - src/Services/ClinicalService/**
+    - component_id: appointment_service
+      paths:
+        - src/Services/AppointmentService/**
+    - component_id: billing_service
+      paths:
+        - src/Services/BillingService/**
+    - component_id: lab_service
+      paths:
+        - src/Services/LabService/**
+    - component_id: pharmacy_service
+      paths:
+        - src/Services/PharmacyService/**

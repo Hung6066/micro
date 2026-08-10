@@ -1,0 +1,37 @@
+{
+  "ReverseProxy": {
+    "Routes": {
+      "billing-search-invoices": {
+        "ClusterId": "billing-service",
+        "Match": { "Path": "/api/v1/invoices/search", "Methods": ["GET"] }
+      },
+      "billing-get-invoice": {
+        "ClusterId": "billing-service",
+        "Match": { "Path": "/api/v1/invoices/{id}", "Methods": ["GET"] }
+      },
+      "billing-get-by-number": {
+        "ClusterId": "billing-service",
+        "Match": { "Path": "/api/v1/invoices/by-number/{number}", "Methods": ["GET"] }
+      },
+      "billing-create-invoice": {
+        "ClusterId": "billing-service",
+        "Match": { "Path": "/api/v1/invoices", "Methods": ["POST"] }
+      },
+      "billing-record-payment": {
+        "ClusterId": "billing-service",
+        "Match": { "Path": "/api/v1/invoices/{id}/payments", "Methods": ["POST"] }
+      },
+      "billing-void-invoice": {
+        "ClusterId": "billing-service",
+        "Match": { "Path": "/api/v1/invoices/{id}/void", "Methods": ["POST"] }
+      }
+    },
+    "Clusters": {
+      "billing-service": {
+        "Destinations": {
+          "billing": { "Address": "http://billingservice:5020/" }
+        }
+      }
+    }
+  }
+}

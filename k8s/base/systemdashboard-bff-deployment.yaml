@@ -1,0 +1,109 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: systemdashboard-bff
+  labels:
+    app.kubernetes.io/name: systemdashboard-bff
+    app.kubernetes.io/component: dashboard
+automountServiceAccountToken: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: systemdashboard-bff
+  labels:
+    app.kubernetes.io/name: systemdashboard-bff
+    app.kubernetes.io/component: dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: systemdashboard-bff
+  template:
+    metadata:
+      # Redis TLS and OTLP are opaque to Linkerd protocol detection.
+      annotations:
+        config.linkerd.io/skip-outbound-ports: "6379,4317,4318"
+      labels:
+        app.kubernetes.io/name: systemdashboard-bff
+        app.kubernetes.io/component: dashboard
+        app: systemdashboard-bff
+    spec:
+      serviceAccountName: systemdashboard-bff
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        fsGroup: 1654
+        seccompProfile:
+          type: Localhost
+          localhostProfile: his-hope-dotnet-strict.json
+      containers:
+        - name: systemdashboard-bff
+          image: his-hope/systemdashboard-bff:latest
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: Localhost
+              localhostProfile: his-hope-dotnet-strict.json
+            runAsUser: 1654
+            runAsGroup: 1654
+          ports:
+            - name: http
+              containerPort: 5700
+              protocol: TCP
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: Consul__Address
+              value: "http://consul-server:8500"
+            - name: Jaeger__QueryUrl
+              value: "http://jaeger.monitoring.svc.cluster.local:16686"
+            - name: Prometheus__Url
+              value: "http://prometheus.monitoring.svc.cluster.local:9090"
+            - name: Loki__Url
+              value: "http://loki.monitoring.svc.cluster.local:3100"
+            - name: Loki__DefaultQuery
+              value: "{job=\"kubernetes-pods\",filename=~\"/var/log/pods/his-hope-dev_.*\"}"
+            - name: AlertManager__Url
+              value: "http://alertmanager.monitoring.svc.cluster.local:9093"
+            - name: Kubernetes__Enabled
+              value: "true"
+            - name: K8S_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          envFrom:
+            - configMapRef:
+                name: runtime-contract-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5700
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5700
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 2

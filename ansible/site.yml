@@ -1,0 +1,55 @@
+---
+# ============================================================================
+# His.Hope — Ansible Deploy Playbook
+# ============================================================================
+# Usage:
+#   ansible-playbook -i inventory/dev.yml site.yml -t docker-compose
+#   ansible-playbook -i inventory/staging.yml site.yml -t k3s
+#   ansible-playbook -i inventory/prod.yml site.yml -t gke
+#   ansible-playbook -i inventory/prod.yml site.yml -t canary --extra-vars "service=patientservice version=v2.1.0"
+#   ansible-playbook -i inventory/prod.yml site.yml -t rollback --extra-vars "service=patientservice"
+#   ansible-playbook -i inventory/prod.yml site.yml -t health-check
+#   ansible-playbook -i inventory/prod.yml site.yml -t db-migrate
+# ============================================================================
+
+- name: Deploy His.Hope — Docker Compose (Local Dev)
+  hosts: all
+  tags: [docker-compose, dev]
+  roles:
+    - docker-compose
+
+- name: Deploy His.Hope — K3s (Staging)
+  hosts: k3s_cluster
+  tags: [k3s, staging]
+  roles:
+    - k3s-install
+
+- name: Deploy His.Hope — GKE (Production)
+  hosts: gke_cluster
+  tags: [gke, prod]
+  roles:
+    - gke-deploy
+
+- name: Canary Deploy (Production)
+  hosts: gke_cluster
+  tags: [canary]
+  roles:
+    - canary-deploy
+
+- name: Rollback Service
+  hosts: gke_cluster
+  tags: [rollback]
+  roles:
+    - rollback
+
+- name: Health Check Verification
+  hosts: all
+  tags: [health-check, verify]
+  roles:
+    - health-check
+
+- name: Database Migration
+  hosts: gke_cluster
+  tags: [db-migrate]
+  roles:
+    - db-migrate

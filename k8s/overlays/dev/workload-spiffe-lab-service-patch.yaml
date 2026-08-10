@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-service
+spec:
+  template:
+    spec:
+      hostPID: true
+      securityContext:
+        runAsNonRoot: false
+      containers:
+        - name: lab-service
+          env:
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+          volumeMounts:
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+        - name: spire-jwt-fetcher
+          image: his-hope/spire-fetcher:1.15.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SPIFFE_ID
+              value: spiffe://his-hope.local/ns/his-hope-dev/sa/lab-service
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          volumeMounts:
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+      volumes:
+        - name: agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: Directory
+        - name: spire-jwt
+          emptyDir:
+            medium: Memory

@@ -1,0 +1,203 @@
+dataset: his-hope-analytics
+location: US
+
+tables:
+  - name: patient_facts
+    description: Patient fact table for analytics
+    schema:
+      - name: patient_id
+        type: STRING
+        description: Unique patient identifier
+      - name: full_name
+        type: STRING
+      - name: age_group
+        type: STRING
+        description: Age bucket (0-18, 19-40, 41-65, 65+)
+      - name: gender
+        type: STRING
+      - name: blood_type
+        type: STRING
+      - name: race
+        type: STRING
+      - name: marital_status
+        type: STRING
+      - name: is_active
+        type: BOOLEAN
+      - name: registration_date
+        type: TIMESTAMP
+      - name: total_encounters
+        type: INTEGER
+      - name: total_appointments
+        type: INTEGER
+      - name: chronic_conditions_count
+        type: INTEGER
+      - name: allergies_count
+        type: INTEGER
+      - name: last_encounter_date
+        type: TIMESTAMP
+      - name: ingestion_timestamp
+        type: TIMESTAMP
+    
+    partitioning:
+      field: registration_date
+      type: MONTH
+    
+    clustering:
+      fields:
+        - gender
+        - age_group
+  
+  - name: clinical_facts
+    description: Clinical encounter fact table
+    schema:
+      - name: encounter_id
+        type: STRING
+      - name: patient_id
+        type: STRING
+      - name: provider_id
+        type: STRING
+      - name: encounter_date
+        type: TIMESTAMP
+      - name: encounter_type
+        type: STRING
+      - name: encounter_duration_minutes
+        type: INTEGER
+      - name: diagnosis_primary_icd10
+        type: STRING
+      - name: diagnosis_count
+        type: INTEGER
+      - name: procedure_count
+        type: INTEGER
+      - name: prescription_count
+        type: INTEGER
+      - name: has_vital_signs
+        type: BOOLEAN
+      - name: systolic_bp_avg
+        type: FLOAT
+      - name: diastolic_bp_avg
+        type: FLOAT
+      - name: heart_rate_avg
+        type: FLOAT
+      - name: temperature_avg
+        type: FLOAT
+      - name: bmi
+        type: FLOAT
+      - name: ingestion_timestamp
+        type: TIMESTAMP
+    
+    partitioning:
+      field: encounter_date
+      type: MONTH
+  
+  - name: appointment_facts
+    description: Appointment fact table for scheduling analytics
+    schema:
+      - name: appointment_id
+        type: STRING
+      - name: patient_id
+        type: STRING
+      - name: provider_id
+        type: STRING
+      - name: facility_id
+        type: STRING
+      - name: scheduled_date
+        type: TIMESTAMP
+      - name: duration_minutes
+        type: INTEGER
+      - name: status
+        type: STRING
+      - name: is_no_show
+        type: BOOLEAN
+      - name: wait_time_minutes
+        type: INTEGER
+      - name: lead_time_days
+        type: INTEGER
+        description: Days between scheduling and appointment
+      - name: cancellation_lead_time_hours
+        type: FLOAT
+      - name: day_of_week
+        type: STRING
+      - name: hour_of_day
+        type: INTEGER
+      - name: ingestion_timestamp
+        type: TIMESTAMP
+    
+    partitioning:
+      field: scheduled_date
+      type: MONTH
+  
+  - name: provider_performance
+    description: Provider performance metrics
+    schema:
+      - name: provider_id
+        type: STRING
+      - name: provider_name
+        type: STRING
+      - name: date
+        type: DATE
+      - name: total_patients
+        type: INTEGER
+      - name: avg_appointment_duration
+        type: FLOAT
+      - name: no_show_rate
+        type: FLOAT
+      - name: avg_wait_time
+        type: FLOAT
+      - name: patient_satisfaction_score
+        type: FLOAT
+  
+  - name: no_show_predictions
+    description: ML predictions for no-show risk
+    schema:
+      - name: prediction_id
+        type: STRING
+      - name: appointment_id
+        type: STRING
+      - name: patient_id
+        type: STRING
+      - name: prediction_date
+        type: TIMESTAMP
+      - name: no_show_probability
+        type: FLOAT
+      - name: model_version
+        type: STRING
+      - name: feature_importance
+        type: JSON
+  
+  - name: readmission_predictions
+    description: ML predictions for readmission risk
+    schema:
+      - name: prediction_id
+        type: STRING
+      - name: patient_id
+        type: STRING
+      - name: encounter_id
+        type: STRING
+      - name: prediction_date
+        type: TIMESTAMP
+      - name: readmission_risk_30d
+        type: FLOAT
+      - name: readmission_risk_90d
+        type: FLOAT
+      - name: model_version
+        type: STRING
+      - name: top_factors
+        type: JSON
+  
+  - name: icd10_diagnosis_summary
+    description: ICD-10 diagnosis summary for analytics
+    schema:
+      - name: icd10_code
+        type: STRING
+      - name: description
+        type: STRING
+      - name: diagnosis_count
+        type: INTEGER
+      - name: unique_patients
+        type: INTEGER
+      - name: avg_age
+        type: FLOAT
+      - name: gender_distribution
+        type: JSON
+      - name: month
+        type: DATE

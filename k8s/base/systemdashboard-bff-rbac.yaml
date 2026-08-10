@@ -1,0 +1,35 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: systemdashboard-bff-lifecycle
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: systemdashboard-bff
+    app.kubernetes.io/component: dashboard
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale"]
+    verbs: ["get", "list", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: systemdashboard-bff-lifecycle
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: systemdashboard-bff
+    app.kubernetes.io/component: dashboard
+subjects:
+  - kind: ServiceAccount
+    name: systemdashboard-bff
+    namespace: his-hope
+roleRef:
+  kind: Role
+  name: systemdashboard-bff-lifecycle
+  apiGroup: rbac.authorization.k8s.io

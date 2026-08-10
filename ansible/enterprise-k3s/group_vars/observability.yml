@@ -1,0 +1,14 @@
+---
+observability_repo_root: "{{ playbook_dir }}/../.."
+observability_kubeconfig: "{{ observability_repo_root }}/artifacts/kubeconfig-production.yaml"
+linkerd_crds_chart_version: 1.8.0
+linkerd_control_plane_chart_version: 1.16.11
+linkerd_viz_chart_version: 30.12.11
+linkerd_ca_file: "D:/secure/his-hope/linkerd/ca.crt"
+linkerd_issuer_crt_file: "D:/secure/his-hope/linkerd/issuer.crt"
+linkerd_issuer_key_file: "D:/secure/his-hope/linkerd/issuer.key"
+gatekeeper_chart_version: 3.23.0
+kube_prometheus_stack_chart_version: 88.2.0
+loki_chart_version: 7.2.0
+promtail_chart_version: 6.17.1
+otel_collector_chart_version: 0.169.0

@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: admin-oidc-runtime-config
+data:
+  runtime-config.js: |
+    window.__HISHOPE_RUNTIME_CONFIG__ = {
+      environment: "development",
+      contractVersion: "1",
+      apiOrigin: window.location.origin,
+      oidcAuthority: "http://identity.his-hope.local:9080"
+    };
+    window.__HISHOPE_CONFIG__ = {
+      apiOrigin: window.__HISHOPE_RUNTIME_CONFIG__.apiOrigin,
+      oidcAuthority: window.__HISHOPE_RUNTIME_CONFIG__.oidcAuthority,
+      production: false
+    };
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dashboard-oidc-runtime-config
+data:
+  runtime-config.js: |
+    window.__HISHOPE_RUNTIME_CONFIG__ = {
+      environment: "development",
+      contractVersion: "1",
+      apiOrigin: window.location.origin,
+      oidcAuthority: "http://identity.his-hope.local:9080",
+      dashboardBffOrigin: window.location.origin
+    };
+    window.__HISHOPE_CONFIG__ = {
+      apiOrigin: window.__HISHOPE_RUNTIME_CONFIG__.apiOrigin,
+      oidcAuthority: window.__HISHOPE_RUNTIME_CONFIG__.oidcAuthority,
+      production: false
+    };

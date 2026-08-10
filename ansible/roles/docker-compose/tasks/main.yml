@@ -1,0 +1,68 @@
+---
+# Role: docker-compose — Local development deployment
+# Tags: dev, docker-compose
+
+- name: Clone repository
+  git:
+    repo: "{{ repo_url }}"
+    dest: "{{ repo_dest }}"
+    branch: "{{ repo_branch }}"
+    version: "{{ repo_branch }}"
+    update: yes
+    force: yes
+  tags: [clone]
+
+- name: Stop existing containers (clean restart)
+  community.docker.docker_compose_v2:
+    project_src: "{{ docker_compose_dir }}"
+    state: stopped
+  ignore_errors: yes
+  tags: [stop]
+
+- name: Build and start all services
+  community.docker.docker_compose_v2:
+    project_src: "{{ docker_compose_dir }}"
+    state: present
+    build: always
+    pull: missing
+    recreate: smart
+  tags: [start]
+  register: compose_result
+
+- name: Wait for all services healthy
+  ansible.builtin.shell: |
+    cd {{ docker_compose_dir }}
+    timeout 300 bash -c '
+      while ! docker compose ps | grep -q "healthy"; do
+        sleep 5
+      done
+      TOTAL=$(docker compose ps --format json | wc -l)
+      HEALTHY=$(docker compose ps --format json | grep -c "healthy")
+      if [ "$TOTAL" -eq "$HEALTHY" ]; then exit 0; fi
+      sleep 5
+    '
+  changed_when: false
+  tags: [wait]
+
+- name: Quick smoke test
+  ansible.builtin.uri:
+    url: "http://localhost:5700/health"
+    return_content: yes
+  register: smoke_test
+  retries: 10
+  delay: 5
+  until: smoke_test.status == 200
+  tags: [smoke]
+
+- name: Display dashboard URLs
+  ansible.builtin.debug:
+    msg:
+      - "✅ Docker Compose deployed successfully"
+      - "Dashboard: http://localhost:8082"
+      - "BFF API: http://localhost:5700"
+      - "Grafana: http://localhost:3000 (admin/admin)"
+      - "Prometheus: http://localhost:9090"
+      - "Jaeger: http://localhost:16686"
+      - "Kibana: http://localhost:5601"
+  when: smoke_test.status == 200
+  tags: [always]

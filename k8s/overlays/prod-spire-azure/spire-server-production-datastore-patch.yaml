@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: spire-server
+  namespace: spire
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: render-config
+          env:
+            - name: SPIRE_DB_HOST
+              value: spire-postgres-rw.spire.svc.cluster.local
+            - name: SPIRE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: spire-postgres-app
+                  key: password

@@ -1,0 +1,156 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-harness
+  namespace: hishope
+  labels:
+    app.kubernetes.io/name: agent-harness
+    app.kubernetes.io/component: platform
+    app.kubernetes.io/part-of: his-hope
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agent-harness
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agent-harness
+        app.kubernetes.io/component: platform
+        app.kubernetes.io/part-of: his-hope
+        app: agent-harness
+    spec:
+      serviceAccountName: agent-harness
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: agent-harness
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            runAsUser: 1654
+            runAsGroup: 1654
+          image: hishope/agent-harness:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 5200
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: agent-harness-config
+          env:
+            - name: ConnectionStrings__HarnessDb
+              valueFrom:
+                secretKeyRef:
+                  name: harness-db-credentials
+                  key: connection-string
+            - name: AgentHarness__RabbitMQUsername
+              valueFrom:
+                secretKeyRef:
+                  name: harness-rabbitmq-credentials
+                  key: username
+            - name: AgentHarness__RabbitMQPassword
+              valueFrom:
+                secretKeyRef:
+                  name: harness-rabbitmq-credentials
+                  key: password
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Production
+            - name: ASPNETCORE_URLS
+              value: "http://0.0.0.0:5200"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector.hishop.svc.cluster.local:4317"
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5200
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 5200
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 2
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: 5200
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 40
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-harness
+  namespace: hishope
+  labels:
+    app.kubernetes.io/name: agent-harness
+    app.kubernetes.io/component: platform
+  automountServiceAccountToken: false
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: agent-harness
+  namespace: hishope
+  labels:
+    app.kubernetes.io/name: agent-harness
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: agent-harness
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: agent-harness-pdb
+  namespace: hishope
+  labels:
+    app.kubernetes.io/name: agent-harness
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agent-harness

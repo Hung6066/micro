@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Release default: no cleartext (HTTP) traffic to any domain. The debug
+     build variant overrides this file (see src/debug/res/xml) to allow HTTP
+     against local emulator/dev backends only. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

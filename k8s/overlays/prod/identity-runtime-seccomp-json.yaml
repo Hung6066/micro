@@ -1,0 +1,12 @@
+- op: replace
+  path: /spec/template/spec/securityContext/seccompProfile
+  value:
+    type: RuntimeDefault
+- op: replace
+  path: /spec/template/spec/containers/0/securityContext/seccompProfile
+  value:
+    type: RuntimeDefault
+- op: replace
+  path: /spec/template/spec/containers/2/securityContext/seccompProfile
+  value:
+    type: RuntimeDefault

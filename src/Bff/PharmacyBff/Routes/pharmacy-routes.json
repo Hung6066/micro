@@ -1,0 +1,53 @@
+{
+  "ReverseProxy": {
+    "Routes": {
+      "medication-search": {
+        "ClusterId": "pharmacy-service",
+        "Match": { "Path": "/api/v1/medications/search", "Methods": ["GET"] }
+      },
+      "medication-get": {
+        "ClusterId": "pharmacy-service",
+        "Match": { "Path": "/api/v1/medications/{id}", "Methods": ["GET"] }
+      },
+      "medication-create": {
+        "ClusterId": "pharmacy-service",
+        "Match": { "Path": "/api/v1/medications", "Methods": ["POST"] }
+      },
+      "medication-update": {
+        "ClusterId": "pharmacy-service",
+        "Match": { "Path": "/api/v1/medications/{id}", "Methods": ["PUT"] }
+      },
+      "medication-deactivate": {
+        "ClusterId": "pharmacy-service",
+        "Match": { "Path": "/api/v1/medications/{id}/deactivate", "Methods": ["POST"] }
+      },
+      "prescription-search": {
+        "ClusterId": "pharmacy-service",
+        "Match": { "Path": "/api/v1/prescriptions/search", "Methods": ["GET"] }
+      },
+      "prescription-get": {
+        "ClusterId": "pharmacy-service",
+        "Match": { "Path": "/api/v1/prescriptions/{id}", "Methods": ["GET"] }
+      },
+      "prescription-create": {
+        "ClusterId": "pharmacy-service",
+        "Match": { "Path": "/api/v1/prescriptions", "Methods": ["POST"] }
+      },
+      "prescription-fill": {
+        "ClusterId": "pharmacy-service",
+        "Match": { "Path": "/api/v1/prescriptions/{id}/fill", "Methods": ["POST"] }
+      },
+      "prescription-cancel": {
+        "ClusterId": "pharmacy-service",
+        "Match": { "Path": "/api/v1/prescriptions/{id}/cancel", "Methods": ["POST"] }
+      }
+    },
+    "Clusters": {
+      "pharmacy-service": {
+        "Destinations": {
+          "pharmacy": { "Address": "http://pharmacyservice:5030/" }
+        }
+      }
+    }
+  }
+}

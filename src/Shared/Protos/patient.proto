@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package his.hope.patient.v1;
+
+option csharp_namespace = "His.Hope.PatientGrpc";
+
+import "google/protobuf/timestamp.proto";
+
+service PatientGrpcService {
+  rpc GetPatient (PatientRequest) returns (PatientResponse);
+  rpc SearchPatients (PatientSearchRequest) returns (PatientListResponse);
+  rpc CheckPatientExists (PatientExistsRequest) returns (PatientExistsResponse);
+}
+
+message PatientRequest {
+  string id = 1;
+}
+
+message PatientResponse {
+  string id = 1;
+  string full_name = 2;
+  string first_name = 3;
+  string last_name = 4;
+  string middle_name = 5;
+  google.protobuf.Timestamp date_of_birth = 6;
+  string gender_code = 7;
+  string gender_name = 8;
+  string phone = 9;
+  string email = 10;
+  bool is_active = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+}
+
+message PatientSearchRequest {
+  string search_term = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  string sort = 4;
+  map<string, string> filters = 5;
+  string cursor = 6;
+}
+
+message PatientListResponse {
+  repeated PatientResponse patients = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  string next_cursor = 5;
+  string previous_cursor = 6;
+}
+
+message PatientExistsRequest {
+  string id = 1;
+}
+
+message PatientExistsResponse {
+  bool exists = 1;
+}

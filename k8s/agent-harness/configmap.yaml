@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-harness-config
+  namespace: hishope
+  labels:
+    app.kubernetes.io/name: agent-harness
+    app.kubernetes.io/component: platform
+data:
+  AgentHarness__Port: "5200"
+  AgentHarness__RabbitMQHost: "rabbitmq.hishop.svc.cluster.local"
+  AgentHarness__RabbitMQPort: "5672"
+  AgentHarness__RabbitMQVHost: "/"
+  AgentHarness__MaxPipelineQueue: "10"
+  AgentHarness__MaxAgentQueue: "20"
+  AgentHarness__PipelineTimeoutMinutes: "5"
+  AgentHarness__CircuitBreakerThreshold: "5"
+  AgentHarness__CircuitBreakerDurationSeconds: "30"
+  AgentHarness__LoopEngineerMaxIterations: "3"
+  AgentHarness__LoopEngineerConfidenceThreshold: "0.8"

@@ -1,0 +1,382 @@
+name: K3s DevSecOps Gate
+
+on:
+  pull_request:
+    paths:
+      - 'k8s/**'
+      - 'ansible/**'
+      - 'scripts/validate-k8s-release.ps1'
+      - 'scripts/validate-kustomize-release.ps1'
+      - 'scripts/config/validate-kustomize-runtime.ps1'
+      - 'scripts/validate-production-image-signatures.ps1'
+      - 'scripts/verify-image-attestations.ps1'
+      - 'scripts/verify-admission-policy.ps1'
+      - 'scripts/check-restricted-workloads.py'
+      - 'scripts/validate-gitops-plane.ps1'
+      - 'scripts/validate-storage-backup-contract.ps1'
+      - 'scripts/validate-dr-evidence.ps1'
+      - 'scripts/test-cnpg-restore-drill.ps1'
+      - 'scripts/verify-production-backup-restore.ps1'
+      - 'scripts/tests/azure-production-scripts.Tests.ps1'
+      - 'scripts/test-vault-recovery-drill.ps1'
+      - 'scripts/test-signature-admission.ps1'
+      - 'scripts/validate-signature-controller-contract.ps1'
+      - 'scripts/bootstrap-sigstore-policy-controller.ps1'
+      - 'scripts/bootstrap-longhorn-storage.ps1'
+      - 'scripts/prepare-longhorn-nodes.ps1'
+      - 'scripts/test-longhorn-snapshot-restore.ps1'
+      - 'scripts/bootstrap-cnpg-azure-object-store.ps1'
+      - 'scripts/validate-cnpg-backup-platform.ps1'
+      - 'scripts/rollout-pod-security-production.ps1'
+      - 'scripts/validate-live-image-drift.ps1'
+      - 'scripts/bootstrap-k3s-security-boundaries.ps1'
+      - 'scripts/validate-k3s-release.ps1'
+      - 'scripts/validate-workflow-action-pins.py'
+      - 'scripts/validate-protected-workflow-contract.py'
+      - 'scripts/validate-gitops-promotion-contract.py'
+      - 'scripts/validate-container-release-contract.py'
+      - 'scripts/validate-dr-evidence.ps1'
+      - 'scripts/install-k3s-kubectl.ps1'
+      - 'scripts/validate-backup-agent-contract.py'
+      - 'scripts/validate-storage-host-audit-contract.py'
+      - 'scripts/validate-shared-storage-contract.ps1'
+      - 'k8s/overlays/prod-shared-storage/**'
+      - 'k8s/observability/overlays/prod-shared-storage/**'
+      - 'docs/runbooks/shared-storage-csi-viettel.vi.md'
+      - 'ansible/enterprise-k3s/playbooks/25-validate-storage-prerequisites.yml'
+      - 'scripts/validate-manifest-secret-contract.py'
+      - 'scripts/validate-k3s-go-live.ps1'
+      - 'scripts/verify-k3s-go-live.ps1'
+      - 'scripts/validate-k3s-remaining-gates.ps1'
+      - 'scripts/generate-database-migration-scripts.ps1'
+      - 'scripts/validate-database-migration-contract.ps1'
+      - 'scripts/validate-observability-contract.ps1'
+      - 'scripts/validate-observability-runtime.ps1'
+      - 'scripts/collect-dora-metrics.py'
+      - 'scripts/validate-dora-metrics-contract.py'
+      - 'scripts/tests/test_collect_dora_metrics.py'
+      - 'scripts/validate-reliability-platform.ps1'
+      - 'scripts/validate-production-ha-spire-k3s.ps1'
+      - 'scripts/validate-linkerd-spire-mtls-k3s.ps1'
+      - 'scripts/validate-k3s-host-security-contract.py'
+      - 'scripts/validate-linkerd-policy-contract.py'
+      - 'scripts/rotate-k3s-secrets-encryption.ps1'
+      - 'ansible/enterprise-k3s/playbooks/45-rotate-k3s-secrets-encryption.yml'
+      - '.github/workflows/k3s-secrets-encryption-rotation.yml'
+      - 'docs/runbooks/k3s-secrets-encryption-rotation.vi.md'
+      - 'scripts/validate-k3s-secrets-rotation-contract.py'
+      - 'scripts/test-linkerd-mtls-policy.ps1'
+      - '.github/workflows/linkerd-mtls-policy-e2e.yml'
+      - 'scripts/validate-spire-only-k3s.ps1'
+      - 'scripts/validate-argocd-bootstrap.ps1'
+      - 'scripts/validate-argocd-project-scope.py'
+      - 'k8s/observability/**'
+      - 'docs/evidence/k3s-go-live-checklist.vi.md'
+      - 'docs/runbooks/k3s-devsecops-remaining-gates.vi.md'
+      - 'docs/runbooks/alertmanager-e2e.vi.md'
+      - 'k8s/security/**'
+      - 'k8s/gitops/**'
+      - '.github/workflows/container-release.yml'
+      - '.github/workflows/gitops-promotion.yml'
+      - '.github/workflows/argocd-bootstrap.yml'
+      - '.github/workflows/sigstore-policy-controller-bootstrap.yml'
+      - '.github/workflows/longhorn-storage-bootstrap.yml'
+      - '.github/workflows/cnpg-azure-backup-bootstrap.yml'
+      - '.github/workflows/admission-staging-gate.yml'
+      - '.github/workflows/k3s-production-go-live-gate.yml'
+      - '.github/workflows/pod-security-production-rollout.yml'
+      - '.github/workflows/k3s-devsecops-gate.yml'
+      - '.github/workflows/dora-metrics.yml'
+      - '.github/workflows/alertmanager-e2e.yml'
+      - '.github/workflows/control-plane-rebuild-drill.yml'
+      - 'ansible/enterprise-k3s/playbooks/50-control-plane-rebuild-drill.yml'
+      - 'scripts/test-control-plane-rebuild-drill.ps1'
+      - '.github/workflows/application-restore-smoke.yml'
+      - 'scripts/test-application-restore-smoke.ps1'
+      - 'docs/runbooks/dr-control-plane-application.vi.md'
+      - '.github/workflows/k3s-backup-agent-rollout.yml'
+      - '.github/workflows/harbor-clean-node-drill.yml'
+      - '.github/workflows/cnpg-restore-drill.yml'
+      - '.github/workflows/vault-recovery-drill.yml'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-and-validate:
+    name: Render and validate Kubernetes overlays
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, staging, prod]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Validate immutable workflow action pins
+        shell: bash
+        run: python scripts/validate-workflow-action-pins.py
+
+      - name: Validate protected workflow contract
+        shell: bash
+        run: python scripts/validate-protected-workflow-contract.py
+
+      - name: Validate GitOps promotion supply-chain contract
+        shell: bash
+        run: python scripts/validate-gitops-promotion-contract.py
+
+      - name: Validate container release supply-chain contract
+        shell: bash
+        run: python scripts/validate-container-release-contract.py
+
+      - name: Validate K3s backup-agent contract
+        shell: bash
+        run: python scripts/validate-backup-agent-contract.py
+
+      - name: Validate Longhorn host audit contract
+        shell: bash
+        run: |
+          python scripts/validate-storage-host-audit-contract.py
+          python -m pip install --disable-pip-version-check --no-input ansible-core==2.18.6
+          ansible-playbook --syntax-check \
+            -i ansible/enterprise-k3s/inventory/production.yml \
+            ansible/enterprise-k3s/playbooks/25-validate-storage-prerequisites.yml
+
+      - name: Validate Azure backup and isolated restore contract
+        shell: pwsh
+        run: ./scripts/tests/azure-production-scripts.Tests.ps1
+
+      - name: Install manifest validation dependency
+        shell: bash
+        run: python -m pip install --disable-pip-version-check --no-input pyyaml==6.0.2
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+        with:
+          version: 'v1.35.5'
+
+      - name: Install pinned kustomize
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/v5.6.0/kustomize_v5.6.0_linux_amd64.tar.gz | tar -xz
+          sudo install -m 0755 kustomize /usr/local/bin/kustomize
+          kustomize version
+
+      - name: Render Kustomize overlay
+        shell: pwsh
+        run: ./scripts/validate-kustomize-release.ps1 -Environment '${{ matrix.environment }}'
+
+      - name: Validate rendered runtime contracts and gRPC targets
+        shell: pwsh
+        run: ./scripts/config/validate-kustomize-runtime.ps1 -Overlay '${{ matrix.environment }}'
+
+      - name: Validate production release invariants
+        if: matrix.environment == 'prod'
+        shell: pwsh
+        run: ./scripts/validate-k3s-release.ps1 -Environment prod -OutputPath artifacts/evidence/release-gate.json
+
+      - name: Validate reliability platform contract
+        if: matrix.environment == 'prod'
+        shell: pwsh
+        run: ./scripts/validate-reliability-platform.ps1 -OutputPath artifacts/evidence/reliability-platform-contract.json
+
+      - name: Validate migration artifact and startup isolation
+        if: matrix.environment == 'prod'
+        shell: pwsh
+        run: ./scripts/validate-database-migration-contract.ps1 -OutputPath artifacts/evidence/database-migration-contract.json
+
+      - name: Validate container build contract
+        if: matrix.environment == 'prod'
+        shell: bash
+        run: python scripts/validate-container-build-contract.py
+
+      - name: Validate Gatekeeper policy manifests
+        if: matrix.environment == 'prod'
+        shell: pwsh
+        run: ./scripts/verify-admission-policy.ps1
+
+      - name: Check restricted workload readiness
+        if: matrix.environment == 'prod'
+        shell: bash
+        run: python scripts/check-restricted-workloads.py artifacts/k8s/prod.yaml
+
+      - name: Validate data and system GitOps planes
+        if: matrix.environment == 'prod'
+        shell: pwsh
+        run: |
+          ./scripts/validate-gitops-plane.ps1 -Path k8s/gitops/data-plane -Namespace his-hope-data
+          ./scripts/validate-gitops-plane.ps1 -Path k8s/gitops/system-plane -Namespace his-hope-system
+          ./scripts/validate-gitops-plane.ps1 -Path k8s/overlays/prod-spire-azure -Namespace spire
+          ./scripts/validate-gitops-plane.ps1 -Path k8s/observability/overlays/prod -Namespace monitoring
+          ./scripts/validate-gitops-plane.ps1 -Path k8s/gitops/bootstrap -Namespace argocd
+          ./scripts/validate-argocd-bootstrap.ps1 -OutputPath artifacts/evidence/argocd-bootstrap-contract.json
+          python scripts/validate-argocd-project-scope.py
+
+      - name: Render signature policy
+        if: matrix.environment == 'prod'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/evidence | Out-Null
+          kubectl kustomize k8s/gitops/signature-policy | Tee-Object artifacts/evidence/signature-policy.yaml
+
+      - name: Validate signature controller contract
+        if: matrix.environment == 'prod'
+        shell: pwsh
+        run: ./scripts/validate-signature-controller-contract.ps1 -OutputPath artifacts/evidence/signature-controller-contract.json
+
+      - name: Validate storage and backup contract
+        if: matrix.environment == 'prod'
+        shell: pwsh
+        run: ./scripts/validate-storage-backup-contract.ps1 -StaticOnly -OutputPath artifacts/evidence/storage-backup-contract.json
+
+      - name: Validate measured DR evidence contract
+        if: matrix.environment == 'prod'
+        shell: pwsh
+        run: ./scripts/validate-dr-evidence.ps1 -StaticOnly -OutputPath artifacts/evidence/dr-evidence-contract.json
+
+      - name: Validate observability and DORA alert contract
+        if: matrix.environment == 'prod'
+        shell: pwsh
+        run: ./scripts/validate-observability-contract.ps1 -OutputPath artifacts/evidence/observability-contract.json
+
+      - name: Validate DORA metrics producer contract
+        if: matrix.environment == 'prod'
+        shell: bash
+        run: |
+          python -m unittest discover -s scripts/tests -p 'test_*.py' -v
+          python scripts/validate-dora-metrics-contract.py
+
+      - name: Validate K3s host security contract
+        if: matrix.environment == 'prod'
+        shell: bash
+        run: python scripts/validate-k3s-host-security-contract.py
+
+      - name: Validate K3s Secrets Encryption rotation contract
+        if: matrix.environment == 'prod'
+        shell: bash
+        run: python scripts/validate-k3s-secrets-rotation-contract.py
+
+      - name: Validate Linkerd mTLS policy contract
+        if: matrix.environment == 'prod'
+        shell: bash
+        run: python scripts/validate-linkerd-policy-contract.py
+
+      - name: Validate error-budget promotion gate contract
+        if: matrix.environment == 'prod'
+        shell: pwsh
+        run: ./scripts/validate-error-budget-gate.ps1 -OutputPath artifacts/evidence/error-budget-gate.json
+
+      - name: Render monitoring and synthetic journey manifests
+        if: matrix.environment == 'prod'
+        shell: pwsh
+        run: kubectl kustomize k8s/monitoring --load-restrictor LoadRestrictionsNone | Out-File -Encoding utf8 artifacts/k8s/monitoring.yaml
+
+      - name: Render shared CSI variants without applying them
+        if: matrix.environment == 'prod'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/evidence | Out-Null
+          kubectl kustomize k8s/overlays/prod-shared-storage --load-restrictor LoadRestrictionsNone | Out-File -Encoding utf8 artifacts/evidence/prod-shared-storage-render.yaml
+          if ($LASTEXITCODE -ne 0) { throw 'Application shared-storage overlay failed to render.' }
+          kubectl kustomize k8s/observability/overlays/prod-shared-storage --load-restrictor LoadRestrictionsNone | Out-File -Encoding utf8 artifacts/evidence/observability-shared-storage-render.yaml
+          if ($LASTEXITCODE -ne 0) { throw 'Observability shared-storage overlay failed to render.' }
+
+      - name: Upload storage and backup evidence
+        if: always() && matrix.environment == 'prod'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: storage-backup-contract
+          path: artifacts/evidence/storage-backup-contract.json
+          if-no-files-found: error
+
+      - name: Upload DR evidence contract
+        if: always() && matrix.environment == 'prod'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dr-evidence-contract
+          path: artifacts/evidence/dr-evidence-contract.json
+          if-no-files-found: error
+
+      - name: Upload signature controller evidence
+        if: always() && matrix.environment == 'prod'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: signature-controller-contract
+          path: artifacts/evidence/signature-controller-contract.json
+          if-no-files-found: error
+
+      - name: Upload observability evidence
+        if: always() && matrix.environment == 'prod'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: observability-contract
+          path: artifacts/evidence/observability-contract.json
+          if-no-files-found: error
+
+      - name: Upload Argo CD bootstrap evidence
+        if: always() && matrix.environment == 'prod'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: argocd-bootstrap-contract
+          path: artifacts/evidence/argocd-bootstrap-contract.json
+          if-no-files-found: error
+
+      - name: Upload release gate evidence
+        if: always() && matrix.environment == 'prod'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-gate
+          path: artifacts/evidence/release-gate.json
+          if-no-files-found: error
+
+      - name: Upload migration contract evidence
+        if: always() && matrix.environment == 'prod'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: database-migration-contract
+          path: artifacts/evidence/database-migration-contract.json
+          if-no-files-found: error
+
+      - name: Upload reliability contract evidence
+        if: always() && matrix.environment == 'prod'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: reliability-platform-contract
+          path: artifacts/evidence/reliability-platform-contract.json
+          if-no-files-found: error
+
+      - name: Upload rendered manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: k8s-${{ matrix.environment }}-rendered
+          path: artifacts/k8s/${{ matrix.environment }}.yaml
+          if-no-files-found: error
+
+      - name: Upload monitoring render
+        if: always() && matrix.environment == 'prod'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: k8s-monitoring-rendered
+          path: artifacts/k8s/monitoring.yaml
+          if-no-files-found: error
+
+  filesystem-policy:
+    name: Scan Kubernetes configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Trivy IaC scan
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+        with:
+          scan-type: config
+          scan-ref: k8s
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Check for secret values in manifests
+        run: python scripts/validate-manifest-secret-contract.py

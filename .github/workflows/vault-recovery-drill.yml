@@ -1,0 +1,81 @@
+name: Vault Recovery DR Drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Protected target environment
+        required: true
+        type: choice
+        options: [staging, production]
+      apply:
+        description: Restart one Vault member and verify Azure auto-unseal (false is dry-run)
+        required: true
+        default: false
+        type: boolean
+      pod:
+        description: Vault StatefulSet pod to restart
+        required: true
+        default: vault-0
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vault-recovery-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+        with:
+          version: 'v1.35.5'
+
+      - name: Materialize target kubeconfig
+        id: kubeconfig
+        shell: pwsh
+        env:
+          KUBECONFIG_STAGING_B64: ${{ secrets.KUBECONFIG_STAGING_B64 }}
+          KUBECONFIG_PRODUCTION_B64: ${{ secrets.KUBECONFIG_PRODUCTION_B64 }}
+        run: |
+          $encoded = if ('${{ inputs.environment }}' -eq 'production') { $env:KUBECONFIG_PRODUCTION_B64 } else { $env:KUBECONFIG_STAGING_B64 }
+          if ([string]::IsNullOrWhiteSpace($encoded)) { throw 'Kubeconfig secret is missing.' }
+          $path = Join-Path $env:RUNNER_TEMP "kubeconfig-${{ inputs.environment }}.yaml"
+          [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($encoded))
+          "path=$path" >> $env:GITHUB_OUTPUT
+
+      - name: Run Vault recovery drill
+        shell: pwsh
+        run: |
+          $args = @('-File', './scripts/test-vault-recovery-drill.ps1',
+            '-Environment', '${{ inputs.environment }}',
+            '-Kubeconfig', '${{ steps.kubeconfig.outputs.path }}',
+            '-Pod', '${{ inputs.pod }}',
+            '-OutputPath', 'artifacts/evidence/vault-recovery-drill.json')
+          if ('${{ inputs.environment }}' -eq 'production') { $args += '-AllowProduction' }
+          if ('${{ inputs.apply }}' -eq 'true') { $args += '-WhatIf:$false' } else { $args += '-WhatIf' }
+          & pwsh @args
+
+      - name: Validate measured evidence
+        if: ${{ inputs.apply == true }}
+        shell: pwsh
+        run: ./scripts/validate-dr-evidence.ps1 -EvidenceDirectory artifacts/evidence -OnlyFile vault-recovery-drill.json -OutputPath artifacts/evidence/dr-evidence-contract.json
+
+      - name: Upload Vault recovery evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: vault-recovery-drill-${{ github.run_id }}
+          path: artifacts/evidence/vault-recovery-drill.json
+          if-no-files-found: error
+
+      - name: Remove protected kubeconfig
+        if: always()
+        shell: pwsh
+        run: Remove-Item -LiteralPath '${{ steps.kubeconfig.outputs.path }}' -Force -ErrorAction SilentlyContinue

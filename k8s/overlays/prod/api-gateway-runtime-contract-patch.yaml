@@ -1,0 +1,15 @@
+# ApiGateway must consume the same canonical endpoint contract as the BFFs.
+# Without it YARP falls back to the Compose aliases (identityservice, ...),
+# which are not DNS names in the production namespace and surface as 502.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  template:
+    spec:
+      containers:
+        - name: api-gateway
+          envFrom:
+            - configMapRef:
+                name: runtime-contract-config

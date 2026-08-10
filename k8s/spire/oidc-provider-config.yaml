@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-oidc
+  namespace: spire
+data:
+  oidc-provider.conf: |
+    log_level = "INFO"
+    domains = ["oidc.his-hope.local", "spire-oidc.spire.svc.cluster.local"]
+    insecure_addr = "0.0.0.0:8082"
+    allow_insecure_scheme = false
+    jwt_issuer = "https://oidc.his-hope.local"
+    jwks_uri = "https://oidc.his-hope.local/keys"
+
+    workload_api {
+      socket_path = "/run/spire/sockets/agent.sock"
+      trust_domain = "his-hope.local"
+      poll_interval = "10s"
+    }

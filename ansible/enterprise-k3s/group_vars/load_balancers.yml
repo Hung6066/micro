@@ -1,0 +1,35 @@
+lb_interface: ens192
+lb_vip: 172.16.102.100
+lb_vip_cidr: 24
+lb_virtual_router_id: 52
+lb_keepalived_auth_pass: "{{ vault_lb_keepalived_auth_pass }}"
+
+lb_k3s_api_port: 6443
+lb_k3s_api_backends:
+  - name: k3s-server-1
+    address: 172.16.102.7
+  - name: k3s-server-2
+    address: 172.16.102.8
+  - name: k3s-server-3
+    address: 172.16.102.9
+
+lb_ingress_http_port: 80
+lb_ingress_http_node_port: 30080
+lb_ingress_backends:
+  - name: k3s-worker-1
+    address: 172.16.102.10
+  - name: k3s-worker-2
+    address: 172.16.102.12
+
+# Harbor registry HTTPS is exposed through the same external LB VIP on the
+# standard public HTTPS port. HAProxy performs TCP passthrough to Traefik,
+# which selects the Harbor ingress and terminates TLS.
+lb_harbor_https_port: 443
+# Route public TLS to Traefik. Traefik selects harbor-public by SNI/Host and
+# terminates TLS with harbor-public-tls.
+lb_harbor_https_node_port: 30443
+lb_harbor_https_backends:
+  - name: k3s-worker-1
+    address: 172.16.102.10
+  - name: k3s-worker-2
+    address: 172.16.102.12

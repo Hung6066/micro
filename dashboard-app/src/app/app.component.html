@@ -1,0 +1,75 @@
+<mat-toolbar color="primary" class="app-toolbar">
+  <button mat-icon-button (click)="toggleSidenav()" [attr.aria-label]="'app.dashboard.toggleNav' | hhTranslate:'Toggle navigation'">
+    <mat-icon>menu</mat-icon>
+  </button>
+  <span class="app-title">{{ 'app.dashboard.title' | hhTranslate:'His.Hope Dashboard' }}</span>
+
+  <button mat-icon-button type="button" (click)="paletteOpen = true" [attr.aria-label]="'app.dashboard.openPalette' | hhTranslate:'Open command palette'">
+    <mat-icon>search</mat-icon>
+  </button>
+
+  <span class="toolbar-spacer"></span>
+
+  <app-alert-panel></app-alert-panel>
+
+  <hh-language-switcher></hh-language-switcher>
+
+  <button mat-icon-button (click)="toggleTheme()" [attr.aria-label]="'app.dashboard.toggleTheme' | hhTranslate:'Toggle dark mode'">
+    <mat-icon>brightness_6</mat-icon>
+  </button>
+
+  <button mat-icon-button [matMenuTriggerFor]="userMenu" [attr.aria-label]="'app.dashboard.userMenu' | hhTranslate:'User menu'">
+    <mat-icon>account_circle</mat-icon>
+  </button>
+  <mat-menu #userMenu="matMenu">
+    <button mat-menu-item *ngIf="isAuthenticated$ | async" (click)="onLogout()">
+      <mat-icon>logout</mat-icon>
+      <span>{{ 'app.dashboard.logout' | hhTranslate:'Logout' }}</span>
+    </button>
+    <button mat-menu-item *ngIf="!(isAuthenticated$ | async)" (click)="onLogin()">
+      <mat-icon>login</mat-icon>
+      <span>{{ 'app.dashboard.login' | hhTranslate:'Login' }}</span>
+    </button>
+  </mat-menu>
+</mat-toolbar>
+
+<hh-offline-banner></hh-offline-banner>
+<hh-command-palette [open]="paletteOpen" [commands]="commands" (closed)="paletteOpen = false" (selected)="onCommand($event.id)" />
+
+<mat-sidenav-container class="sidenav-container">
+  <mat-sidenav #sidenav
+    [mode]="(isMobile$ | async) ? 'over' : 'side'"
+    [opened]="sidenavOpened$ | async"
+    class="app-sidenav">
+    <hh-brand [caption]="'app.dashboard.workspace' | hhTranslate:'Operations workspace'"></hh-brand>
+    <mat-nav-list>
+      <a mat-list-item routerLink="/resources" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>dns</mat-icon>
+        <span matListItemTitle>{{ 'app.dashboard.resources' | hhTranslate:'Resources' }}</span>
+      </a>
+      <a mat-list-item routerLink="/logs" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>article</mat-icon>
+        <span matListItemTitle>{{ 'app.dashboard.logs' | hhTranslate:'Logs' }}</span>
+      </a>
+      <a mat-list-item routerLink="/traces" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>timeline</mat-icon>
+        <span matListItemTitle>{{ 'app.dashboard.traces' | hhTranslate:'Traces' }}</span>
+      </a>
+      <a mat-list-item routerLink="/slo" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>speed</mat-icon>
+        <span matListItemTitle>{{ 'app.dashboard.slo' | hhTranslate:'SLO' }}</span>
+      </a>
+      <a mat-list-item routerLink="/metrics" routerLinkActive="active-link">
+        <mat-icon matListItemIcon>monitoring</mat-icon>
+        <span matListItemTitle>{{ 'app.dashboard.metrics' | hhTranslate:'Metrics' }}</span>
+      </a>
+    </mat-nav-list>
+  </mat-sidenav>
+
+  <mat-sidenav-content class="sidenav-content">
+    <main class="main-content">
+      <router-outlet></router-outlet>
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>
+<hh-toast-outlet />

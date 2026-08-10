@@ -1,0 +1,52 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Production observability is a separate GitOps plane so replicated storage
+# can be selected without changing local/dev storage defaults.
+resources:
+  - ../../k3s-observability.yaml
+  - ../../production-secrets.yaml
+  - ../../security-exceptions.yaml
+  # The base already owns Prometheus, Alertmanager, Grafana, Jaeger, OTEL and
+  # Loki. Add only the monitoring-plane resources that are not duplicated by
+  # that base; including the whole monitoring kustomization would register
+  # duplicate ConfigMaps/Deployments and fail closed at render time.
+  - ../../../monitoring/incident-response.yaml
+  - ../../../monitoring/slo-exporter-config.yaml
+  - ../../../monitoring/servicemonitors.yaml
+  - ../../../monitoring/blackbox-exporter-config.yaml
+  - ../../../monitoring/anomaly-rules.yaml
+  - ../../../monitoring/bff-pod-monitor.yaml
+  - ../../../monitoring/bff-grafana-dashboard.yaml
+  - ../../../monitoring/bff-slo-alerts.yaml
+  - ../../../monitoring/dora-metrics-dashboard.yaml
+  - ../../../monitoring/elasticsearch-audit-ilm.yaml
+  - ../../../monitoring/elasticsearch-ilm-policy.yaml
+  - ../../../monitoring/elasticsearch-index-template.yaml
+  - ../../../monitoring/elasticsearch-secrets.yaml
+  - ../../../monitoring/elasticsearch.yaml
+  - ../../../monitoring/kibana.yaml
+  - ../../../monitoring/grafana-dashboards.yaml
+  - ../../../monitoring/synthetic-monitor-secrets.yaml
+  - ../../../monitoring/synthetic-monitor-config.yaml
+  - ../../../jobs/synthetic-monitor-cronjob.yaml
+
+patches:
+  - target:
+      group: ""
+      version: v1
+      kind: PersistentVolumeClaim
+      name: (prometheus-data|grafana-data|jaeger-data|loki-data|synthetic-monitor-results)
+    patch: |-
+      - op: replace
+        path: /spec/storageClassName
+        value: longhorn
+  - target:
+      group: apps
+      version: v1
+      kind: StatefulSet
+      name: elasticsearch
+    patch: |-
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: longhorn

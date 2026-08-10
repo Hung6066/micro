@@ -1,0 +1,60 @@
+---
+# Headless service for StatefulSet DNS
+apiVersion: v1
+kind: Service
+metadata:
+  name: cockroachdb
+  namespace: his-hope
+  labels:
+    app: cockroachdb
+  annotations:
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - port: 26257
+    targetPort: 26257
+    name: sql
+  - port: 26258
+    targetPort: 26258
+    name: inter-node
+  selector:
+    app: cockroachdb
+---
+# Public service for application connections
+apiVersion: v1
+kind: Service
+metadata:
+  name: cockroachdb-public
+  namespace: his-hope
+  labels:
+    app: cockroachdb
+spec:
+  type: ClusterIP
+  ports:
+  - port: 26257
+    targetPort: 26257
+    name: sql
+  - port: 8080
+    targetPort: 8080
+    name: http
+  selector:
+    app: cockroachdb
+---
+# Load balancer for external SQL access
+apiVersion: v1
+kind: Service
+metadata:
+  name: cockroachdb-loadbalancer
+  namespace: his-hope
+  labels:
+    app: cockroachdb
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 26257
+    targetPort: 26257
+    name: sql
+  selector:
+    app: cockroachdb

@@ -1,0 +1,120 @@
+# The BFFs expose the canonical /health endpoint.  The old /health/ready
+# probe was copied from the backend services and kept every BFF unready even
+# after the process had started successfully.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: billing-bff
+          livenessProbe:
+            httpGet:
+              path: /health
+          readinessProbe:
+            httpGet:
+              path: /health
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: clinical-bff
+          livenessProbe:
+            httpGet:
+              path: /health
+          readinessProbe:
+            httpGet:
+              path: /health
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: dashboard-bff
+          livenessProbe:
+            httpGet:
+              path: /health
+          readinessProbe:
+            httpGet:
+              path: /health
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: patient-bff
+          livenessProbe:
+            httpGet:
+              path: /health
+          readinessProbe:
+            httpGet:
+              path: /health
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: lab-bff
+          livenessProbe:
+            httpGet:
+              path: /health
+          readinessProbe:
+            httpGet:
+              path: /health
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: pharmacy-bff
+          livenessProbe:
+            httpGet:
+              path: /health
+          readinessProbe:
+            httpGet:
+              path: /health
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: systemdashboard-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: systemdashboard-bff
+          env:
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: systemdashboard-bff-secrets
+                  key: redis-url
+          livenessProbe:
+            httpGet:
+              path: /health
+          readinessProbe:
+            httpGet:
+              path: /health

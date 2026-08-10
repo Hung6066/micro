@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "ClinicalService.Api": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:7195;http://localhost:7200"
+    }
+  }
+}

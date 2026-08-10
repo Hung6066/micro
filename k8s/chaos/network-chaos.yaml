@@ -1,0 +1,65 @@
+# Network partition experiment — monthly
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: network-partition-monthly
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    chaos-mesh/experiment-type: network-partition
+    chaos-mesh/schedule: game-day
+  annotations:
+    description: "Monthly Game Day: partitions identity-service-0 from patient-service-0 and appointment-service-0 on the 1st of every month at 3 AM to test inter-service circuit breakers and degraded-mode operation"
+    maintainer: "his-hope-sre@hishop.com"
+    game-day-scope: "monthly-full-chaos"
+    recovery-plan: "Verify gRPC circuit breakers open on partition, services degrade gracefully, and connectivity restores automatically when partition ends"
+spec:
+  schedule: "0 3 1 * *"  # 1st of every month at 3 AM
+  historyLimit: 5
+  type: NetworkChaos
+  networkChaos:
+    action: partition
+    mode: all
+    selector:
+      namespaces: [his-hope]
+      pods:
+        his-hope: ["identity-service-0"]
+    direction: both
+    target:
+      mode: all
+      selector:
+        namespaces: [his-hope]
+        pods:
+          his-hope: ["patient-service-0", "appointment-service-0"]
+    duration: "3m"
+---
+# Network latency injection — weekly
+apiVersion: chaos-mesh.org/v1alpha1
+kind: Schedule
+metadata:
+  name: network-latency-weekly
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    chaos-mesh/experiment-type: network-latency
+    chaos-mesh/schedule: routine
+  annotations:
+    description: "Injects 200ms (±50ms jitter, 50% correlation) latency on all service components every Wednesday at 4 AM for 10 minutes to test timeout tuning and user-facing responsiveness under degraded network conditions"
+    maintainer: "his-hope-sre@hishop.com"
+    game-day-scope: "weekly-chaos-wednesday"
+spec:
+  schedule: "0 4 * * 3"  # Every Wednesday at 4 AM
+  historyLimit: 3
+  type: NetworkChaos
+  networkChaos:
+    action: delay
+    mode: all
+    selector:
+      namespaces: [his-hope]
+      labelSelectors:
+        "app.kubernetes.io/component": "service"
+    delay:
+      latency: "200ms"
+      jitter: "50ms"
+      correlation: "50"
+    duration: "10m"

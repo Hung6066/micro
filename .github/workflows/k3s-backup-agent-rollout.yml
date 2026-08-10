@@ -1,0 +1,277 @@
+name: K3s Backup Agent Rollout
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply the reviewed backup-agent playbook (false runs check mode only)
+        required: true
+        default: false
+        type: boolean
+      change_reference:
+        description: Approved change/ticket reference
+        required: true
+        type: string
+      approval_code:
+        description: Required only for apply; enter APPROVE-BACKUP-AGENTS
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k3s-backup-agents-production
+  cancel-in-progress: false
+
+jobs:
+  rollout:
+    name: Backup agents on K3s servers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install pinned Ansible
+        shell: bash
+        run: python3 -m pip install --disable-pip-version-check --no-input ansible-core==2.18.6
+
+      - name: Materialize protected SSH and Vault inputs
+        id: runtime
+        shell: pwsh
+        env:
+          ANSIBLE_SSH_PRIVATE_KEY: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
+          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
+          AZURE_PRODUCTION_ENV_B64: ${{ secrets.AZURE_PRODUCTION_ENV_B64 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:ANSIBLE_SSH_PRIVATE_KEY)) { throw 'ANSIBLE_SSH_PRIVATE_KEY is required.' }
+          if ([string]::IsNullOrWhiteSpace($env:ANSIBLE_VAULT_PASSWORD)) { throw 'ANSIBLE_VAULT_PASSWORD is required.' }
+          if ([string]::IsNullOrWhiteSpace($env:AZURE_PRODUCTION_ENV_B64)) { throw 'AZURE_PRODUCTION_ENV_B64 is required.' }
+          $key = Join-Path $env:RUNNER_TEMP 'his-hope-deploy.key'
+          $vault = Join-Path $env:RUNNER_TEMP 'his-hope-vault-password'
+          [IO.File]::WriteAllText($key, $env:ANSIBLE_SSH_PRIVATE_KEY, [Text.UTF8Encoding]::new($false))
+          [IO.File]::WriteAllText($vault, $env:ANSIBLE_VAULT_PASSWORD, [Text.UTF8Encoding]::new($false))
+          $azure = Join-Path $env:RUNNER_TEMP 'azure-production.env'
+          [IO.File]::WriteAllBytes($azure, [Convert]::FromBase64String($env:AZURE_PRODUCTION_ENV_B64))
+          if ((Get-Item -LiteralPath $azure).Length -eq 0) { throw 'Decoded Azure production env is empty.' }
+          & chmod 600 $key $vault
+          "key=$key" >> $env:GITHUB_OUTPUT
+          "vault=$vault" >> $env:GITHUB_OUTPUT
+          "azure=$azure" >> $env:GITHUB_OUTPUT
+
+      - name: Verify Azure SAS source matches encrypted Ansible Vault
+        shell: bash
+        env:
+          AZURE_ENV_FILE: ${{ steps.runtime.outputs.azure }}
+          VAULT_PASSWORD_FILE: ${{ steps.runtime.outputs.vault }}
+        run: |
+          set -euo pipefail
+          vault_plain="$(mktemp)"
+          trap 'rm -f "$vault_plain"' EXIT
+          chmod 600 "$vault_plain"
+          ansible-vault view ansible/enterprise-k3s/group_vars/vault.yml \
+            --vault-password-file "$VAULT_PASSWORD_FILE" > "$vault_plain"
+          python3 - "$AZURE_ENV_FILE" "$vault_plain" ansible/enterprise-k3s/group_vars/all.yml <<'PY'
+          import hashlib
+          import pathlib
+          import sys
+          import yaml
+
+          def parse_env(path):
+              values = {}
+              for line in pathlib.Path(path).read_text(encoding='utf-8').splitlines():
+                  line = line.strip()
+                  if line and not line.startswith('#') and '=' in line:
+                      key, value = line.split('=', 1)
+                      values[key] = value
+              return values
+
+          azure = parse_env(sys.argv[1])
+          vault = yaml.safe_load(pathlib.Path(sys.argv[2]).read_text(encoding='utf-8')) or {}
+          defaults = yaml.safe_load(pathlib.Path(sys.argv[3]).read_text(encoding='utf-8')) or {}
+          source = {**defaults, **vault}
+          vault_endpoint = str(source.get('azure_storage_endpoint', '')).rstrip('/').strip()
+          vault_account = vault_endpoint.removeprefix('https://').split('.', 1)[0] if vault_endpoint.startswith('https://') else ''
+          azure_sas = azure.get('AZURE_STORAGE_SAS_TOKEN', '').lstrip('?').strip()
+          vault_sas = str(source.get('vault_backup_sas_token', '')).lstrip('?').strip()
+          pairs = {
+              'AZURE_STORAGE_ACCOUNT': (azure.get('AZURE_STORAGE_ACCOUNT', '').strip(), vault_account),
+              'AZURE_STORAGE_CONTAINER': (azure.get('AZURE_STORAGE_CONTAINER', '').strip(), str(source.get('azure_storage_container', '')).strip()),
+              'AZURE_STORAGE_ENDPOINT': (azure.get('AZURE_STORAGE_ENDPOINT', '').rstrip('/').strip(), vault_endpoint),
+              'AZURE_STORAGE_SAS_TOKEN': (azure_sas, vault_sas),
+          }
+          if any(not left or not right for left, right in pairs.values()):
+              raise SystemExit('Azure or Vault backup source value is missing.')
+          if 'REPLACE_ME' in azure_sas or 'REPLACE_ME' in vault_sas:
+              raise SystemExit('Placeholder SAS value is not allowed.')
+          mismatches = [key for key, (left, right) in pairs.items() if hashlib.sha256(left.encode()).digest() != hashlib.sha256(right.encode()).digest()]
+          if mismatches:
+              raise SystemExit('Azure production env does not match encrypted Ansible Vault for: ' + ', '.join(mismatches))
+          print('Azure backup source consistency: PASS')
+          PY
+
+      - name: Validate change approval input
+        if: ${{ inputs.apply == true }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test '${{ inputs.approval_code }}' = 'APPROVE-BACKUP-AGENTS'
+
+      - name: Validate Azure Blob access before Ansible
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/validate-azure-blob-access.py \
+            --env-file '${{ steps.runtime.outputs.azure }}'
+
+      - name: Ansible syntax check
+        shell: bash
+        run: |
+          set -euo pipefail
+          ansible-playbook \
+            -i ansible/enterprise-k3s/inventory/production.yml \
+            ansible/enterprise-k3s/playbooks/30-backup-agents.yml \
+            --syntax-check \
+            --private-key '${{ steps.runtime.outputs.key }}' \
+            --vault-password-file '${{ steps.runtime.outputs.vault }}'
+
+      - name: Preflight backup-agent playbook (always check mode)
+        shell: bash
+        run: |
+          set -euo pipefail
+          ansible-playbook \
+            -i ansible/enterprise-k3s/inventory/production.yml \
+            ansible/enterprise-k3s/playbooks/30-backup-agents.yml \
+            --check \
+            --private-key '${{ steps.runtime.outputs.key }}' \
+            --vault-password-file '${{ steps.runtime.outputs.vault }}'
+
+      - name: Apply approved backup-agent playbook
+        if: ${{ inputs.apply == true }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ansible-playbook \
+            -i ansible/enterprise-k3s/inventory/production.yml \
+            ansible/enterprise-k3s/playbooks/30-backup-agents.yml \
+            --private-key '${{ steps.runtime.outputs.key }}' \
+            --vault-password-file '${{ steps.runtime.outputs.vault }}'
+
+      - name: Verify timer and service state after apply
+        if: ${{ inputs.apply == true }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ansible k3s_servers \
+            -i ansible/enterprise-k3s/inventory/production.yml \
+            -b --private-key '${{ steps.runtime.outputs.key }}' \
+            -m shell \
+            -a 'systemctl start his-hope-k3s-etcd-snapshot.service'
+          ansible k3s_servers \
+            -i ansible/enterprise-k3s/inventory/production.yml \
+            -b --private-key '${{ steps.runtime.outputs.key }}' \
+            -m shell \
+            -a 'if systemctl is-enabled --quiet his-hope-k3s-etcd-snapshot.timer && systemctl is-active --quiet his-hope-k3s-etcd-snapshot.timer && test "$(systemctl show his-hope-k3s-etcd-snapshot.service --property=Result --value)" = success; then echo BACKUP_AGENT_OK; else echo BACKUP_AGENT_NOT_READY; fi' \
+            | tee /tmp/backup-agent-runtime.txt
+          success_count="$(grep -c 'BACKUP_AGENT_OK' /tmp/backup-agent-runtime.txt || true)"
+          mkdir -p artifacts/evidence
+          python3 - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          text = open('/tmp/backup-agent-runtime.txt', encoding='utf-8').read()
+          result = {
+              'status': 'pass' if text.count('BACKUP_AGENT_OK') == 3 else 'fail',
+              'changeReference': os.environ.get('CHANGE_REFERENCE', ''),
+              'target': 'k3s_servers',
+              'timerUnit': 'his-hope-k3s-etcd-snapshot.timer',
+              'serviceUnit': 'his-hope-k3s-etcd-snapshot.service',
+              'executedAtUtc': datetime.now(timezone.utc).isoformat(),
+              'hostsReported': text.count('BACKUP_AGENT_OK')
+          }
+          json.dump(result, open('artifacts/evidence/k3s-backup-agents-runtime.json', 'w', encoding='utf-8'), indent=2)
+          if [ "$success_count" -ne 3 ]; then
+            echo 'Backup agent timer/service is not ready on all three K3s servers.' >&2
+            exit 1
+          fi
+          PY
+        env:
+          CHANGE_REFERENCE: ${{ inputs.change_reference }}
+
+      - name: Verify fresh etcd snapshots on all control-plane servers
+        if: ${{ inputs.apply == true }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ansible k3s_servers \
+            -i ansible/enterprise-k3s/inventory/production.yml \
+            -b --private-key '${{ steps.runtime.outputs.key }}' \
+            -m shell \
+            -a "find /var/lib/rancher/k3s/server/db/snapshots -maxdepth 1 -type f -name 'etcd-snapshot-*' -printf '%T@ %f\\n' | sort -nr | head -n1" \
+            -o | tee /tmp/etcd-snapshot-inventory.txt
+          mkdir -p artifacts/evidence
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import time
+          from datetime import datetime, timezone
+
+          text = open('/tmp/etcd-snapshot-inventory.txt', encoding='utf-8').read()
+          records = []
+          for line in text.splitlines():
+              match = re.match(r'^(?P<host>[^ |]+)\s+\|\s+SUCCESS\s+=>\s+(?P<value>.*)$', line)
+              if not match:
+                  continue
+              value = match.group('value').strip().strip('"')
+              parts = value.split(maxsplit=1)
+              if len(parts) != 2:
+                  records.append({'host': match.group('host'), 'status': 'missing'})
+                  continue
+              try:
+                  age_minutes = max(0.0, (time.time() - float(parts[0])) / 60.0)
+              except ValueError:
+                  age_minutes = None
+              records.append({
+                  'host': match.group('host'),
+                  'latestSnapshot': parts[1],
+                  'ageMinutes': round(age_minutes, 3) if age_minutes is not None else None,
+                  'status': 'pass' if age_minutes is not None and age_minutes <= 30 else 'stale',
+              })
+          healthy = len(records) == 3 and all(item['status'] == 'pass' for item in records)
+          result = {
+              'status': 'pass' if healthy else 'fail',
+              'target': 'k3s_servers',
+              'freshnessWindowMinutes': 30,
+              'executedAtUtc': datetime.now(timezone.utc).isoformat(),
+              'hosts': records,
+          }
+          json.dump(result, open('artifacts/evidence/k3s-etcd-snapshot-freshness.json', 'w', encoding='utf-8'), indent=2)
+          if not healthy:
+              raise SystemExit('etcd snapshot freshness failed on one or more control-plane servers')
+          PY
+
+      - name: Upload runtime evidence
+        if: ${{ always() && inputs.apply == true }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: k3s-backup-agents-${{ github.run_id }}
+          path: artifacts/evidence/k3s-backup-agents-runtime.json
+          if-no-files-found: error
+
+      - name: Upload etcd snapshot freshness evidence
+        if: always() && inputs.apply == true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: k3s-etcd-snapshot-freshness-${{ github.run_id }}
+          path: artifacts/evidence/k3s-etcd-snapshot-freshness.json
+          if-no-files-found: error
+
+      - name: Remove protected inputs
+        if: always()
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath '${{ steps.runtime.outputs.key }}' -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath '${{ steps.runtime.outputs.vault }}' -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath '${{ steps.runtime.outputs.azure }}' -Force -ErrorAction SilentlyContinue

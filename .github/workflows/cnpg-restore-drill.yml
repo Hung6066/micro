@@ -1,0 +1,91 @@
+name: CNPG Database Restore DR Drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Protected target environment
+        required: true
+        type: choice
+        options: [staging, production]
+      apply:
+        description: Run the isolated restore drill (false is dry-run)
+        required: true
+        default: false
+        type: boolean
+      restore_manifest:
+        description: Reviewed CNPG restore manifest path in the repository
+        required: true
+        type: string
+      target_namespace:
+        description: New isolated namespace for the restore
+        required: true
+        type: string
+      rpo_minutes:
+        description: Measured backup age at drill start
+        required: true
+        default: '0'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cnpg-restore-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+        with:
+          version: 'v1.35.5'
+
+      - name: Materialize target kubeconfig
+        id: kubeconfig
+        shell: pwsh
+        env:
+          KUBECONFIG_STAGING_B64: ${{ secrets.KUBECONFIG_STAGING_B64 }}
+          KUBECONFIG_PRODUCTION_B64: ${{ secrets.KUBECONFIG_PRODUCTION_B64 }}
+        run: |
+          $encoded = if ('${{ inputs.environment }}' -eq 'production') { $env:KUBECONFIG_PRODUCTION_B64 } else { $env:KUBECONFIG_STAGING_B64 }
+          if ([string]::IsNullOrWhiteSpace($encoded)) { throw 'Kubeconfig secret is missing.' }
+          $path = Join-Path $env:RUNNER_TEMP "kubeconfig-${{ inputs.environment }}.yaml"
+          [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($encoded))
+          "path=$path" >> $env:GITHUB_OUTPUT
+
+      - name: Run isolated CNPG restore drill
+        shell: pwsh
+        run: |
+          $args = @('-File', './scripts/test-cnpg-restore-drill.ps1',
+            '-Environment', '${{ inputs.environment }}',
+            '-Kubeconfig', '${{ steps.kubeconfig.outputs.path }}',
+            '-RestoreManifest', '${{ inputs.restore_manifest }}',
+            '-TargetNamespace', '${{ inputs.target_namespace }}',
+            '-RpoMinutes', '${{ inputs.rpo_minutes }}',
+            '-OutputPath', 'artifacts/evidence/database-restore-drill.json')
+          if ('${{ inputs.environment }}' -eq 'production') { $args += '-AllowProduction' }
+          if ('${{ inputs.apply }}' -eq 'true') { $args += '-WhatIf:$false' } else { $args += '-WhatIf' }
+          & pwsh @args
+
+      - name: Validate measured evidence
+        if: ${{ inputs.apply == true }}
+        shell: pwsh
+        run: ./scripts/validate-dr-evidence.ps1 -EvidenceDirectory artifacts/evidence -OnlyFile database-restore-drill.json -OutputPath artifacts/evidence/dr-evidence-contract.json
+
+      - name: Upload database restore evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cnpg-restore-drill-${{ github.run_id }}
+          path: artifacts/evidence/database-restore-drill.json
+          if-no-files-found: error
+
+      - name: Remove protected kubeconfig
+        if: always()
+        shell: pwsh
+        run: Remove-Item -LiteralPath '${{ steps.kubeconfig.outputs.path }}' -Force -ErrorAction SilentlyContinue

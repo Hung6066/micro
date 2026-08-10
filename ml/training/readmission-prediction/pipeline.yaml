@@ -1,0 +1,31 @@
+training:
+  project: his-hope-analytics
+  display_name: readmission-predictor-v1
+  model_type: gradient_boosted_trees
+
+  dataset:
+    source: bigquery
+    query: |
+      SELECT
+        patient_features.*,
+        IF(readmitted_30d IS NOT NULL, readmitted_30d, FALSE) as label
+      FROM `his-hope-analytics.ml_features.patient_features` patient_features
+      LEFT JOIN `his-hope-analytics.clinical_facts.*` clinical
+        ON patient_features.patient_id = clinical.patient_id
+      WHERE clinical.encounter_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 YEAR)
+
+  hyperparameters:
+    max_depth: range(4, 10)
+    learning_rate: range(0.01, 0.3)
+    num_rounds: range(100, 500)
+    subsample: range(0.6, 1.0)
+
+  serving:
+    machine_type: n1-standard-4
+    min_replicas: 1
+    max_replicas: 10
+
+  monitoring:
+    prediction_drift_threshold: 0.15
+    feature_drift_threshold: 0.2
+    accuracy_threshold: 0.75

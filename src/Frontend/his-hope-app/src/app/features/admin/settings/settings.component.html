@@ -1,0 +1,91 @@
+    <hh-page-layout>
+      <hh-page-header hhPageHeader [title]="'adminPage.settings' | hhTranslate:'Cài đặt hệ thống'"
+                      [subtitle]="'adminPage.settingsSubtitle' | hhTranslate:'Cấu hình các tham số và giá trị mặc định toàn hệ thống'">
+        <button mat-raised-button color="primary" (click)="saveAll()" [disabled]="saving">
+          <mat-icon>save</mat-icon>
+          @if (!saving) {
+          <span>{{ 'adminPage.saveAll' | hhTranslate:'Lưu tất cả' }}</span>
+          }
+          @if (saving) {
+          <mat-spinner diameter="20"></mat-spinner>
+          }
+        </button>
+      </hh-page-header>
+
+      @if (loading) {
+      <hh-state kind="loading" [message]="'adminPage.loadingSettings' | hhTranslate:'Đang tải cài đặt...'" />
+      } @else if (error) {
+      <hh-state kind="error" [message]="error">
+        <button mat-stroked-button type="button" (click)="loadSettings()">{{ 'common.retry' | hhTranslate }}</button>
+      </hh-state>
+      } @else {
+      <div class="settings-content">
+        <mat-accordion class="settings-accordion" [multi]="true">
+          @for (cat of categories; track cat.key) {
+          <mat-expansion-panel expanded>
+            <mat-expansion-panel-header>
+              <mat-panel-title>
+                <mat-icon>{{ cat.icon }}</mat-icon>
+                {{ cat.label }}
+              </mat-panel-title>
+            </mat-expansion-panel-header>
+
+            <div class="settings-grid">
+              @for (setting of getSettingsByCategory(cat.key); track setting.key) {
+                <div class="setting-item">
+                  <label class="setting-label">{{ setting.label }}</label>
+
+                  @if (setting.type === 'text') {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <input matInput [value]="settingValues[setting.key] || ''"
+                           (input)="onSettingChange(setting.key, $event, setting.type)">
+                  </mat-form-field>
+                  }
+
+                  @if (setting.type === 'number') {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <input matInput type="number" [value]="settingValues[setting.key] ?? 0"
+                           (input)="onSettingChange(setting.key, $event, setting.type)">
+                  </mat-form-field>
+                  }
+
+                  @if (setting.type === 'select') {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                    <mat-select [value]="settingValues[setting.key]"
+                                (selectionChange)="onSettingSelect(setting.key, $event)">
+                      @for (opt of setting.options; track opt.value) {
+                      <mat-option [value]="opt.value">
+                        {{ opt.label }}
+                      </mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                  }
+
+                  @if (setting.type === 'boolean') {
+                  <div class="toggle-wrapper">
+                    <mat-slide-toggle [checked]="settingValues[setting.key] === true"
+                                      (change)="onSettingToggle(setting.key, $event)">
+                      {{ settingValues[setting.key] ? ('adminPage.enabled' | hhTranslate:'Đã bật') : ('adminPage.disabled' | hhTranslate:'Đã tắt') }}
+                    </mat-slide-toggle>
+                  </div>
+                  }
+                </div>
+              }
+            </div>
+          </mat-expansion-panel>
+          }
+        </mat-accordion>
+
+        @if (hasChanges) {
+        <div class="save-bar">
+          <span class="changes-hint">{{ 'adminPage.unsavedChanges' | hhTranslate:'Có thay đổi chưa được lưu' }}</span>
+          <button mat-raised-button color="primary" (click)="saveAll()" [disabled]="saving">
+            <mat-icon>save</mat-icon>
+            {{ 'adminPage.saveAll' | hhTranslate:'Lưu tất cả' }}
+          </button>
+        </div>
+        }
+      </div>
+      }
+    </hh-page-layout>

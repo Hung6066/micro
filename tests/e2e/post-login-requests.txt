@@ -1,0 +1,24 @@
+25. [GET] http://localhost:8081/api/v1/auth/verify => [200] OK
+29. [POST] http://localhost:8081/api/v1/auth/login => [200] OK
+33. [GET] http://localhost:8081/api/v1/auth/verify => [200] OK
+48. [POST] http://localhost:8081/api/v1/security/csp-report => [404] Not Found
+66. [GET] http://localhost:8081/api/v1/dashboard/stats => [FAILED] net::ERR_ABORTED
+67. [GET] http://localhost:8081/api/v1/dashboard/recent-encounters?limit=5 => [401] Unauthorized
+68. [GET] http://localhost:8081/api/v1/dashboard/upcoming-appointments => [FAILED] net::ERR_ABORTED
+69. [GET] http://localhost:8081/api/v1/patients/search?q=&page=1&pageSize=8 => [401] Unauthorized
+70. [POST] http://localhost:8081/api/v1/auth/refresh => [401] Unauthorized
+72. [POST] http://localhost:8081/api/v1/security/csp-report => [404] Not Found
+73. [POST] http://localhost:8081/api/v1/audit/events => [404] Not Found
+74. [POST] http://localhost:8081/api/v1/audit/events => [404] Not Found
+75. [POST] http://localhost:8081/api/v1/audit/events => [404] Not Found
+76. [POST] http://localhost:8081/api/v1/audit/events => [404] Not Found
+77. [POST] http://localhost:8081/api/v1/audit/events => [404] Not Found
+78. [POST] http://localhost:8081/api/v1/audit/events => [404] Not Found
+102. [GET] http://localhost:8081/api/v1/auth/verify => [200] OK
+107. [POST] http://localhost:8081/api/v1/auth/login => [200] OK
+111. [GET] http://localhost:8081/api/v1/auth/verify => [200] OK
+136. [GET] http://localhost:8081/api/v1/auth/verify => [200] OK
+140. [POST] http://localhost:8081/api/v1/auth/login => [200] OK
+144. [GET] http://localhost:8081/api/v1/auth/verify => [200] OK
+
+Note: 122 static requests not shown, run with "static" option to see them.

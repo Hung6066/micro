@@ -1,0 +1,154 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: his-hope-local
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: identity.his-hope.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+    - host: admin.his-hope.local
+      http:
+        paths:
+          - path: /.well-known
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+          - path: /connect
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+          - path: /Account
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+          - path: /api/v1/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+          - path: /api/v1/federation
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: admin-app
+                port:
+                  number: 80
+    - host: dashboard.his-hope.local
+      http:
+        paths:
+          - path: /.well-known
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+          - path: /connect
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+          - path: /Account
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+          - path: /api/v1/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+          - path: /api/v1/federation
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: dashboard-app
+                port:
+                  number: 80
+    - host: app.his-hope.local
+      http:
+        paths:
+          - path: /.well-known
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+          - path: /connect
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+          - path: /Account
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+          - path: /api/v1/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+          - path: /api/v1/federation
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 5003
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

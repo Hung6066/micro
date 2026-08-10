@@ -1,0 +1,234 @@
+---
+# Europe West 1 (Belgium) - Secondary Region
+# His.Hope EMR Multi-Region Deployment
+
+apiVersion: container.cnrm.cloud.google.com/v1beta1
+kind: ContainerCluster
+metadata:
+  name: his-hope-europe-west1
+  namespace: his-hope-infra
+  annotations:
+    config.kubernetes.io/managed-by: "kustomize"
+    region: europe-west1
+    tier: secondary
+spec:
+  name: his-hope-europe-west1
+  location: europe-west1
+  regional: true
+  initialNodeCount: 1
+  network: projects/his-hope-prod/global/networks/his-hope-vpc
+  subnetwork: projects/his-hope-prod/regions/europe-west1/subnetworks/his-hope-europe-west1
+  clusterIpv4Cidr: "10.110.0.0/14"
+  servicesIpv4Cidr: "10.114.0.0/20"
+  description: "His.Hope EMR - Europe West 1 Secondary Cluster"
+  enableAutopilot: false
+  enableAutomaticNodeManagement: true
+  enableBinaryAuthorization: false
+  enableIntranodeVisibility: true
+  enableL4IlbSubsetting: true
+  enableShieldedNodes: true
+  enableTpu: false
+  enableVerticalPodAutoscaling: true
+  privateClusterConfig:
+    enablePrivateEndpoint: false
+    enablePrivateNodes: true
+    masterIpv4CidrBlock: "10.201.0.0/28"
+  workloadIdentityConfig:
+    workloadPool: "his-hope-prod.svc.id.goog"
+  releaseChannel:
+    channel: REGULAR
+  minMasterVersion: "1.29"
+  nodeConfig:
+    machineType: n2-standard-4
+    diskSizeGb: 100
+    diskType: pd-ssd
+    imageType: COS_CONTAINERD
+    oauthScopes:
+      - "https://www.googleapis.com/auth/cloud-platform"
+    serviceAccount: "his-hope-node-sa@his-hope-prod.iam.gserviceaccount.com"
+    shieldedInstanceConfig:
+      enableSecureBoot: true
+      enableIntegrityMonitoring: true
+    workloadMetadataConfig:
+      mode: GKE_METADATA
+  addonsConfig:
+    horizontalPodAutoscaling: true
+    httpLoadBalancing: true
+    networkPolicyConfig:
+      disabled: false
+    gcePersistentDiskCsiDriverConfig: true
+    configConnectorConfig: true
+    gcpFilestoreCsiDriverConfig: true
+  dnsConfig:
+    clusterDns: CLOUD_DNS
+    clusterDnsScope: CLUSTER_SCOPE
+  masterAuth:
+    clientCertificateConfig:
+      issueClientCertificate: false
+  networkPolicy:
+    enabled: true
+    provider: CALICO
+  podSecurityPolicyConfig:
+    enabled: false
+  ipAllocationPolicy:
+    useIpAliases: true
+    createSubnetwork: false
+  verticalPodAutoscaling:
+    enabled: true
+
+---
+apiVersion: container.cnrm.cloud.google.com/v1beta1
+kind: ContainerNodePool
+metadata:
+  name: his-hope-europe-west1-system
+  namespace: his-hope-infra
+spec:
+  name: system-pool
+  location: europe-west1
+  clusterRef:
+    name: his-hope-europe-west1
+  initialNodeCount: 3
+  autoscaling:
+    minNodeCount: 3
+    maxNodeCount: 5
+  management:
+    autoRepair: true
+    autoUpgrade: true
+  nodeConfig:
+    machineType: n2-standard-4
+    diskSizeGb: 100
+    diskType: pd-ssd
+    imageType: COS_CONTAINERD
+    oauthScopes:
+      - "https://www.googleapis.com/auth/cloud-platform"
+    serviceAccount: "his-hope-node-sa@his-hope-prod.iam.gserviceaccount.com"
+    labels:
+      pool-type: system
+    shieldedInstanceConfig:
+      enableSecureBoot: true
+      enableIntegrityMonitoring: true
+    workloadMetadataConfig:
+      mode: GKE_METADATA
+    taints:
+      - key: "components.gke.io/gke-managed-components"
+        value: "true"
+        effect: NO_SCHEDULE
+
+---
+apiVersion: container.cnrm.cloud.google.com/v1beta1
+kind: ContainerNodePool
+metadata:
+  name: his-hope-europe-west1-services
+  namespace: his-hope-infra
+spec:
+  name: services-pool
+  location: europe-west1
+  clusterRef:
+    name: his-hope-europe-west1
+  initialNodeCount: 10
+  autoscaling:
+    minNodeCount: 5
+    maxNodeCount: 20
+  management:
+    autoRepair: true
+    autoUpgrade: true
+  nodeConfig:
+    machineType: n2-standard-8
+    diskSizeGb: 100
+    diskType: pd-ssd
+    imageType: COS_CONTAINERD
+    oauthScopes:
+      - "https://www.googleapis.com/auth/cloud-platform"
+    serviceAccount: "his-hope-node-sa@his-hope-prod.iam.gserviceaccount.com"
+    spot: true
+    labels:
+      pool-type: services
+    shieldedInstanceConfig:
+      enableSecureBoot: true
+      enableIntegrityMonitoring: true
+    workloadMetadataConfig:
+      mode: GKE_METADATA
+    taints: []
+
+---
+apiVersion: container.cnrm.cloud.google.com/v1beta1
+kind: ContainerNodePool
+metadata:
+  name: his-hope-europe-west1-data
+  namespace: his-hope-infra
+spec:
+  name: data-pool
+  location: europe-west1
+  clusterRef:
+    name: his-hope-europe-west1
+  initialNodeCount: 5
+  autoscaling:
+    minNodeCount: 3
+    maxNodeCount: 8
+  management:
+    autoRepair: true
+    autoUpgrade: true
+  nodeConfig:
+    machineType: n2-highmem-16
+    diskSizeGb: 200
+    diskType: pd-ssd
+    imageType: COS_CONTAINERD
+    oauthScopes:
+      - "https://www.googleapis.com/auth/cloud-platform"
+    serviceAccount: "his-hope-node-sa@his-hope-prod.iam.gserviceaccount.com"
+    labels:
+      pool-type: data
+    shieldedInstanceConfig:
+      enableSecureBoot: true
+      enableIntegrityMonitoring: true
+    workloadMetadataConfig:
+      mode: GKE_METADATA
+    taints:
+      - key: "pool-type"
+        value: "data"
+        effect: NO_SCHEDULE
+
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeSubnetwork
+metadata:
+  name: his-hope-europe-west1-subnet
+  namespace: his-hope-infra
+spec:
+  name: his-hope-europe-west1
+  region: europe-west1
+  networkRef:
+    name: his-hope-vpc
+  ipCidrRange: "10.1.0.0/16"
+  privateIpGoogleAccess: true
+  secondaryIpRanges:
+    - rangeName: pods
+      ipCidrRange: "10.110.0.0/14"
+    - rangeName: services
+      ipCidrRange: "10.114.0.0/20"
+
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeRouter
+metadata:
+  name: his-hope-europe-west1-router
+  namespace: his-hope-infra
+spec:
+  name: his-hope-europe-west1-router
+  region: europe-west1
+  networkRef:
+    name: his-hope-vpc
+
+---
+apiVersion: compute.cnrm.cloud.google.com/v1beta1
+kind: ComputeRouterNAT
+metadata:
+  name: his-hope-europe-west1-nat
+  namespace: his-hope-infra
+spec:
+  name: his-hope-europe-west1-nat
+  region: europe-west1
+  routerRef:
+    name: his-hope-europe-west1-router
+  natIpAllocateOption: AUTO_ONLY
+  sourceSubnetworkIpRangesToNat: ALL_SUBNETWORKS_ALL_PRIMARY_IP_RANGES

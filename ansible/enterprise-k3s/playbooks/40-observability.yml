@@ -1,0 +1,15 @@
+---
+- name: Deploy production observability and policy controls
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  any_errors_fatal: true
+  vars_files:
+    - ../group_vars/observability.yml
+  roles:
+    - linkerd_observability
+    - gatekeeper_observability
+    - metrics_observability
+    - logging_observability
+    - telemetry_observability
+    - observability_validate

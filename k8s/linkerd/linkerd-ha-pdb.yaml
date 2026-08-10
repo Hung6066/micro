@@ -1,0 +1,41 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: linkerd-destination-ha
+  namespace: linkerd
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    linkerd.io/control-plane-ns: linkerd
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      linkerd.io/control-plane-component: destination
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: linkerd-identity-ha
+  namespace: linkerd
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    linkerd.io/control-plane-ns: linkerd
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      linkerd.io/control-plane-component: identity
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: linkerd-proxy-injector-ha
+  namespace: linkerd
+  labels:
+    app.kubernetes.io/part-of: linkerd
+    linkerd.io/control-plane-ns: linkerd
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      linkerd.io/control-plane-component: proxy-injector

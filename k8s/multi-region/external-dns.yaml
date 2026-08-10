@@ -1,0 +1,210 @@
+---
+# external-dns Configuration - His.Hope EMR
+# Synchronizes Kubernetes Ingress and Service resources with Google Cloud DNS
+# Uses nginx-ingress as ingress controller (works with Linkerd service mesh)
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: external-dns
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: external-dns
+    app.kubernetes.io/component: dns-sync
+  annotations:
+    iam.gke.io/gcp-service-account: his-hope-external-dns@his-hope-prod.iam.gserviceaccount.com
+    linkerd.io/inject: enabled
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: external-dns
+  labels:
+    app.kubernetes.io/name: external-dns
+    app.kubernetes.io/component: dns-sync
+rules:
+  - apiGroups: [""]
+    resources: ["services", "endpoints", "pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["extensions", "networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: external-dns-viewer
+  labels:
+    app.kubernetes.io/name: external-dns
+    app.kubernetes.io/component: dns-sync
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: external-dns
+subjects:
+  - kind: ServiceAccount
+    name: external-dns
+    namespace: his-hope
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: external-dns
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: external-dns
+    app.kubernetes.io/component: dns-sync
+spec:
+  strategy:
+    type: Recreate
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: external-dns
+      app.kubernetes.io/component: dns-sync
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: external-dns
+        app.kubernetes.io/component: dns-sync
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "7979"
+        prometheus.io/path: "/metrics"
+        linkerd.io/inject: enabled
+    spec:
+      serviceAccountName: external-dns
+      securityContext:
+        fsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - external-dns
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: external-dns
+          image: registry.k8s.io/external-dns/external-dns:v0.14.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --provider=google
+            - --google-project=his-hope-prod
+            - --source=ingress
+            - --source=service
+            - --domain-filter=hishop.com
+            - --policy=sync
+            - --registry=txt
+            - --txt-owner-id=his-hope-external-dns
+            - --txt-prefix=_
+            - --interval=1m
+            - --log-level=info
+            - --log-format=text
+            - --connector-source-server=
+            - --events
+            - --dry-run=false
+            - --annotation-filter=kubernetes.io/ingress.class in (nginx)
+            - --manage-dns-namespaces=his-hope
+            - --remove-internal-hash=false
+          env:
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /etc/credentials/credentials.json
+            - name: DOMAIN_FILTER
+              value: hishop.com
+            - name: EXTERNAL_DNS_INSTANCE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: EXTERNAL_DNS_POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          ports:
+            - containerPort: 7979
+              name: http-metrics
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 7979
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 7979
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: credentials
+              mountPath: /etc/credentials
+              readOnly: true
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+      volumes:
+        - name: credentials
+          secret:
+            secretName: external-dns-gcp-sa
+            defaultMode: 0444
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-dns-metrics
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: external-dns
+    app.kubernetes.io/component: dns-sync
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "7979"
+spec:
+  selector:
+    app.kubernetes.io/name: external-dns
+    app.kubernetes.io/component: dns-sync
+  ports:
+    - name: http-metrics
+      port: 7979
+      targetPort: http-metrics
+      protocol: TCP
+  type: ClusterIP
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: external-dns-pdb
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: external-dns
+    app.kubernetes.io/component: dns-sync
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: external-dns
+      app.kubernetes.io/component: dns-sync

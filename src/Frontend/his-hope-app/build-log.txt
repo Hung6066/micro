@@ -1,0 +1,82 @@
+[33mΓ¥»[39m Building...
+[32mΓ£ö[39m Building...
+[1mInitial chunk files[22m  [2m | [22m[1mNames[22m              [2m | [22m [1mRaw size[22m[2m | [22m[1mEstimated transfer size[22m
+[32mmain-4INX4WUJ.js[39m     [2m | [22m[2mmain[22m               [2m | [22m[36m381.94 kB[39m[2m | [22m               [36m86.34 kB[39m
+[32mchunk-NF5Z4UAN.js[39m    [2m | [22m[2m-[22m                  [2m | [22m[36m331.56 kB[39m[2m | [22m               [36m89.91 kB[39m
+[32mchunk-FRV6DNNR.js[39m    [2m | [22m[2m-[22m                  [2m | [22m[36m218.81 kB[39m[2m | [22m               [36m44.69 kB[39m
+[32mstyles-P5ANSCZ5.css[39m  [2m | [22m[2mstyles[22m             [2m | [22m[36m182.52 kB[39m[2m | [22m               [36m15.09 kB[39m
+[32mchunk-V7Q5HMJY.js[39m    [2m | [22m[2m-[22m                  [2m | [22m[36m120.08 kB[39m[2m | [22m               [36m22.64 kB[39m
+[32mchunk-ZDJUGOX3.js[39m    [2m | [22m[2m-[22m                  [2m | [22m[36m100.99 kB[39m[2m | [22m               [36m20.41 kB[39m
+[32mchunk-7HBL7KY2.js[39m    [2m | [22m[2m-[22m                  [2m | [22m [36m58.18 kB[39m[2m | [22m               [36m13.38 kB[39m
+[32mpolyfills-LK622YWM.js[39m[2m | [22m[2mpolyfills[22m          [2m | [22m [36m34.72 kB[39m[2m | [22m               [36m11.45 kB[39m
+[32mchunk-YXHU2EZ4.js[39m    [2m | [22m[2m-[22m                  [2m | [22m [36m28.88 kB[39m[2m | [22m                [36m4.51 kB[39m
+[32mchunk-NPDBI2N7.js[39m    [2m | [22m[2m-[22m                  [2m | [22m [36m17.71 kB[39m[2m | [22m                [36m4.81 kB[39m
+[32mchunk-WZHMDI3V.js[39m    [2m | [22m[2m-[22m                  [2m | [22m [36m15.37 kB[39m[2m | [22m                [36m4.22 kB[39m
+[32mchunk-XJEAC3EZ.js[39m    [2m | [22m[2m-[22m                  [2m | [22m  [36m7.93 kB[39m[2m | [22m                [36m2.00 kB[39m
+[32mchunk-EWNJRDAR.js[39m    [2m | [22m[2m-[22m                  [2m | [22m  [36m4.09 kB[39m[2m | [22m                [36m1.12 kB[39m
+[32mchunk-PO756SIX.js[39m    [2m | [22m[2m-[22m                  [2m | [22m  [36m2.31 kB[39m[2m | [22m              [36m685 bytes[39m
+[32mchunk-YYXNF2IG.js[39m    [2m | [22m[2m-[22m                  [2m | [22m  [36m2.23 kB[39m[2m | [22m              [36m630 bytes[39m
+[32mchunk-N5M3WZ6T.js[39m    [2m | [22m[2m-[22m                  [2m | [22m  [36m1.88 kB[39m[2m | [22m              [36m672 bytes[39m
+[32mchunk-QUMNMZAY.js[39m    [2m | [22m[2m-[22m                  [2m | [22m  [36m1.66 kB[39m[2m | [22m              [36m639 bytes[39m
+[32mchunk-4TKOUMQC.js[39m    [2m | [22m[2m-[22m                  [2m | [22m  [36m1.60 kB[39m[2m | [22m              [36m637 bytes[39m
+[32mchunk-YTIGOQAS.js[39m    [2m | [22m[2m-[22m                  [2m | [22m  [36m1.43 kB[39m[2m | [22m              [36m553 bytes[39m
+[32mchunk-AEJJ5CXG.js[39m    [2m | [22m[2m-[22m                  [2m | [22m  [36m1.43 kB[39m[2m | [22m              [36m564 bytes[39m
+[32mchunk-4IBN6WFM.js[39m    [2m | [22m[2m-[22m                  [2m | [22m[36m932 bytes[39m[2m | [22m              [36m932 bytes[39m
+[32mchunk-4SHR7XVL.js[39m    [2m | [22m[2m-[22m                  [2m | [22m[36m784 bytes[39m[2m | [22m              [36m784 bytes[39m
+[32mchunk-HRRMJ5KE.js[39m    [2m | [22m[2m-[22m                  [2m | [22m[36m383 bytes[39m[2m | [22m              [36m383 bytes[39m
+
+[1m [22m                    [2m | [22m[1mInitial total[22m      [2m | [22m  [1m1.52 MB[22m[2m | [22m              [1m327.06 kB[22m
+
+[1mLazy chunk files[22m     [2m | [22m[1mNames[22m              [2m | [22m [1mRaw size[22m[2m | [22m[1mEstimated transfer size[22m
+[32mchunk-WLVWY2DI.js[39m    [2m | [22m[2mpatients-routes[22m    [2m | [22m[36m153.09 kB[39m[2m | [22m               [36m29.00 kB[39m
+[32mchunk-ZGNGDUSV.js[39m    [2m | [22m[2madmin-routes[22m       [2m | [22m[36m110.11 kB[39m[2m | [22m               [36m20.02 kB[39m
+[32mchunk-26NU6MQJ.js[39m    [2m | [22m[2mlab-routes[22m         [2m | [22m[36m107.41 kB[39m[2m | [22m               [36m23.85 kB[39m
+[32mchunk-5EDY4TD7.js[39m    [2m | [22m[2m-[22m                  [2m | [22m[36m100.21 kB[39m[2m | [22m               [36m18.18 kB[39m
+[32mchunk-H5QV3GNI.js[39m    [2m | [22m[2m-[22m                  [2m | [22m [36m96.45 kB[39m[2m | [22m               [36m18.08 kB[39m
+[32mchunk-HBG2T4EO.js[39m    [2m | [22m[2mpharmacy-routes[22m    [2m | [22m [36m48.70 kB[39m[2m | [22m                [36m8.97 kB[39m
+[32mchunk-5ITRQ3KG.js[39m    [2m | [22m[2m-[22m                  [2m | [22m [36m40.22 kB[39m[2m | [22m                [36m8.61 kB[39m
+[32mchunk-5HKSR3CZ.js[39m    [2m | [22m[2mbilling-routes[22m     [2m | [22m [36m39.79 kB[39m[2m | [22m                [36m9.47 kB[39m
+[32mchunk-V4LGZQGJ.js[39m    [2m | [22m[2m-[22m                  [2m | [22m [36m35.81 kB[39m[2m | [22m                [36m6.26 kB[39m
+[32mchunk-RVDWQXBR.js[39m    [2m | [22m[2m-[22m                  [2m | [22m [36m29.79 kB[39m[2m | [22m                [36m7.01 kB[39m
+[32mchunk-CHFSNJEH.js[39m    [2m | [22m[2m-[22m                  [2m | [22m [36m28.89 kB[39m[2m | [22m                [36m4.87 kB[39m
+[32mchunk-DZOFAEHP.js[39m    [2m | [22m[2m-[22m                  [2m | [22m [36m28.29 kB[39m[2m | [22m                [36m7.36 kB[39m
+[32mchunk-MD6UW4SX.js[39m    [2m | [22m[2mclinical-routes[22m    [2m | [22m [36m23.57 kB[39m[2m | [22m                [36m5.96 kB[39m
+[32mchunk-AHOSOEFN.js[39m    [2m | [22m[2mappointments-routes[22m[2m | [22m [36m23.13 kB[39m[2m | [22m                [36m6.22 kB[39m
+[32mchunk-SPGT5Y4N.js[39m    [2m | [22m[2mdashboard-routes[22m   [2m | [22m [36m19.93 kB[39m[2m | [22m                [36m5.28 kB[39m
+[2m...and 6 more lazy chunks files. Use "--verbose" to show all the files.[22m
+
+Application bundle generation complete. [7.490 seconds] - 2026-07-31T03:26:36.756Z
+
+Γû▓ [WARNING] NG8113: HisHopeStatusBadgeComponent is not used within the template of MedicationDetailComponent [plugin angular-compiler]
+
+    src/app/features/pharmacy/medication-detail/medication-detail.component.ts:28:31:
+      28 Γöé ...peStateComponent, HisHopeStatusBadgeComponent, HisHopeMetaItemC...
+         Γò╡                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+Γû▓ [WARNING] Module '@opentelemetry/api' used by 'src/app/monitoring/rum.service.ts' is not ESM
+
+  CommonJS or AMD dependencies can cause optimization bailouts.
+  For more information see: https://angular.dev/tools/cli/build#configuring-commonjs-dependencies
+
+
+Γû▓ [WARNING] Module '@opentelemetry/otlp-exporter-base' used by 'node_modules/@opentelemetry/exporter-trace-otlp-http/build/esm/platform/browser/OTLPTraceExporter.js' is not ESM
+
+  CommonJS or AMD dependencies can cause optimization bailouts.
+  For more information see: https://angular.dev/tools/cli/build#configuring-commonjs-dependencies
+
+
+Γû▓ [WARNING] Module '@opentelemetry/otlp-exporter-base/browser-http' used by 'node_modules/@opentelemetry/exporter-trace-otlp-http/build/esm/platform/browser/OTLPTraceExporter.js' is not ESM
+
+  CommonJS or AMD dependencies can cause optimization bailouts.
+  For more information see: https://angular.dev/tools/cli/build#configuring-commonjs-dependencies
+
+
+Γû▓ [WARNING] Module '@opentelemetry/semantic-conventions' used by 'node_modules/@opentelemetry/sdk-trace/build/esm/export/SpanProcessorMetrics.js' is not ESM
+
+  CommonJS or AMD dependencies can cause optimization bailouts.
+  For more information see: https://angular.dev/tools/cli/build#configuring-commonjs-dependencies
+
+
+Output location: D:\AI\micro\src\Frontend\his-hope-app\dist
+

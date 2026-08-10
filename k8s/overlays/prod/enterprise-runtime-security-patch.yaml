@@ -1,0 +1,202 @@
+# Enterprise runtime defaults: JWT metadata is HTTPS-only and backend Redis
+# connections use the TLS CA mounted from the provisioned redis-tls Secret.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  template:
+    metadata:
+      annotations:
+        # Redis Cluster redirects to pod IPs. Bypass the Linkerd TCP proxy for
+        # Redis while retaining mesh policy for HTTP/gRPC service traffic.
+        config.linkerd.io/skip-outbound-ports: "6379,8200"
+    spec:
+      containers:
+      - name: api-gateway
+        env:
+        - name: Jwt__AllowHttp
+          value: "false"
+        - name: Jwt__Authority
+          value: https://identity.his-hope.example
+        - name: Jwt__MetadataAddress
+          value: https://identity.his-hope.example/.well-known/openid-configuration
+        - name: Redis__TlsCaFile
+          value: /etc/tls/redis/ca.crt
+        volumeMounts:
+        - name: redis-tls-ca
+          mountPath: /etc/tls/redis
+          readOnly: true
+      volumes:
+      - name: redis-tls-ca
+        secret:
+          secretName: redis-tls
+          defaultMode: 0440
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+spec:
+  template:
+    spec:
+      containers:
+      - name: appointment-service
+        env:
+        - name: Jwt__AllowHttp
+          value: "false"
+        - name: Jwt__Authority
+          value: https://identity.his-hope.example
+        - name: Jwt__MetadataAddress
+          value: https://identity.his-hope.example/.well-known/openid-configuration
+        - name: Redis__TlsCaFile
+          value: /etc/tls/redis/ca.crt
+        volumeMounts:
+        - name: redis-tls-ca
+          mountPath: /etc/tls/redis
+          readOnly: true
+      volumes:
+      - name: redis-tls-ca
+        secret:
+          secretName: redis-tls
+          defaultMode: 0440
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-service
+spec:
+  template:
+    spec:
+      containers:
+      - name: billing-service
+        env:
+        - name: Jwt__AllowHttp
+          value: "false"
+        - name: Jwt__Authority
+          value: https://identity.his-hope.example
+        - name: Jwt__MetadataAddress
+          value: https://identity.his-hope.example/.well-known/openid-configuration
+        - name: Redis__TlsCaFile
+          value: /etc/tls/redis/ca.crt
+        volumeMounts:
+        - name: redis-tls-ca
+          mountPath: /etc/tls/redis
+          readOnly: true
+      volumes:
+      - name: redis-tls-ca
+        secret:
+          secretName: redis-tls
+          defaultMode: 0440
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-service
+spec:
+  template:
+    spec:
+      containers:
+      - name: clinical-service
+        env:
+        - name: Jwt__AllowHttp
+          value: "false"
+        - name: Jwt__Authority
+          value: https://identity.his-hope.example
+        - name: Jwt__MetadataAddress
+          value: https://identity.his-hope.example/.well-known/openid-configuration
+        - name: Redis__TlsCaFile
+          value: /etc/tls/redis/ca.crt
+        volumeMounts:
+        - name: redis-tls-ca
+          mountPath: /etc/tls/redis
+          readOnly: true
+      volumes:
+      - name: redis-tls-ca
+        secret:
+          secretName: redis-tls
+          defaultMode: 0440
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-service
+spec:
+  template:
+    spec:
+      containers:
+      - name: lab-service
+        env:
+        - name: Jwt__AllowHttp
+          value: "false"
+        - name: Jwt__Authority
+          value: https://identity.his-hope.example
+        - name: Jwt__MetadataAddress
+          value: https://identity.his-hope.example/.well-known/openid-configuration
+        - name: Redis__TlsCaFile
+          value: /etc/tls/redis/ca.crt
+        volumeMounts:
+        - name: redis-tls-ca
+          mountPath: /etc/tls/redis
+          readOnly: true
+      volumes:
+      - name: redis-tls-ca
+        secret:
+          secretName: redis-tls
+          defaultMode: 0440
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+spec:
+  template:
+    spec:
+      containers:
+      - name: patient-service
+        env:
+        - name: Jwt__AllowHttp
+          value: "false"
+        - name: Jwt__Authority
+          value: https://identity.his-hope.example
+        - name: Jwt__MetadataAddress
+          value: https://identity.his-hope.example/.well-known/openid-configuration
+        - name: Redis__TlsCaFile
+          value: /etc/tls/redis/ca.crt
+        volumeMounts:
+        - name: redis-tls-ca
+          mountPath: /etc/tls/redis
+          readOnly: true
+      volumes:
+      - name: redis-tls-ca
+        secret:
+          secretName: redis-tls
+          defaultMode: 0440
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-service
+spec:
+  template:
+    spec:
+      containers:
+      - name: pharmacy-service
+        env:
+        - name: Jwt__AllowHttp
+          value: "false"
+        - name: Jwt__Authority
+          value: https://identity.his-hope.example
+        - name: Jwt__MetadataAddress
+          value: https://identity.his-hope.example/.well-known/openid-configuration
+        - name: Redis__TlsCaFile
+          value: /etc/tls/redis/ca.crt
+        volumeMounts:
+        - name: redis-tls-ca
+          mountPath: /etc/tls/redis
+          readOnly: true
+      volumes:
+      - name: redis-tls-ca
+        secret:
+          secretName: redis-tls
+          defaultMode: 0440

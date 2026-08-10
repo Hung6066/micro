@@ -1,0 +1,194 @@
+using His.Hope.IdentityService.Application.UseCases.AuditLogs.Queries;
+using His.Hope.IdentityService.Domain.Entities;
+using His.Hope.IdentityService.Infrastructure.Persistence;
+using MediatR;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+using System.Text;
+using System.Text.Json;
+using His.Hope.Contracts.Query;
+
+namespace His.Hope.IdentityService.Api.Endpoints;
+
+/// <summary>
+/// Audit log query endpoints for HIPAA compliance reporting.
+/// All endpoints require authorization.
+/// </summary>
+public static class AuditLogEndpoints
+{
+    private const int MaxAuditEventsPerRequest = 100;
+
+    private static readonly HashSet<string> AllowedActions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "view", "create", "update", "delete", "search", "export", "print",
+        "login", "logout", "access", "modify",
+        // Shared frontend audit protocol uses resource-scoped action names.
+        // Keep the legacy names above for older clients during migration.
+        "auth.login", "auth.logout", "auth.refresh",
+        "data.view", "data.create", "data.update", "data.delete",
+        "error.client", "error.server", "security.csp-violation",
+        "navigation.change"
+        ,"read_patient"
+    };
+
+    public static RouteGroupBuilder MapAuditLogEndpoints(this RouteGroupBuilder group)
+    {
+        // POST /api/v1/audit/events - Client-side audit event ingestion
+        group.MapPost("/audit/events", async (
+            AuditEventsRequest request,
+            HttpContext httpContext,
+            IdentityDbContext db,
+            CancellationToken ct) =>
+        {
+            if (request.Events is null || request.Events.Count == 0)
+                return Results.Accepted(value: new AuditEventsResponse(0, 0));
+
+            var invalidActions = request.Events
+                .Take(MaxAuditEventsPerRequest)
+                .Where(e => !AllowedActions.Contains(e.Action ?? ""))
+                .Select(e => e.Action)
+                .Distinct()
+                .ToList();
+
+            if (invalidActions.Count > 0)
+            {
+                return Results.Problem(
+                    $"Invalid audit action(s): {string.Join(", ", invalidActions)}. Allowed: {string.Join(", ", AllowedActions)}",
+                    statusCode: 400);
+            }
+
+            var authenticatedUserId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? httpContext.User.FindFirst("sub")?.Value
+                ?? string.Empty;
+            var userName = httpContext.User.Identity?.Name
+                ?? httpContext.User.FindFirst(ClaimTypes.Name)?.Value;
+            var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString();
+            var userAgent = httpContext.Request.Headers.UserAgent.ToString();
+            var serverTimestamp = DateTime.UtcNow;
+            var acceptedEvents = request.Events.Take(MaxAuditEventsPerRequest).ToList();
+
+            foreach (var auditEvent in acceptedEvents)
+            {
+                var correlationId = auditEvent.CorrelationId;
+                if (!string.IsNullOrWhiteSpace(correlationId) && !Guid.TryParse(correlationId, out _))
+                    correlationId = null;
+
+                var eventForSerialization = correlationId != auditEvent.CorrelationId
+                    ? auditEvent with { CorrelationId = correlationId }
+                    : auditEvent;
+
+                var serializedDetails = SerializeDetails(eventForSerialization);
+                if (Encoding.UTF8.GetByteCount(serializedDetails) > 8192)
+                    serializedDetails = TruncateUtf8(serializedDetails, 8192);
+
+                db.AuditLogs.Add(new AuditLog
+                {
+                    UserId = Truncate(authenticatedUserId, 100),
+                    UserName = Truncate(userName, 200),
+                    Action = Truncate(auditEvent.Action, 50),
+                    ResourceType = "ClientAudit",
+                    ResourceId = Truncate(ReadDetailString(auditEvent.Details, "resourceId")
+                        ?? ReadDetailString(auditEvent.Details, "patientId"), 100),
+                    Details = Truncate(serializedDetails, 2000),
+                    IpAddress = Truncate(ipAddress, 50),
+                    UserAgent = Truncate(userAgent, 500),
+                    Timestamp = serverTimestamp
+                });
+            }
+
+            await db.SaveChangesAsync(ct);
+            return Results.Accepted(value: new AuditEventsResponse(
+                acceptedEvents.Count,
+                Math.Max(0, request.Events.Count - acceptedEvents.Count)));
+        }).RequireAuthorization();
+
+        // GET /api/v1/audit-logs - Paginated audit log search
+        group.MapGet("/audit-logs", async (
+            int page = 1,
+            int pageSize = 20,
+            string? userId = null,
+            string? action = null,
+            string? resourceType = null,
+            string? resourceId = null,
+            DateTime? dateFrom = null,
+            DateTime? dateTo = null,
+            string? sort = null,
+            [FromServices] IMediator mediator = null!,
+            CancellationToken ct = default) =>
+        {
+            try { new QueryRequest(page, pageSize, Sort: sort).Validate(); SortContract.Parse(sort, new HashSet<string>(["action", "resourcetype", "timestamp"], StringComparer.OrdinalIgnoreCase)); }
+            catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = [ex.Message] }); }
+            if (new[] { userId, action, resourceType, resourceId }.Any(value => value?.Length > 100))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["filter"] = ["Audit filters must be 100 characters or fewer."] });
+
+            var result = await mediator.Send(
+                new GetAuditLogsQuery(page, pageSize, userId, action,
+                    resourceType, resourceId, dateFrom, dateTo, sort), ct);
+            return Results.Ok(result);
+        }).RequireAuthorization("Permission:admin.audit.read");
+
+        // GET /api/v1/audit-logs/{id} - Audit log detail
+        group.MapGet("/audit-logs/{id:guid}", async (
+            Guid id,
+            [FromServices] IMediator mediator = null!,
+            CancellationToken ct = default) =>
+        {
+            var log = await mediator.Send(new GetAuditLogByIdQuery(id), ct);
+            return log is null ? Results.NotFound() : Results.Ok(log);
+        }).RequireAuthorization("Permission:admin.audit.read");
+
+        return group;
+    }
+
+    private static string SerializeDetails(ClientAuditEvent auditEvent)
+    {
+        return JsonSerializer.Serialize(new
+        {
+            auditEvent.Details,
+            auditEvent.CorrelationId
+        });
+    }
+
+    private static string? ReadDetailString(JsonElement? details, string propertyName)
+    {
+        if (details is null || details.Value.ValueKind != JsonValueKind.Object)
+            return null;
+
+        return details.Value.TryGetProperty(propertyName, out var property)
+            ? property.ToString()
+            : null;
+    }
+
+    private static string Truncate(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var trimmed = value.Trim();
+        return trimmed.Length <= maxLength ? trimmed : trimmed[..maxLength];
+    }
+
+    private static string TruncateUtf8(string value, int maxBytes)
+    {
+        if (string.IsNullOrEmpty(value)) return string.Empty;
+        var bytes = Encoding.UTF8.GetBytes(value);
+        if (bytes.Length <= maxBytes) return value;
+        var truncated = Encoding.UTF8.GetString(bytes, 0, maxBytes);
+        var lastFullChar = truncated.Length;
+        while (lastFullChar > 0 && char.IsHighSurrogate(truncated[lastFullChar - 1]))
+            lastFullChar--;
+        return truncated[..lastFullChar] + "...[truncated]";
+    }
+}
+
+public sealed record AuditEventsRequest(List<ClientAuditEvent>? Events);
+
+public sealed record AuditEventsResponse(int Accepted, int Dropped);
+
+public sealed record ClientAuditEvent(
+    string Action,
+    long Timestamp,       // IGNORED — server uses UtcNow
+    string? UserId,       // IGNORED — server extracts from JWT
+    JsonElement? Details,
+    string? CorrelationId,
+    string? UserAgent);   // IGNORED — server extracts from request header

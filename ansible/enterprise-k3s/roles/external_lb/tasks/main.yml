@@ -1,0 +1,47 @@
+---
+- name: Install HAProxy and Keepalived
+  ansible.builtin.apt:
+    name:
+      - haproxy
+      - keepalived
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Disable swap for the load-balancer host
+  ansible.builtin.command: swapoff -a
+  changed_when: false
+
+- name: Install HAProxy configuration
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart HAProxy
+
+- name: Install Keepalived configuration
+  ansible.builtin.template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: '0600'
+  notify: Restart Keepalived
+
+- name: Validate HAProxy configuration
+  ansible.builtin.command: haproxy -c -f /etc/haproxy/haproxy.cfg
+  changed_when: false
+
+- name: Enable and start HAProxy
+  ansible.builtin.systemd:
+    name: haproxy
+    enabled: true
+    state: started
+
+- name: Enable and start Keepalived
+  ansible.builtin.systemd:
+    name: keepalived
+    enabled: true
+    state: started

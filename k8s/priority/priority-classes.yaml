@@ -1,0 +1,44 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: his-hope-p0
+value: 1000000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: "P0 — Critical system operations (life-critical alerts, emergency overrides). Preempts lower-priority pods."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: his-hope-p1
+value: 100000
+globalDefault: true
+preemptionPolicy: Never
+description: "P1 — Interactive user requests (patient check-in, physician orders). Default priority for all pods."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: his-hope-p2
+value: 10000
+globalDefault: false
+preemptionPolicy: Never
+description: "P2 — Business-as-usual operations (scheduled reports, background sync)."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: his-hope-p3
+value: 1000
+globalDefault: false
+preemptionPolicy: Never
+description: "P3 — Batch processing (analytics exports, data migration jobs)."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: his-hope-p4
+value: 100
+globalDefault: false
+preemptionPolicy: Never
+description: "P4 — Best-effort workloads (non-urgent maintenance, low-priority data sync)."

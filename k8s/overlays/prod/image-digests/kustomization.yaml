@@ -1,0 +1,114 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+images:
+  - name: busybox
+    newName: harbor.his-hope.local:9443/his-hope/busybox
+    newTag: "1.36"
+    digest: sha256:b7f3d86d6e84fc17718c48bcde1450807faa2d56704205c697b4bd5df7b9e29f
+  # These are Harbor manifest digests resolved after push and verified with
+  # Cosign on 2026-08-04. K3s pulls them through its Harbor registry mirror.
+  - name: his-hope/api-gateway
+    newName: harbor.his-hope.local:9443/his-hope/api-gateway
+    newTag: spiffe-20260807
+    digest: sha256:f3133e6999710f23bbf278699e2b855782b211fcc299d85b5e06bac7c32ef7c9
+  - name: his-hope/patient-service
+    newName: harbor.his-hope.local:9443/his-hope/patient-service
+    newTag: spiffe-20260807
+    digest: sha256:243bb248e88145d9852aecde9f9393847482563cf004be6cd4de2a2ef916c831
+  - name: his-hope/identity-service
+    newName: harbor.his-hope.local:9443/his-hope/identity-service
+    newTag: jwt-cert-format-20260808
+    digest: sha256:805b4602d1d7c7bd420b059fda0dac418d3d1c300c9084cee8142e478abcf282
+  - name: his-hope/appointment-service
+    newName: harbor.his-hope.local:9443/his-hope/appointment-service
+    newTag: spiffe-20260807
+    digest: sha256:2cf1841095b44aeb9c2d8e2294f8d2fea3a463c56faf03290cbdedda1a3eb926
+  - name: his-hope/clinical-service
+    newName: harbor.his-hope.local:9443/his-hope/clinical-service
+    newTag: spiffe-20260807
+    digest: sha256:9fd8bb2fe8019a5420feb26f12f350394f2e51f0bf650e0eb1e986da67c5df01
+  - name: his-hope/lab-service
+    newName: harbor.his-hope.local:9443/his-hope/lab-service
+    newTag: spiffe-20260807
+    digest: sha256:112ce4e6fbed3a3955dea9651cd98980e9571355602bdd257f063c029aff029d
+  - name: his-hope/billing-service
+    newName: harbor.his-hope.local:9443/his-hope/billing-service
+    newTag: spiffe-20260807
+    digest: sha256:3fb9bb4eff73c4df28235dcf97302459fbc6ec6ca8c3e22c05bdb7489cb92684
+  - name: his-hope/pharmacy-service
+    newName: harbor.his-hope.local:9443/his-hope/pharmacy-service
+    newTag: spiffe-20260807
+    digest: sha256:8d692e2d6d4892d2257ce2e4cf5b83e8c3f99f0a4a443dbeb2b3cc8eb17b9c92
+  - name: his-hope/patient-bff
+    newName: harbor.his-hope.local:9443/his-hope/patient-bff
+    newTag: search-jwt-20260808b
+    digest: sha256:cd0e8512dac701ed88d0d277b9e9c885d9e98540e13787af34e45838ec8a2c8d
+  - name: his-hope/clinical-bff
+    newName: harbor.his-hope.local:9443/his-hope/clinical-bff
+    newTag: redis-uri3-fixed
+    digest: sha256:72fc485a0858aacbfa2e1f754b689caa0ab7524a76e959bf3bbf8ff2bed2f68f
+  - name: his-hope/lab-bff
+    newName: harbor.his-hope.local:9443/his-hope/lab-bff
+    newTag: redis-uri3-fixed
+    digest: sha256:1390d46a0fd8b950364eaa371c958cbc643a284a4e766598d172fec9a05f9193
+  - name: his-hope/billing-bff
+    newName: harbor.his-hope.local:9443/his-hope/billing-bff
+    newTag: redis-uri3-fixed
+    digest: sha256:9214930a98bb39df4710eab72ed7260d5266625a2e36ecce8005a2d44605e670
+  - name: his-hope/pharmacy-bff
+    newName: harbor.his-hope.local:9443/his-hope/pharmacy-bff
+    newTag: redis-uri3-fixed
+    digest: sha256:c46cb0812e944a7acadc2198ae5d0c508bd7272d038d27b74328d1ba57fcff25
+  - name: his-hope/dashboard-bff
+    newName: harbor.his-hope.local:9443/his-hope/dashboard-bff
+    newTag: upcoming-http-20260809
+    digest: sha256:68e20189ba01a44fc02d015a3cc7713670df6b62092c286c62e7ab1f5656a432
+  - name: his-hope/systemdashboard-bff
+    newName: harbor.his-hope.local:9443/his-hope/systemdashboard-bff
+    newTag: jwt-cert-format-20260808
+    digest: sha256:d960b63ba96400e0b75080ab8809101d035f6ce67bcf6409b33fe45181a0584a
+  - name: his-hope/database-continuity
+    newName: harbor.his-hope.local:9443/his-hope/database-continuity
+    newTag: prod-auditfix-20260807
+    digest: sha256:7ed67f3caaf6e28e2c0bacf4d05f308f06def49f6734df85f6f31cc9c27c88de
+  - name: his-hope/frontend
+    newName: harbor.his-hope.local:9443/his-hope/frontend
+    newTag: runtime-http-fix-20260808
+    digest: sha256:f098c8d7ffb9be11b941ae8b5f99c57f6630901e3917641f1c1e1f63ad794fa7
+  - name: his-hope/admin-app
+    newName: harbor.his-hope.local:9443/his-hope/admin-app
+    newTag: 7b77f09d8a38393df3a8cf0ab2e99bd6e6f1d9be
+    digest: sha256:ddbf57b5b838b8f94fc34832d2e97c5f72184ef7f51b37ae6d07f75bc01a2a6a
+  - name: his-hope/dashboard-app
+    newName: harbor.his-hope.local:9443/his-hope/dashboard-app
+    newTag: 7b77f09d8a38393df3a8cf0ab2e99bd6e6f1d9be
+    digest: sha256:dcef8bf9da119bd346e6fbb6dd25af2d039858e92dad4d51a02c048fc9362b48
+  - name: hashicorp/vault
+    newName: harbor.his-hope.local:9443/his-hope/hashicorp/vault
+    newTag: "1.16"
+    digest: sha256:b4fa75568d4ed987eb64edee26d15f98237e61aec2ea1bdb9145ca769a9fb0e6
+  - name: hashicorp/vault-k8s
+    newName: harbor.his-hope.local:9443/his-hope/hashicorp/vault-k8s
+    newTag: "1.3.1"
+    digest: sha256:dc171fbd4389f6dfdb11f16059fc4ec449e12d7acd3b4d90737dfd5989e0f391
+  - name: ghcr.io/spiffe/spire-server
+    newName: harbor.his-hope.local:9443/his-hope/ghcr.io/spiffe/spire-server
+    newTag: "1.15.2"
+    digest: sha256:410c624a2f2311c23ecc96c24abd854213333f57ccf4fd1c8d3e30b3dbf007bb
+  - name: ghcr.io/spiffe/spire-agent
+    newName: harbor.his-hope.local:9443/his-hope/ghcr.io/spiffe/spire-agent
+    newTag: "1.15.2"
+    digest: sha256:5fbe8ac3ad5b1cff355bcf40badb579691e3c8de6cc4c3b8f6792e51336d12a5
+  - name: ghcr.io/spiffe/oidc-discovery-provider
+    newName: harbor.his-hope.local:9443/his-hope/ghcr.io/spiffe/oidc-discovery-provider
+    newTag: "1.15.2"
+    digest: sha256:380d2471820d6a92c0b9952b7836107ebfd5540503fd8252e115d7bb2807d784
+  - name: his-hope/spire-fetcher
+    newName: harbor.his-hope.local:9443/his-hope/spire-fetcher
+    newTag: "1.15.2-fixed"
+    digest: sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+  - name: edoburu/pgbouncer
+    newName: harbor.his-hope.local:9443/his-hope/edoburu/pgbouncer
+    newTag: "1.22.1-p0"
+    digest: sha256:7f39cf2f872c8d9a0bb0e6a5440c3bf5814036eccf284102870ab08e2603a2c7

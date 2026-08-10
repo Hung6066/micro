@@ -1,0 +1,96 @@
+using Microsoft.AspNetCore.Identity;
+
+namespace His.Hope.IdentityService.Domain.Entities;
+
+public class User : IdentityUser<Guid>
+{
+    public User()
+    {
+        Id = Guid.NewGuid();
+        SecurityStamp = Guid.NewGuid().ToString();
+    }
+
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string? MiddleName { get; set; }
+    public string? LicenseNumber { get; set; }
+    public string? Specialty { get; set; }
+    public string PreferredLanguage { get; set; } = "vi-VN";
+
+    public ICollection<UserFacility> FacilityMemberships { get; set; } = new List<UserFacility>();
+
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? LastLoginAt { get; set; }
+
+    // SECURITY: Account lockout
+    public int FailedLoginAttempts { get; set; }
+    public DateTime? LockoutEnd { get; set; }
+
+    // SECURITY: Password policy
+    public DateTime? LastPasswordChangedAt { get; set; }
+
+    // SECURITY: Trusted devices for MFA skip
+    public string? TrustedDeviceToken { get; set; }
+
+    // SECURITY: Password history (last 5 hashes, prevents reuse)
+    // NOTE: Requires EF Core migration to add column.
+    // TODO: Remove [NotMapped] after running migration.
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public List<string> PreviousPasswordHashes { get; set; } = new();
+
+    public string FullName
+    {
+        get
+        {
+            var parts = new[] { LastName, MiddleName, FirstName }
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .ToArray();
+            return parts.Length > 0 ? string.Join(" ", parts) : string.Empty;
+        }
+    }
+
+    public override bool Equals(object? obj) =>
+        obj is User other && Id == other.Id;
+
+    public override int GetHashCode() => Id.GetHashCode();
+
+    public static bool operator ==(User? left, User? right) =>
+        ReferenceEquals(left, right) || (left is not null && right is not null && left.Id == right.Id);
+
+    public static bool operator !=(User? left, User? right) => !(left == right);
+}
+
+public class Role : IdentityRole<Guid>
+{
+    public Role()
+    {
+        Id = Guid.NewGuid();
+    }
+
+    public string? Description { get; set; }
+
+    /// <summary>
+    /// Indicates whether this is a system role that cannot be deleted.
+    /// System roles include Admin, Provider, Nurse, etc.
+    /// </summary>
+    public bool IsSystem { get; set; }
+
+    /// <summary>
+    /// When the role was created.
+    /// </summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Navigation
+    public ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
+
+    public override bool Equals(object? obj) =>
+        obj is Role other && Id == other.Id;
+
+    public override int GetHashCode() => Id.GetHashCode();
+
+    public static bool operator ==(Role? left, Role? right) =>
+        ReferenceEquals(left, right) || (left is not null && right is not null && left.Id == right.Id);
+
+    public static bool operator !=(Role? left, Role? right) => !(left == right);
+}

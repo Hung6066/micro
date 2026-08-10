@@ -1,0 +1,20 @@
+HTTP/1.1 400 Bad Request
+Content-Length: 172
+Content-Type: text/plain;charset=UTF-8
+Date: Thu, 23 Jul 2026 06:47:23 GMT
+Server: Kestrel
+Cache-Control: no-store
+Expires: Thu, 01 Jan 1970 00:00:00 GMT
+Pragma: no-cache
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+Cross-Origin-Embedder-Policy: require-corp
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Resource-Policy: same-origin
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.his-hope.internal
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-Correlation-Id: 905e1d3e7c32
+

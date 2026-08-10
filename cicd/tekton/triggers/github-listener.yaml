@@ -1,0 +1,136 @@
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: github-listener
+  labels:
+    app.kubernetes.io/name: github-listener
+    app.kubernetes.io/component: event-listener
+    app.kubernetes.io/part-of: his-hope-cicd
+spec:
+  serviceAccountName: tekton-triggers-github-sa
+  triggers:
+    - name: push-to-main
+      interceptors:
+        - ref:
+            name: github
+          params:
+            - name: secretRef
+              value:
+                secretName: github-webhook-secret
+                secretKey: webhook-secret
+            - name: eventTypes
+              value:
+                - push
+        - ref:
+            name: cel
+          params:
+            - name: filter
+              value: >
+                body.ref == 'refs/heads/main'
+                && body.commits.exists(c, c.modified.exists(m, m.startsWith('src/')) || c.added.exists(a, a.startsWith('src/')) || c.removed.exists(r, r.startsWith('src/')))
+            - name: overlays
+              value:
+                - key: repo_full_name
+                  expression: "body.repository.full_name"
+                - name: service_name
+                  expression: "body.commits[0].modified.filter(m, m.startsWith('src/')).map(m, m.split('/')[1]).distinct()"
+                - name: git_revision
+                  expression: "body.after"
+                - name: git_repo_url
+                  expression: "body.repository.clone_url"
+                - name: trigger_type
+                  expression: "'push'"
+      template:
+        ref: ci-trigger-template
+      bindings:
+        - ref: github-push-binding
+
+    - name: pull-request
+      interceptors:
+        - ref:
+            name: github
+          params:
+            - name: secretRef
+              value:
+                secretName: github-webhook-secret
+                secretKey: webhook-secret
+            - name: eventTypes
+              value:
+                - pull_request
+        - ref:
+            name: cel
+          params:
+            - name: filter
+              value: >
+                body.action in ['opened', 'synchronize', 'reopened']
+                && body.pull_request.base.ref == 'main'
+                && body.pull_request.merged == false
+            - name: overlays
+              value:
+                - key: repo_full_name
+                  expression: "body.repository.full_name"
+                - name: service_name
+                  expression: "body.pull_request.changed_files > 0 ? (body.pull_request.head.repo.name.split('-').slice(0, -1).join('-') ?: 'unknown') : 'unknown'"
+                - name: git_revision
+                  expression: "body.pull_request.head.sha"
+                - name: git_repo_url
+                  expression: "body.repository.clone_url"
+                - name: trigger_type
+                  expression: "'pull_request'"
+                - name: pr_number
+                  expression: "string(body.pull_request.number)"
+      template:
+        ref: ci-trigger-template
+      bindings:
+        - ref: github-pr-binding
+
+  resources:
+    kubernetesResource:
+      spec:
+        template:
+          spec:
+            serviceAccountName: tekton-triggers-github-sa
+            containers:
+              - resources:
+                  requests:
+                    memory: "128Mi"
+                    cpu: "100m"
+                  limits:
+                    memory: "256Mi"
+                    cpu: "500m"
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: github-push-binding
+spec:
+  params:
+    - name: git-revision
+      value: $(body.after)
+    - name: git-repo-url
+      value: $(body.repository.clone_url)
+    - name: git-repo-name
+      value: $(body.repository.name)
+    - name: service-name
+      value: $(extensions.service_name[0])
+    - name: trigger-type
+      value: push
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: github-pr-binding
+spec:
+  params:
+    - name: git-revision
+      value: $(body.pull_request.head.sha)
+    - name: git-repo-url
+      value: $(body.repository.clone_url)
+    - name: git-repo-name
+      value: $(body.repository.name)
+    - name: service-name
+      value: $(extensions.service_name)
+    - name: trigger-type
+      value: pull_request
+    - name: pr-number
+      value: $(extensions.pr_number)

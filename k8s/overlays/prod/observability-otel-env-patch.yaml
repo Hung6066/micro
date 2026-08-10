@@ -1,0 +1,207 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  template:
+    spec:
+      containers:
+        - name: api-gateway
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: identity-service
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: appointment-service
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: clinical-service
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: patient-service
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: lab-service
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: billing-service
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: pharmacy-service
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database-continuity
+spec:
+  template:
+    spec:
+      containers:
+        - name: database-continuity
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: billing-bff
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: clinical-bff
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: dashboard-bff
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: lab-bff
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: patient-bff
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: pharmacy-bff
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: systemdashboard-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: systemdashboard-bff
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}

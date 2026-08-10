@@ -1,0 +1,76 @@
+    <hh-page-layout>
+      <hh-page-header hhPageHeader [title]="'adminPage.auditLogs' | hhTranslate:'Nhật ký truy cập'"
+                      [subtitle]="'adminPage.auditLogsSubtitle' | hhTranslate:'Xem lịch sử truy cập và hoạt động hệ thống'">
+        <button mat-stroked-button (click)="clearFilters()" class="clear-btn">
+          <mat-icon>clear</mat-icon> {{ 'adminPage.clearFilters' | hhTranslate:'Xóa lọc' }}
+        </button>
+      </hh-page-header>
+
+      <div class="filter-bar">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-user">
+          <mat-icon matPrefix>search</mat-icon>
+          <input matInput [formControl]="userSearchControl" [placeholder]="'adminPage.searchUser' | hhTranslate:'Tìm người dùng...'">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-action">
+          <mat-select [formControl]="actionFilter" [placeholder]="'adminPage.actionType' | hhTranslate:'Hành động'">
+            @for (a of actionOptions; track a.value) {
+            <mat-option [value]="a.value">{{ a.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-resource">
+          <mat-select [formControl]="resourceFilter" [placeholder]="'adminPage.resourceType' | hhTranslate:'Loại tài nguyên'">
+            @for (r of resourceOptions; track r.value) {
+            <mat-option [value]="r.value">{{ r.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-date">
+          <mat-label>{{ 'adminPage.fromDate' | hhTranslate:'Từ ngày' }}</mat-label>
+          <input matInput [matDatepicker]="fromPicker" [formControl]="fromDateControl" placeholder="dd/MM/yyyy">
+          <mat-datepicker-toggle matSuffix [for]="fromPicker"></mat-datepicker-toggle>
+          <mat-datepicker #fromPicker></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-date">
+          <mat-label>{{ 'adminPage.toDate' | hhTranslate:'Đến ngày' }}</mat-label>
+          <input matInput [matDatepicker]="toPicker" [formControl]="toDateControl" placeholder="dd/MM/yyyy">
+          <mat-datepicker-toggle matSuffix [for]="toPicker"></mat-datepicker-toggle>
+          <mat-datepicker #toPicker></mat-datepicker>
+        </mat-form-field>
+      </div>
+
+      <hh-data-table [label]="'adminPage.auditLogs' | hhTranslate:'Nhật ký truy cập'" [columns]="columns" [rows]="rows" mode="server"
+                     [loading]="loading" [error]="error ?? ''"
+                     [empty]="rows.length === 0 && !loading" [emptyMessage]="'adminPage.noAuditLogs' | hhTranslate:'Không có nhật ký nào'"
+                     [pageSize]="20" [totalItems]="totalCount" [query]="query"
+                     [searchable]="false" [expandedRowKeys]="expandedRowKeys"
+                     (queryChange)="onQueryChange($event)" (rowExpandChange)="onRowExpand($event)" (retry)="loadAuditLogs()">
+        <ng-template hhDataTableCell="timestamp" let-row>
+          {{ row['timestamp'] | date:'dd/MM/yy HH:mm' }}
+        </ng-template>
+        <ng-template hhDataTableCell="action" let-row>
+          <span class="action-badge" [ngClass]="'action-' + (row['action']?.toString().toLowerCase() || '')">
+            {{ row['actionLabel'] }}
+          </span>
+        </ng-template>
+        <ng-template hhDataTableCell="resourceType" let-row>
+          <span class="resource-badge">{{ row['resourceLabel'] }}</span>
+        </ng-template>
+        <ng-template hhDataTableDetail let-row>
+          <div class="detail-row-inner">
+            <div class="detail-section">
+              <span class="detail-label">User-Agent:</span>
+              <span class="detail-value">{{ row['userAgent'] }}</span>
+            </div>
+            <div class="detail-section">
+              <span class="detail-label">{{ 'common.details' | hhTranslate:'Chi tiết:' }}</span>
+              <pre class="detail-json">{{ row['details'] | json }}</pre>
+            </div>
+          </div>
+        </ng-template>
+      </hh-data-table>
+    </hh-page-layout>

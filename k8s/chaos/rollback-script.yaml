@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: chaos-engineering
+  name: rollback-script
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: game-day
+  annotations:
+    description: "Emergency rollback script to halt all active Chaos Mesh experiments in the his-hope namespace"
+    maintainer: "his-hope-sre@hishop.com"
+data:
+  rollback.sh: |
+    #!/bin/bash
+    #===============================================================================
+    # His.Hope EMR - Emergency Rollback Script for Chaos Mesh Experiments
+    #
+    # Usage:   kubectl exec -n chaos-engineering <pod> -- /bin/bash /scripts/rollback.sh
+    #          OR
+    #          kubectl apply -n chaos-engineering -f rollback-script.yaml
+    #          kubectl exec -n chaos-engineering deploy/some-pod -- bash -c "$(kubectl get configmap rollback-script -n chaos-engineering -o jsonpath='{.data.rollback\.sh}')"
+    #
+    # This script immediately terminates ALL active chaos experiments.
+    # Run this when experiments are causing production-impacting issues.
+    #===============================================================================
+
+    set -euo pipefail
+
+    NAMESPACE="his-hope"
+    TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    LOG_FILE="/var/log/chaos-rollback-${TIMESTAMP}.log"
+
+    log() {
+      echo "[${TIMESTAMP}] ${1}" | tee -a "${LOG_FILE}"
+    }
+
+    log "==============================================================================="
+    log "His.Hope EMR - Emergency Chaos Rollback Initiated"
+    log "Namespace: ${NAMESPACE}"
+    log "==============================================================================="
+
+    # 1. Delete all PodChaos experiments
+    log "Step 1/7: Deleting all PodChaos experiments..."
+    if kubectl delete podchaos --all -n "${NAMESPACE}" --ignore-not-found=true --wait=true --timeout=30s; then
+      log "  -> All PodChaos experiments deleted successfully."
+    else
+      log "  -> WARNING: Some PodChaos experiments may not have been deleted."
+    fi
+
+    # 2. Delete all NetworkChaos experiments
+    log "Step 2/7: Deleting all NetworkChaos experiments..."
+    if kubectl delete networkchaos --all -n "${NAMESPACE}" --ignore-not-found=true --wait=true --timeout=30s; then
+      log "  -> All NetworkChaos experiments deleted successfully."
+    else
+      log "  -> WARNING: Some NetworkChaos experiments may not have been deleted."
+    fi
+
+    # 3. Delete all StressChaos experiments
+    log "Step 3/7: Deleting all StressChaos experiments..."
+    if kubectl delete stresschaos --all -n "${NAMESPACE}" --ignore-not-found=true --wait=true --timeout=30s; then
+      log "  -> All StressChaos experiments deleted successfully."
+    else
+      log "  -> WARNING: Some StressChaos experiments may not have been deleted."
+    fi
+
+    # 4. Delete all HTTPChaos experiments
+    log "Step 4/7: Deleting all HTTPChaos experiments..."
+    if kubectl delete httpchaos --all -n "${NAMESPACE}" --ignore-not-found=true --wait=true --timeout=30s; then
+      log "  -> All HTTPChaos experiments deleted successfully."
+    else
+      log "  -> WARNING: Some HTTPChaos experiments may not have been deleted."
+    fi
+
+    # 5. Delete all DNSChaos experiments
+    log "Step 5/7: Deleting all DNSChaos experiments..."
+    if kubectl delete dnschaos --all -n "${NAMESPACE}" --ignore-not-found=true --wait=true --timeout=30s; then
+      log "  -> All DNSChaos experiments deleted successfully."
+    else
+      log "  -> WARNING: Some DNSChaos experiments may not have been deleted."
+    fi
+
+    # 6. Delete all IOChaos experiments
+    log "Step 6/7: Deleting all IOChaos experiments..."
+    if kubectl delete iochaos --all -n "${NAMESPACE}" --ignore-not-found=true --wait=true --timeout=30s; then
+      log "  -> All IOChaos experiments deleted successfully."
+    else
+      log "  -> WARNING: Some IOChaos experiments may not have been deleted."
+    fi
+
+    # 7. Verify all chaos resources are removed
+    log "Step 7/7: Verifying cleanup..."
+    REMAINING=$(kubectl get podchaos,networkchaos,stresschaos,httpchaos,dnschaos,iochaos -n "${NAMESPACE}" -o name 2>/dev/null || true)
+    if [ -z "${REMAINING}" ]; then
+      log "  -> SUCCESS: All chaos experiments have been stopped and cleaned up."
+    else
+      log "  -> WARNING: Remaining chaos resources found:"
+      log "     ${REMAINING}"
+    fi
+
+    log "==============================================================================="
+    log "Rollback completed at $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    log "Log file: ${LOG_FILE}"
+    log "==============================================================================="
+
+    exit 0

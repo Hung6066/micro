@@ -1,0 +1,22 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: agent-harness-rules
+  namespace: monitoring
+spec:
+  groups:
+    - name: agent-harness
+      interval: 30s
+      rules:
+        # Keep this rule grounded in metrics that exist for every Prometheus scrape target.
+        # The previous version referenced aspirational harness_* metrics that were not emitted,
+        # which created a false sense of monitoring coverage.
+        - alert: AgentHarnessTargetDown
+          expr: up{job=~".*agent-harness.*"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: platform
+          annotations:
+            summary: "Agent Harness scrape target is down"
+            description: "Prometheus has not been able to scrape Agent Harness for more than 2 minutes."

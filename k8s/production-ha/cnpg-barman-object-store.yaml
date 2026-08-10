@@ -1,0 +1,45 @@
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: spire-postgres-store
+  namespace: spire
+  labels:
+    app.kubernetes.io/name: spire-postgres-store
+    app.kubernetes.io/component: backup-object-store
+    app.kubernetes.io/part-of: his-hope
+spec:
+  configuration:
+    destinationPath: s3://his-hope-spire/
+    endpointURL: http://minio.backup.svc.cluster.local:9000
+    s3Credentials:
+      accessKeyId:
+        name: spire-postgres-backup-credentials
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: spire-postgres-backup-credentials
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+      maxParallel: 2
+    data:
+      compression: gzip
+      jobs: 2
+  retentionPolicy: 30d
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: spire-postgres-backup
+  namespace: spire
+  labels:
+    app.kubernetes.io/name: spire-postgres-backup
+    app.kubernetes.io/component: backup-schedule
+    app.kubernetes.io/part-of: his-hope
+spec:
+  schedule: "0 0 */6 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: spire-postgres
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io

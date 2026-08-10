@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  namespace: his-hope
+  name: linkerd-proxies
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  podMetricsEndpoints:
+  - port: linkerd-admin
+    path: /metrics
+    interval: 15s
+    relabelings:
+    - sourceLabels:
+      - __meta_kubernetes_pod_annotation_linkerd_io_proxy_version
+      action: keep
+      regex: .+
+  selector:
+    matchLabels:
+      linkerd.io/control-plane-ns: linkerd

@@ -1,0 +1,96 @@
+// Open-license font fallbacks used when a preset references a proprietary family.
+// The files are vendored so the three apps render consistently offline.
+@font-face {
+  font-family: 'HisHope Inter';
+  src: url('./fonts/inter-400.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HisHope Inter';
+  src: url('./fonts/inter-500.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HisHope Inter';
+  src: url('./fonts/inter-600.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HisHope Inter';
+  src: url('./fonts/inter-700.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'HisHope Plex Sans';
+  src: url('./fonts/ibm-plex-sans-400.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HisHope Plex Sans';
+  src: url('./fonts/ibm-plex-sans-500.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HisHope Plex Sans';
+  src: url('./fonts/ibm-plex-sans-600.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HisHope Plex Sans';
+  src: url('./fonts/ibm-plex-sans-700.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'HisHope Plex Mono';
+  src: url('./fonts/ibm-plex-mono-400.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HisHope Plex Mono';
+  src: url('./fonts/ibm-plex-mono-500.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'HisHope Source Serif';
+  src: url('./fonts/source-serif-400.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HisHope Source Serif';
+  src: url('./fonts/source-serif-500.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'HisHope Source Serif';
+  src: url('./fonts/source-serif-600.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}

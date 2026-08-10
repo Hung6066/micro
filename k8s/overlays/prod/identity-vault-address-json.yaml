@@ -1,0 +1,5 @@
+- op: replace
+  path: /spec/template/spec/containers/0/env/12
+  value:
+    name: Vault__Address
+    value: https://vault-active.his-hope.svc.cluster.local:8200

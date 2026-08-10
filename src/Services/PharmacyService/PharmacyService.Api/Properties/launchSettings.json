@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "PharmacyService.Api": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:7196;http://localhost:7199"
+    }
+  }
+}

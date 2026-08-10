@@ -1,0 +1,674 @@
+{
+  "version": "v1",
+  "requiredKeys": [
+    "HIS_HOPE_ENVIRONMENT",
+    "HIS_HOPE_RUNTIME_CONTRACT_VERSION",
+    "HIS_HOPE_PUBLIC_API_ORIGIN",
+    "HIS_HOPE_PUBLIC_WEB_ORIGIN",
+    "HIS_HOPE_PUBLIC_ADMIN_ORIGIN",
+    "HIS_HOPE_PUBLIC_DASHBOARD_ORIGIN",
+    "HIS_HOPE_OIDC_AUTHORITY",
+    "HIS_HOPE_SECRET_PROVIDER",
+    "HIS_HOPE_SECRET_PROVIDER_REF",
+    "SERVICE_API_GATEWAY_URL",
+    "SERVICE_IDENTITY_URL",
+    "SERVICE_PATIENT_URL",
+    "SERVICE_APPOINTMENT_URL",
+    "SERVICE_CLINICAL_URL",
+    "SERVICE_LAB_URL",
+    "SERVICE_BILLING_URL",
+    "SERVICE_PHARMACY_URL",
+    "SERVICE_DASHBOARD_BFF_URL",
+    "SERVICE_DATABASE_CONTINUITY_URL",
+    "DATABASE_POSTGRES_URL",
+    "REDIS_URL",
+    "RABBITMQ_URL",
+    "RESILIENCE_HTTP_TIMEOUT_SECONDS",
+    "RESILIENCE_HTTP_RETRY_COUNT",
+    "OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT",
+    "OBSERVABILITY_PROMETHEUS_URL",
+    "OBSERVABILITY_LOKI_URL",
+    "OBSERVABILITY_ALERTMANAGER_URL",
+    "OBSERVABILITY_PROMETHEUS_REQUIRED",
+    "OBSERVABILITY_ELASTICSEARCH_URL",
+    "OBSERVABILITY_ELASTICSEARCH_REQUIRED",
+    "OBSERVABILITY_JAEGER_URL",
+    "OBSERVABILITY_JAEGER_REQUIRED",
+    "SECRET_POSTGRES_PASSWORD",
+    "SECRET_POSTGRES_PASSWORD_REF",
+    "SECRET_RABBITMQ_PASSWORD",
+    "SECRET_RABBITMQ_PASSWORD_REF",
+    "SECRET_REDIS_PASSWORD",
+    "SECRET_REDIS_PASSWORD_REF",
+    "SECRET_OIDC_CLIENT_SECRET",
+    "SECRET_OIDC_CLIENT_SECRET_REF"
+  ],
+  "publicOrigins": [
+    {
+      "key": "HIS_HOPE_PUBLIC_API_ORIGIN",
+      "kind": "public-origin",
+      "logicalName": "public-api-origin",
+      "uriSchemes": [
+        "http",
+        "https"
+      ],
+      "strictRuntimeMatch": false,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "localhost",
+          "port": 5000
+        },
+        "vm": {
+          "host": "api.staging.his-hope.example",
+          "port": 443
+        },
+        "kubernetes": {
+          "host": "api.his-hope.example",
+          "port": 443
+        }
+      }
+    },
+    {
+      "key": "HIS_HOPE_PUBLIC_WEB_ORIGIN",
+      "kind": "public-origin",
+      "logicalName": "public-web-origin",
+      "uriSchemes": [
+        "http",
+        "https"
+      ],
+      "strictRuntimeMatch": false,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "localhost",
+          "port": 4200
+        },
+        "vm": {
+          "host": "app.staging.his-hope.example",
+          "port": 443
+        },
+        "kubernetes": {
+          "host": "app.his-hope.example",
+          "port": 443
+        }
+      }
+    },
+    {
+      "key": "HIS_HOPE_PUBLIC_ADMIN_ORIGIN",
+      "kind": "public-origin",
+      "logicalName": "public-admin-origin",
+      "uriSchemes": [
+        "http",
+        "https"
+      ],
+      "strictRuntimeMatch": false,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "localhost",
+          "port": 4201
+        },
+        "vm": {
+          "host": "admin.staging.his-hope.example",
+          "port": 443
+        },
+        "kubernetes": {
+          "host": "admin.his-hope.example",
+          "port": 443
+        }
+      }
+    },
+    {
+      "key": "HIS_HOPE_PUBLIC_DASHBOARD_ORIGIN",
+      "kind": "public-origin",
+      "logicalName": "public-dashboard-origin",
+      "uriSchemes": [
+        "http",
+        "https"
+      ],
+      "strictRuntimeMatch": false,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "localhost",
+          "port": 4202
+        },
+        "vm": {
+          "host": "ops.staging.his-hope.example",
+          "port": 443
+        },
+        "kubernetes": {
+          "host": "ops.his-hope.example",
+          "port": 443
+        }
+      }
+    },
+    {
+      "key": "HIS_HOPE_OIDC_AUTHORITY",
+      "kind": "oidc-authority",
+      "logicalName": "oidc-authority",
+      "uriSchemes": [
+        "http",
+        "https"
+      ],
+      "strictRuntimeMatch": false,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "localhost",
+          "port": 5001
+        },
+        "vm": {
+          "host": "identity.staging.his-hope.example",
+          "port": 443
+        },
+        "kubernetes": {
+          "host": "identity.his-hope.example",
+          "port": 443
+        }
+      }
+    }
+  ],
+  "serviceEndpoints": [
+    {
+      "key": "SERVICE_API_GATEWAY_URL",
+      "kind": "service-url",
+      "logicalName": "api-gateway",
+      "uriSchemes": [
+        "http"
+      ],
+      "strictRuntimeMatch": true,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "api-gateway",
+          "port": 5000
+        },
+        "vm": {
+          "host": "gateway.internal.staging.his-hope.example",
+          "port": 5000
+        },
+        "kubernetes": {
+          "host": "api-gateway.his-hope.svc.cluster.local",
+          "port": 5000
+        }
+      }
+    },
+    {
+      "key": "SERVICE_IDENTITY_URL",
+      "kind": "service-url",
+      "logicalName": "identityservice",
+      "uriSchemes": [
+        "http"
+      ],
+      "strictRuntimeMatch": true,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "identityservice",
+          "port": 5001
+        },
+        "vm": {
+          "host": "identity.internal.staging.his-hope.example",
+          "port": 5001
+        },
+        "kubernetes": {
+          "host": "identity-service.his-hope.svc.cluster.local",
+          "port": 5003
+        }
+      }
+    },
+    {
+      "key": "SERVICE_PATIENT_URL",
+      "kind": "service-url",
+      "logicalName": "patientservice",
+      "uriSchemes": [
+        "http"
+      ],
+      "strictRuntimeMatch": true,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "patientservice",
+          "port": 5002
+        },
+        "vm": {
+          "host": "patient.internal.staging.his-hope.example",
+          "port": 5002
+        },
+        "kubernetes": {
+          "host": "patient-service.his-hope.svc.cluster.local",
+          "port": 5002
+        }
+      }
+    },
+    {
+      "key": "SERVICE_APPOINTMENT_URL",
+      "kind": "service-url",
+      "logicalName": "appointmentservice",
+      "uriSchemes": [
+        "http"
+      ],
+      "strictRuntimeMatch": true,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "appointmentservice",
+          "port": 5003
+        },
+        "vm": {
+          "host": "appointment.internal.staging.his-hope.example",
+          "port": 5003
+        },
+        "kubernetes": {
+          "host": "appointment-service.his-hope.svc.cluster.local",
+          "port": 5004
+        }
+      }
+    },
+    {
+      "key": "SERVICE_CLINICAL_URL",
+      "kind": "service-url",
+      "logicalName": "clinicalservice",
+      "uriSchemes": [
+        "http"
+      ],
+      "strictRuntimeMatch": true,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "clinicalservice",
+          "port": 5004
+        },
+        "vm": {
+          "host": "clinical.internal.staging.his-hope.example",
+          "port": 5004
+        },
+        "kubernetes": {
+          "host": "clinical-service.his-hope.svc.cluster.local",
+          "port": 5005
+        }
+      }
+    },
+    {
+      "key": "SERVICE_LAB_URL",
+      "kind": "service-url",
+      "logicalName": "labservice",
+      "uriSchemes": [
+        "http"
+      ],
+      "strictRuntimeMatch": true,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "labservice",
+          "port": 5010
+        },
+        "vm": {
+          "host": "lab.internal.staging.his-hope.example",
+          "port": 5010
+        },
+        "kubernetes": {
+          "host": "lab-service.his-hope.svc.cluster.local",
+          "port": 5010
+        }
+      }
+    },
+    {
+      "key": "SERVICE_BILLING_URL",
+      "kind": "service-url",
+      "logicalName": "billingservice",
+      "uriSchemes": [
+        "http"
+      ],
+      "strictRuntimeMatch": true,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "billingservice",
+          "port": 5020
+        },
+        "vm": {
+          "host": "billing.internal.staging.his-hope.example",
+          "port": 5020
+        },
+        "kubernetes": {
+          "host": "billing-service.his-hope.svc.cluster.local",
+          "port": 5020
+        }
+      }
+    },
+    {
+      "key": "SERVICE_PHARMACY_URL",
+      "kind": "service-url",
+      "logicalName": "pharmacyservice",
+      "uriSchemes": [
+        "http"
+      ],
+      "strictRuntimeMatch": true,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "pharmacyservice",
+          "port": 5030
+        },
+        "vm": {
+          "host": "pharmacy.internal.staging.his-hope.example",
+          "port": 5030
+        },
+        "kubernetes": {
+          "host": "pharmacy-service.his-hope.svc.cluster.local",
+          "port": 5030
+        }
+      }
+    },
+    {
+      "key": "SERVICE_DASHBOARD_BFF_URL",
+      "kind": "service-url",
+      "logicalName": "systemdashboard-bff",
+      "uriSchemes": [
+        "http"
+      ],
+      "strictRuntimeMatch": true,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "systemdashboard-bff",
+          "port": 5700
+        },
+        "vm": {
+          "host": "dashboard.internal.staging.his-hope.example",
+          "port": 5600
+        },
+        "kubernetes": {
+          "host": "dashboard-bff.his-hope.svc.cluster.local",
+          "port": 5600
+        }
+      }
+    },
+    {
+      "key": "SERVICE_DATABASE_CONTINUITY_URL",
+      "kind": "service-url",
+      "logicalName": "database-continuity-service",
+      "uriSchemes": [
+        "http"
+      ],
+      "strictRuntimeMatch": true,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "database-continuity-service",
+          "port": 5800
+        },
+        "vm": {
+          "host": "database-continuity.internal.staging.his-hope.example",
+          "port": 5800
+        },
+        "kubernetes": {
+          "host": "database-continuity.his-hope.svc.cluster.local",
+          "port": 5800
+        }
+      }
+    }
+  ],
+  "dataEndpoints": [
+    {
+      "key": "DATABASE_POSTGRES_URL",
+      "kind": "data-url",
+      "logicalName": "postgres",
+      "uriSchemes": [
+        "postgresql"
+      ],
+      "strictRuntimeMatch": true,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "postgres",
+          "port": 5432
+        },
+        "vm": {
+          "host": "postgres.internal.staging.his-hope.example",
+          "port": 5432
+        },
+        "kubernetes": {
+          "host": "postgres.his-hope.svc.cluster.local",
+          "port": 5432
+        }
+      }
+    },
+    {
+      "key": "REDIS_URL",
+      "kind": "data-url",
+      "logicalName": "redis",
+      "uriSchemes": [
+        "redis"
+      ],
+      "strictRuntimeMatch": true,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "redis",
+          "port": 6379
+        },
+        "vm": {
+          "host": "redis.internal.staging.his-hope.example",
+          "port": 6379
+        },
+        "kubernetes": {
+          "host": "redis.his-hope.svc.cluster.local",
+          "port": 6379
+        }
+      }
+    },
+    {
+      "key": "RABBITMQ_URL",
+      "kind": "data-url",
+      "logicalName": "rabbitmq",
+      "uriSchemes": [
+        "amqp"
+      ],
+      "strictRuntimeMatch": true,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "rabbitmq",
+          "port": 5672
+        },
+        "vm": {
+          "host": "rabbitmq.internal.staging.his-hope.example",
+          "port": 5672
+        },
+        "kubernetes": {
+          "host": "rabbitmq.his-hope.svc.cluster.local",
+          "port": 5672
+        }
+      }
+    }
+  ],
+  "resilience": [
+    {
+      "key": "RESILIENCE_HTTP_TIMEOUT_SECONDS",
+      "type": "integer",
+      "minimum": 1
+    },
+    {
+      "key": "RESILIENCE_HTTP_RETRY_COUNT",
+      "type": "integer",
+      "minimum": 0
+    }
+  ],
+  "observability": [
+    {
+      "key": "OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT",
+      "type": "endpoint",
+      "kind": "observability-url",
+      "logicalName": "otel-collector",
+      "uriSchemes": [
+        "http"
+      ],
+      "strictRuntimeMatch": true,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "otel-collector",
+          "port": 4317
+        },
+        "vm": {
+          "host": "otel.internal.staging.his-hope.example",
+          "port": 4317
+        },
+        "kubernetes": {
+          "host": "otel-collector.his-hope.svc.cluster.local",
+          "port": 4317
+        }
+      }
+    },
+    {
+      "key": "OBSERVABILITY_PROMETHEUS_URL",
+      "type": "endpoint",
+      "kind": "observability-url",
+      "logicalName": "prometheus",
+      "uriSchemes": [
+        "http"
+      ],
+      "strictRuntimeMatch": false,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "prometheus",
+          "port": 9090
+        },
+        "vm": {
+          "host": "prometheus.internal.staging.his-hope.example",
+          "port": 9090
+        },
+        "kubernetes": {
+          "host": "prometheus.his-hope.svc.cluster.local",
+          "port": 9090
+        }
+      }
+    },
+    {
+      "key": "OBSERVABILITY_PROMETHEUS_REQUIRED",
+      "type": "boolean"
+    },
+    {
+      "key": "OBSERVABILITY_ELASTICSEARCH_URL",
+      "type": "endpoint",
+      "kind": "observability-url",
+      "logicalName": "elasticsearch",
+      "uriSchemes": [
+        "http"
+      ],
+      "strictRuntimeMatch": false,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "elasticsearch",
+          "port": 9200
+        },
+        "vm": {
+          "host": "elasticsearch.internal.staging.his-hope.example",
+          "port": 9200
+        },
+        "kubernetes": {
+          "host": "elasticsearch.his-hope.svc.cluster.local",
+          "port": 9200
+        }
+      }
+    },
+    {
+      "key": "OBSERVABILITY_ELASTICSEARCH_REQUIRED",
+      "type": "boolean"
+    },
+    {
+      "key": "OBSERVABILITY_JAEGER_URL",
+      "type": "endpoint",
+      "kind": "observability-url",
+      "logicalName": "jaeger",
+      "uriSchemes": [
+        "http"
+      ],
+      "strictRuntimeMatch": false,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "jaeger",
+          "port": 16686
+        },
+        "vm": {
+          "host": "jaeger.internal.staging.his-hope.example",
+          "port": 16686
+        },
+        "kubernetes": {
+          "host": "jaeger.his-hope.svc.cluster.local",
+          "port": 16686
+        }
+      }
+    },
+    {
+      "key": "OBSERVABILITY_JAEGER_REQUIRED",
+      "type": "boolean"
+    },
+    {
+      "key": "OBSERVABILITY_LOKI_URL",
+      "type": "endpoint",
+      "kind": "observability-url",
+      "logicalName": "loki",
+      "uriSchemes": ["http"],
+      "strictRuntimeMatch": false,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": { "host": "loki", "port": 3100 },
+        "vm": { "host": "loki.internal.staging.his-hope.example", "port": 3100 },
+        "kubernetes": { "host": "loki.monitoring.svc.cluster.local", "port": 3100 }
+      }
+    },
+    {
+      "key": "OBSERVABILITY_ALERTMANAGER_URL",
+      "type": "endpoint",
+      "kind": "observability-url",
+      "logicalName": "alertmanager",
+      "uriSchemes": ["http"],
+      "strictRuntimeMatch": false,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": { "host": "alertmanager", "port": 9093 },
+        "vm": { "host": "alertmanager.internal.staging.his-hope.example", "port": 9093 },
+        "kubernetes": { "host": "alertmanager.monitoring.svc.cluster.local", "port": 9093 }
+      }
+    }
+  ],
+  "secretProvider": {
+    "providerKey": "HIS_HOPE_SECRET_PROVIDER",
+    "providerRefKey": "HIS_HOPE_SECRET_PROVIDER_REF",
+    "allowedProviders": [
+      "vault",
+      "aws-secrets-manager",
+      "azure-key-vault"
+    ]
+  },
+  "secretReferences": [
+    {
+      "secretKey": "SECRET_POSTGRES_PASSWORD",
+      "secretRefKey": "SECRET_POSTGRES_PASSWORD_REF",
+      "requiredProviderRef": true
+    },
+    {
+      "secretKey": "SECRET_RABBITMQ_PASSWORD",
+      "secretRefKey": "SECRET_RABBITMQ_PASSWORD_REF",
+      "requiredProviderRef": true
+    },
+    {
+      "secretKey": "SECRET_REDIS_PASSWORD",
+      "secretRefKey": "SECRET_REDIS_PASSWORD_REF",
+      "requiredProviderRef": true
+    },
+    {
+      "secretKey": "SECRET_OIDC_CLIENT_SECRET",
+      "secretRefKey": "SECRET_OIDC_CLIENT_SECRET_REF",
+      "requiredProviderRef": true
+    }
+  ]
+}

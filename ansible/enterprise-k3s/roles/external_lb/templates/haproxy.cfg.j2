@@ -1,0 +1,53 @@
+global
+    log /dev/log local0
+    log /dev/log local1 notice
+    daemon
+    user haproxy
+    group haproxy
+
+defaults
+    log global
+    mode tcp
+    option tcplog
+    timeout connect 5s
+    timeout client 30s
+    timeout server 30s
+
+frontend k3s-api
+    bind *:{{ lb_k3s_api_port }}
+    mode tcp
+    default_backend k3s-api-backend
+
+backend k3s-api-backend
+    mode tcp
+    balance roundrobin
+    option tcp-check
+{% for backend in lb_k3s_api_backends %}
+    server {{ backend.name }} {{ backend.address }}:{{ lb_k3s_api_port }} check
+{% endfor %}
+
+frontend ingress-http
+    bind *:{{ lb_ingress_http_port }}
+    mode tcp
+    default_backend ingress-http-backend
+
+backend ingress-http-backend
+    mode tcp
+    balance roundrobin
+    option tcp-check
+{% for backend in lb_ingress_backends %}
+    server {{ backend.name }} {{ backend.address }}:{{ lb_ingress_http_node_port }} check
+{% endfor %}
+
+frontend harbor-https
+    bind *:{{ lb_harbor_https_port }}
+    mode tcp
+    default_backend harbor-https-backend
+
+backend harbor-https-backend
+    mode tcp
+    balance roundrobin
+    option tcp-check
+{% for backend in lb_harbor_https_backends %}
+    server {{ backend.name }} {{ backend.address }}:{{ lb_harbor_https_node_port }} check
+{% endfor %}

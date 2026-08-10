@@ -1,0 +1,271 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-agent-injector
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: vault-agent-injector
+    app.kubernetes.io/component: sidecar-injector
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vault-agent-injector-cluster-role
+  labels:
+    app.kubernetes.io/name: vault-agent-injector
+    app.kubernetes.io/component: sidecar-injector
+rules:
+  - apiGroups: ["admissionregistration.k8s.io"]
+    resources: ["mutatingwebhookconfigurations"]
+    verbs: ["get", "list", "watch", "patch", "update", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "events"]
+    verbs: ["get", "list", "watch", "patch", "update", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "patch", "update", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["subjectaccessreviews"]
+    verbs: ["create"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vault-agent-injector-binding
+  labels:
+    app.kubernetes.io/name: vault-agent-injector
+    app.kubernetes.io/component: sidecar-injector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vault-agent-injector-cluster-role
+subjects:
+  - kind: ServiceAccount
+    name: vault-agent-injector
+    namespace: his-hope
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-agent-injector-config
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: vault-agent-injector
+    app.kubernetes.io/component: sidecar-injector
+data:
+  agent-inject.log.level: "info"
+  agent-inject.vault-addr: "https://vault-active.his-hope.svc.cluster.local:8200"
+  agent-inject.vault-skip-verify: "false"
+  agent-inject.vault-tlsserverpath: "/etc/tls/vault"
+  agent-inject.template.config |: |
+    {
+      "exit_on_retry_failure": true,
+      "log_level": "info",
+      "vault": {
+        "address": "https://vault-active.his-hope.svc.cluster.local:8200",
+        "ca_cert": "/etc/tls/vault/ca.crt",
+        "tls_skip_verify": false
+      },
+      "auto_auth": {
+        "method": {
+          "type": "kubernetes",
+          "config": {
+            "role": "default",
+            "mount_path": "auth/kubernetes",
+            "token": "/var/run/secrets/kubernetes.io/serviceaccount/token"
+          }
+        },
+        "sink": {
+          "type": "file",
+          "config": {
+            "path": "/home/vault/.vault-token"
+          }
+        }
+      }
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault-agent-injector
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: vault-agent-injector
+    app.kubernetes.io/component: sidecar-injector
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vault-agent-injector
+      app.kubernetes.io/component: sidecar-injector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vault-agent-injector
+        app.kubernetes.io/component: sidecar-injector
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+    spec:
+      serviceAccountName: vault-agent-injector
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/name
+                      operator: In
+                      values:
+                        - vault-agent-injector
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: sidecar-injector
+          image: hashicorp/vault-k8s:1.3.1
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: AGENT_INJECT_LISTEN
+              value: ":8080"
+            - name: AGENT_INJECT_LOG_LEVEL
+              value: "info"
+            - name: AGENT_INJECT_VAULT_ADDR
+              value: "https://vault-active.his-hope.svc.cluster.local:8200"
+            - name: AGENT_INJECT_VAULT_SKIP_VERIFY
+              value: "false"
+            - name: AGENT_INJECT_CERT_FILE
+              value: "/etc/tls/cert.pem"
+            - name: AGENT_INJECT_KEY_FILE
+              value: "/etc/tls/key.pem"
+            - name: AGENT_INJECT_VAULT_CACERT
+              value: "/etc/tls/ca.crt"
+            - name: AGENT_INJECT_VAULT_AUTH_PATH
+              value: "auth/kubernetes"
+            - name: AGENT_INJECT_REVIEWER_SERVICE_ACCOUNT_PATH
+              value: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+            - name: AGENT_INJECT_USE_LEADER_ELECTOR
+              value: "true"
+            - name: AGENT_INJECT_VAULT_IMAGE
+              value: "hashicorp/vault:1.16"
+            - name: AGENT_INJECT_TEMPLATE_CONFIG
+              value: "/etc/agent-inject/template-config"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - containerPort: 8080
+              name: http
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+              scheme: HTTPS
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/tls
+              readOnly: true
+            - name: agent-inject-config
+              mountPath: /etc/agent-inject
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: tls
+          secret:
+            secretName: vault-agent-injector-tls
+            defaultMode: 0444
+        - name: agent-inject-config
+          configMap:
+            name: vault-agent-injector-config
+            defaultMode: 0444
+
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: vault-agent-injector-cfg
+  labels:
+    app.kubernetes.io/name: vault-agent-injector
+    app.kubernetes.io/component: sidecar-injector
+webhooks:
+  - name: vault.hashicorp.com
+    admissionReviewVersions:
+      - v1
+      - v1beta1
+    clientConfig:
+      service:
+        name: vault-agent-injector
+        namespace: his-hope
+        path: /mutate
+        port: 443
+      caBundle: ""
+    failurePolicy: Ignore
+    matchPolicy: Exact
+    namespaceSelector:
+      matchLabels:
+        vault-injection: enabled
+    objectSelector: {}
+    reinvocationPolicy: Never
+    rules:
+      - operations:
+          - CREATE
+          - UPDATE
+        apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        resources:
+          - pods
+        scope: Namespaced
+    sideEffects: None
+    timeoutSeconds: 30
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-agent-injector
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: vault-agent-injector
+    app.kubernetes.io/component: sidecar-injector
+spec:
+  selector:
+    app.kubernetes.io/name: vault-agent-injector
+    app.kubernetes.io/component: sidecar-injector
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8080
+      protocol: TCP
+  type: ClusterIP

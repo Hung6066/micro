@@ -1,0 +1,199 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: cd-pipeline
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.17.0"
+    tekton.dev/tags: cd, canary
+    tekton.dev/displayName: CD Pipeline with Canary
+spec:
+  description: >-
+    Continuous Delivery pipeline that performs a canary deployment with
+    progressive traffic shifting, monitors error rates and latency, and
+    either promotes to production or rolls back automatically.
+
+  params:
+    - name: SERVICE_NAME
+      type: string
+      description: Name of the service to deploy
+    - name: ENVIRONMENT
+      type: string
+      description: Target environment (staging, production)
+      default: production
+    - name: NAMESPACE
+      type: string
+      description: Target namespace
+    - name: IMAGE_TAG
+      type: string
+      description: Container image tag to deploy
+    - name: REGISTRY_BASE
+      type: string
+      description: Container registry base URL
+      default: ghcr.io/hishop
+    - name: CANARY_TRAFFIC_STEPS
+      type: string
+      description: Traffic shift percentages for canary
+      default: "10,25,50,100"
+    - name: CANARY_DURATION
+      type: string
+      description: Seconds between traffic shifts
+      default: "60"
+    - name: STABLE_VERSION_LABEL
+      type: string
+      description: Label for the stable version in Istio
+      default: stable
+    - name: NEW_VERSION_LABEL
+      type: string
+      description: Label for the new version in Istio
+    - name: METRICS_PROMETHEUS_URL
+      type: string
+      description: Prometheus server URL for metric queries
+      default: http://prometheus-operated.monitoring.svc.cluster.local:9090
+    - name: ERROR_RATE_THRESHOLD
+      type: string
+      description: Maximum acceptable error rate percentage
+      default: "1.0"
+    - name: LATENCY_THRESHOLD_MS
+      type: string
+      description: Maximum acceptable p99 latency in milliseconds
+      default: "500"
+
+  workspaces:
+    - name: source
+      description: Git repository with Kubernetes manifests
+    - name: dockerconfig
+      description: Docker registry credentials
+      optional: true
+
+  results:
+    - name: DEPLOY_STATUS
+      description: Final deployment status (promoted/rolled-back)
+    - name: CANARY_FINAL_VERSION
+      description: The version that is currently serving traffic
+
+  tasks:
+    - name: deploy-canary
+      taskRef:
+        name: canary-deploy
+      params:
+        - name: SERVICE_NAME
+          value: $(params.SERVICE_NAME)
+        - name: NAMESPACE
+          value: $(params.NAMESPACE)
+        - name: NEW_VERSION
+          value: $(params.NEW_VERSION_LABEL)
+        - name: TRAFFIC_STEPS
+          value: "10"
+        - name: STABLE_VERSION
+          value: $(params.STABLE_VERSION_LABEL)
+        - name: CANARY_DURATION_SECONDS
+          value: "30"
+      workspaces:
+        - name: source
+          workspace: source
+
+    - name: smoke-test
+      taskRef:
+        name: smoke-test
+      runAfter:
+        - deploy-canary
+      params:
+        - name: SERVICE_URL
+          value: http://$(params.SERVICE_NAME).$(params.NAMESPACE).svc.cluster.local:8080
+      workspaces:
+        - name: source
+          workspace: source
+
+    - name: analyze-metrics
+      taskRef:
+        name: analyze-metrics
+        kind: ClusterTask
+      runAfter:
+        - smoke-test
+      params:
+        - name: SERVICE_NAME
+          value: $(params.SERVICE_NAME)
+        - name: NAMESPACE
+          value: $(params.NAMESPACE)
+        - name: PROMETHEUS_URL
+          value: $(params.METRICS_PROMETHEUS_URL)
+        - name: ERROR_RATE_THRESHOLD
+          value: $(params.ERROR_RATE_THRESHOLD)
+        - name: LATENCY_THRESHOLD_MS
+          value: $(params.LATENCY_THRESHOLD_MS)
+        - name: DURATION_MINUTES
+          value: "5"
+      workspaces:
+        - name: source
+          workspace: source
+
+    - name: promote-to-production
+      taskRef:
+        name: canary-deploy
+      runAfter:
+        - analyze-metrics
+      params:
+        - name: SERVICE_NAME
+          value: $(params.SERVICE_NAME)
+        - name: NAMESPACE
+          value: $(params.NAMESPACE)
+        - name: NEW_VERSION
+          value: $(params.NEW_VERSION_LABEL)
+        - name: TRAFFIC_STEPS
+          value: $(params.CANARY_TRAFFIC_STEPS)
+        - name: STABLE_VERSION
+          value: $(params.STABLE_VERSION_LABEL)
+        - name: CANARY_DURATION_SECONDS
+          value: $(params.CANARY_DURATION)
+      workspaces:
+        - name: source
+          workspace: source
+      when:
+        - input: "$(tasks.analyze-metrics.results.METRICS_HEALTHY)"
+          operator: in
+          values:
+            - "true"
+
+    - name: rollback-canary
+      taskRef:
+        name: canary-deploy
+      runAfter:
+        - analyze-metrics
+      params:
+        - name: SERVICE_NAME
+          value: $(params.SERVICE_NAME)
+        - name: NAMESPACE
+          value: $(params.NAMESPACE)
+        - name: NEW_VERSION
+          value: $(params.NEW_VERSION_LABEL)
+        - name: TRAFFIC_STEPS
+          value: "0"
+        - name: STABLE_VERSION
+          value: $(params.STABLE_VERSION_LABEL)
+        - name: CANARY_DURATION_SECONDS
+          value: "10"
+      workspaces:
+        - name: source
+          workspace: source
+      when:
+        - input: "$(tasks.analyze-metrics.results.METRICS_HEALTHY)"
+          operator: in
+          values:
+            - "false"
+
+  finally:
+    - name: notify-slack
+      taskRef:
+        name: send-slack-message
+        kind: ClusterTask
+      params:
+        - name: MESSAGE
+          value: |
+            CD Pipeline completed for *$(params.SERVICE_NAME)* in *$(params.ENVIRONMENT)*
+            Image tag: $(params.IMAGE_TAG)
+            Canary status: $(tasks.deploy-canary.results.CANARY_STATUS)
+            Promotion: $(tasks.promote-to-production.status)
+            Rollback: $(tasks.rollback-canary.status)
+            PipelineRun: $(context.pipelineRun.name)

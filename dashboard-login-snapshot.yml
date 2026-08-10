@@ -1,0 +1,45 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - button "Toggle navigation" [ref=e4] [cursor=pointer]:
+      - img [ref=e5]: menu
+    - generic [ref=e8]: His.Hope Dashboard
+    - button "Open command palette" [ref=e9] [cursor=pointer]:
+      - img [ref=e10]: search
+    - button "Thông báo cảnh báo" [ref=e14] [cursor=pointer]:
+      - img [ref=e15]: notifications
+      - generic: "0"
+    - button "Tiếng Việt" [ref=e20] [cursor=pointer]:
+      - generic [ref=e23]: VI
+    - button "Toggle dark mode" [ref=e24] [cursor=pointer]:
+      - img [ref=e25]: brightness_6
+    - button "User menu" [ref=e28] [cursor=pointer]:
+      - img [ref=e29]: account_circle
+  - generic [ref=e32]:
+    - generic [ref=e35]:
+      - generic [ref=e36]:
+        - generic "His.Hope" [ref=e37]
+        - generic [ref=e41]: Operations workspace
+      - navigation [ref=e42]:
+        - link [ref=e43] [cursor=pointer]:
+          - /url: /resources
+          - img [ref=e44]: dns
+        - link [ref=e46] [cursor=pointer]:
+          - /url: /logs
+          - img [ref=e47]: article
+        - link [ref=e49] [cursor=pointer]:
+          - /url: /traces
+          - img [ref=e50]: timeline
+        - link [ref=e52] [cursor=pointer]:
+          - /url: /slo
+          - img [ref=e53]: speed
+        - link [ref=e55] [cursor=pointer]:
+          - /url: /metrics
+          - img [ref=e56]: monitoring
+    - main [ref=e60]:
+      - generic [ref=e64]:
+        - generic [ref=e65]:
+          - generic [ref=e66]: His.Hope
+          - heading "Dashboard" [level=2] [ref=e67]
+          - paragraph [ref=e68]: Sign in to your account
+        - button "Sign in with His.Hope" [ref=e70]:
+          - img [ref=e71]: login

@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: identity-service
+          env:
+            - name: Jwt__RsaPrivateKeyPath
+              value: /mnt/identity-jwt-keys/jwt-private-key.pem
+            - name: Jwt__RsaPublicKeyPath
+              value: /mnt/identity-jwt-keys/jwt-public-key.pem
+            - name: Jwt__RsaEncryptionPrivateKeyPath
+              value: /mnt/identity-jwt-keys/jwt-encryption-private-key.pem
+            - name: OpenIddict__Signing__PrivateKeyPath
+              value: /mnt/identity-jwt-keys/jwt-private-key.pem
+            - name: OpenIddict__Encryption__PrivateKeyPath
+              value: /mnt/identity-jwt-keys/jwt-encryption-private-key.pem
+          volumeMounts:
+            - name: identity-jwt-keys
+              mountPath: /mnt/identity-jwt-keys
+              readOnly: true
+      volumes:
+        - name: identity-jwt-keys
+          secret:
+            secretName: identity-jwt-keys
+            defaultMode: 0440

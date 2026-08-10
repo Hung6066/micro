@@ -1,0 +1,26 @@
+[Unit]
+Description=His.Hope %i service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=his-hope-%i
+Group=his-hope
+WorkingDirectory=/opt/his-hope/%i
+EnvironmentFile=/etc/his-hope/%i.env
+Environment=HIS_HOPE_SERVICE_INSTANCE=%i
+ExecStartPre=/usr/bin/test -r /etc/his-hope/%i.env
+ExecStartPre=/usr/bin/test -d /etc/his-hope/secrets/%i
+ExecStart=/usr/bin/bash -lc '"${HIS_HOPE_SERVICE_EXECUTABLE:-/usr/bin/dotnet}" "${HIS_HOPE_SERVICE_DLL}"'
+ExecStartPost=/usr/bin/bash -lc 'curl --fail --silent --show-error "${HIS_HOPE_VM_HEALTHCHECK_URL}" > /dev/null'
+Restart=always
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/his-hope/%i /var/log/his-hope/%i
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+version: v2
+managed:
+  enabled: true
+  optimize_for: CODE_SIZE
+  disable:
+    - file_option: optimize_for
+plugins:
+  - remote: buf.build/protocolbuffers/csharp:v24.4
+    out: .
+  - remote: buf.build/grpc/csharp:v1.60.0
+    out: .
+inputs:
+  - directory: .

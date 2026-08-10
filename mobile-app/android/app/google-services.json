@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "667386057771",
+    "project_id": "his-hope",
+    "storage_bucket": "his-hope.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:667386057771:android:136f4953cdbe266296866e",
+        "android_client_info": {
+          "package_name": "com.hishope.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCSSWukAZPJm-mdwhnifq6G1EcQ7UhNVNQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

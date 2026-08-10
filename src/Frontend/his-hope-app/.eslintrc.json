@@ -1,0 +1,10 @@
+{
+  "root": true,
+  "ignorePatterns": ["dist/**", "node_modules/**", ".angular/**"],
+  "plugins": ["@angular-eslint", "@typescript-eslint"],
+  "rules": {
+    "@angular-eslint/no-call-expression": "error",
+    "@typescript-eslint/no-implied-eval": "error",
+    "no-eval": "error"
+  }
+}

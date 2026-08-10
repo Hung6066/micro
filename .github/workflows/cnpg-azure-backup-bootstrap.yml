@@ -1,0 +1,75 @@
+name: CNPG Azure Backup Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply Azure Secret and CNPG ObjectStore (false validates only)
+        required: true
+        default: false
+        type: boolean
+      kube_context:
+        description: Exact context name inside the protected production kubeconfig
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cnpg-azure-backup-production
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+        with:
+          version: 'v1.35.5'
+
+      - name: Materialize protected runtime inputs
+        id: runtime
+        shell: pwsh
+        env:
+          KUBECONFIG_PRODUCTION_B64: ${{ secrets.KUBECONFIG_PRODUCTION_B64 }}
+          AZURE_PRODUCTION_ENV_B64: ${{ secrets.AZURE_PRODUCTION_ENV_B64 }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:KUBECONFIG_PRODUCTION_B64)) { throw 'KUBECONFIG_PRODUCTION_B64 is required.' }
+          if ([string]::IsNullOrWhiteSpace($env:AZURE_PRODUCTION_ENV_B64)) { throw 'AZURE_PRODUCTION_ENV_B64 is required.' }
+          $kube = Join-Path $env:RUNNER_TEMP 'kubeconfig-production.yaml'
+          $azure = Join-Path $env:RUNNER_TEMP 'azure-production.env'
+          [IO.File]::WriteAllBytes($kube, [Convert]::FromBase64String($env:KUBECONFIG_PRODUCTION_B64))
+          [IO.File]::WriteAllBytes($azure, [Convert]::FromBase64String($env:AZURE_PRODUCTION_ENV_B64))
+          "kube=$kube" >> $env:GITHUB_OUTPUT
+          "azure=$azure" >> $env:GITHUB_OUTPUT
+
+      - name: Validate or apply CNPG Azure ObjectStore
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.runtime.outputs.kube }}
+        run: |
+          python3 scripts/validate-azure-blob-access.py --env-file '${{ steps.runtime.outputs.azure }}'
+          $args = @('-File', './scripts/bootstrap-cnpg-azure-object-store.ps1',
+            '-Context', '${{ inputs.kube_context }}',
+            '-EnvFile', '${{ steps.runtime.outputs.azure }}',
+            '-Environment', 'production')
+          if ('${{ inputs.apply }}' -eq 'true') { $args += @('-Apply', '-AllowProduction') }
+          & pwsh @args
+
+      - name: Validate CNPG backup platform after apply
+        if: ${{ inputs.apply == true }}
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.runtime.outputs.kube }}
+        run: ./scripts/validate-cnpg-backup-platform.ps1 -RunBackup
+
+      - name: Remove protected runtime inputs
+        if: always()
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath '${{ steps.runtime.outputs.kube }}' -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath '${{ steps.runtime.outputs.azure }}' -Force -ErrorAction SilentlyContinue

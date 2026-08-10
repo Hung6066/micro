@@ -1,0 +1,206 @@
+# =============================================================================
+# Remediation Operator Deployment
+# Receives Alertmanager webhooks and executes automated remediation actions.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: remediation-operator
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: remediation-operator
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/version: latest
+  annotations:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: kustomize
+    linkerd.io/inject: enabled
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: remediation-operator
+      app.kubernetes.io/part-of: his-hope
+      app.kubernetes.io/component: operator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: remediation-operator
+        app.kubernetes.io/part-of: his-hope
+        app.kubernetes.io/component: operator
+        app.kubernetes.io/version: latest
+      annotations:
+        linkerd.io/inject: enabled
+        # Vault Agent injector for secrets
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "remediation-operator"
+        vault.hashicorp.com/agent-inject-template-operator-config: |
+          {{- with secret "his-hope/operator/remediation" -}}
+          {
+            "RemediationOperator": {
+              "SlackWebhookUrl": "{{ .Data.data.slack_webhook_url }}",
+              "PagerDutyRoutingKey": "{{ .Data.data.pagerduty_routing_key }}"
+            }
+          }
+          {{- end -}}
+    spec:
+      serviceAccountName: remediation-operator
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: operator
+          image: his-hope/remediation-operator:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: webhook
+              protocol: TCP
+            - containerPort: 9090
+              name: metrics
+              protocol: TCP
+          env:
+            - name: ASPNETCORE_URLS
+              value: "http://+:8080"
+            - name: ASPNETCORE_ENVIRONMENT
+              value: "Production"
+            - name: DOTNET_SYSTEM_GLOBALIZATION_INVARIANT
+              value: "false"
+            - name: DOTNET_gcServer
+              value: "1"
+            - name: RemediationOperator__Namespace
+              value: "his-hope"
+            - name: RemediationOperator__WebhookPort
+              value: "8080"
+            - name: RemediationOperator__MetricsPort
+              value: "9090"
+            - name: RemediationOperator__MaxConcurrentActions
+              value: "5"
+            - name: RemediationOperator__CooldownDefaultMinutes
+              value: "5"
+            - name: RemediationOperator__DryRun
+              value: "false"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 2
+          volumeMounts:
+            - name: logs
+              mountPath: /var/log/remediation-operator
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: logs
+          emptyDir:
+            sizeLimit: 100Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 50Mi
+      # Pod priority for operator workloads (P1)
+      priorityClassName: his-hope-p1
+      # Spread across nodes for HA
+      topologySpreadConstraints:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: remediation-operator
+          maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+---
+# Service for webhook endpoint (consumed by Alertmanager)
+apiVersion: v1
+kind: Service
+metadata:
+  name: remediation-operator
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: remediation-operator
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: operator
+  annotations:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  selector:
+    app.kubernetes.io/name: remediation-operator
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: operator
+  ports:
+    - name: webhook
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+---
+# PodDisruptionBudget — ensure operator stays up during node disruptions
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: remediation-operator
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: remediation-operator
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: operator
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: remediation-operator
+      app.kubernetes.io/part-of: his-hope
+      app.kubernetes.io/component: operator
+---
+# ServiceMonitor for Prometheus scraping
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: remediation-operator
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: remediation-operator
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: operator
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: remediation-operator
+  namespaceSelector:
+    matchNames:
+      - his-hope
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s

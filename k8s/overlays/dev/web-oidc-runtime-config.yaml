@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-app
+spec:
+  template:
+    spec:
+      containers:
+        - name: admin-app
+          volumeMounts:
+            - name: oidc-runtime-config
+              mountPath: /usr/share/nginx/html/runtime-config.js
+              subPath: runtime-config.js
+              readOnly: true
+      volumes:
+        - name: oidc-runtime-config
+          configMap:
+            name: admin-oidc-runtime-config
+            defaultMode: 0444
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-app
+spec:
+  template:
+    spec:
+      containers:
+        - name: dashboard-app
+          volumeMounts:
+            - name: oidc-runtime-config
+              mountPath: /usr/share/nginx/html/runtime-config.js
+              subPath: runtime-config.js
+              readOnly: true
+      volumes:
+        - name: oidc-runtime-config
+          configMap:
+            name: dashboard-oidc-runtime-config
+            defaultMode: 0444

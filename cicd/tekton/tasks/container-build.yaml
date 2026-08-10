@@ -1,0 +1,139 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: container-build
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.17.0"
+    tekton.dev/tags: container, kaniko, trivy, cosign
+    tekton.dev/displayName: Container Build & Sign
+spec:
+  description: >-
+    Build a container image using Kaniko with caching, scan for
+    vulnerabilities with Trivy, and sign the image with Cosign.
+
+  params:
+    - name: IMAGE_NAME
+      type: string
+      description: Full image name including registry (e.g., ghcr.io/hishop/patient-service)
+    - name: IMAGE_TAG
+      type: string
+      description: Image tag (e.g., v1.2.3 or commit-sha)
+    - name: DOCKERFILE
+      type: string
+      description: Path to Dockerfile relative to the source workspace
+      default: Dockerfile
+    - name: CONTEXT
+      type: string
+      description: Build context directory relative to the source workspace
+    - name: EXTRA_ARGS
+      type: string
+      description: Extra arguments to pass to Kaniko
+      default: ""
+
+  workspaces:
+    - name: source
+      description: Source repository containing Dockerfile and build context
+      mountPath: /workspace/source
+    - name: dockerconfig
+      description: Docker config.json with registry credentials
+      mountPath: /kaniko/.docker
+      optional: false
+
+  results:
+    - name: IMAGE_DIGEST
+      description: The digest of the built container image
+
+  steps:
+    - name: build-and-push
+      image: gcr.io/kaniko-project/executor:v1.23.2
+      workingDir: /workspace/source
+      script: |
+        #!/busybox/sh
+        set -euo pipefail
+
+        DESTINATION="$(params.IMAGE_NAME):$(params.IMAGE_TAG)"
+
+        /kaniko/executor \
+          --context="/workspace/source/$(params.CONTEXT)" \
+          --dockerfile="/workspace/source/$(params.DOCKERFILE)" \
+          --destination="${DESTINATION}" \
+          --cache=true \
+          --cache-ttl=24h \
+          --snapshot-mode=redo \
+          --use-new-run \
+          --reproducible \
+          $(params.EXTRA_ARGS) \
+          --digest-file=/workspace/output/image-digest
+
+        DIGEST=$(cat /workspace/output/image-digest)
+        printf "%s" "${DIGEST}" > /workspace/output/$(results.IMAGE_DIGEST.path)
+        echo "Image built and pushed: ${DESTINATION}@${DIGEST}"
+
+    - name: trivy-scan
+      image: docker.io/aquasec/trivy:0.57.1
+      workingDir: /workspace/source
+      script: |
+        #!/bin/sh
+        set -euo pipefail
+
+        SCAN_IMAGE="$(params.IMAGE_NAME):$(params.IMAGE_TAG)"
+        DOCKER_CONFIG="/kaniko/.docker"
+
+        echo "Scanning ${SCAN_IMAGE} for vulnerabilities..."
+
+        trivy image \
+          --severity HIGH,CRITICAL \
+          --exit-code 1 \
+          --ignore-unfixed \
+          --format sarif \
+          --output /workspace/output/trivy-report.sarif \
+          --scanners vuln \
+          "${SCAN_IMAGE}"
+
+        echo "Trivy scan completed. Report saved to /workspace/output/trivy-report.sarif"
+
+    - name: trivy-scan-summary
+      image: docker.io/aquasec/trivy:0.57.1
+      workingDir: /workspace/source
+      script: |
+        #!/bin/sh
+        set -euo pipefail
+
+        SCAN_IMAGE="$(params.IMAGE_NAME):$(params.IMAGE_TAG)"
+
+        echo "=== Trivy Vulnerability Summary ==="
+        trivy image \
+          --severity HIGH,CRITICAL \
+          --exit-code 0 \
+          --ignore-unfixed \
+          --format table \
+          --scanners vuln \
+          "${SCAN_IMAGE}" 2>&1 || true
+
+    - name: cosign-sign
+      image: gcr.io/projectsigstore/cosign:v2.4.1
+      workingDir: /workspace/source
+      script: |
+        #!/bin/sh
+        set -euo pipefail
+
+        IMAGE_REF="$(params.IMAGE_NAME):$(params.IMAGE_TAG)"
+
+        if [ -f /workspace/output/image-digest ]; then
+          DIGEST=$(cat /workspace/output/image-digest)
+          IMAGE_REF="$(params.IMAGE_NAME)@${DIGEST}"
+        fi
+
+        cosign sign \
+          --yes \
+          --tlog-upload=true \
+          "${IMAGE_REF}"
+
+        echo "Cosign signature applied to ${IMAGE_REF}"
+      env:
+        - name: COSIGN_EXPERIMENTAL
+          value: "1"
+        - name: TUF_ROOT
+          value: /tmp/tuf-root

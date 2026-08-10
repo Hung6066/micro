@@ -1,0 +1,47 @@
+---
+- name: Validate Longhorn production host prerequisites without mutation
+  hosts: k3s_servers:k3s_workers
+  become: true
+  gather_facts: true
+  serial: 5
+  tasks:
+    - name: Determine the physical block device backing the root filesystem
+      ansible.builtin.shell: "lsblk -nr -o NAME -s \"$(findmnt -no SOURCE /)\" | tail -n1 | tr -d '[:space:]'"
+      register: root_device_command
+      changed_when: false
+
+    - name: Store the root device name
+      ansible.builtin.set_fact:
+        root_device: "{{ root_device_command.stdout | trim }}"
+
+    - name: Collect active iSCSI service state
+      ansible.builtin.service_facts:
+
+    - name: Read root mount propagation
+      ansible.builtin.command: findmnt -n -o PROPAGATION /
+      register: root_propagation
+      changed_when: false
+
+    - name: Calculate dedicated data disks
+      ansible.builtin.set_fact:
+        dedicated_data_disks: >-
+          {{ ansible_devices.keys()
+             | reject('equalto', root_device)
+             | reject('match', '^(loop|ram|fd|sr|dm-|md)')
+             | list }}
+        iscsid_active: >-
+          {{ (ansible_facts.services['iscsid.service'].state | default('')) == 'running'
+             or (ansible_facts.services['iscsid'].state | default('')) == 'running' }}
+
+    - name: Fail closed when a node is not ready for replicated storage
+      ansible.builtin.assert:
+        that:
+          - dedicated_data_disks | length >= 1
+          - iscsid_active | bool
+          - root_propagation.stdout | trim in ['shared', 'rshared']
+        fail_msg: >-
+          {{ inventory_hostname }} is not ready for Longhorn: data_disks={{ dedicated_data_disks | join(',') or 'none' }},
+          iscsid={{ iscsid_active }}, root_propagation={{ root_propagation.stdout | trim }}.
+        success_msg: >-
+          {{ inventory_hostname }} storage prerequisites PASS: data_disks={{ dedicated_data_disks | join(',') }},
+          iscsid=active, root_propagation={{ root_propagation.stdout | trim }}.

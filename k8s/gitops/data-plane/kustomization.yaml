@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: his-hope-data
+namePrefix: his-hope-
+
+commonLabels:
+  app.kubernetes.io/part-of: his-hope
+  app.kubernetes.io/managed-by: kustomize
+  his-hope.io/security-boundary: data
+
+resources:
+  - ../../base/postgres.yaml
+  - ../../base/postgres-pdb.yaml
+  - ../../base/rabbitmq.yaml
+  - ../../base/redis.yaml
+  - data-network-policies.yaml
+
+patchesStrategicMerge:
+  - ../../overlays/prod/cache-tls-patch.yaml
+  - ../../overlays/prod/storage-class-postgres-patch.yaml
+  - ../../overlays/prod/storage-class-rabbitmq-patch.yaml
+  - ../../overlays/prod/storage-class-redis-patch.yaml
+  - ../../overlays/prod/postgres-linkerd-disabled-patch.yaml
+
+components:
+  - ../../overlays/prod/image-digests

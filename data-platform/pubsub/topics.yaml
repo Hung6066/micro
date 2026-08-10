@@ -1,0 +1,85 @@
+# Google Cloud Pub/Sub topics (or Kafka topics)
+# These capture events from RabbitMQ for the data platform
+
+topics:
+  - name: patient-events
+    description: Patient lifecycle events (registered, updated, deactivated)
+    schema:
+      type: avro
+      fields:
+        - name: event_id
+          type: string
+        - name: event_type
+          type: string
+        - name: patient_id
+          type: string
+        - name: full_name
+          type: string
+        - name: timestamp
+          type: timestamp
+        - name: data
+          type: json
+  
+  - name: clinical-events
+    description: Clinical encounter events (started, diagnosis added, completed)
+    schema:
+      type: avro
+      fields:
+        - name: event_id
+          type: string
+        - name: event_type
+          type: string
+        - name: encounter_id
+          type: string
+        - name: patient_id
+          type: string
+        - name: provider_id
+          type: string
+        - name: timestamp
+          type: timestamp
+        - name: data
+          type: json
+  
+  - name: appointment-events
+    description: Appointment lifecycle events (scheduled, checked-in, canceled)
+    schema:
+      type: avro
+      fields:
+        - name: event_id
+          type: string
+        - name: event_type
+          type: string
+        - name: appointment_id
+          type: string
+        - name: patient_id
+          type: string
+        - name: provider_id
+          type: string
+        - name: timestamp
+          type: timestamp
+        - name: data
+          type: json
+  
+  - name: audit-events
+    description: Audit log events for compliance
+    schema:
+      type: avro
+      fields:
+        - name: event_id
+          type: string
+        - name: user_id
+          type: string
+        - name: action
+          type: string
+        - name: resource_type
+          type: string
+        - name: resource_id
+          type: string
+        - name: timestamp
+          type: timestamp
+        - name: ip_address
+          type: string
+        - name: user_agent
+          type: string
+        - name: data
+          type: json

@@ -1,0 +1,78 @@
+{
+  "version": "1",
+  "rules": [
+    {
+      "id": "redis-caching",
+      "category": "infrastructure",
+      "patterns": [
+        "StackExchange\\.Redis",
+        "AddStackExchangeRedisCache",
+        "IDistributedCache"
+      ],
+      "require_all": false,
+      "min_matches": 2,
+      "description": "Redis caching with StackExchange.Redis"
+    },
+    {
+      "id": "circuit-breaker",
+      "category": "resilience",
+      "patterns": [
+        "CircuitBreaker",
+        "AddPolicyHandler",
+        "ICircuitBreakerPolicy"
+      ],
+      "require_all": false,
+      "min_matches": 1,
+      "description": "Circuit Breaker pattern with Polly"
+    },
+    {
+      "id": "grpc-client",
+      "category": "communication",
+      "patterns": [
+        "Grpc\\.Net\\.Client",
+        "AddGrpcClient",
+        "GrpcChannel"
+      ],
+      "require_all": false,
+      "min_matches": 2,
+      "description": "gRPC client implementation"
+    },
+    {
+      "id": "outbox-pattern",
+      "category": "messaging",
+      "patterns": [
+        "OutboxMessage",
+        "IOutboxDispatcher",
+        "ProcessOutboxMessages"
+      ],
+      "require_all": false,
+      "min_matches": 2,
+      "description": "Transactional Outbox pattern"
+    },
+    {
+      "id": "ngrx-signals",
+      "category": "frontend",
+      "patterns": [
+        "@ngrx/signals",
+        "signalStore",
+        "patchState",
+        "withMethods"
+      ],
+      "require_all": false,
+      "min_matches": 2,
+      "description": "NgRx SignalStore state management"
+    },
+    {
+      "id": "material-dialog",
+      "category": "frontend",
+      "patterns": [
+        "MatDialog",
+        "MAT_DIALOG_DATA",
+        "dialog\\.open"
+      ],
+      "require_all": false,
+      "min_matches": 2,
+      "description": "Angular Material Dialog"
+    }
+  ]
+}

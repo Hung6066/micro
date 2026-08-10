@@ -1,0 +1,65 @@
+---
+- name: Ensure Linkerd namespaces exist with compatible PodSecurity labels
+  ansible.builtin.shell: |
+    kubectl --kubeconfig "{{ observability_kubeconfig }}" apply -f "{{ observability_repo_root }}/k8s/linkerd/namespace.yaml"
+  changed_when: false
+
+- name: Install Linkerd CRDs
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - linkerd-crds
+      - linkerd/linkerd-crds
+      - --version
+      - "{{ linkerd_crds_chart_version }}"
+      - --namespace
+      - linkerd
+      - --create-namespace
+      - --kubeconfig
+      - "{{ observability_kubeconfig }}"
+  environment: { KUBECONFIG: "{{ observability_kubeconfig }}" }
+  changed_when: true
+
+- name: Install Linkerd control plane from enterprise certificates
+  ansible.builtin.command:
+    argv:
+      - helm
+      - upgrade
+      - --install
+      - linkerd-control-plane
+      - linkerd/linkerd-control-plane
+      - --version
+      - "{{ linkerd_control_plane_chart_version }}"
+      - --namespace
+      - linkerd
+      - --set-file
+      - identityTrustAnchorsPEM={{ linkerd_ca_file }}
+      - --set-file
+      - identity.issuer.tls.crtPEM={{ linkerd_issuer_crt_file }}
+      - --set-file
+      - identity.issuer.tls.keyPEM={{ linkerd_issuer_key_file }}
+      - --set
+      - controllerReplicas=3
+      - --set
+      - controllerResources.cpu.request=100m
+      - --wait
+      - --timeout
+      - 10m
+      - --kubeconfig
+      - "{{ observability_kubeconfig }}"
+  environment: { KUBECONFIG: "{{ observability_kubeconfig }}" }
+
+- name: Wait for Linkerd control plane
+  ansible.builtin.command: kubectl --kubeconfig "{{ observability_kubeconfig }}" wait --for=condition=Ready pod -l linkerd.io/control-plane-ns=linkerd -n linkerd --timeout=10m
+  changed_when: false
+
+- name: Install Linkerd Viz without a second Prometheus
+  ansible.builtin.command: >-
+    helm upgrade --install linkerd-viz linkerd/linkerd-viz
+    --version {{ linkerd_viz_chart_version }} --namespace linkerd-viz --create-namespace
+    --set prometheus.enabled=false
+    --set prometheusUrl=http://kps-kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+    --wait --timeout 10m
+  environment: { KUBECONFIG: "{{ observability_kubeconfig }}" }

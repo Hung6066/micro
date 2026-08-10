@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-production-config
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+      smtp_smarthost: '${SMTP_HOST}:${SMTP_PORT}'
+      smtp_from: '${SMTP_FROM}'
+      smtp_auth_username: '${SMTP_USERNAME}'
+      smtp_auth_password: '${SMTP_PASSWORD}'
+    route:
+      receiver: default
+      group_by: [alertname, severity, service]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes:
+        - matchers: [severity="critical"]
+          receiver: critical-email-discord
+    receivers:
+      - name: default
+        email_configs:
+          - to: '${SMTP_TO}'
+        webhook_configs:
+          - url: '${DISCORD_WEBHOOK_URL}'
+            send_resolved: true
+      - name: critical-email-discord
+        email_configs:
+          - to: '${SMTP_TO}'
+            send_resolved: true
+        webhook_configs:
+          - url: '${DISCORD_WEBHOOK_URL}'
+            send_resolved: true

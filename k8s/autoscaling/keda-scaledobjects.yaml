@@ -1,0 +1,127 @@
+# ============================================================================
+# KEDA ScaledObjects — Event-Driven Autoscaling
+# ============================================================================
+# Scales workloads based on external events (RabbitMQ queue depth, Prometheus
+# metrics) rather than only resource utilization.  These ScaledObjects
+# override or complement the HPAs defined in base/*-service.yaml.
+#
+# KEDA scaling is additive to HPA — both can coexist.  KEDA manages a custom
+# HPA internally, so we do *not* create a separate HPA for the same target
+# when using KEDA.
+# ============================================================================
+
+---
+# ── outbox-processor ──────────────────────────────────────────────────────────
+# Transactional outbox message pump.  Each pod polls the outbox.delivery queue
+# and forwards messages to downstream consumers.  Scale based on queue depth
+# so that backlog is cleared aggressively during traffic bursts but pods are
+# idle when nothing is queued.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: outbox-processor
+  labels:
+    app.kubernetes.io/name: outbox-processor
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: outbox-processor
+  pollingInterval: 10           # check RabbitMQ every 10 s
+  cooldownPeriod:  60           # wait 60 s of idle before scaling down
+  minReplicaCount: 1            # keep at least 1 warm instance
+  maxReplicaCount: 20           # allow up to 20 during flood
+  advanced:
+    # Prevent thrashing — only scale up/down one pod at a time
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 15
+        scaleDown:
+          stabilizationWindowSeconds: 60
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 30
+  triggers:
+    - type: rabbitmq
+      metadata:
+        protocol: amqp0-9-1             # standard AMQP
+        queueName: outbox.delivery       # queue holding pending outbox envelopes
+        mode: QueueLength                # scale on number of ready messages
+        value: "50"                      # target:  50 messages per pod ÷ queueLength
+        # authenticationRef below reads host / password from a Secret
+      authenticationRef:
+        name: keda-rabbitmq-auth
+---
+# ── patient-service ───────────────────────────────────────────────────────────
+# Clinical patient-data API — the most frequently called service behind the
+# gateway.  Scale based on real-time HTTP request rate from Prometheus rather
+# than solely on CPU/memory (which lag behind traffic changes).
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: patient-service
+  labels:
+    app.kubernetes.io/name: patient-service
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: patient-service
+  pollingInterval: 15           # query Prometheus every 15 s
+  cooldownPeriod:  90           # wait 90 s before scaling down
+  minReplicaCount: 3            # base HA floor
+  maxReplicaCount: 30           # ceiling for traffic spikes
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          policies:
+            - type: Pods
+              value: 2
+              periodSeconds: 30
+        scaleDown:
+          stabilizationWindowSeconds: 120
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 60
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus-k8s.monitoring.svc.cluster.local:9090
+        metricName: requests_per_second
+        query: |
+          sum(
+            rate(http_requests_total{service="patient-service"}[2m])
+          )
+        threshold: "500"                 # target:  500 req/s per pod ÷ sum(rate)
+        activationThreshold: "50"        # min traffic before we even start scaling
+---
+# ── KEDA TriggerAuthentication ────────────────────────────────────────────────
+# Reads RabbitMQ credentials from the platform secret so KEDA can poll the
+# management API.
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: keda-rabbitmq-auth
+  labels:
+    app.kubernetes.io/component: keda
+    app.kubernetes.io/part-of: his-hope
+spec:
+  secretTargetRef:
+    - parameter: host
+      name: rabbitmq-secret
+      key: keda_connection_string   # expected format:  amqp://user:pass@rabbitmq:5672/vhost

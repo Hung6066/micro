@@ -1,0 +1,40 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cost-alerts
+  namespace: monitoring
+spec:
+  groups:
+  - name: finops.alerts
+    rules:
+    - alert: NamespaceBudgetExceeded
+      expr: |
+        sum(kubecost_namespace_monthly_cost) by (namespace)
+        > on(namespace)
+        kubecost_namespace_budget
+      for: 24h
+      labels:
+        severity: warning
+        team: finops
+      annotations:
+        summary: "Namespace {{ $labels.namespace }} exceeded monthly budget"
+    - alert: NamespaceCostAnomaly
+      expr: |
+        sum(kubecost_namespace_monthly_cost) by (namespace)
+        > 1.5 * avg_over_time(sum(kubecost_namespace_monthly_cost) by (namespace)[30d:])
+      for: 6h
+      labels:
+        severity: warning
+      annotations:
+        summary: "Cost anomaly detected in {{ $labels.namespace }}"
+    - alert: ResourceWaste
+      expr: |
+        sum(kube_pod_container_resource_requests_cpu_cores) by (namespace)
+        -
+        sum(rate(container_cpu_usage_seconds_total[5m])) by (namespace)
+        > 5
+      for: 24h
+      labels:
+        severity: info
+      annotations:
+        summary: "Possible CPU waste in {{ $labels.namespace }}"

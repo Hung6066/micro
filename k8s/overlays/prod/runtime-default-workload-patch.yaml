@@ -1,0 +1,242 @@
+# The checked-in localhost seccomp profile is not compatible with the current
+# .NET 8 and PgBouncer runtime (SIGTRAP/Operation not permitted during exec).
+# Keep workload privilege/capability restrictions, but use the container
+# runtime's maintained profile until a node-specific audit profile is rebuilt
+# and verified against every image in this overlay.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: api-gateway
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-app
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: admin-app
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: appointment-service
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-bff
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: billing-bff
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-service
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: billing-service
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-bff
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: clinical-bff
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-service
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: clinical-service
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+        - name: pgbouncer
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-app
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: dashboard-app
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-bff
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: dashboard-bff
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database-continuity
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: database-continuity
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: frontend
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-bff
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: lab-bff
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-service
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: lab-service
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-bff
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: patient-bff
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: patient-service
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+        - name: pgbouncer
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-bff
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: pharmacy-bff
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-service
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: pharmacy-service
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: systemdashboard-bff
+spec:
+  template:
+    spec:
+      securityContext:
+        seccompProfile: { type: RuntimeDefault, localhostProfile: null }
+      containers:
+        - name: systemdashboard-bff
+          securityContext: { seccompProfile: { type: RuntimeDefault, localhostProfile: null } }

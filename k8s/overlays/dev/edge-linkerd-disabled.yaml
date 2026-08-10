@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-app
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-app
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: traefik
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled

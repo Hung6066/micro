@@ -1,0 +1,94 @@
+---
+# Role: db-migrate — CockroachDB migration with backup + verify
+# Tags: db-migrate
+
+- name: Pre-migration backup
+  ansible.builtin.shell: |
+    BACKUP_PATH="{{ cockroach_backup_bucket }}/migration-{{ ansible_date_time.date }}-{{ ansible_date_time.epoch }}"
+    echo "📦 Creating backup: $BACKUP_PATH"
+    kubectl exec -n his-hope cockroachdb-0 -- \
+      cockroach sql --insecure --execute="BACKUP DATABASE {{ cockroach_db_name }} INTO '$BACKUP_PATH'"
+    echo "✅ Backup complete: $BACKUP_PATH"
+  register: backup_result
+  failed_when: backup_result.rc != 0
+
+- name: Verify backup exists
+  ansible.builtin.shell: |
+    kubectl exec -n his-hope cockroachdb-0 -- \
+      cockroach sql --insecure --execute="SHOW BACKUPS IN '{{ cockroach_backup_bucket }}'"
+  register: verify_backup
+  changed_when: false
+
+- name: Check migration safety (backward compatible)
+  ansible.builtin.shell: |
+    cd {{ repo_dest }}
+    # Check migration files exist
+    MIGRATIONS=$(find . -path "*/Migrations/*.cs" -newer cockroach/config -type f 2>/dev/null | wc -l)
+    if [ "$MIGRATIONS" -eq 0 ]; then
+      echo "✅ No pending migrations"
+      exit 0
+    fi
+    echo "📋 $MIGRATIONS migration(s) pending"
+    # Check for breaking changes (ADD COLUMN vs DROP COLUMN, RENAME)
+    if find . -path "*/Migrations/*.cs" -newer cockroach/config -exec grep -l "DropColumn\|RenameColumn\|DropTable" {} \; | grep -q .; then
+      echo "⚠️  WARNING: Migration contains DROP/RENAME — verify backward compatibility"
+    fi
+  register: migration_check
+  changed_when: false
+
+- name: Apply migrations
+  ansible.builtin.shell: |
+    cd {{ repo_dest }}
+    # Run EF Core migrations via init container pattern
+    kubectl create job --dry-run=client -o yaml migrate-{{ ansible_date_time.epoch }} \
+      --image=ghcr.io/hishop/identity-service:latest \
+      --restart=Never \
+      --command -- dotnet IdentityService.Api.dll --migrate \
+      -n his-hope | kubectl apply -f -
+    
+    # Wait for migration job to complete
+    kubectl wait --for=condition=complete job/migrate-{{ ansible_date_time.epoch }} \
+      -n his-hope --timeout={{ db_migration_timeout }}s
+    
+    # Check job status
+    STATUS=$(kubectl get job migrate-{{ ansible_date_time.epoch }} -n his-hope -o jsonpath='{.status.succeeded}')
+    if [ "$STATUS" != "1" ]; then
+      kubectl logs job/migrate-{{ ansible_date_time.epoch }} -n his-hope --tail=50
+      exit 1
+    fi
+    echo "✅ Migration job completed successfully"
+    
+    # Cleanup
+    kubectl delete job migrate-{{ ansible_date_time.epoch }} -n his-hope --ignore-not-found
+  register: migration_result
+  when: "'DROP' not in migration_check.stdout"  # Skip if destructive migration detected
+
+- name: Verify database after migration
+  ansible.builtin.shell: |
+    kubectl exec -n his-hope cockroachdb-0 -- \
+      cockroach sql --insecure --execute="
+        SELECT database_name, count(*) as table_count 
+        FROM crdb_internal.tables 
+        WHERE database_name = '{{ cockroach_db_name }}' 
+        GROUP BY database_name;"
+  register: db_verify
+  changed_when: false
+
+- name: Display migration result
+  ansible.builtin.debug:
+    msg:
+      - "📦 Backup: {{ backup_result.stdout }}"
+      - ""
+      - "📋 Migration check: {{ migration_check.stdout }}"
+      - ""
+      - "🔄 Migration: {{ migration_result.stdout | default('Skipped (destructive or none pending)') }}"
+      - ""
+      - "✅ Database tables: {{ db_verify.stdout }}"
+
+- name: Rollback database if migration failed
+  ansible.builtin.shell: |
+    echo "❌ Migration failed — restoring from backup"
+    kubectl exec -n his-hope cockroachdb-0 -- \
+      cockroach sql --insecure --execute="RESTORE DATABASE {{ cockroach_db_name }} FROM LATEST IN '{{ cockroach_backup_bucket }}'"
+    echo "✅ Database restored"
+  when: migration_result is defined and migration_result.rc != 0

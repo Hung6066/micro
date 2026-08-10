@@ -1,0 +1,63 @@
+apiVersion: split.smi-spec.io/v1alpha4
+kind: TrafficSplit
+metadata:
+  namespace: his-hope
+  name: patient-service-split
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: patient-service
+spec:
+  service: patient-service
+  backends:
+  - service: patient-service-v1
+    weight: 900m
+  - service: patient-service-v2
+    weight: 100m
+---
+apiVersion: split.smi-spec.io/v1alpha4
+kind: TrafficSplit
+metadata:
+  namespace: his-hope
+  name: identity-service-split
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: identity-service
+spec:
+  service: identity-service
+  backends:
+  - service: identity-service-v1
+    weight: 900m
+  - service: identity-service-v2
+    weight: 100m
+---
+apiVersion: split.smi-spec.io/v1alpha4
+kind: TrafficSplit
+metadata:
+  namespace: his-hope
+  name: appointment-service-split
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: appointment-service
+spec:
+  service: appointment-service
+  backends:
+  - service: appointment-service-v1
+    weight: 900m
+  - service: appointment-service-v2
+    weight: 100m
+---
+apiVersion: split.smi-spec.io/v1alpha4
+kind: TrafficSplit
+metadata:
+  namespace: his-hope
+  name: clinical-service-split
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/name: clinical-service
+spec:
+  service: clinical-service
+  backends:
+  - service: clinical-service-v1
+    weight: 900m
+  - service: clinical-service-v2
+    weight: 100m

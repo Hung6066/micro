@@ -1,0 +1,264 @@
+// His.Hope EMR - Global Styles
+// Warm clinical utilitarian minimalism — Angular Material 3 overrides.
+// Shared foundation rules (reset, typography, cards, buttons, tables, forms,
+// tabs, paginator, dialog, snackbar, chip, states, page headers, status-badge
+// base) are owned by @his-hope/frontend-foundation and applied via ./theme.
+// This file keeps ONLY the app-unique utilities the foundation does not own.
+
+@use './theme';
+@import 'material-icons/iconfont/material-icons.css';
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+
+// ═══════════════════════════════════════════
+// App Container — max-width constrained
+// ═══════════════════════════════════════════
+.container {
+  max-width: var(--max-width-container, 1200px);
+  margin: 0 auto;
+  padding: 0 24px;
+  width: 100%;
+
+  @media (max-width: 599px) {
+    padding: 0 12px;
+  }
+}
+
+// Section spacing
+.section {
+  margin-bottom: 32px;
+}
+
+.section-lg {
+  margin-bottom: 48px;
+}
+
+.section-compact {
+  margin-bottom: 16px;
+}
+
+// ═══════════════════════════════════════════
+// Progress bar
+// ═══════════════════════════════════════════
+.mat-mdc-progress-bar {
+  --mdc-linear-progress-track-height: 4px;
+  border-radius: 2px;
+}
+
+// ═══════════════════════════════════════════
+// Scroll-entry fade animation (CSS only)
+// ═══════════════════════════════════════════
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-enter {
+  animation: fadeInUp 400ms ease forwards;
+}
+
+// Staggered delays for grid children
+.fade-enter:nth-child(1) { animation-delay: 0ms; }
+.fade-enter:nth-child(2) { animation-delay: 60ms; }
+.fade-enter:nth-child(3) { animation-delay: 120ms; }
+.fade-enter:nth-child(4) { animation-delay: 180ms; }
+.fade-enter:nth-child(5) { animation-delay: 240ms; }
+.fade-enter:nth-child(6) { animation-delay: 300ms; }
+
+// ═══════════════════════════════════════════
+// Skip-to-content link (WCAG 2.1 AA)
+// ═══════════════════════════════════════════
+.skip-to-content {
+  position: absolute;
+  top: -100%;
+  left: 8px;
+  z-index: 10000;
+  padding: 8px 16px;
+  background: var(--surface-white, #FFFFFF);
+  color: var(--text-primary, #1A1A1A);
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid var(--border-default, #EAEAEA);
+  border-radius: 0 0 var(--radius-input, 4px) var(--radius-input, 4px);
+
+  &:focus {
+    top: 0;
+  }
+}
+
+// ═══════════════════════════════════════════
+// Scrollbar (material-compatible, token-driven)
+// ═══════════════════════════════════════════
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+
+  &:hover {
+    background: var(--text-muted);
+  }
+}
+
+// ═══════════════════════════════════════════
+// Screen-reader-only utility (WCAG 2.1 AA)
+// ═══════════════════════════════════════════
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+// ═══════════════════════════════════════════
+// Responsive helpers
+// ═══════════════════════════════════════════
+@media (max-width: 599px) {
+  .hide-mobile { display: none !important; }
+}
+
+@media (min-width: 600px) and (max-width: 959px) {
+  .hide-tablet { display: none !important; }
+}
+
+@media (min-width: 960px) {
+  .hide-desktop { display: none !important; }
+}
+
+// ═══════════════════════════════════════════
+// Status badges — pastel/M3 tone variants.
+// Foundation owns the .status-badge base shape; keep the app's uppercase look
+// and the status-specific color map the foundation does not provide.
+// ═══════════════════════════════════════════
+.status-badge {
+  text-transform: uppercase;
+}
+
+.status-badge.status-in_progress,
+.status-badge.status-active,
+.status-badge.status-ordered,
+.status-badge.status-collected,
+.status-badge.status-progress,
+.status-badge.status-scheduled,
+.status-badge.status-checked_in,
+.status-badge.apt-status-scheduled,
+.status-badge.rx-status-active,
+.status-badge.lab-status-ordered,
+.status-badge.lab-status-collected,
+.status-badge.lab-status-in_progress {
+  background: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
+}
+
+.status-badge.status-completed,
+.status-badge.status-filled,
+.status-badge.status-paid,
+.status-badge.apt-status-checked_in,
+.status-badge.apt-status-completed,
+.status-badge.lab-status-completed,
+.status-badge.rx-status-filled,
+.status-badge.inv-status-paid {
+  background: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+}
+
+.status-badge.status-signed,
+.status-badge.status-expired,
+.status-badge.rx-status-expired,
+.status-badge.inv-status-voided,
+.status-badge.status-voided {
+  background: var(--pastel-purple, #F0ECFA);
+  color: var(--pastel-purple-text, #6B4FA0);
+}
+
+.status-badge.status-cancelled,
+.status-badge.apt-status-cancelled,
+.status-badge.lab-status-cancelled,
+.status-badge.rx-status-cancelled,
+.status-badge.inv-status-cancelled {
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.status-badge.status-pending,
+.status-badge.status-draft,
+.status-badge.status-partial,
+.status-badge.status-issued,
+.status-badge.status-partially_paid,
+.status-badge.inv-status-draft,
+.status-badge.inv-status-issued,
+.status-badge.inv-status-partially_paid,
+.status-badge.lab-status-pending {
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.status-badge.status-overdue,
+.status-badge.inv-status-overdue,
+.status-badge.lab-status-abnormal,
+.status-badge.status-abnormal {
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+  font-weight: 600;
+}
+
+.status-badge.status-inactive {
+  background: var(--mat-sys-surface-variant);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+// Priority badges
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: var(--radius-badge, 4px);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.6;
+  white-space: nowrap;
+  text-transform: uppercase;
+
+  &.priority-high,
+  &.priority-urgent {
+    background: var(--pastel-orange, #FEF0E0);
+    color: var(--pastel-orange-text, #B6581C);
+  }
+
+  &.priority-routine {
+    background: var(--mat-sys-secondary-container);
+    color: var(--mat-sys-on-secondary-container);
+  }
+}
+
+// ═══════════════════════════════════════════
+// Error message
+// ═══════════════════════════════════════════
+.error-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+  border-radius: var(--radius-card, 8px);
+  margin-bottom: 16px;
+  font-size: 14px;
+}

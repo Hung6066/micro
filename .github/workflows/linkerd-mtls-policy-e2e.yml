@@ -1,0 +1,69 @@
+name: Linkerd mTLS Policy E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Protected target environment
+        required: true
+        type: choice
+        options: [staging, production]
+      apply:
+        description: Create temporary positive/negative probe pods (false is dry-run)
+        required: true
+        default: false
+        type: boolean
+      grpcurl_image:
+        description: Approved grpcurl image reference pinned by digest
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linkerd-mtls-policy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+        with:
+          version: 'v1.35.5'
+      - name: Materialize protected kubeconfig
+        id: kubeconfig
+        shell: bash
+        env:
+          KUBECONFIG_STAGING_B64: ${{ secrets.KUBECONFIG_STAGING_B64 }}
+          KUBECONFIG_PRODUCTION_B64: ${{ secrets.KUBECONFIG_PRODUCTION_B64 }}
+        run: |
+          set -euo pipefail
+          encoded="$KUBECONFIG_STAGING_B64"
+          if [ '${{ inputs.environment }}' = production ]; then encoded="$KUBECONFIG_PRODUCTION_B64"; fi
+          test -n "$encoded"
+          path="$RUNNER_TEMP/kubeconfig-${{ inputs.environment }}.yaml"
+          echo "$encoded" | base64 --decode > "$path"
+          chmod 600 "$path"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+      - name: Run guarded Linkerd policy probe
+        shell: pwsh
+        run: |
+          $args = @('-Environment','${{ inputs.environment }}','-Kubeconfig','${{ steps.kubeconfig.outputs.path }}','-Image','${{ inputs.grpcurl_image }}','-OutputPath','artifacts/evidence/linkerd-mtls-policy.json')
+          if ('${{ inputs.apply }}' -eq 'true') { $args += '-Apply'; if ('${{ inputs.environment }}' -eq 'production') { $args += '-AllowProduction' } }
+          & ./scripts/test-linkerd-mtls-policy.ps1 @args
+      - name: Upload policy evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: linkerd-mtls-policy-${{ github.run_id }}
+          path: artifacts/evidence/linkerd-mtls-policy.json
+          if-no-files-found: error
+      - name: Remove protected kubeconfig
+        if: always()
+        shell: bash
+        run: rm -f '${{ steps.kubeconfig.outputs.path }}'
