@@ -49,6 +49,19 @@ Server; mọi Application có retry backoff. Production có thể dùng auto-syn
 chỉ khi Application mang `his-hope.io/auto-sync-approved: "true"` và trỏ tới
 reviewed branch khác `main`; nếu không, contract vẫn fail-closed.
 
+Repo-server có egress policy tối thiểu tới DNS và TCP/443. Trước khi bật
+production auto-sync, phải kiểm tra từ chính pod repo-server:
+
+```powershell
+kubectl -n argocd exec deploy/argocd-repo-server -c argocd-repo-server -- `
+  sh -c 'timeout 15 openssl s_client -connect github.com:443 -servername github.com -brief </dev/null'
+```
+
+Nếu node có thể truy cập GitHub nhưng pod timeout ở TCP/TLS, cần mở SNAT và
+TCP/443 cho pod CIDR `10.42.0.0/16` trên gateway/firewall Viettel (hoặc cấp
+HTTPS proxy cho repo-server). Khi probe pass, refresh Application và xác nhận
+`Sync=Synced`; trạng thái `Healthy` đơn lẻ không chứng minh đã fetch Git.
+
 Production bị chặn mặc định. Chỉ sau khi staging pass và change được phê duyệt mới chạy với kubeconfig production, thêm `-Environment production -AllowProduction`; vẫn phải review checksum và rollback plan trước khi bỏ `-WhatIf`.
 
 ## Xác nhận sau cài

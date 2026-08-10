@@ -4,6 +4,7 @@ resources:
   - app-project.yaml
   - applications.yaml
   - argocd-health-config.yaml
+  - argocd-repo-egress.yaml
 patches:
   - path: application-retry-patch.yaml
     target:
