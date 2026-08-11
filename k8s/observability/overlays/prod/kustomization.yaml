@@ -33,6 +33,7 @@ resources:
 
 patches:
   - path: observability-security-patch.yaml
+  - path: observability-sa-patch.yaml
   - target:
       group: ""
       version: v1
