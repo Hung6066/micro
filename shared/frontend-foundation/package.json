@@ -54,6 +54,7 @@
     "@angular/compiler": "^21.2.19",
     "@angular/compiler-cli": "^21.2.19",
     "@angular/core": "^21.2.19",
+    "@compodoc/compodoc": "^2.0.0",
     "@angular/forms": "^21.2.19",
     "@angular/platform-browser": "^21.2.19",
     "@angular/platform-browser-dynamic": "^21.2.19",
