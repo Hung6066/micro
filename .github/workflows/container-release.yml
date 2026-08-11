@@ -152,14 +152,17 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSL https://raw.githubusercontent.com/aquasecurity/trivy/936f06a57864d073aa77b38f77fe76c4fcb1f7c1/contrib/install.sh | sh -s -- -b "$RUNNER_TOOL_CACHE/trivy" v0.58.2
+          echo 'trivy-install-ok'
           curl -fsSL https://github.com/anchore/syft/releases/download/v1.18.1/syft_1.18.1_linux_amd64.tar.gz -o "$RUNNER_TOOL_CACHE/syft.tar.gz"
-          echo '066c251652221e4d44fcc4d115ce3df33a91769da38c830a8533199db2f65aab  '"$RUNNER_TOOL_CACHE/syft.tar.gz" | sha256sum --check --status
+          echo '066c251652221e4d44fcc4d115ce3df33a91769da38c830a8533199db2f65aab  '"$RUNNER_TOOL_CACHE/syft.tar.gz" | sha256sum --check
           tar -xzf "$RUNNER_TOOL_CACHE/syft.tar.gz" -C "$RUNNER_TOOL_CACHE"
           rm -f "$RUNNER_TOOL_CACHE/syft.tar.gz"
           chmod +x "$RUNNER_TOOL_CACHE/syft"
+          echo 'syft-install-ok'
           curl -fsSL https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-amd64 -o "$RUNNER_TOOL_CACHE/cosign"
-          echo '8b24b946dd5809c6bd93de08033bcf6bc0ed7d336b7785787c080f574b89249b  '"$RUNNER_TOOL_CACHE/cosign" | sha256sum --check --status
+          echo '8b24b946dd5809c6bd93de08033bcf6bc0ed7d336b7785787c080f574b89249b  '"$RUNNER_TOOL_CACHE/cosign" | sha256sum --check
           chmod +x "$RUNNER_TOOL_CACHE/cosign"
+          echo 'cosign-install-ok'
           echo "$RUNNER_TOOL_CACHE/trivy" >> "$GITHUB_PATH"
           echo "$RUNNER_TOOL_CACHE/syft" >> "$GITHUB_PATH"
           echo "$RUNNER_TOOL_CACHE" >> "$GITHUB_PATH"
