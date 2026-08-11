@@ -14,7 +14,7 @@ function Add-Check([string]$Name, [ValidateSet('pass','fail','blocked')][string]
 }
 
 $root = (Resolve-Path $RepositoryRoot).Path
-$directory = Join-Path $root $MigrationDirectory
+$directory = if ([IO.Path]::IsPathRooted($MigrationDirectory)) { $MigrationDirectory } else { Join-Path $root $MigrationDirectory }
 $manifestPath = Join-Path $directory 'migration-manifest.json'
 $expected = @('identity','appointment','clinical','lab','billing','patient','patient-read','pharmacy')
 
@@ -80,7 +80,7 @@ if ($missingMigrationOnly.Count -gt 0) {
     Add-Check 'migration-only-runner' 'pass' 'All eight EF owners expose a migration-only exit path.'
 }
 
-$renderPath = Join-Path $root $RenderedProductionManifest
+$renderPath = if ([IO.Path]::IsPathRooted($RenderedProductionManifest)) { $RenderedProductionManifest } else { Join-Path $root $RenderedProductionManifest }
 if (-not (Test-Path -LiteralPath $renderPath -PathType Leaf)) {
     Add-Check 'api-migration-isolation' 'fail' "Rendered production manifest not found: $renderPath"
 } else {
@@ -113,14 +113,21 @@ if (-not (Test-Path -LiteralPath $renderPath -PathType Leaf)) {
         $_ -notmatch 'argocd.argoproj.io/hook:\s*Sync' -or
         $_ -notmatch 'Persistence__RunMigrationsOnStartup\s*\r?\n\s*value:\s*["'']?true' -or
         $_ -notmatch 'Persistence__MigrationOnly\s*\r?\n\s*value:\s*["'']?true' -or
-        $_ -notmatch 'Vault__AuthMethod\s*\r?\n\s*\s*value:\s*spiffe-jwt' -or
+        $_ -notmatch 'Vault__AuthMethod\s*\r?\n\s*\s*value:\s*kubernetes' -or
+        $_ -notmatch 'Vault__AuthMount\s*\r?\n\s*\s*value:\s*kubernetes' -or
         $_ -notmatch 'Vault__AllowStaticToken\s*\r?\n\s*\s*value:\s*["'']?false' -or
         $_ -notmatch 'Redis__ConnectionString' -or
         $_ -notmatch 'Redis__TlsCaFile\s*\r?\n\s*\s*value:\s*/etc/tls/redis/ca.crt' -or
         $_ -notmatch 'secretName:\s*redis-tls' -or
         $_ -notmatch 'fsGroup:\s*1654' -or
-        $_ -notmatch 'spire-jwt-fetcher' -or
-        $_ -notmatch 'hostPath:\s*\r?\n\s*path:\s*/run/spire/sockets'
+        $_ -notmatch 'automountServiceAccountToken:\s*false' -or
+        $_ -notmatch 'serviceAccountToken:' -or
+        $_ -notmatch 'audience:\s*vault' -or
+        $_ -notmatch 'path:\s*vault' -or
+        $_ -match 'hostPath:' -or
+        $_ -match 'spire-jwt-fetcher' -or
+        $_ -notmatch 'readOnlyRootFilesystem:\s*true' -or
+        $_ -notmatch 'capabilities:\s*\r?\n\s*drop:\s*\r?\n\s*- ALL'
     })
     $unpinnedJobImages = @($migrationJobs | ForEach-Object {
         [regex]::Matches($_, '(?m)^\s*image:\s*(?<image>\S+)') | ForEach-Object { $_.Groups['image'].Value }
@@ -128,11 +135,11 @@ if (-not (Test-Path -LiteralPath $renderPath -PathType Leaf)) {
     if ($missingJobs.Count -gt 0 -or $migrationJobs.Count -ne $expectedJobs.Count) {
         Add-Check 'migration-job-coverage' 'fail' "Expected seven rendered migration Jobs; found $($migrationJobs.Count), missing [$($missingJobs -join ',')]."
     } elseif ($invalidJobs.Count -gt 0) {
-        Add-Check 'migration-job-contract' 'fail' "$($invalidJobs.Count) migration Job document(s) miss deadline, hook, Vault/SPIRE or one-shot controls."
+        Add-Check 'migration-job-contract' 'fail' "$($invalidJobs.Count) migration Job document(s) miss deadline, hook, Kubernetes Vault JWT or one-shot controls."
     } elseif ($unpinnedJobImages.Count -gt 0) {
         Add-Check 'migration-job-contract' 'fail' "Migration Jobs contain unpinned images: $($unpinnedJobImages -join ', ')."
     } else {
-        Add-Check 'migration-job-contract' 'pass' 'Seven digest-pinned Argo Sync wave-20 migration Jobs have bounded, SPIRE/Vault-backed one-shot controls.'
+        Add-Check 'migration-job-contract' 'pass' 'Seven digest-pinned Argo Sync wave-20 migration Jobs have bounded, projected Kubernetes JWT and Vault-backed one-shot controls without SPIRE hostPath access.'
     }
 }
 
