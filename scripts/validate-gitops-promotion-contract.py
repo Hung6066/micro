@@ -12,7 +12,9 @@ import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "gitops-promotion.yml"
+RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "gitops-release-promotion.yml"
 UPDATER = ROOT / "scripts" / "update-gitops-digest.ps1"
+RELEASE_UPDATER = ROOT / "scripts" / "update-gitops-release-digests.ps1"
 
 
 def fail(message: str) -> None:
@@ -56,6 +58,10 @@ def main() -> int:
             fail(f"missing required supply-chain control: {fragment}")
     if not UPDATER.is_file():
         fail("missing scripts/update-gitops-digest.ps1")
+    if not RELEASE_WORKFLOW.is_file():
+        fail("missing .github/workflows/gitops-release-promotion.yml")
+    if not RELEASE_UPDATER.is_file():
+        fail("missing scripts/update-gitops-release-digests.ps1")
     updater = UPDATER.read_text(encoding="utf-8")
     if "ReleaseSha" not in updater or "newTag:" not in updater:
         fail("digest updater must align the image tag with ReleaseSha when promoting a digest")
@@ -67,7 +73,26 @@ def main() -> int:
     if re.search(r"kubectl\s+(?:apply|create|patch|label)|helm\s+upgrade|ansible-playbook", raw):
         fail("promotion workflow must open a PR and not mutate a cluster")
 
-    print("GitOps promotion contract PASS: protected digest-only PR and signed provenance preflight")
+    release_raw = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+    required_release_fragments = (
+        "workflow_run:",
+        "Container Release Supply Chain",
+        "release_run_id:",
+        "gh run download",
+        "image-ref-*",
+        "verify-image-attestations.ps1",
+        "update-gitops-release-digests.ps1",
+        "Create review-required promotion PR",
+        "base: main",
+        "HARBOR_CA_CHAIN_B64",
+    )
+    for fragment in required_release_fragments:
+        if fragment not in release_raw:
+            fail(f"release promotion is missing required control: {fragment}")
+    if re.search(r"kubectl\s+(?:apply|create|patch|label)|helm\s+upgrade|ansible-playbook", release_raw):
+        fail("release promotion must open a review PR and not mutate a cluster")
+
+    print("GitOps promotion contract PASS: protected digest-only review PRs and signed provenance preflight")
     return 0
 
 
