@@ -297,7 +297,10 @@ jobs:
               },
           }
           with open("slsa-provenance.json", "w", encoding="utf-8") as handle:
-              json.dump(predicate, handle, separators=(",", ":"))
+              # cosign attest wraps the predicate in the in-toto statement;
+              # pass only the SLSA predicate body so builder is at the
+              # schema-required level.
+              json.dump(predicate["predicate"], handle, separators=(",", ":"))
           PY
           cosign attest --yes --predicate slsa-provenance.json --type slsaprovenance "$image"
           pwsh ./scripts/verify-image-attestations.ps1 \
