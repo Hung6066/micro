@@ -13,9 +13,10 @@ COPY shared /workspace/shared
 COPY admin-app .
 RUN rm -rf .angular/cache && npx ng build --configuration=production
 
-FROM nginx:alpine AS final
+FROM nginxinc/nginx-unprivileged:alpine AS final
+USER 101
 COPY --from=build /workspace/admin-app/dist/admin-app/browser /usr/share/nginx/html
 COPY admin-app/nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
+EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD curl -sf http://127.0.0.1:80/ || exit 1
+  CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1

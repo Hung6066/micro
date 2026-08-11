@@ -929,12 +929,12 @@ services:
       dockerfile: admin-app/Dockerfile
     container_name: his-hope-admin
     ports:
-      - "8083:80"
+      - "8083:8080"
     depends_on:
       identityservice: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://127.0.0.1:80/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
       interval: 30s
       timeout: 10s
       retries: 3

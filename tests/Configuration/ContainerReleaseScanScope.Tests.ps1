@@ -4,7 +4,9 @@ $repositoryRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 $workflowPath = Join-Path $repositoryRoot '.github\workflows\container-release.yml'
 $workflow = Get-Content -LiteralPath $workflowPath -Raw
 $dashboardDockerfile = Get-Content -LiteralPath (Join-Path $repositoryRoot 'dashboard-app\Dockerfile') -Raw
+$adminDockerfile = Get-Content -LiteralPath (Join-Path $repositoryRoot 'admin-app\Dockerfile') -Raw
 $dashboardNginx = Get-Content -LiteralPath (Join-Path $repositoryRoot 'dashboard-app\nginx.conf') -Raw
+$adminNginx = Get-Content -LiteralPath (Join-Path $repositoryRoot 'admin-app\nginx.conf') -Raw
 $dashboardDeployment = Get-Content -LiteralPath (Join-Path $repositoryRoot 'k8s\base\dashboard-app-deployment.yaml') -Raw
 $dashboardService = Get-Content -LiteralPath (Join-Path $repositoryRoot 'k8s\base\dashboard-app-service.yaml') -Raw
 $migrationJob = Get-Content -LiteralPath (Join-Path $repositoryRoot 'cockroach\config\migration-job.yaml') -Raw
@@ -45,6 +47,15 @@ foreach ($required in @(
 }
 
 Write-Host 'Container runtime security PASS: dashboard nginx and Cockroach migration Job are non-root and restricted.'
+
+if ($adminDockerfile -notmatch '(?m)^FROM nginxinc/nginx-unprivileged:alpine AS final$' -or
+    $adminDockerfile -notmatch '(?m)^USER 101$' -or
+    $adminDockerfile -notmatch '(?m)^EXPOSE 8080$' -or
+    $adminNginx -notmatch '(?m)^\s*listen 8080;') {
+    throw 'admin-app must use the non-root nginx runtime and listen on 8080.'
+}
+
+Write-Host 'Container runtime security PASS: admin nginx is non-root and restricted.'
 
 foreach ($required in @(
     'runAsNonRoot: true',
