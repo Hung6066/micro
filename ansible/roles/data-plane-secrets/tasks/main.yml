@@ -1,0 +1,21 @@
+---
+- name: Validate kubectl and kubeconfig inputs
+  ansible.builtin.assert:
+    that:
+      - data_plane_secrets_kubeconfig | length > 0
+      - data_plane_secrets | length > 0
+    fail_msg: "Provide data_plane_secrets_kubeconfig and at least one secret name."
+
+- name: Copy Vault/CSI-synced secrets into data-plane namespace
+  ansible.builtin.command:
+    argv:
+      - /bin/bash
+      - /mnt/d/AI/micro/scripts/bootstrap-data-plane-secrets.sh
+      - "{{ data_plane_secrets_kubeconfig }}"
+      - "{{ data_plane_secrets_source_namespace }}"
+      - "{{ data_plane_secrets_target_namespace }}"
+      - "{{ item }}"
+  loop: "{{ data_plane_secrets }}"
+  register: copied_secrets
+  changed_when: false
+  no_log: true

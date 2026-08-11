@@ -18,6 +18,7 @@ resources:
 
 patchesStrategicMerge:
   - ../../overlays/prod/cache-tls-patch.yaml
+  - data-plane-security-patch.yaml
   - ../../overlays/prod/storage-class-postgres-patch.yaml
   - ../../overlays/prod/storage-class-rabbitmq-patch.yaml
   - ../../overlays/prod/storage-class-redis-patch.yaml
