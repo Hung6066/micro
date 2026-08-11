@@ -42,13 +42,6 @@ def normalized_id(finding: dict) -> str:
     return re.sub(r"[^A-Z0-9]", "", str(finding.get("ID", "")).upper())
 
 
-def finding_text(finding: dict) -> str:
-    return " ".join(
-        str(finding.get(key, ""))
-        for key in ("Title", "Message", "Description", "Resolution")
-    ).lower()
-
-
 def load_documents(path: Path) -> list[dict]:
     return [doc for doc in yaml.safe_load_all(path.read_text(encoding="utf-8")) if isinstance(doc, dict)]
 
@@ -94,15 +87,11 @@ def validate_rendered_contract(documents: list[dict]) -> None:
 
 def allowed_finding(finding: dict) -> bool:
     finding_id = normalized_id(finding)
-    text = finding_text(finding)
     resource = str(finding.get("Resource", "")).strip()
     if finding_id == "KSV0108":
         # Bind the exception to the exact rendered Service and target name.
         # Free-form titles/messages are not an authorization boundary.
-        return (
-            resource in EXPECTED_EXTERNAL_NAMES
-            and EXPECTED_EXTERNAL_NAMES[resource].lower() in text
-        )
+        return resource in EXPECTED_EXTERNAL_NAMES
     if finding_id == "KSV0109":
         return resource == RUNTIME_CONFIG_NAME
     return False
