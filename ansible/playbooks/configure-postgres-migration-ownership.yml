@@ -1,0 +1,85 @@
+---
+- name: Configure least-privilege PostgreSQL migration ownership
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    production_kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default('artifacts/kubeconfig-production.yaml', true) }}"
+    postgres_namespace: his-hope-data
+    postgres_pod: his-hope-postgres-0
+    postgres_username: his_hope
+    postgres_password_file: "{{ lookup('env', 'POSTGRES_ADMIN_PASSWORD_FILE') | default('D:/secure/his-hope/postgres_admin_password', true) }}"
+    vault_namespace: his-hope
+    vault_pod: vault-1
+    vault_operator_token_file: "{{ lookup('env', 'VAULT_OPERATOR_TOKEN_FILE') | default('D:/secure/his-hope/vault_operator_token', true) }}"
+    databases:
+      - { name: identitydb, role: identity-service-db, owner: his_hope_identity_owner }
+      - { name: patientdb, role: patient-service-db, owner: his_hope_patient_owner }
+      - { name: appointmentdb, role: appointment-service-db, owner: his_hope_appointment_owner }
+      - { name: clinicaldb, role: clinical-service-db, owner: his_hope_clinical_owner }
+      - { name: labdb, role: lab-service-db, owner: his_hope_lab_owner }
+      - { name: billingdb, role: billing-service-db, owner: his_hope_billing_owner }
+      - { name: pharmacydb, role: pharmacy-service-db, owner: his_hope_pharmacy_owner }
+  tasks:
+    - name: Validate protected inputs
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ production_kubeconfig }}"
+        - "{{ postgres_password_file }}"
+        - "{{ vault_operator_token_file }}"
+      register: migration_inputs
+      failed_when: not migration_inputs.stat.exists
+
+    - name: Create schema owner group and transfer current objects
+      ansible.builtin.shell: |
+        set -euo pipefail
+        password=$(cat '{{ postgres_password_file }}')
+        cat <<'SQL' | kubectl --kubeconfig '{{ production_kubeconfig }}' -n '{{ postgres_namespace }}' exec -i '{{ postgres_pod }}' -- env PGPASSWORD="$password" psql -v ON_ERROR_STOP=1 -U '{{ postgres_username }}' -d '{{ item.name }}' -f - >/dev/null
+        DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '{{ item.owner }}') THEN
+            CREATE ROLE {{ item.owner }} NOLOGIN;
+          END IF;
+        END $$;
+        ALTER SCHEMA public OWNER TO {{ item.owner }};
+        DO $$ DECLARE r record; BEGIN
+          FOR r IN SELECT n.nspname, c.relname, c.relkind
+                   FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                   WHERE n.nspname = 'public' AND c.relkind IN ('r','v','m','f','p')
+          LOOP
+            EXECUTE format('ALTER %s %I.%I OWNER TO %I',
+              CASE r.relkind WHEN 'S' THEN 'SEQUENCE' WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW' ELSE 'TABLE' END,
+              r.nspname, r.relname, '{{ item.owner }}');
+          END LOOP;
+        END $$;
+        DO $$ DECLARE r record; BEGIN
+          FOR r IN SELECT n.nspname, c.relname
+                   FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                   WHERE n.nspname = 'public' AND c.relkind = 'S'
+                     AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = c.oid AND d.deptype = 'a')
+          LOOP
+            EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO %I', r.nspname, r.relname, '{{ item.owner }}');
+          END LOOP;
+        END $$;
+        SQL
+      args:
+        executable: /bin/bash
+      loop: "{{ databases }}"
+      no_log: true
+      changed_when: true
+
+    - name: Add schema-owner membership to Vault database roles
+      ansible.builtin.shell: |
+        set -euo pipefail
+        token=$(cat '{{ vault_operator_token_file }}')
+        creation="CREATE ROLE \"{{ '{{name}}' }}\" WITH LOGIN PASSWORD '{{ '{{password}}' }}' VALID UNTIL '{{ '{{expiration}}' }}'; GRANT CONNECT ON DATABASE {{ item.name }} TO \"{{ '{{name}}' }}\"; GRANT USAGE, CREATE ON SCHEMA public TO \"{{ '{{name}}' }}\"; GRANT {{ item.owner }} TO \"{{ '{{name}}' }}\";"
+        kubectl --kubeconfig '{{ production_kubeconfig }}' -n '{{ vault_namespace }}' exec '{{ vault_pod }}' -- env VAULT_TOKEN="$token" VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true vault write database/roles/{{ item.role }} db_name={{ item.name }} "creation_statements=$creation" "revocation_statements=DROP OWNED BY {{ '{{name}}' }} CASCADE; DROP ROLE IF EXISTS {{ '{{name}}' }};" default_ttl=1h max_ttl=24h >/dev/null
+      args:
+        executable: /bin/bash
+      loop: "{{ databases }}"
+      no_log: true
+      changed_when: true
+
+    - name: Report migration ownership configuration
+      ansible.builtin.debug:
+        msg: "Configured stable schema owners and Vault role membership for {{ databases | length }} production databases"
