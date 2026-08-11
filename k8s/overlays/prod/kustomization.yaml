@@ -30,6 +30,7 @@ resources:
   # overlay. Authentication material remains provisioned out-of-band.
   - pgbouncer-configmap.yaml
   - runtime-secret-provider-class.yaml
+  - ../../vault/vault-csi-provider.yaml
   - resource-governance.yaml
   - ../../policies/namespace-security-exceptions.yaml
 
@@ -441,6 +442,12 @@ patches:
         path: /metadata/annotations/argocd.argoproj.io~1sync-wave
         value: "40"
   - path: identity-kubernetes-vault-json-patch.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: identity-service
+  - path: identity-csi-volume-patch.json
     target:
       group: apps
       version: v1

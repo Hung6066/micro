@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 $deploymentPaths = @(
     'k8s/base/identity-service.yaml',
     'k8s/overlays/prod/identity-security-patch.yaml',
+    'k8s/overlays/prod/identity-csi-volume-patch.json',
     'k8s/overlays/prod/kustomization.yaml'
 )
 $providerPath = 'k8s/vault/vault-csi-provider.yaml'
@@ -17,7 +18,6 @@ $deployment = ($deploymentPaths | ForEach-Object { Get-Content -Raw -LiteralPath
 $provider = Get-Content -Raw -LiteralPath $providerPath
 
 $deploymentRequirements = @(
-    'secretProviderClass: identity-service-secrets',
     'mountPath: /mnt/secrets-store',
     'OpenIddict__Signing__PrivateKeyPath',
     'OpenIddict__Encryption__PrivateKeyPath',
@@ -43,6 +43,10 @@ foreach ($requirement in $deploymentRequirements) {
     if ($deployment -notmatch [regex]::Escape($requirement)) {
         throw "Identity deployment is missing required security wiring: $requirement"
     }
+}
+
+if ($deployment -notmatch 'secretProviderClass["'']?\s*:\s*["'']?his-hope-identity-service-secrets') {
+    throw 'Identity deployment is missing required security wiring: secretProviderClass his-hope-identity-service-secrets'
 }
 
 foreach ($requirement in $providerRequirements) {

@@ -47,6 +47,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    depends_on:
+      postgres-wal-archive-init: { condition: service_completed_successfully }
     restart: unless-stopped
     deploy:
       resources:
