@@ -56,7 +56,7 @@ def main() -> int:
         "validate-manifest-secret-contract.py",
         "validate-container-build-contract.py",
         "skip-dirs: k8s,docker/spire",
-        "skip-files: docker/postgres-production.Dockerfile",
+        "skip-files: docker/postgres-production.Dockerfile,.tools/dev-render.yaml,backstage/deployment.yaml",
         "docker/build-push-action@",
         "cosign sign --yes",
         "cosign attest --yes",

@@ -9,9 +9,11 @@ $dashboardDeployment = Get-Content -LiteralPath (Join-Path $repositoryRoot 'k8s\
 $dashboardService = Get-Content -LiteralPath (Join-Path $repositoryRoot 'k8s\base\dashboard-app-service.yaml') -Raw
 $migrationJob = Get-Content -LiteralPath (Join-Path $repositoryRoot 'cockroach\config\migration-job.yaml') -Raw
 $cockroachStatefulSet = Get-Content -LiteralPath (Join-Path $repositoryRoot 'cockroach\config\cockroachdb-statefulset.yaml') -Raw
+$cockroachBackup = Get-Content -LiteralPath (Join-Path $repositoryRoot 'cockroach\config\backup-cronjob.yaml') -Raw
+$cockroachInit = Get-Content -LiteralPath (Join-Path $repositoryRoot 'cockroach\config\cockroachdb-init.yaml') -Raw
 
-if ($workflow -notmatch '(?ms)scan-type:\s*fs.*?scan-ref:\s*\..*?skip-dirs:\s*k8s,docker/spire.*?skip-files:\s*docker/postgres-production\.Dockerfile') {
-    throw 'The filesystem Trivy preflight must exclude k8s, docker/spire, and the non-release postgres bootstrap helper. Rendered production manifests and release images remain covered by dedicated validators and image scans.'
+if ($workflow -notmatch '(?ms)scan-type:\s*fs.*?scan-ref:\s*\..*?skip-dirs:\s*k8s,docker/spire.*?skip-files:\s*docker/postgres-production\.Dockerfile,\.tools/dev-render\.yaml,backstage/deployment\.yaml') {
+    throw 'The filesystem Trivy preflight must exclude non-release Kubernetes fixtures and helpers. Rendered production manifests and release images remain covered by dedicated validators and image scans.'
 }
 
 Write-Host 'Container release Trivy scope PASS: raw Kubernetes manifests and non-release SPIRE Compose helpers are excluded from the filesystem preflight.'
@@ -56,3 +58,21 @@ foreach ($required in @(
 }
 
 Write-Host 'Container runtime security PASS: CockroachDB StatefulSet is non-root and restricted.'
+
+foreach ($manifest in @{
+    'CockroachDB backup CronJob' = $cockroachBackup
+    'CockroachDB init Job' = $cockroachInit
+}.GetEnumerator()) {
+    foreach ($required in @(
+        'runAsNonRoot: true',
+        'allowPrivilegeEscalation: false',
+        'readOnlyRootFilesystem: true',
+        'type: RuntimeDefault'
+    )) {
+        if ($manifest.Value -notmatch [regex]::Escape($required)) {
+            throw "$($manifest.Key) is missing required security control: $required"
+        }
+    }
+}
+
+Write-Host 'Container runtime security PASS: CockroachDB backup and init workloads are non-root and restricted.'

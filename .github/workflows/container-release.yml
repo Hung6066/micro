@@ -72,11 +72,13 @@ jobs:
           # below. docker/spire only supports the local Compose SPIFFE test
           # profile; docker/postgres-production.Dockerfile is a local
           # root-owned secret bootstrap helper and is not a release artifact.
+          # .tools/dev-render.yaml is generated development output and
+          # backstage/deployment.yaml belongs to a separate internal portal.
           # Every image in the release matrix is scanned after its exact
           # Dockerfile build and again after its immutable Harbor digest is
           # pushed.
           skip-dirs: k8s,docker/spire
-          skip-files: docker/postgres-production.Dockerfile
+          skip-files: docker/postgres-production.Dockerfile,.tools/dev-render.yaml,backstage/deployment.yaml
           scanners: vuln,secret,misconfig
           severity: HIGH,CRITICAL
           ignore-unfixed: true

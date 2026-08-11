@@ -9,4 +9,5 @@ ARG PROJECT
 WORKDIR /app
 COPY --from=build /app/publish .
 RUN printf '#!/bin/sh\nexec dotnet /app/%s.dll\n' "$PROJECT" > /entrypoint.sh && chmod 0555 /entrypoint.sh
+USER app
 ENTRYPOINT ["/entrypoint.sh"]
