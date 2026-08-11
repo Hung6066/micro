@@ -43,7 +43,7 @@ COPY --from=build /app/publish .
 COPY --from=curl /usr/bin/curl /usr/bin/curl
 
 # Create app user and log directory
-RUN apt-get update && apt-get install -y curl && \
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
     adduser --disabled-password --gecos '' appuser && \
     mkdir -p /var/log/remediation-operator && \
     chown -R appuser:appuser /app /var/log/remediation-operator

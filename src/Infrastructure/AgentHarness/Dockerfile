@@ -33,7 +33,7 @@ EXPOSE 5200
 ENV ASPNETCORE_ENVIRONMENT=Production \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 
-RUN apt-get update && apt-get install -y curl && \
+RUN apt-get update && apt-get install -y --no-install-recommends curl && \
     adduser --disabled-password --gecos '' appuser && \
     chown -R appuser:appuser /app
 USER appuser
