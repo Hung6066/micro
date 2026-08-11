@@ -136,8 +136,11 @@ jobs:
           openssl x509 -in /tmp/harbor-ca.crt -noout -subject -issuer >/dev/null
           sudo install -m 0644 /tmp/harbor-ca.crt /usr/local/share/ca-certificates/his-hope-harbor.crt
           sudo update-ca-certificates
-          sudo mkdir -p "/etc/docker/certs.d/${HARBOR_REGISTRY}"
-          sudo install -m 0644 /tmp/harbor-ca.crt "/etc/docker/certs.d/${HARBOR_REGISTRY}/ca.crt"
+          for registry_host in "${HARBOR_REGISTRY}" "${HARBOR_REGISTRY}:443"; do
+            sudo mkdir -p "/etc/docker/certs.d/${registry_host}"
+            sudo install -m 0644 /tmp/harbor-ca.crt "/etc/docker/certs.d/${registry_host}/ca.crt"
+          done
+          sudo systemctl restart docker
 
       - name: Validate Harbor release configuration
         shell: bash
