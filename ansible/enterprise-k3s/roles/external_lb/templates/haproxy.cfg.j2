@@ -42,12 +42,15 @@ backend ingress-http-backend
 frontend harbor-https
     bind *:{{ lb_harbor_https_port }} ssl crt /etc/haproxy/certs/harbor-public.pem
     mode tcp
+    timeout client 10m
     default_backend harbor-https-backend
 
 backend harbor-https-backend
     mode tcp
     balance roundrobin
     option tcp-check
+    timeout server 10m
+    timeout tunnel 1h
 {% for backend in lb_harbor_https_backends %}
     server {{ backend.name }} {{ backend.address }}:{{ lb_harbor_https_node_port }} ssl verify required ca-file /etc/haproxy/certs/harbor-backend-ca.pem verifyhost {{ lb_harbor_backend_server_name }} sni str({{ lb_harbor_backend_server_name }}) check-sni {{ lb_harbor_backend_server_name }} check
 {% endfor %}
