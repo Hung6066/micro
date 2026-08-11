@@ -22,7 +22,7 @@ $contexts = @(
 $manifest = [System.Collections.Generic.List[object]]::new()
 foreach ($item in $contexts) {
     $file = Join-Path $output "$($item.Name)-idempotent.sql"
-    dotnet ef migrations script --idempotent --project (Join-Path $RepositoryRoot $item.Project) --startup-project (Join-Path $RepositoryRoot $item.Project) --context $item.Context --no-build --no-color --output $file
+    dotnet ef migrations script --idempotent --project (Join-Path $RepositoryRoot $item.Project) --startup-project (Join-Path $RepositoryRoot $item.Project) --context $item.Context --configuration Release --no-build --no-color --output $file
     if ($LASTEXITCODE -ne 0) { throw "Migration script generation failed for $($item.Context)." }
     $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
     $manifest.Add([pscustomobject]@{ name = $item.Name; context = $item.Context; script = (Split-Path -Leaf $file); sha256 = $hash })

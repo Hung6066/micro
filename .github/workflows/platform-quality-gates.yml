@@ -171,7 +171,12 @@ jobs:
         with:
           fetch-depth: 0
       - name: Start Identity dependencies and service
-        run: docker compose -f docker/docker-compose.yml up -d postgres redis identityservice
+        run: docker compose --env-file docker/config/compose.runtime.env.example -f docker/docker-compose.yml up -d --wait --wait-timeout 180 postgres redis identityservice
+      - name: Capture Identity startup diagnostics
+        if: failure()
+        run: |
+          docker compose --env-file docker/config/compose.runtime.env.example -f docker/docker-compose.yml ps
+          docker compose --env-file docker/config/compose.runtime.env.example -f docker/docker-compose.yml logs --no-color postgres redis identityservice
       - name: Generate current OpenAPI document
         shell: pwsh
         run: ./scripts/generate-openapi.ps1 -Output artifacts/openapi/identity-v1.json
@@ -180,4 +185,4 @@ jobs:
         run: ./scripts/check-openapi-breaking.ps1 -Baseline docs/openapi/identity-v1.json -Current artifacts/openapi/identity-v1.json
       - name: Stop Identity dependencies
         if: always()
-        run: docker compose -f docker/docker-compose.yml down --volumes
+        run: docker compose --env-file docker/config/compose.runtime.env.example -f docker/docker-compose.yml down --volumes
