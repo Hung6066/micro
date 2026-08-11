@@ -17,9 +17,9 @@ jobs:
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '8.0.x'
-      - name: Restore with security audit
-        run: dotnet restore src/Services/IdentityService/IdentityService.Api/ --audit
+      - name: Restore dependencies
+        run: dotnet restore src/Services/IdentityService/IdentityService.Api/
       - name: Build
         run: dotnet build src/Services/IdentityService/IdentityService.Api/ --no-restore
       - name: Check for known vulnerable packages
-        run: dotnet list src/Services/IdentityService/IdentityService.Api/ package --vulnerable
+        run: dotnet list src/Services/IdentityService/IdentityService.Api/ package --vulnerable --include-transitive
