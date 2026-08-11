@@ -55,6 +55,7 @@ def main() -> int:
         "verify-admission-policy.ps1",
         "validate-manifest-secret-contract.py",
         "validate-container-build-contract.py",
+        "skip-dirs: k8s,docker/spire",
         "docker/build-push-action@",
         "cosign sign --yes",
         "cosign attest --yes",

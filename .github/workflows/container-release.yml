@@ -69,9 +69,11 @@ jobs:
           scan-ref: .
           # Kubernetes source is validated separately from the rendered
           # production overlay by the admission and release-policy gates
-          # below. Raw dev/test/controller manifests include intentional
-          # node-level exceptions that must not block application image build.
-          skip-dirs: k8s
+          # below. docker/spire only supports the local Compose SPIFFE test
+          # profile; it is not a release artifact. Every image in the release
+          # matrix is scanned after its exact Dockerfile build and again after
+          # its immutable Harbor digest is pushed.
+          skip-dirs: k8s,docker/spire
           scanners: vuln,secret,misconfig
           severity: HIGH,CRITICAL
           ignore-unfixed: true
