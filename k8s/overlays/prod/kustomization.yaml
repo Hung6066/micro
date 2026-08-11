@@ -333,13 +333,19 @@ patches:
       - op: add
         path: /metadata/annotations/argocd.argoproj.io~1sync-wave
         value: "40"
+  - path: identity-kubernetes-vault-json-patch.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: identity-service
 
 patchesStrategicMerge:
+  - production-data-plane-delete-patch.yaml
   - runtime-data-plane-patch.yaml
   - production-runtime-contract-services-patch.yaml
   - identity-service-sa-token-patch.yaml
   - namespace-pod-security-patch.yaml
-  - cache-tls-patch.yaml
   # The checked-in localhost profile currently blocks vfork/clone paths used
   # by the .NET host and PgBouncer image on this K3d runtime. Keep the
   # workload on RuntimeDefault until the profile is regenerated from an
@@ -359,13 +365,8 @@ patchesStrategicMerge:
   - api-gateway-health-probe-patch.yaml
   - redis-tls-runtime-patch.yaml
   - workload-spiffe-patches.yaml
-  - storage-class-postgres-patch.yaml
-  - storage-class-rabbitmq-patch.yaml
-  - storage-class-redis-patch.yaml
   - database-continuity-storage-patch.yaml
   - k3s-local-capacity-patch.yaml
-  - postgres-linkerd-disabled-patch.yaml
-  - redis-linkerd-disabled-patch.yaml
 
 components:
   - image-digests
