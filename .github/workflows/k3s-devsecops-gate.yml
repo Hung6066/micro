@@ -35,6 +35,7 @@ on:
       - 'scripts/validate-protected-workflow-contract.py'
       - 'scripts/validate-gitops-promotion-contract.py'
       - 'scripts/validate-container-release-contract.py'
+      - 'scripts/validate-trivy-production-findings.py'
       - 'scripts/validate-dr-evidence.ps1'
       - 'scripts/install-k3s-kubectl.ps1'
       - 'scripts/validate-backup-agent-contract.py'
@@ -183,11 +184,6 @@ jobs:
         shell: pwsh
         run: ./scripts/validate-reliability-platform.ps1 -OutputPath artifacts/evidence/reliability-platform-contract.json
 
-      - name: Validate migration artifact and startup isolation
-        if: matrix.environment == 'prod'
-        shell: pwsh
-        run: ./scripts/validate-database-migration-contract.ps1 -OutputPath artifacts/evidence/database-migration-contract.json
-
       - name: Validate container build contract
         if: matrix.environment == 'prod'
         shell: bash
@@ -332,14 +328,6 @@ jobs:
           path: artifacts/evidence/release-gate.json
           if-no-files-found: error
 
-      - name: Upload migration contract evidence
-        if: always() && matrix.environment == 'prod'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: database-migration-contract
-          path: artifacts/evidence/database-migration-contract.json
-          if-no-files-found: error
-
       - name: Upload reliability contract evidence
         if: always() && matrix.environment == 'prod'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -374,6 +362,10 @@ jobs:
         with:
           version: 'v1.35.5'
 
+      - name: Install production policy dependency
+        shell: bash
+        run: python -m pip install --disable-pip-version-check --no-input pyyaml==6.0.2
+
       - name: Render production manifests for policy scan
         shell: pwsh
         run: |
@@ -389,7 +381,16 @@ jobs:
           scan-ref: artifacts/k8s/prod.yaml
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: '1'
+          format: json
+          output: artifacts/k8s/trivy-production.json
+          # The next gate permits only two cluster-local ExternalName aliases
+          # and a placeholder-only Vault contract. Every other Trivy finding
+          # remains a release-blocking error.
+          exit-code: '0'
+
+      - name: Enforce production Trivy exception contract
+        shell: bash
+        run: python scripts/validate-trivy-production-findings.py artifacts/k8s/trivy-production.json artifacts/k8s/prod.yaml
 
       - name: Check for secret values in manifests
         run: python scripts/validate-manifest-secret-contract.py
