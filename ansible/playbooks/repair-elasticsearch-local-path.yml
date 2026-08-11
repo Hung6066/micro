@@ -1,0 +1,19 @@
+---
+- name: Repair stale Elasticsearch local-path lock
+  hosts: k3s-worker-1
+  become: true
+  gather_facts: false
+  vars:
+    elasticsearch_path: /var/lib/rancher/k3s/storage/pvc-8721438d-f82b-4fb9-84e9-800813b96e32_monitoring_elasticsearch-data-elasticsearch-0
+  tasks:
+    - name: Check for an active Elasticsearch process
+      ansible.builtin.shell: "pgrep -f '[e]lasticsearch'"
+      register: elasticsearch_process
+      failed_when: false
+      changed_when: false
+
+    - name: Remove stale node lock only when no Elasticsearch process exists
+      ansible.builtin.file:
+        path: "{{ elasticsearch_path }}/node.lock"
+        state: absent
+      when: elasticsearch_process.rc != 0
