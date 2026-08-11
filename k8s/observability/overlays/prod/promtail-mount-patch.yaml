@@ -9,7 +9,7 @@ spec:
       containers:
         - name: promtail
           volumeMounts:
-            $patch: replace
+            - $patch: replace
             - name: config
               mountPath: /etc/promtail/promtail.yaml
               subPath: promtail.yaml
@@ -19,7 +19,7 @@ spec:
             - name: run
               mountPath: /run/promtail
       volumes:
-        $patch: replace
+        - $patch: replace
         - name: config
           configMap:
             name: promtail-config
