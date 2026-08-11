@@ -220,6 +220,8 @@ spec:
             - name: results
               persistentVolumeClaim:
                 claimName: synthetic-monitor-results
+            - name: npm-node-modules
+              emptyDir: {}
           initContainers:
             - name: install-deps
               image: mcr.microsoft.com/playwright@sha256:d9266ee97f0dbd297618a10afb00b5006ebf2bb19dd38887da3230ed4b7829ea
@@ -259,6 +261,8 @@ spec:
                   mountPath: /tests/login-journey.spec.js
                   subPath: login-journey.spec.js
                   readOnly: true
+                - name: npm-node-modules
+                  mountPath: /tests/node_modules
                 - name: vault-secrets
                   mountPath: /mnt/secrets
                   readOnly: true
@@ -316,6 +320,8 @@ spec:
                   cpu: 1000m
                   memory: 1Gi
               volumeMounts:
+                - name: npm-node-modules
+                  mountPath: /tests/node_modules
                 - name: tests
                   mountPath: /tests/playwright.config.js
                   subPath: playwright.config.js
