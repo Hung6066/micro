@@ -46,6 +46,15 @@ public class OutboxProcessor<TDbContext> : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Migration-only jobs must never start transport-backed workers. The
+        // migration process can complete without RabbitMQ/Redis and should
+        // not publish or claim outbox messages while the schema is changing.
+        if (_configuration.GetValue("Persistence:MigrationOnly", false))
+        {
+            _logger.LogInformation("OutboxProcessor disabled for migration-only execution of {DbContext}", typeof(TDbContext).Name);
+            return;
+        }
+
         _logger.LogInformation("OutboxProcessor started for {DbContext}", typeof(TDbContext).Name);
 
         var workers = Enumerable.Range(0, _options.WorkerCount)
