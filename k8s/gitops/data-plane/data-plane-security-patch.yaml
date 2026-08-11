@@ -72,3 +72,16 @@ spec:
             capabilities:
               $patch: replace
               drop: ["ALL"]
+          volumeMounts:
+            - name: rabbitmq-cookie
+              mountPath: /var/lib/rabbitmq/.erlang.cookie
+              subPath: .erlang.cookie
+              readOnly: true
+      volumes:
+        - name: rabbitmq-cookie
+          secret:
+            secretName: rabbitmq-secret
+            defaultMode: 0600
+            items:
+              - key: erlang_cookie
+                path: .erlang.cookie
