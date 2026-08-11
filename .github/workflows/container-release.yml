@@ -160,9 +160,13 @@ jobs:
           curl -fsSL https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-amd64 -o "$RUNNER_TOOL_CACHE/cosign"
           echo '8b24b946dd5809c6bd93de08033bcf6bc0ed7d336b7785787c080f574b89249b  '"$RUNNER_TOOL_CACHE/cosign" | sha256sum --check
           chmod +x "$RUNNER_TOOL_CACHE/cosign"
-          echo "$RUNNER_TOOL_CACHE/trivy" >> "$GITHUB_PATH"
-          echo "$RUNNER_TOOL_CACHE/syft" >> "$GITHUB_PATH"
-          echo "$RUNNER_TOOL_CACHE" >> "$GITHUB_PATH"
+          test -n "${GITHUB_PATH:-}" || { echo 'GITHUB_PATH is unavailable' >&2; exit 1; }
+          printf '%s\n' "$RUNNER_TOOL_CACHE/trivy" "$RUNNER_TOOL_CACHE/syft" "$RUNNER_TOOL_CACHE" >> "$GITHUB_PATH"
+          test -s "$GITHUB_PATH" || { echo 'GITHUB_PATH was not updated' >&2; exit 1; }
+          export PATH="$RUNNER_TOOL_CACHE/trivy:$RUNNER_TOOL_CACHE/syft:$RUNNER_TOOL_CACHE:$PATH"
+          command -v trivy >/dev/null
+          command -v syft >/dev/null
+          command -v cosign >/dev/null
 
       - name: Validate production manifests before build
         shell: pwsh
