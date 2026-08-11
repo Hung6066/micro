@@ -369,11 +369,24 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
+      - name: Install kubectl
+        uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+        with:
+          version: 'v1.35.5'
+
+      - name: Render production manifests for policy scan
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/k8s | Out-Null
+          kubectl kustomize k8s/overlays/prod --load-restrictor LoadRestrictionsNone |
+            Out-File -Encoding utf8 artifacts/k8s/prod.yaml
+          if ($LASTEXITCODE -ne 0) { throw 'Production Kustomize rendering failed.' }
+
       - name: Trivy IaC scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: config
-          scan-ref: k8s
+          scan-ref: artifacts/k8s/prod.yaml
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
