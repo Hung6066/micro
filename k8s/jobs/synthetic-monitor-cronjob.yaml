@@ -222,6 +222,8 @@ spec:
                 claimName: synthetic-monitor-results
             - name: npm-node-modules
               emptyDir: {}
+            - name: test-results
+              emptyDir: {}
           initContainers:
             - name: install-deps
               image: mcr.microsoft.com/playwright@sha256:d9266ee97f0dbd297618a10afb00b5006ebf2bb19dd38887da3230ed4b7829ea
@@ -263,6 +265,8 @@ spec:
                   readOnly: true
                 - name: npm-node-modules
                   mountPath: /tests/node_modules
+                - name: test-results
+                  mountPath: /tests/test-results
                 - name: vault-secrets
                   mountPath: /mnt/secrets
                   readOnly: true
@@ -322,6 +326,8 @@ spec:
               volumeMounts:
                 - name: npm-node-modules
                   mountPath: /tests/node_modules
+                - name: test-results
+                  mountPath: /tests/test-results
                 - name: tests
                   mountPath: /tests/playwright.config.js
                   subPath: playwright.config.js
