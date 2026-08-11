@@ -13,13 +13,13 @@
     vault_pod: vault-1
     vault_operator_token_file: "{{ lookup('env', 'VAULT_OPERATOR_TOKEN_FILE') | default('D:/secure/his-hope/vault_operator_token', true) }}"
     databases:
-      - { name: identitydb, role: identity-service-db, owner: his_hope_identity_owner }
-      - { name: patientdb, role: patient-service-db, owner: his_hope_patient_owner }
-      - { name: appointmentdb, role: appointment-service-db, owner: his_hope_appointment_owner }
-      - { name: clinicaldb, role: clinical-service-db, owner: his_hope_clinical_owner }
-      - { name: labdb, role: lab-service-db, owner: his_hope_lab_owner }
-      - { name: billingdb, role: billing-service-db, owner: his_hope_billing_owner }
-      - { name: pharmacydb, role: pharmacy-service-db, owner: his_hope_pharmacy_owner }
+      - { name: identitydb, connection: identity-service-db-connection, role: identity-service-db, owner: his_hope_identity_owner }
+      - { name: patientdb, connection: patient-service-db-connection, role: patient-service-db, owner: his_hope_patient_owner }
+      - { name: appointmentdb, connection: appointment-service-db-connection, role: appointment-service-db, owner: his_hope_appointment_owner }
+      - { name: clinicaldb, connection: clinical-service-db-connection, role: clinical-service-db, owner: his_hope_clinical_owner }
+      - { name: labdb, connection: lab-service-db-connection, role: lab-service-db, owner: his_hope_lab_owner }
+      - { name: billingdb, connection: billing-service-db-connection, role: billing-service-db, owner: his_hope_billing_owner }
+      - { name: pharmacydb, connection: pharmacy-service-db-connection, role: pharmacy-service-db, owner: his_hope_pharmacy_owner }
   tasks:
     - name: Validate protected inputs
       ansible.builtin.stat:
@@ -73,7 +73,7 @@
         set -euo pipefail
         token=$(cat '{{ vault_operator_token_file }}')
         creation="CREATE ROLE \"{{ '{{name}}' }}\" WITH LOGIN PASSWORD '{{ '{{password}}' }}' VALID UNTIL '{{ '{{expiration}}' }}'; GRANT CONNECT ON DATABASE {{ item.name }} TO \"{{ '{{name}}' }}\"; GRANT USAGE, CREATE ON SCHEMA public TO \"{{ '{{name}}' }}\"; GRANT {{ item.owner }} TO \"{{ '{{name}}' }}\";"
-        kubectl --kubeconfig '{{ production_kubeconfig }}' -n '{{ vault_namespace }}' exec '{{ vault_pod }}' -- env VAULT_TOKEN="$token" VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true vault write database/roles/{{ item.role }} db_name={{ item.name }} "creation_statements=$creation" "revocation_statements=DROP OWNED BY {{ '{{name}}' }} CASCADE; DROP ROLE IF EXISTS {{ '{{name}}' }};" default_ttl=1h max_ttl=24h >/dev/null
+        kubectl --kubeconfig '{{ production_kubeconfig }}' -n '{{ vault_namespace }}' exec '{{ vault_pod }}' -- env VAULT_TOKEN="$token" VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true vault write database/roles/{{ item.role }} db_name={{ item.connection }} "creation_statements=$creation" "revocation_statements=DROP OWNED BY {{ '{{name}}' }} CASCADE; DROP ROLE IF EXISTS {{ '{{name}}' }};" default_ttl=1h max_ttl=24h >/dev/null
       args:
         executable: /bin/bash
       loop: "{{ databases }}"
