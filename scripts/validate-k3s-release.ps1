@@ -116,11 +116,12 @@ if (-not (Test-Path -LiteralPath $overlayPath -PathType Container)) {
     }
 }
 
-try {
-    $version = & kubectl version -o json --request-timeout=8s 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        Add-Check 'cluster-connectivity' 'environment-blocked' 'kubectl cannot reach the configured cluster.'
-    } else {
+if ($Kubeconfig -or $RequireCluster) {
+    try {
+        $version = & kubectl version -o json --request-timeout=8s 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Add-Check 'cluster-connectivity' 'environment-blocked' 'kubectl cannot reach the configured cluster.'
+        } else {
         $versionJson = ($version -join "`n") | ConvertFrom-Json
         Add-Check 'cluster-connectivity' 'pass' "Server $($versionJson.serverVersion.gitVersion) is reachable."
         $clientVersion = [string]$versionJson.clientVersion.gitVersion
@@ -137,13 +138,12 @@ try {
         } else {
             Add-Check 'toolchain-skew' 'unavailable' 'Could not parse client/server Kubernetes versions.'
         }
-    }
-} catch {
-    if ($RequireCluster) {
+        }
+    } catch {
         Add-Check 'cluster-connectivity' 'environment-blocked' 'kubectl cannot reach the configured cluster.'
-    } else {
-        Add-Check 'cluster-connectivity' 'skipped' 'Live cluster validation was not requested.'
     }
+} else {
+    Add-Check 'cluster-connectivity' 'skipped' 'Live cluster validation was not requested.'
 }
 
 if (($checks | Where-Object name -eq 'cluster-connectivity').status -eq 'pass') {
