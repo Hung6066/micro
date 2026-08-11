@@ -9,6 +9,15 @@ spec:
   template:
     spec:
       hostPID: false
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: appointment-service
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -18,6 +27,15 @@ spec:
   template:
     spec:
       hostPID: false
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: patient-service
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -27,6 +45,15 @@ spec:
   template:
     spec:
       hostPID: false
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: clinical-service
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -36,6 +63,15 @@ spec:
   template:
     spec:
       hostPID: false
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: lab-service
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -45,6 +81,15 @@ spec:
   template:
     spec:
       hostPID: false
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: billing-service
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -54,3 +99,12 @@ spec:
   template:
     spec:
       hostPID: false
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: pharmacy-service
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
