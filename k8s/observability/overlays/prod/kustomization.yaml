@@ -34,6 +34,7 @@ resources:
 patches:
   - path: observability-security-patch.yaml
   - path: observability-sa-patch.yaml
+  - path: promtail-mount-patch.yaml
   - target:
       group: ""
       version: v1

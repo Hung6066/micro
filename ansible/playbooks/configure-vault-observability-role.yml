@@ -9,6 +9,7 @@
     vault_pod: vault-1
     vault_operator_token_file: "{{ lookup('env', 'VAULT_OPERATOR_TOKEN_FILE') | default('D:/secure/his-hope/vault_operator_token', true) }}"
     vault_policy_file: k8s/vault/observability-policy.hcl
+    synthetic_monitor_user_file: "{{ lookup('env', 'SYNTHETIC_MONITOR_USER_FILE') | default('D:/secure/his-hope/admin-user', true) }}"
   tasks:
     - name: Validate operator token and policy files
       ansible.builtin.stat:
@@ -35,6 +36,20 @@
         token=$(cat '{{ vault_operator_token_file }}')
         kubectl --kubeconfig '{{ vault_kubeconfig }}' -n '{{ vault_namespace }}' exec '{{ vault_pod }}' -- sh -lc \
           "VAULT_TOKEN=\"$token\" VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true vault write auth/kubernetes/role/observability bound_service_account_names='grafana,alertmanager,observability-storage,elasticsearch,kibana,synthetic-monitor' bound_service_account_namespaces=monitoring audience=vault policies=observability ttl=15m max_ttl=1h"
+      args:
+        executable: /bin/bash
+      changed_when: true
+      no_log: true
+
+    - name: Seed synthetic monitor credentials in Vault without exposing values
+      ansible.builtin.shell: |
+        set -euo pipefail
+        token=$(cat '{{ vault_operator_token_file }}')
+        username=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["email"])' '{{ synthetic_monitor_user_file }}')
+        password=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["password"])' '{{ synthetic_monitor_user_file }}')
+        kubectl --kubeconfig '{{ vault_kubeconfig }}' -n '{{ vault_namespace }}' exec '{{ vault_pod }}' -- \
+          env "VAULT_TOKEN=$token" VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true \
+          vault kv put secret/his-hope/observability/synthetic-monitor "username=$username" "password=$password" >/dev/null
       args:
         executable: /bin/bash
       changed_when: true
