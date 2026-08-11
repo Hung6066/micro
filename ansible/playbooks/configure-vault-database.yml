@@ -1,0 +1,57 @@
+---
+- name: Configure Vault database secrets engine for the production data plane
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    vault_kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default('artifacts/kubeconfig-production.yaml', true) }}"
+    vault_namespace: his-hope
+    vault_pod: vault-1
+    vault_operator_token_file: "{{ lookup('env', 'VAULT_OPERATOR_TOKEN_FILE') | default('D:/secure/his-hope/vault_operator_token', true) }}"
+    postgres_secret_namespace: his-hope-data
+    postgres_secret_name: his-hope-postgres
+    postgres_host: his-hope-postgres.his-hope-data.svc.cluster.local
+    databases:
+      identity-service-db: identitydb
+      appointment-service-db: appointmentdb
+      billing-service-db: billingdb
+      clinical-service-db: clinicaldb
+      lab-service-db: labdb
+      patient-service-db: patientdb
+      pharmacy-service-db: pharmacydb
+  tasks:
+    - name: Validate operator token file
+      ansible.builtin.stat:
+        path: "{{ vault_operator_token_file }}"
+      register: token_file
+      failed_when: not token_file.stat.exists
+
+    - name: Read the data-plane PostgreSQL admin password without logging it
+      ansible.builtin.shell: >-
+        kubectl --kubeconfig '{{ vault_kubeconfig }}' -n '{{ postgres_secret_namespace }}'
+        get secret '{{ postgres_secret_name }}' -o jsonpath='{.data.password}' | base64 -d
+      args:
+        executable: /bin/bash
+      register: postgres_password
+      changed_when: false
+      no_log: true
+
+    - name: Ensure each production service database exists
+      ansible.builtin.shell: |
+        set -euo pipefail
+        password=$(printf '%s' '{{ postgres_password.stdout }}')
+        kubectl --kubeconfig '{{ vault_kubeconfig }}' -n '{{ postgres_secret_namespace }}' exec '{{ postgres_secret_name }}-0' -- \
+          env PGPASSWORD="$password" createdb -U his_hope '{{ item.value }}' 2>/dev/null || true
+      args:
+        executable: /bin/bash
+      loop: "{{ databases | dict2items }}"
+      loop_control:
+        label: "{{ item.value }}"
+      changed_when: true
+      no_log: true
+
+    - name: Configure Vault database connections and roles via the maintained script
+      ansible.builtin.command: >-
+        pwsh.exe -NoProfile -File D:\\AI\\micro\\scripts\\update-vault-db-roles.ps1
+      changed_when: true
+      no_log: true

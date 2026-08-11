@@ -1,0 +1,27 @@
+---
+- name: Point production runtime secrets at the shared data-plane namespace
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default('artifacts/kubeconfig-production.yaml', true) }}"
+  tasks:
+    - name: Read the Redis password from the data-plane secret
+      ansible.builtin.shell: >-
+        kubectl --kubeconfig '{{ kubeconfig }}' -n his-hope-data get secret redis-secret
+        -o jsonpath='{.data.password}' | base64 -d
+      register: redis_password
+      changed_when: false
+      no_log: true
+
+    - name: Update the identity Redis connection endpoint
+      ansible.builtin.shell: |
+        set -euo pipefail
+        value="his-hope-redis.his-hope-data.svc.cluster.local:6379,password={{ redis_password.stdout }},ssl=true,abortConnect=false"
+        encoded=$(printf '%s' "$value" | base64 -w0)
+        kubectl --kubeconfig '{{ kubeconfig }}' -n his-hope patch secret identity-redis-config \
+          --type merge -p "{\"data\":{\"connection-string\":\"$encoded\"}}"
+      args:
+        executable: /bin/bash
+      changed_when: true
+      no_log: true

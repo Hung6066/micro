@@ -10,7 +10,7 @@ $connections = [ordered]@{
     'patient-service-db' = 'patientdb'
     'pharmacy-service-db' = 'pharmacydb'
 }
-$pw = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((kubectl -n his-hope get secret postgres-secret -o json | ConvertFrom-Json).data.password))
+$pw = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((kubectl -n his-hope-data get secret postgres-secret -o json | ConvertFrom-Json).data.password))
 $pwB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($pw))
 foreach ($entry in $connections.GetEnumerator()) {
     $role = $entry.Key
@@ -29,7 +29,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA $schema GRANT USAGE, SELECT, UPDATE ON SEQUEN
     $config = "$role-connection"
     # The plugin defaults to plaintext inside the cluster; omit a query string so
     # the Vault CLI cannot split `?sslmode=disable` into a second argument.
-    $connectionUrl = "postgresql://{{username}}:{{password}}@his-hope-postgres.his-hope.svc.cluster.local:5432/$database"
+    $connectionUrl = "postgresql://{{username}}:{{password}}@his-hope-postgres.his-hope-data.svc.cluster.local:5432/$database"
     $configCommand = 'echo ' + $pwB64 + ' | base64 -d > /tmp/pgpw; export PGPW=$(cat /tmp/pgpw); VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true VAULT_TOKEN=' + $token + ' vault write database/config/' + $config + ' plugin_name=postgresql-database-plugin allowed_roles=' + $role + " connection_url='$connectionUrl' username=his_hope password=`$PGPW"
     kubectl -n his-hope exec vault-1 -- sh -c $configCommand | Out-Null
       $revocation = 'DROP OWNED BY "{{name}}" CASCADE; DROP ROLE IF EXISTS "{{name}}";'

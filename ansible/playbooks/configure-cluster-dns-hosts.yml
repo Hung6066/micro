@@ -1,0 +1,57 @@
+---
+- name: Configure internal production DNS aliases required by admission and image verification
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default('artifacts/kubeconfig-production.yaml', true) }}"
+    harbor_service_namespace: harbor
+    harbor_service_name: harbor
+    aliases:
+      - harbor.his-hope.local
+  tasks:
+    - name: Read the in-cluster Harbor service IP
+      ansible.builtin.command: >-
+        kubectl --kubeconfig '{{ kubeconfig }}' -n '{{ harbor_service_namespace }}'
+        get svc '{{ harbor_service_name }}' -o jsonpath='{.spec.clusterIP}'
+      register: harbor_cluster_ip
+      changed_when: false
+
+    - name: Read Harbor service ports
+      ansible.builtin.command: >-
+        kubectl --kubeconfig '{{ kubeconfig }}' -n '{{ harbor_service_namespace }}'
+        get svc '{{ harbor_service_name }}' -o jsonpath='{.spec.ports[*].port}'
+      register: harbor_ports
+      changed_when: false
+
+    - name: Expose Harbor TLS on the image policy port inside the cluster
+      ansible.builtin.command: >-
+        kubectl --kubeconfig '{{ kubeconfig }}' -n '{{ harbor_service_namespace }}'
+        patch svc '{{ harbor_service_name }}' --type=json
+        -p='[{"op":"add","path":"/spec/ports/-","value":{"name":"policy-https","port":9443,"protocol":"TCP","targetPort":8443}}]'
+      when: "'9443' not in harbor_ports.stdout.split()"
+      changed_when: true
+
+    - name: Read the K3s CoreDNS NodeHosts block
+      ansible.builtin.command: >-
+        kubectl --kubeconfig '{{ kubeconfig }}' -n kube-system
+        get configmap coredns -o jsonpath='{.data.NodeHosts}'
+      register: node_hosts
+      changed_when: false
+
+    - name: Build the desired NodeHosts block
+      ansible.builtin.set_fact:
+        desired_node_hosts: "{{ (node_hosts.stdout | trim | regex_replace('(?m)^\\S+\\s+harbor\\.his-hope\\.local\\s*$', harbor_cluster_ip.stdout | trim ~ ' harbor.his-hope.local')) if 'harbor.his-hope.local' in node_hosts.stdout else (node_hosts.stdout | trim ~ '\\n' ~ harbor_cluster_ip.stdout | trim ~ ' harbor.his-hope.local') }}"
+
+    - name: Apply the internal aliases to CoreDNS
+      ansible.builtin.command: >-
+        kubectl --kubeconfig '{{ kubeconfig }}' -n kube-system patch configmap coredns
+        --type merge -p '{{ {"data": {"NodeHosts": desired_node_hosts}} | to_json }}'
+      when: desired_node_hosts != (node_hosts.stdout | trim)
+      changed_when: true
+
+    - name: Restart CoreDNS after NodeHosts change
+      ansible.builtin.command: >-
+        kubectl --kubeconfig '{{ kubeconfig }}' -n kube-system rollout restart deployment/coredns
+      when: desired_node_hosts != (node_hosts.stdout | trim)
+      changed_when: true

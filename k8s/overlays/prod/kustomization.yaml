@@ -335,6 +335,7 @@ patches:
         value: "40"
 
 patchesStrategicMerge:
+  - runtime-data-plane-patch.yaml
   - production-runtime-contract-services-patch.yaml
   - identity-service-sa-token-patch.yaml
   - namespace-pod-security-patch.yaml

@@ -9,7 +9,7 @@ metadata:
 data:
   pgbouncer.ini: |
     [databases]
-    * = host=his-hope-postgres.his-hope.svc.cluster.local port=5432
+    * = host=his-hope-postgres.his-hope-data.svc.cluster.local port=5432
 
     [pgbouncer]
     listen_addr = 0.0.0.0
