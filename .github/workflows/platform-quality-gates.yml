@@ -75,7 +75,9 @@ jobs:
         working-directory: src/Shared/Protos
         run: |
           buf lint
-          buf breaking --against '.git#branch=main,subdir=src/Shared/Protos'
+          # The step runs from src/Shared/Protos; resolve the git ref from the
+          # repository root so Buf does not look for a nested .git directory.
+          buf breaking --against '../../../.git#branch=main,subdir=src/Shared/Protos'
 
   frontend-contracts:
     runs-on: ubuntu-latest
