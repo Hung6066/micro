@@ -10,4 +10,6 @@ metadata:
 data:
   # This is the internal ingress origin, not a cluster-local Service URL.
   # Change only through a reviewed GitOps commit for another environment.
-  BASE_URL: "https://app.his-hope.local/"
+  # The in-cluster Traefik service is exposed as a NodePort on the worker.
+  # Keep this endpoint explicit so the monitor does not depend on workstation DNS.
+  BASE_URL: "http://app.his-hope.local:30080/"
