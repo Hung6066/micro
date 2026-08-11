@@ -16,9 +16,9 @@ on:
         default: false
         type: boolean
       manifest_sha256:
-        description: Reviewed SHA-256 for the pinned Argo CD standard manifest
+        description: Reviewed SHA-256 for the pinned Argo CD HA manifest
         required: true
-        default: 17F17C65A93A1D5E63822D4E6ADFC62D172E677A8F870A07A3F45F182EED657B
+        default: 2E6211D381B84394B5A7C98F5B285D24D48CBE2A2917C4181623D825109BD088
         type: string
 
 permissions:
@@ -68,6 +68,7 @@ jobs:
             '-Kubeconfig', '${{ steps.kubeconfig.outputs.path }}',
             '-Version', 'v3.4.1',
             '-ManifestSha256', '${{ inputs.manifest_sha256 }}',
+            '-HighAvailability',
           )
           if ('${{ inputs.environment }}' -eq 'production') { $args += '-AllowProduction' }
           if ('${{ inputs.apply }}' -ne 'true') { $args += '-WhatIf' }

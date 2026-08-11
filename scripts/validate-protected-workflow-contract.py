@@ -23,7 +23,6 @@ PROTECTED = {
     "harbor-clean-node-drill.yml",
     "vault-recovery-drill.yml",
     "k3s-backup-agent-rollout.yml",
-    "longhorn-storage-bootstrap.yml",
     "pod-security-production-rollout.yml",
     "sigstore-policy-controller-bootstrap.yml",
     "k3s-secrets-encryption-rotation.yml",
