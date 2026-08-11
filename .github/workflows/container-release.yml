@@ -100,6 +100,10 @@ jobs:
     environment: production
     strategy:
       fail-fast: false
+      # Harbor is a shared production registry reached over the external load
+      # balancers. A bounded fan-out avoids saturating its upload path while
+      # preserving independent build failure reporting.
+      max-parallel: 4
       matrix:
         include:
           - { name: api-gateway, context: ., dockerfile: src/ApiGateway/Dockerfile }

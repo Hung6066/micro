@@ -43,12 +43,23 @@ foreach ($ref in ($ImageRef | Sort-Object -Unique)) {
         continue
     }
 
-    $attestationJson = & $cosign verify-attestation `
-        '--output' 'json' `
-        '--certificate-identity-regexp' $CertificateIdentityRegex `
-        '--certificate-oidc-issuer-regexp' $CertificateOidcIssuerRegex `
-        $ref 2>$null
-    if ($LASTEXITCODE -ne 0) {
+    $attestationErrorPath = [IO.Path]::GetTempFileName()
+    try {
+        $attestationJson = & $cosign verify-attestation `
+            '--output' 'json' `
+            '--type' 'https://slsa.dev/provenance/v1' `
+            '--certificate-identity-regexp' $CertificateIdentityRegex `
+            '--certificate-oidc-issuer-regexp' $CertificateOidcIssuerRegex `
+            $ref 2>$attestationErrorPath
+        $attestationExitCode = $LASTEXITCODE
+        $attestationError = (Get-Content -LiteralPath $attestationErrorPath -Raw).Trim()
+    } finally {
+        Remove-Item -LiteralPath $attestationErrorPath -Force -ErrorAction SilentlyContinue
+    }
+    if ($attestationExitCode -ne 0) {
+        if ($attestationError) {
+            Write-Warning "Cosign provenance verification failed for ${ref}: $($attestationError.Substring(0, [Math]::Min(1000, $attestationError.Length)))"
+        }
         $failed.Add("provenance:$ref")
         continue
     }
