@@ -303,7 +303,9 @@ jobs:
               # schema-required level.
               json.dump(predicate["predicate"], handle, separators=(",", ":"))
           PY
-          cosign attest --yes --predicate slsa-provenance.json --type slsaprovenance "$image"
+          # Use the explicit SLSA v1 URI; the legacy `slsaprovenance` alias
+          # applies the v0.2 validator and rejects the v1 buildDefinition.
+          cosign attest --yes --predicate slsa-provenance.json --type https://slsa.dev/provenance/v1 "$image"
           pwsh ./scripts/verify-image-attestations.ps1 \
             -ImageRef "$image" \
             -CertificateIdentityRegex "^https://github.com/${{ github.repository }}/.github/workflows/container-release.yml@refs/(heads/main|tags/v[0-9]+\\.[0-9]+\\.[0-9]+)$"
