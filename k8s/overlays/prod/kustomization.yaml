@@ -103,6 +103,48 @@ patches:
       version: v1
       kind: Deployment
       name: identity-service
+  - path: migration-kubernetes-auth.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-identity
+  - path: migration-kubernetes-auth.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-patient
+  - path: migration-kubernetes-auth.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-appointment
+  - path: migration-kubernetes-auth.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-clinical
+  - path: migration-kubernetes-auth.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-lab
+  - path: migration-kubernetes-auth.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-billing
+  - path: migration-kubernetes-auth.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-pharmacy
   - path: identity-apns-disabled-json.yaml
     target:
       group: apps
@@ -252,15 +294,6 @@ patches:
       kind: Job
       labelSelector: "his-hope.io/operation=database-migration"
     patch: |-
-      - op: add
-        path: /spec/template/spec/initContainers/0/resources
-        value:
-          requests:
-            cpu: 10m
-            memory: 32Mi
-          limits:
-            cpu: 100m
-            memory: 128Mi
       - op: add
         path: /spec/template/spec/containers/0/resources
         value:
