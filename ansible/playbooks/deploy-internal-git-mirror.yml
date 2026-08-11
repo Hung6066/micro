@@ -1,0 +1,7 @@
+---
+- name: Deploy internal Git mirror for Argo CD
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - internal-git-mirror

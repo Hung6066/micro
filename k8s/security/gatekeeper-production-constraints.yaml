@@ -5,6 +5,8 @@ apiVersion: templates.gatekeeper.sh/v1
 kind: ConstraintTemplate
 metadata:
   name: k8sapprovedimageregistry
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
 spec:
   crd:
     spec:
@@ -55,6 +57,8 @@ apiVersion: constraints.gatekeeper.sh/v1beta1
 kind: K8sApprovedImageRegistry
 metadata:
   name: production-approved-registries
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   enforcementAction: deny
   match:
@@ -75,6 +79,8 @@ apiVersion: templates.gatekeeper.sh/v1
 kind: ConstraintTemplate
 metadata:
   name: k8srestrictedworkload
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
 spec:
   crd:
     spec:
@@ -84,6 +90,11 @@ spec:
     - target: admission.k8s.gatekeeper.sh
       rego: |
         package k8srestrictedworkload
+
+        has_drop_all(caps) {
+          some i
+          caps[i] == "ALL"
+        }
 
         violation[ {"msg": "host namespaces and privileged pods are not allowed"} ] {
           input.review.object.spec.hostNetwork == true
@@ -145,13 +156,13 @@ spec:
 
         violation[ {"msg": msg} ] {
           c := input.review.object.spec.containers[_]
-          not c.securityContext.capabilities.drop[_] == "ALL"
+          not has_drop_all(c.securityContext.capabilities.drop)
           msg := sprintf("container %v must drop all Linux capabilities", [c.name])
         }
 
         violation[ {"msg": msg} ] {
           c := input.review.object.spec.initContainers[_]
-          not c.securityContext.capabilities.drop[_] == "ALL"
+          not has_drop_all(c.securityContext.capabilities.drop)
           msg := sprintf("init container %v must drop all Linux capabilities", [c.name])
         }
 ---
@@ -159,6 +170,8 @@ apiVersion: constraints.gatekeeper.sh/v1beta1
 kind: K8sRestrictedWorkload
 metadata:
   name: production-restricted-workload
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   enforcementAction: deny
   match:
@@ -171,6 +184,8 @@ apiVersion: templates.gatekeeper.sh/v1
 kind: ConstraintTemplate
 metadata:
   name: k8srequiredresources
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
 spec:
   crd:
     spec:
@@ -233,6 +248,8 @@ apiVersion: constraints.gatekeeper.sh/v1beta1
 kind: K8sRequiredResources
 metadata:
   name: production-required-resources
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   enforcementAction: deny
   match:

@@ -6,7 +6,7 @@ metadata:
 spec:
   description: His.Hope environment promotion boundary
   sourceRepos:
-    - https://github.com/Hung6066/micro.git
+    - http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
   destinations:
     - namespace: his-hope
       server: https://kubernetes.default.svc
@@ -26,9 +26,13 @@ spec:
       server: https://kubernetes.default.svc
     - namespace: monitoring
       server: https://kubernetes.default.svc
+    - namespace: linkerd-viz
+      server: https://kubernetes.default.svc
   clusterResourceWhitelist:
     - group: ''
       kind: Namespace
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
     - group: scheduling.k8s.io
       kind: PriorityClass
     - group: templates.gatekeeper.sh

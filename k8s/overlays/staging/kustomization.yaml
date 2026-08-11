@@ -14,6 +14,7 @@ bases:
   - ../../base
 
 resources:
+  - ../../linkerd/traffic-split-crd.yaml
   - ../../base/seccomp-profiles.yaml
   - ../../base/seccomp-daemonset.yaml
   - ../../linkerd/server.yaml
