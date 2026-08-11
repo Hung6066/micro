@@ -132,22 +132,6 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
-          lifecycle:
-            postStart:
-              exec:
-                command:
-                  - /bin/bash
-                  - -c
-                  - |
-                    until curl -s http://localhost:9200/_cluster/health | grep -q '"status":"green\|yellow"'; do
-                      sleep 5
-                    done
-                    curl -X PUT "http://localhost:9200/_ilm/policy/his-hope-logs-policy" \
-                      -H "Content-Type: application/json" \
-                      --data-binary @/etc/elasticsearch/ilm-policy.json
-                    curl -X PUT "http://localhost:9200/_index_template/his-hope-logs-template" \
-                      -H "Content-Type: application/json" \
-                      --data-binary @/etc/elasticsearch/template.json
           volumeMounts:
             - name: elasticsearch-data
               mountPath: /usr/share/elasticsearch/data

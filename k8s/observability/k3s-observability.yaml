@@ -977,7 +977,11 @@ data:
           - targets: [localhost]
             labels:
               job: kubernetes-pods
-              __path__: /var/log/pods/*/*/*.log
+              __path__: /var/log/pods/his-hope_*/*/*.log
+          - targets: [localhost]
+            labels:
+              job: kubernetes-pods
+              __path__: /var/log/pods/monitoring_*/*/*.log
         pipeline_stages:
           - cri: {}
         relabel_configs:
