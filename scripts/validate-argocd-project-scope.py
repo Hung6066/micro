@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from shutil import which
 from pathlib import Path
 
 import yaml
@@ -17,6 +18,7 @@ BOOTSTRAP = ROOT / "k8s" / "gitops" / "bootstrap"
 # be added here and to AppProject.clusterResourceWhitelist deliberately.
 CLUSTER_SCOPED = {
     ("", "Namespace"),
+    ("apiextensions.k8s.io", "CustomResourceDefinition"),
     ("scheduling.k8s.io", "PriorityClass"),
     ("constraints.gatekeeper.sh", "K8sApprovedImageRegistry"),
     ("constraints.gatekeeper.sh", "K8sRequiredResources"),
@@ -52,7 +54,10 @@ def group_for(api_version: str) -> str:
 
 
 def render(path: str) -> list[dict]:
-    text = run("kubectl", "kustomize", path, "--load-restrictor", "LoadRestrictionsNone")
+    if which("kustomize"):
+        text = run("kustomize", "build", path, "--load-restrictor", "LoadRestrictionsNone")
+    else:
+        text = run("kubectl", "kustomize", path, "--load-restrictor", "LoadRestrictionsNone")
     return [doc for doc in yaml.safe_load_all(text) if doc]
 
 
