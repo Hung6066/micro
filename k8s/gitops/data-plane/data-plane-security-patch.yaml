@@ -74,14 +74,39 @@ spec:
               drop: ["ALL"]
           volumeMounts:
             - name: rabbitmq-cookie
+              $patch: delete
+            - name: rabbitmq-cookie-runtime
               mountPath: /var/lib/rabbitmq/.erlang.cookie
               subPath: .erlang.cookie
               readOnly: true
+      initContainers:
+        - name: rabbitmq-cookie-init
+          image: docker.io/library/busybox:1.36.1
+          command: ["sh", "-c", "cp /bootstrap/.erlang.cookie /runtime/.erlang.cookie && chmod 0600 /runtime/.erlang.cookie"]
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: rabbitmq-cookie-source
+              mountPath: /bootstrap
+              readOnly: true
+            - name: rabbitmq-cookie-runtime
+              mountPath: /runtime
       volumes:
         - name: rabbitmq-cookie
+          $patch: delete
+        - name: rabbitmq-cookie-source
           secret:
             secretName: rabbitmq-secret
-            defaultMode: 0600
+            defaultMode: 0444
             items:
               - key: erlang_cookie
                 path: .erlang.cookie
+        - name: rabbitmq-cookie-runtime
+          emptyDir: {}
