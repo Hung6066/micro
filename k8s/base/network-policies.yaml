@@ -1190,7 +1190,10 @@ spec:
     - Egress
   egress:
     - to:
-        - podSelector:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: his-hope-data
+          podSelector:
             matchExpressions:
               - key: app
                 operator: In
