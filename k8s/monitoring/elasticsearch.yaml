@@ -125,8 +125,7 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 5
           readinessProbe:
-            httpGet:
-              path: /_cluster/health
+            tcpSocket:
               port: 9200
             initialDelaySeconds: 30
             periodSeconds: 10

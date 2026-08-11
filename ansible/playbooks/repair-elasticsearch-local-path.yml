@@ -6,9 +6,9 @@
   vars:
     elasticsearch_path: /var/lib/rancher/k3s/storage/pvc-8721438d-f82b-4fb9-84e9-800813b96e32_monitoring_elasticsearch-data-elasticsearch-0
   tasks:
-    - name: Check for an active Elasticsearch process
-      ansible.builtin.shell: "pgrep -f '[e]lasticsearch'"
-      register: elasticsearch_process
+    - name: Check for an active Elasticsearch container
+      ansible.builtin.shell: "crictl ps --name elasticsearch -q"
+      register: elasticsearch_container
       failed_when: false
       changed_when: false
 
@@ -16,4 +16,4 @@
       ansible.builtin.file:
         path: "{{ elasticsearch_path }}/node.lock"
         state: absent
-      when: elasticsearch_process.rc != 0
+      when: elasticsearch_container.stdout | trim == ''
