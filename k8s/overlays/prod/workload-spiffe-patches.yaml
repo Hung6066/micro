@@ -35,7 +35,7 @@ spec:
             - name: spire-jwt
               mountPath: /run/spire/jwt
         - name: spire-jwt-fetcher
-          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2-fixed@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
           imagePullPolicy: IfNotPresent
           env:
             - name: SPIFFE_ID
@@ -102,7 +102,7 @@ spec:
             - name: spire-jwt
               mountPath: /run/spire/jwt
         - name: spire-jwt-fetcher
-          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2-fixed@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
           imagePullPolicy: IfNotPresent
           env:
             - name: SPIFFE_ID
@@ -157,7 +157,7 @@ spec:
               value: "true"
           volumeMounts: [{ name: spire-jwt, mountPath: /run/spire/jwt }]
         - name: spire-jwt-fetcher
-          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2-fixed@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
           imagePullPolicy: IfNotPresent
           env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/clinical-service }]
           securityContext:
@@ -210,7 +210,7 @@ spec:
               value: "true"
           volumeMounts: [{ name: spire-jwt, mountPath: /run/spire/jwt }]
         - name: spire-jwt-fetcher
-          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2-fixed@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
           imagePullPolicy: IfNotPresent
           env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/appointment-service }]
           securityContext:
@@ -263,7 +263,7 @@ spec:
               value: "true"
           volumeMounts: [{ name: spire-jwt, mountPath: /run/spire/jwt }]
         - name: spire-jwt-fetcher
-          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2-fixed@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
           imagePullPolicy: IfNotPresent
           env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/lab-service }]
           securityContext:
@@ -316,7 +316,7 @@ spec:
               value: "true"
           volumeMounts: [{ name: spire-jwt, mountPath: /run/spire/jwt }]
         - name: spire-jwt-fetcher
-          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2-fixed@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
           imagePullPolicy: IfNotPresent
           env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/billing-service }]
           securityContext:
@@ -369,7 +369,7 @@ spec:
               value: "true"
           volumeMounts: [{ name: spire-jwt, mountPath: /run/spire/jwt }]
         - name: spire-jwt-fetcher
-          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2-fixed@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
           imagePullPolicy: IfNotPresent
           env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/pharmacy-service }]
           securityContext:

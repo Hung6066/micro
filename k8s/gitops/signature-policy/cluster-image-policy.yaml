@@ -27,3 +27,13 @@ spec:
       attestations:
         - name: slsa-provenance
           predicateType: https://slsa.dev/provenance/v1
+    # Controlled migration authority for artifacts promoted before the
+    # GitHub-OIDC provenance workflow was enabled. The private key never
+    # enters Git; it is held only in the secure operator store.
+    - name: his-hope-cosign-migration-key
+      key:
+        data: |
+          -----BEGIN PUBLIC KEY-----
+          MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEIdncky2HNsK1fYixRIl0cqWidBmR
+          3RbxDEvZnt6bqvpYS4F4F3TjYIuSZbATNtMzubN7UBGMlqJE3TSVaom6nQ==
+          -----END PUBLIC KEY-----
