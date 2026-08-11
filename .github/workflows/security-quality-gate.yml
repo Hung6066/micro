@@ -125,7 +125,8 @@ jobs:
           mapfile -t dockerfiles < <(find . -type f -name Dockerfile -not -path './docs/*' -not -path './node_modules/*' | sort)
           test "${#dockerfiles[@]}" -gt 0
           for dockerfile in "${dockerfiles[@]}"; do
-            image="his-hope-scan:$(echo "$dockerfile" | tr '/._' '---')"
+            dockerfile_path="${dockerfile#./}"
+            image="his-hope-scan:$(echo "$dockerfile_path" | tr '/._' '-')"
             # Repository Dockerfiles restore shared projects from the repository
             # root; using dirname(Dockerfile) would silently change the build
             # context and produce false security-gate failures.

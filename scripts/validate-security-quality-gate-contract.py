@@ -29,6 +29,10 @@ def main() -> None:
         fail("missing Trivy filesystem scan")
     if not re.search(r"^\s*scanners:\s*vuln,secret\s*$", raw_scan.group(1), re.MULTILINE):
         fail("raw Trivy filesystem scan must use scanners: vuln,secret")
+    if 'dockerfile_path="${dockerfile#./}"' not in security:
+        fail("container scan must strip the leading ./ before generating a Docker tag")
+    if "tr '/._' '-'" not in security:
+        fail("container scan must normalize Docker tag path separators")
 
     required_platform_contract = (
         "scan-type: config",
