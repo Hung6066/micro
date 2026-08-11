@@ -70,10 +70,13 @@ jobs:
           # Kubernetes source is validated separately from the rendered
           # production overlay by the admission and release-policy gates
           # below. docker/spire only supports the local Compose SPIFFE test
-          # profile; it is not a release artifact. Every image in the release
-          # matrix is scanned after its exact Dockerfile build and again after
-          # its immutable Harbor digest is pushed.
+          # profile; docker/postgres-production.Dockerfile is a local
+          # root-owned secret bootstrap helper and is not a release artifact.
+          # Every image in the release matrix is scanned after its exact
+          # Dockerfile build and again after its immutable Harbor digest is
+          # pushed.
           skip-dirs: k8s,docker/spire
+          skip-files: docker/postgres-production.Dockerfile
           scanners: vuln,secret,misconfig
           severity: HIGH,CRITICAL
           ignore-unfixed: true

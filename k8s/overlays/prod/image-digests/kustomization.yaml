@@ -9,79 +9,79 @@ images:
   # These are Harbor manifest digests resolved after push and verified with
   # Cosign on 2026-08-04. K3s pulls them through its Harbor registry mirror.
   - name: his-hope/api-gateway
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/api-gateway
+    newName: harbor.his-hope.local:9443/his-hope/api-gateway
     newTag: latest
     digest: sha256:195f2e76cdfb34d194dcdee0f9d70f96c1fe39e812e9a815be317de5a9f987f2
   - name: his-hope/patient-service
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/patient-service
+    newName: harbor.his-hope.local:9443/his-hope/patient-service
     newTag: latest
     digest: sha256:45d223e14556c49f7f5cd4478743c7f1b8adc391b3649e1b598000ed9369ff46
   - name: his-hope/identity-service
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/identity-service
+    newName: harbor.his-hope.local:9443/his-hope/identity-service
     newTag: latest
     digest: sha256:f3ffbe97c3fc7b36a83ef5aee536941fd3958990e1e950010cc1567991c34c4b
   - name: his-hope/appointment-service
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/appointment-service
+    newName: harbor.his-hope.local:9443/his-hope/appointment-service
     newTag: latest
     digest: sha256:0d09a488f0c029d9268a69fb5ca0436437b8504af84b48b0a968be7463244326
   - name: his-hope/clinical-service
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/clinical-service
+    newName: harbor.his-hope.local:9443/his-hope/clinical-service
     newTag: latest
     digest: sha256:524b263f7221d62914fbbe4d13edce9402f5eb1312c929b2ad9b70da38ad810b
   - name: his-hope/lab-service
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/lab-service
+    newName: harbor.his-hope.local:9443/his-hope/lab-service
     newTag: latest
     digest: sha256:0ee09dfaf5e6da6cc4ee6b16ca720c13884ac43449f692426c2a8955a908a612
   - name: his-hope/billing-service
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/billing-service
+    newName: harbor.his-hope.local:9443/his-hope/billing-service
     newTag: latest
     digest: sha256:61dd39c26f316309fb10383897196964a22ab22d9df20420527e79fd531046d6
   - name: his-hope/pharmacy-service
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/pharmacy-service
+    newName: harbor.his-hope.local:9443/his-hope/pharmacy-service
     newTag: latest
     digest: sha256:51a4a74b63b2b511ca5c86466f12532f24f34460fb92984cde1bac2762191d73
   - name: his-hope/patient-bff
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/patient-bff
+    newName: harbor.his-hope.local:9443/his-hope/patient-bff
     newTag: latest
     digest: sha256:0713b29fd12b724eb77ee3bbd2e22d73916c271018dbc87f8deb77aaf169649f
   - name: his-hope/clinical-bff
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/clinical-bff
+    newName: harbor.his-hope.local:9443/his-hope/clinical-bff
     newTag: latest
     digest: sha256:3f6e2fbb5bcbff1a29229e180b30c21f3c1228bd7d7bef854590bea6c743765d
   - name: his-hope/lab-bff
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/lab-bff
+    newName: harbor.his-hope.local:9443/his-hope/lab-bff
     newTag: latest
     digest: sha256:2c7ca70b94cc63ee23fa49037c3b3da19d1c0140cb87a3b6af7083c878f67585
   - name: his-hope/billing-bff
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/billing-bff
+    newName: harbor.his-hope.local:9443/his-hope/billing-bff
     newTag: latest
     digest: sha256:f81dc259f882b2894b06575fca676c27f71e8278e381d89cc2f165cda8037273
   - name: his-hope/pharmacy-bff
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/pharmacy-bff
+    newName: harbor.his-hope.local:9443/his-hope/pharmacy-bff
     newTag: latest
     digest: sha256:fc0e6669b40f1876a7cba582f26f3fac8c28624d3fd693cc3ca09ea7170266cc
   - name: his-hope/dashboard-bff
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/dashboard-bff
+    newName: harbor.his-hope.local:9443/his-hope/dashboard-bff
     newTag: latest
     digest: sha256:5d8233be50c17d57cee55885f10dd0800b8c8f8253d6252bd63592458d7d5653
   - name: his-hope/systemdashboard-bff
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/systemdashboard-bff
+    newName: harbor.his-hope.local:9443/his-hope/systemdashboard-bff
     newTag: latest
     digest: sha256:c38b27e96b2c82215ab979dc9debfdb00fff126c6a6d94cc58c52cf70a656ea4
   - name: his-hope/database-continuity
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/database-continuity
+    newName: harbor.his-hope.local:9443/his-hope/database-continuity
     newTag: latest
     digest: sha256:0d9d4667a7aaaad45f1e176045054247bb1eee3a42934087ba68aa6345e761e4
   - name: his-hope/frontend
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/frontend
+    newName: harbor.his-hope.local:9443/his-hope/frontend
     newTag: latest
     digest: sha256:66176d32d199620f5d6d6ef74d369ffe46b6b39dc0e4edd369426d65eef5d66f
   - name: his-hope/admin-app
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/admin-app
+    newName: harbor.his-hope.local:9443/his-hope/admin-app
     newTag: gitdevops-20260811
     digest: sha256:af2c2977c8d503958f5ee1fcd63c6e21cad3ee2a50cba3fe8aa3c39013ca9baa
   - name: his-hope/dashboard-app
-    newName: harbor.his-hope.local:9443/his-hope/his-hope/dashboard-app
+    newName: harbor.his-hope.local:9443/his-hope/dashboard-app
     newTag: latest
     digest: sha256:dcef8bf9da119bd346e6fbb6dd25af2d039858e92dad4d51a02c048fc9362b48
   - name: hashicorp/vault

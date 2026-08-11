@@ -27,7 +27,7 @@ services:
   dashboard-app:
     image: his-hope-dashboard-app:test
     ports:
-      - "5702:80"
+      - "5702:8080"
     environment:
       - API_URL=http://localhost:5700
     depends_on:

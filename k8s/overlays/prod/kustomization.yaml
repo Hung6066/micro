@@ -17,6 +17,7 @@ commonAnnotations:
 
 resources:
   - release-metadata.yaml
+  - cache-service-aliases.yaml
   # Argo PreSync migration hooks run before application Deployments. The
   # hooks are digest-transformed by the production image component below.
   - ../../jobs/production-migration-job.yaml

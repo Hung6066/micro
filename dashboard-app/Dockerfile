@@ -13,9 +13,9 @@ COPY shared /workspace/shared
 COPY dashboard-app .
 RUN rm -rf .angular/cache && npx ng build --configuration=production
 
-FROM nginx:alpine AS final
+FROM nginxinc/nginx-unprivileged:alpine AS final
 COPY --from=build /workspace/dashboard-app/dist/dashboard-app/browser /usr/share/nginx/html
 COPY dashboard-app/nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
+EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD curl -sf http://127.0.0.1:80/ || exit 1
+  CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1
