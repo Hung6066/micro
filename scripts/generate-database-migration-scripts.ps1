@@ -5,7 +5,12 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$output = [IO.Path]::GetFullPath((Join-Path $RepositoryRoot $OutputDirectory))
+$output = if ([IO.Path]::IsPathRooted($OutputDirectory)) {
+    [IO.Path]::GetFullPath($OutputDirectory)
+}
+else {
+    [IO.Path]::GetFullPath((Join-Path $RepositoryRoot $OutputDirectory))
+}
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 
 $contexts = @(
@@ -18,6 +23,16 @@ $contexts = @(
     @{ Name='patient-read'; Project='src/Services/PatientService/PatientService.Infrastructure/PatientService.Infrastructure.csproj'; Context='PatientReadDbContext' },
     @{ Name='pharmacy'; Project='src/Services/PharmacyService/PharmacyService.Infrastructure/PharmacyService.Infrastructure.csproj'; Context='PharmacyDbContext' }
 )
+
+$projects = $contexts.Project | Select-Object -Unique
+foreach ($project in $projects) {
+    $projectPath = Join-Path $RepositoryRoot $project
+    dotnet restore $projectPath
+    if ($LASTEXITCODE -ne 0) { throw "Migration project restore failed for $project." }
+
+    dotnet build $projectPath --no-restore --configuration Release
+    if ($LASTEXITCODE -ne 0) { throw "Migration project build failed for $project." }
+}
 
 $manifest = [System.Collections.Generic.List[object]]::new()
 foreach ($item in $contexts) {
