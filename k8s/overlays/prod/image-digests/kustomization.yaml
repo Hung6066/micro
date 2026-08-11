@@ -19,7 +19,7 @@ images:
   - name: his-hope/identity-service
     newName: harbor.his-hope.local:9443/his-hope/his-hope/identity-service
     newTag: latest
-    digest: sha256:c59dc4cdafb87ed449576cae32ff196796d3d98e3fb5c25d75f3d2110397be6b
+    digest: sha256:f3ffbe97c3fc7b36a83ef5aee536941fd3958990e1e950010cc1567991c34c4b
   - name: his-hope/appointment-service
     newName: harbor.his-hope.local:9443/his-hope/his-hope/appointment-service
     newTag: latest
