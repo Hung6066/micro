@@ -21,8 +21,9 @@ metadata:
 data:
   playwright.config.js: |
     const { defineConfig } = require('@playwright/test');
-    module.exports = defineConfig({
-      testDir: '/tests',
+      module.exports = defineConfig({
+        testDir: '/tests',
+        outputDir: '/results/playwright',
       testMatch: 'login-journey.spec.js',
       timeout: 120000,
       expect: { timeout: 15000 },
