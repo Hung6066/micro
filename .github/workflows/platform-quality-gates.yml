@@ -173,7 +173,14 @@ jobs:
           scan-type: config
           scan-ref: artifacts/k8s/prod.yaml
           severity: HIGH,CRITICAL
-          exit-code: '1'
+          format: json
+          output: artifacts/k8s/trivy-production.json
+          # The following verifier accepts only the reviewed cluster-local
+          # aliases and Vault placeholders; all other findings fail closed.
+          exit-code: '0'
+      - name: Enforce production Trivy exception contract
+        shell: bash
+        run: python scripts/validate-trivy-production-findings.py artifacts/k8s/trivy-production.json artifacts/k8s/prod.yaml
       - name: Validate production Kubernetes release inputs
         shell: pwsh
         run: ./scripts/validate-k8s-release.ps1
