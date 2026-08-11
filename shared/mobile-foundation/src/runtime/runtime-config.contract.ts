@@ -52,7 +52,17 @@ export interface HisHopeResolvedMobileRuntimeConfig
 }
 
 declare global {
+  interface HisHopeWindowRuntimeConfig {
+    readonly apiOrigin: string;
+    readonly oidcAuthority: string;
+    readonly production?: boolean;
+    readonly defaultLocale?: string;
+    readonly sentryDsn?: string;
+    readonly sentryEnvironment?: string;
+    readonly pushNotificationsEnabled?: boolean;
+  }
+
   interface Window {
-    __HISHOPE_CONFIG__?: Partial<HisHopeMobileRuntimeContract>;
+    __HISHOPE_CONFIG__?: Partial<HisHopeWindowRuntimeConfig>;
   }
 }
