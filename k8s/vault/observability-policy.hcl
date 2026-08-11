@@ -9,3 +9,8 @@ path "secret/data/his-hope/observability/alertmanager" {
 path "secret/data/his-hope/observability/object-store" {
   capabilities = ["read"]
 }
+
+# All observability CSI classes are read-only and scoped below this prefix.
+path "secret/data/his-hope/observability/*" {
+  capabilities = ["read"]
+}
