@@ -245,7 +245,7 @@ spec:
                 - |
                   set -euo pipefail
                   cd /tests
-                  npm install --no-audit --no-fund --no-update-notifier
+                  npm install --no-audit --no-fund --no-update-notifier --no-package-lock
                   npx playwright install chromium
                   echo "Dependencies installed"
               volumeMounts:
