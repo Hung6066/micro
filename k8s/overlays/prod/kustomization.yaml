@@ -357,22 +357,6 @@ patches:
           readOnlyRootFilesystem: true
           seccompProfile:
             type: RuntimeDefault
-  - target:
-      group: apps
-      version: v1
-      kind: Deployment
-      name: billing-bff|clinical-bff|dashboard-bff|lab-bff|patient-bff|pharmacy-bff
-    patch: |-
-      - op: add
-        path: /spec/template/spec/volumes
-        value:
-          - name: runtime-tmp
-            emptyDir: {}
-      - op: add
-        path: /spec/template/spec/containers/0/volumeMounts
-        value:
-          - name: runtime-tmp
-            mountPath: /tmp
   # Migration hooks share the service image contract but need explicit bounded
   # resources because they are Jobs, not Deployments.
   - target:
@@ -481,6 +465,7 @@ patchesStrategicMerge:
   - pharmacy-redis-tls-ca-patch.yaml
   - bff-runtime-contract-env-patch.yaml
   - bff-health-probe-patch.yaml
+  - bff-runtime-tmp-patch.yaml
   - frontend-runtime-patch.yaml
   - api-gateway-runtime-contract-patch.yaml
   - observability-otel-env-patch.yaml

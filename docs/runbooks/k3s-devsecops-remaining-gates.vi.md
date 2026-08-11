@@ -393,7 +393,7 @@ CA đúng với certificate đang phục vụ endpoint đó (hiện inventory l�
 `D:\secure\his-hope\his_hope_ca.pem`). Không dùng một CA khác hostname.
 Lưu chain tương ứng dưới dạng GitHub Environment
 secret `HARBOR_CA_CHAIN_B64` trong environment `production` (áp dụng cho cả
-`container-release.yml` và `gitops-promotion.yml`). Tạo giá trị base64 trên
+`container-release.yml` và `gitops-release-promotion.yml`). Tạo giá trị base64 trên
 máy quản trị bằng PowerShell:
 
 ```powershell

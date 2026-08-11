@@ -1,0 +1,97 @@
+# Strategic merge keeps any existing secret, TLS, or identity mounts and adds
+# the writable /tmp volume required by read-only .NET runtime filesystems.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-bff
+spec:
+  template:
+    spec:
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+      containers:
+        - name: billing-bff
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-bff
+spec:
+  template:
+    spec:
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+      containers:
+        - name: clinical-bff
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-bff
+spec:
+  template:
+    spec:
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+      containers:
+        - name: dashboard-bff
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-bff
+spec:
+  template:
+    spec:
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+      containers:
+        - name: lab-bff
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-bff
+spec:
+  template:
+    spec:
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+      containers:
+        - name: patient-bff
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-bff
+spec:
+  template:
+    spec:
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+      containers:
+        - name: pharmacy-bff
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp

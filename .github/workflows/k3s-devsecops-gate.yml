@@ -78,7 +78,7 @@ on:
       - 'k8s/security/**'
       - 'k8s/gitops/**'
       - '.github/workflows/container-release.yml'
-      - '.github/workflows/gitops-promotion.yml'
+      - '.github/workflows/gitops-release-promotion.yml'
       - '.github/workflows/argocd-bootstrap.yml'
       - '.github/workflows/sigstore-policy-controller-bootstrap.yml'
       - '.github/workflows/longhorn-storage-bootstrap.yml'

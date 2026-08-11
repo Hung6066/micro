@@ -2,7 +2,17 @@
 param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{40}$')][string]$ExpectedRevision,
     [string]$Kubeconfig = 'artifacts/kubeconfig-production.yaml',
-    [string]$ApplicationName = 'his-hope-production',
+    [string[]]$ApplicationName = @(
+        'his-hope-data-plane',
+        'his-hope-system-plane',
+        'his-hope-production-ha',
+        'his-hope-security-boundaries',
+        'his-hope-staging',
+        'his-hope-production-policies',
+        'his-hope-signature-policy',
+        'his-hope-observability-production',
+        'his-hope-production'
+    ),
     [switch]$RequireSynced,
     [string]$OutputPath
 )
@@ -23,29 +33,29 @@ function Invoke-Kubectl {
     return $output -join "`n"
 }
 
-$application = (Invoke-Kubectl @('get', 'application', $ApplicationName, '-n', 'argocd', '-o', 'json')) | ConvertFrom-Json
-$targetRevision = $application.spec.source.targetRevision
-if ([string]::IsNullOrWhiteSpace($targetRevision)) {
-    throw "Argo CD application $ApplicationName has no source.targetRevision"
-}
-if ($targetRevision -notmatch '^[A-Za-z0-9][A-Za-z0-9._/-]*$') {
-    throw "Argo CD application $ApplicationName has an unsupported targetRevision: $targetRevision"
-}
+$checks = [System.Collections.Generic.List[object]]::new()
+foreach ($name in $ApplicationName) {
+    $application = (Invoke-Kubectl @('get', 'application', $name, '-n', 'argocd', '-o', 'json')) | ConvertFrom-Json
+    $targetRevision = [string]$application.spec.source.targetRevision
+    if ([string]::IsNullOrWhiteSpace($targetRevision)) {
+        throw "Argo CD application $name has no source.targetRevision"
+    }
+    if ($targetRevision -notmatch '^[A-Za-z0-9][A-Za-z0-9._/-]*$') {
+        throw "Argo CD application $name has an unsupported targetRevision: $targetRevision"
+    }
 
-$mirrorRevision = (Invoke-Kubectl @('-n', 'git-mirror', 'exec', 'deployment/gitea', '--', 'git', '--git-dir=/var/lib/gitea/git/repositories/gitops-admin/micro.git', 'rev-parse', "refs/heads/$targetRevision")).Trim()
-$checks = @(
-    [pscustomobject]@{ name = 'mirror-target-revision'; pass = $mirrorRevision -eq $ExpectedRevision; actual = $mirrorRevision },
-    [pscustomobject]@{ name = 'argocd-source'; pass = $application.spec.source.repoURL -eq 'http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git'; actual = $application.spec.source.repoURL },
-    [pscustomobject]@{ name = 'argocd-revision'; pass = $application.status.sync.revision -eq $ExpectedRevision; actual = $application.status.sync.revision }
-)
-if ($RequireSynced) {
-    $checks += [pscustomobject]@{ name = 'argocd-synced'; pass = $application.status.sync.status -eq 'Synced'; actual = $application.status.sync.status }
+    $mirrorRevision = (Invoke-Kubectl @('-n', 'git-mirror', 'exec', 'deployment/gitea', '--', 'git', '--git-dir=/var/lib/gitea/git/repositories/gitops-admin/micro.git', 'rev-parse', "refs/heads/$targetRevision")).Trim()
+    $checks.Add([pscustomobject]@{ application = $name; name = 'mirror-target-revision'; pass = $mirrorRevision -eq $ExpectedRevision; actual = $mirrorRevision })
+    $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-source'; pass = $application.spec.source.repoURL -eq 'http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git'; actual = $application.spec.source.repoURL })
+    $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-revision'; pass = $application.status.sync.revision -eq $ExpectedRevision; actual = $application.status.sync.revision })
+    if ($RequireSynced) {
+        $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-synced'; pass = $application.status.sync.status -eq 'Synced'; actual = $application.status.sync.status })
+    }
 }
 
 $result = [pscustomobject]@{
     expectedRevision = $ExpectedRevision
-    application = $ApplicationName
-    targetRevision = $targetRevision
+    applications = @($ApplicationName)
     checks = $checks
     status = if (($checks | Where-Object { -not $_.pass }).Count -eq 0) { 'pass' } else { 'fail' }
 }
