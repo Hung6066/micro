@@ -280,6 +280,7 @@ jobs:
               "subject": [{"name": subject, "digest": {"sha256": digest}}],
               "predicateType": "https://slsa.dev/provenance/v1",
               "predicate": {
+                  "builder": {"id": "https://github.com/actions/runner"},
                   "buildDefinition": {
                       "buildType": "https://github.com/slsa-framework/slsa-github-generator@v2",
                       "externalParameters": {"workflow": workflow_ref},
