@@ -32,6 +32,7 @@ resources:
   - ../../../jobs/synthetic-monitor-cronjob.yaml
 
 patches:
+  - path: observability-security-patch.yaml
   - target:
       group: ""
       version: v1
