@@ -39,6 +39,22 @@ if (Test-Path $Kubeconfig) {
     } catch { Set-Result 'tls-secret' 'blocked' 'Trusted certificate secret has not been provisioned' }
 } else { Set-Result 'cluster' 'blocked' "Kubeconfig not found: $Kubeconfig" }
 
+try {
+    $registryResponse = Invoke-WebRequest "https://$HostName/v2/" -Method Get -SkipCertificateCheck -MaximumRedirection 0 -ErrorAction Stop
+    if ([int]$registryResponse.StatusCode -eq 401) {
+        Set-Result 'registry-v2' 'pass' 'Harbor registry endpoint returned the expected unauthenticated Docker challenge'
+    } else {
+        Set-Result 'registry-v2' 'fail' "Unexpected Harbor registry response: HTTP $($registryResponse.StatusCode)"
+    }
+} catch {
+    $response = $_.Exception.Response
+    if ($null -ne $response -and [int]$response.StatusCode -eq 401) {
+        Set-Result 'registry-v2' 'pass' 'Harbor registry endpoint returned the expected unauthenticated Docker challenge'
+    } else {
+        Set-Result 'registry-v2' 'fail' $_.Exception.Message
+    }
+}
+
 $results | ConvertTo-Json -Depth 5
 if (@($results.Values | Where-Object status -eq 'fail').Count -gt 0) { exit 30 }
 if (@($results.Values | Where-Object status -in @('blocked','environment-blocked')).Count -gt 0) { exit 70 }

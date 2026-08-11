@@ -22,14 +22,21 @@ lb_ingress_backends:
     address: 172.16.102.12
 
 # Harbor registry HTTPS is exposed through the same external LB VIP on the
-# standard public HTTPS port. HAProxy performs TCP passthrough to Traefik,
-# which selects the Harbor ingress and terminates TLS.
+# standard public HTTPS port. HAProxy terminates the public TLS session and
+# re-encrypts the backend hop to Harbor nginx.
 lb_harbor_https_port: 443
-# Route public TLS to Traefik. Traefik selects harbor-public by SNI/Host and
-# terminates TLS with harbor-public-tls.
-lb_harbor_https_node_port: 30443
+# HAProxy terminates the public certificate; the backend remains encrypted to
+# Harbor's HTTPS NodePort.
+lb_harbor_https_node_port: 30003
 lb_harbor_https_backends:
   - name: k3s-worker-1
     address: 172.16.102.10
   - name: k3s-worker-2
     address: 172.16.102.12
+
+# HAProxy terminates the public certificate and re-encrypts the private hop to
+# Harbor's nginx HTTPS NodePort. Override these paths on a Linux controller.
+lb_harbor_public_cert_src: "{{ lookup('env', 'HARBOR_PUBLIC_CERT_FILE') | default('/mnt/d/secure/his-hope/harbor_public_cert.pem', true) }}"
+lb_harbor_public_key_src: "{{ lookup('env', 'HARBOR_PUBLIC_KEY_FILE') | default('/mnt/d/secure/his-hope/harbor_public_key.pem', true) }}"
+lb_harbor_backend_ca_src: "{{ lookup('env', 'HARBOR_BACKEND_CA_FILE') | default('/mnt/d/secure/his-hope/harbor_ca.pem', true) }}"
+lb_harbor_backend_server_name: harbor.his-hope.local
