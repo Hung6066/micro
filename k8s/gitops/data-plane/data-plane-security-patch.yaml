@@ -20,6 +20,7 @@ spec:
             seccompProfile:
               type: RuntimeDefault
             capabilities:
+              $patch: replace
               drop: ["ALL"]
 ---
 apiVersion: apps/v1
@@ -44,6 +45,7 @@ spec:
             seccompProfile:
               type: RuntimeDefault
             capabilities:
+              $patch: replace
               drop: ["ALL"]
 ---
 apiVersion: apps/v1
@@ -68,4 +70,5 @@ spec:
             seccompProfile:
               type: RuntimeDefault
             capabilities:
+              $patch: replace
               drop: ["ALL"]
