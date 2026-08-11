@@ -43,13 +43,27 @@ foreach ($ref in ($ImageRef | Sort-Object -Unique)) {
         continue
     }
 
-    & $cosign verify-attestation `
-        '--type' 'https://slsa.dev/provenance/v1' `
+    $attestationJson = & $cosign verify-attestation `
+        '--output' 'json' `
         '--certificate-identity-regexp' $CertificateIdentityRegex `
         '--certificate-oidc-issuer-regexp' $CertificateOidcIssuerRegex `
-        $ref 1>$null 2>$null
+        $ref 2>$null
     if ($LASTEXITCODE -ne 0) {
         $failed.Add("provenance:$ref")
+        continue
+    }
+
+    $hasSlsaV1 = $false
+    foreach ($record in @($attestationJson | ConvertFrom-Json)) {
+        if (-not $record.payload) { continue }
+        $payload = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($record.payload)) | ConvertFrom-Json
+        if ($payload.predicateType -eq 'https://slsa.dev/provenance/v1') {
+            $hasSlsaV1 = $true
+            break
+        }
+    }
+    if (-not $hasSlsaV1) {
+        $failed.Add("provenance-type:$ref")
     }
 }
 
