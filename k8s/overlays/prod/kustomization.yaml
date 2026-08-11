@@ -341,7 +341,6 @@ patches:
       name: identity-service
 
 patchesStrategicMerge:
-  - production-data-plane-delete-patch.yaml
   - runtime-data-plane-patch.yaml
   - production-runtime-contract-services-patch.yaml
   - identity-service-sa-token-patch.yaml

@@ -12,6 +12,10 @@ bases:
   - ../../base
 
 resources:
+  - ../../base/postgres.yaml
+  - ../../base/postgres-pdb.yaml
+  - ../../base/rabbitmq.yaml
+  - ../../base/redis.yaml
   - ../../base/seccomp-profiles.yaml
   - ../../base/seccomp-daemonset.yaml
   - traefik-production-egress-policy.yaml

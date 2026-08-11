@@ -14,6 +14,10 @@ bases:
   - ../../base
 
 resources:
+  - ../../base/postgres.yaml
+  - ../../base/postgres-pdb.yaml
+  - ../../base/rabbitmq.yaml
+  - ../../base/redis.yaml
   - ../../linkerd/traffic-split-crd.yaml
   - ../../base/seccomp-profiles.yaml
   - ../../base/seccomp-daemonset.yaml

@@ -32,8 +32,4 @@ resources:
   - dashboard-app-deployment.yaml
   - dashboard-app-service.yaml
   - dashboard-bff.yaml
-  - postgres.yaml
-  - postgres-pdb.yaml
-  - rabbitmq.yaml
-  - redis.yaml
   - network-policies.yaml
