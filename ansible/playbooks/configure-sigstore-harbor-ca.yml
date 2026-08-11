@@ -6,6 +6,7 @@
   vars:
     kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default('artifacts/kubeconfig-production.yaml', true) }}"
     ca_file: "{{ lookup('env', 'HARBOR_CA_FILE') | default('D:/secure/his-hope/vault_pki_ca_chain.pem', true) }}"
+    robot_file: "{{ lookup('env', 'HARBOR_ROBOT_FILE') | default('D:/secure/his-hope/harbor_robot_k3s_pull.json', true) }}"
     namespace: cosign-system
     deployment: policy-controller-webhook
   tasks:
@@ -14,6 +15,30 @@
         path: "{{ ca_file }}"
       register: ca
       failed_when: not ca.stat.exists
+
+    - name: Validate Harbor robot credential file
+      ansible.builtin.stat:
+        path: "{{ robot_file }}"
+      register: robot
+      failed_when: not robot.stat.exists
+
+    - name: Install Harbor registry credentials for policy verification
+      ansible.builtin.shell: |
+        set -euo pipefail
+        config=$(mktemp)
+        trap 'rm -f "$config"' EXIT
+        python3 - '{{ robot_file }}' > "$config" <<'PY'
+        import base64, json, sys
+        d = json.load(open(sys.argv[1], encoding='utf-8'))
+        token = base64.b64encode(f"{d['name']}:{d['secret']}".encode()).decode()
+        print(json.dumps({'auths': {'harbor.his-hope.local:9443': {'auth': token}}}))
+        PY
+        kubectl --kubeconfig '{{ kubeconfig }}' -n '{{ namespace }}' create secret generic policy-controller-registry \
+          --from-file=config.json="$config" --dry-run=client -o yaml | kubectl --kubeconfig '{{ kubeconfig }}' apply -f -
+      args:
+        executable: /bin/bash
+      changed_when: true
+      no_log: true
 
     - name: Install the system and Harbor CA bundle as a ConfigMap
       ansible.builtin.shell: |
@@ -36,7 +61,10 @@
           {"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"ca-bundle","configMap":{"name":"policy-controller-ca-bundle","items":[{"key":"ca-bundle.crt","path":"ca-bundle.crt"}]}}},
           {"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"ca-bundle","mountPath":"/etc/policy-controller/ca-bundle.crt","subPath":"ca-bundle.crt","readOnly":true}},
           {"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"ca-bundle","mountPath":"/etc/ssl/certs/ca-certificates.crt","subPath":"ca-bundle.crt","readOnly":true}},
-          {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"SSL_CERT_FILE","value":"/etc/ssl/certs/ca-certificates.crt"}}
+          {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"SSL_CERT_FILE","value":"/etc/ssl/certs/ca-certificates.crt"}},
+          {"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"registry-config","secret":{"secretName":"policy-controller-registry","items":[{"key":"config.json","path":"config.json"}]}}},
+          {"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"registry-config","mountPath":"/home/nonroot/config.json","subPath":"config.json","readOnly":true}},
+          {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"DOCKER_CONFIG","value":"/home/nonroot"}}
         ]'
       args:
         executable: /bin/bash
