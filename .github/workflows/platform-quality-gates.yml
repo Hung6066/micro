@@ -167,6 +167,9 @@ jobs:
       - name: Render production Kubernetes manifests for IaC scan
         shell: pwsh
         run: ./scripts/validate-kustomize-release.ps1 -Environment prod -OutputPath artifacts/k8s/prod.yaml
+      - name: Install production manifest validation dependency
+        shell: bash
+        run: python -m pip install --disable-pip-version-check --no-input pyyaml==6.0.2
       - name: Trivy rendered production manifest scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
