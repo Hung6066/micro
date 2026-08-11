@@ -145,6 +145,12 @@ patches:
       version: v1
       kind: Job
       name: production-migrate-pharmacy
+  - path: migration-identity-signing.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-identity
   - path: identity-apns-disabled-json.yaml
     target:
       group: apps

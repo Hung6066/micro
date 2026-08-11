@@ -1,0 +1,65 @@
+---
+- name: Configure Vault Kubernetes database roles for His.Hope
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    vault_kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default('/mnt/d/AI/micro/artifacts/kubeconfig-production.yaml', true) }}"
+    vault_namespace: his-hope
+    vault_pod: vault-1
+    vault_operator_token_file: "{{ lookup('env', 'VAULT_OPERATOR_TOKEN_FILE') | default('/mnt/d/secure/his-hope/vault_operator_token', true) }}"
+    database_roles:
+      - { name: identity-service-db, service_account: his-hope-identity-service }
+      - { name: patient-service-db, service_account: his-hope-patient-service }
+      - { name: appointment-service-db, service_account: his-hope-appointment-service }
+      - { name: clinical-service-db, service_account: his-hope-clinical-service }
+      - { name: lab-service-db, service_account: his-hope-lab-service }
+      - { name: billing-service-db, service_account: his-hope-billing-service }
+      - { name: pharmacy-service-db, service_account: his-hope-pharmacy-service }
+  tasks:
+    - name: Validate Vault operator token file
+      ansible.builtin.stat:
+        path: "{{ vault_operator_token_file }}"
+      register: vault_token_file
+      failed_when: not vault_token_file.stat.exists
+
+    - name: Create least-privilege policy and Kubernetes role
+      ansible.builtin.shell: |
+        set -euo pipefail
+        token=$(cat '{{ vault_operator_token_file }}')
+        policy=$(printf '%s\n' \
+          'path "database/creds/{{ item.name }}" {' \
+          '  capabilities = ["read"]' \
+          '}')
+        encoded=$(printf '%s' "$policy" | base64 -w0)
+        kubectl --kubeconfig '{{ vault_kubeconfig }}' -n '{{ vault_namespace }}' exec '{{ vault_pod }}' -- \
+          env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true VAULT_TOKEN="$token" \
+          sh -c "printf '%s' '$encoded' | base64 -d | vault policy write '{{ item.name }}' -"
+        kubectl --kubeconfig '{{ vault_kubeconfig }}' -n '{{ vault_namespace }}' exec '{{ vault_pod }}' -- \
+          env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true VAULT_TOKEN="$token" \
+          vault write "auth/kubernetes/role/{{ item.name }}" \
+            bound_service_account_names='{{ item.service_account }}' \
+            bound_service_account_namespaces='{{ vault_namespace }}' \
+            audience=vault policies='{{ item.name }}' ttl=15m max_ttl=1h
+      args:
+        executable: /bin/bash
+      loop: "{{ database_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      no_log: true
+      changed_when: true
+
+    - name: Verify every Kubernetes role is readable
+      ansible.builtin.shell: |
+        set -euo pipefail
+        token=$(cat '{{ vault_operator_token_file }}')
+        kubectl --kubeconfig '{{ vault_kubeconfig }}' -n '{{ vault_namespace }}' exec '{{ vault_pod }}' -- \
+          env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true VAULT_TOKEN="$token" \
+          vault read "auth/kubernetes/role/{{ item.name }}" >/dev/null
+      args:
+        executable: /bin/bash
+      loop: "{{ database_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      no_log: true
+      changed_when: false
