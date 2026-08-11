@@ -95,9 +95,17 @@ def validate_rendered_contract(documents: list[dict]) -> None:
 def allowed_finding(finding: dict) -> bool:
     finding_id = normalized_id(finding)
     text = finding_text(finding)
+    resource = str(finding.get("Resource", "")).strip()
     if finding_id == "KSV0108":
-        return any(name in text for name in EXPECTED_EXTERNAL_NAMES)
-    return finding_id == "KSV0109" and RUNTIME_CONFIG_NAME in text
+        # Bind the exception to the exact rendered Service and target name.
+        # Free-form titles/messages are not an authorization boundary.
+        return (
+            resource in EXPECTED_EXTERNAL_NAMES
+            and EXPECTED_EXTERNAL_NAMES[resource].lower() in text
+        )
+    if finding_id == "KSV0109":
+        return resource == RUNTIME_CONFIG_NAME
+    return False
 
 
 def main() -> None:
@@ -119,6 +127,18 @@ def main() -> None:
     if rejected:
         details = ", ".join(f"{finding.get('ID')}:{finding.get('Title')}" for finding in rejected)
         fail(f"Unexpected production Trivy finding(s): {details}")
+    allowed_resources = [
+        str(finding.get("Resource", "")).strip()
+        for finding in findings
+        if normalized_id(finding) in {"KSV0108", "KSV0109"}
+    ]
+    expected_resources = set(EXPECTED_EXTERNAL_NAMES) | {RUNTIME_CONFIG_NAME}
+    unexpected_allowed = [resource for resource in allowed_resources if resource not in expected_resources]
+    if unexpected_allowed:
+        fail(f"Reviewed Trivy exceptions reference unexpected resource(s): {unexpected_allowed}")
+    duplicate_resources = sorted({resource for resource in allowed_resources if allowed_resources.count(resource) > 1})
+    if duplicate_resources:
+        fail(f"Reviewed Trivy exceptions exceed one finding per resource: {duplicate_resources}")
     print(f"PASS: reviewed production Trivy exception contract accepted {len(findings)} finding(s).")
 
 
