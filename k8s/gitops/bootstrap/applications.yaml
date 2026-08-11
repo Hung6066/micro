@@ -10,7 +10,7 @@ spec:
   project: his-hope
   source:
     repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
-    targetRevision: feature/frontend-standardization-refactor
+    targetRevision: production
     path: k8s/gitops/data-plane
   destination:
     server: https://kubernetes.default.svc
@@ -34,7 +34,7 @@ spec:
   project: his-hope
   source:
     repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
-    targetRevision: feature/frontend-standardization-refactor
+    targetRevision: production
     path: k8s/gitops/system-plane
   destination:
     server: https://kubernetes.default.svc
@@ -58,7 +58,7 @@ spec:
   project: his-hope
   source:
     repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
-    targetRevision: feature/frontend-standardization-refactor
+    targetRevision: production
     path: k8s/overlays/prod-spire-azure
   destination:
     server: https://kubernetes.default.svc
@@ -82,7 +82,7 @@ spec:
   project: his-hope
   source:
     repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
-    targetRevision: feature/frontend-standardization-refactor
+    targetRevision: production
     path: k8s/gitops/boundaries
   destination:
     server: https://kubernetes.default.svc
@@ -102,7 +102,7 @@ spec:
   project: his-hope
   source:
     repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
-    targetRevision: feature/frontend-standardization-refactor
+    targetRevision: production
     path: k8s/overlays/staging
   destination:
     server: https://kubernetes.default.svc
@@ -128,7 +128,7 @@ spec:
   project: his-hope
   source:
     repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
-    targetRevision: feature/frontend-standardization-refactor
+    targetRevision: production
     path: k8s/gitops/policies
   destination:
     server: https://kubernetes.default.svc
@@ -151,7 +151,7 @@ spec:
   project: his-hope
   source:
     repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
-    targetRevision: feature/frontend-standardization-refactor
+    targetRevision: production
     path: k8s/gitops/signature-policy
   destination:
     server: https://kubernetes.default.svc
@@ -174,7 +174,7 @@ spec:
   project: his-hope
   source:
     repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
-    targetRevision: feature/frontend-standardization-refactor
+    targetRevision: production
     path: k8s/observability/overlays/prod
   destination:
     server: https://kubernetes.default.svc
@@ -198,7 +198,7 @@ spec:
   project: his-hope
   source:
     repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
-    targetRevision: feature/frontend-standardization-refactor
+    targetRevision: production
     path: k8s/overlays/prod
   destination:
     server: https://kubernetes.default.svc
