@@ -9,10 +9,11 @@ lint:
     # Existing contracts predate Buf's package/comment naming conventions.
     # Keep the wire names stable; enforce these rules only for newly adopted
     # proto packages rather than renaming generated API types in this release.
-    - PACKAGE_SAME_DIRECTORY
+    - DIRECTORY_SAME_PACKAGE
     - COMMENTS
     - RPC_REQUEST_STANDARD_NAME
     - RPC_RESPONSE_STANDARD_NAME
+    - RPC_REQUEST_RESPONSE_UNIQUE
   enum_zero_value_suffix: _NONE
   rpc_allow_same_request_response: false
   rpc_allow_google_protobuf_empty_requests: false
