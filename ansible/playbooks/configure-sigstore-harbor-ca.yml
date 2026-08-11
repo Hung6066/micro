@@ -5,7 +5,7 @@
   gather_facts: false
   vars:
     kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default('artifacts/kubeconfig-production.yaml', true) }}"
-    ca_file: "{{ lookup('env', 'HARBOR_CA_FILE') | default('D:/secure/his-hope/vault_pki_ca_chain.pem', true) }}"
+    ca_file: "{{ lookup('env', 'HARBOR_CA_FILE') | default('D:/secure/his-hope/his_hope_ca.pem', true) }}"
     robot_file: "{{ lookup('env', 'HARBOR_ROBOT_FILE') | default('D:/secure/his-hope/harbor_robot_k3s_pull.json', true) }}"
     namespace: cosign-system
     deployment: policy-controller-webhook
