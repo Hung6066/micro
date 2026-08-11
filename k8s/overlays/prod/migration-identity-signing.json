@@ -11,5 +11,17 @@
   { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-dashboard__RedirectUris__0", "value": "https://dashboard.his-hope.local/auth/callback" } },
   { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-dashboard__PostLogoutRedirectUris__0", "value": "https://dashboard.his-hope.local/auth/login" } },
   { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-admin__RedirectUris__0", "value": "https://admin.his-hope.local/auth/callback" } },
-  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-admin__PostLogoutRedirectUris__0", "value": "https://admin.his-hope.local/auth/login" } }
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-admin__PostLogoutRedirectUris__0", "value": "https://admin.his-hope.local/auth/login" } },
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-spa__RedirectUris__1", "value": "https://app.his-hope.local/auth/callback" } },
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-spa__RedirectUris__2", "value": "https://app.his-hope.local/auth/callback" } },
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-spa__PostLogoutRedirectUris__1", "value": "https://app.his-hope.local/auth/login" } },
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-spa__PostLogoutRedirectUris__2", "value": "https://app.his-hope.local/auth/login" } },
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-dashboard__RedirectUris__1", "value": "https://dashboard.his-hope.local/auth/callback" } },
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-dashboard__PostLogoutRedirectUris__1", "value": "https://dashboard.his-hope.local/auth/login" } },
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-admin__RedirectUris__1", "value": "https://admin.his-hope.local/auth/callback" } },
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-admin__PostLogoutRedirectUris__1", "value": "https://admin.his-hope.local/auth/login" } },
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-mobile__RedirectUris__0", "value": "https://mobile.his-hope.local/auth/callback" } },
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-mobile__PostLogoutRedirectUris__0", "value": "https://mobile.his-hope.local/auth/logout-callback" } },
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-mobile__RedirectUris__1", "value": "https://mobile.his-hope.local/auth/callback" } },
+  { "op": "add", "path": "/spec/template/spec/containers/0/env/-", "value": { "name": "Authentication__OidcClients__his-hope-mobile__PostLogoutRedirectUris__1", "value": "https://mobile.his-hope.local/auth/logout-callback" } }
 ]
