@@ -281,6 +281,7 @@ jobs:
               "predicateType": "https://slsa.dev/provenance/v1",
               "predicate": {
                   "builder": {"id": "https://github.com/actions/runner"},
+                  "buildType": "https://github.com/slsa-framework/slsa-github-generator@v2",
                   "buildDefinition": {
                       "buildType": "https://github.com/slsa-framework/slsa-github-generator@v2",
                       "externalParameters": {"workflow": workflow_ref},
