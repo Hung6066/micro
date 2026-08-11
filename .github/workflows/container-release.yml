@@ -152,7 +152,9 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSL https://raw.githubusercontent.com/aquasecurity/trivy/936f06a57864d073aa77b38f77fe76c4fcb1f7c1/contrib/install.sh | sh -s -- -b "$RUNNER_TOOL_CACHE/trivy" v0.58.2
-          curl -fsSL https://raw.githubusercontent.com/anchore/syft/19ef6ad25a9c4dd753a29f7cc31ff91cd8dea28d/install.sh | sh -s -- -b "$RUNNER_TOOL_CACHE/syft" v1.18.1
+          # v1.18.1 is an annotated tag; pin the dereferenced commit so the
+          # installer URL is immutable and does not resolve to a tag object.
+          curl -fsSL https://raw.githubusercontent.com/anchore/syft/5e16e5031a13f8a11057feb8544decebfc43b4ed/install.sh | sh -s -- -b "$RUNNER_TOOL_CACHE/syft" v1.18.1
           curl -fsSL https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-amd64 -o "$RUNNER_TOOL_CACHE/cosign"
           echo '8b24b946dd5809c6bd93de08033bcf6bc0ed7d336b7785787c080f574b89249b  '"$RUNNER_TOOL_CACHE/cosign" | sha256sum --check --status
           chmod +x "$RUNNER_TOOL_CACHE/cosign"
