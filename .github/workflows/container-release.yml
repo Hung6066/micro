@@ -151,7 +151,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL https://raw.githubusercontent.com/aquasecurity/trivy/936f06a57864d073aa77b38f77fe76c4fcb1f7c1/contrib/install.sh | sh -s -- -b "$RUNNER_TOOL_CACHE/trivy" v0.58.2
+          curl -fsSL https://github.com/aquasecurity/trivy/releases/download/v0.73.0/trivy_0.73.0_Linux-64bit.tar.gz -o "$RUNNER_TOOL_CACHE/trivy.tar.gz"
+          echo '2edd39da482bb4e9831962487b68f68e3928ec3137794757f54d00383d79547b  '"$RUNNER_TOOL_CACHE/trivy.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TOOL_CACHE/trivy.tar.gz" -C "$RUNNER_TOOL_CACHE"
+          rm -f "$RUNNER_TOOL_CACHE/trivy.tar.gz"
+          chmod +x "$RUNNER_TOOL_CACHE/trivy"
           curl -fsSL https://github.com/anchore/syft/releases/download/v1.18.1/syft_1.18.1_linux_amd64.tar.gz -o "$RUNNER_TOOL_CACHE/syft.tar.gz"
           echo '066c251652221e4d44fcc4d115ce3df33a91769da38c830a8533199db2f65aab  '"$RUNNER_TOOL_CACHE/syft.tar.gz" | sha256sum --check
           tar -xzf "$RUNNER_TOOL_CACHE/syft.tar.gz" -C "$RUNNER_TOOL_CACHE"
