@@ -19,7 +19,10 @@ RUN cd shared/frontend-foundation && npm install --legacy-peer-deps --ignore-scr
 
 WORKDIR /workspace/src/Frontend/his-hope-app
 # Copy package files and install dependencies with cache
-COPY src/Frontend/his-hope-app/package.json src/Frontend/his-hope-app/package-lock.json ./
+# The application lockfile is intentionally not committed in this legacy
+# workspace; install from the manifest while the shared foundation remains
+# lockfile-pinned above.
+COPY src/Frontend/his-hope-app/package.json ./
 RUN --mount=type=cache,target=/root/.npm \
     npm install --legacy-peer-deps --ignore-scripts --no-audit --no-fund
 
