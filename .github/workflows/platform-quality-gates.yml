@@ -204,6 +204,15 @@ jobs:
       - name: Generate current OpenAPI document
         shell: pwsh
         run: ./scripts/generate-openapi.ps1 -Output artifacts/openapi/identity-v1.json
+      - name: Capture OpenAPI endpoint diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set -uo pipefail
+          docker compose --env-file docker/config/compose.runtime.env.example -f docker/docker-compose.yml ps
+          docker compose --env-file docker/config/compose.runtime.env.example -f docker/docker-compose.yml logs --no-color identityservice postgres redis
+          curl --fail --silent --show-error --max-time 10 http://localhost:5001/health/ready || true
+          curl --fail --silent --show-error --max-time 10 http://localhost:5001/swagger/v1/swagger.json || true
       - name: Check OpenAPI compatibility
         shell: pwsh
         run: ./scripts/check-openapi-breaking.ps1 -Baseline docs/openapi/identity-v1.json -Current artifacts/openapi/identity-v1.json
