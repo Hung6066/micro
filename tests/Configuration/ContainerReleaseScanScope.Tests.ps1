@@ -8,6 +8,7 @@ $dashboardNginx = Get-Content -LiteralPath (Join-Path $repositoryRoot 'dashboard
 $dashboardDeployment = Get-Content -LiteralPath (Join-Path $repositoryRoot 'k8s\base\dashboard-app-deployment.yaml') -Raw
 $dashboardService = Get-Content -LiteralPath (Join-Path $repositoryRoot 'k8s\base\dashboard-app-service.yaml') -Raw
 $migrationJob = Get-Content -LiteralPath (Join-Path $repositoryRoot 'cockroach\config\migration-job.yaml') -Raw
+$cockroachStatefulSet = Get-Content -LiteralPath (Join-Path $repositoryRoot 'cockroach\config\cockroachdb-statefulset.yaml') -Raw
 
 if ($workflow -notmatch '(?ms)scan-type:\s*fs.*?scan-ref:\s*\..*?skip-dirs:\s*k8s,docker/spire.*?skip-files:\s*docker/postgres-production\.Dockerfile') {
     throw 'The filesystem Trivy preflight must exclude k8s, docker/spire, and the non-release postgres bootstrap helper. Rendered production manifests and release images remain covered by dedicated validators and image scans.'
@@ -42,3 +43,16 @@ foreach ($required in @(
 }
 
 Write-Host 'Container runtime security PASS: dashboard nginx and Cockroach migration Job are non-root and restricted.'
+
+foreach ($required in @(
+    'runAsNonRoot: true',
+    'allowPrivilegeEscalation: false',
+    'readOnlyRootFilesystem: true',
+    'type: RuntimeDefault'
+)) {
+    if ($cockroachStatefulSet -notmatch [regex]::Escape($required)) {
+        throw "CockroachDB StatefulSet is missing required security control: $required"
+    }
+}
+
+Write-Host 'Container runtime security PASS: CockroachDB StatefulSet is non-root and restricted.'

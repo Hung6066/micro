@@ -14,6 +14,7 @@ COPY dashboard-app .
 RUN rm -rf .angular/cache && npx ng build --configuration=production
 
 FROM nginxinc/nginx-unprivileged:alpine AS final
+USER 101
 COPY --from=build /workspace/dashboard-app/dist/dashboard-app/browser /usr/share/nginx/html
 COPY dashboard-app/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 8080
