@@ -13,31 +13,31 @@ images:
     newTag: latest
     digest: sha256:195f2e76cdfb34d194dcdee0f9d70f96c1fe39e812e9a815be317de5a9f987f2
   - name: his-hope/patient-service
-    newName: harbor.his-hope.local:9443/his-hope/patient-service
+    newName: harbor.his-hope.local:9443/his-hope/his-hope/patient-service
     newTag: latest
     digest: sha256:45d223e14556c49f7f5cd4478743c7f1b8adc391b3649e1b598000ed9369ff46
   - name: his-hope/identity-service
-    newName: harbor.his-hope.local:9443/his-hope/identity-service
+    newName: harbor.his-hope.local:9443/his-hope/his-hope/identity-service
     newTag: latest
     digest: sha256:f3ffbe97c3fc7b36a83ef5aee536941fd3958990e1e950010cc1567991c34c4b
   - name: his-hope/appointment-service
-    newName: harbor.his-hope.local:9443/his-hope/appointment-service
+    newName: harbor.his-hope.local:9443/his-hope/his-hope/appointment-service
     newTag: latest
     digest: sha256:0d09a488f0c029d9268a69fb5ca0436437b8504af84b48b0a968be7463244326
   - name: his-hope/clinical-service
-    newName: harbor.his-hope.local:9443/his-hope/clinical-service
+    newName: harbor.his-hope.local:9443/his-hope/his-hope/clinical-service
     newTag: latest
     digest: sha256:524b263f7221d62914fbbe4d13edce9402f5eb1312c929b2ad9b70da38ad810b
   - name: his-hope/lab-service
-    newName: harbor.his-hope.local:9443/his-hope/lab-service
+    newName: harbor.his-hope.local:9443/his-hope/his-hope/lab-service
     newTag: latest
     digest: sha256:0ee09dfaf5e6da6cc4ee6b16ca720c13884ac43449f692426c2a8955a908a612
   - name: his-hope/billing-service
-    newName: harbor.his-hope.local:9443/his-hope/billing-service
+    newName: harbor.his-hope.local:9443/his-hope/his-hope/billing-service
     newTag: latest
     digest: sha256:61dd39c26f316309fb10383897196964a22ab22d9df20420527e79fd531046d6
   - name: his-hope/pharmacy-service
-    newName: harbor.his-hope.local:9443/his-hope/pharmacy-service
+    newName: harbor.his-hope.local:9443/his-hope/his-hope/pharmacy-service
     newTag: latest
     digest: sha256:51a4a74b63b2b511ca5c86466f12532f24f34460fb92984cde1bac2762191d73
   - name: his-hope/patient-bff
