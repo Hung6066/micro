@@ -75,12 +75,23 @@ jobs:
           if ($env:EXPECTED_REPO_URL -notmatch '^https://[^/]+/[^/]+/[^/]+\\.git$') {
             throw 'GITOPS_MIRROR_REPO_URL must be an HTTPS repository URL.'
           }
-          ./scripts/verify-git-mirror.ps1 `
-            -ExpectedRevision $env:EXPECTED_REVISION `
-            -ExpectedRepoUrl $env:EXPECTED_REPO_URL `
-            -Kubeconfig '${{ steps.kubeconfig.outputs.path }}' `
-            -RequireSynced `
-            -OutputPath artifacts/evidence/gitops-mirror-verification.json
+          $verificationOutput = $null
+          for ($attempt = 1; $attempt -le 30; $attempt++) {
+            $verificationOutput = & ./scripts/verify-git-mirror.ps1 `
+              -ExpectedRevision $env:EXPECTED_REVISION `
+              -ExpectedRepoUrl $env:EXPECTED_REPO_URL `
+              -Kubeconfig '${{ steps.kubeconfig.outputs.path }}' `
+              -RequireSynced `
+              -OutputPath artifacts/evidence/gitops-mirror-verification.json 2>&1
+            if ($LASTEXITCODE -eq 0) {
+              $verificationOutput
+              exit 0
+            }
+            Write-Warning "Mirror/Argo verification attempt $attempt/30 is not ready yet."
+            if ($attempt -lt 30) { Start-Sleep -Seconds 20 }
+          }
+          $verificationOutput
+          throw 'Git mirror and Argo verification did not converge within 10 minutes.'
 
       - name: Upload verification evidence
         if: always()
