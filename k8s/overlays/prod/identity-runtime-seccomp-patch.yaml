@@ -33,6 +33,17 @@ spec:
               mountPath: /etc/tls/redis
               readOnly: true
         - name: pgbouncer
+          securityContext:
+            $patch: replace
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsGroup: 100
+            runAsNonRoot: true
+            runAsUser: 100
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - name: pgbouncer-tmp
               mountPath: /tmp
