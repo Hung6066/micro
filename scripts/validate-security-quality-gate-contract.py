@@ -35,6 +35,8 @@ def main() -> None:
         fail("container scan must normalize Docker tag path separators")
     if "not -path './docker/sandbox/Dockerfile'" not in security:
         fail("developer-only sandbox must be explicitly excluded from the production image gate")
+    if "timeout-minutes: 45" not in security or "timeout --signal=TERM --kill-after=30s 10m docker build" not in security:
+        fail("container security gate must have bounded job and image-build timeouts")
 
     required_platform_contract = (
         "scan-type: config",

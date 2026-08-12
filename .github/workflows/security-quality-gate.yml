@@ -58,6 +58,7 @@ jobs:
   filesystem-security:
     name: Repository and container security scan
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -133,6 +134,6 @@ jobs:
             # Repository Dockerfiles restore shared projects from the repository
             # root; using dirname(Dockerfile) would silently change the build
             # context and produce false security-gate failures.
-            docker build --file "$dockerfile" --tag "$image" .
-            trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$image"
+            timeout --signal=TERM --kill-after=30s 10m docker build --file "$dockerfile" --tag "$image" .
+            timeout --signal=TERM --kill-after=30s 5m trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$image"
           done
