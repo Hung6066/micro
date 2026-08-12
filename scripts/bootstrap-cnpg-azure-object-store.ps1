@@ -2,7 +2,7 @@
 param(
     [string]$Context,
     [string]$EnvFile = 'D:\secure\his-hope\azure-production.env',
-    [string]$Overlay = 'k8s/overlays/prod-spire-azure',
+    [string]$Overlay = 'k8s/overlays/prod-spire-azure-shared-storage',
     [ValidateSet('production')][string]$Environment = 'production',
     [switch]$Apply,
     [switch]$AllowProduction

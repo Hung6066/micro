@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       storage_class:
-        description: Reviewed production storage class (longhorn or external Viettel CSI)
+        description: Reviewed production external CSI StorageClass
         required: true
-        default: longhorn
+        default: viettel-shared
         type: string
 
 permissions:
@@ -194,6 +194,14 @@ jobs:
           KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
         run: ./scripts/validate-cnpg-backup-platform.ps1 -Kubeconfig $env:KUBECONFIG -OutputPath artifacts/evidence/production-cnpg-backup-platform.json
 
+      - name: Validate approved shared CSI runtime contract
+        id: shared_storage
+        continue-on-error: true
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
+        run: ./scripts/validate-shared-storage-contract.ps1 -Kubeconfig $env:KUBECONFIG -StorageClassName '${{ inputs.storage_class }}' -RequireSnapshotClass -RequireApprovalAnnotation -OutputPath artifacts/evidence/production-shared-storage.json
+
       - name: Validate DR evidence
         id: dr_evidence
         continue-on-error: true
@@ -218,6 +226,7 @@ jobs:
             [pscustomobject]@{ name = 'alertmanager-e2e'; outcome = '${{ steps.alertmanager_e2e.outcome }}' }
             [pscustomobject]@{ name = 'azure-backup'; outcome = '${{ steps.azure_backup.outcome }}' }
             [pscustomobject]@{ name = 'cnpg-backup'; outcome = '${{ steps.cnpg_backup.outcome }}' }
+            [pscustomobject]@{ name = 'shared-storage'; outcome = '${{ steps.shared_storage.outcome }}' }
             [pscustomobject]@{ name = 'dr-evidence'; outcome = '${{ steps.dr_evidence.outcome }}' }
           # Every listed production gate is required. A skipped step means its
           # evidence is absent and must fail the release, not silently pass.

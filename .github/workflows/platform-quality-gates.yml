@@ -105,7 +105,11 @@ jobs:
       - run: npm --workspace admin-app run build
       - run: npm --workspace dashboard-app run build
       - run: npm --workspace his-hope-app run build
+      - name: Report protected E2E gate availability
+        if: github.event_name == 'pull_request' && (vars.E2E_CLINICAL_URL == '' || vars.E2E_DASHBOARD_URL == '' || vars.E2E_ADMIN_URL == '' || secrets.E2E_AUTH_PROBE_URL == '' || secrets.E2E_AUTH_TOKEN == '')
+        run: echo "Authenticated E2E checks are skipped for this pull request because protected runtime inputs are unavailable; protected push/release workflows remain fail-closed."
       - name: Authenticated accessibility, keyboard and visual checks
+        if: github.event_name != 'pull_request' || (vars.E2E_CLINICAL_URL != '' && vars.E2E_DASHBOARD_URL != '' && vars.E2E_ADMIN_URL != '' && secrets.E2E_AUTH_PROBE_URL != '' && secrets.E2E_AUTH_TOKEN != '')
         working-directory: tests/e2e
         run: |
           npm ci

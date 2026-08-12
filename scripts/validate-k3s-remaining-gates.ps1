@@ -52,7 +52,18 @@ try {
 
 try {
     $argo = @(kubectl get ns argocd -o name 2>$null)
-    if ($argo.Count -gt 0) { Gate 'gitops-controller' 'pass' 'argocd namespace exists' }
+    if ($argo.Count -gt 0) {
+        $applications = @((kubectl get applications.argoproj.io -n argocd -o json | ConvertFrom-Json).items)
+        $nonProduction = @($applications | Where-Object { [string]$_.spec.source.targetRevision -ne 'production' })
+        if ($applications.Count -gt 0 -and $nonProduction.Count -eq 0) {
+            Gate 'gitops-controller' 'pass' "argocd namespace exists; $($applications.Count) Applications target production"
+        } elseif ($applications.Count -eq 0) {
+            Gate 'gitops-controller' 'blocked' 'argocd namespace exists but no Applications were found'
+        } else {
+            $names = ($nonProduction | ForEach-Object { "$($_.metadata.name)=$($_.spec.source.targetRevision)" }) -join ', '
+            Gate 'gitops-controller' 'blocked' "Argo Applications are not on protected production revision: $names"
+        }
+    }
     else { Gate 'gitops-controller' 'blocked' 'Argo CD is not installed; bootstrap remains source-only' }
 } catch { Gate 'gitops-controller' 'blocked' $_.Exception.Message }
 
