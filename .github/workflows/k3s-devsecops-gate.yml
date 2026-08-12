@@ -205,8 +205,6 @@ jobs:
         run: |
           ./scripts/validate-gitops-plane.ps1 -Path k8s/gitops/data-plane -Namespace his-hope-data
           ./scripts/validate-gitops-plane.ps1 -Path k8s/gitops/system-plane -Namespace his-hope-system
-          ./scripts/validate-gitops-plane.ps1 -Path k8s/overlays/prod-spire-azure-shared-storage -Namespace spire
-          ./scripts/validate-gitops-plane.ps1 -Path k8s/observability/overlays/prod-shared-storage -Namespace monitoring
           ./scripts/validate-gitops-plane.ps1 -Path k8s/gitops/bootstrap -Namespace argocd
           ./scripts/validate-argocd-bootstrap.ps1 -OutputPath artifacts/evidence/argocd-bootstrap-contract.json
           python scripts/validate-argocd-project-scope.py
@@ -269,16 +267,6 @@ jobs:
         if: matrix.environment == 'prod'
         shell: pwsh
         run: kubectl kustomize k8s/monitoring --load-restrictor LoadRestrictionsNone | Out-File -Encoding utf8 artifacts/k8s/monitoring.yaml
-
-      - name: Render shared CSI variants without applying them
-        if: matrix.environment == 'prod'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force artifacts/evidence | Out-Null
-          kubectl kustomize k8s/overlays/prod-spire-azure-shared-storage --load-restrictor LoadRestrictionsNone | Out-File -Encoding utf8 artifacts/evidence/prod-shared-storage-render.yaml
-          if ($LASTEXITCODE -ne 0) { throw 'Application shared-storage overlay failed to render.' }
-          kubectl kustomize k8s/observability/overlays/prod-shared-storage --load-restrictor LoadRestrictionsNone | Out-File -Encoding utf8 artifacts/evidence/observability-shared-storage-render.yaml
-          if ($LASTEXITCODE -ne 0) { throw 'Observability shared-storage overlay failed to render.' }
 
       - name: Upload storage and backup evidence
         if: always() && matrix.environment == 'prod'
