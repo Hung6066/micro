@@ -17,13 +17,7 @@ COPY ["src/Services/RemediationOperator/", "Services/RemediationOperator/"]
 RUN --mount=type=cache,target=/root/.nuget/packages \
     dotnet publish "Services/RemediationOperator/RemediationOperator.csproj" \
     -c Release \
-    -o /app/publish \
-    
-
-# ============================================================
-# CURL STAGE (for healthchecks)
-# ============================================================
-FROM curlimages/curl:8.12.1 AS curl
+    -o /app/publish
 
 # ============================================================
 # RUNTIME STAGE (distroless chiseled)
@@ -40,7 +34,6 @@ ENV ASPNETCORE_URLS=http://+:8080 \
     DOTNET_gcServer=1
 
 COPY --from=build /app/publish .
-COPY --from=curl /usr/bin/curl /usr/bin/curl
 
 # Create app user and log directory
 RUN apt-get update && apt-get install -y --no-install-recommends curl && \
