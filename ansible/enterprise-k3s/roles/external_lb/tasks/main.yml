@@ -38,6 +38,24 @@
     mode: '0640'
   notify: Restart HAProxy
 
+- name: Install Git mirror public certificate bundle
+  ansible.builtin.copy:
+    content: "{{ lookup('ansible.builtin.file', lb_git_mirror_public_cert_src) }}\n{{ lookup('ansible.builtin.file', lb_git_mirror_public_key_src) }}\n"
+    dest: /etc/haproxy/certs/git-mirror-public.pem
+    owner: root
+    group: haproxy
+    mode: '0640'
+  notify: Restart HAProxy
+
+- name: Install Git mirror backend CA
+  ansible.builtin.copy:
+    src: "{{ lb_git_mirror_backend_ca_src }}"
+    dest: /etc/haproxy/certs/git-mirror-backend-ca.pem
+    owner: root
+    group: haproxy
+    mode: '0640'
+  notify: Restart HAProxy
+
 - name: Install HAProxy configuration
   ansible.builtin.template:
     src: haproxy.cfg.j2

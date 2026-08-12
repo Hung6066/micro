@@ -40,3 +40,16 @@ lb_harbor_public_cert_src: "{{ lookup('env', 'HARBOR_PUBLIC_CERT_FILE') | defaul
 lb_harbor_public_key_src: "{{ lookup('env', 'HARBOR_PUBLIC_KEY_FILE') | default('/mnt/d/secure/his-hope/harbor_public_key.pem', true) }}"
 lb_harbor_backend_ca_src: "{{ lookup('env', 'HARBOR_BACKEND_CA_FILE') | default('/mnt/d/secure/his-hope/harbor_ca.pem', true) }}"
 lb_harbor_backend_server_name: harbor.his-hope.local
+
+# Internal Git mirror is routed by SNI on the same VIP. HAProxy terminates the
+# mirror certificate and re-encrypts the hop to Traefik's HTTPS NodePort.
+lb_git_mirror_host: git-mirror.his-hope.local
+lb_git_mirror_https_node_port: 30443
+lb_git_mirror_backends:
+  - name: k3s-worker-1
+    address: 172.16.102.10
+  - name: k3s-worker-2
+    address: 172.16.102.12
+lb_git_mirror_public_cert_src: "{{ lookup('env', 'GIT_MIRROR_PUBLIC_CERT_FILE') | default('/mnt/d/secure/his-hope/git_mirror_public_cert.pem', true) }}"
+lb_git_mirror_public_key_src: "{{ lookup('env', 'GIT_MIRROR_PUBLIC_KEY_FILE') | default('/mnt/d/secure/his-hope/git_mirror_public_key.pem', true) }}"
+lb_git_mirror_backend_ca_src: "{{ lookup('env', 'GIT_MIRROR_BACKEND_CA_FILE') | default('/mnt/d/secure/his-hope/vault_pki_ca_chain.pem', true) }}"
