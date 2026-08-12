@@ -1,0 +1,59 @@
+name: GitOps Mirror Synchronization
+
+on:
+  push:
+    branches: [production]
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: 40-character production commit to mirror
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gitops-mirror-sync-production
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.revision || github.sha }}
+          persist-credentials: false
+
+      - name: Push the reviewed production revision to the internal Git mirror
+        shell: bash
+        env:
+          MIRROR_URL: ${{ vars.GITOPS_MIRROR_REPO_URL }}
+          MIRROR_USERNAME: ${{ secrets.GITOPS_MIRROR_USERNAME }}
+          MIRROR_TOKEN: ${{ secrets.GITOPS_MIRROR_TOKEN }}
+          REVISION: ${{ inputs.revision || github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'The production revision must be a 40-character lowercase commit SHA.' >&2
+            exit 1
+          fi
+          if [[ -z "${MIRROR_URL:-}" || -z "${MIRROR_USERNAME:-}" || -z "${MIRROR_TOKEN:-}" ]]; then
+            echo 'GITOPS_MIRROR_REPO_URL, GITOPS_MIRROR_USERNAME and GITOPS_MIRROR_TOKEN are required in the production environment.' >&2
+            exit 1
+          fi
+          case "$MIRROR_URL" in
+            https://*) ;;
+            *) echo 'GITOPS_MIRROR_REPO_URL must use HTTPS and must not embed credentials.' >&2; exit 1 ;;
+          esac
+          if [[ "$MIRROR_URL" == *'@'* ]]; then
+            echo 'GITOPS_MIRROR_REPO_URL must not contain embedded credentials.' >&2
+            exit 1
+          fi
+          auth_header="Basic $(printf '%s' "$MIRROR_USERNAME:$MIRROR_TOKEN" | base64 -w0)"
+          git remote add production-mirror "$MIRROR_URL"
+          git -c http.extraheader="Authorization: $auth_header" push --force-with-lease production-mirror "HEAD:refs/heads/production"
+
