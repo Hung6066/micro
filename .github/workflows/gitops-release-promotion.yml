@@ -64,6 +64,7 @@ jobs:
           mkdir -p artifacts/release-image-refs
           gh run download "${{ steps.release.outputs.run_id }}" --repo "$GITHUB_REPOSITORY" --pattern 'image-ref-*' --dir artifacts/release-image-refs
           test "$(find artifacts/release-image-refs -name '*.image-ref.txt' -type f | wc -l)" -eq 19
+          test "$(find artifacts/release-image-refs -name '*.image-ref.txt' -type f -print0 | xargs -0 -r cat | sed '/^[[:space:]]*$/d' | sort -u | wc -l)" -eq 19
 
       - name: Install Harbor trust chain and Cosign
         shell: bash

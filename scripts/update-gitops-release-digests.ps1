@@ -22,6 +22,28 @@ if ($imageReferences.Count -eq 0) {
     throw "No immutable image reference artifacts found under $imageDirectory."
 }
 
+$expectedImages = @(
+    'his-hope/api-gateway',
+    'his-hope/patient-service',
+    'his-hope/identity-service',
+    'his-hope/appointment-service',
+    'his-hope/clinical-service',
+    'his-hope/lab-service',
+    'his-hope/billing-service',
+    'his-hope/pharmacy-service',
+    'his-hope/patient-bff',
+    'his-hope/clinical-bff',
+    'his-hope/lab-bff',
+    'his-hope/billing-bff',
+    'his-hope/pharmacy-bff',
+    'his-hope/dashboard-bff',
+    'his-hope/systemdashboard-bff',
+    'his-hope/database-continuity',
+    'his-hope/frontend',
+    'his-hope/admin-app',
+    'his-hope/dashboard-app'
+)
+
 $digests = @{}
 foreach ($reference in $imageReferences) {
     if ($reference -notmatch '^harbor\.myduchospital\.com:443/(?<name>his-hope/[a-z0-9][a-z0-9-]*)@(?<digest>sha256:[0-9a-f]{64})$') {
@@ -32,6 +54,13 @@ foreach ($reference in $imageReferences) {
         throw "Duplicate release artifact for $name."
     }
     $digests[$name] = $Matches['digest']
+}
+
+$actualImages = @($digests.Keys | Sort-Object)
+$missingImages = @($expectedImages | Where-Object { $_ -notin $actualImages })
+$unexpectedImages = @($actualImages | Where-Object { $_ -notin $expectedImages })
+if ($missingImages.Count -or $unexpectedImages.Count -or $actualImages.Count -ne $expectedImages.Count) {
+    throw "Release artifacts must contain exactly the 19 approved application images. Missing: $($missingImages -join ', '); unexpected: $($unexpectedImages -join ', ')."
 }
 
 $manifestPath = [IO.Path]::GetFullPath($Path)
