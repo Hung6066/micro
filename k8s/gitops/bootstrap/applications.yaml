@@ -9,7 +9,7 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
     targetRevision: production
     path: k8s/gitops/data-plane
   destination:
@@ -33,7 +33,7 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
     targetRevision: production
     path: k8s/gitops/system-plane
   destination:
@@ -57,9 +57,9 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
     targetRevision: production
-    path: k8s/overlays/prod-spire-azure-shared-storage
+    path: k8s/production-ha
   destination:
     server: https://kubernetes.default.svc
     namespace: spire
@@ -81,7 +81,7 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
     targetRevision: production
     path: k8s/gitops/boundaries
   destination:
@@ -101,7 +101,7 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
     targetRevision: production
     path: k8s/overlays/staging
   destination:
@@ -127,7 +127,7 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
     targetRevision: production
     path: k8s/gitops/policies
   destination:
@@ -150,7 +150,7 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
     targetRevision: production
     path: k8s/gitops/signature-policy
   destination:
@@ -173,9 +173,9 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
     targetRevision: production
-    path: k8s/observability/overlays/prod-shared-storage
+    path: k8s/observability/overlays/prod
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
@@ -197,7 +197,7 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
     targetRevision: production
     path: k8s/overlays/prod
   destination:

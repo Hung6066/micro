@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, linux, gitops-mirror]
     timeout-minutes: 15
     environment: production
     steps:
@@ -48,13 +48,18 @@ jobs:
         shell: pwsh
         env:
           EXPECTED_REVISION: ${{ inputs.expected_revision || github.sha }}
+          EXPECTED_REPO_URL: ${{ vars.GITOPS_MIRROR_REPO_URL }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ($env:EXPECTED_REVISION -notmatch '^[0-9a-f]{40}$') {
             throw 'Expected production revision must be a 40-character lowercase commit SHA.'
           }
+          if ($env:EXPECTED_REPO_URL -notmatch '^https://[^/]+/[^/]+/[^/]+\\.git$') {
+            throw 'GITOPS_MIRROR_REPO_URL must be an HTTPS repository URL.'
+          }
           ./scripts/verify-git-mirror.ps1 `
             -ExpectedRevision $env:EXPECTED_REVISION `
+            -ExpectedRepoUrl $env:EXPECTED_REPO_URL `
             -Kubeconfig '${{ steps.kubeconfig.outputs.path }}' `
             -RequireSynced `
             -OutputPath artifacts/evidence/gitops-mirror-verification.json

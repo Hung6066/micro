@@ -11,6 +11,15 @@ Cấu hình trong GitHub environment `production`:
 - Secret `GITOPS_MIRROR_USERNAME`: tài khoản bot chỉ có quyền push repository.
 - Secret `GITOPS_MIRROR_TOKEN`: token bot, giới hạn repository và hết hạn định kỳ.
 
+URL mặc định của triển khai này là:
+
+```text
+https://git-mirror.his-hope.local/gitops-admin/micro.git
+```
+
+Tạo DNS cho hostname này, cấp secret TLS `git-mirror-tls` bằng CA doanh
+nghiệp/Vault CA, và cài CA đó vào trust store của self-hosted runner.
+
 URL không được nhúng username/token. Workflow kiểm tra HTTPS, commit SHA 40
 ký tự và dùng `git push --force-with-lease`. Workflow
 `gitops-mirror-verify.yml` chạy kế tiếp để đối chiếu mirror và cả 9 Argo

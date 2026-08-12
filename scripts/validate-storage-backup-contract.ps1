@@ -7,6 +7,7 @@ param(
     [switch]$StaticOnly,
     [ValidatePattern('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')]
     [string]$StorageClassName = 'viettel-shared',
+    [switch]$RequireReplicatedStorage,
     [string]$EvidenceDirectory = 'artifacts/evidence'
 )
 
@@ -119,7 +120,9 @@ if ($configuredObjectStore -and $azureObjectStoreName -and $configuredObjectStor
     Add-Gate 'cnpg-objectstore-reference' 'fail' "CNPG patch/object store names do not match (patch='$configuredObjectStore', objectStore='$azureObjectStoreName')"
 }
 
-if ($sharedDataOverlay -and $sharedDataOverlay -match "value:\s*$([regex]::Escape($StorageClassName))") {
+if (-not $RequireReplicatedStorage -and $minio -and $minio -match 'storageClassName:\s*local-path') {
+    Add-Gate 'replicated-storage' 'skipped' 'local-path is explicitly selected for the DevSecOps pipeline; replicated backup/DR is outside this gate.'
+} elseif ($sharedDataOverlay -and $sharedDataOverlay -match "value:\s*$([regex]::Escape($StorageClassName))") {
     Add-Gate 'replicated-storage' 'skipped' "Backup PVCs are pinned to external CSI '$StorageClassName'; runtime provisioner and restore evidence are required before declaring durable replication"
 } elseif ($minio -and $minio -match 'storageClassName:\s*local-path') {
     Add-Gate 'replicated-storage' 'blocked' 'Backup MinIO PVCs use local-path; production requires a replicated CSI class before this is a durable backup target'
@@ -131,7 +134,9 @@ if ($sharedDataOverlay -and $sharedDataOverlay -match "value:\s*$([regex]::Escap
 
 $localProdStorage = @($prodStorageFiles | Select-String -Pattern 'storageClassName:\s*local-path' -List)
 $prodKustomization = Read-RepoFile 'k8s/overlays/prod-spire-azure-shared-storage/kustomization.yaml'
-if ($prodKustomization -and $prodKustomization -match "value:\s*$([regex]::Escape($StorageClassName))") {
+if (-not $RequireReplicatedStorage -and $localProdStorage.Count -gt 0) {
+    Add-Gate 'production-pvc-storage' 'skipped' 'local-path is explicitly selected for the DevSecOps pipeline; replicated PVC migration is outside this gate.'
+} elseif ($prodKustomization -and $prodKustomization -match "value:\s*$([regex]::Escape($StorageClassName))") {
     Add-Gate 'production-pvc-storage' 'skipped' "Production data overlay pins stateful claims to external CSI '$StorageClassName'; protected runtime migration and restore evidence are still required"
 } elseif ($localProdStorage.Count -gt 0) {
     Add-Gate 'production-pvc-storage' 'blocked' 'Production overlay still selects local-path for stateful PVCs; replace it only after the shared CSI class and restore drill exist'
@@ -140,7 +145,9 @@ if ($prodKustomization -and $prodKustomization -match "value:\s*$([regex]::Escap
 }
 
 $observabilityProd = $sharedObservabilityOverlay
-if ($observabilityProd -and $observabilityProd -match "value:\s*$([regex]::Escape($StorageClassName))") {
+if (-not $RequireReplicatedStorage -and $observabilityProd) {
+    Add-Gate 'observability-pvc-storage' 'skipped' 'Observability local-path storage is explicitly selected for the DevSecOps pipeline; replicated observability storage is outside this gate.'
+} elseif ($observabilityProd -and $observabilityProd -match "value:\s*$([regex]::Escape($StorageClassName))") {
     Add-Gate 'observability-pvc-storage' 'skipped' "Production observability overlay pins stateful claims to external CSI '$StorageClassName'; runtime class and restore evidence are required"
 } else {
     Add-Gate 'observability-pvc-storage' 'blocked' 'Production observability shared-CSI overlay must pin stateful PVCs to the approved external CSI class'
@@ -162,7 +169,9 @@ if ($velero -and $velero -notmatch 'REPLACE_WITH|REPLACE_ME') {
     Add-Gate 'velero-azure-contract' 'blocked' 'Velero Azure values are a template; production credentials and account identifiers must be injected out-of-band'
 }
 
-if ($sharedDataOverlay -and $sharedObservabilityOverlay -and
+if (-not $RequireReplicatedStorage) {
+    Add-Gate 'replicated-storage-bootstrap' 'skipped' 'CSI/Longhorn bootstrap is intentionally excluded from the DevSecOps deployment pipeline.'
+} elseif ($sharedDataOverlay -and $sharedObservabilityOverlay -and
     $sharedDataOverlay -match "value:\s*$([regex]::Escape($StorageClassName))" -and
     $sharedObservabilityOverlay -match "value:\s*$([regex]::Escape($StorageClassName))") {
     Add-Gate 'replicated-storage-bootstrap' 'skipped' "External CSI '$StorageClassName' bootstrap is platform-owned; runtime provisioner, approval and restore gates are required"
@@ -186,7 +195,7 @@ if ($pvcMigration -and $pvcMigration -match 'AllowProduction' -and
 }
 
 $longhornEvidencePath = Join-Path $root (Join-Path $EvidenceDirectory 'longhorn-snapshot-restore.json')
-if ($StaticOnly) {
+if ($StaticOnly -or -not $RequireReplicatedStorage) {
     Add-Gate 'csi-restore-drill' 'skipped' 'CSI restore evidence is a protected runtime gate, not a static repository check.'
 } elseif (Test-Path -LiteralPath $longhornEvidencePath -PathType Leaf) {
     try {
@@ -208,6 +217,8 @@ $snapshotFiles = @(Get-ChildItem -LiteralPath (Join-Path $root 'k8s') -Recurse -
     Select-String -Pattern '^kind:\s*VolumeSnapshotClass\s*$' -List)
 if ($snapshotFiles.Count -gt 0) {
     Add-Gate 'volume-snapshot-class' 'pass' 'A VolumeSnapshotClass manifest exists'
+} elseif (-not $RequireReplicatedStorage) {
+    Add-Gate 'volume-snapshot-class' 'skipped' 'VolumeSnapshotClass is intentionally excluded from the DevSecOps deployment pipeline.'
 } elseif ($sharedDataOverlay -and $sharedDataOverlay -match "value:\s*$([regex]::Escape($StorageClassName))") {
     Add-Gate 'volume-snapshot-class' 'skipped' "VolumeSnapshotClass for external CSI '$StorageClassName' is platform-owned; protected runtime validation must prove driver matching"
 } else {

@@ -66,6 +66,9 @@ def main() -> int:
     for fragment in ("verify-git-mirror.ps1", "KUBECONFIG_PRODUCTION_B64", "github.sha", "RequireSynced"):
         if fragment not in mirror_raw:
             fail(f"mirror verification is missing required control: {fragment}")
+    for fragment in ("runs-on: [self-hosted, linux, gitops-mirror]", "EXPECTED_REPO_URL", "GITOPS_MIRROR_REPO_URL"):
+        if fragment not in mirror_raw:
+            fail(f"mirror verification is missing required self-hosted HTTPS control: {fragment}")
 
     mirror_sync_raw = MIRROR_SYNC_WORKFLOW.read_text(encoding="utf-8")
     for fragment in (
@@ -76,6 +79,7 @@ def main() -> int:
         "fetch --no-tags production-mirror",
         "--force-with-lease=\"refs/heads/production:$expected_remote_revision\"",
         "environment: production",
+        "runs-on: [self-hosted, linux, gitops-mirror]",
         "https://",
     ):
         if fragment not in mirror_sync_raw:

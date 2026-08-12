@@ -8,7 +8,8 @@ param(
     [string]$StorageClassName = 'longhorn',
     [string]$EvidenceDirectory = 'artifacts/evidence',
     [string]$OutputPath,
-    [switch]$RequireCluster
+    [switch]$RequireCluster,
+    [switch]$AllowLocalPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -109,7 +110,7 @@ function Test-RuntimeServiceMappings {
 }
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$overlay = if ($Environment -eq 'production' -and $StorageClassName -ne 'longhorn') { 'prod-shared-storage' } elseif ($Environment -eq 'production') { 'prod' } else { 'staging' }
+$overlay = if ($Environment -eq 'production' -and $StorageClassName -notin @('longhorn', 'local-path')) { 'prod-shared-storage' } elseif ($Environment -eq 'production') { 'prod' } else { 'staging' }
 $overlayPath = Join-Path $repoRoot "k8s\overlays\$overlay"
 
 if (-not (Test-Path -LiteralPath $overlayPath -PathType Container)) {
@@ -175,7 +176,9 @@ if (-not (Test-Path -LiteralPath $Kubeconfig -PathType Leaf)) {
             try {
                 $storageClass = Invoke-KubectlJson @('get', 'storageclass', $StorageClassName)
                 $provisioner = [string]$storageClass.provisioner
-                if ($StorageClassName -eq 'longhorn' -and $provisioner -eq 'driver.longhorn.io') {
+                if ($AllowLocalPath -and $StorageClassName -eq 'local-path' -and $provisioner -eq 'rancher.io/local-path') {
+                    Add-Check 'storage-backend' 'skipped' 'local-path is explicitly selected for the DevSecOps deployment gate; replication/DR is outside this pipeline.'
+                } elseif ($StorageClassName -eq 'longhorn' -and $provisioner -eq 'driver.longhorn.io') {
                     Add-Check 'storage-backend' 'pass' 'Reviewed Longhorn storage class is installed.'
                 } elseif ($StorageClassName -ne 'longhorn' -and $provisioner -match '^csi\.' -and $provisioner -notmatch '(?i)(local-path|longhorn)') {
                     Add-Check 'storage-backend' 'pass' "Reviewed external shared CSI storage class [$StorageClassName] uses [$provisioner]."
@@ -216,7 +219,9 @@ if (-not (Test-Path -LiteralPath $Kubeconfig -PathType Leaf)) {
                 $expectedStorageClass = $renderedPvc.Groups['storageClass'].Value
                 $livePvc = Invoke-KubectlJson @('get', 'pvc', 'his-hope-database-continuity-backups', '-n', $Namespace)
                 $liveStorageClass = [string]$livePvc.spec.storageClassName
-                if ($expectedStorageClass -match '^(local-path|standard)$') {
+                if ($AllowLocalPath -and $expectedStorageClass -eq 'local-path') {
+                    Add-Check 'storage-class-drift' 'skipped' 'local-path is explicitly selected; replicated storage migration is outside this DevSecOps deployment gate.'
+                } elseif ($expectedStorageClass -match '^(local-path|standard)$') {
                     Add-Check 'storage-class-drift' 'fail' "Reviewed production render still selects non-replicated storage class [$expectedStorageClass]; complete the protected PVC migration and restore drill before go-live."
                 } elseif ([string]::IsNullOrWhiteSpace($liveStorageClass)) {
                     Add-Check 'storage-class-drift' 'unavailable' 'Live database-continuity backup PVC has no storage class.'

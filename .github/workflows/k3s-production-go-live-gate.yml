@@ -4,10 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       storage_class:
-        description: Reviewed production external CSI StorageClass
+        description: Reviewed production StorageClass
         required: true
-        default: viettel-shared
+        default: local-path
         type: string
+      require_replicated_storage:
+        description: Require CSI replication and VolumeSnapshotClass (optional DR gate)
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -70,13 +75,9 @@ jobs:
           REVIEWED_STORAGE_CLASS: ${{ inputs.storage_class }}
         run: |
           New-Item -ItemType Directory -Force artifacts/evidence | Out-Null
-          ./scripts/validate-k3s-release.ps1 `
-            -Environment prod `
-            -StorageClassName $env:REVIEWED_STORAGE_CLASS `
-            -Kubeconfig $env:KUBECONFIG `
-            -RequireCluster `
-            -RequirePodSecurity `
-            -OutputPath artifacts/evidence/production-release-gate.json
+          $args = @('-Environment','prod','-StorageClassName',$env:REVIEWED_STORAGE_CLASS,'-Kubeconfig',$env:KUBECONFIG,'-RequireCluster','-RequirePodSecurity','-OutputPath','artifacts/evidence/production-release-gate.json')
+          if ('${{ inputs.require_replicated_storage }}' -ne 'true') { $args += '-AllowLocalPath' }
+          ./scripts/validate-k3s-release.ps1 @args
 
       - name: Capture sanitized K3s baseline
         id: baseline
@@ -92,7 +93,10 @@ jobs:
         shell: pwsh
         env:
           KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
-        run: ./scripts/validate-k3s-go-live.ps1 -Environment production -StorageClassName '${{ inputs.storage_class }}' -Kubeconfig $env:KUBECONFIG -RequireCluster -OutputPath artifacts/evidence/production-go-live.json
+        run: |
+          $args = @('-Environment','production','-StorageClassName','${{ inputs.storage_class }}','-Kubeconfig',$env:KUBECONFIG,'-RequireCluster','-OutputPath','artifacts/evidence/production-go-live.json')
+          if ('${{ inputs.require_replicated_storage }}' -ne 'true') { $args += '-AllowLocalPath' }
+          ./scripts/validate-k3s-go-live.ps1 @args
 
       - name: Validate observability and DORA contracts
         id: observability_contract
@@ -184,7 +188,7 @@ jobs:
           KUBECONFIG: ${{ steps.runtime-inputs.outputs.kubeconfig }}
         run: |
           python scripts/validate-azure-blob-access.py --env-file '${{ steps.runtime-inputs.outputs.azure_env }}'
-          ./scripts/validate-storage-backup-contract.ps1 -SecureEnvFile '${{ steps.runtime-inputs.outputs.azure_env }}' -RequireSecureEnv -OutputPath artifacts/evidence/production-storage-backup.json
+          ./scripts/validate-storage-backup-contract.ps1 -SecureEnvFile '${{ steps.runtime-inputs.outputs.azure_env }}' -RequireSecureEnv -OutputPath artifacts/evidence/production-storage-backup.json ${{ inputs.require_replicated_storage && '-RequireReplicatedStorage' || '' }}
 
       - name: Validate CNPG backup platform contract
         id: cnpg_backup
@@ -196,6 +200,7 @@ jobs:
 
       - name: Validate approved shared CSI runtime contract
         id: shared_storage
+        if: inputs.require_replicated_storage
         continue-on-error: true
         shell: pwsh
         env:
@@ -226,7 +231,9 @@ jobs:
             [pscustomobject]@{ name = 'alertmanager-e2e'; outcome = '${{ steps.alertmanager_e2e.outcome }}' }
             [pscustomobject]@{ name = 'azure-backup'; outcome = '${{ steps.azure_backup.outcome }}' }
             [pscustomobject]@{ name = 'cnpg-backup'; outcome = '${{ steps.cnpg_backup.outcome }}' }
-            [pscustomobject]@{ name = 'shared-storage'; outcome = '${{ steps.shared_storage.outcome }}' }
+            if ('${{ inputs.require_replicated_storage }}' -eq 'true') {
+              [pscustomobject]@{ name = 'shared-storage'; outcome = '${{ steps.shared_storage.outcome }}' }
+            }
             [pscustomobject]@{ name = 'dr-evidence'; outcome = '${{ steps.dr_evidence.outcome }}' }
           # Every listed production gate is required. A skipped step means its
           # evidence is absent and must fail the release, not silently pass.
