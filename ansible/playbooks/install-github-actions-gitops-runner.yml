@@ -27,6 +27,23 @@
         state: present
         update_cache: true
 
+    - name: Install Microsoft package repository for PowerShell
+      ansible.builtin.get_url:
+        url: https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb
+        dest: /tmp/packages-microsoft-prod.deb
+        mode: '0600'
+
+    - name: Register Microsoft package repository
+      ansible.builtin.command: dpkg -i /tmp/packages-microsoft-prod.deb
+      args:
+        creates: /etc/apt/sources.list.d/microsoft-prod.list
+
+    - name: Install PowerShell for workflow pwsh steps
+      ansible.builtin.apt:
+        name: powershell
+        state: present
+        update_cache: true
+
     - name: Create restricted runner user
       ansible.builtin.user:
         name: "{{ runner_user }}"
