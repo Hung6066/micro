@@ -17,13 +17,13 @@
       - { name: billing-service-db, service_account: his-hope-billing-service }
       - { name: pharmacy-service-db, service_account: his-hope-pharmacy-service }
     workload_roles:
-      - { name: his-hope-identity-service, service_account: his-hope-identity-service, database_role: identity-service-db }
-      - { name: his-hope-patient-service, service_account: his-hope-patient-service, database_role: patient-service-db }
-      - { name: his-hope-appointment-service, service_account: his-hope-appointment-service, database_role: appointment-service-db }
-      - { name: his-hope-clinical-service, service_account: his-hope-clinical-service, database_role: clinical-service-db }
-      - { name: his-hope-lab-service, service_account: his-hope-lab-service, database_role: lab-service-db }
-      - { name: his-hope-billing-service, service_account: his-hope-billing-service, database_role: billing-service-db }
-      - { name: his-hope-pharmacy-service, service_account: his-hope-pharmacy-service, database_role: pharmacy-service-db }
+      - { name: identity-service, service_account: his-hope-identity-service, database_role: identity-service-db }
+      - { name: patient-service, service_account: his-hope-patient-service, database_role: patient-service-db }
+      - { name: appointment-service, service_account: his-hope-appointment-service, database_role: appointment-service-db }
+      - { name: clinical-service, service_account: his-hope-clinical-service, database_role: clinical-service-db }
+      - { name: lab-service, service_account: his-hope-lab-service, database_role: lab-service-db }
+      - { name: billing-service, service_account: his-hope-billing-service, database_role: billing-service-db }
+      - { name: pharmacy-service, service_account: his-hope-pharmacy-service, database_role: pharmacy-service-db }
   tasks:
     - name: Validate Vault operator token file
       ansible.builtin.stat:
@@ -85,7 +85,10 @@
           '}' \
           'path "transit/decrypt/jwt-signing" {' \
           '  capabilities = ["update"]' \
-          '}')
+          '}'{% if item.name == 'identity-service' %} \
+          'path "secret/data/his-hope/identity/client-secrets/*" {' \
+          '  capabilities = ["read", "create", "update", "delete"]' \
+          '}'{% endif %})
         encoded=$(printf '%s' "$policy" | base64 -w0)
         kubectl --kubeconfig '{{ vault_kubeconfig }}' -n '{{ vault_namespace }}' exec '{{ vault_pod }}' -- \
           env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true VAULT_TOKEN="$token" \
