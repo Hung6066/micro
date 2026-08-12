@@ -48,8 +48,20 @@ spec:
                   redis-cli --tls --insecure -a "$REDIS_PASSWORD" -h "$host" -p "$port" ping 2>/dev/null | grep -q PONG || ready=0
                 done
                 if [ "$ready" = 1 ]; then
-                  echo yes | redis-cli --tls --insecure -a "$REDIS_PASSWORD" --cluster create $nodes --cluster-replicas 0 --cluster-yes
-                  exit $?
+                  echo yes | redis-cli --tls --insecure -a "$REDIS_PASSWORD" --cluster create $nodes --cluster-replicas 0 --cluster-yes >/tmp/cluster-create.log 2>&1 &
+                  create_pid=$!
+                  for check in $(seq 1 60); do
+                    if redis-cli --tls --insecure -a "$REDIS_PASSWORD" -h his-hope-redis-0.his-hope-redis.his-hope-data.svc.cluster.local cluster info 2>/dev/null | grep -q '^cluster_state:ok'; then
+                      kill "$create_pid" 2>/dev/null || true
+                      wait "$create_pid" 2>/dev/null || true
+                      exit 0
+                    fi
+                    sleep 2
+                  done
+                  cat /tmp/cluster-create.log >&2
+                  kill "$create_pid" 2>/dev/null || true
+                  wait "$create_pid" 2>/dev/null || true
+                  exit 1
                 fi
                 sleep 5
               done
@@ -63,3 +75,9 @@ spec:
           resources:
             requests: { cpu: 10m, memory: 32Mi }
             limits: { cpu: 100m, memory: 128Mi }
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
