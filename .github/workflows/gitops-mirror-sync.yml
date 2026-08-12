@@ -55,5 +55,11 @@ jobs:
           fi
           auth_header="Basic $(printf '%s' "$MIRROR_USERNAME:$MIRROR_TOKEN" | base64 -w0)"
           git remote add production-mirror "$MIRROR_URL"
-          git -c http.extraheader="Authorization: $auth_header" push --force-with-lease production-mirror "HEAD:refs/heads/production"
-
+          if git -c http.extraheader="Authorization: $auth_header" fetch --no-tags production-mirror refs/heads/production:refs/remotes/production-mirror/production; then
+            expected_remote_revision="$(git rev-parse refs/remotes/production-mirror/production)"
+          else
+            expected_remote_revision='0000000000000000000000000000000000000000'
+          fi
+          git -c http.extraheader="Authorization: $auth_header" push \
+            --force-with-lease="refs/heads/production:$expected_remote_revision" \
+            production-mirror "HEAD:refs/heads/production"

@@ -73,7 +73,8 @@ def main() -> int:
         "GITOPS_MIRROR_REPO_URL",
         "GITOPS_MIRROR_USERNAME",
         "GITOPS_MIRROR_TOKEN",
-        "push --force-with-lease",
+        "fetch --no-tags production-mirror",
+        "--force-with-lease=\"refs/heads/production:$expected_remote_revision\"",
         "environment: production",
         "https://",
     ):
