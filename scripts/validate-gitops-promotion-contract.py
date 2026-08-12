@@ -13,6 +13,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "gitops-release-promotion.yml"
 RELEASE_UPDATER = ROOT / "scripts" / "update-gitops-release-digests.ps1"
 MIRROR_WORKFLOW = ROOT / ".github" / "workflows" / "gitops-mirror-verify.yml"
+ARGOCD_BOOTSTRAP_WORKFLOW = ROOT / ".github" / "workflows" / "argocd-bootstrap.yml"
 
 
 def fail(message: str) -> None:
@@ -30,6 +31,8 @@ def main() -> int:
         fail("missing scripts/update-gitops-release-digests.ps1")
     if not MIRROR_WORKFLOW.is_file():
         fail("missing .github/workflows/gitops-mirror-verify.yml")
+    if not ARGOCD_BOOTSTRAP_WORKFLOW.is_file():
+        fail("missing .github/workflows/argocd-bootstrap.yml")
     release_raw = RELEASE_WORKFLOW.read_text(encoding="utf-8")
     required_release_fragments = (
         "workflow_run:",
@@ -60,6 +63,11 @@ def main() -> int:
     for fragment in ("verify-git-mirror.ps1", "KUBECONFIG_PRODUCTION_B64", "github.sha", "RequireSynced"):
         if fragment not in mirror_raw:
             fail(f"mirror verification is missing required control: {fragment}")
+
+    bootstrap_raw = ARGOCD_BOOTSTRAP_WORKFLOW.read_text(encoding="utf-8")
+    for fragment in ("change_reference:", "Approved change/ticket reference", "change_reference }}' -notmatch", "Apply reviewed GitOps bootstrap applications"):
+        if fragment not in bootstrap_raw:
+            fail(f"Argo bootstrap cutover is missing required approval control: {fragment}")
 
     print("GitOps promotion contract PASS: protected digest-only review PRs and signed provenance preflight")
     return 0
