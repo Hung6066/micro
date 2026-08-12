@@ -105,11 +105,27 @@ jobs:
       - run: npm --workspace admin-app run build
       - run: npm --workspace dashboard-app run build
       - run: npm --workspace his-hope-app run build
+      - name: Detect protected E2E inputs
+        id: e2e_inputs
+        shell: bash
+        env:
+          E2E_CLINICAL_URL: ${{ vars.E2E_CLINICAL_URL }}
+          E2E_DASHBOARD_URL: ${{ vars.E2E_DASHBOARD_URL }}
+          E2E_ADMIN_URL: ${{ vars.E2E_ADMIN_URL }}
+          E2E_AUTH_PROBE_URL: ${{ secrets.E2E_AUTH_PROBE_URL }}
+          E2E_AUTH_TOKEN: ${{ secrets.E2E_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${E2E_CLINICAL_URL:-}" && -n "${E2E_DASHBOARD_URL:-}" && -n "${E2E_ADMIN_URL:-}" && -n "${E2E_AUTH_PROBE_URL:-}" && -n "${E2E_AUTH_TOKEN:-}" ]]; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+          fi
       - name: Report protected E2E gate availability
-        if: github.event_name == 'pull_request' && (vars.E2E_CLINICAL_URL == '' || vars.E2E_DASHBOARD_URL == '' || vars.E2E_ADMIN_URL == '' || secrets.E2E_AUTH_PROBE_URL == '' || secrets.E2E_AUTH_TOKEN == '')
+        if: github.event_name == 'pull_request' && steps.e2e_inputs.outputs.available != 'true'
         run: echo "Authenticated E2E checks are skipped for this pull request because protected runtime inputs are unavailable; protected push/release workflows remain fail-closed."
       - name: Authenticated accessibility, keyboard and visual checks
-        if: github.event_name != 'pull_request' || (vars.E2E_CLINICAL_URL != '' && vars.E2E_DASHBOARD_URL != '' && vars.E2E_ADMIN_URL != '' && secrets.E2E_AUTH_PROBE_URL != '' && secrets.E2E_AUTH_TOKEN != '')
+        if: github.event_name != 'pull_request' || steps.e2e_inputs.outputs.available == 'true'
         working-directory: tests/e2e
         run: |
           npm ci
