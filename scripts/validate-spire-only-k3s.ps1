@@ -21,14 +21,22 @@ function Invoke-Kubectl {
 }
 
 function Assert-NoLegacyMarkers {
-    param([Parameter(Mandatory)][string]$Name, [Parameter(Mandatory)][string]$Manifest)
+    param([Parameter(Mandatory)][string]$Name, [Parameter(Mandatory)][string]$Manifest, [switch]$VaultKubernetes)
     $legacy = @()
     if ($Manifest -match 'Vault__JwtTokenFile') { $legacy += 'Vault__JwtTokenFile' }
-    if ($Manifest -match '(?ms)Vault__AuthMount\s*\n\s*value:\s*kubernetes') {
+    if (-not $VaultKubernetes -and $Manifest -match '(?ms)Vault__AuthMount\s*\n\s*value:\s*kubernetes') {
         $legacy += 'Vault__AuthMount=kubernetes'
     }
     if ($legacy.Count -gt 0) {
         throw "$Name contains legacy workload identity markers: $($legacy -join ', ')"
+    }
+    if ($VaultKubernetes) {
+        $legacySpiffe = ([regex]::Matches($Manifest, 'name: spire-jwt-fetcher|hostPath:\s*\n\s+path:\s*/run/spire/sockets')).Count
+        if ($legacySpiffe -gt 0) { throw "$Name contains $legacySpiffe legacy SPIRE sidecar/socket markers" }
+        $vault = ([regex]::Matches($Manifest, 'Vault__AuthMethod\s*\n\s*value:\s*kubernetes')).Count
+        if ($vault -lt 6) { throw "$Name contains only $vault Vault Kubernetes auth workloads; expected at least 6" }
+        Write-Host "$Name render: PASS (Vault Kubernetes workload auth; no SPIRE sidecars/host sockets)"
+        return
     }
     $fetchers = ([regex]::Matches($Manifest, 'name: spire-jwt-fetcher')).Count
     if ($fetchers -lt 7) { throw "$Name contains only $fetchers SPIRE fetcher entries; expected at least 7" }
@@ -42,7 +50,7 @@ Assert-NoLegacyMarkers -Name 'dev' -Manifest $dev
 # load restriction explicit so the validator uses the same safe, declarative
 # build mode as the production deployment wrapper.
 $prod = Invoke-Kubectl -Arguments @('kustomize', '--load-restrictor', 'LoadRestrictionsNone', (Join-Path $repoRoot 'k8s/overlays/prod'))
-Assert-NoLegacyMarkers -Name 'prod' -Manifest $prod
+Assert-NoLegacyMarkers -Name 'prod' -Manifest $prod -VaultKubernetes
 
 foreach ($namespace in @($DevNamespace, $ProdNamespace)) {
     $exists = & kubectl --context $Context get namespace $namespace --ignore-not-found -o name 2>$null
@@ -60,14 +68,18 @@ foreach ($namespace in @($DevNamespace, $ProdNamespace)) {
 
     foreach ($pod in $backendPods) {
         $names = @($pod.spec.initContainers.name)
-        if ('linkerd-proxy' -notin $names -or 'linkerd-network-validator' -notin $names) {
+        if ($namespace -eq $ProdNamespace) {
+            if ('linkerd-proxy' -in $names -or 'linkerd-network-validator' -in $names) {
+                throw "$namespace/$($pod.metadata.name) unexpectedly includes Linkerd/SPIRE init containers after Vault Kubernetes migration"
+            }
+        } elseif ('linkerd-proxy' -notin $names -or 'linkerd-network-validator' -notin $names) {
             throw "$namespace/$($pod.metadata.name) is missing Linkerd/SPIRE network validation init containers"
         }
 
         $mode = Invoke-Kubectl -Arguments @(
             'exec', '-n', $namespace, $pod.metadata.name,
-            '-c', 'spire-jwt-fetcher', '--', 'stat', '-c', '%a',
-            '/run/spire/jwt/vault.jwt'
+            '-c', ($pod.spec.containers[0].name), '--', 'stat', '-c', '%a',
+            $(if ($namespace -eq $ProdNamespace) { '/var/run/secrets/tokens/vault' } else { '/run/spire/jwt/vault.jwt' })
         )
         if ($mode.Trim() -ne '440') {
             throw "$namespace/$($pod.metadata.name) JWT-SVID file mode is '$($mode.Trim())'; expected 0440"
