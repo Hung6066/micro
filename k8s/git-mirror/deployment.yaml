@@ -39,7 +39,7 @@ spec:
             - name: GITEA__server__DOMAIN
               value: git-mirror.his-hope.local
             - name: GITEA__server__PROTOCOL
-              value: https
+              value: http
             - name: GITEA__server__ROOT_URL
               value: https://git-mirror.his-hope.local/
             - name: GITEA__server__SSH_PORT
