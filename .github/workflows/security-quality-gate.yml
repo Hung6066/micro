@@ -133,11 +133,18 @@ jobs:
             dockerfile="$1"
             dockerfile_path="${dockerfile#./}"
             image="his-hope-scan:$(echo "$dockerfile_path" | tr '/._' '-')"
+            trivy_lock="$RUNNER_TEMP/trivy-cache.lock"
             # Repository Dockerfiles restore shared projects from the repository
             # root; using dirname(Dockerfile) would silently change the build
             # context and produce false security-gate failures.
             timeout --signal=TERM --kill-after=30s 10m docker build --file "$dockerfile" --tag "$image" .
-            timeout --signal=TERM --kill-after=30s 5m trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$image"
+            # Trivy's default filesystem cache is process-exclusive. Builds may
+            # run in parallel, but scans must serialize cache access or a
+            # concurrent scan fails with exit code 123 before reporting findings.
+            (
+              flock 9
+              timeout --signal=TERM --kill-after=30s 5m trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$image"
+            ) 9>"$trivy_lock"
           }
           export -f scan_one
           # Keep concurrency bounded for the hosted runner while avoiding a
