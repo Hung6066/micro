@@ -42,6 +42,32 @@ def normalized_id(finding: dict) -> str:
     return re.sub(r"[^A-Z0-9]", "", str(finding.get("ID", "")).upper())
 
 
+def finding_resource(finding: dict) -> str:
+    """Extract Trivy's structured resource identity for the KSV rules.
+
+    Current Trivy Kubernetes JSON omits a top-level Resource field and puts
+    the object identity in the rule Message.  Accept only the documented,
+    fully-qualified message shape; do not search arbitrary prose.
+    """
+    resource = str(finding.get("Resource", "")).strip()
+    if resource:
+        return resource
+    message = str(finding.get("Message", ""))
+    match = re.fullmatch(
+        r"Service '([^']+)' in '([^']+)' namespace should not set external IPs or external Name",
+        message,
+    )
+    if match:
+        return match.group(1)
+    match = re.fullmatch(
+        r"ConfigMap '([^']+)' in '([^']+)' namespace stores secrets in key\(s\) or value\(s\) '.*'",
+        message,
+    )
+    if match:
+        return match.group(1)
+    return ""
+
+
 def load_documents(path: Path) -> list[dict]:
     return [doc for doc in yaml.safe_load_all(path.read_text(encoding="utf-8")) if isinstance(doc, dict)]
 
@@ -87,7 +113,7 @@ def validate_rendered_contract(documents: list[dict]) -> None:
 
 def allowed_finding(finding: dict) -> bool:
     finding_id = normalized_id(finding)
-    resource = str(finding.get("Resource", "")).strip()
+    resource = finding_resource(finding)
     if finding_id == "KSV0108":
         # Bind the exception to the exact rendered Service and target name.
         # Free-form titles/messages are not an authorization boundary.
@@ -117,7 +143,7 @@ def main() -> None:
         details = ", ".join(f"{finding.get('ID')}:{finding.get('Title')}" for finding in rejected)
         fail(f"Unexpected production Trivy finding(s): {details}")
     allowed_resources = [
-        str(finding.get("Resource", "")).strip()
+        finding_resource(finding)
         for finding in findings
         if normalized_id(finding) in {"KSV0108", "KSV0109"}
     ]
