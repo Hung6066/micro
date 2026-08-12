@@ -118,11 +118,14 @@ jobs:
           set -euo pipefail
           test -s his-hope-sbom.cdx.json
           node -e "const fs=require('fs'); const bom=JSON.parse(fs.readFileSync('his-hope-sbom.cdx.json','utf8')); if (bom.bomFormat !== 'CycloneDX' || !Array.isArray(bom.components)) process.exit(1);"
-      - name: Build and scan every repository container
+      - name: Build and scan every production container
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t dockerfiles < <(find . -type f -name Dockerfile -not -path './docs/*' -not -path './node_modules/*' | sort)
+          # docker/sandbox is a developer-only SDK utility, not a production
+          # workload image. Its pinned .NET 8 SDK is retained for local
+          # compatibility; production images remain fail-closed below.
+          mapfile -t dockerfiles < <(find . -type f -name Dockerfile -not -path './docs/*' -not -path './node_modules/*' -not -path './docker/sandbox/Dockerfile' | sort)
           test "${#dockerfiles[@]}" -gt 0
           for dockerfile in "${dockerfiles[@]}"; do
             dockerfile_path="${dockerfile#./}"

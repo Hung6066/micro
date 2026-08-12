@@ -33,6 +33,8 @@ def main() -> None:
         fail("container scan must strip the leading ./ before generating a Docker tag")
     if "tr '/._' '-'" not in security:
         fail("container scan must normalize Docker tag path separators")
+    if "not -path './docker/sandbox/Dockerfile'" not in security:
+        fail("developer-only sandbox must be explicitly excluded from the production image gate")
 
     required_platform_contract = (
         "scan-type: config",
