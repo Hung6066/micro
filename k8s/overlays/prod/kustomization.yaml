@@ -260,7 +260,6 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: IfNotPresent
-  - database-continuity-redis-tls-patch.yaml
   - path: database-continuity-redis-tls-ca-patch.yaml
     target:
       group: apps
@@ -419,6 +418,7 @@ patchesStrategicMerge:
   - runtime-default-workload-patch.yaml
   - service-runtime-fix-patch.yaml
   - enterprise-runtime-security-patch.yaml
+  - database-continuity-redis-tls-patch.yaml
   - pgbouncer-runtime-security-patch.yaml
   - k3s-local-backend-auth-patch.yaml
   - systemdashboard-bff-rbac-patch.yaml
