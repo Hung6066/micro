@@ -1,14 +1,16 @@
 name: GitOps Mirror and Argo Verification
 
 on:
-  push:
-    branches: [production]
   workflow_dispatch:
     inputs:
       expected_revision:
         description: 40-character production commit to verify in the mirror and Argo CD
         required: true
         type: string
+  workflow_run:
+    workflows: ["GitOps Mirror Synchronization"]
+    types: [completed]
+    branches: [production]
 
 permissions:
   contents: read
@@ -19,11 +21,27 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: ubuntu-24.04
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: [self-hosted, linux, gitops-mirror]
     timeout-minutes: 15
     environment: production
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Validate trusted mirror synchronization event
+        if: github.event_name == 'workflow_run'
+        shell: pwsh
+        env:
+          HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:HEAD_REPOSITORY -ne '${{ github.repository }}' -or
+              $env:HEAD_BRANCH -ne 'production' -or
+              $env:WORKFLOW_NAME -ne 'GitOps Mirror Synchronization') {
+            throw 'Mirror verification requires a successful synchronization run from this repository production branch.'
+          }
 
       - name: Install pinned kubectl
         uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
@@ -47,17 +65,33 @@ jobs:
       - name: Verify all Git mirror and Argo revisions
         shell: pwsh
         env:
-          EXPECTED_REVISION: ${{ inputs.expected_revision || github.sha }}
+          EXPECTED_REVISION: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.expected_revision }}
+          EXPECTED_REPO_URL: ${{ vars.GITOPS_MIRROR_REPO_URL }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ($env:EXPECTED_REVISION -notmatch '^[0-9a-f]{40}$') {
             throw 'Expected production revision must be a 40-character lowercase commit SHA.'
           }
-          ./scripts/verify-git-mirror.ps1 `
-            -ExpectedRevision $env:EXPECTED_REVISION `
-            -Kubeconfig '${{ steps.kubeconfig.outputs.path }}' `
-            -RequireSynced `
-            -OutputPath artifacts/evidence/gitops-mirror-verification.json
+          if ($env:EXPECTED_REPO_URL -notmatch '^https://[^/]+/[^/]+/[^/]+\\.git$') {
+            throw 'GITOPS_MIRROR_REPO_URL must be an HTTPS repository URL.'
+          }
+          $verificationOutput = $null
+          for ($attempt = 1; $attempt -le 30; $attempt++) {
+            $verificationOutput = & ./scripts/verify-git-mirror.ps1 `
+              -ExpectedRevision $env:EXPECTED_REVISION `
+              -ExpectedRepoUrl $env:EXPECTED_REPO_URL `
+              -Kubeconfig '${{ steps.kubeconfig.outputs.path }}' `
+              -RequireSynced `
+              -OutputPath artifacts/evidence/gitops-mirror-verification.json 2>&1
+            if ($LASTEXITCODE -eq 0) {
+              $verificationOutput
+              exit 0
+            }
+            Write-Warning "Mirror/Argo verification attempt $attempt/30 is not ready yet."
+            if ($attempt -lt 30) { Start-Sleep -Seconds 20 }
+          }
+          $verificationOutput
+          throw 'Git mirror and Argo verification did not converge within 10 minutes.'
 
       - name: Upload verification evidence
         if: always()

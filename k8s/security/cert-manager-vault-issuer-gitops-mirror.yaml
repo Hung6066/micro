@@ -1,0 +1,20 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: vault-issuer-gitops-mirror
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: certificate-issuer
+spec:
+  vault:
+    path: pki_int/sign/gitops-mirror
+    server: https://vault-active.his-hope.svc.cluster.local:8200
+    # The protected bootstrap step injects the Vault PKI CA bundle before use.
+    auth:
+      kubernetes:
+        mountPath: /v1/auth/kubernetes
+        role: cert-manager-gitops-mirror
+        serviceAccountRef:
+          name: cert-manager
+          audiences:
+            - vault://vault-issuer-gitops-mirror

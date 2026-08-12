@@ -28,6 +28,12 @@ $applicationCount = ([regex]::Matches($text, '(?m)^kind:\s*Application\s*$')).Co
 $retryCount = ([regex]::Matches($text, '(?m)^\s*retry:\s*\r?$')).Count
 if ($applicationCount -gt 0 -and $retryCount -eq $applicationCount) { Add-Check 'application-retry' 'pass' "$applicationCount Applications have retry policy." }
 else { Add-Check 'application-retry' 'fail' "Applications=$applicationCount; retry policies=$retryCount." }
+$productionRevisionCount = ([regex]::Matches($text, '(?m)^\s*targetRevision:\s*production\s*$')).Count
+if ($applicationCount -gt 0 -and $productionRevisionCount -eq $applicationCount) {
+    Add-Check 'production-target-revision' 'pass' "$applicationCount Applications target the protected production branch."
+} else {
+    Add-Check 'production-target-revision' 'fail' "Applications=$applicationCount; production targetRevisions=$productionRevisionCount."
+}
 $sharedResourceCount = ([regex]::Matches($text, '(?m)^\s*-\s*FailOnSharedResource=true\s*$')).Count
 if ($applicationCount -gt 0 -and $sharedResourceCount -eq $applicationCount) { Add-Check 'shared-resource-guard' 'pass' "$applicationCount Applications fail when a resource is owned by another Application." }
 else { Add-Check 'shared-resource-guard' 'fail' "Applications=$applicationCount; FailOnSharedResource options=$sharedResourceCount." }

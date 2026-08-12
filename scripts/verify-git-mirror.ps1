@@ -14,6 +14,7 @@ param(
         'his-hope-production'
     ),
     [switch]$RequireSynced,
+    [string]$ExpectedRepoUrl = 'https://git-mirror.his-hope.local/gitops-admin/micro.git',
     [string]$OutputPath
 )
 
@@ -46,7 +47,7 @@ foreach ($name in $ApplicationName) {
 
     $mirrorRevision = (Invoke-Kubectl @('-n', 'git-mirror', 'exec', 'deployment/gitea', '--', 'git', '--git-dir=/var/lib/gitea/git/repositories/gitops-admin/micro.git', 'rev-parse', "refs/heads/$targetRevision")).Trim()
     $checks.Add([pscustomobject]@{ application = $name; name = 'mirror-target-revision'; pass = $mirrorRevision -eq $ExpectedRevision; actual = $mirrorRevision })
-    $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-source'; pass = $application.spec.source.repoURL -eq 'http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git'; actual = $application.spec.source.repoURL })
+    $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-source'; pass = $application.spec.source.repoURL -eq $ExpectedRepoUrl; actual = $application.spec.source.repoURL })
     $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-revision'; pass = $application.status.sync.revision -eq $ExpectedRevision; actual = $application.status.sync.revision })
     if ($RequireSynced) {
         $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-synced'; pass = $application.status.sync.status -eq 'Synced'; actual = $application.status.sync.status })

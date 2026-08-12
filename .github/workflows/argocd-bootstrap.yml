@@ -20,6 +20,10 @@ on:
         required: true
         default: 2E6211D381B84394B5A7C98F5B285D24D48CBE2A2917C4181623D825109BD088
         type: string
+      change_reference:
+        description: Approved change/ticket reference (required for any apply)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -81,6 +85,10 @@ jobs:
           KUBECONFIG: ${{ steps.kubeconfig.outputs.path }}
         run: |
           $ErrorActionPreference = 'Stop'
+          if ('${{ inputs.change_reference }}' -notmatch '^[A-Za-z0-9][A-Za-z0-9._:/-]{2,79}$') {
+            throw 'change_reference must identify the approved change ticket.'
+          }
+          "Applying reviewed Argo bootstrap with change reference: ${{ inputs.change_reference }}"
           kubectl wait --for=condition=Established crd/applications.argoproj.io --timeout=5m
           if ($LASTEXITCODE -ne 0) { throw 'Argo CD Application CRD did not become Established.' }
           kubectl apply --server-side --force-conflicts -k k8s/gitops/bootstrap

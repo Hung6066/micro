@@ -24,6 +24,11 @@ EXPECTED_EXTERNAL_NAMES = {
     "his-hope-rabbitmq": "his-hope-rabbitmq.his-hope-data.svc.cluster.local",
 }
 RUNTIME_CONFIG_NAME = "his-hope-runtime-contract-config"
+EXPECTED_EXCEPTION_IDENTITIES = {
+    ("Service", "his-hope-redis", "his-hope"),
+    ("Service", "his-hope-rabbitmq", "his-hope"),
+    ("ConfigMap", RUNTIME_CONFIG_NAME, "his-hope"),
+}
 PLACEHOLDER_KEYS = {
     "SECRET_POSTGRES_PASSWORD",
     "SECRET_RABBITMQ_PASSWORD",
@@ -42,30 +47,36 @@ def normalized_id(finding: dict) -> str:
     return re.sub(r"[^A-Z0-9]", "", str(finding.get("ID", "")).upper())
 
 
-def finding_resource(finding: dict) -> str:
+def finding_identity(finding: dict) -> tuple[str, str, str]:
     """Extract Trivy's structured resource identity for the KSV rules.
 
     Current Trivy Kubernetes JSON omits a top-level Resource field and puts
     the object identity in the rule Message.  Accept only the documented,
     fully-qualified message shape; do not search arbitrary prose.
     """
-    resource = str(finding.get("Resource", "")).strip()
-    if resource:
-        return resource
     message = str(finding.get("Message", ""))
     match = re.fullmatch(
         r"Service '([^']+)' in '([^']+)' namespace should not set external IPs or external Name",
         message,
     )
     if match:
-        return match.group(1)
+        return ("Service", match.group(1), match.group(2))
     match = re.fullmatch(
         r"ConfigMap '([^']+)' in '([^']+)' namespace stores secrets in key\(s\) or value\(s\) '.*'",
         message,
     )
     if match:
-        return match.group(1)
-    return ""
+        return ("ConfigMap", match.group(1), match.group(2))
+
+    # Newer Trivy releases expose structured Resource/Namespace fields.  Keep
+    # the fallback strict: an unqualified free-form title or description is
+    # never sufficient to authorize a reviewed exception.
+    resource = str(finding.get("Resource", "")).strip()
+    namespace = str(finding.get("Namespace", "")).strip()
+    kind = str(finding.get("Kind", "")).strip()
+    if resource and namespace and kind:
+        return (kind, resource, namespace)
+    return ("", "", "")
 
 
 def load_documents(path: Path) -> list[dict]:
@@ -113,13 +124,15 @@ def validate_rendered_contract(documents: list[dict]) -> None:
 
 def allowed_finding(finding: dict) -> bool:
     finding_id = normalized_id(finding)
-    resource = finding_resource(finding)
+    identity = finding_identity(finding)
     if finding_id == "KSV0108":
         # Bind the exception to the exact rendered Service and target name.
         # Free-form titles/messages are not an authorization boundary.
-        return resource in EXPECTED_EXTERNAL_NAMES
+        return identity in {
+            ("Service", name, "his-hope") for name in EXPECTED_EXTERNAL_NAMES
+        }
     if finding_id == "KSV0109":
-        return resource == RUNTIME_CONFIG_NAME
+        return identity == ("ConfigMap", RUNTIME_CONFIG_NAME, "his-hope")
     return False
 
 
@@ -142,18 +155,20 @@ def main() -> None:
     if rejected:
         details = ", ".join(f"{finding.get('ID')}:{finding.get('Title')}" for finding in rejected)
         fail(f"Unexpected production Trivy finding(s): {details}")
-    allowed_resources = [
-        finding_resource(finding)
+    allowed_identities = [
+        finding_identity(finding)
         for finding in findings
         if normalized_id(finding) in {"KSV0108", "KSV0109"}
     ]
-    expected_resources = set(EXPECTED_EXTERNAL_NAMES) | {RUNTIME_CONFIG_NAME}
-    unexpected_allowed = [resource for resource in allowed_resources if resource not in expected_resources]
+    unexpected_allowed = [identity for identity in allowed_identities if identity not in EXPECTED_EXCEPTION_IDENTITIES]
     if unexpected_allowed:
         fail(f"Reviewed Trivy exceptions reference unexpected resource(s): {unexpected_allowed}")
-    duplicate_resources = sorted({resource for resource in allowed_resources if allowed_resources.count(resource) > 1})
-    if duplicate_resources:
-        fail(f"Reviewed Trivy exceptions exceed one finding per resource: {duplicate_resources}")
+    missing_identities = sorted(EXPECTED_EXCEPTION_IDENTITIES - set(allowed_identities))
+    if missing_identities:
+        fail(f"Reviewed Trivy exception report is missing required finding(s): {missing_identities}")
+    duplicate_identities = sorted({identity for identity in allowed_identities if allowed_identities.count(identity) > 1})
+    if duplicate_identities:
+        fail(f"Reviewed Trivy exceptions exceed one finding per resource: {duplicate_identities}")
     print(f"PASS: reviewed production Trivy exception contract accepted {len(findings)} finding(s).")
 
 
