@@ -12,50 +12,6 @@
   ansible.builtin.command: swapoff -a
   changed_when: false
 
-- name: Create HAProxy certificate directory
-  ansible.builtin.file:
-    path: /etc/haproxy/certs
-    state: directory
-    owner: root
-    group: haproxy
-    mode: '0750'
-
-- name: Install Harbor public certificate bundle
-  ansible.builtin.copy:
-    content: "{{ lookup('ansible.builtin.file', lb_harbor_public_cert_src) }}\n{{ lookup('ansible.builtin.file', lb_harbor_public_key_src) }}\n"
-    dest: /etc/haproxy/certs/harbor-public.pem
-    owner: root
-    group: haproxy
-    mode: '0640'
-  notify: Restart HAProxy
-
-- name: Install Harbor backend CA
-  ansible.builtin.copy:
-    src: "{{ lb_harbor_backend_ca_src }}"
-    dest: /etc/haproxy/certs/harbor-backend-ca.pem
-    owner: root
-    group: haproxy
-    mode: '0640'
-  notify: Restart HAProxy
-
-- name: Install Git mirror public certificate bundle
-  ansible.builtin.copy:
-    content: "{{ lookup('ansible.builtin.file', lb_git_mirror_public_cert_src) }}\n{{ lookup('ansible.builtin.file', lb_git_mirror_public_key_src) }}\n"
-    dest: /etc/haproxy/certs/git-mirror-public.pem
-    owner: root
-    group: haproxy
-    mode: '0640'
-  notify: Restart HAProxy
-
-- name: Install Git mirror backend CA
-  ansible.builtin.copy:
-    src: "{{ lb_git_mirror_backend_ca_src }}"
-    dest: /etc/haproxy/certs/git-mirror-backend-ca.pem
-    owner: root
-    group: haproxy
-    mode: '0640'
-  notify: Restart HAProxy
-
 - name: Install HAProxy configuration
   ansible.builtin.template:
     src: haproxy.cfg.j2

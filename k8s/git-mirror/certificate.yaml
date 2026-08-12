@@ -1,0 +1,24 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: git-mirror-tls
+  namespace: git-mirror
+  labels:
+    app.kubernetes.io/part-of: his-hope-gitops
+spec:
+  secretName: git-mirror-tls
+  commonName: git-mirror.his-hope.local
+  dnsNames:
+    - git-mirror.his-hope.local
+  duration: 720h
+  renewBefore: 120h
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS8
+    rotationPolicy: Always
+    size: 3072
+  issuerRef:
+    name: vault-issuer-gitops-mirror
+    kind: ClusterIssuer
+  usages:
+    - server auth
