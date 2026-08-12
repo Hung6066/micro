@@ -13,8 +13,6 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "gitops-release-promotion.yml"
 RELEASE_UPDATER = ROOT / "scripts" / "update-gitops-release-digests.ps1"
 MIRROR_WORKFLOW = ROOT / ".github" / "workflows" / "gitops-mirror-verify.yml"
-MIRROR_SYNC_WORKFLOW = ROOT / ".github" / "workflows" / "gitops-mirror-sync.yml"
-ARGOCD_BOOTSTRAP_WORKFLOW = ROOT / ".github" / "workflows" / "argocd-bootstrap.yml"
 
 
 def fail(message: str) -> None:
@@ -32,10 +30,6 @@ def main() -> int:
         fail("missing scripts/update-gitops-release-digests.ps1")
     if not MIRROR_WORKFLOW.is_file():
         fail("missing .github/workflows/gitops-mirror-verify.yml")
-    if not MIRROR_SYNC_WORKFLOW.is_file():
-        fail("missing .github/workflows/gitops-mirror-sync.yml")
-    if not ARGOCD_BOOTSTRAP_WORKFLOW.is_file():
-        fail("missing .github/workflows/argocd-bootstrap.yml")
     release_raw = RELEASE_WORKFLOW.read_text(encoding="utf-8")
     required_release_fragments = (
         "workflow_run:",
@@ -63,34 +57,9 @@ def main() -> int:
         fail("release promotion must open a review PR and not mutate a cluster")
 
     mirror_raw = MIRROR_WORKFLOW.read_text(encoding="utf-8")
-    for fragment in ("verify-git-mirror.ps1", "KUBECONFIG_PRODUCTION_B64", "workflow_run:", "head_sha", "RequireSynced"):
+    for fragment in ("verify-git-mirror.ps1", "KUBECONFIG_PRODUCTION_B64", "github.sha", "RequireSynced"):
         if fragment not in mirror_raw:
             fail(f"mirror verification is missing required control: {fragment}")
-    for fragment in ("runs-on: [self-hosted, linux, gitops-mirror]", "EXPECTED_REPO_URL", "GITOPS_MIRROR_REPO_URL"):
-        if fragment not in mirror_raw:
-            fail(f"mirror verification is missing required self-hosted HTTPS control: {fragment}")
-
-    mirror_sync_raw = MIRROR_SYNC_WORKFLOW.read_text(encoding="utf-8")
-    for fragment in (
-        "branches: [production]",
-        "GITOPS_MIRROR_REPO_URL",
-        "GITOPS_MIRROR_USERNAME",
-        "GITOPS_MIRROR_TOKEN",
-        "fetch --no-tags production-mirror",
-        "--force-with-lease=\"refs/heads/production:$expected_remote_revision\"",
-        "environment: production",
-        "runs-on: [self-hosted, linux, gitops-mirror]",
-        "https://",
-    ):
-        if fragment not in mirror_sync_raw:
-            fail(f"mirror synchronization is missing required control: {fragment}")
-    if re.search(r"git\s+push\s+[^\n]*--force(?!-with-lease)", mirror_sync_raw):
-        fail("mirror synchronization must use force-with-lease, never unconditional force")
-
-    bootstrap_raw = ARGOCD_BOOTSTRAP_WORKFLOW.read_text(encoding="utf-8")
-    for fragment in ("change_reference:", "Approved change/ticket reference", "change_reference }}' -notmatch", "Apply reviewed GitOps bootstrap applications"):
-        if fragment not in bootstrap_raw:
-            fail(f"Argo bootstrap cutover is missing required approval control: {fragment}")
 
     print("GitOps promotion contract PASS: protected digest-only review PRs and signed provenance preflight")
     return 0

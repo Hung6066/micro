@@ -11,79 +11,79 @@ images:
   - name: his-hope/api-gateway
     newName: harbor.his-hope.local:9443/his-hope/api-gateway
     newTag: latest
-    digest: sha256:362de6afe38022a443c9d95b06aa9e09e9b46f6d413a9472e8641788e96cc7aa
+    digest: sha256:195f2e76cdfb34d194dcdee0f9d70f96c1fe39e812e9a815be317de5a9f987f2
   - name: his-hope/patient-service
     newName: harbor.his-hope.local:9443/his-hope/patient-service
     newTag: latest
-    digest: sha256:e85677a8c36ab2589509904fffbb42f3327cb9e36ddefdde43cfe872a5aa5a93
+    digest: sha256:45d223e14556c49f7f5cd4478743c7f1b8adc391b3649e1b598000ed9369ff46
   - name: his-hope/identity-service
     newName: harbor.his-hope.local:9443/his-hope/identity-service
     newTag: latest
-    digest: sha256:7aa3a0c7e6ebde569852102c20287ef03cc84169c14c20e49288a497ba3e58d8
+    digest: sha256:f3ffbe97c3fc7b36a83ef5aee536941fd3958990e1e950010cc1567991c34c4b
   - name: his-hope/appointment-service
     newName: harbor.his-hope.local:9443/his-hope/appointment-service
     newTag: latest
-    digest: sha256:178c0052e083bcc5b44f8a25fbe3ab6b8b7918b3b43aacadb3f074f782cefe12
+    digest: sha256:0d09a488f0c029d9268a69fb5ca0436437b8504af84b48b0a968be7463244326
   - name: his-hope/clinical-service
     newName: harbor.his-hope.local:9443/his-hope/clinical-service
     newTag: latest
-    digest: sha256:37bda9b086acba135008b5b41d4a63f50a24a481a50818b3b013dc954a5d68ad
+    digest: sha256:524b263f7221d62914fbbe4d13edce9402f5eb1312c929b2ad9b70da38ad810b
   - name: his-hope/lab-service
     newName: harbor.his-hope.local:9443/his-hope/lab-service
     newTag: latest
-    digest: sha256:7ecaaeda401c0bd81690f60cc7f39ce29263d94371839e0491aafd992ce38542
+    digest: sha256:0ee09dfaf5e6da6cc4ee6b16ca720c13884ac43449f692426c2a8955a908a612
   - name: his-hope/billing-service
     newName: harbor.his-hope.local:9443/his-hope/billing-service
     newTag: latest
-    digest: sha256:9c9f084b44e2cc91f67e0dd7f095c8d9768c2870d98136d4dde47ec24621bf42
+    digest: sha256:61dd39c26f316309fb10383897196964a22ab22d9df20420527e79fd531046d6
   - name: his-hope/pharmacy-service
     newName: harbor.his-hope.local:9443/his-hope/pharmacy-service
     newTag: latest
-    digest: sha256:888c3d3875ac3bebfd629bb542f613a65747762714718dcaad1bc6a36d0ba83d
+    digest: sha256:51a4a74b63b2b511ca5c86466f12532f24f34460fb92984cde1bac2762191d73
   - name: his-hope/patient-bff
     newName: harbor.his-hope.local:9443/his-hope/patient-bff
     newTag: latest
-    digest: sha256:e640009c34cd2f7e69749f84c60b473f03671bb103a357735da572d76b15816c
+    digest: sha256:0713b29fd12b724eb77ee3bbd2e22d73916c271018dbc87f8deb77aaf169649f
   - name: his-hope/clinical-bff
     newName: harbor.his-hope.local:9443/his-hope/clinical-bff
     newTag: latest
-    digest: sha256:c2a43d6c66a9912a65f4407f9d3b1936d789225894a157ab92a46cdb5ca8611d
+    digest: sha256:3f6e2fbb5bcbff1a29229e180b30c21f3c1228bd7d7bef854590bea6c743765d
   - name: his-hope/lab-bff
     newName: harbor.his-hope.local:9443/his-hope/lab-bff
     newTag: latest
-    digest: sha256:8263b61f085424fa738461c12e76582b33d87910685849d70c4fa168a11e39a3
+    digest: sha256:2c7ca70b94cc63ee23fa49037c3b3da19d1c0140cb87a3b6af7083c878f67585
   - name: his-hope/billing-bff
     newName: harbor.his-hope.local:9443/his-hope/billing-bff
     newTag: latest
-    digest: sha256:2b24ad8c33c0fe53bc4e46ed3c665bab80df660c8b492f24367738e564893891
+    digest: sha256:f81dc259f882b2894b06575fca676c27f71e8278e381d89cc2f165cda8037273
   - name: his-hope/pharmacy-bff
     newName: harbor.his-hope.local:9443/his-hope/pharmacy-bff
     newTag: latest
-    digest: sha256:ea53178d404bc7ca6a5bdbdfa7d636454f619a9a8c74a84d0335614f990b2a7f
+    digest: sha256:fc0e6669b40f1876a7cba582f26f3fac8c28624d3fd693cc3ca09ea7170266cc
   - name: his-hope/dashboard-bff
     newName: harbor.his-hope.local:9443/his-hope/dashboard-bff
     newTag: latest
-    digest: sha256:ce95b982f12c326c221810c3bcc83e04e2aba6d0b0a7fefe459bb83cbf2fd629
+    digest: sha256:5d8233be50c17d57cee55885f10dd0800b8c8f8253d6252bd63592458d7d5653
   - name: his-hope/systemdashboard-bff
     newName: harbor.his-hope.local:9443/his-hope/systemdashboard-bff
     newTag: latest
-    digest: sha256:f0404bc2161d4d6b8ff71115a29a3c438ffc836b70ddf050d10a0bed51ba42f1
+    digest: sha256:c38b27e96b2c82215ab979dc9debfdb00fff126c6a6d94cc58c52cf70a656ea4
   - name: his-hope/database-continuity
     newName: harbor.his-hope.local:9443/his-hope/database-continuity
     newTag: latest
-    digest: sha256:cd7af54854668046e8dda9330799e3890d55965770d04e3ecf588ca4ebc435cf
+    digest: sha256:0d9d4667a7aaaad45f1e176045054247bb1eee3a42934087ba68aa6345e761e4
   - name: his-hope/frontend
     newName: harbor.his-hope.local:9443/his-hope/frontend
     newTag: latest
-    digest: sha256:0f0738472d0221b410bfa2d779f0bfb373ee31cebc15ac444d6be9e079967d5b
+    digest: sha256:66176d32d199620f5d6d6ef74d369ffe46b6b39dc0e4edd369426d65eef5d66f
   - name: his-hope/admin-app
     newName: harbor.his-hope.local:9443/his-hope/admin-app
     newTag: gitdevops-20260811
-    digest: sha256:61dc64a0365df799f6479c4ba1baf4ec3e2c079b725abff4044ae91a363109b4
+    digest: sha256:af2c2977c8d503958f5ee1fcd63c6e21cad3ee2a50cba3fe8aa3c39013ca9baa
   - name: his-hope/dashboard-app
     newName: harbor.his-hope.local:9443/his-hope/dashboard-app
     newTag: latest
-    digest: sha256:95258bf0880a43692fc8e60162aee272d42694ac909a78630d91a24b9a2abf56
+    digest: sha256:dcef8bf9da119bd346e6fbb6dd25af2d039858e92dad4d51a02c048fc9362b48
   - name: hashicorp/vault
     newName: harbor.his-hope.local:9443/his-hope/hashicorp/vault
     newTag: "1.16"

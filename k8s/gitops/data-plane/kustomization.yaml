@@ -14,7 +14,6 @@ resources:
   - ../../base/postgres-pdb.yaml
   - ../../base/rabbitmq.yaml
   - ../../base/redis.yaml
-  - redis-cluster-bootstrap.yaml
   - data-network-policies.yaml
 
 patchesStrategicMerge:

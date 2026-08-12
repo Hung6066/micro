@@ -205,8 +205,8 @@ jobs:
         run: |
           ./scripts/validate-gitops-plane.ps1 -Path k8s/gitops/data-plane -Namespace his-hope-data
           ./scripts/validate-gitops-plane.ps1 -Path k8s/gitops/system-plane -Namespace his-hope-system
-          ./scripts/validate-gitops-plane.ps1 -Path k8s/overlays/prod-spire-azure-shared-storage -Namespace spire
-          ./scripts/validate-gitops-plane.ps1 -Path k8s/observability/overlays/prod-shared-storage -Namespace monitoring
+          ./scripts/validate-gitops-plane.ps1 -Path k8s/overlays/prod-spire-azure -Namespace spire
+          ./scripts/validate-gitops-plane.ps1 -Path k8s/observability/overlays/prod -Namespace monitoring
           ./scripts/validate-gitops-plane.ps1 -Path k8s/gitops/bootstrap -Namespace argocd
           ./scripts/validate-argocd-bootstrap.ps1 -OutputPath artifacts/evidence/argocd-bootstrap-contract.json
           python scripts/validate-argocd-project-scope.py
@@ -275,7 +275,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifacts/evidence | Out-Null
-          kubectl kustomize k8s/overlays/prod-spire-azure-shared-storage --load-restrictor LoadRestrictionsNone | Out-File -Encoding utf8 artifacts/evidence/prod-shared-storage-render.yaml
+          kubectl kustomize k8s/overlays/prod-shared-storage --load-restrictor LoadRestrictionsNone | Out-File -Encoding utf8 artifacts/evidence/prod-shared-storage-render.yaml
           if ($LASTEXITCODE -ne 0) { throw 'Application shared-storage overlay failed to render.' }
           kubectl kustomize k8s/observability/overlays/prod-shared-storage --load-restrictor LoadRestrictionsNone | Out-File -Encoding utf8 artifacts/evidence/observability-shared-storage-render.yaml
           if ($LASTEXITCODE -ne 0) { throw 'Observability shared-storage overlay failed to render.' }

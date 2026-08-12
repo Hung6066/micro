@@ -1,9 +1,8 @@
 - op: add
   path: /spec/template/metadata/annotations/linkerd.io~1inject
   value: disabled
-- op: add
+- op: remove
   path: /spec/template/spec/hostPID
-  value: false
 - op: replace
   path: /spec/template/spec/containers/0/env/23/value
   value: kubernetes

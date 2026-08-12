@@ -212,4 +212,8 @@ spec:
     syncOptions:
       - PruneLast=true
       - FailOnSharedResource=true
+      # Replace avoids stale client-side three-way patches from legacy
+      # Deployment annotations (notably empty valueFrom/probe handlers).
+      # The rendered production manifests remain the source of truth.
+      - Replace=true
   revisionHistoryLimit: 10

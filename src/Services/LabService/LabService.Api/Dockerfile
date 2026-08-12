@@ -38,7 +38,7 @@ RUN dotnet publish "Services/LabService/LabService.Api/LabService.Api.csproj" \
 # ============================================================
 # RUNTIME STAGE (distroless chiseled)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra@sha256:9c681b562bfe4e55c806ba768543b3f9711ba85afc23923548d198dc30b8e898 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra@sha256:5ca699b92bdafde798d1177500586f915ff49b3c12cac77a27dbcdbcf0e760c6 AS final
 WORKDIR /app
 EXPOSE 8080
 

@@ -31,11 +31,9 @@ resources:
   - ../../../monitoring/synthetic-monitor-config.yaml
   - ../../../jobs/synthetic-monitor-cronjob.yaml
 
-patchesStrategicMerge:
-  - observability-security-patch.yaml
-  - observability-sa-patch.yaml
-
 patches:
+  - path: observability-security-patch.yaml
+  - path: observability-sa-patch.yaml
   - path: promtail-mount-patch.yaml
   - target:
       group: ""

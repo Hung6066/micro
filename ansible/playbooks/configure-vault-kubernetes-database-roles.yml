@@ -16,14 +16,6 @@
       - { name: lab-service-db, service_account: his-hope-lab-service }
       - { name: billing-service-db, service_account: his-hope-billing-service }
       - { name: pharmacy-service-db, service_account: his-hope-pharmacy-service }
-    workload_roles:
-      - { name: identity-service, service_account: his-hope-identity-service, database_role: identity-service-db }
-      - { name: patient-service, service_account: his-hope-patient-service, database_role: patient-service-db }
-      - { name: appointment-service, service_account: his-hope-appointment-service, database_role: appointment-service-db }
-      - { name: clinical-service, service_account: his-hope-clinical-service, database_role: clinical-service-db }
-      - { name: lab-service, service_account: his-hope-lab-service, database_role: lab-service-db }
-      - { name: billing-service, service_account: his-hope-billing-service, database_role: billing-service-db }
-      - { name: pharmacy-service, service_account: his-hope-pharmacy-service, database_role: pharmacy-service-db }
   tasks:
     - name: Validate Vault operator token file
       ansible.builtin.stat:
@@ -67,56 +59,6 @@
       args:
         executable: /bin/bash
       loop: "{{ database_roles }}"
-      loop_control:
-        label: "{{ item.name }}"
-      no_log: true
-      changed_when: false
-
-    - name: Create workload identity policies and roles
-      ansible.builtin.shell: |
-        set -euo pipefail
-        token=$(cat '{{ vault_operator_token_file }}')
-        policy=$(printf '%s\n' \
-          'path "database/creds/{{ item.database_role }}" {' \
-          '  capabilities = ["read"]' \
-          '}' \
-          'path "transit/encrypt/jwt-signing" {' \
-          '  capabilities = ["update"]' \
-          '}' \
-          'path "transit/decrypt/jwt-signing" {' \
-          '  capabilities = ["update"]' \
-          '}'{% if item.name == 'identity-service' %} \
-          'path "secret/data/his-hope/identity/client-secrets/*" {' \
-          '  capabilities = ["read", "create", "update", "delete"]' \
-          '}'{% endif %})
-        encoded=$(printf '%s' "$policy" | base64 -w0)
-        kubectl --kubeconfig '{{ vault_kubeconfig }}' -n '{{ vault_namespace }}' exec '{{ vault_pod }}' -- \
-          env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true VAULT_TOKEN="$token" \
-          sh -c "printf '%s' '$encoded' | base64 -d | vault policy write '{{ item.name }}' -"
-        kubectl --kubeconfig '{{ vault_kubeconfig }}' -n '{{ vault_namespace }}' exec '{{ vault_pod }}' -- \
-          env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true VAULT_TOKEN="$token" \
-          vault write "auth/kubernetes/role/{{ item.name }}" \
-            bound_service_account_names='{{ item.service_account }}' \
-            bound_service_account_namespaces='{{ vault_namespace }}' \
-            audience=vault policies='{{ item.name }}' ttl=15m max_ttl=1h
-      args:
-        executable: /bin/bash
-      loop: "{{ workload_roles }}"
-      loop_control:
-        label: "{{ item.name }}"
-      no_log: true
-      changed_when: true
-
-    - name: Verify every workload identity role is readable
-      ansible.builtin.shell: |
-        set -euo pipefail
-        token=$(cat '{{ vault_operator_token_file }}')
-        kubectl --kubeconfig '{{ vault_kubeconfig }}' -n '{{ vault_namespace }}' exec '{{ vault_pod }}' -- \
-          env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true VAULT_TOKEN="$token" \
-          vault read "auth/kubernetes/role/{{ item.name }}" >/dev/null
-      args:
-        executable: /bin/bash
-      loop: "{{ workload_roles }}"
       loop_control:
         label: "{{ item.name }}"
       no_log: true
