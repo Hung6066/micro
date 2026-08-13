@@ -72,13 +72,13 @@ jobs:
         run: ./gradlew assembleRelease --no-daemon
 
       - name: Upload mobile web artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: his-hope-mobile-web
           path: mobile-app/dist/mobile-app
 
       - name: Upload signed Android artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: his-hope-android-release
           path: mobile-app/android/app/build/outputs/apk/release/*.apk

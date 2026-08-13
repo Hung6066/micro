@@ -104,7 +104,7 @@ jobs:
           set -euo pipefail
           test -s his-hope-platform-sbom.cdx.json
           node -e "const fs=require('fs'); const bom=JSON.parse(fs.readFileSync('his-hope-platform-sbom.cdx.json','utf8')); if (bom.bomFormat !== 'CycloneDX' || !Array.isArray(bom.components)) process.exit(1);"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: his-hope-platform-sbom
           path: his-hope-platform-sbom.cdx.json
