@@ -192,7 +192,8 @@ metadata:
   name: his-hope-production
   namespace: argocd
   annotations:
-    his-hope.io/promotion-mode: reviewed-pr-manual-sync
+    his-hope.io/auto-sync-approved: "true"
+    his-hope.io/promotion-mode: reviewed-branch-auto-sync
 spec:
   project: his-hope
   source:
@@ -202,9 +203,14 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: his-hope
-  # Production is reconciled only after a reviewed promotion commit reaches
-  # the internal mirror. Manual sync preserves separation of duties.
+  # Production is reconciled automatically only after the reviewed production
+  # branch reaches the internal mirror. The explicit approval annotation is
+  # required by validate-argocd-bootstrap.ps1 and prevents accidental auto-sync
+  # on unreviewed branches.
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - PruneLast=true
       - FailOnSharedResource=true
