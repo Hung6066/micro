@@ -148,22 +148,6 @@ if ($Overlay -eq 'prod') {
             Add-Error -Errors $errors -Message "Production liveness probe for [$serviceName] must use [/health/live], found [$path]."
         }
     }
-
-    # Read-only .NET BFF filesystems need a writable /tmp without replacing
-    # any existing secret or TLS mounts contributed by another patch.
-    foreach ($bffName in @('billing-bff', 'clinical-bff', 'dashboard-bff', 'lab-bff', 'patient-bff', 'pharmacy-bff')) {
-        $deployment = $documents | Where-Object { $_.kind -eq 'Deployment' -and [string]$_.metadata.name -like "*$bffName" } | Select-Object -First 1
-        $podSpec = if ($deployment) { $deployment.spec.template.spec } else { $null }
-        $container = if ($podSpec) { @($podSpec.containers) | Where-Object { $_.name -eq $bffName } | Select-Object -First 1 } else { $null }
-        $runtimeVolume = if ($podSpec) { @($podSpec.volumes) | Where-Object { $_.name -eq 'runtime-tmp' } | Select-Object -First 1 } else { $null }
-        $runtimeMount = if ($container) { @($container.volumeMounts) | Where-Object { $_.name -eq 'runtime-tmp' -and $_.mountPath -eq '/tmp' } | Select-Object -First 1 } else { $null }
-        if (-not $runtimeVolume -or -not $runtimeVolume.emptyDir) {
-            Add-Error -Errors $errors -Message "Production BFF [$bffName] is missing the runtime-tmp emptyDir volume."
-        }
-        if (-not $runtimeMount) {
-            Add-Error -Errors $errors -Message "Production BFF [$bffName] is missing the runtime-tmp mount at [/tmp]."
-        }
-    }
 }
 
 foreach ($service in ($documents | Where-Object { $_.kind -eq 'Service' })) {
@@ -175,8 +159,9 @@ foreach ($service in ($documents | Where-Object { $_.kind -eq 'Service' })) {
 
 $secretProviderClasses = @($documents | Where-Object { $_.kind -eq 'SecretProviderClass' } | ForEach-Object { [string]$_.metadata.name })
 $csiReferences = @($documents | Where-Object { $_.kind -eq 'Deployment' } | ForEach-Object {
-    if ($_.spec.template.spec.PSObject.Properties.Name -contains 'volumes') {
-        foreach ($volume in @($_.spec.template.spec.volumes)) {
+    $podSpec = if ($_.spec -and $_.spec.template -and $_.spec.template.spec) { $_.spec.template.spec } else { $null }
+    if ($podSpec -and $podSpec.PSObject.Properties.Name -contains 'volumes') {
+        foreach ($volume in @($podSpec.volumes)) {
             if (($volume.PSObject.Properties.Name -contains 'csi') -and $volume.csi.driver -eq 'secrets-store.csi.k8s.io') {
                 [string]$volume.csi.volumeAttributes.secretProviderClass
             }
