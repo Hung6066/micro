@@ -146,7 +146,9 @@ jobs:
   protected-authenticated-e2e:
     if: github.event_name != 'pull_request'
     needs: frontend-contracts
-    runs-on: ubuntu-latest
+    # Production E2E endpoints are internal (*.his-hope.local) and are only
+    # reachable from the protected self-hosted runner network.
+    runs-on: [self-hosted, Linux, X64, gitops-mirror]
     environment: production
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
