@@ -1,0 +1,89 @@
+name: Argo CD Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target protected GitOps environment
+        required: true
+        type: choice
+        options: [staging, production]
+      apply:
+        description: Apply the reviewed bootstrap resources
+        required: true
+        default: false
+        type: boolean
+      change_reference:
+        description: Approved change or ticket reference (required for apply)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: argocd-bootstrap-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+        with:
+          version: v1.35.5
+
+      - name: Materialize protected kubeconfig
+        id: kubeconfig
+        shell: pwsh
+        env:
+          KUBECONFIG_STAGING_B64: ${{ secrets.KUBECONFIG_STAGING_B64 }}
+          KUBECONFIG_PRODUCTION_B64: ${{ secrets.KUBECONFIG_PRODUCTION_B64 }}
+          K3S_API_SERVER: ${{ vars.K3S_API_SERVER }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $environment = '${{ inputs.environment }}'
+          $encoded = if ($environment -eq 'production') { $env:KUBECONFIG_PRODUCTION_B64 } else { $env:KUBECONFIG_STAGING_B64 }
+          if ([string]::IsNullOrWhiteSpace($encoded)) { throw "Kubeconfig secret is missing for '$environment'." }
+          if ($environment -eq 'production' -and $env:K3S_API_SERVER -notmatch '^https://[^/:]+(?::[0-9]+)?$') { throw 'K3S_API_SERVER must be an HTTPS endpoint.' }
+          $yaml = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded))
+          if ($environment -eq 'production') {
+            $pattern = '(?m)^(\s*server:\s*)https://[^\s]+\s*$'
+            if ($yaml -notmatch $pattern) { throw 'Production kubeconfig does not contain a server endpoint.' }
+            $yaml = [Text.RegularExpressions.Regex]::Replace($yaml, $pattern, ('$1' + $env:K3S_API_SERVER))
+          }
+          $path = Join-Path $env:RUNNER_TEMP "kubeconfig-$environment.yaml"
+          [IO.File]::WriteAllText($path, $yaml, [Text.UTF8Encoding]::new($false))
+          "path=$path" >> $env:GITHUB_OUTPUT
+
+      - name: Validate bootstrap contract
+        shell: pwsh
+        run: ./scripts/validate-argocd-bootstrap.ps1 -OutputPath artifacts/evidence/argocd-bootstrap-contract.json
+
+      - name: Apply reviewed GitOps bootstrap resources
+        if: ${{ inputs.apply == true }}
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.kubeconfig.outputs.path }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ('${{ inputs.change_reference }}' -notmatch '^[A-Za-z0-9][A-Za-z0-9._:/-]{2,79}$') { throw 'change_reference is invalid.' }
+          kubectl wait --for=condition=Established crd/applications.argoproj.io --timeout=5m
+          kubectl apply --server-side --force-conflicts -k k8s/gitops/bootstrap
+          kubectl get applications -n argocd -o name
+
+      - name: Upload bootstrap evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: argocd-bootstrap-${{ github.run_id }}
+          path: artifacts/evidence/argocd-bootstrap-contract.json
+          if-no-files-found: error
+
+      - name: Remove kubeconfig
+        if: always()
+        shell: pwsh
+        run: Remove-Item -LiteralPath '${{ steps.kubeconfig.outputs.path }}' -Force -ErrorAction SilentlyContinue
