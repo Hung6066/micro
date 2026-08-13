@@ -32,6 +32,11 @@ jobs:
     environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # Bootstrap manifests and their validator are maintained on the
+          # reviewed production branch, while this protected workflow lives on
+          # the default branch for workflow_dispatch registration.
+          ref: production
       - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
         with:
           version: v1.35.5
