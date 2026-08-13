@@ -52,6 +52,7 @@ jobs:
         env:
           KUBECONFIG_STAGING_B64: ${{ secrets.KUBECONFIG_STAGING_B64 }}
           KUBECONFIG_PRODUCTION_B64: ${{ secrets.KUBECONFIG_PRODUCTION_B64 }}
+          K3S_API_SERVER: ${{ secrets.K3S_API_SERVER }}
         run: |
           $ErrorActionPreference = 'Stop'
           $environment = '${{ inputs.environment }}'
@@ -61,6 +62,15 @@ jobs:
           }
           $path = Join-Path $env:RUNNER_TEMP "kubeconfig-$environment.yaml"
           [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($encoded))
+          if ($environment -eq 'production') {
+            if ([string]::IsNullOrWhiteSpace($env:K3S_API_SERVER)) {
+              throw 'K3S_API_SERVER is required for production runner connectivity.'
+            }
+            $server = $env:K3S_API_SERVER.TrimEnd('/')
+            $yaml = Get-Content -LiteralPath $path -Raw
+            $yaml = [regex]::Replace($yaml, '(?m)^(\s*server:\s*)https?://(?:127\.0\.0\.1|localhost):\d+\s*$', ('$1' + $server))
+            Set-Content -LiteralPath $path -Value $yaml -NoNewline
+          }
           "path=$path" >> $env:GITHUB_OUTPUT
 
       - name: Verify and optionally bootstrap Argo CD
