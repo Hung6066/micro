@@ -111,4 +111,4 @@ images:
   - name: edoburu/pgbouncer
     newName: harbor.his-hope.local:9443/his-hope/edoburu/pgbouncer
     newTag: "1.22.1-p0"
-    digest: sha256:7f39cf2f872c8d9a0bb0e6a5440c3bf5814036eccf284102870ab08e2603a2c7
+    digest: sha256:83bbf337c4f2a06dad20a26235bac0171146f288ff1ad6db660d5b6943e5d655
