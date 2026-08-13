@@ -293,6 +293,9 @@ patches:
         value:
           runAsNonRoot: true
           allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
           readOnlyRootFilesystem: true
           seccompProfile:
             type: RuntimeDefault
