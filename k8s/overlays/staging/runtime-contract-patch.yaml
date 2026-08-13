@@ -36,3 +36,12 @@ data:
   ADAPTER_RABBITMQ_HOST: his-hope-rabbitmq.his-hope-staging.svc.cluster.local
   ADAPTER_JAEGER_TRACES_ENDPOINT: http://jaeger.his-hope-staging.svc.cluster.local:14278/api/traces
   ADAPTER_CONSUL_ADDRESS: http://consul.his-hope-staging.svc.cluster.local:8500
+  # Staging service-owned databases live on the staging PostgreSQL Service;
+  # Vault supplies only the leased username/password at runtime.
+  ADAPTER_CONNECTIONSTRINGS_APPOINTMENTDB: Host=his-hope-postgres.his-hope-staging.svc.cluster.local;Port=5432;Database=appointmentdb;Username=his_hope;Password=
+  ADAPTER_CONNECTIONSTRINGS_BILLINGDB: Host=his-hope-postgres.his-hope-staging.svc.cluster.local;Port=5432;Database=billingdb;Username=his_hope;Password=
+  ADAPTER_CONNECTIONSTRINGS_CLINICALDB: Host=his-hope-postgres.his-hope-staging.svc.cluster.local;Port=5432;Database=clinicaldb;Username=his_hope;Password=
+  ADAPTER_CONNECTIONSTRINGS_IDENTITYDB: Host=his-hope-postgres.his-hope-staging.svc.cluster.local;Port=5432;Database=identitydb;Username=his_hope;Password=
+  ADAPTER_CONNECTIONSTRINGS_LABDB: Host=his-hope-postgres.his-hope-staging.svc.cluster.local;Port=5432;Database=labdb;Username=his_hope;Password=
+  ADAPTER_CONNECTIONSTRINGS_PATIENTDB: Host=his-hope-postgres.his-hope-staging.svc.cluster.local;Port=5432;Database=patientdb;Username=his_hope;Password=
+  ADAPTER_CONNECTIONSTRINGS_PHARMACYDB: Host=his-hope-postgres.his-hope-staging.svc.cluster.local;Port=5432;Database=pharmacydb;Username=his_hope;Password=
