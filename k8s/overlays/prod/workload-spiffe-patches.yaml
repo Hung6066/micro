@@ -5,7 +5,7 @@ metadata:
 spec:
   template:
     spec:
-      hostPID: true
+      hostPID: false
       securityContext:
         runAsNonRoot: false
       automountServiceAccountToken: true
@@ -74,7 +74,7 @@ metadata:
 spec:
   template:
     spec:
-      hostPID: true
+      hostPID: false
       securityContext: { runAsNonRoot: false }
       containers:
         - name: patient-service
@@ -131,7 +131,7 @@ metadata:
 spec:
   template:
     spec:
-      hostPID: true
+      hostPID: false
       securityContext: { runAsNonRoot: false }
       containers:
         - name: clinical-service
@@ -184,7 +184,7 @@ metadata:
 spec:
   template:
     spec:
-      hostPID: true
+      hostPID: false
       securityContext: { runAsNonRoot: false }
       containers:
         - name: appointment-service
@@ -237,7 +237,7 @@ metadata:
 spec:
   template:
     spec:
-      hostPID: true
+      hostPID: false
       securityContext: { runAsNonRoot: false }
       containers:
         - name: lab-service
@@ -290,7 +290,7 @@ metadata:
 spec:
   template:
     spec:
-      hostPID: true
+      hostPID: false
       securityContext: { runAsNonRoot: false }
       containers:
         - name: billing-service
@@ -343,7 +343,7 @@ metadata:
 spec:
   template:
     spec:
-      hostPID: true
+      hostPID: false
       securityContext: { runAsNonRoot: false }
       containers:
         - name: pharmacy-service
