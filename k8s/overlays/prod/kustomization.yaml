@@ -308,43 +308,6 @@ patches:
           readOnlyRootFilesystem: true
           seccompProfile:
             type: RuntimeDefault
-  - target:
-      group: apps
-      version: v1
-      kind: Deployment
-      labelSelector: "app.kubernetes.io/component=backend"
-    patch: |-
-      - op: add
-        path: /spec/template/spec/containers/1/securityContext
-        value:
-          runAsNonRoot: true
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          seccompProfile:
-            type: RuntimeDefault
-      - op: add
-        path: /spec/template/spec/containers/1/resources
-        value:
-          requests:
-            cpu: 5m
-            memory: 16Mi
-          limits:
-            cpu: 100m
-            memory: 64Mi
-  - target:
-      group: apps
-      version: v1
-      kind: Deployment
-      name: clinical-service|identity-service|patient-service
-    patch: |-
-      - op: add
-        path: /spec/template/spec/containers/2/securityContext
-        value:
-          runAsNonRoot: true
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          seccompProfile:
-            type: RuntimeDefault
   # Migration hooks share the service image contract but need explicit bounded
   # resources because they are Jobs, not Deployments.
   - target:
@@ -539,12 +502,12 @@ patches:
       - op: add
         path: /metadata/annotations/argocd.argoproj.io~1sync-wave
         value: "40"
-  - path: identity-kubernetes-vault-json-patch.yaml
+  - path: bff-capabilities-json-patch.yaml
     target:
       group: apps
       version: v1
       kind: Deployment
-      name: identity-service
+      labelSelector: "app.kubernetes.io/component=bff"
 
 patchesStrategicMerge:
   - runtime-data-plane-patch.yaml
@@ -569,7 +532,10 @@ patchesStrategicMerge:
   - observability-otel-env-patch.yaml
   - api-gateway-health-probe-patch.yaml
   - redis-tls-runtime-patch.yaml
-  - workload-spiffe-patches.yaml
+  # Use projected, audience-bound Vault Kubernetes-auth JWTs. This removes
+  # the legacy SPIRE sidecar and hostPath socket from production workloads.
+  - workload-vault-kubernetes-auth-patches.yaml
+  - identity-vault-kubernetes-auth-patch.yaml
   - workload-readonly-root-patches.yaml
   - database-continuity-storage-patch.yaml
   - k3s-local-capacity-patch.yaml
