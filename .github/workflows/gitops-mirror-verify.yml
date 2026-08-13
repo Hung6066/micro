@@ -46,14 +46,14 @@ jobs:
         shell: pwsh
         env:
           KUBECONFIG_PRODUCTION_B64: ${{ secrets.KUBECONFIG_PRODUCTION_B64 }}
-          K3S_API_SERVER: ${{ vars.K3S_API_SERVER }}
+          K3S_API_SERVER: ${{ secrets.K3S_API_SERVER }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ([string]::IsNullOrWhiteSpace($env:KUBECONFIG_PRODUCTION_B64)) {
             throw 'KUBECONFIG_PRODUCTION_B64 is required for read-only mirror verification.'
           }
           if ($env:K3S_API_SERVER -notmatch '^https://[^/:]+(?::[0-9]+)?$') {
-            throw 'Production variable K3S_API_SERVER must be an HTTPS Kubernetes API endpoint.'
+            throw 'Production secret K3S_API_SERVER must be an HTTPS Kubernetes API endpoint.'
           }
           $path = Join-Path $env:RUNNER_TEMP 'kubeconfig-production.yaml'
           $yaml = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:KUBECONFIG_PRODUCTION_B64))
