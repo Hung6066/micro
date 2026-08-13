@@ -30,11 +30,16 @@ resources:
   # overlay. Authentication material remains provisioned out-of-band.
   - pgbouncer-configmap.yaml
   - runtime-secret-provider-class.yaml
-  - ../../vault/vault-csi-provider.yaml
   - resource-governance.yaml
   - ../../policies/namespace-security-exceptions.yaml
 
 patches:
+  - path: migration-resource-fit.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      labelSelector: "his-hope.io/operation=database-migration"
   - path: release-metadata-env-patch.yaml
     target:
       group: apps
@@ -99,6 +104,12 @@ patches:
   - path: clinical-health-probe-patch.yaml
   - path: production-runtime-patch.yaml
   - path: runtime-contract-patch.yaml
+  - path: identity-runtime-seccomp-json.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: identity-service
   - path: migration-kubernetes-auth.json
     target:
       group: batch
@@ -260,31 +271,18 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: IfNotPresent
+  - path: database-continuity-redis-tls-json-patch.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: database-continuity
   - path: database-continuity-redis-tls-ca-patch.yaml
     target:
       group: apps
       version: v1
       kind: Deployment
       name: database-continuity
-  - target:
-      group: apps
-      version: v1
-      kind: Deployment
-      name: database-continuity
-    patch: |-
-      - op: add
-        path: /spec/template/spec/containers/0/securityContext/readOnlyRootFilesystem
-        value: true
-      - op: add
-        path: /spec/template/spec/containers/0/volumeMounts/-
-        value:
-          name: runtime-tmp
-          mountPath: /tmp
-      - op: add
-        path: /spec/template/spec/volumes/-
-        value:
-          name: runtime-tmp
-          emptyDir: {}
   # Application containers are hardened before the namespace is switched to
   # Pod Security restricted. Data stores and node-level installers remain in
   # the explicit exception inventory until they are isolated into system/data
@@ -303,6 +301,43 @@ patches:
             type: RuntimeDefault
       - op: add
         path: /spec/template/spec/containers/0/securityContext
+        value:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          seccompProfile:
+            type: RuntimeDefault
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/component=backend"
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/1/securityContext
+        value:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          seccompProfile:
+            type: RuntimeDefault
+      - op: add
+        path: /spec/template/spec/containers/1/resources
+        value:
+          requests:
+            cpu: 5m
+            memory: 16Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: clinical-service|identity-service|patient-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/2/securityContext
         value:
           runAsNonRoot: true
           allowPrivilegeEscalation: false
@@ -392,13 +427,7 @@ patches:
       - op: add
         path: /metadata/annotations/argocd.argoproj.io~1sync-wave
         value: "40"
-  - path: identity-vault-kubernetes-auth-patch.yaml
-    target:
-      group: apps
-      version: v1
-      kind: Deployment
-      name: identity-service
-  - path: identity-csi-volume-patch.json
+  - path: identity-kubernetes-vault-json-patch.yaml
     target:
       group: apps
       version: v1
@@ -418,20 +447,18 @@ patchesStrategicMerge:
   - runtime-default-workload-patch.yaml
   - service-runtime-fix-patch.yaml
   - enterprise-runtime-security-patch.yaml
-  - database-continuity-redis-tls-patch.yaml
-  - pgbouncer-runtime-security-patch.yaml
   - k3s-local-backend-auth-patch.yaml
   - systemdashboard-bff-rbac-patch.yaml
   - pharmacy-redis-tls-ca-patch.yaml
   - bff-runtime-contract-env-patch.yaml
   - bff-health-probe-patch.yaml
-  - bff-runtime-tmp-patch.yaml
   - frontend-runtime-patch.yaml
   - api-gateway-runtime-contract-patch.yaml
   - observability-otel-env-patch.yaml
   - api-gateway-health-probe-patch.yaml
   - redis-tls-runtime-patch.yaml
-  - workload-vault-kubernetes-auth-patches.yaml
+  - workload-spiffe-patches.yaml
+  - workload-readonly-root-patches.yaml
   - database-continuity-storage-patch.yaml
   - k3s-local-capacity-patch.yaml
 

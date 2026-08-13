@@ -41,9 +41,9 @@ spec:
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
-            readOnlyRootFilesystem: false
             runAsUser: 1654
             runAsGroup: 1654
             seccompProfile:
