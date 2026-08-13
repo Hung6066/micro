@@ -452,6 +452,7 @@ patchesStrategicMerge:
   - api-gateway-health-probe-patch.yaml
   - redis-tls-runtime-patch.yaml
   - workload-spiffe-patches.yaml
+  - workload-readonly-root-patches.yaml
   - database-continuity-storage-patch.yaml
   - k3s-local-capacity-patch.yaml
 
