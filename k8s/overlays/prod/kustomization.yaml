@@ -356,8 +356,12 @@ patches:
         path: /spec/template/spec/containers/0/resources
         value:
           requests:
-            cpu: 100m
-            memory: 256Mi
+            # Migrations are one-shot hooks. Keep the limit high enough for
+            # EF startup while allowing one hook to fit on the constrained
+            # worker; sync waves below prevent seven hooks from bursting at
+            # once.
+            cpu: 25m
+            memory: 128Mi
           limits:
             cpu: 1000m
             memory: 1Gi
@@ -374,6 +378,71 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/securityContext/readOnlyRootFilesystem
         value: true
+  # Run one migration hook at a time. All seven hooks previously shared wave
+  # 20, which made Argo request the full burst on the already-full worker.
+  - target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-identity
+    patch: |-
+      - op: replace
+        path: /metadata/annotations/argocd.argoproj.io~1sync-wave
+        value: "20"
+  - target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-patient
+    patch: |-
+      - op: replace
+        path: /metadata/annotations/argocd.argoproj.io~1sync-wave
+        value: "21"
+  - target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-appointment
+    patch: |-
+      - op: replace
+        path: /metadata/annotations/argocd.argoproj.io~1sync-wave
+        value: "22"
+  - target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-clinical
+    patch: |-
+      - op: replace
+        path: /metadata/annotations/argocd.argoproj.io~1sync-wave
+        value: "23"
+  - target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-lab
+    patch: |-
+      - op: replace
+        path: /metadata/annotations/argocd.argoproj.io~1sync-wave
+        value: "24"
+  - target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-billing
+    patch: |-
+      - op: replace
+        path: /metadata/annotations/argocd.argoproj.io~1sync-wave
+        value: "25"
+  - target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-pharmacy
+    patch: |-
+      - op: replace
+        path: /metadata/annotations/argocd.argoproj.io~1sync-wave
+        value: "26"
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value:
