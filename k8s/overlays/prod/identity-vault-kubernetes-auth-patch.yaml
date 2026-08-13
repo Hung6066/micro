@@ -1,3 +1,5 @@
+# Identity uses Vault Kubernetes auth with a projected, audience-bound token.
+# Keep PgBouncer and the existing CSI-backed OIDC/secret mounts intact.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -34,3 +36,9 @@ spec:
                   path: vault
                   audience: vault
                   expirationSeconds: 3600
+        - name: identity-service-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: his-hope-identity-service-secrets
