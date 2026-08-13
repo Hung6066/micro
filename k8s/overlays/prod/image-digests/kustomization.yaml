@@ -95,15 +95,15 @@ images:
   - name: ghcr.io/spiffe/spire-server
     newName: harbor.his-hope.local:9443/his-hope/ghcr.io/spiffe/spire-server
     newTag: "1.15.2"
-    digest: sha256:410c624a2f2311c23ecc96c24abd854213333f57ccf4fd1c8d3e30b3dbf007bb
+    digest: sha256:67304a26c0ea92ae1f1b0914c2ca98925d0d31d15fb789658f510b8e938b6732
   - name: ghcr.io/spiffe/spire-agent
     newName: harbor.his-hope.local:9443/his-hope/ghcr.io/spiffe/spire-agent
     newTag: "1.15.2"
-    digest: sha256:5fbe8ac3ad5b1cff355bcf40badb579691e3c8de6cc4c3b8f6792e51336d12a5
+    digest: sha256:bcbbb57f78490487ab0aef205d528bc9c30285c6f0e2076199e1b9994746fbdb
   - name: ghcr.io/spiffe/oidc-discovery-provider
     newName: harbor.his-hope.local:9443/his-hope/ghcr.io/spiffe/oidc-discovery-provider
     newTag: "1.15.2"
-    digest: sha256:380d2471820d6a92c0b9952b7836107ebfd5540503fd8252e115d7bb2807d784
+    digest: sha256:6c879b977ea722d25a4542d33541c0801c66c29a078571c6b9cae29c5fca021a
   - name: his-hope/spire-fetcher
     newName: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher
     newTag: "1.15.2"
