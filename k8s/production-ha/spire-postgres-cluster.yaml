@@ -16,11 +16,11 @@ spec:
     size: 10Gi
   resources:
     requests:
-      cpu: 250m
-      memory: 512Mi
+      cpu: 100m
+      memory: 256Mi
     limits:
-      cpu: 1
-      memory: 1Gi
+      cpu: 500m
+      memory: 512Mi
   # Prefer spreading replicas across nodes, but allow a third replica to
   # schedule when worker capacity is temporarily constrained. This keeps the
   # cluster available while preserving best-effort failure-domain separation.
