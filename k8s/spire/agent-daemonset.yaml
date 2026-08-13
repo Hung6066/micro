@@ -20,6 +20,10 @@ spec:
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
       serviceAccountName: spire-agent
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: spire-agent
           image: ghcr.io/spiffe/spire-agent:1.15.2

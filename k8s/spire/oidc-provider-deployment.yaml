@@ -25,6 +25,10 @@ spec:
     spec:
       hostPID: true
       serviceAccountName: spire-oidc
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
       containers:
         - name: oidc-provider
           image: ghcr.io/spiffe/oidc-discovery-provider:1.15.2
