@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: identity-service
+          securityContext:
+            readOnlyRootFilesystem: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: patient-service
+          securityContext:
+            readOnlyRootFilesystem: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: clinical-service
+          securityContext:
+            readOnlyRootFilesystem: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: appointment-service
+          securityContext:
+            readOnlyRootFilesystem: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: lab-service
+          securityContext:
+            readOnlyRootFilesystem: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: pharmacy-service
+          securityContext:
+            readOnlyRootFilesystem: true
