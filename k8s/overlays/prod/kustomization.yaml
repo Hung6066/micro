@@ -529,6 +529,7 @@ patchesStrategicMerge:
   - database-continuity-storage-patch.yaml
   - k3s-local-capacity-patch.yaml
   - production-container-security-patch.yaml
+  - production-linkerd-disabled-patches.yaml
 
 components:
   - image-digests
