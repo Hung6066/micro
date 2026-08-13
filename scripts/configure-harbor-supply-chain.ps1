@@ -2,20 +2,30 @@
 param(
     [string]$CredentialFile = 'D:\secure\his-hope\harbor_robot_k3s_pull.json',
     [string[]]$Namespaces = @('his-hope', 'his-hope-dev', 'spire'),
-    [string]$K3sRegistry = 'harbor-k3s.his-hope.local',
+    [string]$K3sRegistry = 'harbor.his-hope.local:9443',
     [string]$CanaryImage = 'harbor.his-hope.local:9443/his-hope/identity-service',
     [string]$CanaryDigest = 'sha256:badc9b3ca143f3063057711c986a3002d16bd9ac8fc153f08346f22ac59a86e3'
 )
 
 $ErrorActionPreference = 'Stop'
 $credential = Get-Content -Raw $CredentialFile | ConvertFrom-Json
+if ($credential.name -isnot [string] -or [string]::IsNullOrWhiteSpace($credential.name) -or
+    $credential.secret -isnot [string] -or [string]::IsNullOrWhiteSpace($credential.secret) -or
+    $credential.name -like '@{*}' -or $credential.secret -like '@{*}') {
+    throw 'Harbor credential file must contain scalar name and secret values; received a serialized object or empty value.'
+}
+$loginRegistry = if ($credential.registry -is [string] -and -not [string]::IsNullOrWhiteSpace($credential.registry)) {
+    $credential.registry
+} else {
+    $K3sRegistry
+}
 $image = "$CanaryImage@$CanaryDigest"
 
 foreach ($namespace in $Namespaces) {
     kubectl get namespace $namespace *> $null
     if ($LASTEXITCODE -ne 0) { continue }
     kubectl -n $namespace create secret docker-registry harbor-pull-k3s `
-        --docker-server="$K3sRegistry" `
+        --docker-server="$loginRegistry" `
         --docker-username="$($credential.name)" `
         --docker-password="$($credential.secret)" `
         --docker-email=platform@his-hope.local `
@@ -28,7 +38,7 @@ foreach ($namespace in $Namespaces) {
     if ($LASTEXITCODE -ne 0) { throw "Unable to patch default ServiceAccount in $namespace" }
 }
 
-$dockerPassword = $credential.secret | docker login "$($credential.registry)" --username "$($credential.name)" --password-stdin
+$dockerPassword = $credential.secret | docker login "$loginRegistry" --username "$($credential.name)" --password-stdin
 if ($LASTEXITCODE -ne 0) { throw 'Harbor robot login failed' }
 docker pull $image | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "Harbor robot pull failed: $image" }
