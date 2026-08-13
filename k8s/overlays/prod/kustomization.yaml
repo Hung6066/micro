@@ -292,6 +292,8 @@ patches:
         path: /spec/template/spec/containers/0/securityContext
         value:
           runAsNonRoot: true
+          runAsUser: 1654
+          runAsGroup: 1654
           allowPrivilegeEscalation: false
           capabilities:
             drop:

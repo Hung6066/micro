@@ -296,6 +296,7 @@ metadata:
 spec:
   template:
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: systemdashboard-bff
           securityContext:
