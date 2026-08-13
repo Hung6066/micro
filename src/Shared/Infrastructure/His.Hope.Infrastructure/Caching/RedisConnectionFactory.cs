@@ -39,6 +39,7 @@ public static class RedisConnectionFactory
     private static string NormalizeConnectionString(string connectionString)
     {
         if (!Uri.TryCreate(connectionString, UriKind.Absolute, out var redisUri) ||
+            string.IsNullOrWhiteSpace(redisUri.Host) ||
             (!redisUri.Scheme.Equals("redis", StringComparison.OrdinalIgnoreCase) &&
              !redisUri.Scheme.Equals("rediss", StringComparison.OrdinalIgnoreCase)))
         {

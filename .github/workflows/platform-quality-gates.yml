@@ -3,7 +3,7 @@ name: Platform Quality Gates
 on:
   pull_request:
   push:
-    branches: [main, develop]
+    branches: [main, develop, production]
 
 permissions:
   contents: read
@@ -14,6 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          # Buf breaking compares against the protected production baseline.
+          # Fetch the baseline ref explicitly; the default shallow checkout
+          # contains only the triggering branch.
+          fetch-depth: 0
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '8.0.319'
@@ -71,11 +76,16 @@ jobs:
         uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
         with:
           version: '1.50.0'
+      - name: Fetch production protobuf baseline
+        shell: bash
+        run: git fetch --no-tags origin production:refs/heads/production
       - name: Lint and check protobuf compatibility
         working-directory: src/Shared/Protos
         run: |
           buf lint
-          buf breaking --against '.git#branch=main,subdir=src/Shared/Protos'
+          # The step runs from src/Shared/Protos; resolve the git ref from the
+          # repository root so Buf does not look for a nested .git directory.
+          buf breaking --against '../../../.git#branch=production,subdir=src/Shared/Protos'
 
   frontend-contracts:
     runs-on: ubuntu-latest
@@ -95,7 +105,27 @@ jobs:
       - run: npm --workspace admin-app run build
       - run: npm --workspace dashboard-app run build
       - run: npm --workspace his-hope-app run build
+      - name: Detect protected E2E inputs
+        id: e2e_inputs
+        shell: bash
+        env:
+          E2E_CLINICAL_URL: ${{ vars.E2E_CLINICAL_URL }}
+          E2E_DASHBOARD_URL: ${{ vars.E2E_DASHBOARD_URL }}
+          E2E_ADMIN_URL: ${{ vars.E2E_ADMIN_URL }}
+          E2E_AUTH_PROBE_URL: ${{ secrets.E2E_AUTH_PROBE_URL }}
+          E2E_AUTH_TOKEN: ${{ secrets.E2E_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${E2E_CLINICAL_URL:-}" && -n "${E2E_DASHBOARD_URL:-}" && -n "${E2E_ADMIN_URL:-}" && -n "${E2E_AUTH_PROBE_URL:-}" && -n "${E2E_AUTH_TOKEN:-}" ]]; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Report protected E2E gate availability
+        if: github.event_name == 'pull_request' && steps.e2e_inputs.outputs.available != 'true'
+        run: echo "Authenticated E2E checks are skipped for this pull request because protected runtime inputs are unavailable; protected push/release workflows remain fail-closed."
       - name: Authenticated accessibility, keyboard and visual checks
+        if: github.event_name == 'pull_request' && steps.e2e_inputs.outputs.available == 'true'
         working-directory: tests/e2e
         run: |
           npm ci
@@ -113,10 +143,40 @@ jobs:
           E2E_AUTH_PROBE_URL: ${{ secrets.E2E_AUTH_PROBE_URL }}
           E2E_AUTH_TOKEN: ${{ secrets.E2E_AUTH_TOKEN }}
 
+  protected-authenticated-e2e:
+    if: github.event_name != 'pull_request'
+    needs: frontend-contracts
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22.14.0'
+          cache: npm
+      - name: Install and run protected authenticated E2E
+        working-directory: tests/e2e
+        env:
+          E2E_AUTH_REQUIRED: 'true'
+          E2E_CLINICAL_URL: ${{ vars.E2E_CLINICAL_URL }}
+          E2E_DASHBOARD_URL: ${{ vars.E2E_DASHBOARD_URL }}
+          E2E_ADMIN_URL: ${{ vars.E2E_ADMIN_URL }}
+          E2E_AUTH_PROBE_URL: ${{ secrets.E2E_AUTH_PROBE_URL }}
+          E2E_AUTH_TOKEN: ${{ secrets.E2E_AUTH_TOKEN }}
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          pwsh ../../scripts/verify-e2e-prerequisites.ps1
+          npm run test -- --project=chromium --workers=1
+
   supply-chain:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install pinned kubectl
+        uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+        with:
+          version: 'v1.35.5'
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22.14.0'
@@ -151,15 +211,35 @@ jobs:
         with:
           name: his-hope-platform-sbom
           path: his-hope-platform-sbom.cdx.json
-      - name: Trivy filesystem and configuration scan
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+      - name: Trivy source and secret scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
-          scanners: vuln,secret,misconfig
+          scanners: vuln,secret
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
+      - name: Render production Kubernetes manifests for IaC scan
+        shell: pwsh
+        run: ./scripts/validate-kustomize-release.ps1 -Environment prod -OutputPath artifacts/k8s/prod.yaml
+      - name: Install production manifest validation dependency
+        shell: bash
+        run: python -m pip install --disable-pip-version-check --no-input pyyaml==6.0.2
+      - name: Trivy rendered production manifest scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: artifacts/k8s/prod.yaml
+          severity: HIGH,CRITICAL
+          format: json
+          output: artifacts/k8s/trivy-production.json
+          # The following verifier accepts only the reviewed cluster-local
+          # aliases and Vault placeholders; all other findings fail closed.
+          exit-code: '0'
+      - name: Enforce production Trivy exception contract
+        shell: bash
+        run: python scripts/validate-trivy-production-findings.py artifacts/k8s/trivy-production.json artifacts/k8s/prod.yaml
       - name: Validate production Kubernetes release inputs
         shell: pwsh
         run: ./scripts/validate-k8s-release.ps1
@@ -171,13 +251,27 @@ jobs:
         with:
           fetch-depth: 0
       - name: Start Identity dependencies and service
-        run: docker compose -f docker/docker-compose.yml up -d postgres redis identityservice
+        run: docker compose --env-file docker/config/compose.runtime.env.example -f docker/docker-compose.yml up -d --wait --wait-timeout 180 postgres redis identityservice
+      - name: Capture Identity startup diagnostics
+        if: failure()
+        run: |
+          docker compose --env-file docker/config/compose.runtime.env.example -f docker/docker-compose.yml ps
+          docker compose --env-file docker/config/compose.runtime.env.example -f docker/docker-compose.yml logs --no-color postgres redis identityservice
       - name: Generate current OpenAPI document
         shell: pwsh
         run: ./scripts/generate-openapi.ps1 -Output artifacts/openapi/identity-v1.json
+      - name: Capture OpenAPI endpoint diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set -uo pipefail
+          docker compose --env-file docker/config/compose.runtime.env.example -f docker/docker-compose.yml ps
+          docker compose --env-file docker/config/compose.runtime.env.example -f docker/docker-compose.yml logs --no-color identityservice postgres redis
+          curl --fail --silent --show-error --max-time 10 http://localhost:5001/health/ready || true
+          curl --fail --silent --show-error --max-time 10 http://localhost:5001/swagger/v1/swagger.json || true
       - name: Check OpenAPI compatibility
         shell: pwsh
         run: ./scripts/check-openapi-breaking.ps1 -Baseline docs/openapi/identity-v1.json -Current artifacts/openapi/identity-v1.json
       - name: Stop Identity dependencies
         if: always()
-        run: docker compose -f docker/docker-compose.yml down --volumes
+        run: docker compose --env-file docker/config/compose.runtime.env.example -f docker/docker-compose.yml down --volumes

@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 
-WORKFLOW_FILE = ".github/workflows/gitops-promotion.yml"
+WORKFLOW_FILE = ".github/workflows/gitops-release-promotion.yml"
 SERVICE = "his-hope"
 ENVIRONMENT = "production"
 

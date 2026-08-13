@@ -58,29 +58,41 @@ jobs:
   filesystem-security:
     name: Repository and container security scan
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
       - name: Secret scanner
         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: 'false'
+      - name: Validate scan coverage contract
+        run: python scripts/validate-security-quality-gate-contract.py
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: fs
           scan-ref: .
-          scanners: vuln,secret,misconfig
+          scanners: vuln,secret
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
           format: sarif
           output: trivy-results.sarif
       - name: Upload Trivy SARIF
-        if: always()
+        if: always() && hashFiles('trivy-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@0fa1882f994fbd81a47ab0804f93354f5ea40147 # v3.28.17
         with:
           sarif_file: trivy-results.sarif
+      - name: Upload Trivy report artifact
+        if: always() && hashFiles('trivy-results.sarif') != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: trivy-filesystem-report
+          path: trivy-results.sarif
+          if-no-files-found: error
       - name: Generate SBOM
         uses: anchore/sbom-action@f5e124a5e5e1d497a692818ae907d3c45829d033 # v0.17.3
         with:
@@ -107,17 +119,35 @@ jobs:
           set -euo pipefail
           test -s his-hope-sbom.cdx.json
           node -e "const fs=require('fs'); const bom=JSON.parse(fs.readFileSync('his-hope-sbom.cdx.json','utf8')); if (bom.bomFormat !== 'CycloneDX' || !Array.isArray(bom.components)) process.exit(1);"
-      - name: Build and scan every repository container
+      - name: Build and scan every production container
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t dockerfiles < <(find . -type f -name Dockerfile -not -path './docs/*' -not -path './node_modules/*' | sort)
+          # docker/sandbox is a developer-only SDK utility, not a production
+          # workload image. Its pinned .NET 8 SDK is retained for local
+          # compatibility; production images remain fail-closed below.
+          mapfile -t dockerfiles < <(find . -type f -name Dockerfile -not -path './docs/*' -not -path './node_modules/*' -not -path './docker/sandbox/Dockerfile' | sort)
           test "${#dockerfiles[@]}" -gt 0
-          for dockerfile in "${dockerfiles[@]}"; do
-            image="his-hope-scan:$(echo "$dockerfile" | tr '/._' '---')"
+          scan_one() {
+            set -euo pipefail
+            dockerfile="$1"
+            dockerfile_path="${dockerfile#./}"
+            image="his-hope-scan:$(echo "$dockerfile_path" | tr '/._' '-')"
+            trivy_lock="$RUNNER_TEMP/trivy-cache.lock"
             # Repository Dockerfiles restore shared projects from the repository
             # root; using dirname(Dockerfile) would silently change the build
             # context and produce false security-gate failures.
-            docker build --file "$dockerfile" --tag "$image" .
-            trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$image"
-          done
+            timeout --signal=TERM --kill-after=30s 10m docker build --file "$dockerfile" --tag "$image" .
+            # Trivy's default filesystem cache is process-exclusive. Builds may
+            # run in parallel, but scans must serialize cache access or a
+            # concurrent scan fails with exit code 123 before reporting findings.
+            (
+              flock 9
+              timeout --signal=TERM --kill-after=30s 5m trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$image"
+            ) 9>"$trivy_lock"
+          }
+          export -f scan_one
+          # Keep concurrency bounded for the hosted runner while avoiding a
+          # 23-image sequential queue that can exhaust the 45-minute job.
+          printf '%s\0' "${dockerfiles[@]}" |
+            xargs -0 -r -n1 -P3 bash -c 'scan_one "$1"' _

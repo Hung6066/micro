@@ -74,7 +74,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
 # ============================================================
 # RUNTIME STAGE (distroless chiseled)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy@sha256:e297e0c11c7b60b4a6f424cd42981fba04e25b8e88a9b45bfe5f4a3f11c15a74 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy@sha256:e41c48efa049f30813f4fcce6d9df820d8c69634043221563f3cd9066b5dbf02 AS final
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 5012

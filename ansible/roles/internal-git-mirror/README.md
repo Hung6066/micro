@@ -20,10 +20,10 @@ ansible-playbook -i localhost, \
 
 The role does not create credentials or copy a repository. Create the initial
 Gitea administrator and mirror repository through a protected port-forward,
-then configure Argo's repository secret to use:
+then configure Argo's repository secret to use the HTTPS endpoint:
 
 ```text
-http://gitea.git-mirror.svc.cluster.local:3000/Hung6066/micro.git
+https://git-mirror.his-hope.local/gitops-admin/micro.git
 ```
 
 Do not put the administrator password, GitHub token, or an Argo repository

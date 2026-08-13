@@ -1,0 +1,16 @@
+[
+  {
+    "op": "add",
+    "path": "/spec/template/spec/volumes/-",
+    "value": {
+      "name": "identity-service-secrets",
+      "csi": {
+        "driver": "secrets-store.csi.k8s.io",
+        "readOnly": true,
+        "volumeAttributes": {
+          "secretProviderClass": "his-hope-identity-service-secrets"
+        }
+      }
+    }
+  }
+]

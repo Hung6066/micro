@@ -1,0 +1,266 @@
+# Production workload identity uses Vault Kubernetes auth with a projected,
+# audience-bound ServiceAccount JWT. No workload needs a SPIRE socket,
+# hostPath, or hostPID access.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+spec:
+  template:
+    spec:
+      hostPID: false
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: appointment-service
+          env:
+            - name: Vault__AuthMethod
+              value: kubernetes
+            - name: Vault__AuthMount
+              value: kubernetes
+            - name: Vault__JwtTokenFile
+              value: /var/run/secrets/tokens/vault
+            - name: Vault__SpiffeJwtTokenFile
+              $patch: delete
+            - name: Vault__SpiffeAudience
+              $patch: delete
+          volumeMounts:
+            - name: spire-jwt
+              $patch: delete
+            - name: vault-jwt
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
+        - name: spire-jwt-fetcher
+          $patch: delete
+      volumes:
+        - name: agent-socket
+          $patch: delete
+        - name: spire-jwt
+          $patch: delete
+        - name: vault-jwt
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: vault
+                  audience: vault
+                  expirationSeconds: 3600
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+spec:
+  template:
+    spec:
+      hostPID: false
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: patient-service
+          env:
+            - name: Vault__AuthMethod
+              value: kubernetes
+            - name: Vault__AuthMount
+              value: kubernetes
+            - name: Vault__JwtTokenFile
+              value: /var/run/secrets/tokens/vault
+            - name: Vault__SpiffeJwtTokenFile
+              $patch: delete
+            - name: Vault__SpiffeAudience
+              $patch: delete
+          volumeMounts:
+            - name: spire-jwt
+              $patch: delete
+            - name: vault-jwt
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
+        - name: spire-jwt-fetcher
+          $patch: delete
+      volumes:
+        - name: agent-socket
+          $patch: delete
+        - name: spire-jwt
+          $patch: delete
+        - name: vault-jwt
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: vault
+                  audience: vault
+                  expirationSeconds: 3600
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-service
+spec:
+  template:
+    spec:
+      hostPID: false
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: clinical-service
+          env:
+            - name: Vault__AuthMethod
+              value: kubernetes
+            - name: Vault__AuthMount
+              value: kubernetes
+            - name: Vault__JwtTokenFile
+              value: /var/run/secrets/tokens/vault
+            - name: Vault__SpiffeJwtTokenFile
+              $patch: delete
+            - name: Vault__SpiffeAudience
+              $patch: delete
+          volumeMounts:
+            - name: spire-jwt
+              $patch: delete
+            - name: vault-jwt
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
+        - name: spire-jwt-fetcher
+          $patch: delete
+      volumes:
+        - name: agent-socket
+          $patch: delete
+        - name: spire-jwt
+          $patch: delete
+        - name: vault-jwt
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: vault
+                  audience: vault
+                  expirationSeconds: 3600
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-service
+spec:
+  template:
+    spec:
+      hostPID: false
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: lab-service
+          env:
+            - name: Vault__AuthMethod
+              value: kubernetes
+            - name: Vault__AuthMount
+              value: kubernetes
+            - name: Vault__JwtTokenFile
+              value: /var/run/secrets/tokens/vault
+            - name: Vault__SpiffeJwtTokenFile
+              $patch: delete
+            - name: Vault__SpiffeAudience
+              $patch: delete
+          volumeMounts:
+            - name: spire-jwt
+              $patch: delete
+            - name: vault-jwt
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
+        - name: spire-jwt-fetcher
+          $patch: delete
+      volumes:
+        - name: agent-socket
+          $patch: delete
+        - name: spire-jwt
+          $patch: delete
+        - name: vault-jwt
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: vault
+                  audience: vault
+                  expirationSeconds: 3600
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-service
+spec:
+  template:
+    spec:
+      hostPID: false
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: billing-service
+          env:
+            - name: Vault__AuthMethod
+              value: kubernetes
+            - name: Vault__AuthMount
+              value: kubernetes
+            - name: Vault__JwtTokenFile
+              value: /var/run/secrets/tokens/vault
+            - name: Vault__SpiffeJwtTokenFile
+              $patch: delete
+            - name: Vault__SpiffeAudience
+              $patch: delete
+          volumeMounts:
+            - name: spire-jwt
+              $patch: delete
+            - name: vault-jwt
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
+        - name: spire-jwt-fetcher
+          $patch: delete
+      volumes:
+        - name: agent-socket
+          $patch: delete
+        - name: spire-jwt
+          $patch: delete
+        - name: vault-jwt
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: vault
+                  audience: vault
+                  expirationSeconds: 3600
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-service
+spec:
+  template:
+    spec:
+      hostPID: false
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: pharmacy-service
+          env:
+            - name: Vault__AuthMethod
+              value: kubernetes
+            - name: Vault__AuthMount
+              value: kubernetes
+            - name: Vault__JwtTokenFile
+              value: /var/run/secrets/tokens/vault
+            - name: Vault__SpiffeJwtTokenFile
+              $patch: delete
+            - name: Vault__SpiffeAudience
+              $patch: delete
+          volumeMounts:
+            - name: spire-jwt
+              $patch: delete
+            - name: vault-jwt
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
+        - name: spire-jwt-fetcher
+          $patch: delete
+      volumes:
+        - name: agent-socket
+          $patch: delete
+        - name: spire-jwt
+          $patch: delete
+        - name: vault-jwt
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: vault
+                  audience: vault
+                  expirationSeconds: 3600

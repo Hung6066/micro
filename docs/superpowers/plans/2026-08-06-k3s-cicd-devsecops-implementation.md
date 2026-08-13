@@ -59,7 +59,8 @@ Không đưa output chứa secret data vào artifact.
 ### Files sẽ tạo
 
 - `.github/workflows/container-release.yml` — pipeline build, scan, SBOM, sign, attest và push image.
-- `.github/workflows/gitops-promotion.yml` — tạo promotion PR cập nhật digest trong GitOps repository.
+- `.github/workflows/gitops-release-promotion.yml` — tạo promotion PR cập nhật đủ 19 digest bất biến trong GitOps repository.
+- `.github/workflows/gitops-mirror-verify.yml` — kiểm tra read-only mirror Gitea và revision của toàn bộ Argo Applications.
 - `.github/workflows/k3s-backup-agent-rollout.yml` — protected Ansible check/apply path for K3s etcd-to-Azure backup agents.
 - `k8s/policies/kyverno/` hoặc `k8s/policies/gatekeeper/` — admission policies và exception policy.
 - `k8s/gitops/bootstrap/` — bootstrap controller và root applications nếu dùng Argo CD.
@@ -278,7 +279,8 @@ pwsh ./scripts/verify-image-attestations.ps1 -ImageRef '<harbor-image>@sha256:<d
 
 - Create: `k8s/gitops/bootstrap/`.
 - Create: GitOps environment overlays hoặc repository tương ứng với `dev`, `staging`, `prod`.
-- Create: `.github/workflows/gitops-promotion.yml`.
+- Create: `.github/workflows/gitops-release-promotion.yml`.
+- Create: `.github/workflows/gitops-mirror-verify.yml`.
 - Modify: `k8s/overlays/prod/image-digests.yaml`.
 - Modify: `docs/operations/k3s-production-deployment-runbook.vi.md`.
 

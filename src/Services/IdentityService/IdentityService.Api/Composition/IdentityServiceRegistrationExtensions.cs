@@ -571,6 +571,13 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
         {
             builder.WebHost.ConfigureKestrel(options =>
             {
+                // The compose/OpenAPI contract exposes the REST/OIDC surface on 5001.
+                // Keep it explicit when custom gRPC listeners are configured below;
+                // otherwise ConfigureKestrel replaces the ASPNETCORE_URLS endpoint.
+                options.Listen(System.Net.IPAddress.Any, 5001, listenOptions =>
+                {
+                    listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+                });
                 options.Listen(System.Net.IPAddress.Any, 5003, listenOptions =>
                 {
                     listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;

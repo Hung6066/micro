@@ -37,9 +37,11 @@ spec:
             - name: GITEA__database__PATH
               value: /var/lib/gitea/data/gitea.db
             - name: GITEA__server__DOMAIN
-              value: gitea.git-mirror.svc.cluster.local
+              value: git-mirror.his-hope.local
+            - name: GITEA__server__PROTOCOL
+              value: http
             - name: GITEA__server__ROOT_URL
-              value: http://gitea.git-mirror.svc.cluster.local:3000/
+              value: https://git-mirror.his-hope.local/
             - name: GITEA__server__SSH_PORT
               value: "2222"
             - name: GITEA__security__INSTALL_LOCK

@@ -5,7 +5,12 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$output = [IO.Path]::GetFullPath((Join-Path $RepositoryRoot $OutputDirectory))
+$output = if ([IO.Path]::IsPathRooted($OutputDirectory)) {
+    [IO.Path]::GetFullPath($OutputDirectory)
+}
+else {
+    [IO.Path]::GetFullPath((Join-Path $RepositoryRoot $OutputDirectory))
+}
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 
 $contexts = @(
@@ -19,10 +24,20 @@ $contexts = @(
     @{ Name='pharmacy'; Project='src/Services/PharmacyService/PharmacyService.Infrastructure/PharmacyService.Infrastructure.csproj'; Context='PharmacyDbContext' }
 )
 
+$projects = $contexts.Project | Select-Object -Unique
+foreach ($project in $projects) {
+    $projectPath = Join-Path $RepositoryRoot $project
+    dotnet restore $projectPath
+    if ($LASTEXITCODE -ne 0) { throw "Migration project restore failed for $project." }
+
+    dotnet build $projectPath --no-restore --configuration Release
+    if ($LASTEXITCODE -ne 0) { throw "Migration project build failed for $project." }
+}
+
 $manifest = [System.Collections.Generic.List[object]]::new()
 foreach ($item in $contexts) {
     $file = Join-Path $output "$($item.Name)-idempotent.sql"
-    dotnet ef migrations script --idempotent --project (Join-Path $RepositoryRoot $item.Project) --startup-project (Join-Path $RepositoryRoot $item.Project) --context $item.Context --no-build --no-color --output $file
+    dotnet ef migrations script --idempotent --project (Join-Path $RepositoryRoot $item.Project) --startup-project (Join-Path $RepositoryRoot $item.Project) --context $item.Context --configuration Release --no-build --no-color --output $file
     if ($LASTEXITCODE -ne 0) { throw "Migration script generation failed for $($item.Context)." }
     $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
     $manifest.Add([pscustomobject]@{ name = $item.Name; context = $item.Context; script = (Split-Path -Leaf $file); sha256 = $hash })

@@ -10,7 +10,6 @@ spec:
     spec:
       containers:
         - name: identity-service
-          image: harbor.his-hope.local:9443/his-hope/identity-service:vault-health-ca-20260806
           imagePullPolicy: IfNotPresent
 ---
 apiVersion: apps/v1
@@ -22,7 +21,6 @@ spec:
     spec:
       containers:
         - name: systemdashboard-bff
-          image: harbor.his-hope.local:9443/his-hope/systemdashboard-bff:kube-api-fqdn-20260806
           imagePullPolicy: IfNotPresent
 ---
 apiVersion: apps/v1
@@ -34,7 +32,6 @@ spec:
     spec:
       containers:
         - name: api-gateway
-          image: harbor.his-hope.local:9443/his-hope/api-gateway:redis-ca-normalized-20260806
           imagePullPolicy: IfNotPresent
 ---
 apiVersion: apps/v1
@@ -46,7 +43,6 @@ spec:
     spec:
       containers:
         - name: appointment-service
-          image: his-hope/appointment-service:runtime-20260806b
           imagePullPolicy: IfNotPresent
 ---
 apiVersion: apps/v1
@@ -58,7 +54,6 @@ spec:
     spec:
       containers:
         - name: patient-bff
-          image: harbor.his-hope.local:9443/his-hope/patient-bff:routes-runtime-20260806
           imagePullPolicy: IfNotPresent
 ---
 apiVersion: apps/v1
@@ -70,7 +65,6 @@ spec:
     spec:
       containers:
         - name: patient-service
-          image: harbor.his-hope.local:9443/his-hope/patient-service:jwt-runtime-20260806
           imagePullPolicy: IfNotPresent
 ---
 apiVersion: apps/v1

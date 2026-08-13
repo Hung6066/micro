@@ -8,7 +8,8 @@ param(
     [string]$Kubeconfig,
     [string]$OutputPath,
     [switch]$RequireCluster,
-    [switch]$RequirePodSecurity
+    [switch]$RequirePodSecurity,
+    [switch]$AllowLocalPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -88,7 +89,7 @@ if (Get-Command kustomize -ErrorAction SilentlyContinue) {
     Add-Check 'tool-kustomize' 'fail' 'Neither standalone kustomize nor kubectl kustomize is available.'
 }
 
-$overlayName = if ($Environment -eq 'production' -and $StorageClassName -ne 'longhorn') { 'prod-shared-storage' } elseif ($Environment -eq 'production') { 'prod' } else { $Environment }
+$overlayName = if ($Environment -eq 'production' -and $StorageClassName -notin @('longhorn', 'local-path')) { 'prod-shared-storage' } elseif ($Environment -eq 'production') { 'prod' } else { $Environment }
 $effectiveRequirePodSecurity = $RequirePodSecurity -or ($RequireCluster -and $Environment -eq 'production')
 $repoRoot = $repositoryRoot
 $overlayPath = Join-Path $repoRoot "k8s\overlays\$overlayName"
@@ -116,11 +117,12 @@ if (-not (Test-Path -LiteralPath $overlayPath -PathType Container)) {
     }
 }
 
-try {
-    $version = & kubectl version -o json --request-timeout=8s 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        Add-Check 'cluster-connectivity' 'environment-blocked' 'kubectl cannot reach the configured cluster.'
-    } else {
+if ($Kubeconfig -or $RequireCluster) {
+    try {
+        $version = & kubectl version -o json --request-timeout=8s 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Add-Check 'cluster-connectivity' 'environment-blocked' 'kubectl cannot reach the configured cluster.'
+        } else {
         $versionJson = ($version -join "`n") | ConvertFrom-Json
         Add-Check 'cluster-connectivity' 'pass' "Server $($versionJson.serverVersion.gitVersion) is reachable."
         $clientVersion = [string]$versionJson.clientVersion.gitVersion
@@ -137,13 +139,12 @@ try {
         } else {
             Add-Check 'toolchain-skew' 'unavailable' 'Could not parse client/server Kubernetes versions.'
         }
-    }
-} catch {
-    if ($RequireCluster) {
+        }
+    } catch {
         Add-Check 'cluster-connectivity' 'environment-blocked' 'kubectl cannot reach the configured cluster.'
-    } else {
-        Add-Check 'cluster-connectivity' 'skipped' 'Live cluster validation was not requested.'
     }
+} else {
+    Add-Check 'cluster-connectivity' 'skipped' 'Live cluster validation was not requested.'
 }
 
 if (($checks | Where-Object name -eq 'cluster-connectivity').status -eq 'pass') {
@@ -187,7 +188,9 @@ if (($checks | Where-Object name -eq 'cluster-connectivity').status -eq 'pass') 
             try {
                 $storageClass = Invoke-KubectlJson @('get', 'storageclass', $StorageClassName)
                 $provisioner = [string]$storageClass.provisioner
-                if ($StorageClassName -eq 'longhorn' -and $provisioner -eq 'driver.longhorn.io') {
+                if ($AllowLocalPath -and $StorageClassName -eq 'local-path' -and $provisioner -eq 'rancher.io/local-path') {
+                    Add-Check 'storage-backend' 'skipped' 'local-path is explicitly selected for the DevSecOps deployment gate; replication/DR is outside this pipeline.'
+                } elseif ($StorageClassName -eq 'longhorn' -and $provisioner -eq 'driver.longhorn.io') {
                     Add-Check 'storage-backend' 'pass' 'Reviewed Longhorn storage class is installed.'
                 } elseif ($StorageClassName -ne 'longhorn' -and $provisioner -match '^csi\.' -and $provisioner -notmatch '(?i)(local-path|longhorn)') {
                     Add-Check 'storage-backend' 'pass' "Reviewed external shared CSI storage class [$StorageClassName] uses [$provisioner]."

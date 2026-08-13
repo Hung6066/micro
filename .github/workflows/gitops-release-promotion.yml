@@ -1,0 +1,113 @@
+name: GitOps Release Promotion PR
+
+on:
+  workflow_run:
+    workflows: [Container Release Supply Chain]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      release_run_id:
+        description: Successful Container Release Supply Chain run ID
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+jobs:
+  promotion-pr:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       startsWith(github.event.workflow_run.head_branch, 'v'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    env:
+      GITOPS_PRODUCTION_BRANCH: ${{ vars.GITOPS_PRODUCTION_BRANCH || 'production' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.GITOPS_PRODUCTION_BRANCH }}
+
+      - name: Resolve successful trusted release
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISPATCH_RUN_ID: ${{ inputs.release_run_id }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          run_id="${DISPATCH_RUN_ID:-${WORKFLOW_RUN_ID:-}}"
+          [[ "$run_id" =~ ^[0-9]+$ ]] || { echo 'A release run ID is required' >&2; exit 1; }
+          release="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
+          test "$(jq -r '.conclusion' <<<"$release")" = success
+          test "$(jq -r '.name' <<<"$release")" = 'Container Release Supply Chain'
+          test "$(jq -r '.path' <<<"$release")" = '.github/workflows/container-release.yml'
+          test "$(jq -r '.head_repository.full_name' <<<"$release")" = "$GITHUB_REPOSITORY"
+          branch="$(jq -r '.head_branch' <<<"$release")"
+          [[ "$branch" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Release must originate from a version tag' >&2; exit 1; }
+          sha="$(jq -r '.head_sha' <<<"$release")"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo 'Release has an invalid head SHA' >&2; exit 1; }
+          printf 'run_id=%s\nrelease_sha=%s\nrelease_tag=%s\n' "$run_id" "$sha" "$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Download immutable image references
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/release-image-refs
+          gh run download "${{ steps.release.outputs.run_id }}" --repo "$GITHUB_REPOSITORY" --pattern 'image-ref-*' --dir artifacts/release-image-refs
+          test "$(find artifacts/release-image-refs -name '*.image-ref.txt' -type f | wc -l)" -eq 19
+          test "$(find artifacts/release-image-refs -name '*.image-ref.txt' -type f -print0 | xargs -0 -r cat | sed '/^[[:space:]]*$/d' | sort -u | wc -l)" -eq 19
+
+      - name: Install Harbor trust chain and Cosign
+        shell: bash
+        env:
+          HARBOR_CA_CHAIN_B64: ${{ secrets.HARBOR_CA_CHAIN_B64 }}
+        run: |
+          set -euo pipefail
+          test -n "${HARBOR_CA_CHAIN_B64:-}"
+          printf '%s' "$HARBOR_CA_CHAIN_B64" | base64 --decode | sudo tee /usr/local/share/ca-certificates/his-hope-harbor.crt >/dev/null
+          sudo update-ca-certificates
+          curl --fail --show-error --location --retry 4 --retry-all-errors --retry-delay 2 https://github.com/sigstore/cosign/releases/download/v2.4.1/cosign-linux-amd64 -o "$RUNNER_TOOL_CACHE/cosign"
+          echo '8b24b946dd5809c6bd93de08033bcf6bc0ed7d336b7785787c080f574b89249b  '"$RUNNER_TOOL_CACHE/cosign" | sha256sum --check
+          chmod 0755 "$RUNNER_TOOL_CACHE/cosign"
+          echo "$RUNNER_TOOL_CACHE" >> "$GITHUB_PATH"
+
+      - name: Verify every promoted digest
+        shell: pwsh
+        run: |
+          $images = Get-ChildItem artifacts/release-image-refs -Recurse -Filter '*.image-ref.txt' | Get-Content | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Sort-Object -Unique
+          ./scripts/verify-image-attestations.ps1 -ImageRef $images -CertificateIdentityRegex "^https://github.com/${env:GITHUB_REPOSITORY}/.github/workflows/container-release.yml@refs/(heads/main|tags/v[0-9]+\.[0-9]+\.[0-9]+)$"
+
+      - name: Update all approved production digests
+        shell: pwsh
+        run: ./scripts/update-gitops-release-digests.ps1 -ImageRefDirectory artifacts/release-image-refs -ReleaseSha '${{ steps.release.outputs.release_sha }}'
+
+      - name: Validate rendered production release
+        shell: pwsh
+        run: |
+          ./scripts/validate-kustomize-release.ps1 -Environment prod
+          ./scripts/config/validate-kustomize-runtime.ps1 -Overlay prod
+          git diff --check
+
+      - name: Create review-required promotion PR
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
+        with:
+          branch: codex/gitops-prod-release-${{ steps.release.outputs.run_id }}
+          base: ${{ env.GITOPS_PRODUCTION_BRANCH }}
+          title: 'chore(gitops): promote signed release ${{ steps.release.outputs.release_sha }}'
+          commit-message: 'chore(gitops): promote verified release digests'
+          body: |
+            This PR was generated from successful release run `${{ steps.release.outputs.run_id }}`.
+
+            - All 19 application digests are immutable and verified with keyless Cosign signature plus SLSA provenance.
+            - Production manifests were rendered before this PR was opened.
+            - Merge requires normal repository review. Argo CD reconciles only after the reviewed commit reaches the internal Git mirror.
+          labels: gitops,security-review

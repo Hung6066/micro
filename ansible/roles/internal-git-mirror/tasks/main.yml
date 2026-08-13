@@ -3,7 +3,35 @@
   ansible.builtin.assert:
     that:
       - git_mirror_kubeconfig is file
+      - git_mirror_issuer_manifest is file
+      - git_mirror_ca_bundle_src is file
     fail_msg: "Kubeconfig not found: {{ git_mirror_kubeconfig }}"
+
+- name: Apply Vault PKI issuer for the Git mirror
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ git_mirror_kubeconfig }}"
+      - apply
+      - -f
+      - "{{ git_mirror_issuer_manifest }}"
+  changed_when: "'created' in git_mirror_issuer_apply.stdout or 'configured' in git_mirror_issuer_apply.stdout"
+  register: git_mirror_issuer_apply
+
+- name: Inject protected Vault CA bundle into the issuer
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ git_mirror_kubeconfig }}"
+      - patch
+      - clusterissuer
+      - vault-issuer-gitops-mirror
+      - --type=merge
+      - --patch
+      - "{{ {'spec': {'vault': {'caBundle': lookup('ansible.builtin.file', git_mirror_ca_bundle_src) | b64encode}}} | to_json }}"
+  changed_when: true
 
 - name: Apply internal Git mirror manifests
   ansible.builtin.command:

@@ -39,11 +39,14 @@ backend ingress-http-backend
     server {{ backend.name }} {{ backend.address }}:{{ lb_ingress_http_node_port }} check
 {% endfor %}
 
-frontend harbor-https
-    bind *:{{ lb_harbor_https_port }} ssl crt /etc/haproxy/certs/harbor-public.pem
+frontend https-sni
+    # Preserve end-to-end TLS so cert-manager/Vault can rotate Harbor and the
+    # Git mirror certificates without copying private keys to the load balancer.
+    bind *:{{ lb_harbor_https_port }}
     mode tcp
-    # Harbor layer uploads can remain open while BuildKit streams large blobs.
-    timeout client 1h
+    tcp-request inspect-delay 5s
+    tcp-request content accept if { req.ssl_hello_type 1 }
+    use_backend git-mirror-https-backend if { req.ssl_sni -i {{ lb_git_mirror_host }} }
     default_backend harbor-https-backend
 
 backend harbor-https-backend
@@ -53,5 +56,15 @@ backend harbor-https-backend
     timeout server 1h
     timeout tunnel 1h
 {% for backend in lb_harbor_https_backends %}
-    server {{ backend.name }} {{ backend.address }}:{{ lb_harbor_https_node_port }} ssl verify required ca-file /etc/haproxy/certs/harbor-backend-ca.pem verifyhost {{ lb_harbor_backend_server_name }} sni str({{ lb_harbor_backend_server_name }}) check-sni {{ lb_harbor_backend_server_name }} check
+    server {{ backend.name }} {{ backend.address }}:{{ lb_harbor_https_node_port }} check
+{% endfor %}
+
+backend git-mirror-https-backend
+    mode tcp
+    balance roundrobin
+    option tcp-check
+    timeout server 1h
+    timeout tunnel 1h
+{% for backend in lb_git_mirror_backends %}
+    server {{ backend.name }} {{ backend.address }}:{{ lb_git_mirror_https_node_port }} check
 {% endfor %}

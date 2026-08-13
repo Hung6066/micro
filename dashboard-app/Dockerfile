@@ -6,11 +6,15 @@ COPY shared/frontend-foundation/README.md shared/frontend-foundation/CHANGELOG.m
 COPY shared/frontend-foundation/docs ./shared/frontend-foundation/docs
 COPY shared/frontend-foundation/src ./shared/frontend-foundation/src
 RUN cd shared/frontend-foundation && npm ci --legacy-peer-deps --ignore-scripts && npm run build
+# The application installs the file workspace next; remove the library's
+# private Angular tree so peer dependencies resolve from the application root.
 WORKDIR /workspace/dashboard-app
 COPY dashboard-app/package.json dashboard-app/package-lock.json ./
 RUN npm ci --legacy-peer-deps
+RUN ln -s /workspace/dashboard-app/node_modules /workspace/node_modules
 COPY shared /workspace/shared
 COPY dashboard-app .
+RUN rm -rf /workspace/shared/frontend-foundation/node_modules
 RUN rm -rf .angular/cache && npx ng build --configuration=production
 
 FROM nginxinc/nginx-unprivileged:alpine AS final

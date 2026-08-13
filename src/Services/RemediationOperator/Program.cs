@@ -32,9 +32,10 @@ Log.Logger = new LoggerConfiguration()
     .Enrich.WithProperty("Application", Constants.OperatorName)
     .Enrich.WithProperty("Version", Constants.OperatorVersion)
     .WriteTo.Console()
-    .WriteTo.File("/var/log/remediation-operator/log-.json",
+    .WriteTo.File(new Serilog.Formatting.Json.JsonFormatter(),
+        "/var/log/remediation-operator/log-.json",
         rollingInterval: RollingInterval.Day,
-        formatter: new Serilog.Formatting.Json.JsonFormatter())
+        retainedFileCountLimit: 14)
     .CreateLogger();
 
 try
@@ -932,13 +933,13 @@ internal sealed class RemediationEngine
                 }
 
                 if (action.Params?.CpuRequest is not null)
-                    container.Resources.Requests["cpu"] = new k8s.ResourceQuantity(action.Params.CpuRequest);
+                    container.Resources.Requests["cpu"] = new ResourceQuantity(action.Params.CpuRequest);
                 if (action.Params?.MemoryRequest is not null)
-                    container.Resources.Requests["memory"] = new k8s.ResourceQuantity(action.Params.MemoryRequest);
+                    container.Resources.Requests["memory"] = new ResourceQuantity(action.Params.MemoryRequest);
                 if (action.Params?.CpuLimit is not null)
-                    container.Resources.Limits["cpu"] = new k8s.ResourceQuantity(action.Params.CpuLimit);
+                    container.Resources.Limits["cpu"] = new ResourceQuantity(action.Params.CpuLimit);
                 if (action.Params?.MemoryLimit is not null)
-                    container.Resources.Limits["memory"] = new k8s.ResourceQuantity(action.Params.MemoryLimit);
+                    container.Resources.Limits["memory"] = new ResourceQuantity(action.Params.MemoryLimit);
             }
 
             await _k8s.AppsV1.ReplaceNamespacedDeploymentAsync(deployment, name, policy.Namespace, cancellationToken: ct);
@@ -995,7 +996,7 @@ internal sealed class RemediationEngine
             if (action.Params?.MaxUnavailable is not null &&
                 deployment.Spec.Strategy?.RollingUpdate is not null)
             {
-                deployment.Spec.Strategy.RollingUpdate.MaxUnavailable = new k8s.ResourceQuantity(action.Params.MaxUnavailable);
+                deployment.Spec.Strategy.RollingUpdate.MaxUnavailable = new IntstrIntOrString(action.Params.MaxUnavailable);
             }
 
             await _k8s.AppsV1.ReplaceNamespacedDeploymentAsync(deployment, name, policy.Namespace, cancellationToken: ct);
@@ -1038,7 +1039,12 @@ internal sealed class RemediationEngine
         try
         {
             var deployment = await _k8s.AppsV1.ReadNamespacedDeploymentAsync(name, policy.Namespace, cancellationToken: ct);
-            var currentRevision = deployment.Metadata.Annotations?.GetValueOrDefault("deployment.kubernetes.io/revision", "0");
+            var currentRevision = "0";
+            if (deployment.Metadata.Annotations is not null &&
+                deployment.Metadata.Annotations.TryGetValue("deployment.kubernetes.io/revision", out var currentRevisionValue))
+            {
+                currentRevision = currentRevisionValue;
+            }
 
             if (action.Params?.Revision is null)
             {
@@ -1057,7 +1063,12 @@ internal sealed class RemediationEngine
 
             var targetRs = rsList.Items.FirstOrDefault(rs =>
             {
-                var rev = rs.Metadata.Annotations?.GetValueOrDefault("deployment.kubernetes.io/revision", "0");
+                var rev = "0";
+                if (rs.Metadata.Annotations is not null &&
+                    rs.Metadata.Annotations.TryGetValue("deployment.kubernetes.io/revision", out var revisionValue))
+                {
+                    rev = revisionValue;
+                }
                 return int.TryParse(rev, out var r) && r == action.Params.Revision.Value;
             });
 
