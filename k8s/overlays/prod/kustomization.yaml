@@ -484,6 +484,16 @@ patches:
       kind: Deployment
       labelSelector: "app.kubernetes.io/part-of=his-hope"
     patch: |-
+      # Workers are intentionally sized for steady state rather than a
+      # temporary duplicate replica during rollout.  Avoid surge replicas
+      # exhausting the two-worker production pool and deadlocking Argo sync.
+      - op: add
+        path: /spec/strategy
+        value:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 0
+            maxUnavailable: 1
       - op: add
         path: /metadata/annotations/argocd.argoproj.io~1sync-wave
         value: "30"
