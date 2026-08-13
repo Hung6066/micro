@@ -105,6 +105,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Argo CD Application CRD did not become Established.' }
           kubectl apply --server-side --force-conflicts -k k8s/gitops/bootstrap
           if ($LASTEXITCODE -ne 0) { throw 'GitOps bootstrap resources could not be applied.' }
+          # argocd-repo-server reads argocd-tls-certs-cm at process start. Roll
+          # it after applying the reviewed internal CA so HTTPS Gitea sources
+          # reconcile without manual cluster intervention.
+          kubectl -n argocd rollout restart deployment/argocd-repo-server
+          if ($LASTEXITCODE -ne 0) { throw 'Argo repo-server restart could not be requested.' }
+          kubectl -n argocd rollout status deployment/argocd-repo-server --timeout=5m
+          if ($LASTEXITCODE -ne 0) { throw 'Argo repo-server did not become ready after CA reload.' }
           kubectl get appproject his-hope -n argocd
           kubectl get applications -n argocd -o name
 
