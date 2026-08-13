@@ -11,6 +11,9 @@ spec:
         # socket rewrite; the Vault TLS session remains end-to-end.
         config.linkerd.io/skip-subnets: "10.43.0.0/16"
     spec:
+      securityContext:
+        fsGroup: 1654
+        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: identity-service
           env:
