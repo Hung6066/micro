@@ -304,6 +304,7 @@ patches:
         value:
           runAsNonRoot: true
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           seccompProfile:
             type: RuntimeDefault
   - target:
@@ -317,6 +318,7 @@ patches:
         value:
           runAsNonRoot: true
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           seccompProfile:
             type: RuntimeDefault
       - op: add
@@ -339,6 +341,7 @@ patches:
         value:
           runAsNonRoot: true
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           seccompProfile:
             type: RuntimeDefault
   # Migration hooks share the service image contract but need explicit bounded
@@ -368,6 +371,9 @@ patches:
           fsGroup: 1654
           seccompProfile:
             type: RuntimeDefault
+      - op: add
+        path: /spec/template/spec/containers/0/securityContext/readOnlyRootFilesystem
+        value: true
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value:
