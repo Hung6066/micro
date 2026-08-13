@@ -129,3 +129,5 @@ test-grpc.csx
 
 .npm-cache/
 
+/docs/design-references/awesome-design-md/
+/docs/design-references/open-design/
