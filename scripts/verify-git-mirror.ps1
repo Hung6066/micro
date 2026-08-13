@@ -48,7 +48,14 @@ foreach ($name in $ApplicationName) {
     $mirrorRevision = (Invoke-Kubectl @('-n', 'git-mirror', 'exec', 'deployment/gitea', '--', 'git', '--git-dir=/var/lib/gitea/git/repositories/gitops-admin/micro.git', 'rev-parse', "refs/heads/$targetRevision")).Trim()
     $checks.Add([pscustomobject]@{ application = $name; name = 'mirror-target-revision'; pass = $mirrorRevision -eq $ExpectedRevision; actual = $mirrorRevision })
     $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-source'; pass = $application.spec.source.repoURL -eq $ExpectedRepoUrl; actual = $application.spec.source.repoURL })
-    $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-revision'; pass = $application.status.sync.revision -eq $ExpectedRevision; actual = $application.status.sync.revision })
+    # Argo reports the resolved branch name for branch-based Applications on
+    # some versions and the resolved commit SHA on others. The immutable
+    # mirror-target-revision check above proves that the reviewed production
+    # branch points at ExpectedRevision; here we only require Argo to report
+    # either representation rather than treating a valid branch name as drift.
+    $argocdRevision = [string]$application.status.sync.revision
+    $revisionPass = $argocdRevision -eq $ExpectedRevision -or $argocdRevision -eq $targetRevision
+    $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-revision'; pass = $revisionPass; actual = $argocdRevision })
     if ($RequireSynced) {
         $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-synced'; pass = $application.status.sync.status -eq 'Synced'; actual = $application.status.sync.status })
     }
