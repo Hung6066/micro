@@ -68,7 +68,7 @@ spec:
   provider: vault
   parameters:
     roleName: patient-service
-    vaultAuthMountPath: "kubernetes-jwt"
+    vaultAuthMountPath: "kubernetes"
     audience: "vault"
     vaultAddress: "https://vault-active.his-hope.svc.cluster.local:8200"
     vaultSkipTLSVerify: "false"
@@ -184,7 +184,7 @@ spec:
   provider: vault
   parameters:
     roleName: identity-service
-    vaultAuthMountPath: "kubernetes-jwt"
+    vaultAuthMountPath: "kubernetes"
     audience: "vault"
     vaultAddress: "https://vault-active.his-hope.svc.cluster.local:8200"
     vaultSkipTLSVerify: "false"
@@ -344,7 +344,7 @@ spec:
   provider: vault
   parameters:
     roleName: clinical-service
-    vaultAuthMountPath: "kubernetes-jwt"
+    vaultAuthMountPath: "kubernetes"
     audience: "vault"
     vaultAddress: "https://vault-active.his-hope.svc.cluster.local:8200"
     vaultSkipTLSVerify: "false"
@@ -412,7 +412,7 @@ spec:
   provider: vault
   parameters:
     roleName: appointment-service
-    vaultAuthMountPath: "kubernetes-jwt"
+    vaultAuthMountPath: "kubernetes"
     audience: "vault"
     vaultAddress: "https://vault-active.his-hope.svc.cluster.local:8200"
     vaultSkipTLSVerify: "false"
