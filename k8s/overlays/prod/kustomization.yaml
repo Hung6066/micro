@@ -272,18 +272,6 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: IfNotPresent
-  - path: database-continuity-redis-tls-json-patch.yaml
-    target:
-      group: apps
-      version: v1
-      kind: Deployment
-      name: database-continuity
-  - path: database-continuity-redis-tls-ca-patch.yaml
-    target:
-      group: apps
-      version: v1
-      kind: Deployment
-      name: database-continuity
   # Application containers are hardened before the namespace is switched to
   # Pod Security restricted. Data stores and node-level installers remain in
   # the explicit exception inventory until they are isolated into system/data
@@ -536,6 +524,7 @@ patchesStrategicMerge:
   # the legacy SPIRE sidecar and hostPath socket from production workloads.
   - workload-vault-kubernetes-auth-patches.yaml
   - identity-vault-kubernetes-auth-patch.yaml
+  - database-continuity-redis-tls-patch.yaml
   - workload-readonly-root-patches.yaml
   - database-continuity-storage-patch.yaml
   - k3s-local-capacity-patch.yaml

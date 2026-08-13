@@ -10,9 +10,12 @@ spec:
           env:
             - name: ConnectionStrings__Redis
               valueFrom:
+                $patch: replace
                 secretKeyRef:
                   name: systemdashboard-bff-secrets
                   key: redis-url
+            - name: Redis__TlsCaFile
+              value: /etc/tls/redis/ca.crt
           volumeMounts:
             - name: redis-tls-ca
               mountPath: /etc/tls/redis/ca.crt
