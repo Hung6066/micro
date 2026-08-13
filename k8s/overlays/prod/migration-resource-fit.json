@@ -1,10 +1,16 @@
 [
   {
     "op": "replace",
-    "path": "/spec/template/spec/containers/0/resources/requests",
+    "path": "/spec/template/spec/containers/0/resources",
     "value": {
-      "cpu": "10m",
-      "memory": "64Mi"
+      "requests": {
+        "cpu": "10m",
+        "memory": "64Mi"
+      },
+      "limits": {
+        "cpu": "250m",
+        "memory": "256Mi"
+      }
     }
   }
 ]
