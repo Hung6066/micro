@@ -1,0 +1,10 @@
+[
+  {
+    "op": "replace",
+    "path": "/spec/template/spec/containers/0/resources/requests",
+    "value": {
+      "cpu": "10m",
+      "memory": "64Mi"
+    }
+  }
+]
