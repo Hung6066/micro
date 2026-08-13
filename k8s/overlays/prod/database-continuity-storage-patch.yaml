@@ -2,5 +2,9 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: database-continuity-backups
+  annotations:
+    # This local-path claim is already bound and its volumeName is immutable.
+    # Keep the existing PVC; backup data is managed by the continuity agent.
+    argocd.argoproj.io/sync-options: Skip=true
 spec:
   storageClassName: local-path
