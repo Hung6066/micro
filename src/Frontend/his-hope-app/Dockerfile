@@ -25,6 +25,7 @@ WORKDIR /workspace/src/Frontend/his-hope-app
 COPY src/Frontend/his-hope-app/package.json ./
 RUN --mount=type=cache,target=/root/.npm \
     npm install --legacy-peer-deps --ignore-scripts --no-audit --no-fund
+RUN ln -s /workspace/src/Frontend/his-hope-app/node_modules /workspace/node_modules
 
 # Copy the app and the shared design system used by its Sass entrypoints.
 COPY shared /workspace/shared

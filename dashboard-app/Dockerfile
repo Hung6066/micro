@@ -11,6 +11,7 @@ RUN cd shared/frontend-foundation && npm ci --legacy-peer-deps --ignore-scripts 
 WORKDIR /workspace/dashboard-app
 COPY dashboard-app/package.json dashboard-app/package-lock.json ./
 RUN npm ci --legacy-peer-deps
+RUN ln -s /workspace/dashboard-app/node_modules /workspace/node_modules
 COPY shared /workspace/shared
 COPY dashboard-app .
 RUN rm -rf /workspace/shared/frontend-foundation/node_modules

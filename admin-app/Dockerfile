@@ -11,6 +11,7 @@ RUN cd shared/frontend-foundation && npm ci --legacy-peer-deps --ignore-scripts 
 WORKDIR /workspace/admin-app
 COPY admin-app/package.json admin-app/package-lock.json ./
 RUN npm ci --legacy-peer-deps
+RUN ln -s /workspace/admin-app/node_modules /workspace/node_modules
 COPY shared /workspace/shared
 COPY admin-app .
 RUN rm -rf /workspace/shared/frontend-foundation/node_modules
