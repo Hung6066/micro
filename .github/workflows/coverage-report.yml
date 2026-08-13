@@ -31,7 +31,7 @@ jobs:
           dotnet test tests/Services/PharmacyService/ --collect:'XPlat Code Coverage' --results-directory:coverage-results
       
       - name: Generate Coverage Report
-        uses: danielpalme/ReportGenerator-GitHub-Action@5.5.10
+        uses: danielpalme/ReportGenerator-GitHub-Action@5.5.11
         with:
           reports: 'coverage-results/**/coverage.cobertura.xml'
           targetdir: 'coverage-report'
