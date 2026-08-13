@@ -35,7 +35,9 @@ concurrency:
 jobs:
   bootstrap:
     name: Bootstrap Argo CD (${{ inputs.environment }})
-    runs-on: ubuntu-latest
+    # The production API is on the private 172.16.102.0/24 network. Run the
+    # protected bootstrap on the self-hosted runner that has internal routing.
+    runs-on: [self-hosted, Linux, X64, gitops-mirror]
     timeout-minutes: 30
     environment: ${{ inputs.environment }}
     steps:
