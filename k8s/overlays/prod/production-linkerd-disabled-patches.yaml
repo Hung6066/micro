@@ -1,0 +1,191 @@
+# Explicit per-resource patches avoid relying on namespace-wide Linkerd
+# injection. The restricted production admission policy remains fail-closed.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-app
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-bff
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-service
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-bff
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-service
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-app
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard-bff
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database-continuity
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-bff
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-service
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-bff
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-bff
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-service
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-service
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: systemdashboard-bff
+spec:
+  template:
+    metadata:
+      annotations:
+        linkerd.io/inject: disabled
