@@ -30,6 +30,7 @@ resources:
   # overlay. Authentication material remains provisioned out-of-band.
   - pgbouncer-configmap.yaml
   - runtime-secret-provider-class.yaml
+  - identity-secret-provider-class.yaml
   - resource-governance.yaml
   - ../../policies/namespace-security-exceptions.yaml
 
