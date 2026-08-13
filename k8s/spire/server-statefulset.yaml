@@ -19,6 +19,10 @@ spec:
         app.kubernetes.io/component: server
     spec:
       serviceAccountName: spire-server
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
       securityContext:
         fsGroup: 1000
       initContainers:
