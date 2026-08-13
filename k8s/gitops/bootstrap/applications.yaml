@@ -9,7 +9,7 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
     targetRevision: production
     path: k8s/gitops/data-plane
   destination:
@@ -33,7 +33,7 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
     targetRevision: production
     path: k8s/gitops/system-plane
   destination:
@@ -57,9 +57,9 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
     targetRevision: production
-    path: k8s/production-ha
+    path: k8s/overlays/prod-spire-azure
   destination:
     server: https://kubernetes.default.svc
     namespace: spire
@@ -81,7 +81,7 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
     targetRevision: production
     path: k8s/gitops/boundaries
   destination:
@@ -101,7 +101,7 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
     targetRevision: production
     path: k8s/overlays/staging
   destination:
@@ -127,7 +127,7 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
     targetRevision: production
     path: k8s/gitops/policies
   destination:
@@ -150,7 +150,7 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
     targetRevision: production
     path: k8s/gitops/signature-policy
   destination:
@@ -173,9 +173,9 @@ metadata:
 spec:
   project: his-hope
   source:
-    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
     targetRevision: production
-    path: k8s/observability/overlays/prod
+    path: k8s/observability/overlays/prod-shared-storage
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
@@ -192,38 +192,20 @@ metadata:
   name: his-hope-production
   namespace: argocd
   annotations:
-    his-hope.io/promotion-mode: reviewed-branch-auto-sync
-    his-hope.io/auto-sync-approved: "true"
+    his-hope.io/promotion-mode: reviewed-pr-manual-sync
 spec:
   project: his-hope
   source:
-    repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
     targetRevision: production
-    path: k8s/overlays/prod
+    path: k8s/overlays/prod-shared-storage
   destination:
     server: https://kubernetes.default.svc
     namespace: his-hope
-  # The continuity backup claim is an existing bound local-path PVC. Its
-  # controller-assigned volumeName is immutable and must not be reconciled.
-  ignoreDifferences:
-    - group: ""
-      kind: PersistentVolumeClaim
-      name: his-hope-database-continuity-backups
-      namespace: his-hope
-      jsonPointers:
-        - /spec/volumeName
-  # This branch is the reviewed deployment branch for the current production
-  # change window. Argo continuously reconciles it after the GitHub push.
+  # Production is reconciled only after a reviewed promotion commit reaches
+  # the internal mirror. Manual sync preserves separation of duties.
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     syncOptions:
       - PruneLast=true
       - FailOnSharedResource=true
-      - RespectIgnoreDifferences=true
-      # Replace avoids stale client-side three-way patches from legacy
-      # Deployment annotations (notably empty valueFrom/probe handlers).
-      # The rendered production manifests remain the source of truth.
-      - Replace=true
   revisionHistoryLimit: 10
