@@ -8,12 +8,12 @@ COPY shared/frontend-foundation/src ./shared/frontend-foundation/src
 RUN cd shared/frontend-foundation && npm ci --legacy-peer-deps --ignore-scripts && npm run build
 # The application installs the file workspace next; remove the library's
 # private Angular tree so peer dependencies resolve from the application root.
-RUN rm -rf /workspace/shared/frontend-foundation/node_modules
 WORKDIR /workspace/admin-app
 COPY admin-app/package.json admin-app/package-lock.json ./
 RUN npm ci --legacy-peer-deps
 COPY shared /workspace/shared
 COPY admin-app .
+RUN rm -rf /workspace/shared/frontend-foundation/node_modules
 RUN rm -rf .angular/cache && npx ng build --configuration=production
 
 FROM nginxinc/nginx-unprivileged:alpine AS final

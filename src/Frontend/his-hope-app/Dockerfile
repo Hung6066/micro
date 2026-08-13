@@ -16,9 +16,6 @@ COPY shared/frontend-foundation/README.md shared/frontend-foundation/CHANGELOG.m
 COPY shared/frontend-foundation/docs ./shared/frontend-foundation/docs
 COPY shared/frontend-foundation/src ./shared/frontend-foundation/src
 RUN cd shared/frontend-foundation && npm install --legacy-peer-deps --ignore-scripts && npm run build
-# The application installs the file workspace next; remove the library's
-# private Angular tree so peer dependencies resolve from the application root.
-RUN rm -rf /workspace/shared/frontend-foundation/node_modules
 
 WORKDIR /workspace/src/Frontend/his-hope-app
 # Copy package files and install dependencies with cache
@@ -32,6 +29,7 @@ RUN --mount=type=cache,target=/root/.npm \
 # Copy the app and the shared design system used by its Sass entrypoints.
 COPY shared /workspace/shared
 COPY src/Frontend/his-hope-app .
+RUN rm -rf /workspace/shared/frontend-foundation/node_modules
 
 # Build with production configuration
 RUN npm run build -- --configuration production
