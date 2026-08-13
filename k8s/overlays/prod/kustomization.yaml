@@ -378,6 +378,48 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/securityContext/readOnlyRootFilesystem
         value: true
+  # Migration-only processes still initialize the shared Redis/TLS options;
+  # keep the same secret-backed contract as the serving workloads.
+  - target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-(identity|patient|appointment|clinical|lab|billing)
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: Redis__ConnectionString
+          valueFrom:
+            secretKeyRef:
+              name: systemdashboard-bff-secrets
+              key: redis-connection
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: ConnectionStrings__Redis
+          valueFrom:
+            secretKeyRef:
+              name: systemdashboard-bff-secrets
+              key: redis-connection
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: Redis__TlsCaFile
+          value: /etc/tls/redis/ca.crt
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value:
+          name: redis-tls-ca
+          mountPath: /etc/tls/redis
+          readOnly: true
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: redis-tls-ca
+          secret:
+            secretName: redis-tls
+            defaultMode: 0440
   # Run one migration hook at a time. All seven hooks previously shared wave
   # 20, which made Argo request the full burst on the already-full worker.
   - target:
