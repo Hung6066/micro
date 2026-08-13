@@ -1,0 +1,211 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: his-hope-data-plane
+  namespace: argocd
+  annotations:
+    his-hope.io/promotion-mode: reviewed-pr-manual-sync
+    argocd.argoproj.io/sync-wave: "-15"
+spec:
+  project: his-hope
+  source:
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    targetRevision: production
+    path: k8s/gitops/data-plane
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: his-hope-data
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+      - PruneLast=true
+      - FailOnSharedResource=true
+  revisionHistoryLimit: 10
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: his-hope-system-plane
+  namespace: argocd
+  annotations:
+    his-hope.io/promotion-mode: reviewed-pr-manual-sync
+    argocd.argoproj.io/sync-wave: "-15"
+spec:
+  project: his-hope
+  source:
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    targetRevision: production
+    path: k8s/gitops/system-plane
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: his-hope-system
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+      - PruneLast=true
+      - FailOnSharedResource=true
+  revisionHistoryLimit: 10
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: his-hope-production-ha
+  namespace: argocd
+  annotations:
+    his-hope.io/promotion-mode: reviewed-pr-manual-sync
+    argocd.argoproj.io/sync-wave: "-14"
+spec:
+  project: his-hope
+  source:
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    targetRevision: production
+    path: k8s/overlays/prod-spire-azure
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: spire
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+      - PruneLast=true
+      - FailOnSharedResource=true
+  revisionHistoryLimit: 10
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: his-hope-security-boundaries
+  namespace: argocd
+  annotations:
+    his-hope.io/promotion-mode: reviewed-pr-manual-sync
+    argocd.argoproj.io/sync-wave: "-20"
+spec:
+  project: his-hope
+  source:
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    targetRevision: production
+    path: k8s/gitops/boundaries
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    syncOptions:
+      - PruneLast=true
+      - FailOnSharedResource=true
+  revisionHistoryLimit: 10
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: his-hope-staging
+  namespace: argocd
+spec:
+  project: his-hope
+  source:
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    targetRevision: production
+    path: k8s/overlays/staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: his-hope-staging
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - FailOnSharedResource=true
+  revisionHistoryLimit: 10
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: his-hope-production-policies
+  namespace: argocd
+  annotations:
+    his-hope.io/promotion-mode: reviewed-pr-manual-sync
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  project: his-hope
+  source:
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    targetRevision: production
+    path: k8s/gitops/policies
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gatekeeper-system
+  syncPolicy:
+    syncOptions:
+      - PruneLast=true
+      - FailOnSharedResource=true
+  revisionHistoryLimit: 10
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: his-hope-signature-policy
+  namespace: argocd
+  annotations:
+    his-hope.io/promotion-mode: reviewed-pr-manual-sync
+    argocd.argoproj.io/sync-wave: "-9"
+spec:
+  project: his-hope
+  source:
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    targetRevision: production
+    path: k8s/gitops/signature-policy
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    syncOptions:
+      - PruneLast=true
+      - FailOnSharedResource=true
+  revisionHistoryLimit: 10
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: his-hope-observability-production
+  namespace: argocd
+  annotations:
+    his-hope.io/promotion-mode: reviewed-pr-manual-sync
+    argocd.argoproj.io/sync-wave: "-13"
+spec:
+  project: his-hope
+  source:
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    targetRevision: production
+    path: k8s/observability/overlays/prod-shared-storage
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+      - PruneLast=true
+      - FailOnSharedResource=true
+  revisionHistoryLimit: 10
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: his-hope-production
+  namespace: argocd
+  annotations:
+    his-hope.io/promotion-mode: reviewed-pr-manual-sync
+spec:
+  project: his-hope
+  source:
+    repoURL: http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+    targetRevision: production
+    path: k8s/overlays/prod-shared-storage
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: his-hope
+  # Production is reconciled only after a reviewed promotion commit reaches
+  # the internal mirror. Manual sync preserves separation of duties.
+  syncPolicy:
+    syncOptions:
+      - PruneLast=true
+      - FailOnSharedResource=true
+  revisionHistoryLimit: 10
