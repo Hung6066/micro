@@ -288,6 +288,29 @@ patches:
           runAsNonRoot: true
           seccompProfile:
             type: RuntimeDefault
+  # The production workers have 8 vCPU each and are intentionally dedicated
+  # to workloads. Keep the application replicas/limits unchanged, but lower
+  # the guaranteed CPU request for backend services so Argo can complete a
+  # rolling sync without leaving critical services Pending at 97-99% worker
+  # request utilization.
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/component=backend"
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 384m
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/component=gateway"
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 384m
       - op: add
         path: /spec/template/spec/containers/0/securityContext
         value:
