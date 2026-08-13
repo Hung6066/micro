@@ -78,7 +78,7 @@ jobs:
           version: '1.50.0'
       - name: Fetch production protobuf baseline
         shell: bash
-        run: git fetch --no-tags origin production:refs/heads/production
+        run: git fetch --no-tags origin production:refs/remotes/origin/production
       - name: Lint and check protobuf compatibility
         working-directory: src/Shared/Protos
         run: |
