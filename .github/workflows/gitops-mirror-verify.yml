@@ -5,6 +5,12 @@ on:
     workflows: ["GitOps Mirror Synchronization"]
     types: [completed]
     branches: [production]
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: 40-character production commit to verify
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -15,7 +21,7 @@ concurrency:
 
 jobs:
   verify:
-    if: github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: [self-hosted, linux, gitops-mirror]
     timeout-minutes: 15
     environment: production
@@ -25,9 +31,9 @@ jobs:
       - name: Validate trusted mirror synchronization event
         shell: pwsh
         env:
-          HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
-          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
-          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name || github.repository }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch || 'production' }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name || 'GitOps Mirror Synchronization' }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ($env:HEAD_REPOSITORY -ne '${{ github.repository }}' -or
@@ -65,10 +71,18 @@ jobs:
           [IO.File]::WriteAllText($path, $yaml, [Text.UTF8Encoding]::new($false))
           "path=$path" >> $env:GITHUB_OUTPUT
 
+      - name: Capture Argo application status
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.kubeconfig.outputs.path }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          kubectl --kubeconfig $env:KUBECONFIG -n argocd get applications -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,REV:.status.sync.revision
+
       - name: Verify all Git mirror and Argo revisions
         shell: pwsh
         env:
-          EXPECTED_REVISION: ${{ github.event.workflow_run.head_sha }}
+          EXPECTED_REVISION: ${{ github.event_name == 'workflow_dispatch' && inputs.revision || github.event.workflow_run.head_sha }}
           EXPECTED_REPO_URL: ${{ vars.GITOPS_MIRROR_REPO_URL }}
         run: |
           $ErrorActionPreference = 'Stop'
