@@ -528,6 +528,7 @@ patchesStrategicMerge:
   - workload-readonly-root-patches.yaml
   - database-continuity-storage-patch.yaml
   - k3s-local-capacity-patch.yaml
+  - production-container-security-patch.yaml
 
 components:
   - image-digests

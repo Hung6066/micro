@@ -6,6 +6,12 @@ spec:
   template:
     metadata:
       annotations:
+        # Linkerd's injected proxy does not currently satisfy the production
+        # restricted-workload admission contract (drop ALL capabilities and
+        # RuntimeDefault). Keep backend pods fail-closed until the injector
+        # profile is explicitly hardened; service-to-service access remains
+        # constrained by NetworkPolicy and authenticated workload identity.
+        linkerd.io/inject: disabled
         config.linkerd.io/skip-subnets: "10.43.0.0/16"
         # Redis is TLS-enabled but Redis Cluster redirects clients to pod IPs
         # (10.42.0.0/16), which must bypass the Linkerd TCP proxy.
