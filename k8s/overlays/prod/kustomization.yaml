@@ -511,6 +511,18 @@ patches:
       version: v1
       kind: Deployment
       labelSelector: "app.kubernetes.io/component=bff"
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/name=identity-service"
+    patch: |-
+      - op: add
+        path: /spec/template/spec/securityContext/fsGroup
+        value: 1654
+      - op: add
+        path: /spec/template/spec/securityContext/fsGroupChangePolicy
+        value: OnRootMismatch
 
 patchesStrategicMerge:
   - runtime-data-plane-patch.yaml
