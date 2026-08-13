@@ -46,13 +46,23 @@ jobs:
         shell: pwsh
         env:
           KUBECONFIG_PRODUCTION_B64: ${{ secrets.KUBECONFIG_PRODUCTION_B64 }}
+          K3S_API_SERVER: ${{ vars.K3S_API_SERVER }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ([string]::IsNullOrWhiteSpace($env:KUBECONFIG_PRODUCTION_B64)) {
             throw 'KUBECONFIG_PRODUCTION_B64 is required for read-only mirror verification.'
           }
+          if ($env:K3S_API_SERVER -notmatch '^https://[^/:]+(?::[0-9]+)?$') {
+            throw 'Production variable K3S_API_SERVER must be an HTTPS Kubernetes API endpoint.'
+          }
           $path = Join-Path $env:RUNNER_TEMP 'kubeconfig-production.yaml'
-          [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($env:KUBECONFIG_PRODUCTION_B64))
+          $yaml = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:KUBECONFIG_PRODUCTION_B64))
+          $serverPattern = '(?m)^(\s*server:\s*)https://[^\s]+\s*$'
+          if ($yaml -notmatch $serverPattern) {
+            throw 'Production kubeconfig does not contain a Kubernetes server endpoint.'
+          }
+          $yaml = [Text.RegularExpressions.Regex]::Replace($yaml, $serverPattern, ('$1' + $env:K3S_API_SERVER))
+          [IO.File]::WriteAllText($path, $yaml, [Text.UTF8Encoding]::new($false))
           "path=$path" >> $env:GITHUB_OUTPUT
 
       - name: Verify all Git mirror and Argo revisions
