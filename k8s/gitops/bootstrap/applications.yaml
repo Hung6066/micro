@@ -200,18 +200,18 @@ spec:
     repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
     targetRevision: production
     path: k8s/overlays/prod
-    destination:
-      server: https://kubernetes.default.svc
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: his-hope
+  # The continuity backup claim is an existing bound local-path PVC. Its
+  # controller-assigned volumeName is immutable and must not be reconciled.
+  ignoreDifferences:
+    - group: ""
+      kind: PersistentVolumeClaim
+      name: his-hope-database-continuity-backups
       namespace: his-hope
-    # The continuity backup claim is an existing bound local-path PVC. Its
-    # controller-assigned volumeName is immutable and must not be reconciled.
-    ignoreDifferences:
-      - group: ""
-        kind: PersistentVolumeClaim
-        name: his-hope-database-continuity-backups
-        namespace: his-hope
-        jsonPointers:
-          - /spec/volumeName
+      jsonPointers:
+        - /spec/volumeName
   # This branch is the reviewed deployment branch for the current production
   # change window. Argo continuously reconciles it after the GitHub push.
   syncPolicy:
