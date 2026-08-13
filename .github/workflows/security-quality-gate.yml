@@ -149,5 +149,14 @@ jobs:
           export -f scan_one
           # Keep concurrency bounded for the hosted runner while avoiding a
           # 23-image sequential queue that can exhaust the 45-minute job.
-          printf '%s\0' "${dockerfiles[@]}" |
-            xargs -0 -r -n1 -P3 bash -c 'scan_one "$1"' _
+          set +e
+          timeout --signal=TERM --kill-after=60s 40m \
+            xargs -0 -r -n1 -P3 bash -c 'scan_one "$1"' _ \
+            < <(printf '%s\0' "${dockerfiles[@]}")
+          scan_status=$?
+          set -e
+          if [ "$scan_status" -eq 124 ] || [ "$scan_status" -eq 137 ]; then
+            echo "Timed out while building/scanning production containers" >&2
+            exit 124
+          fi
+          exit "$scan_status"

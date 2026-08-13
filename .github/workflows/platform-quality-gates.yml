@@ -78,7 +78,15 @@ jobs:
           version: '1.50.0'
       - name: Fetch production protobuf baseline
         shell: bash
-        run: git fetch --no-tags origin production:refs/remotes/origin/production
+        run: |
+          set -euo pipefail
+          # A push run checks out production itself; a pull-request run checks
+          # out a topic branch. Never force-fetch into the checked-out branch.
+          if [[ "$(git branch --show-current)" == "production" ]]; then
+            git fetch --no-tags origin production:refs/remotes/origin/production
+          else
+            git fetch --no-tags origin production:refs/heads/production
+          fi
       - name: Lint and check protobuf compatibility
         working-directory: src/Shared/Protos
         run: |
