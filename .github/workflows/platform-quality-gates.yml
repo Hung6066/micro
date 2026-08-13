@@ -3,7 +3,7 @@ name: Platform Quality Gates
 on:
   pull_request:
   push:
-    branches: [main, develop]
+    branches: [main, develop, production]
 
 permissions:
   contents: read
