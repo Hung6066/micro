@@ -139,3 +139,7 @@ test-grpc.csx
 
 .npm-cache/
 
+# Local design reference checkout is not part of this repository. Keeping it
+# ignored prevents an invalid gitlink without a .gitmodules entry from being
+# reintroduced and breaking CI checkouts.
+/docs/design-references/open-design/
