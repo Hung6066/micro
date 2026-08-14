@@ -60,11 +60,11 @@ data:
     return hs
   resource.customizations.health.networking.k8s.io_Ingress: |
     hs = {}
-    # The production edge intentionally uses an external HAProxy/VIP in front
-    # of a Traefik NodePort.  That topology does not populate
-    # status.loadBalancer.ingress, although the Ingress routes are live and
-    # verified by the protected HTTP smoke gate.  Keep this exception narrow
-    # to the one internal production edge resource.
+    -- The production edge intentionally uses an external HAProxy/VIP in front
+    -- of a Traefik NodePort.  That topology does not populate
+    -- status.loadBalancer.ingress, although the Ingress routes are live and
+    -- verified by the protected HTTP smoke gate.  Keep this exception narrow
+    -- to the one internal production edge resource.
     if obj.metadata ~= nil and
        obj.metadata.name == "his-hope-production-local" and
        obj.metadata.namespace == "his-hope" then
