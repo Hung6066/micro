@@ -35,6 +35,7 @@ function Invoke-Kubectl {
 }
 
 $checks = [System.Collections.Generic.List[object]]::new()
+$diagnostics = [System.Collections.Generic.List[object]]::new()
 foreach ($name in $ApplicationName) {
     $application = (Invoke-Kubectl @('get', 'application', $name, '-n', 'argocd', '-o', 'json')) | ConvertFrom-Json
     $targetRevision = [string]$application.spec.source.targetRevision
@@ -52,12 +53,31 @@ foreach ($name in $ApplicationName) {
     if ($RequireSynced) {
         $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-synced'; pass = $application.status.sync.status -eq 'Synced'; actual = $application.status.sync.status })
     }
+    $diagnostics.Add([pscustomobject]@{
+        application = $name
+        syncStatus = [string]$application.status.sync.status
+        operationMessage = [string]$application.status.operationState.message
+        conditions = @($application.status.conditions | ForEach-Object {
+            [pscustomobject]@{ type = [string]$_.type; message = [string]$_.message }
+        })
+        outOfSyncResources = @($application.status.resources | Where-Object { $_.status -eq 'OutOfSync' } | ForEach-Object {
+            [pscustomobject]@{
+                group = [string]$_.group
+                kind = [string]$_.kind
+                namespace = [string]$_.namespace
+                name = [string]$_.name
+                health = [string]$_.health.status
+                message = [string]$_.health.message
+            }
+        })
+    })
 }
 
 $result = [pscustomobject]@{
     expectedRevision = $ExpectedRevision
     applications = @($ApplicationName)
     checks = $checks
+    diagnostics = $diagnostics
     status = if (($checks | Where-Object { -not $_.pass }).Count -eq 0) { 'pass' } else { 'fail' }
 }
 $json = $result | ConvertTo-Json -Depth 5
