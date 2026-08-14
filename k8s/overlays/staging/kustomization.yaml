@@ -49,6 +49,11 @@ patchesStrategicMerge:
 patches:
   - target:
       kind: Deployment
+      labelSelector: app.kubernetes.io/part-of=his-hope
+    path: linkerd-digest-patch.yaml
+
+  - target:
+      kind: Deployment
     patch: |-
       - op: replace
         path: /spec/replicas
