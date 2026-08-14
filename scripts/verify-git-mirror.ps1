@@ -109,6 +109,7 @@ foreach ($name in $ApplicationName) {
     $mirrorStagingPatch = ''
     $liveUnleashImage = ''
     $liveLinkerdResources = @()
+    $liveDataPlaneResources = @()
     if ($name -eq 'his-hope-staging') {
         $mirrorStagingPatch = (Invoke-Kubectl @('-n', 'git-mirror', 'exec', 'deployment/gitea', '--', 'git', '--git-dir=/var/lib/gitea/git/repositories/gitops-admin/micro.git', 'show', "refs/heads/${targetRevision}:k8s/overlays/staging/unleash-digest-patch.yaml") -join "`n")
         $liveUnleashImage = (Invoke-Kubectl @('-n', 'his-hope-staging', 'get', 'deployment', 'his-hope-unleash', '-o', 'jsonpath={.spec.template.spec.containers[0].image}')).Trim()
@@ -132,6 +133,34 @@ foreach ($name in $ApplicationName) {
             }
         }
     }
+    if ($name -eq 'his-hope-data-plane') {
+        foreach ($resource in @($application.status.resources | Where-Object {
+            $_.status -eq 'OutOfSync' -and [string]$_.kind -eq 'StatefulSet'
+        })) {
+            $resourceJson = Invoke-Kubectl @(
+                '-n', 'his-hope-data', 'get', 'statefulset', [string]$resource.name,
+                '-o', 'json'
+            ) | ConvertFrom-Json
+            $selector = ($resourceJson.spec.selector.matchLabels.PSObject.Properties | ForEach-Object {
+                "$($_.Name)=$($_.Value)"
+            }) -join ','
+            $pods = if ([string]::IsNullOrWhiteSpace($selector)) { '' } else {
+                Invoke-Kubectl @('-n', 'his-hope-data', 'get', 'pods', '-l', $selector, '-o', 'json')
+            }
+            $events = Invoke-Kubectl @(
+                '-n', 'his-hope-data', 'get', 'events',
+                '--field-selector', "involvedObject.kind=StatefulSet,involvedObject.name=$([string]$resource.name)",
+                '-o', 'json'
+            )
+            $liveDataPlaneResources += [pscustomobject]@{
+                kind = [string]$resource.kind
+                name = [string]$resource.name
+                statefulSet = ($resourceJson | ConvertTo-Json -Compress -Depth 30)
+                pods = $pods
+                events = $events
+            }
+        }
+    }
     $diagnostics.Add([pscustomobject]@{
         application = $name
         syncStatus = [string]$application.status.sync.status
@@ -143,6 +172,7 @@ foreach ($name in $ApplicationName) {
         mirrorStagingPatch = $mirrorStagingPatch
         liveUnleashImage = $liveUnleashImage
         liveLinkerdResources = $liveLinkerdResources
+        liveDataPlaneResources = $liveDataPlaneResources
     })
 }
 
