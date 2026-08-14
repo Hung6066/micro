@@ -1,0 +1,20 @@
+[
+  {
+    "op": "add",
+    "path": "/spec/egress/0/to/0/namespaceSelector",
+    "value": {
+      "matchLabels": {
+        "kubernetes.io/metadata.name": "his-hope-data"
+      }
+    }
+  },
+  {
+    "op": "add",
+    "path": "/spec/egress/1/to/0/namespaceSelector",
+    "value": {
+      "matchLabels": {
+        "kubernetes.io/metadata.name": "his-hope-data"
+      }
+    }
+  }
+]

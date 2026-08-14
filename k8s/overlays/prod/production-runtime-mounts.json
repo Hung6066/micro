@@ -1,4 +1,5 @@
 [
+  {"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"Vault__Address","valueFrom":{"configMapKeyRef":{"name":"his-hope-runtime-contract-config","key":"ADAPTER_VAULT_ADDRESS"}}}},
   {"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"runtime-tmp","mountPath":"/tmp"}},
   {"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"vault-tls-ca","mountPath":"/etc/tls/vault","readOnly":true}},
   {"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"redis-tls-ca","mountPath":"/etc/tls/redis","readOnly":true}}
