@@ -84,17 +84,7 @@ foreach ($name in $ApplicationName) {
     $syncResultResources = if ($application.status.PSObject.Properties.Name -contains 'operationState' -and
         $application.status.operationState.PSObject.Properties.Name -contains 'syncResult' -and
         $application.status.operationState.syncResult.PSObject.Properties.Name -contains 'resources') {
-        @($application.status.operationState.syncResult.resources | ForEach-Object {
-            [pscustomobject]@{
-                group = [string]$_.group
-                kind = [string]$_.kind
-                namespace = [string]$_.namespace
-                name = [string]$_.name
-                status = [string]$_.status
-                message = [string]$_.message
-                hookType = [string]$_.hookType
-            }
-        })
+        @($application.status.operationState.syncResult.resources | Select-Object group, kind, namespace, name, status, message, hookType)
     } else {
         @()
     }
