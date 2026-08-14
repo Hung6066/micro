@@ -5,6 +5,10 @@ metadata:
   annotations:
     # This local-path claim is already bound and its volumeName is immutable.
     # Keep the existing PVC; backup data is managed by the continuity agent.
-    argocd.argoproj.io/sync-options: Skip=true
+    # Keep the bound local-path claim and never prune it during migration.
+    argocd.argoproj.io/sync-options: Skip=true,Prune=false
 spec:
   storageClassName: local-path
+  # Recovery pin for the already-bound production backup volume. The protected
+  # PVC migration workflow must update this value as part of a later cutover.
+  volumeName: pvc-71f13d2c-75c4-4ae6-abd2-6920e0b4c8f3
