@@ -1,0 +1,10 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unleash
+spec:
+  template:
+    spec:
+      containers:
+        - name: unleash
+          image: harbor.his-hope.local:9443/his-hope/unleash-server:6.0@sha256:5d6c22f6f90025b06a8f15488d68176dd5ee85fe1947235f37be9ef9013baf21
