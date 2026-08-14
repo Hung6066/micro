@@ -7,6 +7,11 @@ on:
         description: 40-character production commit to verify in the mirror and Argo CD
         required: true
         type: string
+      max_attempts:
+        description: Maximum convergence attempts (use 1 for read-only diagnostics)
+        required: false
+        default: '30'
+        type: string
   workflow_run:
     workflows: ["GitOps Mirror Synchronization"]
     types: [completed]
@@ -83,8 +88,12 @@ jobs:
           if ($env:EXPECTED_REPO_URL -notmatch '^https://[^/]+/[^/]+/[^/]+\.git$') {
             throw 'GITOPS_MIRROR_REPO_URL must be an HTTPS repository URL.'
           }
+          $maxAttempts = [int]'${{ inputs.max_attempts || 30 }}'
+          if ($maxAttempts -lt 1 -or $maxAttempts -gt 30) {
+            throw 'max_attempts must be between 1 and 30.'
+          }
           $verificationOutput = $null
-          for ($attempt = 1; $attempt -le 30; $attempt++) {
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
             $verificationOutput = & ./scripts/verify-git-mirror.ps1 `
               -ExpectedRevision $env:EXPECTED_REVISION `
               -ExpectedRepoUrl $env:EXPECTED_REPO_URL `
@@ -95,11 +104,11 @@ jobs:
               $verificationOutput
               exit 0
             }
-            Write-Warning "Mirror/Argo verification attempt $attempt/30 is not ready yet."
-            if ($attempt -lt 30) { Start-Sleep -Seconds 20 }
+            Write-Warning "Mirror/Argo verification attempt $attempt/$maxAttempts is not ready yet."
+            if ($attempt -lt $maxAttempts) { Start-Sleep -Seconds 20 }
           }
           $verificationOutput
-          throw 'Git mirror and Argo verification did not converge within 10 minutes.'
+          throw "Git mirror and Argo verification did not converge within $maxAttempts attempt(s)."
 
       - name: Upload verification evidence
         if: always()
