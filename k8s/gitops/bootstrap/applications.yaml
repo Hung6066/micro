@@ -226,4 +226,5 @@ spec:
     syncOptions:
       - PruneLast=true
       - FailOnSharedResource=true
+      - RespectIgnoreDifferences=true
   revisionHistoryLimit: 10
