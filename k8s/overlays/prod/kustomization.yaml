@@ -333,6 +333,18 @@ patches:
           readOnlyRootFilesystem: true
           seccompProfile:
             type: RuntimeDefault
+  - path: production-runtime-mounts.json
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: (patient|appointment|clinical|lab|billing|pharmacy)-service
+  - path: frontend-runtime-mounts.json
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: (admin-app|dashboard-app)
   # Migration hooks share the service image contract but need explicit bounded
   # resources because they are Jobs, not Deployments.
   - target:

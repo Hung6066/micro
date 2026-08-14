@@ -1,0 +1,4 @@
+[
+  {"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"runtime-tmp","emptyDir":{}}},
+  {"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"runtime-tmp","mountPath":"/tmp"}}
+]
