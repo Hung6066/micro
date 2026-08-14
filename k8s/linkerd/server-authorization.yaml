@@ -38,9 +38,8 @@ spec:
         - identity-service.his-hope.serviceaccount.identity.cluster.local
         - appointment-service.his-hope.serviceaccount.identity.cluster.local
         - clinical-service.his-hope.serviceaccount.identity.cluster.local
-    unauthenticated:
-      - networks:
-        - cidr: 0.0.0.0/0
+    networks:
+      - cidr: 0.0.0.0/0
 ---
 # =============================================================================
 # Identity Service Authorizations
@@ -83,9 +82,8 @@ spec:
         - patient-service.his-hope.serviceaccount.identity.cluster.local
         - appointment-service.his-hope.serviceaccount.identity.cluster.local
         - clinical-service.his-hope.serviceaccount.identity.cluster.local
-    unauthenticated:
-      - networks:
-        - cidr: 0.0.0.0/0
+    networks:
+      - cidr: 0.0.0.0/0
 ---
 # =============================================================================
 # Appointment Service Authorizations
@@ -127,9 +125,8 @@ spec:
         - clinical-service.his-hope.serviceaccount.identity.cluster.local
         - patient-service.his-hope.serviceaccount.identity.cluster.local
         - identity-service.his-hope.serviceaccount.identity.cluster.local
-    unauthenticated:
-      - networks:
-        - cidr: 0.0.0.0/0
+    networks:
+      - cidr: 0.0.0.0/0
 ---
 # =============================================================================
 # Lab BFF Authorizations
@@ -150,9 +147,8 @@ spec:
       unauthenticated: false
       identities:
         - api-gateway.his-hope.serviceaccount.identity.cluster.local
-    unauthenticated:
-      - networks:
-        - cidr: 0.0.0.0/0
+    networks:
+      - cidr: 0.0.0.0/0
 
 # =============================================================================
 # Clinical BFF Authorizations
@@ -174,9 +170,8 @@ spec:
       unauthenticated: false
       identities:
         - api-gateway.his-hope.serviceaccount.identity.cluster.local
-    unauthenticated:
-      - networks:
-        - cidr: 0.0.0.0/0
+    networks:
+      - cidr: 0.0.0.0/0
 
 # =============================================================================
 # Clinical Service Authorizations (PHI - most restricted)
@@ -219,9 +214,8 @@ spec:
         - patient-service.his-hope.serviceaccount.identity.cluster.local
         - appointment-service.his-hope.serviceaccount.identity.cluster.local
         - identity-service.his-hope.serviceaccount.identity.cluster.local
-    unauthenticated:
-      - networks:
-        - cidr: 0.0.0.0/0
+    networks:
+      - cidr: 0.0.0.0/0
 
 ---
 # =============================================================================
@@ -243,6 +237,5 @@ spec:
       unauthenticated: false
       identities:
         - api-gateway.his-hope.serviceaccount.identity.cluster.local
-    unauthenticated:
-      - networks:
-        - cidr: 0.0.0.0/0
+    networks:
+      - cidr: 0.0.0.0/0

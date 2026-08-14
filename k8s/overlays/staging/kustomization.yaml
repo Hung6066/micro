@@ -30,9 +30,21 @@ resources:
   - ../../infrastructure/pgbouncer-secret.yaml
   - ../../infrastructure/unleash-deployment.yaml
   - ../../priority/priority-classes.yaml
+
+# The production branch is the reviewed release source for every Argo
+# application. Reuse the signed Harbor digest component so staging cannot
+# bypass the cluster-wide image signature policy with mutable :latest tags.
+components:
+  - ../prod/image-digests
+
 patchesStrategicMerge:
   - runtime-contract-patch.yaml
   - namespace-policy-patch.yaml
+  # Existing staging PVCs are bound to k3s local-path. Keep the immutable
+  # StatefulSet claim template aligned with the live storage contract.
+  - storage-class-postgres-patch.yaml
+  - storage-class-redis-patch.yaml
+  - storage-class-rabbitmq-patch.yaml
 
 patches:
   - target:
