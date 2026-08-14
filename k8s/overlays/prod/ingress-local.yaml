@@ -5,6 +5,10 @@ metadata:
   namespace: his-hope
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: web
+    # This profile uses a NodePort for the internal edge; there is no
+    # LoadBalancer status for Argo CD to observe. Route reachability is
+    # validated by the protected HTTP smoke gate instead.
+    argocd.argoproj.io/ignore-healthcheck: "true"
 spec:
   ingressClassName: traefik
   rules:
