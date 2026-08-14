@@ -200,6 +200,18 @@ spec:
     repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
     targetRevision: production
     path: k8s/overlays/prod
+  ignoreDifferences:
+    # HPA owns replica counts at runtime; do not report a healthy deployment
+    # OutOfSync solely because autoscaling changed spec.replicas.
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: ""
+      kind: PersistentVolumeClaim
+      name: his-hope-database-continuity-backups
+      jsonPointers:
+        - /spec/volumeName
   destination:
     server: https://kubernetes.default.svc
     namespace: his-hope
