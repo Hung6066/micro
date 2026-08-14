@@ -3,3 +3,4 @@ kind: Kustomization
 
 resources:
   - cluster-image-policy.yaml
+  - linkerd-image-policy.yaml
