@@ -283,11 +283,12 @@ patches:
       labelSelector: "app.kubernetes.io/component in (backend,bff)"
     patch: |-
       - op: add
-        path: /spec/template/spec/securityContext
+        path: /spec/template/spec/securityContext/runAsNonRoot
+        value: true
+      - op: add
+        path: /spec/template/spec/securityContext/seccompProfile
         value:
-          runAsNonRoot: true
-          seccompProfile:
-            type: RuntimeDefault
+          type: RuntimeDefault
   # The production workers have 8 vCPU each and are intentionally dedicated
   # to workloads. Keep the application replicas/limits unchanged, but lower
   # the guaranteed CPU request for backend services so Argo can complete a
