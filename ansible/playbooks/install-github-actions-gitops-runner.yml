@@ -8,6 +8,10 @@
     runner_root: /opt/actions-runner
     runner_labels: self-hosted,linux,gitops-mirror
     runner_arch: x64
+    e2e_hosts:
+      - app.his-hope.local
+      - dashboard.his-hope.local
+      - admin.his-hope.local
     runner_version: "{{ vault_github_actions_runner_version }}"
     runner_sha256: "{{ vault_github_actions_runner_sha256 }}"
     runner_download_url: "https://github.com/actions/runner/releases/download/v{{ runner_version }}/actions-runner-linux-{{ runner_arch }}-{{ runner_version }}.tar.gz"
@@ -50,9 +54,17 @@
     - name: Pin internal Git mirror address on the runner
       ansible.builtin.lineinfile:
         path: /etc/hosts
-        regexp: "^{{ git_mirror_vip | regex_escape }}\\s+{{ git_mirror_host | regex_escape }}$"
+        regexp: "^\\S+\\s+{{ git_mirror_host | regex_escape }}$"
         line: "{{ git_mirror_vip }} {{ git_mirror_host }}"
         state: present
+
+    - name: Pin protected E2E application hosts on the runner
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: "^\\S+\\s+{{ item | regex_escape }}$"
+        line: "{{ git_mirror_vip }} {{ item }}"
+        state: present
+      loop: "{{ e2e_hosts }}"
 
     - name: Copy enterprise CA chain for the Git mirror
       ansible.builtin.copy:
