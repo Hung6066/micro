@@ -23,7 +23,9 @@ function Invoke-Kubectl {
 function Assert-NoLegacyMarkers {
     param([Parameter(Mandatory)][string]$Name, [Parameter(Mandatory)][string]$Manifest, [switch]$VaultKubernetes)
     $legacy = @()
-    if ($Manifest -match 'Vault__JwtTokenFile') { $legacy += 'Vault__JwtTokenFile' }
+    # Vault Kubernetes auth intentionally uses the projected service-account
+    # token.  Only SPIRE-mode overlays must reject this marker.
+    if (-not $VaultKubernetes -and $Manifest -match 'Vault__JwtTokenFile') { $legacy += 'Vault__JwtTokenFile' }
     if (-not $VaultKubernetes -and $Manifest -match '(?ms)Vault__AuthMount\s*\n\s*value:\s*kubernetes') {
         $legacy += 'Vault__AuthMount=kubernetes'
     }
