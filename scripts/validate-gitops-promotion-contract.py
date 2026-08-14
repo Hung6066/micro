@@ -63,7 +63,15 @@ def main() -> int:
         fail("release promotion must open a review PR and not mutate a cluster")
 
     mirror_raw = MIRROR_WORKFLOW.read_text(encoding="utf-8")
-    for fragment in ("verify-git-mirror.ps1", "KUBECONFIG_PRODUCTION_B64", "workflow_run:", "head_sha", "RequireSynced"):
+    for fragment in (
+        "verify-git-mirror.ps1",
+        "KUBECONFIG_PRODUCTION_B64",
+        "K3S_API_SERVER",
+        "workflow_run:",
+        "head_sha",
+        "RequireSynced",
+        "127\\.0\\.0\\.1|localhost",
+    ):
         if fragment not in mirror_raw:
             fail(f"mirror verification is missing required control: {fragment}")
     for fragment in ("runs-on: [self-hosted, linux, gitops-mirror]", "EXPECTED_REPO_URL", "GITOPS_MIRROR_REPO_URL"):
