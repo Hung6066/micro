@@ -81,6 +81,24 @@ foreach ($name in $ApplicationName) {
     } else {
         @()
     }
+    $unhealthyResources = if ($application.status.PSObject.Properties.Name -contains 'resources') {
+        @($application.status.resources | Where-Object {
+            $_.PSObject.Properties.Name -contains 'health' -and
+            -not [string]::IsNullOrWhiteSpace([string]$_.health.status) -and
+            [string]$_.health.status -notin @('Healthy', 'Suspended')
+        } | ForEach-Object {
+            [pscustomobject]@{
+                group = [string]$_.group
+                kind = [string]$_.kind
+                namespace = [string]$_.namespace
+                name = [string]$_.name
+                health = [string]$_.health.status
+                message = [string]$_.health.message
+            }
+        })
+    } else {
+        @()
+    }
     $syncResultResources = if ($application.status.PSObject.Properties.Name -contains 'operationState' -and
         $application.status.operationState.PSObject.Properties.Name -contains 'syncResult' -and
         $application.status.operationState.syncResult.PSObject.Properties.Name -contains 'resources') {
@@ -88,13 +106,22 @@ foreach ($name in $ApplicationName) {
     } else {
         @()
     }
+    $mirrorStagingPatch = ''
+    $liveUnleashImage = ''
+    if ($name -eq 'his-hope-staging') {
+        $mirrorStagingPatch = (Invoke-Kubectl @('-n', 'git-mirror', 'exec', 'deployment/gitea', '--', 'git', '--git-dir=/var/lib/gitea/git/repositories/gitops-admin/micro.git', 'show', "refs/heads/${targetRevision}:k8s/overlays/staging/unleash-digest-patch.yaml") -join "`n")
+        $liveUnleashImage = (Invoke-Kubectl @('-n', 'his-hope-staging', 'get', 'deployment', 'his-hope-unleash', '-o', 'jsonpath={.spec.template.spec.containers[0].image}')).Trim()
+    }
     $diagnostics.Add([pscustomobject]@{
         application = $name
         syncStatus = [string]$application.status.sync.status
         operationMessage = $operationMessage
         conditions = $conditions
         outOfSyncResources = $outOfSyncResources
+        unhealthyResources = $unhealthyResources
         syncResultResources = $syncResultResources
+        mirrorStagingPatch = $mirrorStagingPatch
+        liveUnleashImage = $liveUnleashImage
     })
 }
 
