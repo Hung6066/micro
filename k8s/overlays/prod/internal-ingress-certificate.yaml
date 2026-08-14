@@ -1,0 +1,28 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: internal-ingress
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: ingress-tls
+spec:
+  secretName: his-hope-internal-ingress-tls
+  issuerRef:
+    name: vault-issuer-internal-ingress
+    kind: ClusterIssuer
+  commonName: app.his-hope.local
+  dnsNames:
+    - app.his-hope.local
+    - dashboard.his-hope.local
+    - admin.his-hope.local
+    - identity.his-hope.local
+  duration: 720h
+  renewBefore: 120h
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS8
+    size: 3072
+    rotationPolicy: Always
+  usages:
+    - server auth

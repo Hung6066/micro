@@ -4,9 +4,17 @@ metadata:
   name: production-local
   namespace: his-hope
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
   ingressClassName: traefik
+  tls:
+    - secretName: his-hope-internal-ingress-tls
+      hosts:
+        - identity.his-hope.local
+        - admin.his-hope.local
+        - dashboard.his-hope.local
+        - app.his-hope.local
   rules:
     - host: identity.his-hope.local
       http:

@@ -1,0 +1,123 @@
+---
+- name: Configure Vault PKI and cert-manager for internal application ingress
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    vault_kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default('/mnt/d/AI/micro-prod-fix2/artifacts/kubeconfig-production.yaml', true) }}"
+    vault_namespace: his-hope
+    vault_pod: vault-1
+    vault_operator_token_file: "{{ lookup('env', 'VAULT_OPERATOR_TOKEN_FILE') | default('/mnt/d/secure/his-hope/vault_operator_token', true) }}"
+    vault_tls_ca_secret_namespace: his-hope
+    vault_tls_ca_secret_name: vault-tls-ca
+    vault_tls_ca_secret_key: ca.crt
+    issuer_manifest: "{{ playbook_dir }}/../../k8s/security/cert-manager-vault-issuer-internal-ingress.yaml"
+  tasks:
+    - name: Require protected Vault inputs
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ vault_operator_token_file }}"
+        - "{{ issuer_manifest }}"
+      register: protected_inputs
+      failed_when: protected_inputs.results | selectattr('stat.exists', 'equalto', false) | list | length > 0
+
+    - name: Configure Vault PKI role, policy and Kubernetes auth role
+      ansible.builtin.shell: |
+        set -euo pipefail
+        token=$(cat '{{ vault_operator_token_file }}')
+        kubectl --kubeconfig '{{ vault_kubeconfig }}' -n '{{ vault_namespace }}' exec '{{ vault_pod }}' -- \
+          env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true VAULT_TOKEN="$token" \
+          vault write pki_int/roles/internal-ingress \
+            allowed_domains=his-hope.local allow_bare_domains=true allow_subdomains=true \
+            server_flag=true client_flag=false max_ttl=720h
+        policy=$(printf '%s\n' \
+          'path "pki_int/sign/internal-ingress" {' \
+          '  capabilities = ["create", "update"]' \
+          '}' \
+          'path "pki_int/ca_chain" {' \
+          '  capabilities = ["read"]' \
+          '}')
+        encoded=$(printf '%s' "$policy" | base64 -w0)
+        kubectl --kubeconfig '{{ vault_kubeconfig }}' -n '{{ vault_namespace }}' exec '{{ vault_pod }}' -- \
+          env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true VAULT_TOKEN="$token" \
+          sh -c "printf '%s' '$encoded' | base64 -d | vault policy write cert-manager-internal-ingress -"
+        kubectl --kubeconfig '{{ vault_kubeconfig }}' -n '{{ vault_namespace }}' exec '{{ vault_pod }}' -- \
+          env VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true VAULT_TOKEN="$token" \
+          vault write auth/kubernetes/role/cert-manager-internal-ingress \
+            bound_service_account_names=cert-manager \
+            bound_service_account_namespaces=cert-manager \
+            token_policies=cert-manager-internal-ingress token_ttl=24h token_max_ttl=168h
+      args:
+        executable: /bin/bash
+      no_log: true
+      changed_when: true
+
+    - name: Read Vault server TLS CA from the cluster-managed CA secret
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig
+          - "{{ vault_kubeconfig }}"
+          - -n
+          - "{{ vault_tls_ca_secret_namespace }}"
+          - get
+          - secret/{{ vault_tls_ca_secret_name }}
+          - -o
+          - "jsonpath={.data['{{ vault_tls_ca_secret_key }}']}"
+      register: vault_tls_ca_bundle
+      changed_when: false
+      no_log: true
+
+    - name: Render ClusterIssuer with Vault server TLS CA
+      ansible.builtin.copy:
+        dest: "{{ ansible_env.TMPDIR | default('/tmp') }}/vault-issuer-internal-ingress.yaml"
+        mode: '0600'
+        content: "{{ lookup('ansible.builtin.file', issuer_manifest) | regex_replace('caBundle: \\\"\\\"', 'caBundle: ' ~ vault_tls_ca_bundle.stdout) }}"
+      register: rendered_issuer
+      no_log: true
+
+    - name: Apply internal ingress ClusterIssuer
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig
+          - "{{ vault_kubeconfig }}"
+          - apply
+          - -f
+          - "{{ rendered_issuer.dest }}"
+      register: issuer_apply
+      changed_when: "'configured' in issuer_apply.stdout or 'created' in issuer_apply.stdout"
+      no_log: true
+
+    - name: Inject protected Vault PKI CA bundle into the ClusterIssuer
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig
+          - "{{ vault_kubeconfig }}"
+          - patch
+          - clusterissuer
+          - vault-issuer-internal-ingress
+          - --type=merge
+          - --patch
+          - "{{ {'spec': {'vault': {'caBundle': vault_tls_ca_bundle.stdout}}} | to_json }}"
+      no_log: true
+      changed_when: true
+
+    - name: Remove rendered ClusterIssuer manifest
+      ansible.builtin.file:
+        path: "{{ rendered_issuer.dest }}"
+        state: absent
+
+    - name: Wait for the Vault ClusterIssuer
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig
+          - "{{ vault_kubeconfig }}"
+          - wait
+          - --for=condition=Ready
+          - clusterissuer/vault-issuer-internal-ingress
+          - --timeout=180s
+      changed_when: false

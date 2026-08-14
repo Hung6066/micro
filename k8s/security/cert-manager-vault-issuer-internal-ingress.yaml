@@ -1,0 +1,21 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: vault-issuer-internal-ingress
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: certificate-issuer
+spec:
+  vault:
+    path: pki_int/sign/internal-ingress
+    server: https://vault-active.his-hope.svc.cluster.local:8200
+    # Inject the protected Vault PKI CA bundle during the production bootstrap.
+    caBundle: ""
+    auth:
+      kubernetes:
+        mountPath: /v1/auth/kubernetes
+        role: cert-manager-internal-ingress
+        serviceAccountRef:
+          name: cert-manager
+          audiences:
+            - vault://vault-issuer-internal-ingress
