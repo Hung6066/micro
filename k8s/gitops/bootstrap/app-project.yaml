@@ -104,6 +104,8 @@ spec:
       kind: ServiceMonitor
     - group: secrets-store.csi.x-k8s.io
       kind: SecretProviderClass
+    - group: cert-manager.io
+      kind: Certificate
     - group: barmancloud.cnpg.io
       kind: ObjectStore
     - group: postgresql.cnpg.io

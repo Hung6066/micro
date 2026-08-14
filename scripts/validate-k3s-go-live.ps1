@@ -134,7 +134,7 @@ if (-not (Test-Path -LiteralPath $overlayPath -PathType Container)) {
         } else {
             Add-Check 'image-digests' 'pass' "$($images.Count) rendered image reference(s) are immutable."
         }
-        if ($text -match '(?im)^\s*(password|token|privateKey|clientSecret):\s*[^$<{\s]+') {
+            if ($text -match '(?im)^\s*(password|token|privateKey|clientSecret):[ \t]*[^$<{\s]+') {
             Add-Check 'manifest-secret-scan' 'fail' 'Rendered manifests contain a possible literal secret value.'
         } else {
             Add-Check 'manifest-secret-scan' 'pass' 'No literal secret values detected in rendered manifests.'

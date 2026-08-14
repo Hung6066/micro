@@ -25,6 +25,7 @@ resources:
   - allow-backends-redis-egress.yaml
   - bff-grpc-egress.yaml
   - ingress-local.yaml
+  - internal-ingress-certificate.yaml
   - ../../base
   # PgBouncer configuration is non-secret and is owned by the production
   # overlay. Authentication material remains provisioned out-of-band.
