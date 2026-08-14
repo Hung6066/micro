@@ -96,6 +96,7 @@ spec:
       labels:
         app.kubernetes.io/name: redis
         app.kubernetes.io/component: cache
+        app.kubernetes.io/version: latest
         app: redis
     spec:
       securityContext:
