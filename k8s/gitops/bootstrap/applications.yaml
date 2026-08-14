@@ -119,6 +119,7 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - FailOnSharedResource=true
+      - RespectIgnoreDifferences=true
   revisionHistoryLimit: 10
 ---
 apiVersion: argoproj.io/v1alpha1

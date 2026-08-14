@@ -35,6 +35,7 @@ function Invoke-Kubectl {
 }
 
 $checks = [System.Collections.Generic.List[object]]::new()
+$diagnostics = [System.Collections.Generic.List[object]]::new()
 foreach ($name in $ApplicationName) {
     $application = (Invoke-Kubectl @('get', 'application', $name, '-n', 'argocd', '-o', 'json')) | ConvertFrom-Json
     $targetRevision = [string]$application.spec.source.targetRevision
@@ -52,12 +53,56 @@ foreach ($name in $ApplicationName) {
     if ($RequireSynced) {
         $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-synced'; pass = $application.status.sync.status -eq 'Synced'; actual = $application.status.sync.status })
     }
+    $operationMessage = if ($application.status.PSObject.Properties.Name -contains 'operationState') {
+        [string]$application.status.operationState.message
+    } else {
+        ''
+    }
+    $conditions = if ($application.status.PSObject.Properties.Name -contains 'conditions') {
+        @($application.status.conditions | ForEach-Object {
+            [pscustomobject]@{ type = [string]$_.type; message = [string]$_.message }
+        })
+    } else {
+        @()
+    }
+    $outOfSyncResources = if ($application.status.PSObject.Properties.Name -contains 'resources') {
+        @($application.status.resources | Where-Object { $_.status -eq 'OutOfSync' } | ForEach-Object {
+            $healthStatus = if ($_.PSObject.Properties.Name -contains 'health') { [string]$_.health.status } else { '' }
+            $healthMessage = if ($_.PSObject.Properties.Name -contains 'health') { [string]$_.health.message } else { '' }
+            [pscustomobject]@{
+                group = [string]$_.group
+                kind = [string]$_.kind
+                namespace = [string]$_.namespace
+                name = [string]$_.name
+                health = $healthStatus
+                message = $healthMessage
+            }
+        })
+    } else {
+        @()
+    }
+    $syncResultResources = if ($application.status.PSObject.Properties.Name -contains 'operationState' -and
+        $application.status.operationState.PSObject.Properties.Name -contains 'syncResult' -and
+        $application.status.operationState.syncResult.PSObject.Properties.Name -contains 'resources') {
+        @($application.status.operationState.syncResult.resources | Select-Object group, kind, namespace, name, status, message, hookType)
+    } else {
+        @()
+    }
+    $diagnostics.Add([pscustomobject]@{
+        application = $name
+        syncStatus = [string]$application.status.sync.status
+        operationMessage = $operationMessage
+        conditions = $conditions
+        outOfSyncResources = $outOfSyncResources
+        syncResultResources = $syncResultResources
+    })
 }
 
 $result = [pscustomobject]@{
     expectedRevision = $ExpectedRevision
     applications = @($ApplicationName)
     checks = $checks
+    diagnostics = $diagnostics
     status = if (($checks | Where-Object { -not $_.pass }).Count -eq 0) { 'pass' } else { 'fail' }
 }
 $json = $result | ConvertTo-Json -Depth 5
