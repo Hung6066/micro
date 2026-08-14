@@ -88,6 +88,13 @@ images:
     newName: harbor.his-hope.local:9443/his-hope/unleash-server
     newTag: "6.0"
     digest: sha256:5d6c22f6f90025b06a8f15488d68176dd5ee85fe1947235f37be9ef9013baf21
+  # Kustomize normalizes unqualified image references to docker.io in some
+  # Argo CD builds; keep the admission-safe digest mapping explicit for both
+  # spellings so staging cannot fall back to the mutable tag.
+  - name: docker.io/unleashorg/unleash-server
+    newName: harbor.his-hope.local:9443/his-hope/unleash-server
+    newTag: "6.0"
+    digest: sha256:5d6c22f6f90025b06a8f15488d68176dd5ee85fe1947235f37be9ef9013baf21
   - name: hashicorp/vault
     newName: harbor.his-hope.local:9443/his-hope/hashicorp/vault
     newTag: "1.16"
