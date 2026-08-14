@@ -58,6 +58,34 @@ data:
     hs.status = "Healthy"
     hs.message = "Service resource is present"
     return hs
+  resource.customizations.health.networking.k8s.io_Ingress: |
+    hs = {}
+    # The production edge intentionally uses an external HAProxy/VIP in front
+    # of a Traefik NodePort.  That topology does not populate
+    # status.loadBalancer.ingress, although the Ingress routes are live and
+    # verified by the protected HTTP smoke gate.  Keep this exception narrow
+    # to the one internal production edge resource.
+    if obj.metadata ~= nil and
+       obj.metadata.name == "his-hope-production-local" and
+       obj.metadata.namespace == "his-hope" then
+      if obj.spec ~= nil and obj.spec.rules ~= nil and #obj.spec.rules > 0 then
+        hs.status = "Healthy"
+        hs.message = "Internal NodePort routes are declared; external HTTP smoke gate is authoritative"
+      else
+        hs.status = "Progressing"
+        hs.message = "Waiting for internal production routes"
+      end
+      return hs
+    end
+    if obj.status ~= nil and obj.status.loadBalancer ~= nil and
+       obj.status.loadBalancer.ingress ~= nil and #obj.status.loadBalancer.ingress > 0 then
+      hs.status = "Healthy"
+      hs.message = "Ingress load balancer status is populated"
+    else
+      hs.status = "Progressing"
+      hs.message = "Waiting for Ingress load balancer status"
+    end
+    return hs
   resource.customizations.health.policy.linkerd.io_Server: |
     hs = {}
     if obj.status ~= nil and obj.status.conditions ~= nil then
