@@ -88,6 +88,12 @@ foreach ($name in $ApplicationName) {
     } else {
         @()
     }
+    $mirrorStagingPatch = ''
+    $liveUnleashImage = ''
+    if ($name -eq 'his-hope-staging') {
+        $mirrorStagingPatch = (Invoke-Kubectl @('-n', 'git-mirror', 'exec', 'deployment/gitea', '--', 'git', '--git-dir=/var/lib/gitea/git/repositories/gitops-admin/micro.git', 'show', "refs/heads/${targetRevision}:k8s/overlays/staging/unleash-digest-patch.yaml") -join "`n")
+        $liveUnleashImage = (Invoke-Kubectl @('-n', 'his-hope-staging', 'get', 'deployment', 'his-hope-unleash', '-o', 'jsonpath={.spec.template.spec.containers[0].image}')).Trim()
+    }
     $diagnostics.Add([pscustomobject]@{
         application = $name
         syncStatus = [string]$application.status.sync.status
@@ -95,6 +101,8 @@ foreach ($name in $ApplicationName) {
         conditions = $conditions
         outOfSyncResources = $outOfSyncResources
         syncResultResources = $syncResultResources
+        mirrorStagingPatch = $mirrorStagingPatch
+        liveUnleashImage = $liveUnleashImage
     })
 }
 
