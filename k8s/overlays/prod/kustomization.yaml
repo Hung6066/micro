@@ -582,6 +582,10 @@ patchesStrategicMerge:
   - runtime-default-workload-patch.yaml
   - service-runtime-fix-patch.yaml
   - enterprise-runtime-security-patch.yaml
+  # The internal K3s profile terminates HTTP at the local ingress. Keep JWT
+  # metadata explicitly HTTP-tolerant for this profile; the public TLS profile
+  # must omit this patch and use enterprise-runtime-security-patch instead.
+  - k3s-local-http-auth-patch.yaml
   - k3s-local-backend-auth-patch.yaml
   - systemdashboard-bff-rbac-patch.yaml
   - pharmacy-redis-tls-ca-patch.yaml
