@@ -1,0 +1,22 @@
+# Linkerd publishes the proxy and proxy-init images as immutable release
+# digests, but they are not signed by this repository's GitHub OIDC identity.
+# Keep digest admission strict while explicitly allowing these upstream mesh
+# images through Policy Controller.
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: his-hope-linkerd-digest
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: admission-control
+    app.kubernetes.io/managed-by: argocd
+spec:
+  images:
+    - glob: cr.l5d.io/linkerd/**
+  authorities:
+    - name: linkerd-upstream-digest
+      static:
+        action: pass
+  mode: enforce
