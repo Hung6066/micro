@@ -346,6 +346,12 @@ patches:
       version: v1
       kind: Deployment
       name: (admin-app|dashboard-app)
+  - path: backend-data-egress-namespace-patch.json
+    target:
+      group: networking.k8s.io
+      version: v1
+      kind: NetworkPolicy
+      name: allow-backend-data-egress
   # Migration hooks share the service image contract but need explicit bounded
   # resources because they are Jobs, not Deployments.
   - target:
