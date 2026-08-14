@@ -127,8 +127,8 @@ foreach ($name in $ApplicationName) {
             $liveLinkerdResources += [pscustomobject]@{
                 kind = [string]$resource.kind
                 name = [string]$resource.name
-                metadata = $resourceJson.metadata
-                spec = $resourceJson.spec
+                metadata = ($resourceJson.metadata | ConvertTo-Json -Compress -Depth 30)
+                spec = ($resourceJson.spec | ConvertTo-Json -Compress -Depth 30)
             }
         }
     }

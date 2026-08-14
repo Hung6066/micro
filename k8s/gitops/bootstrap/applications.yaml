@@ -109,18 +109,22 @@ spec:
       kind: StatefulSet
       jsonPointers:
         - /spec/volumeClaimTemplates
-    # Linkerd may reconcile controller-owned metadata on these CRDs. Keep
-    # policy specs fully managed by GitOps while ignoring only metadata drift.
+    # Linkerd normalizes retry budgets and the explicit false default on read.
+    # Keep route conditions and authorization identities fully managed by GitOps.
     - group: linkerd.io
       kind: ServiceProfile
       jsonPointers:
         - /metadata/annotations
         - /metadata/labels
+      jqPathExpressions:
+        - .spec.routes[] | select(has("retries")) | .retries
     - group: policy.linkerd.io
       kind: ServerAuthorization
       jsonPointers:
         - /metadata/annotations
         - /metadata/labels
+      jqPathExpressions:
+        - .spec.client.meshTLS.unauthenticated
   destination:
     server: https://kubernetes.default.svc
     namespace: his-hope-staging
