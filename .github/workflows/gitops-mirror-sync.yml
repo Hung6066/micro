@@ -58,7 +58,11 @@ jobs:
 
           test "$(git rev-parse HEAD)" = "$REVISION"
           auth_header="Basic $(printf '%s' "$MIRROR_USERNAME:$MIRROR_TOKEN" | base64 -w0)"
-          git remote add production-mirror "$MIRROR_URL"
+          if git remote get-url production-mirror >/dev/null 2>&1; then
+            git remote set-url production-mirror "$MIRROR_URL"
+          else
+            git remote add production-mirror "$MIRROR_URL"
+          fi
           expected_remote_revision='0000000000000000000000000000000000000000'
           if git -c "http.extraheader=Authorization: $auth_header" fetch --no-tags production-mirror refs/heads/production:refs/remotes/production-mirror/production; then
             expected_remote_revision="$(git rev-parse refs/remotes/production-mirror/production)"
