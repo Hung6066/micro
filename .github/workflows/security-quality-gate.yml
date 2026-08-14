@@ -155,14 +155,12 @@ jobs:
           # package entries while another restore is reading them, producing
           # nondeterministic restore failures. Keep this gate deterministic;
           # the job timeout still bounds the complete queue.
-          set +e
-          timeout --foreground --signal=TERM --kill-after=60s 40m \
-            xargs -0 -r -n1 -P1 bash -c 'scan_one "$1"' _ \
-            < <(printf '%s\0' "${dockerfiles[@]}")
-          scan_status=$?
-          set -e
-          if [ "$scan_status" -eq 124 ] || [ "$scan_status" -eq 137 ]; then
-            echo "Timed out while building/scanning production containers" >&2
-            exit 124
-          fi
-          exit "$scan_status"
+          # Keep orchestration in this shell. An outer timeout around xargs can
+          # leave its child Docker process group attached to the runner after
+          # cancellation, causing a workflow to remain running indefinitely.
+          # Each image already has an explicit build and scan timeout, while
+          # the job-level timeout bounds the complete deterministic queue.
+          for dockerfile in "${dockerfiles[@]}"; do
+            echo "Building and scanning $dockerfile"
+            scan_one "$dockerfile"
+          done
