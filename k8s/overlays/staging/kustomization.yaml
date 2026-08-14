@@ -27,6 +27,7 @@ resources:
   - ../../linkerd/pod-monitor.yaml
   - ../../infrastructure/pgbouncer-configmap.yaml
   - ../../infrastructure/pgbouncer-secret.yaml
+  - bff-secrets.yaml
   - ../../infrastructure/unleash-deployment.yaml
   - ../../priority/priority-classes.yaml
 
