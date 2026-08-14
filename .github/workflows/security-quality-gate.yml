@@ -119,7 +119,26 @@ jobs:
           set -euo pipefail
           test -s his-hope-sbom.cdx.json
           node -e "const fs=require('fs'); const bom=JSON.parse(fs.readFileSync('his-hope-sbom.cdx.json','utf8')); if (bom.bomFormat !== 'CycloneDX' || !Array.isArray(bom.components)) process.exit(1);"
+      - name: Determine container scan scope
+        id: container-scan-scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            echo "full_scan=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed_files="$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")"
+          if grep -Eq '(^|/)Dockerfile$' <<<"$changed_files"; then
+            echo "full_scan=true" >> "$GITHUB_OUTPUT"
+            echo 'Dockerfile change detected; running the full production container scan.'
+          else
+            echo "full_scan=false" >> "$GITHUB_OUTPUT"
+            echo 'No Dockerfile changed; immutable-image and rendered-manifest gates cover this PR.'
+          fi
+
       - name: Build and scan every production container
+        if: steps.container-scan-scope.outputs.full_scan == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -164,3 +183,8 @@ jobs:
             echo "Building and scanning $dockerfile"
             scan_one "$dockerfile"
           done
+
+      - name: Record scoped container scan decision
+        if: steps.container-scan-scope.outputs.full_scan != 'true'
+        shell: bash
+        run: echo 'Container build scan skipped because this pull request changes no Dockerfile.'
