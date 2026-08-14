@@ -20,7 +20,6 @@ resources:
   - ../../base/redis.yaml
   - ../../linkerd/traffic-split-crd.yaml
   - ../../base/seccomp-profiles.yaml
-  - ../../base/seccomp-daemonset.yaml
   - ../../linkerd/server.yaml
   - ../../linkerd/server-authorization.yaml
   - ../../linkerd/traffic-split.yaml
