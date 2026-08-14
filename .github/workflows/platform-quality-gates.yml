@@ -137,7 +137,10 @@ jobs:
         working-directory: tests/e2e
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          # The protected self-hosted runner owns its OS dependencies.  Do not
+          # use --with-deps here: Playwright invokes sudo for that flag and the
+          # runner intentionally has no interactive sudo prompt.
+          npx playwright install chromium
           pwsh ../../scripts/verify-e2e-prerequisites.ps1
           # Run the complete Chromium suite. The prerequisite step fails
           # closed when the protected app URLs or auth probe are unavailable;
@@ -175,7 +178,10 @@ jobs:
           E2E_AUTH_TOKEN: ${{ secrets.E2E_AUTH_TOKEN }}
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          # The protected self-hosted runner owns its OS dependencies.  Do not
+          # use --with-deps here: Playwright invokes sudo for that flag and the
+          # runner intentionally has no interactive sudo prompt.
+          npx playwright install chromium
           pwsh ../../scripts/verify-e2e-prerequisites.ps1
           npm run test -- --project=chromium --workers=1
 
