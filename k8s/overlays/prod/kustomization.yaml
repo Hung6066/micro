@@ -584,6 +584,7 @@ patchesStrategicMerge:
   - workload-vault-kubernetes-auth-patches.yaml
   - identity-vault-kubernetes-auth-patch.yaml
   - database-continuity-redis-tls-patch.yaml
+  - database-continuity-postgres-host-patch.yaml
   - workload-readonly-root-patches.yaml
   - database-continuity-storage-patch.yaml
   # The existing local-path claim is bound and must not be reconciled by
