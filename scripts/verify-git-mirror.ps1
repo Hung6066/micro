@@ -67,13 +67,15 @@ foreach ($name in $ApplicationName) {
     }
     $outOfSyncResources = if ($application.status.PSObject.Properties.Name -contains 'resources') {
         @($application.status.resources | Where-Object { $_.status -eq 'OutOfSync' } | ForEach-Object {
+            $healthStatus = if ($_.PSObject.Properties.Name -contains 'health') { [string]$_.health.status } else { '' }
+            $healthMessage = if ($_.PSObject.Properties.Name -contains 'health') { [string]$_.health.message } else { '' }
             [pscustomobject]@{
                 group = [string]$_.group
                 kind = [string]$_.kind
                 namespace = [string]$_.namespace
                 name = [string]$_.name
-                health = [string]$_.health.status
-                message = [string]$_.health.message
+                health = $healthStatus
+                message = $healthMessage
             }
         })
     } else {
