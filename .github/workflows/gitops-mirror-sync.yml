@@ -1,71 +1,54 @@
-name: GitOps Mirror Synchronization
+name: Sync production to internal Git mirror
 
 on:
   push:
     branches: [production]
   workflow_dispatch:
-    inputs:
-      revision:
-        description: 40-character production commit to mirror
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: gitops-mirror-sync-production
+  group: gitops-mirror-production
   cancel-in-progress: false
 
 jobs:
-  sync:
-    runs-on: [self-hosted, linux, gitops-mirror]
-    timeout-minutes: 15
+  sync-production:
+    name: Sync reviewed production commit to Gitea
+    runs-on: [self-hosted, gitops-runner]
     environment: production
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Checkout reviewed production commit
+        uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.revision || github.sha }}
-          # The mirror rejects pushes from a shallow repository.
+          ref: production
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Push the reviewed production revision to the internal Git mirror
+      - name: Push and verify the mirror branch
         shell: bash
         env:
-          MIRROR_URL: ${{ vars.GITOPS_MIRROR_REPO_URL }}
+          MIRROR_URL: ${{ secrets.GITOPS_MIRROR_REPO_URL }}
           MIRROR_USERNAME: ${{ secrets.GITOPS_MIRROR_USERNAME }}
           MIRROR_TOKEN: ${{ secrets.GITOPS_MIRROR_TOKEN }}
-          REVISION: ${{ inputs.revision || github.sha }}
         run: |
           set -euo pipefail
-          if [[ ! "$REVISION" =~ ^[0-9a-f]{40}$ ]]; then
-            echo 'The production revision must be a 40-character lowercase commit SHA.' >&2
+          test -n "$MIRROR_URL" || { echo 'GITOPS_MIRROR_REPO_URL is required'; exit 1; }
+          test -n "$MIRROR_USERNAME" || { echo 'GITOPS_MIRROR_USERNAME is required'; exit 1; }
+          test -n "$MIRROR_TOKEN" || { echo 'GITOPS_MIRROR_TOKEN is required'; exit 1; }
+
+          git remote add mirror "$MIRROR_URL"
+          auth="$(printf '%s:%s' "$MIRROR_USERNAME" "$MIRROR_TOKEN" | base64 -w0)"
+          git -c "http.extraheader=Authorization: Basic $auth" fetch --no-tags mirror production || true
+
+          source_sha="$(git rev-parse refs/remotes/origin/production)"
+          git -c "http.extraheader=Authorization: Basic $auth" push mirror \
+            "refs/remotes/origin/production:refs/heads/production"
+
+          mirror_sha="$(git -c "http.extraheader=Authorization: Basic $auth" \
+            ls-remote "$MIRROR_URL" refs/heads/production | awk '{print $1}')"
+          test "$mirror_sha" = "$source_sha" || {
+            echo "Mirror SHA mismatch: expected $source_sha, got $mirror_sha"
             exit 1
-          fi
-          if [[ -z "${MIRROR_URL:-}" || -z "${MIRROR_USERNAME:-}" || -z "${MIRROR_TOKEN:-}" ]]; then
-            echo 'GITOPS_MIRROR_REPO_URL, GITOPS_MIRROR_USERNAME and GITOPS_MIRROR_TOKEN are required in the production environment.' >&2
-            exit 1
-          fi
-          case "$MIRROR_URL" in
-            https://*) ;;
-            *) echo 'GITOPS_MIRROR_REPO_URL must use HTTPS and must not embed credentials.' >&2; exit 1 ;;
-          esac
-          if [[ "$MIRROR_URL" == *'@'* ]]; then
-            echo 'GITOPS_MIRROR_REPO_URL must not contain embedded credentials.' >&2
-            exit 1
-          fi
-          auth_header="Basic $(printf '%s' "$MIRROR_USERNAME:$MIRROR_TOKEN" | base64 -w0)"
-          if git remote get-url production-mirror >/dev/null 2>&1; then
-            git remote set-url production-mirror "$MIRROR_URL"
-          else
-            git remote add production-mirror "$MIRROR_URL"
-          fi
-          if git -c http.extraheader="Authorization: $auth_header" fetch --no-tags production-mirror refs/heads/production:refs/remotes/production-mirror/production; then
-            expected_remote_revision="$(git rev-parse refs/remotes/production-mirror/production)"
-          else
-            expected_remote_revision='0000000000000000000000000000000000000000'
-          fi
-          git -c http.extraheader="Authorization: $auth_header" push \
-            --force-with-lease="refs/heads/production:$expected_remote_revision" \
-            production-mirror "HEAD:refs/heads/production"
+          }
+          echo "Mirror production synchronized at $mirror_sha"
