@@ -65,6 +65,7 @@ spec:
       labels:
         app.kubernetes.io/name: postgres
         app.kubernetes.io/component: database
+        app.kubernetes.io/version: latest
         app: postgres
     spec:
       securityContext:

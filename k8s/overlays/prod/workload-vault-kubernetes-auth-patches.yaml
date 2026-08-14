@@ -18,6 +18,8 @@ spec:
               value: kubernetes
             - name: Vault__AuthMount
               value: kubernetes
+            - name: Vault__Role
+              value: appointment-service
             - name: Vault__JwtTokenFile
               value: /var/run/secrets/tokens/vault
             - name: Vault__SpiffeJwtTokenFile
@@ -62,6 +64,8 @@ spec:
               value: kubernetes
             - name: Vault__AuthMount
               value: kubernetes
+            - name: Vault__Role
+              value: patient-service
             - name: Vault__JwtTokenFile
               value: /var/run/secrets/tokens/vault
             - name: Vault__SpiffeJwtTokenFile
@@ -106,6 +110,8 @@ spec:
               value: kubernetes
             - name: Vault__AuthMount
               value: kubernetes
+            - name: Vault__Role
+              value: clinical-service
             - name: Vault__JwtTokenFile
               value: /var/run/secrets/tokens/vault
             - name: Vault__SpiffeJwtTokenFile
@@ -150,6 +156,8 @@ spec:
               value: kubernetes
             - name: Vault__AuthMount
               value: kubernetes
+            - name: Vault__Role
+              value: lab-service
             - name: Vault__JwtTokenFile
               value: /var/run/secrets/tokens/vault
             - name: Vault__SpiffeJwtTokenFile
@@ -194,6 +202,8 @@ spec:
               value: kubernetes
             - name: Vault__AuthMount
               value: kubernetes
+            - name: Vault__Role
+              value: billing-service
             - name: Vault__JwtTokenFile
               value: /var/run/secrets/tokens/vault
             - name: Vault__SpiffeJwtTokenFile
@@ -238,6 +248,8 @@ spec:
               value: kubernetes
             - name: Vault__AuthMount
               value: kubernetes
+            - name: Vault__Role
+              value: pharmacy-service
             - name: Vault__JwtTokenFile
               value: /var/run/secrets/tokens/vault
             - name: Vault__SpiffeJwtTokenFile

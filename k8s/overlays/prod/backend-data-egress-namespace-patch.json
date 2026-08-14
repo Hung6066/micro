@@ -1,10 +1,28 @@
 [
   {
+    "op": "replace",
+    "path": "/spec/egress/0/to/0/podSelector",
+    "value": {
+      "matchLabels": {
+        "app": "postgres"
+      }
+    }
+  },
+  {
     "op": "add",
     "path": "/spec/egress/0/to/0/namespaceSelector",
     "value": {
       "matchLabels": {
         "kubernetes.io/metadata.name": "his-hope-data"
+      }
+    }
+  },
+  {
+    "op": "replace",
+    "path": "/spec/egress/1/to/0/podSelector",
+    "value": {
+      "matchLabels": {
+        "app": "redis"
       }
     }
   },
