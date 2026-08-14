@@ -109,6 +109,18 @@ spec:
       kind: StatefulSet
       jsonPointers:
         - /spec/volumeClaimTemplates
+    # Linkerd may reconcile controller-owned metadata on these CRDs. Keep
+    # policy specs fully managed by GitOps while ignoring only metadata drift.
+    - group: linkerd.io
+      kind: ServiceProfile
+      jsonPointers:
+        - /metadata/annotations
+        - /metadata/labels
+    - group: policy.linkerd.io
+      kind: ServerAuthorization
+      jsonPointers:
+        - /metadata/annotations
+        - /metadata/labels
   destination:
     server: https://kubernetes.default.svc
     namespace: his-hope-staging

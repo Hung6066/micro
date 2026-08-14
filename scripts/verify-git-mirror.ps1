@@ -108,9 +108,29 @@ foreach ($name in $ApplicationName) {
     }
     $mirrorStagingPatch = ''
     $liveUnleashImage = ''
+    $liveLinkerdResources = @()
     if ($name -eq 'his-hope-staging') {
         $mirrorStagingPatch = (Invoke-Kubectl @('-n', 'git-mirror', 'exec', 'deployment/gitea', '--', 'git', '--git-dir=/var/lib/gitea/git/repositories/gitops-admin/micro.git', 'show', "refs/heads/${targetRevision}:k8s/overlays/staging/unleash-digest-patch.yaml") -join "`n")
         $liveUnleashImage = (Invoke-Kubectl @('-n', 'his-hope-staging', 'get', 'deployment', 'his-hope-unleash', '-o', 'jsonpath={.spec.template.spec.containers[0].image}')).Trim()
+        $linkerdKinds = @{
+            'ServiceProfile' = 'serviceprofile.linkerd.io'
+            'ServerAuthorization' = 'serverauthorization.policy.linkerd.io'
+        }
+        foreach ($resource in @($application.status.resources | Where-Object {
+            $_.status -eq 'OutOfSync' -and $linkerdKinds.ContainsKey([string]$_.kind)
+        })) {
+            $resourceJson = Invoke-Kubectl @(
+                '-n', 'his-hope-staging', 'get',
+                $linkerdKinds[[string]$resource.kind], [string]$resource.name,
+                '-o', 'json'
+            ) | ConvertFrom-Json
+            $liveLinkerdResources += [pscustomobject]@{
+                kind = [string]$resource.kind
+                name = [string]$resource.name
+                metadata = $resourceJson.metadata
+                spec = $resourceJson.spec
+            }
+        }
     }
     $diagnostics.Add([pscustomobject]@{
         application = $name
@@ -122,6 +142,7 @@ foreach ($name in $ApplicationName) {
         syncResultResources = $syncResultResources
         mirrorStagingPatch = $mirrorStagingPatch
         liveUnleashImage = $liveUnleashImage
+        liveLinkerdResources = $liveLinkerdResources
     })
 }
 
