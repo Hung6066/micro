@@ -109,6 +109,18 @@ jobs:
           # cached before the reviewed production revision was bootstrapped.
           kubectl -n argocd annotate application his-hope-staging argocd.argoproj.io/refresh=hard --overwrite
           if ($LASTEXITCODE -ne 0) { throw 'Staging Argo Application hard refresh could not be requested.' }
+          $syncPatchPath = Join-Path $env:RUNNER_TEMP 'argocd-staging-sync.yaml'
+          $syncPatch = @'
+          operation:
+            initiatedBy:
+              username: gitops-bootstrap
+            sync:
+              syncStrategy:
+                apply: {}
+          '@
+          Set-Content -LiteralPath $syncPatchPath -Value $syncPatch
+          kubectl -n argocd patch application his-hope-staging --type merge --patch-file $syncPatchPath
+          if ($LASTEXITCODE -ne 0) { throw 'Staging Argo sync operation could not be initiated.' }
           # argocd-repo-server reads argocd-tls-certs-cm at process start. Roll
           # it after applying the reviewed internal CA so HTTPS Gitea sources
           # reconcile without manual cluster intervention.
