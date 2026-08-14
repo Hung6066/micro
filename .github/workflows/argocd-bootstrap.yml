@@ -119,6 +119,13 @@ jobs:
           # before starting the reviewed sync operation.
           kubectl -n argocd annotate application his-hope-staging argocd.argoproj.io/refresh=hard --overwrite
           if ($LASTEXITCODE -ne 0) { throw 'Staging Argo Application hard refresh could not be requested.' }
+          # argocd-repo-server reads argocd-tls-certs-cm at process start. Roll
+          # it before starting sync so the reviewed mirror revision is rendered
+          # from a fresh repository cache rather than a stale mutable-image tree.
+          kubectl -n argocd rollout restart deployment/argocd-repo-server
+          if ($LASTEXITCODE -ne 0) { throw 'Argo repo-server restart could not be requested.' }
+          kubectl -n argocd rollout status deployment/argocd-repo-server --timeout=5m
+          if ($LASTEXITCODE -ne 0) { throw 'Argo repo-server did not become ready after CA reload.' }
           $syncPatchPath = Join-Path $env:RUNNER_TEMP 'argocd-staging-sync.yaml'
           $syncPatch = @'
           operation:
@@ -131,13 +138,6 @@ jobs:
           Set-Content -LiteralPath $syncPatchPath -Value $syncPatch
           kubectl -n argocd patch application his-hope-staging --type merge --patch-file $syncPatchPath
           if ($LASTEXITCODE -ne 0) { throw 'Staging Argo sync operation could not be initiated.' }
-          # argocd-repo-server reads argocd-tls-certs-cm at process start. Roll
-          # it after applying the reviewed internal CA so HTTPS Gitea sources
-          # reconcile without manual cluster intervention.
-          kubectl -n argocd rollout restart deployment/argocd-repo-server
-          if ($LASTEXITCODE -ne 0) { throw 'Argo repo-server restart could not be requested.' }
-          kubectl -n argocd rollout status deployment/argocd-repo-server --timeout=5m
-          if ($LASTEXITCODE -ne 0) { throw 'Argo repo-server did not become ready after CA reload.' }
           kubectl get appproject his-hope -n argocd
           kubectl get applications -n argocd -o name
 
