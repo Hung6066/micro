@@ -53,14 +53,20 @@ foreach ($name in $ApplicationName) {
     if ($RequireSynced) {
         $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-synced'; pass = $application.status.sync.status -eq 'Synced'; actual = $application.status.sync.status })
     }
-    $diagnostics.Add([pscustomobject]@{
-        application = $name
-        syncStatus = [string]$application.status.sync.status
-        operationMessage = [string]$application.status.operationState.message
-        conditions = @($application.status.conditions | ForEach-Object {
+    $operationMessage = if ($application.status.PSObject.Properties.Name -contains 'operationState') {
+        [string]$application.status.operationState.message
+    } else {
+        ''
+    }
+    $conditions = if ($application.status.PSObject.Properties.Name -contains 'conditions') {
+        @($application.status.conditions | ForEach-Object {
             [pscustomobject]@{ type = [string]$_.type; message = [string]$_.message }
         })
-        outOfSyncResources = @($application.status.resources | Where-Object { $_.status -eq 'OutOfSync' } | ForEach-Object {
+    } else {
+        @()
+    }
+    $outOfSyncResources = if ($application.status.PSObject.Properties.Name -contains 'resources') {
+        @($application.status.resources | Where-Object { $_.status -eq 'OutOfSync' } | ForEach-Object {
             [pscustomobject]@{
                 group = [string]$_.group
                 kind = [string]$_.kind
@@ -70,6 +76,15 @@ foreach ($name in $ApplicationName) {
                 message = [string]$_.health.message
             }
         })
+    } else {
+        @()
+    }
+    $diagnostics.Add([pscustomobject]@{
+        application = $name
+        syncStatus = [string]$application.status.sync.status
+        operationMessage = $operationMessage
+        conditions = $conditions
+        outOfSyncResources = $outOfSyncResources
     })
 }
 
