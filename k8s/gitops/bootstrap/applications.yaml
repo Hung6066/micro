@@ -104,6 +104,11 @@ spec:
     repoURL: https://git-mirror.his-hope.local/gitops-admin/micro.git
     targetRevision: production
     path: k8s/overlays/staging
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jsonPointers:
+        - /spec/volumeClaimTemplates
   destination:
     server: https://kubernetes.default.svc
     namespace: his-hope-staging
