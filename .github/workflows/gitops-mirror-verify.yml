@@ -72,7 +72,7 @@ jobs:
           if ($env:EXPECTED_REVISION -notmatch '^[0-9a-f]{40}$') {
             throw 'Expected production revision must be a 40-character lowercase commit SHA.'
           }
-          if ($env:EXPECTED_REPO_URL -notmatch '^https://[^/]+/[^/]+/[^/]+\\.git$') {
+          if ($env:EXPECTED_REPO_URL -notmatch '^https://[^/]+/[^/]+/[^/]+\.git$') {
             throw 'GITOPS_MIRROR_REPO_URL must be an HTTPS repository URL.'
           }
           $verificationOutput = $null
