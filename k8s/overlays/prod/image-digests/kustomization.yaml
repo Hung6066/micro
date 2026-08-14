@@ -95,6 +95,21 @@ images:
     newName: harbor.his-hope.local:9443/his-hope/unleash-server
     newTag: "6.0"
     digest: sha256:5d6c22f6f90025b06a8f15488d68176dd5ee85fe1947235f37be9ef9013baf21
+  # Stateful staging dependencies are mirrored and signed in Harbor. Keep
+  # their upstream spellings here so Kustomize cannot leave an unsigned
+  # docker.io or Docker Hub reference for the admission webhook to reject.
+  - name: docker.io/library/redis
+    newName: harbor.his-hope.local:9443/his-hope/redis
+    newTag: "7"
+    digest: sha256:b1addbe72465a718643cff9e60a58e6df1841e29d6d7d60c9a85d8d72f08d1a7
+  - name: docker.io/library/postgres
+    newName: harbor.his-hope.local:9443/his-hope/postgres
+    newTag: "16"
+    digest: sha256:da8cf245a60506e50a0a8cbb0f39c559ca622d92490605b67fcadc74ca1ea8e4
+  - name: rabbitmq
+    newName: harbor.his-hope.local:9443/his-hope/rabbitmq
+    newTag: "3-management-alpine"
+    digest: sha256:3c498e636fd64462480c5f9ff842eb224ab84160a8ada1ded5375e9569e9230c
   - name: hashicorp/vault
     newName: harbor.his-hope.local:9443/his-hope/hashicorp/vault
     newTag: "1.16"
