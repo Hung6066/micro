@@ -138,6 +138,44 @@ jobs:
           Set-Content -LiteralPath $syncPatchPath -Value $syncPatch
           kubectl -n argocd patch application his-hope-staging --type merge --patch-file $syncPatchPath
           if ($LASTEXITCODE -ne 0) { throw 'Staging Argo sync operation could not be initiated.' }
+
+          if ('${{ inputs.environment }}' -eq 'production') {
+            # Production Applications are intentionally manual-sync.  Once an
+            # approved production change is being applied, request the sync
+            # through Argo for every protected Application so the mirror,
+            # revision and runtime state converge as one transaction.
+            $protectedApplications = @(
+              'his-hope-data-plane',
+              'his-hope-system-plane',
+              'his-hope-production-ha',
+              'his-hope-security-boundaries',
+              'his-hope-production-policies',
+              'his-hope-signature-policy',
+              'his-hope-observability-production'
+            )
+            foreach ($application in $protectedApplications) {
+              $clearPath = Join-Path $env:RUNNER_TEMP ("argocd-$application-clear-operation.yaml")
+              Set-Content -LiteralPath $clearPath -Value "operation: null"
+              kubectl -n argocd patch application $application --type merge --patch-file $clearPath
+              if ($LASTEXITCODE -ne 0) { throw "Argo operation could not be cleared for '$application'." }
+
+              kubectl -n argocd annotate application $application argocd.argoproj.io/refresh=hard --overwrite
+              if ($LASTEXITCODE -ne 0) { throw "Argo hard refresh could not be requested for '$application'." }
+
+              $syncPath = Join-Path $env:RUNNER_TEMP ("argocd-$application-sync.yaml")
+              $syncOperation = @"
+operation:
+  initiatedBy:
+    username: gitops-bootstrap
+  sync:
+    syncStrategy:
+      apply: {}
+"@
+              Set-Content -LiteralPath $syncPath -Value $syncOperation
+              kubectl -n argocd patch application $application --type merge --patch-file $syncPath
+              if ($LASTEXITCODE -ne 0) { throw "Argo sync operation could not be initiated for '$application'." }
+            }
+          }
           kubectl get appproject his-hope -n argocd
           kubectl get applications -n argocd -o name
 
