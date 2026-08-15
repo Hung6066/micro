@@ -264,21 +264,24 @@ spec:
             - name: cluster
               containerPort: 8201
           volumeMounts:
-            - name: entrypoint
-              mountPath: /run/vault
+            # Preserve the legacy StatefulSet mount order/names so the first
+            # Argo adoption produces a valid strategic merge patch.
+            - name: config
+              mountPath: /vault/config
               readOnly: true
             - name: tls
               mountPath: /vault/tls
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
+            - name: raft-storage
+              mountPath: /vault/data
+            - name: entrypoint
+              mountPath: /run/vault
+              readOnly: true
             - name: tls-runtime
               mountPath: /run/tls
               readOnly: true
-            - name: tmp
-              mountPath: /tmp
-            # Keep the existing PVC template name so the first Argo adoption
-            # does not attempt to replace Vault's raft data volume.
-            - name: raft-storage
-              mountPath: /vault/data
           startupProbe:
             httpGet:
               scheme: HTTPS
@@ -300,16 +303,23 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 15
       volumes:
-        - name: entrypoint
-          secret:
-            name: vault-production-entrypoint-secret
-            defaultMode: 0550
+        # Keep legacy volumes first and append the runtime-only volumes. This
+        # avoids index-based patching against the pre-existing StatefulSet.
+        - name: config
+          configMap:
+            name: vault-config
         - name: tls
           # Existing production Vault pods mount this name as a Secret. Keep
           # its source/type stable; the runtime entrypoint uses tls-runtime.
           secret:
             secretName: vault-tls
             defaultMode: 0444
+        - name: tmp
+          emptyDir: {}
+        - name: entrypoint
+          secret:
+            name: vault-production-entrypoint-secret
+            defaultMode: 0550
         - name: tls-runtime
           projected:
             sources:
@@ -325,8 +335,6 @@ spec:
                   items:
                     - key: ca.crt
                       path: ca.crt
-        - name: tmp
-          emptyDir: {}
   volumeClaimTemplates:
     - metadata:
         # This PVC name is already provisioned by the legacy Vault StatefulSet.
