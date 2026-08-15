@@ -79,6 +79,7 @@ spec:
   selector:
     app.kubernetes.io/name: vault
     app.kubernetes.io/component: server
+    vault-active: "true"
   ports:
     - name: http
       port: 8200
@@ -104,6 +105,7 @@ spec:
   selector:
     app.kubernetes.io/name: vault
     app.kubernetes.io/component: server
+    vault-active: "false"
   ports:
     - name: http
       port: 8200
@@ -373,7 +375,7 @@ rules:
     verbs: ["get", "list", "watch"]
   - apiGroups: [""]
     resources: ["pods"]
-    verbs: ["get", "list", "watch", "patch"]
+    verbs: ["get", "list", "watch", "patch", "update"]
   - apiGroups: [""]
     resources: ["namespaces"]
     verbs: ["get", "list", "watch"]
