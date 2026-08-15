@@ -13,6 +13,11 @@ Configure these values in the repository's `production` environment:
 and returns a 2xx response for the production test identity. It must not be a
 browser login page or a URL that exposes the token in query parameters.
 
+The prerequisite probe timeout defaults to 60 seconds and can be overridden by
+the protected `E2E_AUTH_TIMEOUT_SECONDS` environment variable (5-120 seconds).
+The gate logs only the probe scheme, host and path; bearer tokens are never
+printed.
+
 Example (replace values locally; never commit them):
 
 ```powershell
