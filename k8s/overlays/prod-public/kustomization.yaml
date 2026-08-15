@@ -7,5 +7,7 @@ kind: Kustomization
 # and names because they are intentionally not name-prefixed.
 resources:
   - ../prod
+  - ../../harbor/traefik-serverstransport-crd.yaml
+  - ../../harbor/harbor-backend-serverstransport.yaml
   - ../../harbor/harbor-public-ingress.yaml
   - ../../harbor/harbor-vault-certificate.yaml

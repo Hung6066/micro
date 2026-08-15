@@ -9,6 +9,8 @@ metadata:
   annotations:
     traefik.ingress.kubernetes.io/router.tls: "true"
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/service.serversscheme: https
+    traefik.ingress.kubernetes.io/service.serverstransport: harbor-harbor-backend-tls@kubernetescrd
     # Configure a trusted enterprise/ACME issuer before applying this file.
     # cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
@@ -29,32 +31,32 @@ spec:
               service:
                 name: harbor
                 port:
-                  number: 80
+                  number: 443
           - path: /service/
             pathType: Prefix
             backend:
               service:
                 name: harbor
                 port:
-                  number: 80
+                  number: 443
           - path: /v2/
             pathType: Prefix
             backend:
               service:
                 name: harbor
                 port:
-                  number: 80
+                  number: 443
           - path: /c/
             pathType: Prefix
             backend:
               service:
                 name: harbor
                 port:
-                  number: 80
+                  number: 443
           - path: /
             pathType: Prefix
             backend:
               service:
                 name: harbor
                 port:
-                  number: 80
+                  number: 443

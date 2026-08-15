@@ -108,6 +108,8 @@ spec:
       kind: SecretProviderClass
     - group: cert-manager.io
       kind: Certificate
+    - group: traefik.io
+      kind: ServersTransport
     - group: barmancloud.cnpg.io
       kind: ObjectStore
     - group: postgresql.cnpg.io
