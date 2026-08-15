@@ -88,6 +88,7 @@ jobs:
           kubectl --kubeconfig $env:KUBECONFIG -n his-hope get service vault-active -o yaml > "$output/vault-service.yaml"
           kubectl --kubeconfig $env:KUBECONFIG -n his-hope get endpoints vault-active -o yaml > "$output/vault-endpoints.yaml"
           kubectl --kubeconfig $env:KUBECONFIG -n his-hope get pods -l app.kubernetes.io/name=vault -o wide > "$output/vault-pods.txt"
+          kubectl --kubeconfig $env:KUBECONFIG -n his-hope get pods -l app.kubernetes.io/name=vault --show-labels > "$output/vault-pod-labels.txt"
           kubectl --kubeconfig $env:KUBECONFIG -n his-hope logs vault-1 --tail=120 > "$output/vault-1.log"
 
       - name: Upload identity runtime diagnostics
