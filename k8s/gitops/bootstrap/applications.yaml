@@ -52,7 +52,8 @@ metadata:
   name: his-hope-production-ha
   namespace: argocd
   annotations:
-    his-hope.io/promotion-mode: reviewed-pr-manual-sync
+    his-hope.io/auto-sync-approved: "true"
+    his-hope.io/promotion-mode: reviewed-branch-auto-sync
     argocd.argoproj.io/sync-wave: "-14"
 spec:
   project: his-hope
@@ -63,11 +64,18 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: spire
+  # The production-ha dependency plane is reconciled automatically only after
+  # the reviewed production branch reaches the internal mirror. This keeps
+  # Vault, CNPG backup and SPIRE changes on the same audited GitOps path.
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=false
       - PruneLast=true
       - FailOnSharedResource=true
+      - RespectIgnoreDifferences=true
   revisionHistoryLimit: 10
 ---
 apiVersion: argoproj.io/v1alpha1
