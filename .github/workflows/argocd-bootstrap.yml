@@ -168,6 +168,7 @@ jobs:
             $protectedApplications = @(
               'his-hope-data-plane',
               'his-hope-system-plane',
+              'his-hope-production',
               'his-hope-production-ha',
               'his-hope-security-boundaries',
               'his-hope-production-policies',
