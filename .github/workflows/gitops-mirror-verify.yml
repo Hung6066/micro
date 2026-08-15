@@ -81,6 +81,9 @@ jobs:
             kubectl --kubeconfig $env:KUBECONFIG -n his-hope logs $pod -c identity-service --previous --tail=200 > "$output/identity-service-previous.log"
             kubectl --kubeconfig $env:KUBECONFIG -n his-hope exec $pod -c pgbouncer -- getent hosts vault-active.his-hope.svc.cluster.local > "$output/vault-dns-from-pod.txt"
             kubectl --kubeconfig $env:KUBECONFIG -n his-hope exec $pod -c pgbouncer -- sh -c 'wget -S -O- --no-check-certificate --timeout=10 https://vault-active.his-hope.svc.cluster.local:8200/v1/sys/health' > "$output/vault-health-from-pod.txt" 2>&1
+            foreach ($member in @('vault-1', 'vault-2', 'vault-3')) {
+              kubectl --kubeconfig $env:KUBECONFIG -n his-hope exec $pod -c pgbouncer -- sh -c "wget -S -O- --no-check-certificate --timeout=10 https://$member.vault-internal.his-hope.svc.cluster.local:8200/v1/sys/health" > "$output/$member-health-from-pod.txt" 2>&1
+            }
           }
           kubectl --kubeconfig $env:KUBECONFIG -n his-hope get service vault-active -o yaml > "$output/vault-service.yaml"
           kubectl --kubeconfig $env:KUBECONFIG -n his-hope get endpoints vault-active -o yaml > "$output/vault-endpoints.yaml"
