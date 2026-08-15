@@ -610,6 +610,7 @@ patchesStrategicMerge:
   - identity-vault-kubernetes-auth-patch.yaml
   - database-continuity-redis-tls-patch.yaml
   - database-continuity-postgres-host-patch.yaml
+  - control-plane-capacity-fallback-patches.yaml
   - workload-readonly-root-patches.yaml
   - database-continuity-storage-patch.yaml
   - k3s-local-capacity-patch.yaml
