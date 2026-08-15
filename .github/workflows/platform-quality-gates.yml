@@ -123,9 +123,11 @@ jobs:
           E2E_ADMIN_URL: ${{ vars.E2E_ADMIN_URL }}
           E2E_AUTH_PROBE_URL: ${{ secrets.E2E_AUTH_PROBE_URL }}
           E2E_AUTH_TOKEN: ${{ secrets.E2E_AUTH_TOKEN }}
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
         run: |
           set -euo pipefail
-          if [[ -n "${E2E_CLINICAL_URL:-}" && -n "${E2E_DASHBOARD_URL:-}" && -n "${E2E_ADMIN_URL:-}" && -n "${E2E_AUTH_PROBE_URL:-}" && -n "${E2E_AUTH_TOKEN:-}" ]]; then
+          if [[ -n "${E2E_CLINICAL_URL:-}" && -n "${E2E_DASHBOARD_URL:-}" && -n "${E2E_ADMIN_URL:-}" && -n "${E2E_AUTH_PROBE_URL:-}" && -n "${E2E_AUTH_TOKEN:-}" && -n "${E2E_EMAIL:-}" && -n "${E2E_PASSWORD:-}" ]]; then
             echo 'available=true' >> "$GITHUB_OUTPUT"
           else
             echo 'available=false' >> "$GITHUB_OUTPUT"
@@ -154,6 +156,8 @@ jobs:
           E2E_ADMIN_URL: ${{ vars.E2E_ADMIN_URL }}
           E2E_AUTH_PROBE_URL: ${{ secrets.E2E_AUTH_PROBE_URL }}
           E2E_AUTH_TOKEN: ${{ secrets.E2E_AUTH_TOKEN }}
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
 
   protected-authenticated-e2e:
     if: github.event_name != 'pull_request'
@@ -177,6 +181,8 @@ jobs:
           E2E_ADMIN_URL: ${{ vars.E2E_ADMIN_URL }}
           E2E_AUTH_PROBE_URL: ${{ secrets.E2E_AUTH_PROBE_URL }}
           E2E_AUTH_TOKEN: ${{ secrets.E2E_AUTH_TOKEN }}
+          E2E_EMAIL: ${{ secrets.E2E_EMAIL }}
+          E2E_PASSWORD: ${{ secrets.E2E_PASSWORD }}
         run: |
           npm ci
           # The protected self-hosted runner owns its OS dependencies.  Do not
