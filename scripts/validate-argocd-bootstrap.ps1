@@ -62,6 +62,21 @@ elseif ($production[0] -match '(?m)^\s*automated:\s*$') {
     }
 } else { Add-Check 'production-branch-auto-sync' 'pass' 'Production Application is not automated; manual sync remains fail-closed.' }
 
+$productionHa = @($text -split '(?m)^---\s*$' | Where-Object { $_ -match '(?m)^\s*name:\s*his-hope-production-ha\s*$' } | Select-Object -First 1)
+if ($productionHa.Count -eq 0) {
+    Add-Check 'production-ha-auto-sync' 'fail' 'Production-ha Application is missing.'
+} elseif ($productionHa[0] -match '(?m)^\s*automated:\s*$') {
+    $approvedHa = $productionHa[0] -match '(?m)^\s*his-hope\.io/auto-sync-approved:\s*["'']?true["'']?\s*$'
+    $revisionHa = [regex]::Match($productionHa[0], '(?m)^\s*targetRevision:\s*(?<revision>[^\s]+)\s*$').Groups['revision'].Value
+    if ($approvedHa -and $revisionHa -and $revisionHa -ne 'main') {
+        Add-Check 'production-ha-auto-sync' 'pass' "Production-ha auto-sync is explicitly approved for reviewed branch '$revisionHa'."
+    } else {
+        Add-Check 'production-ha-auto-sync' 'fail' 'Production-ha automated sync requires auto-sync-approved=true and a non-main reviewed branch.'
+    }
+} else {
+    Add-Check 'production-ha-auto-sync' 'fail' 'Production-ha must be automated for the reviewed GitOps deployment path.'
+}
+
 $failed = @($checks | Where-Object status -eq 'fail')
 $status = if ($failed.Count -gt 0) { 'fail' } else { 'pass' }
 $result = [pscustomobject]@{status=$status; checks=@($checks); generatedAtUtc=[DateTime]::UtcNow.ToString('o')}
