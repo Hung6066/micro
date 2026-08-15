@@ -76,6 +76,10 @@ jobs:
           kubectl --kubeconfig $env:KUBECONFIG -n his-hope get events --sort-by=.lastTimestamp > "$output/events.txt"
           kubectl --kubeconfig $env:KUBECONFIG -n his-hope describe deployment identity-service > "$output/deployment-describe.txt"
           kubectl --kubeconfig $env:KUBECONFIG -n his-hope describe pods -l app.kubernetes.io/name=identity-service > "$output/pods-describe.txt"
+          $pod = (kubectl --kubeconfig $env:KUBECONFIG -n his-hope get pods -l app.kubernetes.io/name=identity-service -o jsonpath='{.items[0].metadata.name}').Trim()
+          if (-not [string]::IsNullOrWhiteSpace($pod)) {
+            kubectl --kubeconfig $env:KUBECONFIG -n his-hope logs $pod -c identity-service --previous --tail=200 > "$output/identity-service-previous.log"
+          }
 
       - name: Upload identity runtime diagnostics
         if: always()
