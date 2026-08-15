@@ -318,7 +318,7 @@ spec:
           emptyDir: {}
         - name: entrypoint
           secret:
-            name: vault-production-entrypoint-secret
+            secretName: vault-production-entrypoint-secret
             defaultMode: 0550
         - name: tls-runtime
           projected:
