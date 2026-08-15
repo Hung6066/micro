@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  template:
+    spec:
+      # Both workers are currently request-saturated. Permit the database to
+      # use a tainted control-plane node as a capacity fallback; ordinary
+      # workloads remain blocked by the taint.
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule

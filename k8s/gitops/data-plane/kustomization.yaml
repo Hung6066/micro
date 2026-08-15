@@ -18,6 +18,7 @@ resources:
   - data-network-policies.yaml
 
 patchesStrategicMerge:
+  - postgres-control-plane-fallback-patch.yaml
   - ../../overlays/prod/cache-tls-patch.yaml
   - data-plane-security-patch.yaml
   - ../../overlays/prod/storage-class-postgres-patch.yaml
