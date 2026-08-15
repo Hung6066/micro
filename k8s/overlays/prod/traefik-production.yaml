@@ -24,6 +24,9 @@ rules:
   - apiGroups: [networking.k8s.io]
     resources: [ingresses, ingressclasses]
     verbs: [get, list, watch]
+  - apiGroups: [traefik.io]
+    resources: [serverstransports]
+    verbs: [get, list, watch]
   - apiGroups: [extensions]
     resources: [ingresses]
     verbs: [get, list, watch]
@@ -109,6 +112,9 @@ spec:
             # only to the in-cluster OTLP collector. NetworkPolicy limits the
             # resulting egress to monitoring:4318.
             - --providers.kubernetesingress.allowexternalnameservices=true
+            - --providers.kubernetescrd=true
+            - --providers.kubernetescrd.namespaces=harbor
+            - --providers.kubernetescrd.allowcrossnamespace=false
             - --accesslog=false
             - --log.level=INFO
           ports:
