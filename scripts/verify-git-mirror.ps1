@@ -181,7 +181,7 @@ $result = [pscustomobject]@{
     applications = @($ApplicationName)
     checks = $checks
     diagnostics = $diagnostics
-    status = if (($checks | Where-Object { -not $_.pass }).Count -eq 0) { 'pass' } else { 'fail' }
+    status = if (@($checks | Where-Object { -not $_.pass }).Count -eq 0) { 'pass' } else { 'fail' }
 }
 $json = $result | ConvertTo-Json -Depth 5
 if ($OutputPath) {
