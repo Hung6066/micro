@@ -60,7 +60,7 @@ foreach ($name in $ApplicationName) {
         throw "Argo CD application $name has an unsupported targetRevision: $targetRevision"
     }
 
-    $mirrorRevision = (Invoke-Kubectl @('-n', 'git-mirror', 'exec', 'deployment/gitea', '--', 'git', '--git-dir=/var/lib/gitea/git/repositories/gitops-admin/micro.git', 'rev-parse', "refs/heads/$targetRevision")).Trim()
+    $mirrorRevision = (Invoke-Kubectl @('-n', 'git-mirror', 'exec', 'deployment/gitea', '--', 'timeout', '10s', 'git', '--git-dir=/var/lib/gitea/git/repositories/gitops-admin/micro.git', 'rev-parse', "refs/heads/$targetRevision")).Trim()
     $checks.Add([pscustomobject]@{ application = $name; name = 'mirror-target-revision'; pass = $mirrorRevision -eq $ExpectedRevision; actual = $mirrorRevision })
     $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-source'; pass = $application.spec.source.repoURL -eq $ExpectedRepoUrl; actual = $application.spec.source.repoURL })
     $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-revision'; pass = $application.status.sync.revision -eq $ExpectedRevision; actual = $application.status.sync.revision })
@@ -125,7 +125,7 @@ foreach ($name in $ApplicationName) {
     $liveLinkerdResources = @()
     $liveDataPlaneResources = @()
     if ($name -eq 'his-hope-staging') {
-        $mirrorStagingPatch = (Invoke-Kubectl @('-n', 'git-mirror', 'exec', 'deployment/gitea', '--', 'git', '--git-dir=/var/lib/gitea/git/repositories/gitops-admin/micro.git', 'show', "refs/heads/${targetRevision}:k8s/overlays/staging/unleash-digest-patch.yaml") -join "`n")
+        $mirrorStagingPatch = (Invoke-Kubectl @('-n', 'git-mirror', 'exec', 'deployment/gitea', '--', 'timeout', '10s', 'git', '--git-dir=/var/lib/gitea/git/repositories/gitops-admin/micro.git', 'show', "refs/heads/${targetRevision}:k8s/overlays/staging/unleash-digest-patch.yaml") -join "`n")
         $liveUnleashImage = (Invoke-Kubectl @('-n', 'his-hope-staging', 'get', 'deployment', 'his-hope-unleash', '-o', 'jsonpath={.spec.template.spec.containers[0].image}')).Trim()
         $linkerdKinds = @{
             'ServiceProfile' = 'serviceprofile.linkerd.io'
