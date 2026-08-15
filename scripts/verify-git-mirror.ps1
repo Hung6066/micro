@@ -34,6 +34,18 @@ function Invoke-Kubectl {
     return $output -join "`n"
 }
 
+function Get-ResourcePropertyString {
+    param(
+        [Parameter(Mandatory = $true)][object]$Resource,
+        [Parameter(Mandatory = $true)][string]$PropertyName
+    )
+
+    if ($null -ne $Resource -and $Resource.PSObject.Properties.Name -contains $PropertyName) {
+        return [string]$Resource.$PropertyName
+    }
+    return ''
+}
+
 $checks = [System.Collections.Generic.List[object]]::new()
 $diagnostics = [System.Collections.Generic.List[object]]::new()
 foreach ($name in $ApplicationName) {
@@ -66,14 +78,14 @@ foreach ($name in $ApplicationName) {
         @()
     }
     $outOfSyncResources = if ($application.status.PSObject.Properties.Name -contains 'resources') {
-        @($application.status.resources | Where-Object { $_.status -eq 'OutOfSync' } | ForEach-Object {
+        @($application.status.resources | Where-Object { (Get-ResourcePropertyString $_ 'status') -eq 'OutOfSync' } | ForEach-Object {
             $healthStatus = if ($_.PSObject.Properties.Name -contains 'health') { [string]$_.health.status } else { '' }
             $healthMessage = if ($_.PSObject.Properties.Name -contains 'health') { [string]$_.health.message } else { '' }
             [pscustomobject]@{
-                group = [string]$_.group
-                kind = [string]$_.kind
-                namespace = [string]$_.namespace
-                name = [string]$_.name
+                group = Get-ResourcePropertyString $_ 'group'
+                kind = Get-ResourcePropertyString $_ 'kind'
+                namespace = Get-ResourcePropertyString $_ 'namespace'
+                name = Get-ResourcePropertyString $_ 'name'
                 health = $healthStatus
                 message = $healthMessage
             }
@@ -84,16 +96,16 @@ foreach ($name in $ApplicationName) {
     $unhealthyResources = if ($application.status.PSObject.Properties.Name -contains 'resources') {
         @($application.status.resources | Where-Object {
             $_.PSObject.Properties.Name -contains 'health' -and
-            -not [string]::IsNullOrWhiteSpace([string]$_.health.status) -and
-            [string]$_.health.status -notin @('Healthy', 'Suspended')
+            -not [string]::IsNullOrWhiteSpace((Get-ResourcePropertyString $_.health 'status')) -and
+            (Get-ResourcePropertyString $_.health 'status') -notin @('Healthy', 'Suspended')
         } | ForEach-Object {
             [pscustomobject]@{
-                group = [string]$_.group
-                kind = [string]$_.kind
-                namespace = [string]$_.namespace
-                name = [string]$_.name
-                health = [string]$_.health.status
-                message = [string]$_.health.message
+                group = Get-ResourcePropertyString $_ 'group'
+                kind = Get-ResourcePropertyString $_ 'kind'
+                namespace = Get-ResourcePropertyString $_ 'namespace'
+                name = Get-ResourcePropertyString $_ 'name'
+                health = Get-ResourcePropertyString $_.health 'status'
+                message = Get-ResourcePropertyString $_.health 'message'
             }
         })
     } else {
@@ -118,16 +130,16 @@ foreach ($name in $ApplicationName) {
             'ServerAuthorization' = 'serverauthorization.policy.linkerd.io'
         }
         foreach ($resource in @($application.status.resources | Where-Object {
-            $_.status -eq 'OutOfSync' -and $linkerdKinds.ContainsKey([string]$_.kind)
+            (Get-ResourcePropertyString $_ 'status') -eq 'OutOfSync' -and $linkerdKinds.ContainsKey((Get-ResourcePropertyString $_ 'kind'))
         })) {
             $resourceJson = Invoke-Kubectl @(
                 '-n', 'his-hope-staging', 'get',
-                $linkerdKinds[[string]$resource.kind], [string]$resource.name,
+                $linkerdKinds[(Get-ResourcePropertyString $resource 'kind')], (Get-ResourcePropertyString $resource 'name'),
                 '-o', 'json'
             ) | ConvertFrom-Json
             $liveLinkerdResources += [pscustomobject]@{
-                kind = [string]$resource.kind
-                name = [string]$resource.name
+                kind = Get-ResourcePropertyString $resource 'kind'
+                name = Get-ResourcePropertyString $resource 'name'
                 metadata = ($resourceJson.metadata | ConvertTo-Json -Compress -Depth 30)
                 spec = ($resourceJson.spec | ConvertTo-Json -Compress -Depth 30)
             }
@@ -135,10 +147,10 @@ foreach ($name in $ApplicationName) {
     }
     if ($name -eq 'his-hope-data-plane') {
         foreach ($resource in @($application.status.resources | Where-Object {
-            $_.status -eq 'OutOfSync' -and [string]$_.kind -eq 'StatefulSet'
+            (Get-ResourcePropertyString $_ 'status') -eq 'OutOfSync' -and (Get-ResourcePropertyString $_ 'kind') -eq 'StatefulSet'
         })) {
             $resourceJson = Invoke-Kubectl @(
-                '-n', 'his-hope-data', 'get', 'statefulset', [string]$resource.name,
+                '-n', 'his-hope-data', 'get', 'statefulset', (Get-ResourcePropertyString $resource 'name'),
                 '-o', 'json'
             ) | ConvertFrom-Json
             $selector = ($resourceJson.spec.selector.matchLabels.PSObject.Properties | ForEach-Object {
@@ -149,12 +161,12 @@ foreach ($name in $ApplicationName) {
             }
             $events = Invoke-Kubectl @(
                 '-n', 'his-hope-data', 'get', 'events',
-                '--field-selector', "involvedObject.kind=StatefulSet,involvedObject.name=$([string]$resource.name)",
+                '--field-selector', "involvedObject.kind=StatefulSet,involvedObject.name=$(Get-ResourcePropertyString $resource 'name')",
                 '-o', 'json'
             )
             $liveDataPlaneResources += [pscustomobject]@{
-                kind = [string]$resource.kind
-                name = [string]$resource.name
+                kind = Get-ResourcePropertyString $resource 'kind'
+                name = Get-ResourcePropertyString $resource 'name'
                 statefulSet = ($resourceJson | ConvertTo-Json -Compress -Depth 30)
                 pods = $pods
                 events = $events
