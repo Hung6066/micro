@@ -77,7 +77,12 @@ jobs:
           # Every image in the release matrix is scanned after its exact
           # Dockerfile build and again after its immutable Harbor digest is
           # pushed.
-          skip-dirs: k8s,docker/spire
+          # The preflight build above creates transient .NET and frontend
+          # outputs. They are not source-release inputs and can contain stale
+          # transitive lock metadata that is scanned again in the image stage.
+          # Exclude only those generated trees; source and manifests remain
+          # covered by the repository and rendered-manifest gates.
+          skip-dirs: k8s,docker/spire,bin,obj
           skip-files: docker/postgres-production.Dockerfile,.tools/dev-render.yaml,backstage/deployment.yaml
           scanners: vuln,secret,misconfig
           severity: HIGH,CRITICAL
