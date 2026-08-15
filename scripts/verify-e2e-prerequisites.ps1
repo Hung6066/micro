@@ -26,7 +26,11 @@ try {
     }
 
     $probeUri = [Uri]$AuthProbeUrl
-    Write-Host "Authenticated probe target: $($probeUri.Scheme)://$($probeUri.Host)$($probeUri.AbsolutePath)"
+    # Keep the protected URL useful for runtime diagnosis without allowing
+    # query strings, bearer material, or the secret's full value into logs.
+    Write-Host "Authenticated probe scheme: $($probeUri.Scheme)"
+    Write-Host "Authenticated probe host: $($probeUri.Host)"
+    Write-Host "Authenticated probe path: $($probeUri.AbsolutePath)"
     $request = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Get, $probeUri)
     $request.Headers.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::new('Bearer', $AuthToken)
     $response = $client.SendAsync($request).GetAwaiter().GetResult()
