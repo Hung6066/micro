@@ -294,7 +294,8 @@ patches:
   # to workloads. Keep the application replicas/limits unchanged, but lower
   # the guaranteed CPU request for backend services so Argo can complete a
   # rolling sync without leaving critical services Pending at 97-99% worker
-  # request utilization.
+  # request utilization. The current two-worker profile needs this lower
+  # request to leave room for the local-path PostgreSQL volume's node.
   - target:
       group: apps
       version: v1
@@ -303,7 +304,7 @@ patches:
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/cpu
-        value: 384m
+        value: 256m
   - target:
       group: apps
       version: v1
