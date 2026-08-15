@@ -164,13 +164,13 @@ jobs:
 
               $syncPath = Join-Path $env:RUNNER_TEMP ("argocd-$application-sync.yaml")
               $syncOperation = @"
-operation:
-  initiatedBy:
-    username: gitops-bootstrap
-  sync:
-    syncStrategy:
-      apply: {}
-"@
+          operation:
+            initiatedBy:
+              username: gitops-bootstrap
+            sync:
+              syncStrategy:
+                apply: {}
+          "@
               Set-Content -LiteralPath $syncPath -Value $syncOperation
               kubectl -n argocd patch application $application --type merge --patch-file $syncPath
               if ($LASTEXITCODE -ne 0) { throw "Argo sync operation could not be initiated for '$application'." }
