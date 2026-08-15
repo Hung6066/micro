@@ -101,6 +101,28 @@ jobs:
             throw 'change_reference must identify the approved change ticket.'
           }
           "Applying reviewed Argo bootstrap with change reference: ${{ inputs.change_reference }}"
+          function Request-ArgoHardRefresh {
+            param([Parameter(Mandatory = $true)][string]$Application)
+            $before = kubectl -n argocd get application $Application -o json | ConvertFrom-Json
+            $beforeReconciledAt = [DateTimeOffset]::MinValue
+            if ($before.status.PSObject.Properties.Name -contains 'reconciledAt' -and
+                -not [string]::IsNullOrWhiteSpace([string]$before.status.reconciledAt)) {
+              [DateTimeOffset]::TryParse([string]$before.status.reconciledAt, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$beforeReconciledAt) | Out-Null
+            }
+            kubectl -n argocd annotate application $Application argocd.argoproj.io/refresh=hard --overwrite
+            if ($LASTEXITCODE -ne 0) { throw "Argo hard refresh could not be requested for '$Application'." }
+            for ($attempt = 1; $attempt -le 30; $attempt++) {
+              Start-Sleep -Seconds 2
+              $current = kubectl -n argocd get application $Application -o json | ConvertFrom-Json
+              $currentReconciledAt = [DateTimeOffset]::MinValue
+              if ($current.status.PSObject.Properties.Name -contains 'reconciledAt' -and
+                  -not [string]::IsNullOrWhiteSpace([string]$current.status.reconciledAt)) {
+                [DateTimeOffset]::TryParse([string]$current.status.reconciledAt, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::AssumeUniversal, [ref]$currentReconciledAt) | Out-Null
+              }
+              if ($currentReconciledAt -gt $beforeReconciledAt) { return }
+            }
+            throw "Argo hard refresh did not reconcile '$Application' within 60 seconds."
+          }
           kubectl wait --for=condition=Established crd/applications.argoproj.io --timeout=5m
           if ($LASTEXITCODE -ne 0) { throw 'Argo CD Application CRD did not become Established.' }
           kubectl apply --server-side --force-conflicts -k k8s/gitops/bootstrap
@@ -117,8 +139,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Staging Argo operation could not be cleared.' }
           # Force the staging Application to refresh its repository/render cache
           # before starting the reviewed sync operation.
-          kubectl -n argocd annotate application his-hope-staging argocd.argoproj.io/refresh=hard --overwrite
-          if ($LASTEXITCODE -ne 0) { throw 'Staging Argo Application hard refresh could not be requested.' }
+          Request-ArgoHardRefresh -Application 'his-hope-staging'
           # argocd-repo-server reads argocd-tls-certs-cm at process start. Roll
           # it before starting sync so the reviewed mirror revision is rendered
           # from a fresh repository cache rather than a stale mutable-image tree.
@@ -159,8 +180,7 @@ jobs:
               kubectl -n argocd patch application $application --type merge --patch-file $clearPath
               if ($LASTEXITCODE -ne 0) { throw "Argo operation could not be cleared for '$application'." }
 
-              kubectl -n argocd annotate application $application argocd.argoproj.io/refresh=hard --overwrite
-              if ($LASTEXITCODE -ne 0) { throw "Argo hard refresh could not be requested for '$application'." }
+              Request-ArgoHardRefresh -Application $application
 
               $syncPath = Join-Path $env:RUNNER_TEMP ("argocd-$application-sync.yaml")
               $syncOperation = @"
