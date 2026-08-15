@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Keep the application workload overlay unchanged while bringing the public
+# Harbor ingress and its Vault-issued certificate under the same reviewed
+# production Argo application. These resources keep their harbor namespace
+# and names because they are intentionally not name-prefixed.
+resources:
+  - ../prod
+  - ../../harbor/harbor-public-ingress.yaml
+  - ../../harbor/harbor-vault-certificate.yaml
