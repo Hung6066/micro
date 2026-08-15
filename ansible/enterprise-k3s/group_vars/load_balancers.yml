@@ -15,11 +15,22 @@ lb_k3s_api_backends:
 
 lb_ingress_http_port: 80
 lb_ingress_http_node_port: 30080
+lb_ingress_https_node_port: 30443
 lb_ingress_backends:
   - name: k3s-worker-1
     address: 172.16.102.10
   - name: k3s-worker-2
     address: 172.16.102.12
+
+lb_ingress_https_hosts:
+  - app.his-hope.local
+  - admin.his-hope.local
+  - dashboard.his-hope.local
+  - identity.his-hope.local
+  - otel.his-hope.local
+  - grafana.his-hope.local
+  - prometheus.his-hope.local
+  - jaeger.his-hope.local
 
 # Harbor registry HTTPS and the internal Git mirror share the VIP on the
 # standard HTTPS port. HAProxy only inspects SNI and passes TLS through so

@@ -46,8 +46,23 @@ frontend https-sni
     mode tcp
     tcp-request inspect-delay 5s
     tcp-request content accept if { req.ssl_hello_type 1 }
+{% for host in lb_ingress_https_hosts %}
+    use_backend ingress-https-backend if { req.ssl_sni -i {{ host }} }
+{% endfor %}
     use_backend git-mirror-https-backend if { req.ssl_sni -i {{ lb_git_mirror_host }} }
-    default_backend harbor-https-backend
+    use_backend harbor-https-backend if { req.ssl_sni -i harbor.myduchospital.com }
+    # Unknown SNI is rejected rather than sent to an unrelated backend.
+    tcp-request content reject if { req.ssl_hello_type 1 }
+
+backend ingress-https-backend
+    mode tcp
+    balance roundrobin
+    option tcp-check
+    timeout server 1h
+    timeout tunnel 1h
+{% for backend in lb_ingress_backends %}
+    server {{ backend.name }} {{ backend.address }}:{{ lb_ingress_https_node_port }} check
+{% endfor %}
 
 backend harbor-https-backend
     mode tcp
