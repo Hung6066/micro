@@ -26,8 +26,11 @@ lb_ingress_backends:
 # cert-manager/Vault can rotate backend certificates without private keys on
 # the load balancers.
 lb_harbor_https_port: 443
-# Harbor's HTTPS NodePort.
-lb_harbor_https_node_port: 30003
+# Route the public hostname through Traefik so the harbor-public ingress can
+# select harbor-public-tls. Harbor's internal nginx NodePort (30003) serves
+# the legacy harbor.his-hope.local certificate and must not terminate the
+# public hostname.
+lb_harbor_https_node_port: 30443
 lb_harbor_https_backends:
   - name: k3s-worker-1
     address: 172.16.102.10
