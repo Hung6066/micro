@@ -56,7 +56,7 @@ data:
 $secretYaml | kubectl --context $Context apply -f - | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Unable to apply vault-azure-unseal Secret.' }
 
-kubectl --context $Context apply -f k8s/vault/vault-production.yaml
+kubectl --context $Context apply -f k8s/production-ha/vault/vault-production.yaml
 if ($LASTEXITCODE -ne 0) { throw 'Unable to apply Vault production manifest.' }
 
 Write-Output 'Vault Azure Key Vault seal configuration applied. Verify Vault pods are unsealed and healthy before initializing application secrets.'

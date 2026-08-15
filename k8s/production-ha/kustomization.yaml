@@ -7,6 +7,9 @@ resources:
   - spire-server-pdb.yaml
   - backup-object-store.yaml
   - cnpg-barman-object-store-azure.yaml
+  # Vault is part of the production dependency plane and must be reconciled
+  # by the existing production-ha Argo application.
+  - vault/vault-production.yaml
 
 patches:
   - path: spire-postgres-cluster-azure-patch.yaml
