@@ -27,7 +27,9 @@ if (-not (Test-Path -LiteralPath $Kubeconfig -PathType Leaf)) {
 
 function Invoke-Kubectl {
     param([string[]]$Arguments)
-    $output = & kubectl --kubeconfig $Kubeconfig @Arguments 2>&1
+    # Every verifier call is read-only; bound API/exec calls so a broken
+    # runner or apiserver cannot consume the entire convergence window.
+    $output = & kubectl --kubeconfig $Kubeconfig --request-timeout=15s @Arguments 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw ($output -join "`n")
     }
