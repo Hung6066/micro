@@ -33,7 +33,7 @@
    service principal bị `ForbiddenByRbac`, nên chưa ghi secret nào lên Vault.
 
 3. Apply `k8s/harbor/harbor-public-ingress.yaml` sau khi secret tồn tại.
-4. Chạy playbook external LB trên cả `.13` và `.14`; biến `lb_harbor_https_port` phải là `443`, backend là `.10:30003` và `.12:30003`.
+4. Chạy playbook external LB trên cả `.13` và `.14`; biến `lb_harbor_https_port` phải là `443`, backend phải là Traefik public HTTPS `.10:30443` và `.12:30443`. Không dùng Harbor nginx NodePort `30003` cho hostname public vì NodePort đó phục vụ certificate legacy `harbor.his-hope.local`.
 5. Nếu Harbor Helm release vẫn terminate TLS ở nginx, cập nhật `externalURL` thành `https://harbor.myduchospital.com` trong values và rollout có kiểm soát. Không đổi URL trước khi certificate, LB và image-pull credentials sẵn sàng.
 6. Kiểm thử theo thứ tự:
 
