@@ -27,6 +27,11 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # workflow_run evaluates this workflow from the default branch. The
+          # verifier must execute the reviewed synchronization revision so
+          # production does not fall back to stale verifier code from main.
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
 
       - name: Validate trusted mirror synchronization event
         shell: pwsh
