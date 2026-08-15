@@ -61,6 +61,30 @@ jobs:
           Set-Content -LiteralPath $path -Value $yaml -NoNewline
           "path=$path" >> $env:GITHUB_OUTPUT
 
+      - name: Capture identity runtime diagnostics
+        if: always()
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.kubeconfig.outputs.path }}
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $output = 'artifacts/evidence/identity-runtime'
+          New-Item -ItemType Directory -Force -Path $output | Out-Null
+          kubectl --kubeconfig $env:KUBECONFIG -n his-hope get deployment identity-service -o json > "$output/deployment.json"
+          kubectl --kubeconfig $env:KUBECONFIG -n his-hope get pods -l app.kubernetes.io/name=identity-service -o wide > "$output/pods.txt"
+          kubectl --kubeconfig $env:KUBECONFIG -n his-hope get endpoints identity-service -o yaml > "$output/endpoints.yaml"
+          kubectl --kubeconfig $env:KUBECONFIG -n his-hope get events --sort-by=.lastTimestamp > "$output/events.txt"
+          kubectl --kubeconfig $env:KUBECONFIG -n his-hope describe deployment identity-service > "$output/deployment-describe.txt"
+          kubectl --kubeconfig $env:KUBECONFIG -n his-hope describe pods -l app.kubernetes.io/name=identity-service > "$output/pods-describe.txt"
+
+      - name: Upload identity runtime diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: identity-runtime-diagnostics-${{ github.run_id }}
+          path: artifacts/evidence/identity-runtime
+          if-no-files-found: warn
+
       - name: Verify all Git mirror and Argo revisions
         shell: pwsh
         env:
