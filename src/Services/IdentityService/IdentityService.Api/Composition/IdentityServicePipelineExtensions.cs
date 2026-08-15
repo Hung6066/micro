@@ -56,6 +56,19 @@ public static class IdentityServicePipelineExtensions
 {
     public static void UseIdentityServicePipeline(this WebApplication app)
     {
+        // The production edge terminates TLS before forwarding traffic to the
+        // ClusterIP service. Restore the original scheme before OpenIddict
+        // validates HTTPS-only authorization and discovery requests. Restrict
+        // trusted forwarders to private ingress/node networks so a public
+        // client cannot spoof X-Forwarded-* headers.
+        var forwardedHeaders = new ForwardedHeadersOptions
+        {
+            ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+        };
+        forwardedHeaders.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("10.0.0.0"), 8));
+        forwardedHeaders.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("172.16.0.0"), 12));
+        forwardedHeaders.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(IPAddress.Parse("192.168.0.0"), 16));
+        app.UseForwardedHeaders(forwardedHeaders);
         
         if (app.Environment.IsProduction())
             app.Services.RequireDurableAuditSink();
