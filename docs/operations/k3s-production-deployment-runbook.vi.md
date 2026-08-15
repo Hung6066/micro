@@ -85,7 +85,7 @@ Traefik edge không inject nếu nó là ingress boundary; backend/BFF nội b�
 
 ### 3.2 Vault production HA
 
-    kubectl apply -f k8s/vault/vault-production.yaml
+    kubectl apply -f k8s/production-ha/vault/vault-production.yaml
     kubectl -n his-hope rollout status statefulset/vault --timeout=300s
     kubectl -n his-hope get pods -l app.kubernetes.io/name=vault -o wide
 

@@ -29,7 +29,7 @@
 - Secrets Store CSI Driver and Vault CSI provider are installed in K3s. The
   production `SecretProviderClass` objects are in
   `k8s/vault/vault-csi-provider.yaml`; secret values remain runtime-only.
-  The production Vault HA StatefulSet in `k8s/vault/vault-production.yaml`
+  The production Vault HA StatefulSet in `k8s/production-ha/vault/vault-production.yaml`
   uses Azure Key Vault auto-unseal, TLS SANs for K3s service names, and raft
   storage. Workloads still use SPIRE JWT-SVID direct authentication to Vault.
   CSI is a Kubernetes/JWT bridge for file mounts and synchronised secrets, not
