@@ -1,0 +1,12 @@
+---
+- name: Configure HAProxy and Keepalived for the K3s API
+  hosts: load_balancers
+  serial: 1
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+  vars_files:
+    - ../group_vars/load_balancers.yml
+    - ../group_vars/vault.yml
+  roles:
+    - role: external_lb

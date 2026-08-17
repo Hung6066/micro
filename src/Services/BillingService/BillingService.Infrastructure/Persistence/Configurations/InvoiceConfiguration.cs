@@ -59,5 +59,9 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         builder.HasIndex(i => i.Status);
         builder.HasIndex(i => i.InvoiceDate);
         builder.HasIndex(i => i.FacilityId);
+        builder.HasIndex(i => new { i.PatientId, i.InvoiceDate })
+            .HasDatabaseName("IX_Invoices_Patient_Date_Id");
+        builder.HasIndex(i => new { i.FacilityId, i.Status, i.InvoiceDate })
+            .HasDatabaseName("IX_Invoices_Facility_Status_Date_Id");
     }
 }

@@ -1,0 +1,103 @@
+name: Sigstore Policy Controller Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Protected target environment
+        required: true
+        type: choice
+        options: [staging, production]
+      apply:
+        description: Install the pinned controller (false performs Helm dry-run only)
+        required: true
+        default: false
+        type: boolean
+      version:
+        description: Reviewed Sigstore Policy Controller chart version
+        required: true
+        default: 0.10.5
+        type: string
+      signed_image:
+        description: Approved Harbor image digest expected to pass signature admission
+        required: true
+        type: string
+      unsigned_image:
+        description: Harbor digest without a signature expected to be rejected
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sigstore-policy-controller-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+        with:
+          version: 'v1.35.5'
+      - uses: azure/setup-helm@29960d0f5f19214b88e1d9ba750a9914ab0f1a2f # v4.0.0
+        with:
+          version: 'v3.17.3'
+
+      - name: Materialize target kubeconfig
+        id: kubeconfig
+        shell: pwsh
+        env:
+          KUBECONFIG_STAGING_B64: ${{ secrets.KUBECONFIG_STAGING_B64 }}
+          KUBECONFIG_PRODUCTION_B64: ${{ secrets.KUBECONFIG_PRODUCTION_B64 }}
+        run: |
+          $environment = '${{ inputs.environment }}'
+          $encoded = if ($environment -eq 'production') { $env:KUBECONFIG_PRODUCTION_B64 } else { $env:KUBECONFIG_STAGING_B64 }
+          if ([string]::IsNullOrWhiteSpace($encoded)) { throw "Kubeconfig secret is missing for $environment." }
+          $path = Join-Path $env:RUNNER_TEMP "kubeconfig-$environment.yaml"
+          [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($encoded))
+          "path=$path" >> $env:GITHUB_OUTPUT
+
+      - name: Verify and optionally bootstrap controller
+        shell: pwsh
+        run: |
+          $args = @('-File', './scripts/bootstrap-sigstore-policy-controller.ps1',
+            '-Environment', '${{ inputs.environment }}',
+            '-Kubeconfig', '${{ steps.kubeconfig.outputs.path }}',
+            '-Version', '${{ inputs.version }}')
+          if ('${{ inputs.environment }}' -eq 'production') { $args += '-AllowProduction' }
+          if ('${{ inputs.apply }}' -eq 'true') { $args += '-Apply' } else { $args += '-WhatIf' }
+          & pwsh @args
+
+      - name: Validate source contract
+        shell: pwsh
+        run: ./scripts/validate-signature-controller-contract.ps1 -OutputPath artifacts/evidence/signature-controller-contract.json
+
+      - name: Run positive and negative signature admission probes
+        if: ${{ inputs.apply == true }}
+        shell: pwsh
+        run: |
+          $args = @('-File', './scripts/test-signature-admission.ps1',
+            '-Environment', '${{ inputs.environment }}',
+            '-Kubeconfig', '${{ steps.kubeconfig.outputs.path }}',
+            '-SignedImage', '${{ inputs.signed_image }}',
+            '-UnsignedImage', '${{ inputs.unsigned_image }}')
+          if ('${{ inputs.environment }}' -eq 'production') { $args += '-AllowProduction' }
+          & pwsh @args
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sigstore-policy-controller-${{ github.run_id }}
+          path: artifacts/evidence/signature-controller-contract.json
+          if-no-files-found: error
+
+      - name: Remove kubeconfig
+        if: always()
+        shell: pwsh
+        run: Remove-Item -LiteralPath '${{ steps.kubeconfig.outputs.path }}' -Force -ErrorAction SilentlyContinue

@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  template:
+    metadata:
+      annotations:
+        # PostgreSQL is a stateful database listener; it does not need mesh
+        # interception and Linkerd can delay startup while the database is
+        # still initializing.
+        linkerd.io/inject: disabled

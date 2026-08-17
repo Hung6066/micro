@@ -56,5 +56,9 @@ public class PrescriptionConfiguration : IEntityTypeConfiguration<Prescription>
         builder.HasIndex(p => p.Status);
         builder.HasIndex(p => p.FacilityId);
         builder.HasIndex(p => p.PrescribedDate);
+        builder.HasIndex(p => new { p.PatientId, p.PrescribedDate })
+            .HasDatabaseName("IX_Prescriptions_Patient_Date_Id");
+        builder.HasIndex(p => new { p.FacilityId, p.Status, p.PrescribedDate })
+            .HasDatabaseName("IX_Prescriptions_Facility_Status_Date_Id");
     }
 }

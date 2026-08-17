@@ -7,7 +7,7 @@ namespace SystemDashboard.Bff.Hubs;
 /// SignalR hub for real-time metric streaming.
 /// Clients subscribe to service groups; the server pushes MetricUpdate messages.
 /// </summary>
-[Authorize]
+[Authorize(Policy = "Permission:dashboard.view")]
 public class MetricsHub : Hub
 {
     private readonly ILogger<MetricsHub> _logger;

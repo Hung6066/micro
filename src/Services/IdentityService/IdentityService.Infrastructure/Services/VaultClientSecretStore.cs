@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using His.Hope.Secrets;
 
 namespace His.Hope.IdentityService.Infrastructure.Services;
 
@@ -16,29 +17,49 @@ public class VaultClientSecretStore
     private readonly HttpClient? _vaultClient;
     private readonly string _vaultPathPrefix;
     private readonly string _vaultSecretsMount;
+    private readonly IVaultTokenProvider _tokenProvider;
+    private readonly IHostEnvironment _environment;
+    private readonly string? _developmentSecretSeed;
 
-    public VaultClientSecretStore(IConfiguration config, ILogger<VaultClientSecretStore> logger, IHostEnvironment environment)
+    public VaultClientSecretStore(
+        IConfiguration config,
+        ILogger<VaultClientSecretStore> logger,
+        IHostEnvironment environment,
+        IVaultTokenProvider tokenProvider,
+        IHttpClientFactory httpClientFactory)
     {
         _config = config;
         _logger = logger;
+        _tokenProvider = tokenProvider;
+        _environment = environment;
+        _developmentSecretSeed = config["Vault:DevelopmentSecretSeed"];
         _vaultSecretsMount = config["Vault:SecretsMount"] ?? "secret";
         _vaultPathPrefix = config["Vault:SecretsPathPrefix"] ?? "his-hope/identity/client-secrets";
         var vaultAddress = config["Vault:Address"];
-        var vaultToken = FirstConfigured(config["Vault:Token"], config["VAULT_TOKEN"]);
         var requireVault = config.GetValue("Vault:RequireVault", environment.IsProduction());
         if (requireVault && string.IsNullOrWhiteSpace(vaultAddress))
             throw new InvalidOperationException("Vault:Address is required when Vault:RequireVault is enabled.");
-        if (requireVault && string.IsNullOrWhiteSpace(vaultToken))
-            throw new InvalidOperationException("Vault token is required when Vault:RequireVault is enabled.");
-        if (!string.IsNullOrWhiteSpace(vaultAddress) && !string.IsNullOrWhiteSpace(vaultToken))
+        if (!string.IsNullOrWhiteSpace(vaultAddress))
         {
-            _vaultClient = new HttpClient { BaseAddress = new Uri(vaultAddress.TrimEnd('/')), Timeout = TimeSpan.FromSeconds(5) };
-            _vaultClient.DefaultRequestHeaders.Add("X-Vault-Token", vaultToken);
+            _vaultClient = httpClientFactory.CreateClient("vault");
+            _vaultClient.BaseAddress = new Uri(vaultAddress.TrimEnd('/'));
+            _vaultClient.Timeout = TimeSpan.FromSeconds(5);
         }
     }
 
     public string GenerateSecret(string clientId)
     {
+        if (_vaultClient is null && _environment.IsDevelopment() && !string.IsNullOrWhiteSpace(_developmentSecretSeed))
+        {
+            using var hmac = new HMACSHA256(Encoding.UTF8.GetBytes(_developmentSecretSeed));
+            var digest = hmac.ComputeHash(Encoding.UTF8.GetBytes(clientId));
+            var deterministic = Convert.ToBase64String(digest)
+                .Replace('+', '-').Replace('/', '_').TrimEnd('=');
+            _cache[clientId] = new CachedSecret(deterministic, DateTime.UtcNow.AddMinutes(5));
+            _logger.LogWarning("Using deterministic development client secret derivation for {ClientId}; configure Vault/KMS outside Development.", clientId);
+            return deterministic;
+        }
+
         var bytes = new byte[36];
         using var rng = RandomNumberGenerator.Create();
         rng.GetBytes(bytes);
@@ -51,6 +72,8 @@ public class VaultClientSecretStore
         return secret;
     }
 
+    public bool UsesPersistentStore => _vaultClient is not null;
+
     public async Task<string?> GetSecretAsync(string clientId, CancellationToken ct = default)
     {
         if (_cache.TryGetValue(clientId, out var cached) && !cached.IsExpired)
@@ -60,17 +83,29 @@ public class VaultClientSecretStore
 
         if (_vaultClient is not null)
         {
+            await AuthenticateAsync(ct);
             using var response = await _vaultClient.GetAsync(SecretPath(clientId), ct);
             if (response.IsSuccessStatusCode)
             {
-                using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
-                if (document.RootElement.TryGetProperty("data", out var data) && data.TryGetProperty("data", out var values) && values.TryGetProperty("secret", out var value))
+                var content = await response.Content.ReadAsStringAsync(ct);
+                if (!string.IsNullOrWhiteSpace(content))
                 {
-                    var secret = value.GetString();
-                    if (!string.IsNullOrWhiteSpace(secret))
+                    try
                     {
-                        _cache[clientId] = new CachedSecret(secret, DateTime.UtcNow.AddMinutes(5));
-                        return secret;
+                        using var document = JsonDocument.Parse(content);
+                        if (document.RootElement.TryGetProperty("data", out var data) && data.TryGetProperty("data", out var values) && values.TryGetProperty("secret", out var value))
+                        {
+                            var secret = value.GetString();
+                            if (!string.IsNullOrWhiteSpace(secret))
+                            {
+                                _cache[clientId] = new CachedSecret(secret, DateTime.UtcNow.AddMinutes(5));
+                                return secret;
+                            }
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        _logger.LogWarning("Vault returned an invalid secret payload for {ClientId}", clientId);
                     }
                 }
             }
@@ -85,6 +120,7 @@ public class VaultClientSecretStore
         _cache[clientId] = new CachedSecret(secret, DateTime.UtcNow.AddMinutes(5));
         if (_vaultClient is not null)
         {
+            await AuthenticateAsync(ct);
             var payload = JsonSerializer.Serialize(new { data = new { secret } });
             using var response = await _vaultClient.PostAsync(SecretPath(clientId), new StringContent(payload, Encoding.UTF8, "application/json"), ct);
             response.EnsureSuccessStatusCode();
@@ -108,12 +144,19 @@ public class VaultClientSecretStore
         _cache.TryRemove(clientId, out _);
         if (_vaultClient is not null)
         {
+            await AuthenticateAsync(ct);
             using var response = await _vaultClient.DeleteAsync(SecretPath(clientId), ct);
             if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotFound)
                 response.EnsureSuccessStatusCode();
         }
 
         _logger.LogInformation("Revoked client secret for {ClientId}", clientId);
+    }
+
+    private async Task AuthenticateAsync(CancellationToken ct)
+    {
+        _vaultClient!.DefaultRequestHeaders.Remove("X-Vault-Token");
+        _vaultClient.DefaultRequestHeaders.Add("X-Vault-Token", await _tokenProvider.GetTokenAsync(ct));
     }
 
     private record CachedSecret(string Value, DateTime ExpiresAt)

@@ -6,15 +6,39 @@ using His.Hope.Infrastructure.Idempotency;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Qos;
 using His.Hope.Infrastructure.Security;
+using His.Hope.Infrastructure.Caching;
 using His.Hope.AspNetCore;
 using His.Hope.Observability;
 using Serilog;
 using StackExchange.Redis;
 using His.Hope.Bff.Core.Authentication;
 using Microsoft.AspNetCore.DataProtection;
+using His.Hope.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
+var runtimeEndpoints = RuntimeConfigurationExtensions.BindServiceEndpoints(builder.Configuration, "ApiGateway");
 
+builder.Services.AddHisHopeRuntimeConfiguration(builder.Configuration, "ApiGateway");
+
+var reverseProxyClusters = new Dictionary<string, string?>
+{
+    ["ReverseProxy:Clusters:identity:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("identity-api").ToString(),
+    ["ReverseProxy:Clusters:patients:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("patient-api").ToString(),
+    ["ReverseProxy:Clusters:appointments:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("appointment-api").ToString(),
+    ["ReverseProxy:Clusters:clinical:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("clinical-api").ToString(),
+    ["ReverseProxy:Clusters:lab:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("lab-api").ToString(),
+    ["ReverseProxy:Clusters:billing:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("billing-api").ToString(),
+    ["ReverseProxy:Clusters:pharmacy:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("pharmacy-api").ToString(),
+    ["ReverseProxy:Clusters:lab-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("lab-bff").ToString(),
+    ["ReverseProxy:Clusters:billing-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("billing-bff").ToString(),
+    ["ReverseProxy:Clusters:dashboard-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("dashboard-bff").ToString(),
+    ["ReverseProxy:Clusters:systemdashboard-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("systemdashboard-bff").ToString(),
+    // The runtime contract exposes SERVICE_DATABASE_CONTINUITY_URL. Keep the
+    // logical key identical across Compose, VM and Kubernetes so the gateway
+    // never falls back to localhost inside its own container.
+    ["ReverseProxy:Clusters:database-continuity:Destinations:database-continuity/dest:Address"] = runtimeEndpoints.GetRequired("database-continuity").ToString()
+};
+builder.Configuration.AddInMemoryCollection(reverseProxyClusters);
 builder.Services.AddHisHopeAspNetCore();
 builder.Services.AddObservability(options => options.ServiceName = "ApiGateway");
 
@@ -57,14 +81,9 @@ builder.Services.AddReverseProxy()
 
 // BFF session bridge: keep access tokens server-side in Redis and attach the
 // current session JWT only to internal downstream proxy requests.
-var redisConnection = builder.Configuration["Redis:ConnectionString"] ?? "redis:6379";
-var redis = ConnectionMultiplexer.Connect(new ConfigurationOptions
-    {
-        EndPoints = { redisConnection },
-        AbortOnConnectFail = false,
-        ConnectTimeout = 2000,
-        SyncTimeout = 1000
-    });
+var redisConnection = RuntimeConfigurationExtensions.ToRedisConnectionString(
+    runtimeEndpoints.GetRequired("redis"));
+var redis = RedisConnectionFactory.Connect(redisConnection, builder.Configuration);
 builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
 builder.Services.AddDataProtection()
     .SetApplicationName("His.Hope.IdentityService")
@@ -78,7 +97,6 @@ builder.Services.AddGrpc();
 builder.Services.AddHealthChecks();
 
 // === QoS: 5-tier request priority admission control ===
-builder.Services.AddSingleton<PriorityAdmissionMiddleware>();
 builder.Services.AddSingleton(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
@@ -99,9 +117,14 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 100,
-                Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 5,
+                // Keep the gateway limiter configurable. A single admin/IAM
+                // route loads several read endpoints in parallel; the old
+                // hard-coded 100 requests/minute caused legitimate navigation
+                // to receive 429s and made the UI appear intermittently down.
+                // Authentication endpoints retain their stricter named policy.
+                PermitLimit = builder.Configuration.GetValue("RateLimiting:MaxRequestsPerIp", 1000),
+                Window = TimeSpan.FromMinutes(builder.Configuration.GetValue("RateLimiting:WindowMinutes", 1)),
+                QueueLimit = builder.Configuration.GetValue("RateLimiting:QueueLimit", 25),
             }));
 });
 
@@ -203,7 +226,12 @@ app.Use(async (context, next) =>
         // here makes Identity select JWT validation and breaks /connect/authorize.
         context.Request.Path.StartsWithSegments("/connect") ||
         context.Request.Path.StartsWithSegments("/Account") ||
-        context.Request.Path.StartsWithSegments("/api/v1/auth");
+        context.Request.Path.StartsWithSegments("/api/v1/auth") ||
+        // Database continuity has its own shared-session bridge and policy
+        // boundary. Let it unprotect hishop_sid locally instead of receiving
+        // the gateway's generic bearer projection.
+        context.Request.Path.StartsWithSegments("/api/v1/admin/database-continuity");
+    var continuityRoute = context.Request.Path.StartsWithSegments("/api/v1/admin/database-continuity");
 
     var hasSessionCookie = context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
         !string.IsNullOrWhiteSpace(sessionId);
@@ -213,8 +241,8 @@ app.Use(async (context, next) =>
     // JWT on admin/settings/audit/auth endpoints; those endpoints validate
     // OIDC bearer tokens or the Identity application cookie.
     if (hasSessionCookie &&
-        !cookieBackedIdentityRoute &&
-        !context.Request.Headers.ContainsKey("Authorization"))
+        (!cookieBackedIdentityRoute || continuityRoute) &&
+        (!context.Request.Headers.ContainsKey("Authorization") || continuityRoute))
     {
         var redis = context.RequestServices.GetRequiredService<IConnectionMultiplexer>();
         var tokenProtector = context.RequestServices.GetRequiredService<SessionTokenProtector>();
@@ -230,6 +258,20 @@ app.Use(async (context, next) =>
                     var protectedJwt = jwtElement.GetString();
                     if (!string.IsNullOrWhiteSpace(protectedJwt))
                     {
+                        if (continuityRoute)
+                        {
+                            // Keep the protected session token opaque at the
+                            // gateway boundary. The continuity service owns
+                            // the same DataProtection key ring and unwraps
+                            // X-HisHope-Session-Token immediately before JWT
+                            // authentication. Unprotecting here first made a
+                            // transient key-ring mismatch degrade to an empty
+                            // Authorization header and an unexplained 401.
+                            context.Request.Headers.Remove("Authorization");
+                            context.Request.Headers["X-HisHope-Session-Token"] = protectedJwt;
+                            await next();
+                            return;
+                        }
                         var jwt = tokenProtector.Unprotect(protectedJwt);
                         context.Request.Headers.Authorization = $"Bearer {jwt}";
                         // Mark the internal BFF session token so IdentityService
@@ -313,7 +355,9 @@ app.MapGet("/diag/patients", async (HttpContext ctx) =>
     var sw = System.Diagnostics.Stopwatch.StartNew();
     try
     {
-        var resp = await http.GetAsync("http://patientservice:5002/api/v1/patients/search?q=&page=1&pageSize=1");
+        var resp = await http.GetAsync(new Uri(
+            runtimeEndpoints.GetRequired("patient-api"),
+            "api/v1/patients/search?q=&page=1&pageSize=1"));
         sw.Stop();
         await ctx.Response.WriteAsync($"OK: {resp.StatusCode} in {sw.ElapsedMilliseconds}ms");
     }
@@ -340,8 +384,7 @@ var proxyClient = new HttpClient(proxyHandler)
 
 void MapDirectProxy(
     string pathPrefix,
-    string serviceHost,
-    int servicePort,
+    Uri serviceBaseAddress,
     Func<HttpContext, bool>? additionalMatch = null)
 {
     app.Use(async (ctx, next) =>
@@ -354,10 +397,10 @@ void MapDirectProxy(
         }
 
         var logger = ctx.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("DirectProxy");
-        logger.LogInformation("DirectProxy MATCH: path={Path} -> {Host}:{Port}", ctx.Request.Path, serviceHost, servicePort);
+        logger.LogInformation("DirectProxy MATCH: path={Path} -> {BaseAddress}", ctx.Request.Path, serviceBaseAddress);
 
         var catchAll = ctx.Request.Path.Value![pathPrefix.Length..];
-        var targetUrl = $"http://{serviceHost}:{servicePort}{pathPrefix}{catchAll}{ctx.Request.QueryString}";
+        var targetUrl = new Uri(serviceBaseAddress, $"{pathPrefix.TrimStart('/')}{catchAll}{ctx.Request.QueryString}");
         using var request = new HttpRequestMessage(new HttpMethod(ctx.Request.Method), targetUrl);
 
         if (ctx.Request.ContentLength > 0)
@@ -441,22 +484,22 @@ static bool MatchesPatientAggregate(HttpContext ctx, string resource)
 
 // Patient aggregate routes must be registered before the broad patient proxy;
 // otherwise /api/v1/patients/{id}/... is incorrectly sent to PatientService.
-MapDirectProxy("/api/v1/patients", "clinicalservice", 5004,
+MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("clinical-api"),
     ctx => MatchesPatientAggregate(ctx, "encounters"));
-MapDirectProxy("/api/v1/patients", "appointmentservice", 5003,
+MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("appointment-api"),
     ctx => MatchesPatientAggregate(ctx, "appointments"));
-MapDirectProxy("/api/v1/patients", "labservice", 5010,
+MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("lab-api"),
     ctx => MatchesPatientAggregate(ctx, "lab-orders"));
-MapDirectProxy("/api/v1/patients", "pharmacyservice", 5030,
+MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("pharmacy-api"),
     ctx => MatchesPatientAggregate(ctx, "prescriptions"));
-MapDirectProxy("/api/v1/patients", "billingservice", 5020,
+MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("billing-api"),
     ctx => MatchesPatientAggregate(ctx, "invoices"));
 
-MapDirectProxy("/api/v1/patients", "patientservice", 5002);
-MapDirectProxy("/api/v1/encounters", "clinicalservice", 5004);
-MapDirectProxy("/api/v1/medications", "pharmacyservice", 5030);
-MapDirectProxy("/api/v1/lab-orders", "labservice", 5010);
-MapDirectProxy("/api/v1/invoices", "billingservice", 5020);
+MapDirectProxy("/api/v1/patients", runtimeEndpoints.GetRequired("patient-api"));
+MapDirectProxy("/api/v1/encounters", runtimeEndpoints.GetRequired("clinical-api"));
+MapDirectProxy("/api/v1/medications", runtimeEndpoints.GetRequired("pharmacy-api"));
+MapDirectProxy("/api/v1/lab-orders", runtimeEndpoints.GetRequired("lab-api"));
+MapDirectProxy("/api/v1/invoices", runtimeEndpoints.GetRequired("billing-api"));
 
 app.MapReverseProxy();
 

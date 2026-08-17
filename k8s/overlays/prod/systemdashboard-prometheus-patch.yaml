@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: systemdashboard-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: systemdashboard-bff
+          env:
+            - name: Prometheus__Url
+              value: "http://kps-kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090"
+            - name: AlertManager__Url
+              value: "http://kps-kube-prometheus-stack-alertmanager.monitoring.svc.cluster.local:9093"
+            - name: Loki__Url
+              value: "http://loki.monitoring.svc.cluster.local:3100"
+            - name: Loki__DefaultQuery
+              value: "{job=\"kubernetes-pods\",filename=~\"/var/log/pods/his-hope_.*\"}"
+            - name: Jaeger__QueryUrl
+              value: "http://jaeger.monitoring.svc.cluster.local:16686"

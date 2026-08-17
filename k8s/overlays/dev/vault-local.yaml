@@ -1,0 +1,215 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-internal
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/part-of: his-hope
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: vault
+  ports:
+    - name: api
+      port: 8200
+      targetPort: api
+    - name: cluster
+      port: 8201
+      targetPort: cluster
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-active
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/part-of: his-hope
+spec:
+  selector:
+    app.kubernetes.io/name: vault
+  ports:
+    - name: api
+      port: 8200
+      targetPort: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/part-of: his-hope
+spec:
+  selector:
+    app.kubernetes.io/name: vault
+  ports:
+    - name: api
+      port: 8200
+      targetPort: api
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vault
+  labels:
+    app.kubernetes.io/name: vault
+    app.kubernetes.io/part-of: his-hope
+spec:
+  serviceName: vault-internal
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vault
+        app.kubernetes.io/part-of: his-hope
+    spec:
+      serviceAccountName: vault
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 100
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 100
+      containers:
+        - name: vault
+          image: hashicorp/vault:1.17.6
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "/run/vault/vault-k3s-entrypoint.sh"]
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: VAULT_ADDR
+              value: https://127.0.0.1:8200
+            - name: VAULT_CACERT
+              value: /run/tls/ca.crt
+            - name: VAULT_API_ADDR
+              value: https://$(POD_NAME).vault-internal.his-hope-dev.svc.cluster.local:8200
+            - name: AZURE_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: vault-azure-unseal
+                  key: AZURE_TENANT_ID
+            - name: AZURE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: vault-azure-unseal
+                  key: AZURE_CLIENT_ID
+            - name: AZURE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vault-azure-unseal
+                  key: AZURE_CLIENT_SECRET
+            - name: VAULT_AZUREKEYVAULT_VAULT_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: vault-azure-unseal
+                  key: VAULT_AZUREKEYVAULT_VAULT_NAME
+            - name: VAULT_AZUREKEYVAULT_KEY_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: vault-azure-unseal
+                  key: VAULT_AZUREKEYVAULT_KEY_NAME
+          ports:
+            - name: api
+              containerPort: 8200
+            - name: cluster
+              containerPort: 8201
+          volumeMounts:
+            - name: config-script
+              mountPath: /run/vault
+              readOnly: true
+            - name: tls
+              mountPath: /run/tls
+              readOnly: true
+            - name: raft-data
+              mountPath: /vault/data
+          readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204
+              port: api
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204
+              port: api
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+      volumes:
+        - name: config-script
+          configMap:
+            name: vault-k3s-entrypoint
+            defaultMode: 0550
+        - name: tls
+          projected:
+            sources:
+              - secret:
+                  name: vault-tls
+                  items:
+                    - key: tls.crt
+                      path: tls.crt
+                    - key: tls.key
+                      path: tls.key
+              - secret:
+                  name: vault-tls-ca
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+  volumeClaimTemplates:
+    - metadata:
+        name: raft-data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-k3s-bootstrap
+  labels:
+    app.kubernetes.io/name: vault-k3s-bootstrap
+    app.kubernetes.io/part-of: his-hope
+spec:
+  backoffLimit: 12
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vault-k3s-bootstrap
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: bootstrap
+          image: hashicorp/vault:1.17.6
+          env:
+            - name: VAULT_ADDR
+              value: https://vault-active:8200
+            - name: VAULT_CACERT
+              value: /run/tls/ca.crt
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              until vault status -format=json >/dev/null 2>&1; do sleep 3; done
+              echo "Vault K3s is reachable; initialization is intentionally operator-controlled."
+              vault status -format=json
+          volumeMounts:
+            - name: tls
+              mountPath: /run/tls
+              readOnly: true
+      volumes:
+        - name: tls
+          secret:
+            secretName: vault-tls-ca

@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
 
@@ -156,6 +157,12 @@ internal sealed class DpopAccessTokenMiddleware
 
 public static class DpopAccessTokenMiddlewareExtensions
 {
+    public static IServiceCollection AddHisHopeDpopValidation(this IServiceCollection services)
+    {
+        services.AddSingleton<DpopResourceProofValidator>();
+        return services;
+    }
+
     public static IApplicationBuilder UseDpopAuthorizationSchemeNormalization(this IApplicationBuilder app) =>
         app.UseMiddleware<DpopAuthorizationSchemeMiddleware>();
 

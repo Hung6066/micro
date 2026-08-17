@@ -3,6 +3,7 @@ import { inject } from "@angular/core";
 import { Observable, throwError, timer } from "rxjs";
 import { catchError, retry } from "rxjs/operators";
 import { HisHopeErrorReportingService } from "./his-hope-error-reporting.service";
+import { HisHopePermissionService } from "../auth/his-hope-permission.service";
 
 const RETRYABLE_STATUSES = new Set([0, 408, 429, 502, 503, 504]);
 const RETRYABLE_METHODS = new Set(["GET", "HEAD"]);
@@ -21,6 +22,7 @@ function isRetryable(req: { method: string }, error: unknown): boolean {
  *  handlers keep controlling the user-facing message. */
 export const hisHopeErrorInterceptor: HttpInterceptorFn = (req, next) => {
   const errorReporting = inject(HisHopeErrorReportingService);
+  const permissionService = inject(HisHopePermissionService);
 
   return next(req).pipe(
     retry({
@@ -34,6 +36,12 @@ export const hisHopeErrorInterceptor: HttpInterceptorFn = (req, next) => {
     }),
     catchError((error: unknown): Observable<never> => {
       if (error instanceof HttpErrorResponse) {
+        if (error.status === 401 || error.status === 403) {
+          permissionService.recordAuthorizationFailure(
+            error.status,
+            req.headers.get("X-Authorization-Action") ?? undefined,
+          );
+        }
         errorReporting.report({
           message: error.message,
           severity:

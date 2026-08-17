@@ -196,7 +196,57 @@ kubectl get pods -n his-hope-dev -o wide
 kubectl get svc -n his-hope-dev
 ```
 
-> **Lưu ý:** Overlay `dev` dùng namespace `his-hope-dev` và prefix `his-hope-` trong tên resource. Để triển khai production, dùng `k8s/overlays/prod/`.
+> **Lưu ý:** Overlay `dev` dùng namespace `his-hope-dev`. Production phải
+> render bằng `kubectl kustomize --load-restrictor LoadRestrictionsNone` rồi
+> pipe vào `kubectl apply -f -`, vì overlay tham chiếu manifest dùng chung.
+
+### 4.3 Vault HA và workload identity (K3s-only)
+
+Overlay `dev` chạy Vault 3 replica bằng StatefulSet, Raft PVC `local-path`,
+TLS nội bộ và Azure Key Vault auto-unseal. Secret Azure chỉ được tạo runtime
+từ secret store của operator; không commit vào Git:
+
+```bash
+kubectl apply -k k8s/overlays/dev/
+kubectl rollout status statefulset/vault -n his-hope-dev --timeout=300s
+kubectl exec -n his-hope-dev vault-0 -- \
+  sh -c 'VAULT_ADDR=https://vault-0.vault-internal.his-hope-dev.svc.cluster.local:8200 \
+  VAULT_CACERT=/run/tls/ca.crt vault status'
+```
+
+Các service backend dùng JWT-SVID của SPIRE qua Workload API để đăng nhập Vault;
+không dùng projected Kubernetes ServiceAccount JWT, static Vault token hoặc
+Docker socket attestor. Chạy `scripts/validate-spire-only-k3s.ps1` trước khi
+apply production. Các quyền TokenReview chỉ được giữ tạm cho injector/operator
+chưa chuyển đổi.
+Sau khi khôi phục snapshot, phải kiểm tra cả ba node là voter:
+
+```bash
+kubectl exec -n his-hope-dev vault-0 -- \
+  sh -c 'VAULT_ADDR=https://vault-0.vault-internal.his-hope-dev.svc.cluster.local:8200 \
+  VAULT_CACERT=/run/tls/ca.crt VAULT_TOKEN="$VAULT_TOKEN" vault operator raft list-peers'
+```
+
+Docker Compose chỉ được dùng làm nguồn snapshot/migration trong lần chuyển đổi.
+Không chạy đồng thời hai cụm Vault dùng chung dữ liệu; sau khi K3s đạt 3 voter,
+dừng Compose bằng `docker compose down` nhưng không dùng `--volumes`.
+
+> **Trạng thái local:** SPIRE Server/Agent native đã được cài ở namespace
+> `spire`; P0 PSAT/workload attestation đã validate. P1 JWT-SVID → Vault JWT
+> auth đã validate cho 7 backend, gồm role binding, file mode `0440`, rotation
+> sau restart và revoke. Linkerd CNI đã được sửa theo K3s path bằng
+> `scripts/configure-linkerd-cni-k3s.ps1`; validator pass trên 3 node và 7
+> backend pod có `linkerd-proxy` Ready. Production vẫn phải chạy lại mTLS,
+> multi-replica và failover gate sau khi apply production overlay.
+
+Cài và bootstrap SPIRE:
+
+```powershell
+kubectl apply -k k8s/spire
+kubectl rollout status statefulset/spire-server -n spire --timeout=300s
+kubectl rollout status daemonset/spire-agent -n spire --timeout=300s
+pwsh -File scripts/bootstrap-spire-k3s.ps1
+```
 
 ---
 
@@ -354,3 +404,4 @@ kubectl get nodes
 - [Deployment Guide đầy đủ](deployment-guide.md) — Hướng dẫn production chi tiết (ArgoCD, Vault, Canary)
 - [Monitoring Guide](monitoring-guide.md) — Cấu hình Prometheus, Grafana, Alerts
 - [Disaster Recovery](disaster-recovery.md) — Backup & Restore CockroachDB
+- [Unified Runtime Contract](unified-runtime-contract.md) — Chuẩn endpoint, secret injection và smoke test cho Compose/VM/K3s

@@ -1,0 +1,390 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-service
+spec:
+  template:
+    spec:
+      hostPID: false
+      securityContext:
+        runAsNonRoot: false
+      automountServiceAccountToken: true
+      containers:
+        - name: identity-service
+          env:
+            - name: Vault__Address
+              $patch: replace
+              value: https://vault-active.his-hope.svc.cluster.local:8200
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: identity-service
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__Database__Enabled
+              value: "true"
+          volumeMounts:
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SPIFFE_ID
+              value: spiffe://his-hope.local/ns/his-hope/sa/identity-service
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 100m, memory: 64Mi }
+          volumeMounts:
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+      volumes:
+        - name: agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: Directory
+        - name: spire-jwt
+          emptyDir: { medium: Memory }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+spec:
+  template:
+    spec:
+      hostPID: false
+      securityContext: { runAsNonRoot: false }
+      containers:
+        - name: patient-service
+          env:
+            - name: Vault__Address
+              $patch: replace
+              value: https://vault-active.his-hope.svc.cluster.local:8200
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: patient-service
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__Database__Enabled
+              value: "true"
+          volumeMounts:
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SPIFFE_ID
+              value: spiffe://his-hope.local/ns/his-hope/sa/patient-service
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+            seccompProfile: { type: RuntimeDefault }
+          volumeMounts:
+            - { name: agent-socket, mountPath: /run/spire/sockets, readOnly: true }
+            - { name: spire-jwt, mountPath: /run/spire/jwt }
+      volumes:
+        - name: agent-socket
+          hostPath: { path: /run/spire/sockets, type: Directory }
+        - name: spire-jwt
+          emptyDir: { medium: Memory }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-service
+spec:
+  template:
+    spec:
+      hostPID: false
+      securityContext: { runAsNonRoot: false }
+      containers:
+        - name: clinical-service
+          env:
+            - name: Vault__Address
+              $patch: replace
+              value: https://vault-active.his-hope.svc.cluster.local:8200
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: clinical-service
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__Database__Enabled
+              value: "true"
+          volumeMounts: [{ name: spire-jwt, mountPath: /run/spire/jwt }]
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/clinical-service }]
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+            seccompProfile: { type: RuntimeDefault }
+          volumeMounts:
+            - { name: agent-socket, mountPath: /run/spire/sockets, readOnly: true }
+            - { name: spire-jwt, mountPath: /run/spire/jwt }
+      volumes:
+        - name: agent-socket
+          hostPath: { path: /run/spire/sockets, type: Directory }
+        - name: spire-jwt
+          emptyDir: { medium: Memory }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+spec:
+  template:
+    spec:
+      hostPID: false
+      securityContext: { runAsNonRoot: false }
+      containers:
+        - name: appointment-service
+          env:
+            - name: Vault__Address
+              $patch: replace
+              value: https://vault-active.his-hope.svc.cluster.local:8200
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: appointment-service
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__Database__Enabled
+              value: "true"
+          volumeMounts: [{ name: spire-jwt, mountPath: /run/spire/jwt }]
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/appointment-service }]
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+            seccompProfile: { type: RuntimeDefault }
+          volumeMounts:
+            - { name: agent-socket, mountPath: /run/spire/sockets, readOnly: true }
+            - { name: spire-jwt, mountPath: /run/spire/jwt }
+      volumes:
+        - name: agent-socket
+          hostPath: { path: /run/spire/sockets, type: Directory }
+        - name: spire-jwt
+          emptyDir: { medium: Memory }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-service
+spec:
+  template:
+    spec:
+      hostPID: false
+      securityContext: { runAsNonRoot: false }
+      containers:
+        - name: lab-service
+          env:
+            - name: Vault__Address
+              $patch: replace
+              value: https://vault-active.his-hope.svc.cluster.local:8200
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: lab-service
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__Database__Enabled
+              value: "true"
+          volumeMounts: [{ name: spire-jwt, mountPath: /run/spire/jwt }]
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/lab-service }]
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+            seccompProfile: { type: RuntimeDefault }
+          volumeMounts:
+            - { name: agent-socket, mountPath: /run/spire/sockets, readOnly: true }
+            - { name: spire-jwt, mountPath: /run/spire/jwt }
+      volumes:
+        - name: agent-socket
+          hostPath: { path: /run/spire/sockets, type: Directory }
+        - name: spire-jwt
+          emptyDir: { medium: Memory }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-service
+spec:
+  template:
+    spec:
+      hostPID: false
+      securityContext: { runAsNonRoot: false }
+      containers:
+        - name: billing-service
+          env:
+            - name: Vault__Address
+              $patch: replace
+              value: https://vault-active.his-hope.svc.cluster.local:8200
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: billing-service
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__Database__Enabled
+              value: "true"
+          volumeMounts: [{ name: spire-jwt, mountPath: /run/spire/jwt }]
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/billing-service }]
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+            seccompProfile: { type: RuntimeDefault }
+          volumeMounts:
+            - { name: agent-socket, mountPath: /run/spire/sockets, readOnly: true }
+            - { name: spire-jwt, mountPath: /run/spire/jwt }
+      volumes:
+        - name: agent-socket
+          hostPath: { path: /run/spire/sockets, type: Directory }
+        - name: spire-jwt
+          emptyDir: { medium: Memory }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-service
+spec:
+  template:
+    spec:
+      hostPID: false
+      securityContext: { runAsNonRoot: false }
+      containers:
+        - name: pharmacy-service
+          env:
+            - name: Vault__Address
+              $patch: replace
+              value: https://vault-active.his-hope.svc.cluster.local:8200
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: pharmacy-service
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__Database__Enabled
+              value: "true"
+          volumeMounts: [{ name: spire-jwt, mountPath: /run/spire/jwt }]
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/pharmacy-service }]
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+            seccompProfile: { type: RuntimeDefault }
+          volumeMounts:
+            - { name: agent-socket, mountPath: /run/spire/sockets, readOnly: true }
+            - { name: spire-jwt, mountPath: /run/spire/jwt }
+      volumes:
+        - name: agent-socket
+          hostPath: { path: /run/spire/sockets, type: Directory }
+        - name: spire-jwt
+          emptyDir: { medium: Memory }

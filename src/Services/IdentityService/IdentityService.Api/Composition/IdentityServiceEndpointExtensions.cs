@@ -16,6 +16,7 @@ using His.Hope.IdentityService.Api.Jobs;
 using His.Hope.IdentityService.Api.Services;
 using His.Hope.IdentityService.Application;
 using His.Hope.IdentityService.Application.DTOs;
+using His.Hope.SharedKernel.Authorization;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
@@ -30,6 +31,7 @@ using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Locking;
 using His.Hope.Infrastructure.Security;
+using His.Hope.Contracts.Identity;
 using His.Hope.Authorization;
 using His.Hope.Authorization.Handlers;
 using Microsoft.AspNetCore.Authentication;
@@ -75,12 +77,12 @@ app.MapGet("/api/v1/localization", async (
     return Results.Ok(new { locale = requestedLocale, fallbackLocale = "vi-VN", values });
 }).AllowAnonymous();
 
-var auth = app.MapGroup("/api/v1/auth");
+var auth = app.MapGroup(IdentityApiRoutes.Auth);
 
 auth.MapPost("/login", async (LoginRequest request, IIdentityService identityService,
     UserManager<User> userManager, SignInManager<User> signInManager,
     IConnectionMultiplexer redis, SessionTokenProtector tokenProtector,
-    HttpContext httpContext, CancellationToken ct) =>
+    IConfiguration configuration, HttpContext httpContext, CancellationToken ct) =>
 {
     try
     {
@@ -106,11 +108,32 @@ auth.MapPost("/login", async (LoginRequest request, IIdentityService identitySer
             }, statusCode: StatusCodes.Status401Unauthorized);
         }
 
-        await signInManager.SignInAsync(identityUser, isPersistent: true);
+        // Keep the identity cookie on the same permission contract as JWT.
+        // Permission policies must behave identically for legacy browser login,
+        // BFF sessions, and OIDC bearer tokens.
+        var roles = await userManager.GetRolesAsync(identityUser);
+        // The IdentityService result is the single source of truth. Never fall back
+        // to the legacy static role map, which can drift from RolePermissions.
+        var permissions = result.User.Permissions?.ToArray() ?? Array.Empty<string>();
+        var identityPrincipal = await signInManager.CreateUserPrincipalAsync(identityUser);
+        if (identityPrincipal.Identity is ClaimsIdentity identityClaims)
+        {
+            // The legacy JSON login issues the same human session as the OIDC
+            // authorize flow. Keep the principal discriminator on the browser
+            // cookie as well as on the BFF JWT; HumanAdmin otherwise rejects
+            // every admin endpoint with 403 after a successful login.
+            identityClaims.AddClaim(new Claim(
+                AuthorizationConstants.Claims.PrincipalType,
+                AuthorizationConstants.PrincipalTypes.Human));
+            foreach (var permission in permissions)
+                identityClaims.AddClaim(new Claim("permissions", permission));
+        }
+        await httpContext.SignInAsync(
+            IdentityConstants.ApplicationScheme,
+            identityPrincipal,
+            new AuthenticationProperties { IsPersistent = true });
 
         // BFF: Create Redis session and set cookies (dual-mode: cookie + Bearer)
-        var roles = await userManager.GetRolesAsync(identityUser);
-        var permissions = RolePermissionMapping.GetPermissionsForRoles(roles).ToArray();
         var sessionId = Guid.NewGuid().ToString("N");
         var csrfToken = Guid.NewGuid().ToString("N");
         var sessionData = new SessionData
@@ -119,6 +142,7 @@ auth.MapPost("/login", async (LoginRequest request, IIdentityService identitySer
             Jwt = tokenProtector.Protect(result.AccessToken),
             RefreshToken = tokenProtector.Protect(result.RefreshToken),
             Permissions = permissions,
+            PrincipalType = AuthorizationConstants.PrincipalTypes.Human,
             CsrfToken = csrfToken,
             UserAgentHash = BffHelpers.ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
             IssuedAt = DateTimeOffset.UtcNow,
@@ -136,6 +160,7 @@ auth.MapPost("/login", async (LoginRequest request, IIdentityService identitySer
             HttpOnly = true,
             Secure = httpContext.Request.IsHttps,
             SameSite = SameSiteMode.Lax,
+            Domain = BffHelpers.CookieDomain(configuration),
             Path = "/",
             MaxAge = TimeSpan.FromHours(1)
         });
@@ -145,6 +170,7 @@ auth.MapPost("/login", async (LoginRequest request, IIdentityService identitySer
             HttpOnly = false,
             Secure = httpContext.Request.IsHttps,
             SameSite = SameSiteMode.Strict,
+            Domain = BffHelpers.CookieDomain(configuration),
             Path = "/",
             MaxAge = TimeSpan.FromHours(1)
         });
@@ -183,6 +209,7 @@ auth.MapPost("/ldap/login", async (LdapLoginRequest request, LdapSyncService lda
     var completed = await completion.CompletePrimaryAsync(context, user, "/", ["ldap"], ct);
     return Results.Ok(new { authenticated = !completed.RequiresMfa, requiresMfa = completed.RequiresMfa, mfaUrl = completed.RedirectUrl, userId = user.Id });
 })
+.WithDeprecationNotice()
 .WithOpenApi()
 .RequireRateLimiting("auth")
 .AllowAnonymous();
@@ -257,7 +284,7 @@ auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpCon
     IIdentityService identityService, IUserSessionTracker sessionTracker,
     ITokenBlacklistService tokenBlacklist, SignInManager<User> signInManager,
     SessionTokenProtector tokenProtector,
-    ILogger<Program> logger, CancellationToken ct) =>
+    IConfiguration configuration, ILogger<Program> logger, CancellationToken ct) =>
 {
     var sessionId = httpContext.Request.Cookies["hishop_sid"];
     string? refreshToken = null;
@@ -328,12 +355,14 @@ auth.MapPost("/logout", async (IConnectionMultiplexer redis, HttpContext httpCon
         HttpOnly = true,
         Secure = httpContext.Request.IsHttps,
         SameSite = SameSiteMode.Lax,
+        Domain = BffHelpers.CookieDomain(configuration),
         Path = "/",
         Expires = DateTimeOffset.UnixEpoch
     });
     httpContext.Response.Cookies.Append("hishop_csrf", "", new CookieOptions
     {
         HttpOnly = false, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Strict,
+        Domain = BffHelpers.CookieDomain(configuration),
         Path = "/", Expires = DateTimeOffset.UnixEpoch
     });
 
@@ -359,13 +388,14 @@ auth.MapGet("/session-status", async (HttpContext httpContext) =>
 // SPA OIDC callback -> BFF session bridge. The browser may have a valid
 // OpenIddict access token without the legacy hishop_sid cookie; mint the
 // service-to-service HMAC session once so downstream APIs use one contract.
-auth.MapPost("/session/exchange", async (
+auth.MapPost(IdentityApiRoutes.SessionExchangeSegment, async (
     HttpContext httpContext,
     UserManager<User> userManager,
     IdentityDbContext db,
     JwtTokenGenerator tokenGenerator,
     SessionTokenProtector tokenProtector,
     IConnectionMultiplexer redis,
+    IConfiguration configuration,
     CancellationToken ct) =>
 {
     if (httpContext.User.Identity?.IsAuthenticated != true)
@@ -395,6 +425,12 @@ auth.MapPost("/session/exchange", async (
         .Select(rolePermission => rolePermission.PermissionCode)
         .ToArrayAsync(ct);
     permissions = permissions
+        .Concat(await db.BreakGlassRequests
+            .Where(request => request.SubjectUserId == user.Id && request.Status == "approved" && request.RevokedAt == null && request.ExpiresAt > DateTime.UtcNow)
+            .Select(request => request.PermissionCode)
+            .ToArrayAsync(ct))
+        .ToArray();
+    permissions = permissions
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToArray();
     var (jwt, expiresAt) = tokenGenerator.GenerateAccessToken(user, roles, permissions);
@@ -406,6 +442,7 @@ auth.MapPost("/session/exchange", async (
         Jwt = tokenProtector.Protect(jwt),
         RefreshToken = null,
         Permissions = permissions,
+        PrincipalType = AuthorizationConstants.PrincipalTypes.Human,
         CsrfToken = csrfToken,
         UserAgentHash = BffHelpers.ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
         IssuedAt = DateTimeOffset.UtcNow,
@@ -422,6 +459,7 @@ auth.MapPost("/session/exchange", async (
         HttpOnly = true,
         Secure = httpContext.Request.IsHttps,
         SameSite = SameSiteMode.Lax,
+        Domain = BffHelpers.CookieDomain(configuration),
         Path = "/",
         MaxAge = expiresAt - DateTime.UtcNow
     });
@@ -430,6 +468,7 @@ auth.MapPost("/session/exchange", async (
         HttpOnly = false,
         Secure = httpContext.Request.IsHttps,
         SameSite = SameSiteMode.Strict,
+        Domain = BffHelpers.CookieDomain(configuration),
         Path = "/",
         MaxAge = expiresAt - DateTime.UtcNow
     });
@@ -442,6 +481,7 @@ auth.MapPost("/session/exchange", async (
 // BFF internal: exchange session ID for new JWT (transparent refresh)
 auth.MapPost("/internal/refresh", async (IConnectionMultiplexer redis, HttpContext httpContext,
     IIdentityService identityService, SessionTokenProtector tokenProtector,
+    IConfiguration configuration,
     CancellationToken ct) =>
 {
     var sessionId = httpContext.Request.Cookies["hishop_sid"];
@@ -496,12 +536,14 @@ auth.MapPost("/internal/refresh", async (IConnectionMultiplexer redis, HttpConte
         HttpOnly = true,
         Secure = httpContext.Request.IsHttps,
         SameSite = SameSiteMode.Lax,
+        Domain = BffHelpers.CookieDomain(configuration),
         Path = "/",
         MaxAge = TimeSpan.FromHours(1)
     });
     httpContext.Response.Cookies.Append("hishop_csrf", session.CsrfToken, new CookieOptions
     {
         HttpOnly = false, Secure = httpContext.Request.IsHttps, SameSite = SameSiteMode.Strict,
+        Domain = BffHelpers.CookieDomain(configuration),
         Path = "/", MaxAge = TimeSpan.FromHours(1)
     });
 
@@ -554,6 +596,9 @@ auth.MapGet("/external-login/{provider}", (string provider, HttpContext httpCont
     var redirectUrl = $"/api/v1/auth/external-callback/{provider}";
     var properties = new AuthenticationProperties { RedirectUri = redirectUrl };
     properties.Items["LoginProvider"] = provider;
+    var returnUrl = httpContext.Request.Query["returnUrl"].FirstOrDefault();
+    if (!string.IsNullOrWhiteSpace(returnUrl) && returnUrl.StartsWith("/", StringComparison.Ordinal) && !returnUrl.StartsWith("//", StringComparison.Ordinal))
+        properties.Items["returnUrl"] = returnUrl;
     return Results.Challenge(properties, new[] { provider });
 })
 .AllowAnonymous();
@@ -561,9 +606,15 @@ auth.MapGet("/external-login/{provider}", (string provider, HttpContext httpCont
 // External login callback (OIDC redirect handler)
 auth.MapGet("/external-callback/{provider}", async (
     string provider, HttpContext httpContext,
+    IConfiguration configuration,
     UserManager<User> userManager,
     OidcLoginCompletionService completion, CancellationToken ct) =>
 {
+    var configuredExternal = configuration.GetSection("Authentication:ExternalSources").GetChildren()
+        .Select(section => section["Name"])
+        .Where(name => !string.IsNullOrWhiteSpace(name));
+    if (provider is not ("Google" or "Microsoft" or "Entra") && !configuredExternal.Contains(provider, StringComparer.Ordinal))
+        return Results.BadRequest(new { error = "Unsupported external provider." });
     var result = await httpContext.AuthenticateAsync(IdentityConstants.ExternalScheme);
     if (!result.Succeeded)
         return Results.Redirect("/login?error=external_failed");
@@ -572,10 +623,20 @@ auth.MapGet("/external-callback/{provider}", async (
     var email = externalPrincipal.FindFirstValue(ClaimTypes.Email);
     var name = externalPrincipal.FindFirstValue(ClaimTypes.Name);
     var providerKey = externalPrincipal.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (string.IsNullOrEmpty(email))
+    if (string.IsNullOrEmpty(email) || string.IsNullOrWhiteSpace(providerKey))
         return Results.Redirect("/login?error=no_email");
 
-    var user = await userManager.FindByEmailAsync(email);
+    // Resolve the immutable upstream subject first. Do not silently attach an
+    // external login to an existing local account merely because the email
+    // matches; that would turn a provider email claim into an account-linking
+    // authority.
+    var user = !string.IsNullOrWhiteSpace(providerKey)
+        ? await userManager.FindByLoginAsync(provider, providerKey)
+        : null;
+
+    var emailUser = user is null ? await userManager.FindByEmailAsync(email) : null;
+    if (user is null && emailUser is not null)
+        return Results.Redirect("/login?error=external_account_link_required");
 
     if (user is null)
     {
@@ -603,14 +664,18 @@ auth.MapGet("/external-callback/{provider}", async (
         await userManager.AddLoginAsync(user, new UserLoginInfo(provider, providerKey!, provider));
     }
 
-    var returnUrl = httpContext.Request.Query["returnUrl"].FirstOrDefault() ?? "/";
+    var returnUrl = result.Properties?.Items.TryGetValue("returnUrl", out var storedReturnUrl) == true
+        ? storedReturnUrl
+        : httpContext.Request.Query["returnUrl"].FirstOrDefault() ?? "/";
+    if (!returnUrl.StartsWith("/", StringComparison.Ordinal) || returnUrl.StartsWith("//", StringComparison.Ordinal))
+        returnUrl = "/";
     var completed = await completion.CompletePrimaryAsync(httpContext, user, returnUrl, [provider], ct);
     return Results.Redirect(completed.RedirectUrl);
 })
 .AllowAnonymous();
 
 // List available external login providers
-auth.MapGet("/external-providers", (IConfiguration config) =>
+auth.MapGet("/external-providers", async (IConfiguration config, ExternalIdentityProviderRuntime externalIdentityRuntime, CancellationToken ct) =>
 {
     var providers = new List<object>();
 
@@ -620,12 +685,28 @@ auth.MapGet("/external-providers", (IConfiguration config) =>
     if (!string.IsNullOrEmpty(config["Authentication:Microsoft:ClientId"]))
         providers.Add(new { provider = "Microsoft", displayName = "Microsoft", icon = "microsoft" });
 
+    if (!string.IsNullOrEmpty(config["Authentication:Entra:ClientId"]) &&
+        Uri.TryCreate(config["Authentication:Entra:Authority"], UriKind.Absolute, out _))
+        providers.Add(new { provider = "Entra", displayName = "Microsoft Entra ID", icon = "microsoft" });
+
+    foreach (var source in config.GetSection("Authentication:ExternalSources").GetChildren())
+    {
+        var name = source["Name"];
+        if (!string.IsNullOrWhiteSpace(name) && Uri.TryCreate(source["Authority"], UriKind.Absolute, out var authority) && authority.Scheme == Uri.UriSchemeHttps)
+            providers.Add(new { provider = name, displayName = source["DisplayName"] ?? name, icon = "openid" });
+    }
+
+    var saml = await externalIdentityRuntime.GetSamlAsync(ct);
+    if (saml.Enabled && !string.IsNullOrWhiteSpace(saml.IdpMetadata))
+        providers.Add(new { provider = "Saml", displayName = "SAML SSO", icon = "business", protocol = "saml", loginUrl = "/api/v1/federation/saml/login" });
+
     return Results.Ok(new { providers });
 })
 .AllowAnonymous();
 
 // MFA endpoints
 auth.MapMfaEndpoints();
+auth.MapAccountRecoveryEndpoints();
 
 // Account linking endpoints
 auth.MapGroup("/account").MapAccountLinkingEndpoints();
@@ -660,11 +741,25 @@ secured.MapUserEndpoints();
 secured.MapRoleEndpoints();
 
 // Admin API endpoints (for frontend admin module)
-var admin = app.MapGroup("/api/v1/admin").RequireAuthorization();
+var admin = app.MapGroup("/api/v1/admin").RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin);
 admin.MapUserEndpoints();
 admin.MapRoleEndpoints();
+admin.MapAccessGovernanceEndpoints();
+app.MapIamControlPlaneEndpoints();
+app.MapAdminIncidentEndpoints();
 admin.MapSettingsEndpoints();
 admin.MapAuditLogEndpoints();
+
+// Canonical Identity Workbench aliases. The legacy /api/v1/admin routes above
+// remain available for older clients; new admin-app calls use /admin/iam so
+// governance and audit resources share one route vocabulary with IAM catalog
+// resources. Endpoint-level permissions are defined by the mapped handlers.
+var iamWorkbench = app.MapGroup(IdentityApiRoutes.IdentityWorkbench.Base)
+    .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin);
+iamWorkbench.MapAccessGovernanceEndpoints();
+iamWorkbench.MapAuditLogEndpoints();
+iamWorkbench.MapAdminIncidentEndpoints();
+iamWorkbench.MapIdentityWorkbenchDedicatedEndpoints();
 admin.MapGroup("/clients").MapClientEndpoints();
 ClientEndpoints.MapDynamicClientRegistration(app);
 admin.MapBulkImportEndpoints();
@@ -685,10 +780,15 @@ admin.MapTableViewEndpoints();
         })
             .AllowAnonymous();
         app.MapPasskeyEndpoints();
-admin.MapGet("/me/permissions", async (HttpContext httpContext, UserManager<User> userManager) =>
+admin.MapGet("/me/permissions", async (HttpContext httpContext, UserManager<User> userManager, IdentityDbContext db) =>
 {
     var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier)
         ?? httpContext.User.FindFirstValue("sub");
+    var scopes = httpContext.User.FindAll("scope")
+        .Concat(httpContext.User.FindAll("scp"))
+        .SelectMany(claim => claim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        .Distinct(StringComparer.Ordinal)
+        .ToArray();
     var user = Guid.TryParse(userId, out var parsedUserId)
         ? await userManager.FindByIdAsync(parsedUserId.ToString())
         : null;
@@ -696,13 +796,32 @@ admin.MapGet("/me/permissions", async (HttpContext httpContext, UserManager<User
     if (user is not null)
     {
         var roles = await userManager.GetRolesAsync(user);
+        var facilityIds = await db.UserFacilities
+            .Where(membership => membership.UserId == user.Id && membership.IsActive && membership.RevokedAt == null)
+            .Select(membership => membership.FacilityId)
+            .Distinct()
+            .ToArrayAsync();
+        var roleIds = await db.Roles
+            .Where(role => roles.Contains(role.Name!))
+            .Select(role => role.Id)
+            .ToArrayAsync();
+        var effectivePermissions = await db.RolePermissions
+            .Where(mapping => roleIds.Contains(mapping.RoleId))
+            .Select(mapping => mapping.PermissionCode)
+            .Concat(db.BreakGlassRequests
+                .Where(request => request.SubjectUserId == user.Id && request.Status == "approved" && request.RevokedAt == null && request.ExpiresAt > DateTime.UtcNow)
+                .Select(request => request.PermissionCode))
+            .Distinct()
+            .ToArrayAsync();
         return Results.Ok(new
         {
             userId,
             userName = user.Email ?? user.UserName,
             roles = roles.Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
-            permissions = RolePermissionMapping.GetPermissionsForRoles(roles)
-                .Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+            permissions = effectivePermissions,
+            scopes,
+            facilityIds,
+            authzVersion = user.SecurityStamp
         });
     }
 
@@ -714,10 +833,16 @@ admin.MapGet("/me/permissions", async (HttpContext httpContext, UserManager<User
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
         permissions = httpContext.User.FindAll("permission").Concat(httpContext.User.FindAll("permissions"))
             .SelectMany(c => c.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+        scopes,
+        facilityIds = httpContext.User.FindAll("facility_ids")
+            .SelectMany(c => c.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Concat(httpContext.User.FindAll("facility_id").Select(c => c.Value))
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToArray(),
+        authzVersion = httpContext.User.FindFirst("securityVersion")?.Value
     });
 }).RequireAuthorization();
-admin.MapGroup("/consents").RequireAuthorization("Permission:admin.users.read").MapGet("/", async (
+admin.MapGroup("/consents").RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead).MapGet("/", async (
     int page = 1,
     int pageSize = 20,
     string? search = null,
@@ -778,23 +903,23 @@ admin.MapGet("/dashboard", async (IdentityDbContext db, CancellationToken ct) =>
     var totalClients = await db.Set<OpenIddictEntityFrameworkCore.OpenIddictEntityFrameworkCoreApplication>().CountAsync(ct);
     var activeConsents = await db.ClientConsents.CountAsync(c => c.IsActive, ct);
     return Results.Ok(new { totalUsers, activeUsers, totalRoles, totalClients, activeConsents });
-}).RequireAuthorization("Permission:admin.users.read");
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
 
 // Manual LDAP sync trigger
 admin.MapPost("/ldap/sync", async (LdapSyncService syncService, CancellationToken ct) =>
 {
     await syncService.SyncAsync(ct);
     return Results.Ok(new { message = "LDAP sync completed" });
-}).RequireAuthorization("Permission:admin.users.read");
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
 
 // Key rotation (admin only)
 admin.MapPost("/security/rotate-signing-key", async (VaultKeyService keyService, CancellationToken ct) =>
 {
     await keyService.RotateKeyAsync(ct);
     return Results.Ok(new { message = "Signing key rotated successfully" });
-}).RequireAuthorization("Permission:admin.users.read");
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
 
-var settings = app.MapGroup("/api/v1").RequireAuthorization();
+var settings = app.MapGroup("/api/v1").RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin);
 settings.MapSettingsEndpoints();
 
 var audit = app.MapGroup("/api/v1").RequireAuthorization();
@@ -813,7 +938,6 @@ app.MapPost("/api/v1/errors", (HttpContext context, ILogger<Program> logger) =>
     return Results.NoContent();
 }).AllowAnonymous();
 
-app.MapHealthChecks("/health").AllowAnonymous();
 
 // gRPC endpoints
 app.MapGrpcService<His.Hope.IdentityService.Api.Services.GrpcIdentityService>();
@@ -850,12 +974,17 @@ app.MapGet("/.well-known/internal-openid-configuration", (IConfiguration configu
 
 // ─── SCIM v2 Provisioning API (RFC 7643/7644) ───
 app.MapScimEndpoints();
+app.MapMtlsEndpoints();
+app.MapDirectoryProvisioningEndpoints();
+app.MapRadiusEapTlsEndpoints();
+app.MapSecuritySignalAdminEndpoints();
+app.MapDevicePostureEndpoints();
 
 // ─── OIDC Authorization Endpoint (passthrough handler) ───
 // OpenIddict validates the request and passes through. When the user is
 // authenticated (cookie), we sign in with the OpenIddict scheme to generate
 // the authorization code and redirect to the callback.
-app.MapGet("/connect/authorize", async (
+app.MapGet(IdentityApiRoutes.OidcAuthorize, async (
     HttpContext context,
     SignInManager<User> signInManager,
     UserManager<User> userManager,
@@ -924,6 +1053,7 @@ app.MapGet("/connect/authorize", async (
 
     // Ensure sub claim is set (OpenIddict requires it on the principal directly)
     principal.SetClaim(OpenIddictConstants.Claims.Subject, user.Id.ToString());
+    principal.SetClaim(AuthorizationConstants.Claims.PrincipalType, AuthorizationConstants.PrincipalTypes.Human);
 
     // Preserve the authentication methods completed in the interactive
     // cookie. CreateUserPrincipalAsync builds a fresh principal from the
@@ -981,6 +1111,11 @@ app.MapGet("/connect/authorize", async (
         .Select(rolePermission => rolePermission.PermissionCode)
         .Distinct()
         .ToListAsync(context.RequestAborted);
+    permissions.AddRange(await db.BreakGlassRequests
+        .Where(request => request.SubjectUserId == user.Id && request.Status == "approved" && request.RevokedAt == null && request.ExpiresAt > DateTime.UtcNow)
+        .Select(request => request.PermissionCode)
+        .ToListAsync(context.RequestAborted));
+    permissions = permissions.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     if (permissions.Count > 0)
         principal.SetClaim("permissions", string.Join(",", permissions));
 
@@ -1284,7 +1419,7 @@ static bool TryReadAuthorizeRequest(
     state = string.Empty;
 
     if (string.IsNullOrWhiteSpace(returnUrl) || returnUrl.Length > 8192 ||
-        !returnUrl.StartsWith("/connect/authorize", StringComparison.Ordinal))
+        !returnUrl.StartsWith(IdentityApiRoutes.OidcAuthorize, StringComparison.Ordinal))
         return false;
 
     if (!Uri.TryCreate("http://localhost" + returnUrl, UriKind.Absolute, out var uri))
@@ -1348,7 +1483,10 @@ static string BuildAuthorizationErrorRedirect(string returnUrl, string error, st
         ["email"] = ("Email address", "Your email address for account context.", "mail"),
         ["roles"] = ("Role information", "Your assigned roles for access control.", "admin_panel_settings"),
         ["offline_access"] = ("Stay signed in", "Allow the application to refresh your session when you return.", "refresh"),
-        ["hishop:permissions"] = ("His.Hope permissions", "Permissions needed to show the right clinical workspace features.", "verified_user")
+        ["hishop:permissions"] = ("His.Hope permissions", "Permissions needed to show the right clinical workspace features.", "verified_user"),
+        ["fhir.patient.read"] = ("FHIR patient data", "Read patient resources through the interoperability gateway.", "medical_information"),
+        ["fhir.encounter.read"] = ("FHIR encounter data", "Read encounter resources through the interoperability gateway.", "event_note"),
+        ["platform.continuity.write"] = ("Continuity operations", "Run backup and restore-drill operations for the platform.", "database_backup")
     };
 
     var permissionItems = string.Join("\n", scopes.Select(scope =>
@@ -1399,7 +1537,10 @@ static string BuildConsentPage(string displayName, string clientId, string redir
         ["email"] = ("Email address", "View the email address associated with your account."),
         ["roles"] = ("Assigned roles", "View roles needed to tailor access."),
         ["offline_access"] = ("Stay signed in", "Refresh your session without asking you to sign in again."),
-        ["hishop:permissions"] = ("His.Hope permissions", "View permissions granted to you in His.Hope.")
+        ["hishop:permissions"] = ("His.Hope permissions", "View permissions granted to you in His.Hope."),
+        ["fhir.patient.read"] = ("FHIR patient data", "Read patient resources through the interoperability gateway."),
+        ["fhir.encounter.read"] = ("FHIR encounter data", "Read encounter resources through the interoperability gateway."),
+        ["platform.continuity.write"] = ("Continuity operations", "Run backup and restore-drill operations for the platform.")
     };
     var permissionItems = string.Join("", scopes.Select(scope =>
     {
@@ -1654,7 +1795,7 @@ body{{
   position:relative;overflow:hidden
 }}
 .login-page::before{{
-  content:"";position:absolute;inset:0;pointer-events:none;opacity:.32;
+  content:"""";position:absolute;inset:0;pointer-events:none;opacity:.32;
   background-image:
     linear-gradient(rgba(24,37,31,.05) 1px,transparent 1px),
     linear-gradient(90deg,rgba(24,37,31,.05) 1px,transparent 1px);
@@ -1852,7 +1993,7 @@ body{{
   min-height:100dvh;display:grid;place-items:center;padding:32px 18px;
   background:radial-gradient(circle at 16% 18%,rgba(46,125,84,.16),transparent 30%),radial-gradient(circle at 78% 12%,rgba(37,70,58,.13),transparent 28%),linear-gradient(135deg,#f7faf6 0%,#edf3ee 44%,#dfe9e2 100%);position:relative;overflow:hidden
 }}
-.login-page::before{{content:"";position:absolute;inset:0;pointer-events:none;opacity:.32;background-image:linear-gradient(rgba(24,37,31,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(24,37,31,.05) 1px,transparent 1px);background-size:44px 44px;mask-image:linear-gradient(to bottom,rgba(0,0,0,.75),transparent 82%)}}
+.login-page::before{{content:"""";position:absolute;inset:0;pointer-events:none;opacity:.32;background-image:linear-gradient(rgba(24,37,31,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(24,37,31,.05) 1px,transparent 1px);background-size:44px 44px;mask-image:linear-gradient(to bottom,rgba(0,0,0,.75),transparent 82%)}}
 .card{{
   width:min(100%,940px);display:grid;grid-template-columns:minmax(300px,.9fr) minmax(340px,1fr);position:relative;z-index:1;background:rgba(255,255,255,.78);border:1px solid rgba(50,74,63,.16);border-radius:28px;overflow:hidden;box-shadow:0 24px 70px rgba(21,45,35,.18),0 8px 24px rgba(21,45,35,.09);animation:card-in .42s cubic-bezier(.2,.8,.2,1);backdrop-filter:blur(18px)
 }}
@@ -2071,7 +2212,7 @@ app.MapPost("/Account/ExternalLogin", async (HttpContext httpContext, SignInMana
 .AllowAnonymous();
 
 // OIDC Logout endpoint (passthrough handler - Angular apps call oidcSecurityService.logoff())
-app.MapGet("/connect/logout", async (HttpContext httpContext, SignInManager<User> signInManager) =>
+app.MapGet(IdentityApiRoutes.OidcLogout, async (HttpContext httpContext, SignInManager<User> signInManager) =>
 {
     // Sign out the cookie
     await signInManager.SignOutAsync();

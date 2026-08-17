@@ -11,9 +11,17 @@ public interface ILabOrderRepository : IRepository<LabOrder>
     void Update(LabOrder labOrder);
     void Remove(LabOrder labOrder);
     Task<IReadOnlyList<LabOrder>> GetByPatientAsync(Guid patientId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<LabOrder>> GetByPatientAsync(
+        Guid patientId, IReadOnlySet<string> facilityIds, bool crossFacility,
+        CancellationToken cancellationToken = default);
     Task<(IReadOnlyList<LabOrder> Items, int TotalCount)> SearchAsync(
         string term, int page, int pageSize,
         Guid? patientId = null, string? status = null,
         DateTime? dateFrom = null, DateTime? dateTo = null,
+        CancellationToken cancellationToken = default);
+    Task<(IReadOnlyList<LabOrder> Items, int TotalCount)> SearchAsync(
+        string term, int page, int pageSize,
+        Guid? patientId, string? status, DateTime? dateFrom, DateTime? dateTo,
+        IReadOnlySet<string> facilityIds, bool crossFacility,
         CancellationToken cancellationToken = default);
 }

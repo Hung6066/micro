@@ -35,12 +35,22 @@ src/Frontend/his-hope-app/package-lock.json
 ## Environment / Secrets
 appsettings.Development.json
 appsettings.*.Development.json
+**/account.json
 *.Development.json
 .env
 .env.local
 .env.*.local
+docker/production-identity.env
+docker/secrets/*
+!docker/secrets/README.md
 *.secret
 secrets/
+# The shared Vault client is source code, not an environment secret. Keep the
+# implementation trackable while continuing to ignore runtime secret files.
+!src/Shared/Secrets/
+!src/Shared/Secrets/His.Hope.Secrets/
+!src/Shared/Secrets/His.Hope.Secrets/*.cs
+!src/Shared/Secrets/His.Hope.Secrets/*.csproj
 **/appsettings.Development.json
 
 ## IDE
@@ -129,5 +139,6 @@ test-grpc.csx
 
 .npm-cache/
 
-/docs/design-references/awesome-design-md/
-/docs/design-references/open-design/
+/tests/e2e/html-report/
+
+/artifacts/

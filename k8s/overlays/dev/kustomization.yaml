@@ -3,8 +3,6 @@ kind: Kustomization
 
 namespace: his-hope-dev
 
-namePrefix: his-hope-
-
 commonLabels:
   app.kubernetes.io/part-of: his-hope
   app.kubernetes.io/managed-by: kustomize
@@ -14,32 +12,383 @@ bases:
   - ../../base
 
 resources:
-  - ../../linkerd/server.yaml
-  - ../../linkerd/server-authorization.yaml
-  - ../../linkerd/traffic-split.yaml
-  - ../../linkerd/service-profiles.yaml
-  - ../../linkerd/pod-monitor.yaml
-  - ../../infrastructure/pgbouncer-configmap.yaml
-  - ../../infrastructure/pgbouncer-secret.yaml
-  - ../../infrastructure/unleash-deployment.yaml
-  - ../../priority/priority-classes.yaml
+  - ../../base/postgres.yaml
+  - ../../base/postgres-pdb.yaml
+  - ../../base/rabbitmq.yaml
+  - ../../base/redis.yaml
+  - ../../base/seccomp-profiles.yaml
+  - ../../base/seccomp-daemonset.yaml
+  - traefik-production-egress-policy.yaml
+  - postgres-secret.yaml
+  # Observability is a separate stack. Keeping it outside this namespace
+  # overlay prevents the global namespace transformer from rewriting its
+  # monitoring Namespace into his-hope-dev.
+  - bff-secrets.yaml
+  - identity-bootstrap-admin-secret.yaml
+  - data-store-network-policy.yaml
+  - legacy-service-aliases.yaml
+  - unleash-local.yaml
+  - ingress-local.yaml
+  - traefik-local.yaml
+  - vault-local.yaml
+  - vault-k3s-rbac.yaml
+  - spire-backend-data-plane-policy.yaml
+  - systemdashboard-runtime-network-policy.yaml
+  - web-oidc-runtime-config-resources.yaml
+  - identity-vault-egress.yaml
+
+configMapGenerator:
+  - name: vault-k3s-entrypoint
+    files:
+      - vault-k3s-entrypoint.sh
+    options:
+      disableNameSuffixHash: true
+
+patchesStrategicMerge:
+  - systemdashboard-bff-rbac-patch.yaml
+  - runtime-contract-patch.yaml
+  - web-oidc-runtime-config.yaml
+  - observability-local-patch.yaml
+  - edge-linkerd-disabled.yaml
+  - rabbitmq-local-patch.yaml
+  - rabbitmq-security-patch.yaml
+  - systemdashboard-local-patch.yaml
+  - api-gateway-probe-patch.yaml
+  - appointment-probe-patch.yaml
+  - bff-local-ports-patch.yaml
+  - redis-local-patch.yaml
+  - runtime-development-patch.yaml
+  - identity-service-local-patch.yaml
+  - identity-bootstrap-local-patch.yaml
+  - identity-jwt-keys-local-patch.yaml
+  - backend-jwt-keys-local-patch.yaml
+  - systemdashboard-jwt-keys-local-patch.yaml
+  - database-continuity-local-patch.yaml
+  - appointment-service-grpc-local-patch.yaml
+  - nginx-k8s-local-patch.yaml
 
 patches:
+  # k3d's Windows Docker networking cannot reliably enforce the base default
+  # deny policies through ClusterIP. Remove only those two local smoke gates;
+  # production overlays retain the full policy set.
+  - target:
+      kind: NetworkPolicy
+      name: default-deny-ingress
+    patch: |-
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-ingress
+  - target:
+      kind: NetworkPolicy
+      name: default-deny-egress
+    patch: |-
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-egress
+  # Linkerd CNI is active on the K3s nodes; validate the real data plane in dev.
+  - target:
+      kind: Namespace
+    patch: |-
+      - op: replace
+        path: /metadata/annotations/linkerd.io~1inject
+        value: enabled
+      - op: replace
+        path: /metadata/labels/pod-security.kubernetes.io~1enforce
+        value: privileged
+      - op: replace
+        path: /metadata/labels/pod-security.kubernetes.io~1enforce-version
+        value: latest
+  - target:
+      kind: StatefulSet
+    patch: |-
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: local-path
+  - target:
+      kind: Deployment
+      name: admin-app
+    patch: |-
+      - op: replace
+        path: /spec/template/metadata/annotations/linkerd.io~1inject
+        value: disabled
+  - target:
+      kind: Deployment
+      name: dashboard-app
+    patch: |-
+      - op: replace
+        path: /spec/template/metadata/annotations/linkerd.io~1inject
+        value: disabled
+  - target:
+      kind: Deployment
+      name: frontend
+    patch: |-
+      - op: replace
+        path: /spec/template/metadata/annotations/linkerd.io~1inject
+        value: disabled
+  - target:
+      kind: Deployment
+      name: traefik
+    patch: |-
+      - op: replace
+        path: /spec/template/metadata/annotations/linkerd.io~1inject
+        value: disabled
+  # k3d/Windows CNI cannot reliably redirect the inbound side of the native
+  # sidecar to the .NET listener. Keep outbound backend traffic meshed while
+  # bypassing only inbound application ports in the local validation overlay.
+  - target:
+      kind: Deployment
+      labelSelector: app.kubernetes.io/component=backend
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: backend-local-mesh
+      spec:
+        template:
+          metadata:
+            annotations:
+              config.linkerd.io/skip-inbound-ports: "5002,5003,5004,5005,5010,5020,5030,5100,5200,5300,5400,5500,5600,5700"
+  - target:
+      kind: Deployment
+      labelSelector: app.kubernetes.io/component=bff
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: bff-local-mesh
+      spec:
+        template:
+          metadata:
+            annotations:
+              config.linkerd.io/skip-inbound-ports: "5100,5200,5300,5400,5500,5600"
+              linkerd.io/inject: disabled
+  - target:
+      kind: Deployment
+      name: systemdashboard-bff
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: systemdashboard-bff
+      spec:
+        template:
+          metadata:
+            annotations:
+              config.linkerd.io/skip-inbound-ports: "5700"
+              linkerd.io/inject: disabled
+  - target:
+      kind: StatefulSet
+      name: rabbitmq
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: StatefulSet
+      name: redis
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: Deployment
+      name: identity-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/securityContext/seccompProfile/type
+        value: RuntimeDefault
+      - op: replace
+        path: /spec/template/spec/containers/0/securityContext/seccompProfile/type
+        value: RuntimeDefault
+  - target:
+      kind: HorizontalPodAutoscaler
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+      - op: remove
+        path: /spec/metrics/2
+  - target:
+      kind: Deployment
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - target:
+      kind: Deployment
+      labelSelector: app.kubernetes.io/component=backend
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/securityContext/seccompProfile/type
+        value: RuntimeDefault
+      - op: remove
+        path: /spec/template/spec/securityContext/seccompProfile/localhostProfile
+      - op: replace
+        path: /spec/template/spec/containers/0/securityContext/seccompProfile/type
+        value: RuntimeDefault
+      - op: remove
+        path: /spec/template/spec/containers/0/securityContext/seccompProfile/localhostProfile
+  - target:
+      kind: Deployment
+      name: api-gateway
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/securityContext/seccompProfile/type
+        value: RuntimeDefault
+      - op: remove
+        path: /spec/template/spec/securityContext/seccompProfile/localhostProfile
+      - op: replace
+        path: /spec/template/spec/containers/0/securityContext/seccompProfile/type
+        value: RuntimeDefault
+      - op: remove
+        path: /spec/template/spec/containers/0/securityContext/seccompProfile/localhostProfile
+  - target:
+      kind: Deployment
+      name: systemdashboard-bff
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/securityContext/seccompProfile/type
+        value: RuntimeDefault
+      - op: remove
+        path: /spec/template/spec/securityContext/seccompProfile/localhostProfile
+      - op: replace
+        path: /spec/template/spec/containers/0/securityContext/seccompProfile/type
+        value: RuntimeDefault
+      - op: remove
+        path: /spec/template/spec/containers/0/securityContext/seccompProfile/localhostProfile
+  - target:
+      kind: Deployment
+      name: clinical-service
+    patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/1
+  - target:
+      kind: Deployment
+      name: identity-service
+    patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/1
+  - target:
+      kind: Deployment
+      name: patient-service
+    patch: |-
+      - op: remove
+        path: /spec/template/spec/containers/1
+  - target:
+      kind: Deployment
+      name: api-gateway
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/httpGet/path
+        value: /health
+  - target:
+      kind: Deployment
+      name: appointment-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/httpGet/path
+        value: /health/ready
+  - target:
+      kind: Deployment
+      name: billing-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/httpGet/path
+        value: /health/ready
+  - target:
+      kind: Deployment
+      name: clinical-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/httpGet/path
+        value: /health/ready
+  - target:
+      kind: Deployment
+      name: identity-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/httpGet/path
+        value: /health/ready
+  - target:
+      kind: Deployment
+      name: lab-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/httpGet/path
+        value: /health/ready
+  - target:
+      kind: Deployment
+      name: patient-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/httpGet/path
+        value: /health/ready
+  - target:
+      kind: Deployment
+      name: pharmacy-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/startupProbe/httpGet/path
+        value: /health/ready
+  # Use the shared readiness endpoint for every local workload. Service APIs
+  # may also expose a custom /health endpoint, so probes must use the unique
+  # shared path to avoid duplicate endpoint registrations.
+  - target:
+      kind: Deployment
+      name: (appointment-service|billing-service|clinical-service|identity-service|lab-service|patient-service|pharmacy-service)
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/httpGet/path
+        value: /health/ready
+  - target:
+      kind: Deployment
+      name: (clinical-bff|billing-bff|dashboard-bff|lab-bff|patient-bff|pharmacy-bff|systemdashboard-bff)
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/readinessProbe/httpGet/path
+        value: /health
+  - target:
+      kind: Deployment
+      name: (frontend|dashboard-app)
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/securityContext/readOnlyRootFilesystem
+        value: false
   - target:
       kind: Deployment
     patch: |-
       - op: replace
         path: /spec/replicas
         value: 1
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 128m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+  # Keep the local edge outside the mesh; backend workloads remain injected by
+  # the enabled namespace and are validated through the Linkerd CNI.
+  - target:
+      kind: Deployment
+      name: traefik
+    patch: |-
       - op: replace
-        path: /spec/template/spec/containers/0/resources/requests/cpu
-        value: 128m
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/requests/memory
-        value: 256Mi
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/limits/cpu
-        value: 500m
-      - op: replace
-        path: /spec/template/spec/containers/0/resources/limits/memory
-        value: 512Mi
+        path: /spec/template/metadata/annotations/linkerd.io~1inject
+        value: disabled
+  - path: workload-spiffe-identity-service-patch.yaml
+  - path: workload-spiffe-patient-service-patch.yaml
+  - path: workload-spiffe-clinical-service-patch.yaml
+  - path: workload-spiffe-appointment-service-patch.yaml
+  - path: workload-spiffe-lab-service-patch.yaml
+  - path: workload-spiffe-billing-service-patch.yaml
+  - path: workload-spiffe-pharmacy-service-patch.yaml

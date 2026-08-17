@@ -4,7 +4,9 @@ using His.Hope.Bff.Core.Authentication;
 using His.Hope.Bff.Core.Resilience;
 using His.Hope.Bff.Core.Telemetry;
 using His.Hope.AspNetCore;
+using His.Hope.Configuration;
 using His.Hope.Observability;
+using His.Hope.Infrastructure.Caching;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
@@ -17,9 +19,12 @@ namespace His.Hope.Bff.Core;
 public static class DependencyInjection
 {
     public static IServiceCollection AddBffCore(
-        this IServiceCollection services, IConfiguration configuration)
+        this IServiceCollection services, IConfiguration configuration, string serviceName)
     {
+        var runtimeEndpoints = RuntimeConfigurationExtensions.BindServiceEndpoints(configuration, serviceName);
+        services.AddHisHopeRuntimeConfiguration(configuration, serviceName);
         services.AddHisHopeAspNetCore();
+        services.AddHealthChecks();
         services.AddObservability(options =>
             options.ServiceName = configuration["ServiceName"] ?? "His.Hope.Bff");
 
@@ -29,11 +34,10 @@ public static class DependencyInjection
 
         services.AddSingleton(cookieOptions);
 
-        var redisConnection = configuration.GetConnectionString("Redis")
-            ?? configuration["Redis:Connection"]
-            ?? throw new InvalidOperationException("Redis connection string not configured");
+        var redisConnection = RuntimeConfigurationExtensions.ToRedisConnectionString(
+            runtimeEndpoints.GetRequired("redis"));
 
-        var redis = ConnectionMultiplexer.Connect(redisConnection);
+        var redis = RedisConnectionFactory.Connect(redisConnection, configuration);
         services.AddSingleton<IConnectionMultiplexer>(redis);
         var dataProtectionKeyName = configuration["DataProtection:KeyName"]
             ?? "HisHope:IdentityService:DataProtection:Keys";
@@ -84,6 +88,12 @@ public static class DependencyInjection
             });
         }
 
+        return app;
+    }
+
+    public static WebApplication MapBffHealth(this WebApplication app)
+    {
+        app.MapHealthChecks("/health").AllowAnonymous();
         return app;
     }
 }

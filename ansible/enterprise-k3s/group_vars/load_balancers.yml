@@ -1,0 +1,42 @@
+lb_interface: ens192
+lb_vip: 172.16.102.100
+lb_vip_cidr: 24
+lb_virtual_router_id: 52
+lb_keepalived_auth_pass: "{{ vault_lb_keepalived_auth_pass }}"
+
+lb_k3s_api_port: 6443
+lb_k3s_api_backends:
+  - name: k3s-server-1
+    address: 172.16.102.7
+  - name: k3s-server-2
+    address: 172.16.102.8
+  - name: k3s-server-3
+    address: 172.16.102.9
+
+lb_ingress_http_port: 80
+lb_ingress_http_node_port: 30080
+lb_ingress_backends:
+  - name: k3s-worker-1
+    address: 172.16.102.10
+  - name: k3s-worker-2
+    address: 172.16.102.12
+
+# Harbor registry HTTPS is exposed through the same external LB VIP on the
+# standard public HTTPS port. HAProxy terminates the public TLS session and
+# re-encrypts the backend hop to Harbor nginx.
+lb_harbor_https_port: 443
+# HAProxy terminates the public certificate; the backend remains encrypted to
+# Harbor's HTTPS NodePort.
+lb_harbor_https_node_port: 30003
+lb_harbor_https_backends:
+  - name: k3s-worker-1
+    address: 172.16.102.10
+  - name: k3s-worker-2
+    address: 172.16.102.12
+
+# HAProxy terminates the public certificate and re-encrypts the private hop to
+# Harbor's nginx HTTPS NodePort. Override these paths on a Linux controller.
+lb_harbor_public_cert_src: "{{ lookup('env', 'HARBOR_PUBLIC_CERT_FILE') | default('/mnt/d/secure/his-hope/harbor_public_cert.pem', true) }}"
+lb_harbor_public_key_src: "{{ lookup('env', 'HARBOR_PUBLIC_KEY_FILE') | default('/mnt/d/secure/his-hope/harbor_public_key.pem', true) }}"
+lb_harbor_backend_ca_src: "{{ lookup('env', 'HARBOR_BACKEND_CA_FILE') | default('/mnt/d/secure/his-hope/harbor_ca.pem', true) }}"
+lb_harbor_backend_server_name: harbor.his-hope.local

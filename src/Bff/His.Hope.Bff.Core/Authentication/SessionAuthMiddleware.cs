@@ -33,6 +33,12 @@ public sealed class SessionAuthMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
+        if (context.Request.Path.StartsWithSegments("/health"))
+        {
+            await _next(context);
+            return;
+        }
+
         var cookieValue = context.Request.Cookies[_options.CookieName];
         if (string.IsNullOrEmpty(cookieValue))
         {

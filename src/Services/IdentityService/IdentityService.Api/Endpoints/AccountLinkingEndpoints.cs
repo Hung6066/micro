@@ -58,10 +58,13 @@ public static class AccountLinkingEndpoints
     }
 
     private static Results<ChallengeHttpResult, ProblemHttpResult> ChallengeLink(
-        string provider, HttpContext httpContext)
+        string provider, HttpContext httpContext, IConfiguration configuration)
     {
-        var supportedProviders = new[] { "Google", "Microsoft" };
-        if (!supportedProviders.Contains(provider, StringComparer.OrdinalIgnoreCase))
+        var supportedProviders = new[] { "Google", "Microsoft", "Entra" };
+        var configured = configuration.GetSection("Authentication:ExternalSources").GetChildren()
+            .Select(section => section["Name"])
+            .Where(name => !string.IsNullOrWhiteSpace(name));
+        if (!supportedProviders.Contains(provider, StringComparer.OrdinalIgnoreCase) && !configured.Contains(provider, StringComparer.Ordinal))
             return TypedResults.Problem($"Unsupported provider: {provider}", statusCode: 400);
 
         var redirectUrl = $"/api/v1/auth/link-callback/{provider}";
@@ -74,8 +77,13 @@ public static class AccountLinkingEndpoints
 
     private static async Task<Results<RedirectHttpResult, ProblemHttpResult>> HandleLinkCallback(
         string provider, HttpContext httpContext,
-        UserManager<User> userManager, SignInManager<User> signInManager)
+        UserManager<User> userManager, SignInManager<User> signInManager, IConfiguration configuration)
     {
+        var configured = configuration.GetSection("Authentication:ExternalSources").GetChildren()
+            .Select(section => section["Name"])
+            .Where(name => !string.IsNullOrWhiteSpace(name));
+        if (provider is not ("Google" or "Microsoft" or "Entra") && !configured.Contains(provider, StringComparer.Ordinal))
+            return TypedResults.Redirect("/profile?error=unsupported_provider");
         var result = await httpContext.AuthenticateAsync(IdentityConstants.ExternalScheme);
         if (!result.Succeeded)
             return TypedResults.Redirect("/profile?error=link_failed");

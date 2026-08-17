@@ -6,14 +6,6 @@ metadata:
     app.kubernetes.io/name: rabbitmq
 data:
   rabbitmq.conf: |
-    ## TLS Configuration
-    listeners.ssl.default = 5671
-    ssl.options.cacertfile = /etc/rabbitmq/ssl/ca.crt
-    ssl.options.certfile = /etc/rabbitmq/ssl/tls.crt
-    ssl.options.keyfile = /etc/rabbitmq/ssl/tls.key
-    ssl.options.verify = verify_peer
-    ssl.options.fail_if_no_peer_cert = false
-
     ## Management plugin
     management.listener.port = 15672
     management.listener.ssl = false
@@ -21,17 +13,11 @@ data:
     ## Default AMQP listener
     listeners.tcp.default = 5672
 
-    ## Cluster settings
-    cluster_formation.peer_discovery_backend = rabbit_peer_discovery_k8s
-    cluster_formation.k8s.host = kubernetes.default.svc.cluster.local
-    cluster_formation.k8s.address_type = hostname
-    cluster_formation.node_cleanup.interval = 30
-    cluster_formation.node_cleanup.only_log_warning = true
-    cluster_partition_handling = autoheal
-    queue_master_locator = min-masters
+    ## Single-replica local runtime adapter. HA peer discovery is configured
+    ## only in the multi-node production profile with RabbitMQ RBAC enabled.
 
     ## Monitoring
-    collect_statistics = all
+    collect_statistics = coarse
     collect_statistics_interval = 60000
 ---
 apiVersion: v1
@@ -80,13 +66,16 @@ spec:
         app: rabbitmq
     spec:
       securityContext:
+        runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: rabbitmq
-          image: rabbitmq:3.13-management
+          image: rabbitmq:3-management-alpine
           imagePullPolicy: Always
           securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
             seccompProfile:
               type: RuntimeDefault
             capabilities:
@@ -134,8 +123,9 @@ spec:
           livenessProbe:
             exec:
               command:
-                - rabbitmq-diagnostics
-                - ping
+                - sh
+                - -c
+                - wget -q -O /dev/null http://127.0.0.1:15672/ || exit 1
             initialDelaySeconds: 30
             periodSeconds: 15
             timeoutSeconds: 10
@@ -143,8 +133,9 @@ spec:
           readinessProbe:
             exec:
               command:
-                - rabbitmq-diagnostics
-                - check_port_connectivity
+                - sh
+                - -c
+                - wget -q -O /dev/null http://127.0.0.1:15672/ || exit 1
             initialDelaySeconds: 20
             periodSeconds: 10
             timeoutSeconds: 10

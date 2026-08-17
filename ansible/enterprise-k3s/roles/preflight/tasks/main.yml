@@ -1,0 +1,62 @@
+---
+- name: Assert supported Linux and systemd
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family in ['Debian', 'RedHat']
+      - ansible_facts.service_mgr == 'systemd'
+    fail_msg: Enterprise K3s automation supports only systemd-based Debian or RedHat hosts.
+
+- name: Assert unique hostnames
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.hostname not in (
+          groups['k3s_servers']
+          | reject('equalto', inventory_hostname)
+          | map('extract', hostvars, ['ansible_facts', 'hostname'])
+          | list
+        )
+    fail_msg: Each K3s server must have a unique hostname.
+
+- name: Assert no active swap
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.swaptotal_mb | int == 0
+    fail_msg: Disable swap before installing K3s.
+
+- name: Find root filesystem facts
+  ansible.builtin.set_fact:
+    k3s_root_mount: "{{ ansible_mounts | selectattr('mount', 'equalto', '/') | first }}"
+
+- name: Assert root filesystem capacity
+  ansible.builtin.assert:
+    that:
+      - (k3s_root_mount.size_available / 1024 / 1024) | int >= enterprise_minimum_root_free_mb | int
+    fail_msg: Root filesystem does not meet the required free capacity.
+
+- name: Check NTP synchronization
+  ansible.builtin.command: timedatectl show --property=NTPSynchronized --value
+  register: k3s_ntp_status
+  changed_when: false
+  # This is a read-only probe. Ansible's command module otherwise skips it in
+  # check mode when no creates/removes condition is present, leaving the
+  # following assertion with an empty stdout and a false failure.
+  check_mode: false
+
+- name: Assert NTP synchronization
+  ansible.builtin.assert:
+    that:
+      - k3s_ntp_status.stdout | trim == 'yes'
+    fail_msg: NTP must be synchronized before forming an etcd cluster.
+
+- name: Assert production bootstrap inputs
+  ansible.builtin.assert:
+    that:
+      - enterprise_network_controls_verified | bool
+      - k3s_api_external_load_balancer | bool
+      - k3s_api_registration_endpoint | length > 0
+      - k3s_api_registration_endpoint not in ['172.16.102.7', '172.16.102.8', '172.16.102.9']
+      - k3s_install_script_checksum is match('^sha256:[0-9a-fA-F]{64}$')
+      - k3s_token is defined
+      - k3s_token | length >= 40
+      - k3s_token is not search('REPLACE|CHANGE|example', ignorecase=True)
+    fail_msg: Supply an external HA load-balancer API endpoint, Ansible-Vault token, installer checksum, and approved network controls before bootstrap.

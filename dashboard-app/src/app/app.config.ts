@@ -20,13 +20,40 @@ import {
   HIS_HOPE_LOCALIZATION_API_URL,
   hisHopeCookieSessionInterceptor,
 } from '@his-hope/frontend-foundation';
+import { RuntimeConfigService } from '@his-hope/frontend-foundation';
 import { routes } from './app.routes';
 import { authInterceptor } from './core/services/auth-interceptor.service';
 import { environment } from '../environments/environment';
 
+function defaultDashboardRuntimeSource() {
+  return (
+    window.__HISHOPE_CONFIG__ ?? {
+      apiOrigin: environment.oidc.authority,
+      oidcAuthority: environment.oidc.authority,
+      production: environment.production,
+    }
+  );
+}
+
+export function createDashboardRuntimeConfig(source = defaultDashboardRuntimeSource()) {
+  return new RuntimeConfigService(source).requireWeb({
+    clientId: environment.oidc.clientId,
+    scope: environment.oidc.scope,
+    secureRoutes: environment.oidc.secureRoutes,
+    redirectPath: "/auth/callback",
+    postLogoutRedirectPath: "/auth/login",
+    silentRenewPath: "/auth/silent-refresh",
+    responseType: environment.oidc.responseType,
+    maxIdTokenIatOffsetInSeconds:
+      environment.oidc.maxIdTokenIatOffsetInSeconds,
+  });
+}
+
+const runtime = createDashboardRuntimeConfig();
+
 export const appConfig: ApplicationConfig = {
   providers: [
-    { provide: HIS_HOPE_LOCALIZATION_API_URL, useValue: '/api/v1' },
+    { provide: HIS_HOPE_LOCALIZATION_API_URL, useValue: runtime.localizationApiUrl },
     { provide: HisHopeI18nService, useFactory: (document: Document, platformId: object) => new HisHopeI18nService(document, platformId), deps: [DOCUMENT, PLATFORM_ID] },
     { provide: HisHopeLocalizationApiService, useFactory: (http: HttpClient, i18n: HisHopeI18nService, apiUrl: string) => new HisHopeLocalizationApiService(http, i18n, apiUrl), deps: [HttpClient, HisHopeI18nService, HIS_HOPE_LOCALIZATION_API_URL] },
     provideRouter(routes),
@@ -44,20 +71,20 @@ export const appConfig: ApplicationConfig = {
     importProvidersFrom(MatSnackBarModule),
     provideAuth({
       config: {
-        authority: environment.oidc.authority,
-        redirectUrl: environment.oidc.redirectUrl,
-        postLogoutRedirectUri: environment.oidc.postLogoutRedirectUri,
-        clientId: environment.oidc.clientId,
-        scope: environment.oidc.scope,
-        responseType: environment.oidc.responseType,
+        authority: runtime.oidcAuthority,
+        redirectUrl: runtime.redirectUrl,
+        postLogoutRedirectUri: runtime.postLogoutRedirectUri,
+        clientId: runtime.clientId,
+        scope: runtime.scope,
+        responseType: runtime.responseType,
         silentRenew: true,
         useRefreshToken: false,
-        silentRenewUrl: environment.oidc.silentRenewUrl,
+        silentRenewUrl: runtime.silentRenewUrl,
         renewTimeBeforeTokenExpiresInSeconds: 120,
-        secureRoutes: environment.oidc.secureRoutes,
+        secureRoutes: runtime.secureRoutes,
         maxIdTokenIatOffsetAllowedInSeconds:
-          environment.oidc.maxIdTokenIatOffsetInSeconds,
-        logLevel: environment.production ? 0 : 1,
+          runtime.maxIdTokenIatOffsetInSeconds,
+        logLevel: runtime.production ? 0 : 1,
         autoUserInfo: false,
       },
     }),

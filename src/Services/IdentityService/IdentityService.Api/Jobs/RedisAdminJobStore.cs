@@ -14,6 +14,8 @@ public sealed class AdminJobState
     public string[] RowKeys { get; set; } = [];
     public string PayloadJson { get; set; } = "{}";
     public string ActorSubject { get; set; } = "system";
+    public bool IsCrossFacility { get; set; }
+    public string[] AuthorizedFacilities { get; set; } = [];
     public string? CorrelationId { get; set; }
     public BulkJobStatus Status { get; set; } = BulkJobStatus.Queued;
     public int Processed { get; set; }
@@ -60,9 +62,18 @@ public sealed class RedisAdminJobStore
     public async Task CreateAndEnqueueAsync(AdminJobState state, CancellationToken ct)
     {
         await SaveAsync(state, ct);
+        if (!string.IsNullOrWhiteSpace(state.Kind))
+            await _redis.GetDatabase().StringSetAsync($"his-hope:identity:admin-job-latest:{state.Kind}", state.JobId, StateTtl);
         await _redis.GetDatabase().StreamAddAsync(StreamKey, [
             new NameValueEntry("jobId", state.JobId)
         ]);
+    }
+
+    public async Task<AdminJobState?> GetLatestAsync(string kind, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var jobId = await _redis.GetDatabase().StringGetAsync($"his-hope:identity:admin-job-latest:{kind}");
+        return jobId.IsNullOrEmpty ? null : await GetAsync(jobId!, ct);
     }
 
     public async Task<AdminJobState?> GetAsync(string jobId, CancellationToken ct)

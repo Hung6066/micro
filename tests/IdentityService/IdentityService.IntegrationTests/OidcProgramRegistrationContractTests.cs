@@ -12,7 +12,8 @@ public sealed class OidcProgramRegistrationContractTests
             AppContext.BaseDirectory,
             "IdentityServiceRegistrationExtensions.cs"));
 
-        registration.Should().Contain("options.SetRevocationEndpointUris(\"/connect/revoke\")");
+        registration.Should().Contain("options.SetRevocationEndpointUris(IdentityApiRoutes.OidcRevoke)");
+        IdentityApiRoutes.OidcRevoke.Should().Be("/connect/revoke");
         registration.Should().Contain("options.UseReferenceRefreshTokens()");
         registration.Should().Contain("options.SetRefreshTokenReuseLeeway(TimeSpan.Zero)");
         registration.Should().NotContain("DisableAccessTokenEncryption");

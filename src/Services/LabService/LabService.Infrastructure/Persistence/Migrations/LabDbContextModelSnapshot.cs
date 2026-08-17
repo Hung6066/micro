@@ -36,7 +36,8 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("ClaimedBy")
                         .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("claimed_by");
 
                     b.Property<string>("Content")
                         .IsRequired()
@@ -49,7 +50,8 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                         .HasColumnName("correlationid");
 
                     b.Property<DateTime?>("DeadLetteredOn")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("dead_lettered_on");
 
                     b.Property<string>("Error")
                         .HasMaxLength(1000)
@@ -65,7 +67,8 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                         .HasColumnName("lockexpiresat");
 
                     b.Property<DateTime?>("NextAttemptAt")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
 
                     b.Property<DateTime>("OccurredOn")
                         .HasColumnType("timestamp with time zone")
@@ -161,6 +164,12 @@ namespace His.Hope.LabService.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProviderId");
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("PatientId", "OrderDate")
+                        .HasDatabaseName("IX_LabOrders_Patient_Date_Id");
+
+                    b.HasIndex("FacilityId", "Status", "OrderDate")
+                        .HasDatabaseName("IX_LabOrders_Facility_Status_Date_Id");
 
                     b.ToTable("LabOrders", (string)null);
                 });

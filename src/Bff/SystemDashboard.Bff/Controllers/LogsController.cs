@@ -7,7 +7,7 @@ namespace SystemDashboard.Bff.Controllers;
 
 [ApiController]
 [Route("api/logs")]
-[Authorize(Roles = DashboardRoles.ReadOnly)]
+[Authorize(Policy = "Permission:dashboard.view")]
 public sealed class LogsController : ControllerBase
 {
     private readonly ILogsAggregator _logsAggregator;

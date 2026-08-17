@@ -43,10 +43,24 @@ spec:
       template:
         spec:
           serviceAccountName: cockroach-backup
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
           containers:
           - name: backup
             image: cockroachdb/cockroach:v24.1.2
             imagePullPolicy: IfNotPresent
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+              seccompProfile:
+                type: RuntimeDefault
             env:
             - name: BACKUP_DATE
               valueFrom:
@@ -65,9 +79,13 @@ spec:
             volumeMounts:
             - name: scripts
               mountPath: /scripts
+            - name: tmp
+              mountPath: /tmp
           volumes:
           - name: scripts
             configMap:
               name: cockroach-backup-config
               defaultMode: 0755
+          - name: tmp
+            emptyDir: {}
           restartPolicy: OnFailure

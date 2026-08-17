@@ -58,9 +58,11 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: kibana
-          image: kibana:8.12.0
+          image: kibana@sha256:1e4dc91c86f483e19f8a370f7dda0bf6b7f26d9d1c3805a15e4346e95416faa2
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -110,11 +112,20 @@ spec:
               mountPath: /usr/share/kibana/config/kibana.yml
               subPath: kibana.yml
               readOnly: true
+            - name: vault-secrets
+              mountPath: /mnt/vault-secrets
+              readOnly: true
       volumes:
         - name: kibana-config
           configMap:
             name: kibana-config
             defaultMode: 0644
+        - name: vault-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: elasticsearch-secrets
 ---
 apiVersion: v1
 kind: Service

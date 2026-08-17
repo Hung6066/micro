@@ -1,0 +1,119 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: his-hope
+  namespace: argocd
+spec:
+  description: His.Hope environment promotion boundary
+  sourceRepos:
+    - http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git
+  destinations:
+    - namespace: his-hope
+      server: https://kubernetes.default.svc
+    - namespace: his-hope-staging
+      server: https://kubernetes.default.svc
+    - namespace: gatekeeper-system
+      server: https://kubernetes.default.svc
+    - namespace: default
+      server: https://kubernetes.default.svc
+    - namespace: his-hope-data
+      server: https://kubernetes.default.svc
+    - namespace: his-hope-system
+      server: https://kubernetes.default.svc
+    - namespace: spire
+      server: https://kubernetes.default.svc
+    - namespace: backup
+      server: https://kubernetes.default.svc
+    - namespace: monitoring
+      server: https://kubernetes.default.svc
+    - namespace: linkerd-viz
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+    - group: scheduling.k8s.io
+      kind: PriorityClass
+    - group: templates.gatekeeper.sh
+      kind: ConstraintTemplate
+    - group: constraints.gatekeeper.sh
+      kind: K8sApprovedImageRegistry
+    - group: constraints.gatekeeper.sh
+      kind: K8sRestrictedWorkload
+    - group: constraints.gatekeeper.sh
+      kind: K8sRequiredResources
+    - group: policy.sigstore.dev
+      kind: ClusterImagePolicy
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: snapshot.storage.k8s.io
+      kind: VolumeSnapshotClass
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: LimitRange
+    - group: ''
+      kind: PersistentVolumeClaim
+    - group: ''
+      kind: ResourceQuota
+    - group: ''
+      kind: Secret
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ServiceAccount
+    - group: apps
+      kind: DaemonSet
+    - group: apps
+      kind: Deployment
+    - group: apps
+      kind: StatefulSet
+    - group: autoscaling
+      kind: HorizontalPodAutoscaler
+    - group: batch
+      kind: Job
+    - group: batch
+      kind: CronJob
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+    - group: policy
+      kind: PodDisruptionBudget
+    - group: rbac.authorization.k8s.io
+      kind: Role
+    - group: rbac.authorization.k8s.io
+      kind: RoleBinding
+    - group: linkerd.io
+      kind: ServiceProfile
+    - group: policy.linkerd.io
+      kind: Server
+    - group: policy.linkerd.io
+      kind: ServerAuthorization
+    - group: split.smi-spec.io
+      kind: TrafficSplit
+    - group: monitoring.coreos.com
+      kind: PodMonitor
+    - group: monitoring.coreos.com
+      kind: PrometheusRule
+    - group: monitoring.coreos.com
+      kind: ServiceMonitor
+    - group: secrets-store.csi.x-k8s.io
+      kind: SecretProviderClass
+    - group: barmancloud.cnpg.io
+      kind: ObjectStore
+    - group: postgresql.cnpg.io
+      kind: Cluster
+    - group: postgresql.cnpg.io
+      kind: ScheduledBackup
+  roles:
+    - name: deployer
+      description: Read-only sync status; production sync remains approval-controlled
+      policies:
+        - p, proj:his-hope:deployer, applications, get, his-hope/*, allow
+      groups:
+        - his-hope-release-bot

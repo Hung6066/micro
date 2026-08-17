@@ -63,6 +63,7 @@ internal sealed class SqlOutboxStore(SqlMessagingDbContext db) : IOutboxStore
 {
     public async ValueTask EnqueueAsync(EventEnvelope @event, CancellationToken cancellationToken = default)
     {
+        EventDeliveryPolicy.Default.Validate(@event);
         db.OutboxMessages.Add(new SqlOutboxMessage { Id = @event.Id, EventJson = System.Text.Json.JsonSerializer.Serialize(@event), AvailableAt = DateTimeOffset.UtcNow });
         await db.SaveChangesAsync(cancellationToken);
     }
@@ -114,6 +115,14 @@ internal sealed class SqlInboxStore(SqlMessagingDbContext db) : IInboxStore
     {
         var message = await db.InboxMessages.FindAsync([eventId, consumer], cancellationToken) ?? throw new KeyNotFoundException($"Inbox event {eventId} not found.");
         message.CompletedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async ValueTask ReleaseAsync(Guid eventId, string consumer, CancellationToken cancellationToken = default)
+    {
+        var message = await db.InboxMessages.FindAsync([eventId, consumer], cancellationToken);
+        if (message is null) return;
+        db.InboxMessages.Remove(message);
         await db.SaveChangesAsync(cancellationToken);
     }
 }

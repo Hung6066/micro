@@ -4,12 +4,15 @@ using System.Threading.Channels;
 using Microsoft.AspNetCore.DataProtection;
 using StackExchange.Redis;
 using His.Hope.Infrastructure;
+using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Security;
+using His.Hope.Infrastructure.Security.Authorization;
 using His.Hope.AspNetCore;
 using His.Hope.Bff.Core.Authentication;
 using His.Hope.Observability;
 using His.Hope.Observability.OpenTelemetry;
 using His.Hope.Resilience;
+using His.Hope.Configuration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using SystemDashboard.Bff.Aggregators;
@@ -19,12 +22,20 @@ using SystemDashboard.Bff.Models;
 using SystemDashboard.Bff.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+var runtimeEndpoints = RuntimeConfigurationExtensions.BindServiceEndpoints(builder.Configuration, "SystemDashboard.Bff");
+
+// The dashboard BFF is reached through a Kubernetes Service. Keep the
+// container listener explicit so it is reachable from the dashboard nginx
+// pod, not only through kubectl port-forward's local loopback path.
+builder.WebHost.ConfigureKestrel(options => options.Listen(System.Net.IPAddress.Any, 5700));
 
 builder.Services.AddHisHopeAspNetCore();
+builder.Services.AddHisHopeRuntimeConfiguration(builder.Configuration, "SystemDashboard.Bff");
 builder.Services.AddObservability(options => options.ServiceName = "SystemDashboard.Bff");
 builder.Services.AddHisHopeResilience(builder.Configuration);
-var redis = ConnectionMultiplexer.Connect(
-    builder.Configuration["Redis:ConnectionString"] ?? "redis:6379");
+var redis = RedisConnectionFactory.Connect(
+    RuntimeConfigurationExtensions.ToRedisConnectionString(runtimeEndpoints.GetRequired("redis")),
+    builder.Configuration);
 builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
 builder.Services.AddDataProtection()
     .SetApplicationName("His.Hope.IdentityService")
@@ -38,10 +49,9 @@ builder.Services.AddSingleton<SessionTokenProtector>();
 builder.Services.Configure<ConsulOptions>(builder.Configuration.GetSection(ConsulOptions.SectionName));
 builder.Services.Configure<DockerOptions>(builder.Configuration.GetSection(DockerOptions.SectionName));
 builder.Services.Configure<KubernetesOptions>(builder.Configuration.GetSection(KubernetesOptions.SectionName));
-builder.Services.Configure<ElasticsearchOptions>(builder.Configuration.GetSection(ElasticsearchOptions.SectionName));
-builder.Services.Configure<PrometheusOptions>(builder.Configuration.GetSection(PrometheusOptions.SectionName));
 builder.Services.Configure<AlertManagerOptions>(builder.Configuration.GetSection(AlertManagerOptions.SectionName));
 builder.Services.Configure<JaegerOptions>(builder.Configuration.GetSection(JaegerOptions.SectionName));
+builder.Services.Configure<LokiOptions>(builder.Configuration.GetSection(LokiOptions.SectionName));
 
 // JSON serialization
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -52,6 +62,10 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 // Shared JWT/OIDC validation and authorization defaults.
 His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
+// Register the same permission catalog used by the domain services. Without
+// this, policy-decorated BFF endpoints fail at runtime with a missing-policy
+// exception instead of returning a fail-closed 401/403.
+builder.Services.AddHisHopeAuthorization();
 
 // CORS
 builder.Services.AddCors(options =>
@@ -105,25 +119,39 @@ builder.Services.AddHttpClient<IConsulDiscoveryService, ConsulDiscoveryService>(
 .AddHttpMessageHandler(sp => new HisHopeResilienceHandler(
     sp.GetRequiredService<HisHopeResiliencePipelines>().CreateHttp("consul-discovery")));
 
-// Elasticsearch log querying with retry + circuit breaker
-builder.Services.AddHttpClient<IElasticsearchQueryService, ElasticsearchQueryService>((sp, client) =>
+// Loki log querying with retry + circuit breaker
+builder.Services.AddHttpClient<ILogQueryService, LokiQueryService>((sp, client) =>
 {
-    var esOptions = sp.GetRequiredService<IOptions<ElasticsearchOptions>>();
-    client.BaseAddress = new Uri(esOptions.Value.Url);
+    var options = sp.GetRequiredService<IOptions<LokiOptions>>();
+    client.BaseAddress = new Uri(options.Value.Url);
     client.Timeout = TimeSpan.FromSeconds(15);
 })
 .AddHttpMessageHandler(sp => new HisHopeResilienceHandler(
-    sp.GetRequiredService<HisHopeResiliencePipelines>().CreateHttp("elasticsearch")));
+    sp.GetRequiredService<HisHopeResiliencePipelines>().CreateHttp("loki")));
 
 // Prometheus metrics querying with retry + circuit breaker
 builder.Services.AddHttpClient<IPrometheusQueryService, PrometheusQueryService>((sp, client) =>
 {
-    var promOptions = sp.GetRequiredService<IOptions<PrometheusOptions>>();
-    client.BaseAddress = new Uri(promOptions.Value.Url);
+    var endpoints = sp.GetRequiredService<ServiceEndpointOptions>();
+    if (endpoints.TryGet("prometheus", out var prometheusUri))
+    {
+        client.BaseAddress = prometheusUri;
+    }
     client.Timeout = TimeSpan.FromSeconds(15);
 })
 .AddHttpMessageHandler(sp => new HisHopeResilienceHandler(
     sp.GetRequiredService<HisHopeResiliencePipelines>().CreateHttp("prometheus")));
+
+// Kubernetes Metrics API is the source of truth for pod CPU/memory in K3s.
+// Prometheus remains the fallback used by Compose/VM deployments.
+builder.Services.AddHttpClient<IKubernetesPodMetricsService, KubernetesPodMetricsService>(client =>
+{
+    // Use the cluster-local FQDN. Some CoreDNS configurations do not resolve
+    // the shortened `kubernetes.default.svc` name from every pod search path.
+    client.BaseAddress = new Uri("https://kubernetes.default.svc.cluster.local");
+    client.Timeout = TimeSpan.FromSeconds(3);
+})
+.ConfigurePrimaryHttpMessageHandler(KubernetesApiHttpHandler.Create);
 
 // Jaeger trace querying with retry + circuit breaker
 builder.Services.AddHttpClient<IJaegerQueryService, JaegerQueryService>((sp, client) =>
@@ -246,9 +274,9 @@ app.UseMiddleware<DashboardAuditMiddleware>();
 
 app.MapHealthChecks("/health");
 app.MapControllers();
-app.MapHub<LogStreamHub>("/ws/logshub").RequireAuthorization();
-app.MapHub<AlertHub>("/ws/alerthub").RequireAuthorization();
-app.MapHub<MetricsHub>("/ws/metricshub").RequireAuthorization();
+app.MapHub<LogStreamHub>("/ws/logshub").RequireAuthorization("Permission:dashboard.view");
+app.MapHub<AlertHub>("/ws/alerthub").RequireAuthorization("Permission:dashboard.view");
+app.MapHub<MetricsHub>("/ws/metricshub").RequireAuthorization("Permission:dashboard.view");
 
 app.Run();
 

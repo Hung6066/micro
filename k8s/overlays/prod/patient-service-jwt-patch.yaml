@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+spec:
+  template:
+    spec:
+      volumes:
+        - name: identity-service-jwt
+          secret:
+            secretName: identity-service-jwt
+            items:
+              - key: public_key
+                path: jwt_public_key
+            defaultMode: 0440
+      containers:
+        - name: patient-service
+          env:
+            - name: Jwt__AllowHttp
+              value: "true"
+            - name: Jwt__Authority
+              value: http://his-hope-identity-service.his-hope.svc.cluster.local:5003
+            - name: Jwt__MetadataAddress
+              value: http://his-hope-identity-service.his-hope.svc.cluster.local:5003/.well-known/openid-configuration
+            - name: Jwt__Issuer
+              value: His.Hope.IdentityService
+            - name: Jwt__RsaPublicKeyPath
+              value: /mnt/jwt-secrets/jwt_public_key
+          volumeMounts:
+            - name: identity-service-jwt
+              mountPath: /mnt/jwt-secrets
+              readOnly: true

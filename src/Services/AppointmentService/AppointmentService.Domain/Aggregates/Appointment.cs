@@ -1,4 +1,5 @@
 using His.Hope.AppointmentService.Domain.ValueObjects;
+using His.Hope.AppointmentService.Domain.Events;
 using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.AppointmentService.Domain.Aggregates;
@@ -45,6 +46,8 @@ public class Appointment : AggregateRoot<AppointmentId>
         Location = location;
         Status = AppointmentStatus.Scheduled;
         CreatedAt = DateTime.UtcNow;
+        AddDomainEvent(new AppointmentScheduledDomainEvent(
+            Id.Value, PatientId, ProviderId, ScheduledDate, StartTime, EndTime, DateTime.UtcNow));
     }
 
     public static Appointment Schedule(

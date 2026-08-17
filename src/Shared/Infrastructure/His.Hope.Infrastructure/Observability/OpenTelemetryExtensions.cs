@@ -18,15 +18,23 @@ public static class OpenTelemetryExtensions
     {
         var otlpEndpoint = configuration.GetValue<string>("Otlp:Endpoint") ?? "http://localhost:4317";
         var environment = configuration.GetValue<string>("Environment") ?? "development";
+        var releaseSha = configuration["HIS_HOPE_RELEASE_SHA"]
+            ?? Environment.GetEnvironmentVariable("HIS_HOPE_RELEASE_SHA")
+            ?? "unknown";
+        var releaseDigest = configuration["HIS_HOPE_RELEASE_DIGEST"]
+            ?? Environment.GetEnvironmentVariable("HIS_HOPE_RELEASE_DIGEST")
+            ?? "unknown";
 
         services.AddOpenTelemetry()
             .ConfigureResource(resource => resource
                 .AddService(
                     serviceName: serviceName,
-                    serviceVersion: "1.0.0",
+                    serviceVersion: releaseSha,
                     serviceInstanceId: Environment.MachineName)
                 .AddAttributes([
                     new KeyValuePair<string, object>("deployment.environment", environment),
+                    new KeyValuePair<string, object>("release.sha", releaseSha),
+                    new KeyValuePair<string, object>("release.digest", releaseDigest),
                 ]))
             .WithTracing(tracing => tracing
                 .AddSource(serviceName)
@@ -71,6 +79,8 @@ public static class OpenTelemetryExtensions
                 })
                 .SetSampler(new AlwaysOnSampler()))
             .WithMetrics(metrics => metrics
+                .AddMeter("His.Hope.Infrastructure.Caching")
+                .AddMeter("His.Hope.Outbox")
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
                 .AddRuntimeInstrumentation()

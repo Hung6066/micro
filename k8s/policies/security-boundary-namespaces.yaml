@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: his-hope-data
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+    his-hope.io/security-boundary: data
+    his-hope.io/owner: platform-data
+  annotations:
+    his-hope.io/purpose: "Temporary data-plane boundary while stores are migrated from his-hope"
+    his-hope.io/migration-required: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: his-hope-system
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+    his-hope.io/security-boundary: node-system
+    his-hope.io/owner: platform-security
+  annotations:
+    his-hope.io/purpose: "Temporary node-level security utilities boundary"
+    his-hope.io/migration-required: "true"

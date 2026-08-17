@@ -11,6 +11,8 @@ using Microsoft.EntityFrameworkCore;
 using OpenIddictEntityFrameworkCore = OpenIddict.EntityFrameworkCore.Models;
 using His.Hope.Contracts.Bulk;
 using His.Hope.IdentityService.Api.Jobs;
+using His.Hope.IdentityService.Infrastructure.Facility;
+using His.Hope.SharedKernel.Authorization;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -19,21 +21,21 @@ public static class AdminTableEndpoints
     public static RouteGroupBuilder MapAdminTableEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/tables/users/bulk", BulkUsers)
-            .RequireAuthorization("Permission:admin.users.write");
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
         group.MapPost("/tables/roles/bulk", BulkRoles)
-            .RequireAuthorization("Permission:admin.roles.write");
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
         group.MapPost("/tables/clients/bulk", BulkClients)
-            .RequireAuthorization("Permission:admin.clients.write");
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite);
         group.MapPost("/tables/{resource}/export", Export)
-            .RequireAuthorization("Permission:admin.users.read");
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         group.MapGet("/tables/jobs/{jobId}", GetJob)
-            .RequireAuthorization("Permission:admin.users.read");
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         group.MapGet("/tables/jobs/{jobId}/events", StreamJob)
-            .RequireAuthorization("Permission:admin.users.read");
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         group.MapPost("/tables/jobs/{jobId}/cancel", CancelJob)
-            .RequireAuthorization("Permission:admin.users.read");
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         group.MapGet("/tables/jobs/{jobId}/download", DownloadJob)
-            .RequireAuthorization("Permission:admin.users.read");
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         return group;
     }
 
@@ -73,14 +75,25 @@ public static class AdminTableEndpoints
         IdentityDbContext db,
         IAuditService audit,
         IAuthorizationService authorization,
+        FacilityContext facilityContext,
         HttpContext http,
         CancellationToken ct)
     {
+        if (!(await authorization.AuthorizeAsync(http.User, $"Permission:{HisHopePermissions.Reports.Export}")).Succeeded)
+            return Results.Forbid();
+
+        if (!request.MaskSensitive &&
+            !(await authorization.AuthorizeAsync(http.User, $"Permission:{HisHopePermissions.Reports.Manage}")).Succeeded)
+            return Results.Forbid();
+
         if (string.Equals(resource, "clients", StringComparison.OrdinalIgnoreCase) &&
-            !(await authorization.AuthorizeAsync(http.User, "Permission:admin.clients.read")).Succeeded)
+            !(await authorization.AuthorizeAsync(http.User, AuthorizationPolicyNames.Permissions.AdminClientsRead)).Succeeded)
             return Results.Forbid();
         if (string.Equals(resource, "roles", StringComparison.OrdinalIgnoreCase) &&
-            !(await authorization.AuthorizeAsync(http.User, "Permission:admin.roles.read")).Succeeded)
+            !(await authorization.AuthorizeAsync(http.User, AuthorizationPolicyNames.Permissions.AdminRolesRead)).Succeeded)
+            return Results.Forbid();
+        if (string.Equals(resource, "audit", StringComparison.OrdinalIgnoreCase) &&
+            !(await authorization.AuthorizeAsync(http.User, AuthorizationPolicyNames.Permissions.AdminAuditRead)).Succeeded)
             return Results.Forbid();
 
         var format = request.Format?.Trim().ToLowerInvariant();
@@ -91,16 +104,17 @@ public static class AdminTableEndpoints
         if (request.Async)
         {
             var store = http.RequestServices.GetRequiredService<RedisAdminJobStore>();
-            var state = NewState("export", resource, string.Empty, request.RowKeys, request, http);
+            var state = NewState("export", resource, string.Empty, request.RowKeys, request, http, facilityContext);
             await store.CreateAndEnqueueAsync(state, ct);
             return Results.Accepted($"/api/v1/admin/tables/jobs/{state.JobId}", ToContract(state));
         }
 
         var rows = resource.ToLowerInvariant() switch
         {
-            "users" => await ExportUsers(request, db, ct),
+            "users" => await ExportUsers(request, db, facilityContext, ct),
             "roles" => await ExportRoles(request, db, ct),
             "clients" => await ExportClients(request, db, ct),
+            "audit" => await ExportAudit(request, db, ct),
             _ => null
         };
         if (rows is null)
@@ -169,9 +183,15 @@ public static class AdminTableEndpoints
         return Results.Ok(new { actionId = request.ActionId, requestedCount = request.RowKeys.Length, updatedCount = clients.Count });
     }
 
-    private static async Task<List<Dictionary<string, object?>>> ExportUsers(AdminExportRequest request, IdentityDbContext db, CancellationToken ct)
+    private static async Task<List<Dictionary<string, object?>>> ExportUsers(AdminExportRequest request, IdentityDbContext db, FacilityContext facilityContext, CancellationToken ct)
     {
         var query = db.Users.AsNoTracking();
+        if (!facilityContext.IsCrossFacility && facilityContext.AuthorizedFacilities.Count > 0)
+        {
+            var facilities = facilityContext.AuthorizedFacilities.ToArray();
+            query = query.Where(user => user.FacilityMemberships.Any(membership =>
+                membership.IsActive && membership.RevokedAt == null && facilities.Contains(membership.FacilityId)));
+        }
         var ids = ParseIds(request.RowKeys);
         if (ids.Length > 0) query = query.Where(user => ids.Contains(user.Id));
         var users = await query.OrderBy(user => user.UserName).Take(10000).ToListAsync(ct);
@@ -213,6 +233,26 @@ public static class AdminTableEndpoints
             ["description"] = role.Description,
             ["system"] = role.IsSystem,
             ["createdAt"] = role.CreatedAt
+        }).ToList();
+    }
+
+    private static async Task<List<Dictionary<string, object?>>> ExportAudit(AdminExportRequest request, IdentityDbContext db, CancellationToken ct)
+    {
+        var logs = await db.AuditLogs.AsNoTracking()
+            .OrderByDescending(log => log.Timestamp)
+            .Take(10000)
+            .ToListAsync(ct);
+        return logs.Select(log => new Dictionary<string, object?>
+        {
+            ["id"] = log.Id,
+            ["userId"] = log.UserId,
+            ["userName"] = log.UserName,
+            ["action"] = log.Action,
+            ["resourceType"] = log.ResourceType,
+            ["resourceId"] = log.ResourceId,
+            ["details"] = log.Details,
+            ["ipAddress"] = log.IpAddress,
+            ["timestamp"] = log.Timestamp
         }).ToList();
     }
 
@@ -334,7 +374,8 @@ public static class AdminTableEndpoints
         string actionId,
         string[] rowKeys,
         object request,
-        HttpContext http) => new()
+        HttpContext http,
+        FacilityContext? facilityContext = null) => new()
         {
             JobId = Guid.NewGuid().ToString("N"),
             Kind = kind,
@@ -343,6 +384,8 @@ public static class AdminTableEndpoints
             RowKeys = rowKeys,
             PayloadJson = JsonSerializer.Serialize(request),
             ActorSubject = http.User.FindFirst("sub")?.Value ?? "system",
+            IsCrossFacility = facilityContext?.IsCrossFacility ?? false,
+            AuthorizedFacilities = facilityContext?.AuthorizedFacilities.ToArray() ?? [],
             CorrelationId = http.Request.Headers["X-Correlation-Id"].FirstOrDefault() ?? http.TraceIdentifier,
             Total = rowKeys.Length
         };
@@ -410,11 +453,17 @@ public static class AdminTableEndpoints
         if (state.Kind == "export")
         {
             var request = JsonSerializer.Deserialize<AdminExportRequest>(state.PayloadJson) ?? throw new InvalidOperationException("Invalid export job payload.");
+            var facilityContext = new FacilityContext
+            {
+                IsCrossFacility = state.IsCrossFacility,
+                AuthorizedFacilities = state.AuthorizedFacilities.ToList()
+            };
             var rows = state.Resource switch
             {
-                "users" => await ExportUsers(request, db, ct),
+                "users" => await ExportUsers(request, db, facilityContext, ct),
                 "roles" => await ExportRoles(request, db, ct),
                 "clients" => await ExportClients(request, db, ct),
+                "audit" => await ExportAudit(request, db, ct),
                 _ => throw new InvalidOperationException("Unsupported export resource.")
             };
             ApplyExportPolicy(rows, request);

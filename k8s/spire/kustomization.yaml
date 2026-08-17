@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - service-accounts.yaml
+  - rbac.yaml
+  - server-bundle.yaml
+  - server-config.yaml
+  - server-service.yaml
+  - server-statefulset.yaml
+  - agent-config.yaml
+  - agent-daemonset.yaml
+  - oidc-provider-config.yaml
+  - oidc-provider-deployment.yaml
+  - oidc-provider-service.yaml

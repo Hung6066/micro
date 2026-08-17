@@ -23,6 +23,7 @@ using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Authorization;
+using His.Hope.SharedKernel.Authorization;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Persistence;
@@ -55,10 +56,7 @@ His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuth
 builder.Services.AddHisHopeAuthorization();
 
 // Enterprise Infrastructure
-builder.Services.AddHisHopeEnterpriseInfrastructure(
-    builder.Configuration,
-    "clinical-service",
-    builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!);
+builder.Services.AddHisHopeServicePlatform(builder.Configuration, "clinical-service");
 
 builder.Services.AddGrpc(options =>
 {
@@ -72,7 +70,7 @@ builder.Services.AddRabbitMQEventBus(options =>
     options.Port = builder.Configuration.GetValue("EventBus:Port", 5672);
     options.UserName = builder.Configuration.GetValue("EventBus:UserName", "admin")!;
     options.Password = builder.Configuration.GetValue("EventBus:Password", "admin")!;
-    options.ExchangeName = "his_hope_clinical";
+    options.ExchangeName = builder.Configuration.GetValue("EventBus:InternalExchangeName", "his_hope_exchange")!;
     options.UseSsl = builder.Configuration.GetValue("EventBus:UseSsl", false);
     options.ClientCertificatePath = builder.Configuration["EventBus:ClientCertificatePath"];
     options.ClientCertificatePassword = builder.Configuration["EventBus:ClientCertificatePassword"];
@@ -89,27 +87,34 @@ builder.Services.AddHealthChecks()
         name: "rabbitmq", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded)
     .AddRedisCheck(
         builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!,
-        name: "redis", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded);
+        name: "redis", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded,
+        configuration: builder.Configuration);
 
 // Kestrel Configuration - HTTPS disabled for Docker dev; enable with cert in production
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.ListenAnyIP(5004, listenOptions =>
+    // Docker/VM runtime contract uses 5004 for the HTTP service endpoint;
+    // keep the Kubernetes-native 5005 listener below for compatibility.
+    options.Listen(System.Net.IPAddress.Any, 5004, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+    });
+    options.Listen(System.Net.IPAddress.Any, 5005, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
     });
 
-    options.ListenAnyIP(5010, listenOptions =>
-    {
-        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-    });
-
-    options.ListenAnyIP(5016, listenOptions =>
+    options.Listen(System.Net.IPAddress.Any, 5009, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
     });
 
-    options.ListenAnyIP(5015, listenOptions =>
+    options.Listen(System.Net.IPAddress.Any, 5016, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
+    });
+
+    options.Listen(System.Net.IPAddress.Any, 5015, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
     });
@@ -125,10 +130,16 @@ if (app.Environment.IsDevelopment())
     var db = scope.ServiceProvider.GetRequiredService<ClinicalDbContext>();
     db.Database.EnsureCreated();
 }
-else
+else if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
+         builder.Configuration.GetValue("Persistence:MigrationOnly", false))
 {
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+}
+
+if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
+{
+    return;
 }
 
 // Middleware Pipeline (order matters)
@@ -163,21 +174,33 @@ var encounters = app.MapGroup("/api/v1/encounters").RequireAuthorization();
 encounters.MapGet("/", async (
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
     var result = await cache.GetOrSetAsync(
-        "encounters:all",
-        async () => await mediator.Send(new SearchEncountersQuery("", 1, 1000), ct),
+        $"encounters:all:{scopeKey}",
+        async () => await mediator.Send(new SearchEncountersQuery("", 1, 1000,
+            accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(5), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:clinical.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.ClinicalView).WithOpenApi();
 
 encounters.MapGet("/{id:guid}", async (
     Guid id,
     IMediator mediator,
     ICacheService cache,
+    ClinicalDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(db.Encounters,
+        encounter => encounter.Id == EncounterId.From(id), encounter => encounter.FacilityId,
+        httpContext.User, HisHopePermissions.Clinical.View, "encounter", id.ToString("D"), ct);
+    if (!decision.Allowed) return Results.NotFound();
+
     var encounterDto = await mediator.Send(new GetEncounterByIdQuery(id), ct);
     if (encounterDto is null) return Results.NotFound();
     var encounter = await cache.GetOrSetAsync(
@@ -185,12 +208,13 @@ encounters.MapGet("/{id:guid}", async (
         async () => encounterDto,
         TimeSpan.FromMinutes(5), ct);
     return Results.Ok(encounter);
-}).RequireAuthorization("Permission:clinical.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.ClinicalView).WithOpenApi();
 
 encounters.MapGet("/search", async (
     string? q, int page, int pageSize,
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
     QueryRequest normalized;
@@ -206,19 +230,21 @@ encounters.MapGet("/search", async (
         return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = [ex.Message] });
     }
 
-    var cacheKey = $"encounters:search:{normalized.Search}:{normalized.Page}:{normalized.PageSize}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"encounters:search:{scopeKey}:{normalized.Search}:{normalized.Page}:{normalized.PageSize}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
         async () => await mediator.Send(
-            new SearchEncountersQuery(normalized.Search ?? "", normalized.Page, normalized.PageSize), ct),
+            new SearchEncountersQuery(normalized.Search ?? "", normalized.Page, normalized.PageSize,
+                accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:clinical.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.ClinicalView).WithOpenApi();
 
 encounters.MapPost("/", async (
     StartEncounterRequest request,
     IMediator mediator,
-    IEventBus eventBus,
     ICacheService cache,
     CancellationToken ct) =>
 {
@@ -228,22 +254,33 @@ encounters.MapPost("/", async (
 
     var encounter = await mediator.Send(command, ct);
 
-    await eventBus.PublishAsync(new EncounterStartedIntegrationEvent(
-        encounter.Id, encounter.PatientId, encounter.ProviderId,
-        request.AppointmentId, encounter.EncounterTypeCode, encounter.EncounterDate), ct);
-
     await cache.RemoveByPrefixAsync("encounters:", ct);
 
     return Results.Created($"/api/v1/encounters/{encounter.Id}", encounter);
-}).RequireAuthorization("Permission:clinical.create").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.ClinicalCreate).WithOpenApi();
 
 encounters.MapPost("/{id:guid}/vitals", async (
     Guid id,
     RecordVitalsRequest request,
     IMediator mediator,
     ICacheService cache,
+    ClinicalDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(
+        db.Encounters,
+        encounter => encounter.Id == EncounterId.From(id),
+        encounter => encounter.FacilityId,
+        httpContext.User,
+        HisHopePermissions.Clinical.Update,
+        "encounter",
+        id.ToString("D"),
+        ct);
+    if (!decision.Allowed)
+        return Results.NotFound();
+
     var command = new RecordVitalsCommand(
         id, request.Temperature, request.HeartRate, request.RespiratoryRate,
         request.SystolicBP, request.DiastolicBP, request.OxygenSaturation,
@@ -255,15 +292,30 @@ encounters.MapPost("/{id:guid}/vitals", async (
     await cache.RemoveByPrefixAsync("encounters:", ct);
 
     return Results.Ok(encounter);
-}).RequireAuthorization("Permission:clinical.update").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.ClinicalUpdate).WithOpenApi();
 
 encounters.MapPost("/{id:guid}/diagnosis", async (
     Guid id,
     AddDiagnosisRequest request,
     IMediator mediator,
     ICacheService cache,
+    ClinicalDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(
+        db.Encounters,
+        encounter => encounter.Id == EncounterId.From(id),
+        encounter => encounter.FacilityId,
+        httpContext.User,
+        HisHopePermissions.Clinical.Update,
+        "encounter",
+        id.ToString("D"),
+        ct);
+    if (!decision.Allowed)
+        return Results.NotFound();
+
     var command = new AddDiagnosisCommand(
         id, request.ConditionName, request.Icd10Code, request.IsPrimary, request.Notes);
 
@@ -273,21 +325,36 @@ encounters.MapPost("/{id:guid}/diagnosis", async (
     await cache.RemoveByPrefixAsync("encounters:", ct);
 
     return Results.Ok(encounter);
-}).RequireAuthorization("Permission:clinical.update").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.ClinicalUpdate).WithOpenApi();
 
 encounters.MapPut("/{id:guid}/complete", async (
     Guid id,
     IMediator mediator,
     ICacheService cache,
+    ClinicalDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(
+        db.Encounters,
+        encounter => encounter.Id == EncounterId.From(id),
+        encounter => encounter.FacilityId,
+        httpContext.User,
+        HisHopePermissions.Clinical.Update,
+        "encounter",
+        id.ToString("D"),
+        ct);
+    if (!decision.Allowed)
+        return Results.NotFound();
+
     await mediator.Send(new CompleteEncounterCommand(id), ct);
 
     await cache.RemoveAsync($"encounter:{id}", ct);
     await cache.RemoveByPrefixAsync("encounters:", ct);
 
     return Results.NoContent();
-}).RequireAuthorization("Permission:clinical.update").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.ClinicalUpdate).WithOpenApi();
 
 encounters.MapGet("/patient/{patientId:guid}", async (
     Guid patientId,
@@ -297,16 +364,20 @@ encounters.MapGet("/patient/{patientId:guid}", async (
     DateTime? toDate,
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
-    var cacheKey = $"encounters:patient:{patientId}:{page}:{pageSize}:{fromDate}:{toDate}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"encounters:patient:{scopeKey}:{patientId}:{page}:{pageSize}:{fromDate}:{toDate}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
         async () => await mediator.Send(
-            new GetEncountersByPatientQuery(patientId, page, pageSize, fromDate, toDate), ct),
+            new GetEncountersByPatientQuery(patientId, page, pageSize, fromDate, toDate,
+                accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(5), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:clinical.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.ClinicalView).WithOpenApi();
 
 // Patient-specific encounters aggregate endpoint (routed via the gateway from
 // /api/v1/patients/{patientId:guid}/encounters).
@@ -318,17 +389,21 @@ app.MapGet("/api/v1/patients/{patientId:guid}/encounters", async (
     DateTime? toDate,
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
-    var cacheKey = $"encounters:patient:{patientId}:{page}:{pageSize}:{fromDate}:{toDate}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"encounters:patient:{scopeKey}:{patientId}:{page}:{pageSize}:{fromDate}:{toDate}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
         async () => await mediator.Send(
-            new GetEncountersByPatientQuery(patientId, page, pageSize, fromDate, toDate), ct),
+            new GetEncountersByPatientQuery(patientId, page, pageSize, fromDate, toDate,
+                accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(5), ct);
 
     return Results.Ok(result);
-}).RequireAuthorization("Permission:clinical.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.ClinicalView).WithOpenApi();
 
 // Dashboard Stats Endpoint - requires clinical.view permission
 var dashboard = app.MapGroup("/api/v1/dashboard").RequireAuthorization();
@@ -390,7 +465,7 @@ dashboard.MapGet("/stats", async (
         TimeSpan.FromMinutes(2), ct);
 
     return Results.Ok(result);
-}).RequireAuthorization("Permission:reports.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.ReportsView).WithOpenApi();
 
 // GET /api/v1/dashboard/recent-encounters?limit=5 - returns the most recent encounters
 dashboard.MapGet("/recent-encounters", async (
@@ -413,7 +488,7 @@ dashboard.MapGet("/recent-encounters", async (
         .ToListAsync(ct);
 
     return Results.Ok(new { items = recent });
-}).RequireAuthorization("Permission:reports.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.ReportsView).WithOpenApi();
 
 // GET /api/v1/dashboard/upcoming-appointments - returns upcoming appointments (mock data for now)
 dashboard.MapGet("/upcoming-appointments", async (
@@ -465,14 +540,14 @@ dashboard.MapGet("/upcoming-appointments", async (
     };
 
     return Results.Ok(new { items });
-}).RequireAuthorization("Permission:reports.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.ReportsView).WithOpenApi();
 
 // gRPC
 app.MapGrpcService<ClinicalGrpcServiceImpl>();
 app.MapGrpcHealthChecksService();
 
 // Health checks
-app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+app.MapHealthChecks("/health/details", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = _ => true,
     ResponseWriter = async (ctx, report) =>

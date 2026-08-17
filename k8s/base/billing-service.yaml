@@ -15,15 +15,8 @@ metadata:
     app.kubernetes.io/name: billing-service
 data:
   ASPNETCORE_ENVIRONMENT: Production
-  ASPNETCORE_URLS: "http://0.0.0.0:5020;https://0.0.0.0:5021"
-  ConnectionStrings__BillingDb: "Host=postgres;Port=5432;Database=billingdb;Username=his_hope;Password="
   RabbitMQ__Host: rabbitmq
-  Redis__Connection: redis:6379
-  GrpcServices__PatientService: https://patient-service:5006
-  GrpcServices__AppointmentService: https://appointment-service:5008
-  GrpcServices__LabService: https://lab-service:5012
-  GrpcServices__PharmacyService: https://pharmacy-service:5022
-  OpenTelemetry__JaegerEndpoint: http://jaeger:14278/api/traces
+  Redis__ConnectionString: redis:6379
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -80,12 +73,39 @@ spec:
           envFrom:
             - configMapRef:
                 name: billing-service-config
+            - configMapRef:
+                name: runtime-contract-config
           env:
             - name: ConnectionStrings__BillingDb
               valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: billing_connection_string
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_CONNECTIONSTRINGS_BILLINGDB
+            - name: GrpcServices__PatientService
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_GRPC_PATIENT_URL
+            - name: GrpcServices__AppointmentService
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_GRPC_APPOINTMENT_URL
+            - name: GrpcServices__LabService
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_GRPC_LAB_URL
+            - name: GrpcServices__PharmacyService
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_GRPC_PHARMACY_URL
+            - name: OpenTelemetry__JaegerEndpoint
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_JAEGER_TRACES_ENDPOINT
           volumeMounts: []
           resources:
             requests:
@@ -96,7 +116,7 @@ spec:
               memory: 1Gi
           livenessProbe:
             httpGet:
-              path: /health
+              path: /health/live
               port: 5020
             initialDelaySeconds: 30
             periodSeconds: 15
@@ -112,7 +132,7 @@ spec:
             failureThreshold: 2
           startupProbe:
             httpGet:
-              path: /health/startup
+              path: /health/live
               port: 5020
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -138,6 +158,7 @@ spec:
     - name: grpc
       port: 5022
       targetPort: 5022
+      appProtocol: grpc
       protocol: TCP
 ---
 apiVersion: autoscaling/v2

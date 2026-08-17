@@ -1,0 +1,22 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: vault-issuer-harbor
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: certificate-issuer
+spec:
+  vault:
+    path: pki_int/sign/harbor-public
+    server: https://vault-active.his-hope.svc.cluster.local:8200
+    # Base64-encoded Vault PKI CA chain. Populate from Vault's pki/ca_chain
+    # after authenticating with an operator token; never commit the value.
+    caBundle: ""
+    auth:
+      kubernetes:
+        mountPath: /v1/auth/kubernetes
+        role: cert-manager
+        serviceAccountRef:
+          name: cert-manager
+          audiences:
+            - vault://vault-issuer-harbor

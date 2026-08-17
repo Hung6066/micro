@@ -14,6 +14,7 @@ using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Authorization;
+using His.Hope.SharedKernel.Authorization;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Persistence;
@@ -25,6 +26,7 @@ using His.Hope.BillingService.Application.DTOs;
 using His.Hope.BillingService.Application.UseCases.Invoices.Commands;
 using His.Hope.BillingService.Application.UseCases.Invoices.Queries;
 using His.Hope.BillingService.Domain.Aggregates;
+using His.Hope.BillingService.Domain.ValueObjects;
 using His.Hope.BillingService.Infrastructure;
 using His.Hope.BillingService.Infrastructure.Persistence;
 using MediatR;
@@ -53,10 +55,7 @@ His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuth
 builder.Services.AddHisHopeAuthorization();
 
 // Enterprise Infrastructure
-builder.Services.AddHisHopeEnterpriseInfrastructure(
-    builder.Configuration,
-    "billing-service",
-    builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379"));
+builder.Services.AddHisHopeServicePlatform(builder.Configuration, "billing-service");
 
 builder.Services.AddOutbox<BillingDbContext>();
 
@@ -72,7 +71,7 @@ builder.Services.AddRabbitMQEventBus(options =>
     options.Port = builder.Configuration.GetValue("EventBus:Port", 5672);
     options.UserName = builder.Configuration.GetValue("EventBus:UserName", "admin")!;
     options.Password = builder.Configuration.GetValue("EventBus:Password", "admin")!;
-    options.ExchangeName = "his_hope_billing";
+    options.ExchangeName = builder.Configuration.GetValue("EventBus:InternalExchangeName", "his_hope_exchange")!;
     options.UseSsl = builder.Configuration.GetValue("EventBus:UseSsl", false);
     options.ClientCertificatePath = builder.Configuration["EventBus:ClientCertificatePath"];
     options.ClientCertificatePassword = builder.Configuration["EventBus:ClientCertificatePassword"];
@@ -89,32 +88,28 @@ builder.Services.AddHealthChecks()
         name: "rabbitmq", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded)
     .AddRedisCheck(
         builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!,
-        name: "redis", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded);
+        name: "redis", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded,
+        configuration: builder.Configuration);
 
 // Kestrel Configuration
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.ListenAnyIP(5020, listenOptions =>
+    options.Listen(System.Net.IPAddress.Any, 5020, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
     });
 
-    options.ListenAnyIP(5021, listenOptions =>
-    {
-        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-    });
-
-    options.ListenAnyIP(5022, listenOptions =>
-    {
-        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-    });
-
-    options.ListenAnyIP(5026, listenOptions =>
+    options.Listen(System.Net.IPAddress.Any, 5022, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
     });
 
-    options.ListenAnyIP(5025, listenOptions =>
+    options.Listen(System.Net.IPAddress.Any, 5026, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
+    });
+
+    options.Listen(System.Net.IPAddress.Any, 5025, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
     });
@@ -129,10 +124,16 @@ if (app.Environment.IsDevelopment())
     var db = scope.ServiceProvider.GetRequiredService<BillingDbContext>();
     db.Database.EnsureCreated();
 }
-else
+else if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
+         builder.Configuration.GetValue("Persistence:MigrationOnly", false))
 {
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+}
+
+if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
+{
+    return;
 }
 
 // Middleware Pipeline (order matters)
@@ -167,6 +168,7 @@ var invoices = app.MapGroup("/api/v1/invoices").RequireAuthorization();
 invoices.MapGet("/", async (
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct,
     int page = 1,
     int pageSize = 20,
@@ -176,14 +178,17 @@ invoices.MapGet("/", async (
     DateTime? dateFrom = null,
     DateTime? dateTo = null) =>
 {
-    var cacheKey = $"invoices:search:{search}:{page}:{pageSize}:{patientId}:{status}:{dateFrom}:{dateTo}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"invoices:search:{scopeKey}:{search}:{page}:{pageSize}:{patientId}:{status}:{dateFrom}:{dateTo}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
         async () => await mediator.Send(new SearchInvoicesQuery(
-            search ?? "", page, pageSize, patientId, status, dateFrom, dateTo), ct),
+            search ?? "", page, pageSize, patientId, status, dateFrom, dateTo,
+            accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:billing.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.BillingView).WithOpenApi();
 
 invoices.MapGet("/search", async (
     string? q,
@@ -191,33 +196,45 @@ invoices.MapGet("/search", async (
     int pageSize,
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct,
     Guid? patientId = null,
     string? status = null,
     DateTime? dateFrom = null,
     DateTime? dateTo = null) =>
 {
-    var cacheKey = $"invoices:search:{q}:{page}:{pageSize}:{patientId}:{status}:{dateFrom}:{dateTo}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"invoices:search:{scopeKey}:{q}:{page}:{pageSize}:{patientId}:{status}:{dateFrom}:{dateTo}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
         async () => await mediator.Send(new SearchInvoicesQuery(
-            q ?? "", page, pageSize, patientId, status, dateFrom, dateTo), ct),
+            q ?? "", page, pageSize, patientId, status, dateFrom, dateTo,
+            accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:billing.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.BillingView).WithOpenApi();
 
 invoices.MapGet("/{id:guid}", async (
     Guid id,
     IMediator mediator,
     ICacheService cache,
+    BillingDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(db.Invoices,
+        invoice => invoice.Id == InvoiceId.From(id), invoice => invoice.FacilityId,
+        httpContext.User, HisHopePermissions.Billing.View, "invoice", id.ToString("D"), ct);
+    if (!decision.Allowed) return Results.NotFound();
+
     var invoice = await cache.GetOrSetAsync(
         $"invoice:{id}",
         async () => await mediator.Send(new GetInvoiceByIdQuery(id), ct),
         TimeSpan.FromMinutes(5), ct);
     return invoice is null ? Results.NotFound() : Results.Ok(invoice);
-}).RequireAuthorization("Permission:billing.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.BillingView).WithOpenApi();
 
 invoices.MapGet("/number/{invoiceNumber}", async (
     string invoiceNumber,
@@ -230,27 +247,30 @@ invoices.MapGet("/number/{invoiceNumber}", async (
         async () => await mediator.Send(new GetInvoiceByNumberQuery(invoiceNumber), ct),
         TimeSpan.FromMinutes(5), ct);
     return invoice is null ? Results.NotFound() : Results.Ok(invoice);
-}).RequireAuthorization("Permission:billing.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.BillingView).WithOpenApi();
 
 invoices.MapGet("/patient/{patientId:guid}", async (
     Guid patientId,
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
-    var cacheKey = $"invoices:patient:{patientId}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"invoices:patient:{scopeKey}:{patientId}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
-        async () => await mediator.Send(new GetInvoicesByPatientQuery(patientId), ct),
+        async () => await mediator.Send(new GetInvoicesByPatientQuery(patientId,
+            accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(5), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:billing.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.BillingView).WithOpenApi();
 
 invoices.MapPost("/", async (
     CreateInvoiceRequest request,
     IMediator mediator,
     ICacheService cache,
-    IEventBus eventBus,
     CancellationToken ct) =>
 {
     var command = new CreateInvoiceCommand(
@@ -260,20 +280,30 @@ invoices.MapPost("/", async (
 
     var invoice = await mediator.Send(command, ct);
 
-    await eventBus.PublishAsync(new InvoiceCreatedIntegrationEvent(
-        invoice.Id, invoice.PatientId, invoice.InvoiceNumber,
-        invoice.TotalAmount), ct);
-
     await cache.RemoveByPrefixAsync("invoices:", ct);
 
     return Results.Created($"/api/v1/invoices/{invoice.Id}", invoice);
-}).RequireAuthorization("Permission:billing.create").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.BillingCreate).WithOpenApi();
 
 invoices.MapPost("/{id:guid}/payments", async (
     Guid id, RecordPaymentRequest request,
     IMediator mediator, ICacheService cache,
-    IEventBus eventBus, CancellationToken ct) =>
+    BillingDbContext db, IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
+    CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(
+        db.Invoices,
+        invoice => invoice.Id == InvoiceId.From(id),
+        invoice => invoice.FacilityId,
+        httpContext.User,
+        HisHopePermissions.Billing.Pay,
+        "invoice",
+        id.ToString("D"),
+        ct);
+    if (!decision.Allowed)
+        return Results.NotFound();
+
     var invoice = await mediator.Send(new RecordPaymentCommand(
         id, request.PatientId, request.Amount, request.PaymentDate,
         request.MethodCode, request.ReferenceNumber, request.Notes), ct);
@@ -281,38 +311,45 @@ invoices.MapPost("/{id:guid}/payments", async (
     await cache.RemoveAsync($"invoice:{id}", ct);
     await cache.RemoveByPrefixAsync("invoices:", ct);
 
-    if (invoice.StatusCode == "PAID")
-    {
-        await eventBus.PublishAsync(new InvoicePaidIntegrationEvent(
-            invoice.Id, invoice.PatientId, request.Amount,
-            invoice.TotalAmount), ct);
-    }
-
     return Results.Ok(invoice);
-}).RequireAuthorization("Permission:billing.pay").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.BillingPay).WithOpenApi();
 
 invoices.MapPut("/{id:guid}/void", async (
     Guid id, VoidInvoiceRequest request,
-    IMediator mediator, ICacheService cache, CancellationToken ct) =>
+    IMediator mediator, ICacheService cache, BillingDbContext db,
+    IResourceAuthorizationEvaluator authorization, HttpContext httpContext,
+    CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(
+        db.Invoices,
+        invoice => invoice.Id == InvoiceId.From(id),
+        invoice => invoice.FacilityId,
+        httpContext.User,
+        HisHopePermissions.Billing.Void,
+        "invoice",
+        id.ToString("D"),
+        ct);
+    if (!decision.Allowed)
+        return Results.NotFound();
+
     await mediator.Send(new VoidInvoiceCommand(id, request.Reason), ct);
     await cache.RemoveAsync($"invoice:{id}", ct);
     await cache.RemoveByPrefixAsync("invoices:", ct);
     return Results.NoContent();
-}).RequireAuthorization("Permission:billing.void").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.BillingVoid).WithOpenApi();
 
 // Patient-specific invoices aggregate endpoint (routed via YARP from /api/v1/patients/{patientId:guid}/invoices)
 app.MapGet("/api/v1/patients/{patientId:guid}/invoices", async (Guid patientId) =>
 {
     return Results.Ok(new { patientId, items = new List<object>() });
-}).RequireAuthorization("Permission:billing.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.BillingView).WithOpenApi();
 
 // gRPC
 app.MapGrpcService<BillingGrpcServiceImpl>();
 app.MapGrpcHealthChecksService();
 
 // Health checks
-app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+app.MapHealthChecks("/health/details", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = _ => true,
     ResponseWriter = async (ctx, report) =>

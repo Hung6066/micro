@@ -818,3 +818,83 @@ kubectl describe networkpolicy -n his-hope | Select-String -Context 2 "Ingress|E
 kubectl exec -it deploy/patient-service -n his-hope -- wget -qO- --timeout=3 http://identity-service:5003/health
 ```
 
+---
+
+## 10. VM dry-run adapter workflow (systemd and Windows Service)
+
+Mục này dùng cho adapter VM của unified runtime contract. Đây là kiểm tra cấu hình và template ở mức dry-run; từ Windows workstation không được xem như bằng chứng đã triển khai `systemd` live.
+
+### 10.1 Render runtime env an toàn
+
+Render file môi trường theo logical service name, chỉ giữ non-secret values, secret provider refs, và secret file paths:
+
+```powershell
+pwsh -File deploy/vm/render-runtime-env.ps1 `
+  -ServiceName identityservice `
+  -EnvironmentFile deploy/vm/runtime.env.example `
+  -OutputDirectory .tmp/vm-runtime
+```
+
+Kết quả mong đợi:
+
+- Tạo `.tmp/vm-runtime/identityservice.env`
+- Có internal VM URL như `SERVICE_IDENTITY_URL=http://identity.internal.staging.his-hope.example:5001`
+- Không có plaintext secret keys như `SECRET_POSTGRES_PASSWORD=...`
+- Trên Windows, file được siết ACL; trên Linux phải được áp dụng owner dịch vụ và mode `0640`
+
+### 10.2 systemd template
+
+Template Linux dùng instance name làm logical service name:
+
+```bash
+sudo cp deploy/vm/systemd/his-hope-service@.service /etc/systemd/system/
+sudo cp deploy/vm/systemd/his-hope-service@.env.example /etc/his-hope/identityservice.env
+sudo systemctl daemon-reload
+sudo systemctl enable --now his-hope-service@identityservice
+```
+
+Yêu cầu vận hành:
+
+- `EnvironmentFile=/etc/his-hope/<service>.env`
+- Secret files nằm dưới `/etc/his-hope/secrets/<service>/`
+- Readiness check dùng `HIS_HOPE_VM_HEALTHCHECK_URL`
+- Không nhét password/token vào `ExecStart` hay command line
+
+### 10.3 Windows Service dry-run
+
+Tạo env directory và secret directory được ACL bảo vệ, sau đó chạy installer ở chế độ dry-run:
+
+```powershell
+$envDir = Join-Path $PWD '.tmp\vm-runtime'
+$secretDir = Join-Path $PWD '.tmp\vm-secrets'
+New-Item -ItemType Directory -Path $secretDir -Force | Out-Null
+
+pwsh -File deploy/vm/windows/Install-HisHopeService.ps1 `
+  -ServiceName identityservice `
+  -BinaryPath 'C:\Services\HisHope\IdentityService.Api.exe' `
+  -EnvironmentDirectory $envDir `
+  -SecretDirectory $secretDir `
+  -DryRun
+```
+
+Nguyên tắc:
+
+- Service name phải trùng logical service name đã render
+- Credentials, nếu dùng, phải đi qua SCM credential store; không đưa vào binary path hay service command line
+- Installer chỉ lưu `EnvironmentFile` và `SecretDirectory` metadata dưới service parameters
+
+### 10.4 Focused VM validation
+
+Chạy gate VM dry-run:
+
+```powershell
+pwsh -File scripts/config/validate-vm-runtime.ps1 `
+  -EnvironmentFile deploy/vm/runtime.env.example
+```
+
+Trạng thái hợp lệ:
+
+- `PASS` cho contract, rendered env files, Windows ACL checks, service-name consistency, và systemd template fragments
+- `ENVIRONMENT_BLOCKED` cho live `systemd` validation khi đang chạy từ Windows
+- `FAIL` nếu production input dùng `localhost`, file render còn secret value keys, hoặc ACL/template bị lệch
+

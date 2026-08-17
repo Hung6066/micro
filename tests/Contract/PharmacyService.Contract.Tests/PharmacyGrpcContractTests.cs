@@ -7,6 +7,10 @@ using His.Hope.PharmacyService.Api.GrpcServices;
 using His.Hope.PharmacyService.Domain.Aggregates;
 using His.Hope.PharmacyService.Domain.Repositories;
 using His.Hope.PharmacyService.Domain.ValueObjects;
+using His.Hope.PharmacyService.Infrastructure.Persistence;
+using His.Hope.Authorization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 using Moq;
 
 namespace His.Hope.PharmacyService.Contract.Tests;
@@ -16,6 +20,7 @@ public class PharmacyGrpcContractTests
     private readonly Mock<IMedicationRepository> _mockMedicationRepo;
     private readonly Mock<IPrescriptionRepository> _mockPrescriptionRepo;
     private readonly Mock<IMapper> _mockMapper;
+    private readonly Mock<IResourceAuthorizationEvaluator> _authorization;
     private readonly PharmacyGrpcServiceImpl _service;
 
     public PharmacyGrpcContractTests()
@@ -23,8 +28,13 @@ public class PharmacyGrpcContractTests
         _mockMedicationRepo = new Mock<IMedicationRepository>();
         _mockPrescriptionRepo = new Mock<IPrescriptionRepository>();
         _mockMapper = new Mock<IMapper>();
+        var db = new PharmacyDbContext(new DbContextOptionsBuilder<PharmacyDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString("N")).Options);
+        _authorization = new Mock<IResourceAuthorizationEvaluator>();
+        _authorization.Setup(a => a.EvaluateAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AuthorizationDecision.Allow("pharmacy.view"));
         _service = new PharmacyGrpcServiceImpl(
-            _mockMedicationRepo.Object, _mockPrescriptionRepo.Object, _mockMapper.Object);
+            _mockMedicationRepo.Object, _mockPrescriptionRepo.Object, _mockMapper.Object, db, _authorization.Object);
     }
 
     [Fact]
@@ -71,6 +81,20 @@ public class PharmacyGrpcContractTests
     }
 
     [Fact]
+    public async Task GetMedication_WhenResourceDenied_ShouldReturnNotFoundWithoutRepositoryAccess()
+    {
+        _authorization.Setup(a => a.EvaluateAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AuthorizationDecision.Deny("pharmacy.view", "facility_scope_denied"));
+
+        var act = async () => await _service.GetMedication(
+            new MedicationRequest { Id = Guid.NewGuid().ToString() }, new TestServerCallContext());
+
+        var exception = await act.Should().ThrowAsync<RpcException>();
+        exception.And.StatusCode.Should().Be(StatusCode.NotFound);
+        _mockMedicationRepo.Verify(r => r.GetByIdAsync(It.IsAny<MedicationId>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task GetMedication_WithEmptyId_ShouldThrowRpcException()
     {
         var request = new MedicationRequest { Id = string.Empty };
@@ -91,7 +115,8 @@ public class PharmacyGrpcContractTests
 
         _mockMedicationRepo
             .Setup(r => r.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(),
-                It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<string?>(), It.IsAny<IReadOnlySet<string>>(), It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync((medications, 2));
 
         var request = new MedicationSearchRequest
@@ -123,12 +148,31 @@ public class PharmacyGrpcContractTests
     {
         _mockMedicationRepo
             .Setup(r => r.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(),
-                It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<string?>(), It.IsAny<IReadOnlySet<string>>(), It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync((new List<Medication>(), 0));
 
         var request = new MedicationSearchRequest { SearchTerm = "nonexistent" };
 
         var response = await _service.SearchMedications(request, new TestServerCallContext());
+
+        response.Medications.Should().BeEmpty();
+        response.TotalCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task SearchMedications_WithoutFacilityMembership_PassesEmptyScopeFailClosed()
+    {
+        _mockMedicationRepo
+            .Setup(r => r.SearchAsync(
+                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(),
+                It.Is<IReadOnlySet<string>>(ids => ids.Count == 0), It.Is<bool>(cross => !cross),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Array.Empty<Medication>(), 0));
+
+        var response = await _service.SearchMedications(
+            new MedicationSearchRequest { SearchTerm = "restricted" },
+            new TestServerCallContext());
 
         response.Medications.Should().BeEmpty();
         response.TotalCount.Should().Be(0);
@@ -217,7 +261,8 @@ public class PharmacyGrpcContractTests
 
         _mockPrescriptionRepo
             .Setup(r => r.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(),
-                It.IsAny<Guid?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                It.IsAny<Guid?>(), It.IsAny<string?>(), It.IsAny<IReadOnlySet<string>>(),
+                It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((prescriptions, 2));
 
         var request = new PrescriptionSearchRequest { SearchTerm = "amox" };
@@ -226,6 +271,24 @@ public class PharmacyGrpcContractTests
 
         response.Prescriptions.Should().HaveCount(2);
         response.TotalCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task SearchPrescriptions_WithoutFacilityMembership_PassesEmptyScopeFailClosed()
+    {
+        _mockPrescriptionRepo
+            .Setup(r => r.SearchAsync(
+                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<Guid?>(), It.IsAny<string?>(),
+                It.Is<IReadOnlySet<string>>(ids => ids.Count == 0), It.Is<bool>(cross => !cross),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((Array.Empty<Prescription>(), 0));
+
+        var response = await _service.SearchPrescriptions(
+            new PrescriptionSearchRequest { SearchTerm = "restricted" },
+            new TestServerCallContext());
+
+        response.Prescriptions.Should().BeEmpty();
+        response.TotalCount.Should().Be(0);
     }
 
     [Fact]
@@ -363,6 +426,7 @@ public class TestServerCallContext : ServerCallContext
         _responseTrailers = new Metadata();
         _authContext = new AuthContext(string.Empty, new Dictionary<string, List<AuthProperty>>());
         _userState = new Dictionary<object, object>();
+        _userState["__HttpContext"] = new DefaultHttpContext();
     }
 
     protected override string MethodCore => "/his.hope.pharmacy.PharmacyGrpcService/TestMethod";

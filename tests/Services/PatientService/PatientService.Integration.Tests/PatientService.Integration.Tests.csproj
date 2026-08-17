@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="8.0.10" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
     <PackageReference Include="xunit" Version="2.7.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.7">
@@ -22,6 +23,17 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <Protobuf Include="..\..\..\..\src\Shared\Protos\patient.proto" GrpcServices="Client" Link="Protos\patient.proto" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Grpc.Net.Client" Version="2.62.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.60.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Services\PatientService\PatientService.Api\PatientService.Api.csproj" />
     <ProjectReference Include="..\..\..\..\src\Services\PatientService\PatientService.Infrastructure\PatientService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\..\src\Services\PatientService\PatientService.Domain\PatientService.Domain.csproj" />
     <ProjectReference Include="..\..\..\..\src\Shared\SharedKernel\Src\His.Hope.SharedKernel\His.Hope.SharedKernel.csproj" />

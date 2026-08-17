@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
@@ -73,6 +75,11 @@ public interface IHybridCacheService : ICacheService
 
 public class HybridCacheService : IHybridCacheService
 {
+    private static readonly Meter Meter = new("His.Hope.Infrastructure.Caching", "1.0.0");
+    private static readonly Counter<long> Hits = Meter.CreateCounter<long>("hishop_cache_hits_total");
+    private static readonly Counter<long> Misses = Meter.CreateCounter<long>("hishop_cache_misses_total");
+    private static readonly Counter<long> Invalidations = Meter.CreateCounter<long>("hishop_cache_invalidations_total");
+    private static readonly Histogram<double> OperationDuration = Meter.CreateHistogram<double>("hishop_cache_operation_duration_ms", "ms");
     private readonly IMemoryCacheService _l1;
     private readonly ICacheService _l2;
     private readonly ILogger<HybridCacheService> _logger;
@@ -103,11 +110,14 @@ public class HybridCacheService : IHybridCacheService
 
     public async Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class
     {
+        var started = Stopwatch.GetTimestamp();
         key = _keyPartitioner.Partition(key);
         // Try L1 first
         var l1Result = await _l1.GetAsync<T>(key, ct);
         if (l1Result is not null)
         {
+            Hits.Add(1, new KeyValuePair<string, object?>("tier", "l1"));
+            OperationDuration.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             _logger.LogTrace("Hybrid L1 HIT for key {Key}", key);
             return l1Result;
         }
@@ -116,6 +126,8 @@ public class HybridCacheService : IHybridCacheService
         var l2Result = await _l2.GetAsync<T>(key, ct);
         if (l2Result is not null)
         {
+            Hits.Add(1, new KeyValuePair<string, object?>("tier", "l2"));
+            OperationDuration.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             _logger.LogTrace("Hybrid L2 HIT for key {Key} — seeding L1", key);
             // Re-populate L1 (no stampede concern on a simple get)
             await _l1.SetAsync(key, l2Result, _options.DefaultSoftTtl, ct);
@@ -123,6 +135,8 @@ public class HybridCacheService : IHybridCacheService
         }
 
         _logger.LogTrace("Hybrid MISS for key {Key}", key);
+        Misses.Add(1);
+        OperationDuration.Record(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         return null;
     }
 
@@ -144,6 +158,7 @@ public class HybridCacheService : IHybridCacheService
 
         if (l2Value is not null && l2Meta is not null)
         {
+            Hits.Add(1, new KeyValuePair<string, object?>("tier", "l2"));
             // Seed L1
             await _l1.SetAsync(key, l2Value, soft, ct);
 
@@ -195,9 +210,10 @@ public class HybridCacheService : IHybridCacheService
 
     public async Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default)
     {
-        // L1 doesn't support prefix scan, so we only evict from L2.
-        // L1 entries will expire naturally via sliding expiration.
-        await _l2.RemoveByPrefixAsync(prefix, ct);
+        await Task.WhenAll(
+            _l1.RemoveByPrefixAsync(prefix, ct),
+            _l2.RemoveByPrefixAsync(prefix, ct));
+        Invalidations.Add(1);
     }
 
     // ---- Private helpers ----
@@ -218,6 +234,7 @@ public class HybridCacheService : IHybridCacheService
         // Instead, we use a lightweight approach: track a "last refresh" marker.
         if (value is null) return null;
 
+        Hits.Add(1, new KeyValuePair<string, object?>("tier", "l1"));
         _logger.LogTrace("Hybrid L1 HIT for key {Key} — checking XFetch", key);
 
         // For XFetch we need to track when the L1 entry was created.
@@ -339,11 +356,13 @@ public class HybridCacheService : IHybridCacheService
             var l2Check = await _l2.GetAsync<T>(key, ct);
             if (l2Check is not null)
             {
+                Hits.Add(1, new KeyValuePair<string, object?>("tier", "l2"));
                 await _l1.SetAsync(key, l2Check, softTtl, ct);
                 return l2Check;
             }
 
             _logger.LogDebug("Hybrid FULL MISS for key {Key} — invoking factory", key);
+            Misses.Add(1);
 
             var value = await factory() ?? throw new InvalidOperationException(
                 $"Hybrid cache factory for key '{key}' returned null. Cache factories must produce a non-null value.");

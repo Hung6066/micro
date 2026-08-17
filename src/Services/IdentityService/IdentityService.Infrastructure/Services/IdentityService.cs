@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -8,6 +9,7 @@ using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.SharedKernel.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -53,21 +55,88 @@ public class IdentityService : IIdentityService
     /// Loads permission codes for the given set of role names.
     /// Queries the RolePermission join table via the IdentityDbContext.
     /// </summary>
-    private async Task<List<string>> GetPermissionsForRolesAsync(IEnumerable<string> roleNames, CancellationToken ct = default)
+    private async Task<List<string>> GetPermissionsForRolesAsync(IEnumerable<string> roleNames, Guid? userId = null, CancellationToken ct = default)
     {
         var roleIds = await _context.Roles
             .Where(r => roleNames.Contains(r.Name!))
             .Select(r => r.Id)
             .ToListAsync(ct);
 
-        if (roleIds.Count == 0)
-            return new List<string>();
-
         var permissions = await _context.RolePermissions
             .Where(rp => roleIds.Contains(rp.RoleId))
             .Select(rp => rp.PermissionCode)
             .Distinct()
             .ToListAsync(ct);
+
+        if (userId is Guid subjectUserId)
+        {
+            var now = DateTime.UtcNow;
+
+            // IAM control-plane assignments are the authoritative extension to
+            // legacy ASP.NET Identity roles. Only active, published sets are
+            // projected into a human token, and group assignments are resolved
+            // through server-side membership (never from frontend claims).
+            var groupIds = await _context.IamGroupMemberships
+                .Where(membership => membership.UserId == subjectUserId)
+                .Join(_context.IamGroups.Where(group => group.IsActive), membership => membership.GroupId, group => group.Id, (_, group) => group.Id)
+                .ToListAsync(ct);
+            var assignedSetJson = await _context.IamPermissionSetAssignments
+                .Where(assignment => assignment.Status == "active" &&
+                    (assignment.ExpiresAt == null || assignment.ExpiresAt > now) &&
+                    ((assignment.PrincipalType == "human" && assignment.PrincipalId == subjectUserId) ||
+                     (assignment.PrincipalType == "group" && groupIds.Contains(assignment.PrincipalId))))
+                .Join(_context.IamPermissionSets.Where(set => set.LifecycleStatus == "published"),
+                    assignment => assignment.PermissionSetId,
+                    set => set.Id,
+                    (_, set) => set.PermissionsJson)
+                .ToListAsync(ct);
+            foreach (var permissionsJson in assignedSetJson)
+            {
+                try
+                {
+                    var assignedPermissions = JsonSerializer.Deserialize<string[]>(permissionsJson) ?? [];
+                    permissions.AddRange(assignedPermissions.Where(permission =>
+                        HisHopePermissions.IsValid(permission) &&
+                        !permissions.Contains(permission, StringComparer.OrdinalIgnoreCase)));
+                }
+                catch (JsonException)
+                {
+                    _logger.LogWarning("Ignoring malformed IAM permission set JSON for user {UserId}.", subjectUserId);
+                }
+            }
+
+            var breakGlassPermissions = await _context.BreakGlassRequests
+                .Where(request => request.SubjectUserId == subjectUserId && request.Status == "approved" && request.RevokedAt == null && request.ExpiresAt > now)
+                .Select(request => request.PermissionCode)
+                .Distinct()
+                .ToListAsync(ct);
+            permissions.AddRange(breakGlassPermissions.Where(permission => !permissions.Contains(permission, StringComparer.OrdinalIgnoreCase)));
+
+            // A human permission boundary is a hard upper envelope. If one is
+            // present, every role, group and break-glass grant must fit inside
+            // its allow-list before the token is minted.
+            var boundaries = await _context.IamPermissionBoundaries
+                .Where(boundary => boundary.IsActive && boundary.PrincipalType == "human" && boundary.PrincipalId == subjectUserId)
+                .Select(boundary => boundary.AllowedPermissionsJson)
+                .ToListAsync(ct);
+            foreach (var allowedJson in boundaries)
+            {
+                try
+                {
+                    var allowed = (JsonSerializer.Deserialize<string[]>(allowedJson) ?? [])
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    permissions = permissions
+                        .Where(allowed.Contains)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                }
+                catch (JsonException)
+                {
+                    _logger.LogError("Denying permissions because boundary JSON is malformed for user {UserId}.", subjectUserId);
+                    permissions = [];
+                }
+            }
+        }
 
         return permissions;
     }
@@ -152,7 +221,7 @@ public class IdentityService : IIdentityService
         await _userManager.UpdateAsync(user);
 
         var roles = await _userManager.GetRolesAsync(user);
-        var permissions = await GetPermissionsForRolesAsync(roles, cancellationToken);
+        var permissions = await GetPermissionsForRolesAsync(roles, user.Id, cancellationToken);
         var (accessToken, expiresAt) = _tokenGenerator.GenerateAccessToken(user, roles, permissions);
         var refreshTokenValue = _tokenGenerator.GenerateRefreshToken();
 
@@ -241,7 +310,7 @@ public class IdentityService : IIdentityService
         await _userManager.AddToRoleAsync(user, "Provider");
 
         var roles = await _userManager.GetRolesAsync(user);
-        var permissions = await GetPermissionsForRolesAsync(roles, cancellationToken);
+        var permissions = await GetPermissionsForRolesAsync(roles, user.Id, cancellationToken);
         var (accessToken, expiresAt) = _tokenGenerator.GenerateAccessToken(user, roles, permissions);
         var refreshTokenValue = _tokenGenerator.GenerateRefreshToken();
 
@@ -323,7 +392,7 @@ public class IdentityService : IIdentityService
 
         // Token rotation: the old token was atomically consumed above; issue a new one.
         var roles = await _userManager.GetRolesAsync(user);
-        var permissions = await GetPermissionsForRolesAsync(roles, cancellationToken);
+        var permissions = await GetPermissionsForRolesAsync(roles, user.Id, cancellationToken);
         var (accessToken, expiresAt) = _tokenGenerator.GenerateAccessToken(user, roles, permissions);
         var newRefreshTokenValue = _tokenGenerator.GenerateRefreshToken();
 
@@ -357,7 +426,7 @@ public class IdentityService : IIdentityService
             throw new KeyNotFoundException("User not found.");
 
         var roles = await _userManager.GetRolesAsync(user);
-        var permissions = await GetPermissionsForRolesAsync(roles, cancellationToken);
+        var permissions = await GetPermissionsForRolesAsync(roles, user.Id, cancellationToken);
         return MapToDto(user, roles, permissions);
     }
 
@@ -381,11 +450,21 @@ public class IdentityService : IIdentityService
         var user = await _userManager.FindByEmailAsync(email)
             ?? throw new KeyNotFoundException("User not found.");
 
-        var hasher = new PasswordHasher<User>();
-        foreach (var oldHash in user.PreviousPasswordHashes)
+        await _context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            var result = hasher.VerifyHashedPassword(user, oldHash, newPassword);
-            if (result == PasswordVerificationResult.Success)
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+
+        var hasher = new PasswordHasher<User>();
+        var priorHash = user.PasswordHash;
+        var recentHashes = await _context.UserPasswordHistories
+            .Where(item => item.UserId == user.Id)
+            .OrderByDescending(item => item.ChangedAt)
+            .Take(5)
+            .ToListAsync();
+        foreach (var oldHash in recentHashes)
+        {
+            var result = hasher.VerifyHashedPassword(user, oldHash.PasswordHash, newPassword);
+            if (result is PasswordVerificationResult.Success or PasswordVerificationResult.SuccessRehashNeeded)
                 throw new InvalidOperationException("Cannot reuse a recent password.");
         }
 
@@ -397,12 +476,14 @@ public class IdentityService : IIdentityService
         }
 
         user.LastPasswordChangedAt = DateTime.UtcNow;
-        user.PreviousPasswordHashes.Add(user.PasswordHash!);
-        if (user.PreviousPasswordHashes.Count > 5)
-            user.PreviousPasswordHashes = user.PreviousPasswordHashes.TakeLast(5).ToList();
-
-        await _userManager.UpdateAsync(user);
+        if (!string.IsNullOrWhiteSpace(priorHash))
+            await RecordPasswordHistoryAsync(user.Id, priorHash);
+        var updateResult = await _userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+            throw new InvalidOperationException("Unable to persist password policy metadata.");
+        await transaction.CommitAsync();
         _logger.LogInformation("Password reset completed for UserId={UserId}", user.Id);
+        });
     }
 
     public async Task ChangePasswordAsync(Guid userId, string currentPassword, string newPassword)
@@ -414,11 +495,21 @@ public class IdentityService : IIdentityService
         if (!checkResult)
             throw new UnauthorizedAccessException("Current password is incorrect.");
 
-        var hasher = new PasswordHasher<User>();
-        foreach (var oldHash in user.PreviousPasswordHashes)
+        await _context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            var result = hasher.VerifyHashedPassword(user, oldHash, newPassword);
-            if (result == PasswordVerificationResult.Success)
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+
+        var hasher = new PasswordHasher<User>();
+        var priorHash = user.PasswordHash;
+        var recentHashes = await _context.UserPasswordHistories
+            .Where(item => item.UserId == user.Id)
+            .OrderByDescending(item => item.ChangedAt)
+            .Take(5)
+            .ToListAsync();
+        foreach (var oldHash in recentHashes)
+        {
+            var result = hasher.VerifyHashedPassword(user, oldHash.PasswordHash, newPassword);
+            if (result is PasswordVerificationResult.Success or PasswordVerificationResult.SuccessRehashNeeded)
                 throw new InvalidOperationException("Cannot reuse a recent password.");
         }
 
@@ -430,12 +521,32 @@ public class IdentityService : IIdentityService
         }
 
         user.LastPasswordChangedAt = DateTime.UtcNow;
-        user.PreviousPasswordHashes.Add(user.PasswordHash!);
-        if (user.PreviousPasswordHashes.Count > 5)
-            user.PreviousPasswordHashes = user.PreviousPasswordHashes.TakeLast(5).ToList();
-
-        await _userManager.UpdateAsync(user);
+        if (!string.IsNullOrWhiteSpace(priorHash))
+            await RecordPasswordHistoryAsync(user.Id, priorHash);
+        var updateResult = await _userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+            throw new InvalidOperationException("Unable to persist password policy metadata.");
+        await transaction.CommitAsync();
         _logger.LogInformation("Password changed for UserId={UserId}", user.Id);
+        });
+    }
+
+    private async Task RecordPasswordHistoryAsync(Guid userId, string passwordHash)
+    {
+        _context.UserPasswordHistories.Add(new UserPasswordHistory
+        {
+            UserId = userId,
+            PasswordHash = passwordHash,
+            ChangedAt = DateTime.UtcNow
+        });
+
+        var stale = await _context.UserPasswordHistories
+            .Where(item => item.UserId == userId)
+            .OrderByDescending(item => item.ChangedAt)
+            .Skip(5)
+            .ToListAsync();
+        _context.UserPasswordHistories.RemoveRange(stale);
+        await _context.SaveChangesAsync();
     }
 
     public async Task<string> GenerateEmailConfirmationTokenAsync(Guid userId)
@@ -490,6 +601,18 @@ public class IdentityService : IIdentityService
                 DeviceInfo = deviceInfo,
                 Details = details,
                 Timestamp = DateTime.UtcNow
+            });
+            _context.SecuritySignalOutbox.Add(new SecuritySignalOutbox
+            {
+                EventType = eventType,
+                Subject = userId?.ToString() ?? userName ?? "unknown",
+                PayloadJson = JsonSerializer.Serialize(new
+                {
+                    eventType,
+                    subject = userId?.ToString() ?? "unknown",
+                    severity = severity ?? "info",
+                    occurredAt = DateTime.UtcNow
+                })
             });
             await _context.SaveChangesAsync(default);
         }

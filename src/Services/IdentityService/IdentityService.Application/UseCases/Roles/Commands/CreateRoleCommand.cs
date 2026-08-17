@@ -1,6 +1,7 @@
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
+using His.Hope.IdentityService.Application.Authorization;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,7 +10,8 @@ namespace His.Hope.IdentityService.Application.UseCases.Roles.Commands;
 public record CreateRoleCommand(
     string Name,
     string? Description,
-    string[]? Permissions)
+    string[]? Permissions,
+    string? Owner)
     : IRequest<RoleDto>;
 
 public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, RoleDto>
@@ -35,28 +37,35 @@ public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, RoleD
             Name = request.Name,
             NormalizedName = request.Name.ToUpperInvariant(),
             Description = request.Description,
+            Owner = string.IsNullOrWhiteSpace(request.Owner) ? "identity-service" : request.Owner.Trim(),
             IsSystem = false,
             CreatedAt = DateTime.UtcNow
         };
 
         _context.Roles.Add(role);
 
-        // Assign permissions if specified
-        if (request.Permissions is { Length: > 0 })
-        {
-            foreach (var permissionCode in request.Permissions)
-            {
-                var permission = await _context.Permissions
-                    .FirstOrDefaultAsync(p => p.Code == permissionCode, cancellationToken);
+        // Permission references are strict: silently dropping an unknown code
+        // would create a role whose effective access differs from the admin UI.
+        var permissionCodes = RoleGovernanceRules.NormalizePermissionCodes(request.Permissions);
+        var knownPermissions = await _context.Permissions
+            .Where(permission => permissionCodes.Contains(permission.Code))
+            .Select(permission => permission.Code)
+            .ToListAsync(cancellationToken);
+        var unknownPermission = permissionCodes.FirstOrDefault(code =>
+            !knownPermissions.Contains(code, StringComparer.OrdinalIgnoreCase));
+        if (unknownPermission is not null)
+            throw new InvalidOperationException($"Unknown permission '{unknownPermission}'.");
 
-                if (permission is not null)
+        if (permissionCodes.Length > 0)
+        {
+            foreach (var permissionCode in permissionCodes)
+            {
+                _context.RolePermissions.Add(new RolePermission
                 {
-                    _context.RolePermissions.Add(new RolePermission
-                    {
-                        RoleId = role.Id,
-                        PermissionCode = permissionCode
-                    });
-                }
+                    RoleId = role.Id,
+                    PermissionCode = knownPermissions.First(code =>
+                        string.Equals(code, permissionCode, StringComparison.OrdinalIgnoreCase))
+                });
             }
         }
 
@@ -80,7 +89,15 @@ public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, RoleD
                 rp.Permission.Group,
                 rp.Permission.Description,
                 rp.Permission.IsSystem
-            )).ToList()
+            )).ToList(),
+            null,
+            savedRole.Owner,
+            savedRole.AuthorizationVersion,
+            savedRole.RiskTier,
+            savedRole.ReviewCadenceDays,
+            savedRole.LifecycleStatus,
+            savedRole.PublishedAt,
+            savedRole.PublishedBy
         );
     }
 }

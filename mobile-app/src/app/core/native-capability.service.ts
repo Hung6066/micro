@@ -4,6 +4,7 @@ import { App } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { LocalNotifications } from "@capacitor/local-notifications";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { SecureStorage } from "@aparajita/capacitor-secure-storage";
 import { NativeBiometric } from "capacitor-native-biometric";
@@ -18,6 +19,9 @@ import {
   HisHopeDeepLink,
   HisHopeNativeMfaRequest,
   HisHopeNativeMfaResult,
+  HisHopePushCapability,
+  HisHopePushRegistrationCoordinator,
+  HisHopePushTokenRegistrar,
   isHisHopeDeepLinkAllowed,
 } from "@his-hope/mobile-foundation";
 
@@ -32,16 +36,63 @@ export class NativeCapabilityService {
   readonly isNative = Capacitor.isNativePlatform();
   private pendingAuthCallbackUrl: string | null = null;
   private pushRegistrationPromise: Promise<string | null> | null = null;
+  private pushListenersInitialized = false;
   private readonly platform = inject(MobilePlatformService);
   private readonly api = inject(MobileAdminApiService);
+  private readonly pushCapability: HisHopePushCapability = {
+    register: () => this.registerNativePush(),
+    unregister: () => PushNotifications.unregister(),
+  };
+  private readonly pushTokenRegistrar: HisHopePushTokenRegistrar = {
+    registerToken: (token, platform) => platform === "web"
+      ? Promise.resolve()
+      : this.platform.registerPushToken(token, platform),
+  };
 
   async initialize(): Promise<void> {
     if (!this.isNative) return;
+    await this.initializePushNotifications();
     await App.addListener("appUrlOpen", (event) => {
       void this.navigateDeepLink(event.url);
     });
     const launch = await App.getLaunchUrl();
     if (launch?.url) await this.navigateDeepLink(launch.url);
+  }
+
+  private async initializePushNotifications(): Promise<void> {
+    if (this.pushListenersInitialized) return;
+    this.pushListenersInitialized = true;
+    const platform = Capacitor.getPlatform();
+    if (platform === "android") {
+      await LocalNotifications.createChannel({
+        id: "his_hope_default",
+        name: "His.Hope notifications",
+        description: "Notifications from His.Hope",
+        importance: 5,
+        visibility: 1,
+        sound: "default",
+      });
+    }
+    if (platform === "ios") {
+      const permission = await LocalNotifications.checkPermissions();
+      if (permission.display !== "granted") {
+        await LocalNotifications.requestPermissions();
+      }
+    }
+    await PushNotifications.addListener("pushNotificationReceived", notification => {
+      void LocalNotifications.schedule({
+        notifications: [{
+          id: Math.floor(Date.now() % 2147483647),
+          title: notification.title ?? "His.Hope",
+          body: notification.body ?? "",
+          ...(platform === "android" ? { channelId: "his_hope_default" } : {}),
+          extra: notification.data,
+        }],
+      });
+    });
+    await PushNotifications.addListener("pushNotificationActionPerformed", () => {
+      void this.router.navigateByUrl("/notifications");
+    });
   }
 
   async openAuthBrowser(url: string): Promise<void> {
@@ -176,7 +227,18 @@ export class NativeCapabilityService {
     if (!this.isNative) return null;
     if (!environment.pushNotificationsEnabled) return null;
     if (this.pushRegistrationPromise) return this.pushRegistrationPromise;
-    this.pushRegistrationPromise = this.registerPushInternal();
+    const platform = Capacitor.getPlatform();
+    if (platform !== "android" && platform !== "ios") return null;
+    this.pushRegistrationPromise = new HisHopePushRegistrationCoordinator(
+      this.pushCapability,
+      this.pushTokenRegistrar,
+      platform,
+    ).register().catch(error => {
+      // Do not permanently memoize a transient failure while the OIDC token
+      // is being hydrated or refreshed. A later authenticated shell can retry.
+      this.pushRegistrationPromise = null;
+      throw error;
+    });
     return this.pushRegistrationPromise;
   }
 
@@ -185,7 +247,7 @@ export class NativeCapabilityService {
     this.pushRegistrationPromise = null;
   }
 
-  private async registerPushInternal(): Promise<string | null> {
+  private async registerNativePush(): Promise<string | null> {
     try {
       let permission = await PushNotifications.checkPermissions();
       if (permission.receive !== "granted")
@@ -200,9 +262,7 @@ export class NativeCapabilityService {
         );
       });
       await PushNotifications.register();
-      const value = await token;
-      if (value) await this.platform.registerPushToken(value, Capacitor.getPlatform() as "android" | "ios");
-      return value;
+      return await token;
     } catch {
       return null;
     }

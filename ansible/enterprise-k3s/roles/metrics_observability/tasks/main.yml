@@ -1,0 +1,20 @@
+---
+- name: Install kube-prometheus-stack
+  ansible.builtin.command: >-
+    helm upgrade --install kps prometheus-community/kube-prometheus-stack
+    --version {{ kube_prometheus_stack_chart_version }} --namespace monitoring --create-namespace
+    --values "{{ observability_repo_root }}/artifacts/kube-prometheus-values.yaml"
+    --wait --timeout 15m
+  environment: { KUBECONFIG: "{{ observability_kubeconfig }}" }
+
+- name: Apply production ServiceMonitor and PodMonitor resources
+  ansible.builtin.command: kubectl --kubeconfig "{{ observability_kubeconfig }}" apply -f "{{ observability_repo_root }}/artifacts/production-observability-monitors.yaml"
+  changed_when: true
+
+- name: Configure Grafana Prometheus and Loki datasources
+  ansible.builtin.command: kubectl --kubeconfig "{{ observability_kubeconfig }}" apply -f "{{ observability_repo_root }}/artifacts/grafana-observability-datasources.yaml"
+  changed_when: true
+
+- name: Allow Prometheus to scrape Linkerd proxy metrics
+  ansible.builtin.command: kubectl --kubeconfig "{{ observability_kubeconfig }}" apply -f "{{ observability_repo_root }}/artifacts/allow-prometheus-linkerd-metrics.yaml"
+  changed_when: true

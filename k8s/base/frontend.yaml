@@ -19,12 +19,43 @@ data:
       listen 80;
       server_name _;
       root /usr/share/nginx/html;
-      index index.html;
+      index /en/index.html;
       location / {
-        try_files $uri $uri/ /index.html;
+        try_files $uri $uri/ /en/index.html;
+      }
+      # OIDC/BFF routes must reach Identity through the gateway. If these
+      # locations fall through to the SPA, clicking Sign in only renders the
+      # Angular login shell again and no identity session can be created.
+      location ^~ /Account/ {
+        proxy_pass http://api-gateway:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_buffering off;
+      }
+      location ^~ /connect/ {
+        proxy_pass http://api-gateway:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_buffering off;
+      }
+      location ^~ /.well-known/ {
+        proxy_pass http://api-gateway:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
       }
       location /api/ {
-        proxy_pass http://api-gateway:5000/;
+        # Preserve the /api prefix expected by ApiGateway/YARP. A trailing
+        # slash here strips /api and turns /api/v1/* into /v1/* (404).
+        proxy_pass http://api-gateway:5000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -63,7 +94,7 @@ spec:
       containers:
         - name: frontend
           image: his-hope/frontend:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

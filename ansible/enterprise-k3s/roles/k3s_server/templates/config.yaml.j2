@@ -1,0 +1,42 @@
+token: "{{ k3s_token }}"
+node-ip: "{{ k3s_node_ip }}"
+node-name: "{{ inventory_hostname }}"
+cluster-cidr: "{{ k3s_cluster_cidr }}"
+service-cidr: "{{ k3s_service_cidr }}"
+cluster-dns: "{{ k3s_cluster_dns }}"
+flannel-backend: "{{ k3s_flannel_backend }}"
+cluster-init: {{ (inventory_hostname == groups['k3s_servers'][0]) | lower }}
+{% if inventory_hostname != groups['k3s_servers'][0] %}
+server: "https://{{ k3s_api_registration_endpoint }}:{{ k3s_api_registration_port }}"
+{% endif %}
+tls-san:
+{% for san in k3s_tls_sans | unique %}
+  - "{{ san }}"
+{% endfor %}
+disable:
+  - traefik
+  - servicelb
+secrets-encryption: true
+protect-kernel-defaults: true
+write-kubeconfig-mode: "0600"
+node-taint:
+{% if k3s_taint_control_planes | bool %}
+  - "node-role.kubernetes.io/control-plane=true:NoSchedule"
+{% endif %}
+node-label:
+{% for label in k3s_server_labels | default([]) %}
+  - "{{ label }}"
+{% endfor %}
+kube-apiserver-arg:
+  - "enable-admission-plugins=NodeRestriction,EventRateLimit"
+  - "admission-control-config-file={{ k3s_psa_policy_path }}"
+  - "audit-log-path={{ k3s_audit_log_path }}"
+  - "audit-policy-file={{ k3s_audit_policy_path }}"
+  - "audit-log-maxage=30"
+  - "audit-log-maxbackup=10"
+  - "audit-log-maxsize=100"
+  - "service-account-extend-token-expiration=false"
+kubelet-arg:
+  - "streaming-connection-idle-timeout=5m"
+  - "terminated-pod-gc-threshold=10"
+  - "tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"

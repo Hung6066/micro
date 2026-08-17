@@ -20,8 +20,8 @@ jobs:
   package:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '8.0.x'
       - name: Restore with dependency gates
@@ -35,7 +35,7 @@ jobs:
           NUGET_SIGN_PASSWORD: ${{ secrets.NUGET_SIGN_PASSWORD }}
         run: ./scripts/pack-shared-platform.ps1 -Version '${{ inputs.version }}' -Sign
       - name: Generate SBOM
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@f5e124a5e5e1d497a692818ae907d3c45829d033 # v0.17.3
         with:
           path: .
           artifact-name: his-hope-shared-platform-${{ inputs.version }}-sbom.cdx.json

@@ -21,12 +21,16 @@ public class EncounterConfiguration : IEntityTypeConfiguration<Encounter>
                 id => id.Value,
                 value => EncounterId.From(value));
 
-        builder.Property(e => e.PatientId).IsRequired();
-        builder.Property(e => e.ProviderId).IsRequired();
-        builder.Property(e => e.AppointmentId);
-        builder.Property(e => e.EncounterDate).IsRequired();
+        // The production database was created by the initial migration with
+        // quoted PascalCase identifiers. Keep the mapping explicit so current
+        // EF/Npgsql conventions do not look for snake_case columns.
+        builder.Property(e => e.PatientId).HasColumnName("PatientId").IsRequired();
+        builder.Property(e => e.ProviderId).HasColumnName("ProviderId").IsRequired();
+        builder.Property(e => e.AppointmentId).HasColumnName("AppointmentId");
+        builder.Property(e => e.EncounterDate).HasColumnName("EncounterDate").IsRequired();
 
         builder.Property(e => e.EncounterType)
+            .HasColumnName("EncounterType")
             .HasConversion(
                 t => t.Code,
                 code => EncounterType.FromCode(code))
@@ -34,16 +38,17 @@ public class EncounterConfiguration : IEntityTypeConfiguration<Encounter>
             .IsRequired();
 
         builder.Property(e => e.Status)
+            .HasColumnName("Status")
             .HasConversion(
                 s => s.Code,
                 code => EncounterStatus.FromCode(code))
             .HasMaxLength(20)
             .IsRequired();
 
-        builder.Property(e => e.ChiefComplaint).HasMaxLength(1000);
-        builder.Property(e => e.Assessment).HasMaxLength(5000);
-        builder.Property(e => e.Plan).HasMaxLength(5000);
-        builder.Property(e => e.DiagnosisNotes).HasMaxLength(5000);
+        builder.Property(e => e.ChiefComplaint).HasColumnName("ChiefComplaint").HasMaxLength(1000);
+        builder.Property(e => e.Assessment).HasColumnName("Assessment").HasMaxLength(5000);
+        builder.Property(e => e.Plan).HasColumnName("Plan").HasMaxLength(5000);
+        builder.Property(e => e.DiagnosisNotes).HasColumnName("DiagnosisNotes").HasMaxLength(5000);
 
         builder.OwnsOne(e => e.Hpi, hpi =>
         {
@@ -73,6 +78,7 @@ public class EncounterConfiguration : IEntityTypeConfiguration<Encounter>
         {
             d.WithOwner().HasForeignKey("encounter_id");
             d.ToTable("encounter_diagnoses");
+            d.Property<int>("Id").HasColumnName("Id");
             d.Property(diag => diag.ConditionName).HasColumnName("condition_name").HasMaxLength(500).IsRequired();
             d.Property(diag => diag.Icd10Code).HasColumnName("icd10_code").HasMaxLength(20).IsRequired();
             d.Property(diag => diag.IsPrimary).HasColumnName("is_primary").IsRequired();
@@ -83,6 +89,7 @@ public class EncounterConfiguration : IEntityTypeConfiguration<Encounter>
         {
             p.WithOwner().HasForeignKey("encounter_id");
             p.ToTable("encounter_procedures");
+            p.Property<int>("Id").HasColumnName("Id");
             p.Property(proc => proc.ProcedureName).HasColumnName("procedure_name").HasMaxLength(500).IsRequired();
             p.Property(proc => proc.CptCode).HasColumnName("cpt_code").HasMaxLength(20).IsRequired();
             p.Property(proc => proc.PerformedDate).HasColumnName("performed_date").IsRequired();
@@ -97,5 +104,11 @@ public class EncounterConfiguration : IEntityTypeConfiguration<Encounter>
         builder.HasIndex(e => e.Status).HasDatabaseName("ix_encounters_status");
         builder.HasIndex(e => e.EncounterDate).HasDatabaseName("ix_encounters_encounterdate");
         builder.HasIndex(e => e.FacilityId).HasDatabaseName("ix_encounters_facility_id");
+        builder.HasIndex(e => new { e.PatientId, e.EncounterDate })
+            .HasDatabaseName("ix_encounters_patient_date_id");
+        builder.HasIndex(e => new { e.ProviderId, e.EncounterDate })
+            .HasDatabaseName("ix_encounters_provider_date_id");
+        builder.HasIndex(e => new { e.FacilityId, e.Status, e.EncounterDate })
+            .HasDatabaseName("ix_encounters_facility_status_date_id");
     }
 }

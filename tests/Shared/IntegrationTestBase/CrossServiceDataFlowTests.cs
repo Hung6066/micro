@@ -2,8 +2,6 @@ using FluentAssertions;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Testcontainers.PostgreSql;
-
 namespace His.Hope.IntegrationTestBase;
 
 /// <summary>
@@ -11,32 +9,15 @@ namespace His.Hope.IntegrationTestBase;
 /// created in the PatientService database can be referenced from
 /// BillingService or AppointmentService contexts.
 /// </summary>
-public class CrossServiceDataFlowTests : IAsyncLifetime
+[Collection("DatabaseIntegration")]
+public class CrossServiceDataFlowTests
 {
-    private PostgreSqlContainer _container = null!;
-    private IServiceProvider _serviceProvider = null!;
+    private readonly DatabaseFixture _database;
 
-    public async Task InitializeAsync()
-    {
-        _container = new PostgreSqlBuilder()
-            .WithImage("postgres:16-alpine")
-            .WithDatabase("hishopetest")
-            .WithUsername("testuser")
-            .WithPassword("testpass123!")
-            .WithCleanUp(true)
-            .Build();
-
-        await _container.StartAsync();
-    }
-
-    public async Task DisposeAsync()
-    {
-        if (_container is not null)
-            await _container.DisposeAsync();
-    }
+    public CrossServiceDataFlowTests(DatabaseFixture database) => _database = database;
 
     [Fact]
-    public async Task PatientId_IsConsistentGuid_AcrossServices()
+    public void PatientId_IsConsistentGuid_AcrossServices()
     {
         var patientId = Guid.NewGuid();
         patientId.Should().NotBeEmpty();
@@ -49,7 +30,7 @@ public class CrossServiceDataFlowTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(CrossServiceDataFlowTests).Assembly));
         services.AddDbContext<CrossServiceTestDbContext>(options =>
-            options.UseNpgsql(_container.GetConnectionString()));
+            options.UseNpgsql(_database.ConnectionString));
 
         var provider = services.BuildServiceProvider();
         var context = provider.GetRequiredService<CrossServiceTestDbContext>();
@@ -85,7 +66,7 @@ public class CrossServiceDataFlowTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(CrossServiceDataFlowTests).Assembly));
         services.AddDbContext<CrossServiceTestDbContext>(options =>
-            options.UseNpgsql(_container.GetConnectionString()));
+            options.UseNpgsql(_database.ConnectionString));
 
         var provider = services.BuildServiceProvider();
         var context = provider.GetRequiredService<CrossServiceTestDbContext>();
@@ -119,7 +100,7 @@ public class CrossServiceDataFlowTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(CrossServiceDataFlowTests).Assembly));
         services.AddDbContext<CrossServiceTestDbContext>(options =>
-            options.UseNpgsql(_container.GetConnectionString()));
+            options.UseNpgsql(_database.ConnectionString));
 
         var provider = services.BuildServiceProvider();
         var context = provider.GetRequiredService<CrossServiceTestDbContext>();
@@ -149,7 +130,7 @@ public class CrossServiceDataFlowTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task MultipleServices_ReferenceSamePatientId_ReturnsConsistentType()
+    public void MultipleServices_ReferenceSamePatientId_ReturnsConsistentType()
     {
         var patientId = Guid.NewGuid();
 

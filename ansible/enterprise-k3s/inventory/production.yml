@@ -1,0 +1,35 @@
+all:
+  vars:
+    ansible_become: true
+    ansible_ssh_private_key_file: /home/liam/.ssh/id_deploy
+    ansible_python_interpreter: /usr/bin/python3
+  children:
+    k3s_servers:
+      hosts:
+        k3s-server-1:
+          ansible_host: 172.16.102.7
+          ansible_user: master01
+          k3s_node_ip: 172.16.102.7
+        k3s-server-2:
+          ansible_host: 172.16.102.8
+          ansible_user: master02
+          k3s_node_ip: 172.16.102.8
+        k3s-server-3:
+          ansible_host: 172.16.102.9
+          ansible_user: node01
+          k3s_node_ip: 172.16.102.9
+    k3s_workers:
+      hosts:
+        k3s-worker-1:
+          ansible_host: 172.16.102.10
+          ansible_user: node02
+          k3s_node_ip: 172.16.102.10
+          k3s_worker_labels:
+            - workload.his-hope.io/app=true
+        k3s-worker-2:
+          ansible_host: 172.16.102.12
+          ansible_user: node03
+          k3s_node_ip: 172.16.102.12
+          k3s_worker_labels:
+            - workload.his-hope.io/data=true
+            - workload.his-hope.io/observability=true

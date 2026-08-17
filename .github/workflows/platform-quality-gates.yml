@@ -13,14 +13,42 @@ jobs:
   backend-contracts:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '8.0.319'
+      - name: Install pinned kubectl
+        uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+        with:
+          version: 'v1.35.5'
       - name: Restore with dependency gates
         run: dotnet restore His.Hope.sln -warnAsError:NU1605 -warnAsError:NU1901 -warnAsError:NU1902 -warnAsError:NU1903 -warnAsError:NU1904
       - name: Build Core and services
-        run: dotnet build His.Hope.sln --no-restore --warnaserror:NU1605 --warnaserror:NU1901 --warnaserror:NU1902 --warnaserror:NU1903 --warnaserror:NU1904
+        run: dotnet build His.Hope.sln --no-restore --configuration Release --warnaserror:NU1605 --warnaserror:NU1901 --warnaserror:NU1902 --warnaserror:NU1903 --warnaserror:NU1904
+      - name: Run non-integration .NET tests
+        env:
+          # The solution still contains integration-host assemblies. Keep the
+          # contract test deterministic on constrained runners instead of
+          # allowing parallel vstest handshakes to time out before assertions.
+          VSTEST_CONNECTION_TIMEOUT: '300'
+        run: dotnet test His.Hope.sln --no-build --configuration Release --filter "FullyQualifiedName!~Integration" -- RunConfiguration.MaxCpuCount=1
+      - name: Generate and validate one-shot migration artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/k8s, artifacts/evidence | Out-Null
+          kubectl kustomize k8s/overlays/prod --load-restrictor LoadRestrictionsNone | Out-File -Encoding utf8 artifacts/k8s/prod.yaml
+          dotnet tool install --global dotnet-ef --version 8.0.10
+          $env:PATH = "$env:USERPROFILE/.dotnet/tools;$env:PATH"
+          ./scripts/generate-database-migration-scripts.ps1 -OutputDirectory artifacts/database-migrations-current
+          ./scripts/validate-database-migration-contract.ps1 -MigrationDirectory artifacts/database-migrations-current -RenderedProductionManifest artifacts/k8s/prod.yaml -OutputPath artifacts/evidence/database-migration-contract.json
+      - name: Upload migration evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: database-migration-contract
+          path: |
+            artifacts/database-migrations-current/migration-manifest.json
+            artifacts/evidence/database-migration-contract.json
+          if-no-files-found: error
       - name: Contract tests
         shell: pwsh
         run: ./scripts/run-contract-tests.ps1
@@ -36,11 +64,20 @@ jobs:
       - name: Identity security deployment gate
         shell: pwsh
         run: ./scripts/validate-identity-security-deployment.ps1
+      - name: Authorization endpoint coverage gate
+        shell: pwsh
+        run: ./scripts/validate-authorization-endpoint-coverage.ps1 -Strict -OutputPath artifacts/evidence/authorization-endpoint-inventory.json
+      - name: Upload authorization coverage evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: authorization-endpoint-inventory
+          path: artifacts/evidence/authorization-endpoint-inventory.json
+          if-no-files-found: error
       - name: DPoP resource coverage gate
         shell: pwsh
         run: ./scripts/validate-dpop-coverage.ps1
       - name: Install Buf
-        uses: bufbuild/buf-setup-action@v1
+        uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
         with:
           version: '1.50.0'
       - name: Lint and check protobuf compatibility
@@ -51,11 +88,15 @@ jobs:
 
   frontend-contracts:
     runs-on: ubuntu-latest
+    env:
+      # Secrets are intentionally reduced to an availability flag for step
+      # conditions; the values themselves are passed only to the E2E step.
+      E2E_PROTECTED_INPUTS_AVAILABLE: ${{ vars.E2E_CLINICAL_URL != '' && vars.E2E_DASHBOARD_URL != '' && vars.E2E_ADMIN_URL != '' && secrets.E2E_AUTH_PROBE_URL != '' && secrets.E2E_AUTH_TOKEN != '' }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version: '22.14.0'
           cache: npm
       - run: npm ci
       - run: npm run validate:foundation
@@ -68,31 +109,47 @@ jobs:
       - run: npm --workspace dashboard-app run build
       - run: npm --workspace his-hope-app run build
       - name: Authenticated accessibility, keyboard and visual checks
+        if: github.event_name != 'pull_request' || env.E2E_PROTECTED_INPUTS_AVAILABLE == 'true'
         working-directory: tests/e2e
         run: |
           npm ci
           npx playwright install --with-deps chromium
           pwsh ../../scripts/verify-e2e-prerequisites.ps1
-          npm run test:shared-foundation -- --project=chromium
-          npm run test -- --project=chromium --workers=1 specs/00-sso-smoke.spec.js
+          # Run the complete Chromium suite. The prerequisite step fails
+          # closed when the protected app URLs or auth probe are unavailable;
+          # a partial smoke run is not sufficient for the production gate.
+          npm run test -- --project=chromium --workers=1
         env:
           E2E_AUTH_REQUIRED: 'true'
+          E2E_CLINICAL_URL: ${{ vars.E2E_CLINICAL_URL }}
+          E2E_DASHBOARD_URL: ${{ vars.E2E_DASHBOARD_URL }}
+          E2E_ADMIN_URL: ${{ vars.E2E_ADMIN_URL }}
           E2E_AUTH_PROBE_URL: ${{ secrets.E2E_AUTH_PROBE_URL }}
           E2E_AUTH_TOKEN: ${{ secrets.E2E_AUTH_TOKEN }}
 
   supply-chain:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version: '22.14.0'
           cache: npm
       - run: npm ci
-      - name: SCA audit
-        run: npm audit --audit-level=high
+      - name: SCA audit for production dependency graph
+        run: npm audit --omit=dev --audit-level=high
+      - name: Capture full dependency audit
+        shell: bash
+        run: |
+          set -o pipefail
+          npm audit --json > npm-audit-full.json || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: npm-audit-full
+          path: npm-audit-full.json
+          if-no-files-found: error
       - name: SBOM
-        uses: anchore/sbom-action@v0
+        uses: anchore/sbom-action@f5e124a5e5e1d497a692818ae907d3c45829d033 # v0.17.3
         with:
           path: .
           format: cyclonedx-json
@@ -104,12 +161,12 @@ jobs:
           set -euo pipefail
           test -s his-hope-platform-sbom.cdx.json
           node -e "const fs=require('fs'); const bom=JSON.parse(fs.readFileSync('his-hope-platform-sbom.cdx.json','utf8')); if (bom.bomFormat !== 'CycloneDX' || !Array.isArray(bom.components)) process.exit(1);"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: his-hope-platform-sbom
           path: his-hope-platform-sbom.cdx.json
       - name: Trivy filesystem and configuration scan
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
         with:
           scan-type: fs
           scan-ref: .
@@ -124,7 +181,7 @@ jobs:
   openapi:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
       - name: Start Identity dependencies and service

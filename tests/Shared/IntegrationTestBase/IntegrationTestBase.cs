@@ -15,7 +15,6 @@ public abstract class IntegrationTestBase<TProgram> : IAsyncLifetime
     private readonly DatabaseFixture _databaseFixture;
     private WebApplicationFactory<TProgram>? _factory;
     private IServiceScope? _scope;
-    private bool _initialized;
 
     protected HttpClient HttpClient { get; private set; } = null!;
     protected IServiceProvider ServiceProvider => _scope?.ServiceProvider ?? null!;
@@ -26,14 +25,8 @@ public abstract class IntegrationTestBase<TProgram> : IAsyncLifetime
         HttpClient = null!;
     }
 
-    public virtual async Task InitializeAsync()
+    public virtual Task InitializeAsync()
     {
-        if (!_initialized)
-        {
-            await _databaseFixture.InitializeAsync();
-            _initialized = true;
-        }
-
         _factory = new WebApplicationFactory<TProgram>()
             .WithWebHostBuilder(builder =>
             {
@@ -46,19 +39,15 @@ public abstract class IntegrationTestBase<TProgram> : IAsyncLifetime
 
         _scope = _factory.Services.CreateScope();
         HttpClient = _factory.CreateClient();
+        return Task.CompletedTask;
     }
 
-    public virtual async Task DisposeAsync()
+    public virtual Task DisposeAsync()
     {
         _scope?.Dispose();
         _factory?.Dispose();
         HttpClient?.Dispose();
-
-        if (_initialized)
-        {
-            await _databaseFixture.DisposeAsync();
-            _initialized = false;
-        }
+        return Task.CompletedTask;
     }
 
     /// <summary>

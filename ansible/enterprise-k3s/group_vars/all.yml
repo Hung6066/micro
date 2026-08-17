@@ -1,0 +1,36 @@
+# Values that must be changed before the first production run.
+k3s_version: v1.35.5+k3s1
+k3s_cluster_name: his-hope-production
+# The existing external HA load balancer owns this address. K3s nodes must not
+# install Keepalived or claim the address themselves.
+k3s_api_external_load_balancer: true
+k3s_api_registration_endpoint: "172.16.102.100"
+k3s_api_registration_port: 6443
+k3s_install_script_url: https://get.k3s.io
+k3s_install_script_checksum: "sha256:ed01f89fd977bf20ac1516bbebf8370bf3ddbaa55dac8aba610956a4c78cc00b"
+k3s_token: "{{ vault_k3s_token }}"
+k3s_cluster_cidr: 10.42.0.0/16
+k3s_service_cidr: 10.43.0.0/16
+k3s_cluster_dns: 10.43.0.10
+k3s_flannel_backend: host-gw
+k3s_tls_sans:
+  - "{{ k3s_api_registration_endpoint }}"
+  - 172.16.102.7
+  - 172.16.102.8
+  - 172.16.102.9
+  - 172.16.102.10
+  - 172.16.102.12
+k3s_taint_control_planes: true
+k3s_server_labels:
+  - workload.his-hope.io/system=true
+k3s_expected_node_count: 5
+k3s_audit_log_path: /var/lib/rancher/k3s/server/logs/audit.log
+k3s_audit_policy_path: /var/lib/rancher/k3s/server/audit-policy.yaml
+k3s_psa_policy_path: /var/lib/rancher/k3s/server/psa.yaml
+
+# Network ACLs must be established outside this playbook before bootstrap.
+enterprise_network_controls_verified: true
+enterprise_minimum_root_free_mb: 20480
+azure_storage_endpoint: "https://umcgepistorage.blob.core.windows.net"
+azure_storage_container: "his-hope"
+azure_backup_prefix: "his-hope/production"

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observability-security-exception-inventory
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: security-governance
+data:
+  exceptions.yaml: |
+    version: 1
+    reviewRequired: true
+    entries:
+      - workload: promtail
+        category: node-log-reader
+        reason: reads host /var/log paths mounted read-only; requires root on the node to read all pod log files
+        owner: platform-observability
+        targetNamespace: monitoring
+        expiry: 2026-09-30

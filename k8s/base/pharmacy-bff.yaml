@@ -60,7 +60,10 @@ spec:
                   name: pharmacy-bff-secrets
                   key: redis-connection
             - name: Services__Pharmacy
-              value: "http://pharmacyservice:5030"
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_SERVICE_PHARMACY_HTTP
           resources:
             requests:
               cpu: 100m

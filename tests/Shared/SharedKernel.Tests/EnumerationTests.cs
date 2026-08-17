@@ -38,6 +38,14 @@ public class EnumerationTests
     }
 
     [Fact]
+    public void FromCode_WithLegacyDisplayName_ShouldReturnCorrectOption()
+    {
+        var option = TestEnumeration.FromCode("OPTION B");
+
+        option.Should().Be(TestEnumeration.OptionB);
+    }
+
+    [Fact]
     public void FromCode_WithInvalidCode_ShouldThrow()
     {
         // Act

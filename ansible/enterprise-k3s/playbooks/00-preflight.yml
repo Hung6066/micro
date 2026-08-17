@@ -1,0 +1,12 @@
+---
+- name: Preflight and harden K3s production servers
+  hosts: k3s_servers
+  gather_facts: true
+  become: true
+  any_errors_fatal: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/vault.yml
+  roles:
+    - role: preflight
+    - role: os_hardening

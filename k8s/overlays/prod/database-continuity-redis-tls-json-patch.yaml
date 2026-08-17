@@ -1,0 +1,6 @@
+- op: replace
+  path: /spec/template/spec/containers/0/env/1/valueFrom
+  value:
+    secretKeyRef:
+      name: systemdashboard-bff-secrets
+      key: redis-url

@@ -7,7 +7,7 @@ namespace SystemDashboard.Bff.Controllers;
 
 [ApiController]
 [Route("api/alerts")]
-[Authorize(Roles = DashboardRoles.ReadOnly)]
+[Authorize(Policy = "Permission:dashboard.view")]
 public sealed class AlertsController : ControllerBase
 {
     private readonly IAlertManagerService _alertService;

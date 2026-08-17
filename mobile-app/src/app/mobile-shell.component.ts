@@ -1,5 +1,5 @@
 import { Component, OnDestroy, OnInit, inject } from "@angular/core";
-import { RouterLink, RouterLinkActive, RouterOutlet } from "@angular/router";
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from "@angular/router";
 import {
   HisHopeBrandComponent,
   HisHopeLanguageSwitcherComponent,
@@ -12,7 +12,7 @@ import { MobileAuthService } from "./core/auth.service";
 import { NativeCapabilityService } from "./core/native-capability.service";
 import { MobileLockService } from "./core/mobile-lock.service";
 import { MobileAdminApiService } from "./core/admin-api.service";
-import { catchError, of } from "rxjs";
+import { catchError, filter, from, of, switchMap, take } from "rxjs";
 import { MobilePinComponent } from "./features/mobile-pin.component";
 
 @Component({
@@ -70,6 +70,9 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
                 >
                     <hh-mobile-icon name="logout" size="small" />{{ 'admin.logout' | hhTranslate }}
                   </button>
+                <button type="button" role="menuitem" (click)="menuOpen = false; openNotifications()">
+                  <hh-mobile-icon name="notifications" size="small" />{{ 'mobile.notifications' | hhTranslate }}
+                </button>
                 @if (native.isNative) {
                   <app-mobile-pin />
                 }
@@ -414,6 +417,7 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
   ],
 })
 export class MobileShellComponent implements OnInit, OnDestroy {
+  private readonly router = inject(Router);
   readonly auth = inject(MobileAuthService);
   readonly native = inject(NativeCapabilityService);
   readonly lock = inject(MobileLockService);
@@ -433,7 +437,17 @@ export class MobileShellComponent implements OnInit, OnDestroy {
   }
   async ngOnInit(): Promise<void> {
     this.biometricAvailable = await this.native.biometricAvailable();
-    if (this.native.isNative) void this.native.registerPush();
+    if (this.native.isNative) {
+      // The route guard can render the shell while the OIDC callback is still
+      // finishing secure token persistence. Register FCM only after the
+      // authenticated stream is true, so the API call has a usable token.
+      this.auth.isAuthenticated$.pipe(
+        filter(isAuthenticated => isAuthenticated),
+        take(1),
+        switchMap(() => from(this.native.registerPush())),
+        catchError(() => of(null)),
+      ).subscribe();
+    }
     this.lock.arm();
   }
   ngOnDestroy(): void {
@@ -448,6 +462,9 @@ export class MobileShellComponent implements OnInit, OnDestroy {
   }
   logout(): void {
     this.auth.logout();
+  }
+  openNotifications(): void {
+    void this.router.navigateByUrl('/admin/notifications');
   }
   toggleTheme(): void {
     this.theme.setTheme(this.theme.resolvedTheme() === "dark" ? "light" : "dark");

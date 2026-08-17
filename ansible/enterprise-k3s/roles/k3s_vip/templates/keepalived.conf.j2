@@ -1,0 +1,27 @@
+global_defs {
+  router_id HIS_HOPE_K3S_{{ inventory_hostname | upper | replace('-', '_') }}
+  enable_script_security
+}
+
+vrrp_instance K3S_API {
+  state BACKUP
+  interface {{ k3s_vip_interface }}
+  virtual_router_id {{ k3s_vip_router_id }}
+  priority {{ 150 - (groups['k3s_servers'].index(inventory_hostname) * 10) }}
+  advert_int 1
+  unicast_src_ip {{ k3s_node_ip }}
+  unicast_peer {
+{% for peer in groups['k3s_servers'] if peer != inventory_hostname %}
+    {{ hostvars[peer].k3s_node_ip }}
+{% endfor %}
+  }
+  garp_master_repeat 3
+  garp_master_refresh 60
+  authentication {
+    auth_type PASS
+    auth_pass {{ k3s_vip_auth_pass }}
+  }
+  virtual_ipaddress {
+    {{ k3s_api_registration_endpoint }}/{{ k3s_vip_cidr }} dev {{ k3s_vip_interface }}
+  }
+}

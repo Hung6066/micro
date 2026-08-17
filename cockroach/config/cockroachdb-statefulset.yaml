@@ -78,6 +78,13 @@ spec:
         app: cockroachdb
     spec:
       serviceAccountName: cockroachdb
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -101,6 +108,13 @@ spec:
       - name: bootstrap
         image: cockroachdb/cockroach:v24.1.2
         imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
         command:
         - /bin/sh
         - -c
@@ -112,10 +126,19 @@ spec:
         volumeMounts:
         - name: datadir
           mountPath: /cockroach/cockroach-data
+        - name: tmp
+          mountPath: /tmp
       containers:
       - name: cockroachdb
         image: cockroachdb/cockroach:v24.1.2
         imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
         ports:
         - containerPort: 26257
           name: sql
@@ -128,6 +151,9 @@ spec:
           mountPath: /cockroach/cockroach-data
         - name: config
           mountPath: /cockroach/cockroach-data/config
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
         env:
         - name: POD_NAME
           valueFrom:
@@ -183,6 +209,8 @@ spec:
       - name: config
         configMap:
           name: cockroach-config
+      - name: tmp
+        emptyDir: {}
   volumeClaimTemplates:
   - metadata:
       name: datadir

@@ -1,0 +1,73 @@
+---
+- name: Verify required host tools exist
+  ansible.builtin.command: "{{ item }} --version"
+  changed_when: false
+  loop:
+    - k3s
+    - azcopy
+
+- name: Validate Azure backup credential shape without exposing its value
+  ansible.builtin.assert:
+    that:
+      - vault_backup_sas_token is defined
+      - vault_backup_sas_token is string
+      - (vault_backup_sas_token | regex_replace('^\\?', '') | length) >= 20
+      - vault_backup_sas_token is not search('REPLACE_ME|REPLACE_WITH|<[^>]+>')
+    fail_msg: 'vault_backup_sas_token is missing, a placeholder, or too short for a valid Azure SAS token.'
+    quiet: true
+  no_log: true
+
+- name: Create backup directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: /etc/his-hope, mode: "0700" }
+    - { path: /var/backups/his-hope, mode: "0700" }
+    - { path: /var/backups/his-hope/azcopy/logs, mode: "0700" }
+    - { path: /var/backups/his-hope/azcopy/jobs, mode: "0700" }
+
+- name: Install K3s snapshot uploader
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../../../scripts/k3s-etcd-snapshot-to-azure.sh"
+    dest: /usr/local/sbin/k3s-etcd-snapshot-to-azure.sh
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Install protected backup environment
+  ansible.builtin.template:
+    src: backup.env.j2
+    dest: /etc/his-hope/backup.env
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Install snapshot service
+  ansible.builtin.template:
+    src: k3s-etcd-snapshot.service.j2
+    dest: /etc/systemd/system/his-hope-k3s-etcd-snapshot.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload backup systemd units
+
+- name: Install snapshot timer
+  ansible.builtin.template:
+    src: k3s-etcd-snapshot.timer.j2
+    dest: /etc/systemd/system/his-hope-k3s-etcd-snapshot.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload backup systemd units
+
+- name: Enable snapshot timer
+  ansible.builtin.systemd:
+    name: his-hope-k3s-etcd-snapshot.timer
+    enabled: true
+    state: started
+    daemon_reload: true

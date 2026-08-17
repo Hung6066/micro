@@ -20,31 +20,13 @@ resources:
   - bff-pod-monitor.yaml
   - bff-grafana-dashboard.yaml
   - bff-slo-alerts.yaml
+  - ../jobs/synthetic-monitor-cronjob.yaml
+  - synthetic-monitor-config.yaml
+  - synthetic-monitor-secrets.yaml
 
 commonLabels:
   app.kubernetes.io/part-of: his-hope
   app.kubernetes.io/managed-by: kustomize
-
-configMapGenerator:
-  - name: prometheus-config
-    behavior: replace
-    files:
-      - prometheus.yml
-  - name: alertmanager-config
-    behavior: replace
-    files:
-      - alertmanager.yml
-  - name: slo-exporter-config
-    behavior: replace
-    files:
-      - slo.yaml
-  - name: incident-response
-    behavior: replace
-    files:
-      - runbook-service-down.md
-      - runbook-high-latency.md
-      - runbook-data-inconsistency.md
-      - postmortem-template.md
 
 patches:
   - target:

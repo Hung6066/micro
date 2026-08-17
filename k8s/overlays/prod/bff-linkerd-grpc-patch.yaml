@@ -1,0 +1,17 @@
+# BFFs call backend gRPC endpoints using HTTP/2 prior knowledge. Bypass the
+# sidecar for the in-cluster service CIDR and gRPC ports in the local profile;
+# the public TLS/opaque-port profile can remove this compatibility patch.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bff-linkerd-grpc
+spec:
+  template:
+    metadata:
+      annotations:
+        config.linkerd.io/skip-subnets: "10.43.0.0/16"
+        config.linkerd.io/skip-outbound-ports: "6379,8200,5006,5008,5009,5012,5022,5032"
+        # Traefik reaches the BFF HTTP listener directly; bypass inbound
+        # interception for the local compatibility profile to avoid fail-fast
+        # connection refusals while the sidecar is negotiating HTTP/2.
+        config.linkerd.io/skip-inbound-ports: "5100,5200,5300,5400,5500,5600"

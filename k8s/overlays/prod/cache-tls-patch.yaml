@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+spec:
+  template:
+    spec:
+      securityContext:
+        fsGroup: 101
+      volumes:
+        - name: redis-tls
+          secret:
+            secretName: redis-tls
+            defaultMode: 0440
+      containers:
+        - name: redis
+          command:
+            - sh
+            - -c
+            - exec redis-server /etc/redis/redis.conf --requirepass "$REDIS_PASSWORD"
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - --tls
+                - --insecure
+                - ping
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - --tls
+                - --insecure
+                - ping
+          volumeMounts:
+            - name: redis-tls
+              mountPath: /etc/redis/ssl
+              readOnly: true
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+spec:
+  template:
+    metadata:
+      annotations:
+        # RabbitMQ is an infrastructure StatefulSet. Keep it out of the mesh
+        # startup hook so a Linkerd policy outage cannot take the quorum down.
+        linkerd.io/inject: disabled
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 999
+      initContainers:
+        - $patch: delete
+          name: rabbitmq-permissions
+      volumes:
+        - name: rabbitmq-tls
+          secret:
+            secretName: rabbitmq-tls
+            defaultMode: 0440
+      containers:
+        - name: rabbitmq
+          image: docker.io/library/rabbitmq@sha256:606d8c0d6b3c18d1da9afc53bc7cdb2a8d5486df91b5a9830e9e07626c9ae281
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - nc -z 127.0.0.1 5672
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - nc -z 127.0.0.1 5672
+          volumeMounts:
+            - name: rabbitmq-tls
+              mountPath: /etc/rabbitmq/ssl
+              readOnly: true

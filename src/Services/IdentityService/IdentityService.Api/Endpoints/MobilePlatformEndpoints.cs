@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -10,6 +11,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using StackExchange.Redis;
 using His.Hope.IdentityService.Api.Services;
+using His.Hope.Contracts.Identity;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -42,7 +44,7 @@ public static class MobilePlatformEndpoints
             if (request.Platform is not ("android" or "ios"))
                 return Results.BadRequest(new ProblemDetails { Title = "Unsupported platform", Status = 400 });
 
-            var userId = context.User.FindFirst("sub")?.Value;
+            var userId = GetUserId(context);
             if (string.IsNullOrWhiteSpace(userId)) return Results.Unauthorized();
 
             var tokenHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(request.Token)));
@@ -69,10 +71,71 @@ public static class MobilePlatformEndpoints
             registration.RevokedAt = null;
             await db.SaveChangesAsync(cancellationToken);
             return Results.NoContent();
-        // Keep the endpoint anonymous at the middleware level so native/API
-        // callers receive JSON 401 instead of the browser cookie redirect.
-        // A bearer-authenticated principal is still required in the handler.
-        }).AllowAnonymous();
+        }).RequireAuthorization();
+
+        mobile.MapGet("/notifications", async (
+            int? page,
+            int? pageSize,
+            HttpContext context,
+            IdentityDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            if (GetUserId(context) is not { Length: > 0 } userId)
+                return Results.Unauthorized();
+
+            var currentPage = Math.Max(1, page ?? 1);
+            var size = Math.Clamp(pageSize ?? 20, 1, 100);
+            var query = db.InAppNotifications
+                .AsNoTracking()
+                .Where(item => item.UserId == userId);
+            var total = await query.CountAsync(cancellationToken);
+            var unread = await query.CountAsync(item => item.ReadAt == null, cancellationToken);
+            var items = await query
+                .OrderByDescending(item => item.CreatedAt)
+                .Skip((currentPage - 1) * size)
+                .Take(size)
+                .Select(item => new
+                {
+                    id = item.Id,
+                    title = item.Title,
+                    body = item.Body,
+                    dataJson = item.DataJson,
+                    createdAt = item.CreatedAt,
+                    readAt = item.ReadAt
+                })
+                .ToListAsync(cancellationToken);
+
+            return Results.Ok(new { items, page = currentPage, pageSize = size, total, unread });
+        }).RequireAuthorization();
+
+        mobile.MapPost("/notifications/{id:guid}/read", async (
+            Guid id,
+            HttpContext context,
+            IdentityDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            if (GetUserId(context) is not { Length: > 0 } userId)
+                return Results.Unauthorized();
+
+            var updated = await db.InAppNotifications
+                .Where(item => item.Id == id && item.UserId == userId && item.ReadAt == null)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ReadAt, DateTime.UtcNow), cancellationToken);
+            return updated == 0 ? Results.NotFound() : Results.NoContent();
+        }).RequireAuthorization();
+
+        mobile.MapPost("/notifications/read-all", async (
+            HttpContext context,
+            IdentityDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            if (GetUserId(context) is not { Length: > 0 } userId)
+                return Results.Unauthorized();
+
+            var updated = await db.InAppNotifications
+                .Where(item => item.UserId == userId && item.ReadAt == null)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ReadAt, DateTime.UtcNow), cancellationToken);
+            return Results.Ok(new { updated });
+        }).RequireAuthorization();
 
         mobile.MapPost("/crash-reports", async (MobileCrashReport report, HttpContext context, IdentityDbContext db, ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
@@ -130,21 +193,104 @@ public static class MobilePlatformEndpoints
         mobile.MapPost("/sync", async (
             SyncEnvelope envelope,
             HttpContext context,
-            IConnectionMultiplexer redis) =>
+            IConnectionMultiplexer redis,
+            IConfiguration configuration) =>
         {
-            if (context.User.FindFirst("sub")?.Value is not { Length: > 0 } userId)
+            if (GetUserId(context) is not { Length: > 0 } userId)
                 return Results.Unauthorized();
             if (string.IsNullOrWhiteSpace(envelope.IdempotencyKey) || envelope.IdempotencyKey.Length > 128 ||
-                string.IsNullOrWhiteSpace(envelope.Operation) || envelope.Operation.Length > 120)
+                string.IsNullOrWhiteSpace(envelope.Operation) || envelope.Operation.Length > 120 ||
+                envelope.Payload.Count > 100 || JsonSerializer.Serialize(envelope.Payload).Length > 100_000)
                 return Results.BadRequest(new ProblemDetails { Title = "Invalid sync envelope", Status = 400 });
+            if (envelope.SchemaVersion is not (null or 1) ||
+                envelope.ConflictPolicy is not (null or "reject_on_stale" or "last_write_wins"))
+                return Results.BadRequest(new ProblemDetails { Title = "Unsupported sync contract", Status = 400 });
+            if (envelope.EntityType?.StartsWith("patient", StringComparison.OrdinalIgnoreCase) == true &&
+                !string.Equals(envelope.ConflictPolicy, "reject_on_stale", StringComparison.Ordinal))
+                return Results.Conflict(new ProblemDetails { Title = "Patient offline writes require reject_on_stale", Status = 409 });
+            if (envelope.EntityType?.StartsWith("patient", StringComparison.OrdinalIgnoreCase) == true &&
+                !configuration.GetValue("Mobile:Offline:PatientDataEnabled", false))
+                return Results.Conflict(new ProblemDetails { Title = "Offline patient data is disabled by policy", Status = 409 });
 
             var key = $"mobile:sync:{userId}:{envelope.IdempotencyKey}";
             var accepted = await redis.GetDatabase().StringSetAsync(key, "accepted", TimeSpan.FromDays(7), When.NotExists);
             return accepted ? Results.Accepted() : Results.Ok(new { duplicate = true });
-        }).AllowAnonymous();
+        }).RequireAuthorization();
 
         var adminPush = app.MapGroup("/api/v1/admin/push")
-            .RequireAuthorization("Permission:admin.users.write");
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+        var adminPushRead = app.MapGroup("/api/v1/admin/push")
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
+        var adminMobile = app.MapGroup("/api/v1/admin/mobile")
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
+
+        adminMobile.MapGet("/devices", async (
+            int? page,
+            int? pageSize,
+            IdentityDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var currentPage = Math.Max(1, page ?? 1);
+            var size = Math.Clamp(pageSize ?? 25, 1, 100);
+            var query = db.MobileDeviceRegistrations.AsNoTracking();
+            var total = await query.CountAsync(cancellationToken);
+            var items = await query
+                .OrderByDescending(device => device.LastSeenAt)
+                .Skip((currentPage - 1) * size)
+                .Take(size)
+                .Select(device => new
+                {
+                    id = device.Id,
+                    userId = device.UserId,
+                    platform = device.Platform,
+                    registeredAt = device.RegisteredAt,
+                    lastSeenAt = device.LastSeenAt,
+                    revokedAt = device.RevokedAt,
+                    active = device.RevokedAt == null
+                })
+                .ToListAsync(cancellationToken);
+            return Results.Ok(new { items, page = currentPage, pageSize = size, total });
+        });
+
+        adminMobile.MapPost("/devices/{id:guid}/revoke", async (
+            Guid id,
+            IdentityDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var updated = await db.MobileDeviceRegistrations
+                .Where(device => device.Id == id && device.RevokedAt == null)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(device => device.RevokedAt, DateTime.UtcNow), cancellationToken);
+            return updated == 0 ? Results.NotFound() : Results.NoContent();
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+
+        adminPushRead.MapGet("/delivery-summary", async (
+            int? hours,
+            IdentityDbContext db,
+            CancellationToken cancellationToken) =>
+        {
+            var since = DateTime.UtcNow.AddHours(-Math.Clamp(hours ?? 24, 1, 168));
+            var attempts = db.PushDeliveryAttempts.AsNoTracking().Where(item => item.CreatedAt >= since);
+            var outbox = db.PushNotificationOutbox.AsNoTracking().Where(item => item.CreatedAt >= since);
+            return Results.Ok(new
+            {
+                since,
+                queued = await outbox.CountAsync(cancellationToken),
+                processed = await outbox.CountAsync(item => item.ProcessedAt != null, cancellationToken),
+                pending = await outbox.CountAsync(item => item.ProcessedAt == null, cancellationToken),
+                sent = await attempts.CountAsync(item => item.Status == "sent", cancellationToken),
+                failed = await attempts.CountAsync(item => item.Status == "failed", cancellationToken),
+                byPlatform = await attempts.GroupBy(item => item.Platform)
+                    .Select(group => new { platform = group.Key, sent = group.Count(item => item.Status == "sent"), failed = group.Count(item => item.Status == "failed") })
+                    .ToListAsync(cancellationToken),
+                lastFailure = await attempts.Where(item => item.Status == "failed")
+                    .OrderByDescending(item => item.CreatedAt)
+                    .Select(item => new { item.Platform, item.ErrorCode, item.CreatedAt })
+                    .FirstOrDefaultAsync(cancellationToken)
+            });
+        });
         adminPush.MapPost("/notifications", async (
             PushNotificationRequest request,
             IPushDeliveryService delivery,
@@ -155,8 +301,8 @@ public static class MobilePlatformEndpoints
                 string.IsNullOrWhiteSpace(request.Body) || request.Body.Length > 4000)
                 return Results.BadRequest(new ProblemDetails { Title = "Invalid push notification", Status = 400 });
 
-            var id = await delivery.EnqueueAsync(request.UserId, request.Title, request.Body, cancellationToken);
-            return Results.Accepted($"/api/v1/admin/push/notifications/{id}", new { id });
+            var id = await delivery.EnqueueAsync(request.UserId, request.Title, request.Body, request.DataJson, cancellationToken);
+            return Results.Accepted($"{IdentityApiRoutes.AdminPushNotifications}/{id}", new { id });
         });
     }
 
@@ -189,7 +335,16 @@ public static class MobilePlatformEndpoints
         string IdempotencyKey,
         string Operation,
         Dictionary<string, object?> Payload,
-        DateTime CreatedAt);
+        DateTime CreatedAt,
+        int? SchemaVersion = 1,
+        string? EntityType = null,
+        string? EntityId = null,
+        string? BaseVersion = null,
+        string? ConflictPolicy = "reject_on_stale");
 
-    public sealed record PushNotificationRequest(string UserId, string Title, string Body);
+    public sealed record PushNotificationRequest(string UserId, string Title, string Body, string? DataJson = null);
+
+    private static string? GetUserId(HttpContext context) =>
+        context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+        ?? context.User.FindFirstValue("sub");
 }

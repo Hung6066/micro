@@ -14,7 +14,7 @@ metadata:
 data:
   pgbouncer.ini: |
     [databases]
-    * = host=cockroachdb-public.his-hope.svc.cluster.local port=26257
+    * = host=postgres.his-hope.svc.cluster.local port=5432
 
     [pgbouncer]
     listen_addr = 0.0.0.0

@@ -1,0 +1,17 @@
+---
+- name: Wait for observability workloads
+  ansible.builtin.command: kubectl --kubeconfig "{{ observability_kubeconfig }}" wait --for=condition=Ready pod --all -n monitoring --timeout=15m
+  changed_when: false
+
+- name: Verify required CRDs
+  ansible.builtin.shell: >-
+    kubectl --kubeconfig "{{ observability_kubeconfig }}" get crd
+    servicemonitors.monitoring.coreos.com podmonitors.monitoring.coreos.com
+    constrainttemplates.templates.gatekeeper.sh
+  changed_when: false
+
+- name: Verify OTLP and Loki services have endpoints
+  ansible.builtin.shell: >-
+    kubectl --kubeconfig "{{ observability_kubeconfig }}" get endpoints
+    otel-opentelemetry-collector loki -n monitoring -o wide
+  changed_when: false

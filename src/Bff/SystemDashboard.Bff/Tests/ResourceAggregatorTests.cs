@@ -1,6 +1,9 @@
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NSubstitute;
+using His.Hope.Configuration;
 using SystemDashboard.Bff.Aggregators;
 using SystemDashboard.Bff.Models;
 using SystemDashboard.Bff.Services;
@@ -51,6 +54,7 @@ public sealed class ResourceAggregatorTests
         httpClientFactory.CreateClient("health-check").Returns(healthyClient);
 
         var prometheus = Substitute.For<IPrometheusQueryService>();
+        var kubernetesMetrics = Substitute.For<IKubernetesPodMetricsService>();
         prometheus.QueryRangeAsync(
                 Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(),
                 Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -58,7 +62,15 @@ public sealed class ResourceAggregatorTests
 
         var cache = Substitute.For<IMemoryCache>();
         var logger = Substitute.For<ILogger<ResourceAggregator>>();
-        var aggregator = new ResourceAggregator(consul, httpClientFactory, prometheus, cache, logger);
+        var aggregator = new ResourceAggregator(
+            consul,
+            httpClientFactory,
+            prometheus,
+            kubernetesMetrics,
+            Options.Create(new KubernetesOptions { Enabled = false }),
+            cache,
+            logger,
+            CreateRuntimeEndpoints());
 
 
         // Act
@@ -102,7 +114,16 @@ public sealed class ResourceAggregatorTests
         var cache = Substitute.For<IMemoryCache>();
         var logger = Substitute.For<ILogger<ResourceAggregator>>();
         var prometheus = Substitute.For<IPrometheusQueryService>();
-        var aggregator = new ResourceAggregator(consul, httpClientFactory, prometheus, cache, logger);
+        var kubernetesMetrics = Substitute.For<IKubernetesPodMetricsService>();
+        var aggregator = new ResourceAggregator(
+            consul,
+            httpClientFactory,
+            prometheus,
+            kubernetesMetrics,
+            Options.Create(new KubernetesOptions { Enabled = false }),
+            cache,
+            logger,
+            CreateRuntimeEndpoints());
 
         // Act
         var resources = await aggregator.GetAllResourcesAsync(default);
@@ -129,6 +150,36 @@ public sealed class ResourceAggregatorTests
         Assert.NotEmpty(databases);
         Assert.Contains(databases, d => d.Name == "harnessdb");
     }
+
+    private static ServiceEndpointOptions CreateRuntimeEndpoints() =>
+        RuntimeConfigurationExtensions.BindServiceEndpoints(
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["REDIS_URL"] = "redis://localhost:6379",
+                    ["SERVICE_IDENTITY_API_URL"] = "http://localhost:5001",
+                    ["SERVICE_IDENTITY_GRPC_URL"] = "http://localhost:5001",
+                    ["SERVICE_PATIENT_API_URL"] = "http://localhost:5002",
+                    ["SERVICE_PATIENT_GRPC_URL"] = "http://localhost:5006",
+                    ["SERVICE_APPOINTMENT_API_URL"] = "http://localhost:5003",
+                    ["SERVICE_APPOINTMENT_GRPC_URL"] = "http://localhost:5007",
+                    ["SERVICE_CLINICAL_API_URL"] = "http://localhost:5004",
+                    ["SERVICE_CLINICAL_GRPC_URL"] = "http://localhost:5005",
+                    ["SERVICE_LAB_API_URL"] = "http://localhost:5010",
+                    ["SERVICE_LAB_GRPC_URL"] = "http://localhost:5010",
+                    ["SERVICE_BILLING_API_URL"] = "http://localhost:5020",
+                    ["SERVICE_BILLING_GRPC_URL"] = "http://localhost:5020",
+                    ["SERVICE_PHARMACY_API_URL"] = "http://localhost:5030",
+                    ["SERVICE_PHARMACY_GRPC_URL"] = "http://localhost:5030",
+                    ["SERVICE_PATIENT_BFF_URL"] = "http://localhost:5100",
+                    ["SERVICE_CLINICAL_BFF_URL"] = "http://localhost:5200",
+                    ["SERVICE_LAB_BFF_URL"] = "http://localhost:5300",
+                    ["SERVICE_BILLING_BFF_URL"] = "http://localhost:5400",
+                    ["SERVICE_PHARMACY_BFF_URL"] = "http://localhost:5500",
+                    ["SERVICE_DASHBOARD_BFF_URL"] = "http://localhost:5700"
+                })
+                .Build(),
+            "SystemDashboard.Bff");
 }
 
 /// <summary>

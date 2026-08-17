@@ -1,0 +1,199 @@
+# Local HTTP compatibility profile. Replace with the HTTPS identity issuer
+# before production internet exposure.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+spec:
+  template:
+    spec:
+      volumes:
+        - name: jwt-public-key
+          secret:
+            secretName: identity-service-jwt
+            items:
+              - key: public_key
+                path: jwt_public_key
+            defaultMode: 0444
+      containers:
+        - name: appointment-service
+          volumeMounts:
+            - name: jwt-public-key
+              mountPath: /mnt/jwt-secrets
+              readOnly: true
+          env:
+            - name: Jwt__AllowHttp
+              value: "true"
+            - name: Jwt__Authority
+              value: http://his-hope-identity-service.his-hope.svc.cluster.local:5003
+            - name: Jwt__MetadataAddress
+              value: http://his-hope-identity-service.his-hope.svc.cluster.local:5003/.well-known/openid-configuration
+            - name: Jwt__Issuer
+              value: His.Hope.IdentityService
+            - name: Jwt__RsaPublicKeyPath
+              value: /mnt/jwt-secrets/jwt_public_key
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+spec:
+  template:
+    spec:
+      volumes:
+        - name: jwt-public-key
+          secret:
+            secretName: identity-service-jwt
+            items:
+              - key: public_key
+                path: jwt_public_key
+            defaultMode: 0444
+      containers:
+        - name: patient-service
+          volumeMounts:
+            - name: jwt-public-key
+              mountPath: /mnt/jwt-secrets
+              readOnly: true
+          env:
+            - name: Jwt__AllowHttp
+              value: "true"
+            - name: Jwt__Authority
+              value: http://his-hope-identity-service.his-hope.svc.cluster.local:5003
+            - name: Jwt__MetadataAddress
+              value: http://his-hope-identity-service.his-hope.svc.cluster.local:5003/.well-known/openid-configuration
+            - name: Jwt__Issuer
+              value: His.Hope.IdentityService
+            - name: Jwt__RsaPublicKeyPath
+              value: /mnt/jwt-secrets/jwt_public_key
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-service
+spec:
+  template:
+    spec:
+      volumes:
+        - name: jwt-public-key
+          secret:
+            secretName: identity-service-jwt
+            items:
+              - key: public_key
+                path: jwt_public_key
+            defaultMode: 0444
+      containers:
+        - name: clinical-service
+          volumeMounts:
+            - name: jwt-public-key
+              mountPath: /mnt/jwt-secrets
+              readOnly: true
+          env:
+            - name: Jwt__AllowHttp
+              value: "true"
+            - name: Jwt__Authority
+              value: http://his-hope-identity-service.his-hope.svc.cluster.local:5003
+            - name: Jwt__MetadataAddress
+              value: http://his-hope-identity-service.his-hope.svc.cluster.local:5003/.well-known/openid-configuration
+            - name: Jwt__Issuer
+              value: His.Hope.IdentityService
+            - name: Jwt__RsaPublicKeyPath
+              value: /mnt/jwt-secrets/jwt_public_key
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-service
+spec:
+  template:
+    spec:
+      volumes:
+        - name: jwt-public-key
+          secret:
+            secretName: identity-service-jwt
+            items:
+              - key: public_key
+                path: jwt_public_key
+            defaultMode: 0444
+      containers:
+        - name: lab-service
+          volumeMounts:
+            - name: jwt-public-key
+              mountPath: /mnt/jwt-secrets
+              readOnly: true
+          env:
+            - name: Jwt__AllowHttp
+              value: "true"
+            - name: Jwt__Authority
+              value: http://his-hope-identity-service.his-hope.svc.cluster.local:5003
+            - name: Jwt__MetadataAddress
+              value: http://his-hope-identity-service.his-hope.svc.cluster.local:5003/.well-known/openid-configuration
+            - name: Jwt__Issuer
+              value: His.Hope.IdentityService
+            - name: Jwt__RsaPublicKeyPath
+              value: /mnt/jwt-secrets/jwt_public_key
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-service
+spec:
+  template:
+    spec:
+      volumes:
+        - name: jwt-public-key
+          secret:
+            secretName: identity-service-jwt
+            items:
+              - key: public_key
+                path: jwt_public_key
+            defaultMode: 0444
+      containers:
+        - name: billing-service
+          volumeMounts:
+            - name: jwt-public-key
+              mountPath: /mnt/jwt-secrets
+              readOnly: true
+          env:
+            - name: Jwt__AllowHttp
+              value: "true"
+            - name: Jwt__Authority
+              value: http://his-hope-identity-service.his-hope.svc.cluster.local:5003
+            - name: Jwt__MetadataAddress
+              value: http://his-hope-identity-service.his-hope.svc.cluster.local:5003/.well-known/openid-configuration
+            - name: Jwt__Issuer
+              value: His.Hope.IdentityService
+            - name: Jwt__RsaPublicKeyPath
+              value: /mnt/jwt-secrets/jwt_public_key
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-service
+spec:
+  template:
+    spec:
+      volumes:
+        - name: jwt-public-key
+          secret:
+            secretName: identity-service-jwt
+            items:
+              - key: public_key
+                path: jwt_public_key
+            defaultMode: 0444
+      containers:
+        - name: pharmacy-service
+          volumeMounts:
+            - name: jwt-public-key
+              mountPath: /mnt/jwt-secrets
+              readOnly: true
+          env:
+            - name: Jwt__AllowHttp
+              value: "true"
+            - name: Jwt__Authority
+              value: http://his-hope-identity-service.his-hope.svc.cluster.local:5003
+            - name: Jwt__MetadataAddress
+              value: http://his-hope-identity-service.his-hope.svc.cluster.local:5003/.well-known/openid-configuration
+            - name: Jwt__Issuer
+              value: His.Hope.IdentityService
+            - name: Jwt__RsaPublicKeyPath
+              value: /mnt/jwt-secrets/jwt_public_key

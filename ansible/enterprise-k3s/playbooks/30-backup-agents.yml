@@ -1,0 +1,11 @@
+---
+- name: Install production backup agents on every K3s server
+  hosts: k3s_servers
+  serial: 1
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../group_vars/all.yml
+    - ../group_vars/vault.yml
+  roles:
+    - backup_agents

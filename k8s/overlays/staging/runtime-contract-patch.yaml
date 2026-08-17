@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: runtime-contract-config
+data:
+  HIS_HOPE_ENVIRONMENT: staging
+  HIS_HOPE_PUBLIC_API_ORIGIN: https://api.staging.his-hope.example
+  HIS_HOPE_PUBLIC_WEB_ORIGIN: https://app.staging.his-hope.example
+  HIS_HOPE_PUBLIC_ADMIN_ORIGIN: https://admin.staging.his-hope.example
+  HIS_HOPE_PUBLIC_DASHBOARD_ORIGIN: https://ops.staging.his-hope.example
+  HIS_HOPE_OIDC_AUTHORITY: https://identity.staging.his-hope.example
+  AUTHZ_PDP_MODE: shadow
+  HIS_HOPE_SECRET_PROVIDER_REF: kv/data/his-hope/staging/runtime
+  SERVICE_API_GATEWAY_URL: http://his-hope-api-gateway.his-hope-staging.svc.cluster.local:5000
+  SERVICE_IDENTITY_URL: http://his-hope-identity-service.his-hope-staging.svc.cluster.local:5003
+  SERVICE_PATIENT_URL: http://his-hope-patient-service.his-hope-staging.svc.cluster.local:5002
+  SERVICE_APPOINTMENT_URL: http://his-hope-appointment-service.his-hope-staging.svc.cluster.local:5004
+  SERVICE_CLINICAL_URL: http://his-hope-clinical-service.his-hope-staging.svc.cluster.local:5005
+  SERVICE_LAB_URL: http://his-hope-lab-service.his-hope-staging.svc.cluster.local:5010
+  SERVICE_BILLING_URL: http://his-hope-billing-service.his-hope-staging.svc.cluster.local:5020
+  SERVICE_PHARMACY_URL: http://his-hope-pharmacy-service.his-hope-staging.svc.cluster.local:5030
+  SERVICE_FHIR_GATEWAY_URL: http://his-hope-fhir-gateway.his-hope-staging.svc.cluster.local:5040
+  SERVICE_DASHBOARD_BFF_URL: http://his-hope-dashboard-bff.his-hope-staging.svc.cluster.local:5600
+  SERVICE_DATABASE_CONTINUITY_URL: http://his-hope-database-continuity.his-hope-staging.svc.cluster.local:5800
+  DATABASE_POSTGRES_URL: postgresql://his_hope_app@his-hope-postgres.his-hope-staging.svc.cluster.local:5432/hishope
+  REDIS_URL: redis://his-hope-redis.his-hope-staging.svc.cluster.local:6379
+  RABBITMQ_URL: amqp://his_hope_app@his-hope-rabbitmq.his-hope-staging.svc.cluster.local:5672
+  OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.his-hope-staging.svc.cluster.local:4317
+  OBSERVABILITY_PROMETHEUS_URL: http://prometheus.his-hope-staging.svc.cluster.local:9090
+  OBSERVABILITY_ELASTICSEARCH_URL: http://elasticsearch.his-hope-staging.svc.cluster.local:9200
+  OBSERVABILITY_JAEGER_URL: http://jaeger.his-hope-staging.svc.cluster.local:16686
+  SECRET_POSTGRES_PASSWORD_REF: kv/data/his-hope/staging/postgres#password
+  SECRET_RABBITMQ_PASSWORD_REF: kv/data/his-hope/staging/rabbitmq#password
+  SECRET_REDIS_PASSWORD_REF: kv/data/his-hope/staging/redis#password
+  SECRET_OIDC_CLIENT_SECRET_REF: kv/data/his-hope/staging/oidc#client-secret
+  ADAPTER_VAULT_ADDRESS: https://vault-active.his-hope-staging.svc.cluster.local:8200
+  ADAPTER_REDIS_CONNECTION_STRING: his-hope-redis.his-hope-staging.svc.cluster.local:6379
+  ADAPTER_RABBITMQ_HOST: his-hope-rabbitmq.his-hope-staging.svc.cluster.local
+  ADAPTER_JAEGER_TRACES_ENDPOINT: http://jaeger.his-hope-staging.svc.cluster.local:14278/api/traces
+  ADAPTER_CONSUL_ADDRESS: http://consul.his-hope-staging.svc.cluster.local:8500

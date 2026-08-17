@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: appointment-service
+          env:
+            - name: GrpcServices__PatientService
+              value: http://patient-service:5006

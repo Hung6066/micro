@@ -12,7 +12,7 @@ public class LoginRequestValidatorAdditionalTests
     [Fact]
     public void Validate_WithUsernameAtMaxLength_ShouldNotHaveError()
     {
-        var request = new LoginRequest(new string('a', 100), "Str0ng!Pass");
+        var request = new LoginRequest(Username: new string('a', 100), Password: "Str0ng!Pass");
         var result = _validator.TestValidate(request);
         result.ShouldNotHaveValidationErrorFor(r => r.Username);
     }
@@ -20,7 +20,7 @@ public class LoginRequestValidatorAdditionalTests
     [Fact]
     public void Validate_WithPasswordAtMinLength_ShouldNotHaveError()
     {
-        var request = new LoginRequest("johndoe", "Ab1!ef");
+        var request = new LoginRequest(Username: "johndoe", Password: "Ab1!ef");
         var result = _validator.TestValidate(request);
         result.IsValid.Should().BeTrue();
     }
@@ -28,7 +28,7 @@ public class LoginRequestValidatorAdditionalTests
     [Fact]
     public void Validate_WithPasswordAtMaxLength_ShouldNotHaveError()
     {
-        var request = new LoginRequest("johndoe", new string('A', 200));
+        var request = new LoginRequest(Username: "johndoe", Password: new string('A', 200));
         var result = _validator.TestValidate(request);
         result.ShouldNotHaveValidationErrorFor(r => r.Password);
     }
@@ -36,7 +36,7 @@ public class LoginRequestValidatorAdditionalTests
     [Fact]
     public void Validate_WithNullUsername_ShouldHaveError()
     {
-        var request = new LoginRequest(null!, "Str0ng!Pass");
+        var request = new LoginRequest(Username: null!, Password: "Str0ng!Pass");
         var result = _validator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(r => r.Username)
             .WithErrorMessage("Username is required.");
@@ -45,7 +45,7 @@ public class LoginRequestValidatorAdditionalTests
     [Fact]
     public void Validate_WithNullPassword_ShouldHaveError()
     {
-        var request = new LoginRequest("johndoe", null!);
+        var request = new LoginRequest(Username: "johndoe", Password: null!);
         var result = _validator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(r => r.Password)
             .WithErrorMessage("Password is required.");
@@ -54,7 +54,7 @@ public class LoginRequestValidatorAdditionalTests
     [Fact]
     public void Validate_WithDeviceInfo_ShouldNotFail()
     {
-        var request = new LoginRequest("johndoe", "Str0ng!Pass", DeviceInfo: "Mozilla/5.0", IpAddress: null);
+        var request = new LoginRequest(Username: "johndoe", Password: "Str0ng!Pass", DeviceInfo: "Mozilla/5.0", IpAddress: null);
         var result = _validator.TestValidate(request);
         result.IsValid.Should().BeTrue();
     }
@@ -62,7 +62,7 @@ public class LoginRequestValidatorAdditionalTests
     [Fact]
     public void Validate_WithIpAddress_ShouldNotFail()
     {
-        var request = new LoginRequest("johndoe", "Str0ng!Pass", DeviceInfo: null, IpAddress: "192.168.1.1");
+        var request = new LoginRequest(Username: "johndoe", Password: "Str0ng!Pass", DeviceInfo: null, IpAddress: "192.168.1.1");
         var result = _validator.TestValidate(request);
         result.IsValid.Should().BeTrue();
     }

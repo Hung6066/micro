@@ -23,6 +23,7 @@ using His.Hope.Infrastructure.HealthChecks;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Authorization;
+using His.Hope.SharedKernel.Authorization;
 using His.Hope.Resilience;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
@@ -55,9 +56,7 @@ builder.Services.AddAppointmentApplication();
 builder.Services.AddAppointmentInfrastructure(builder.Configuration);
 builder.Services.AddHisHopeMigrationRunner<AppointmentDbContext>();
 
-builder.Services.AddHisHopeEnterpriseInfrastructure(
-    builder.Configuration, "appointment-service",
-    builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!);
+builder.Services.AddHisHopeServicePlatform(builder.Configuration, "appointment-service");
 
 builder.Services.AddGrpc(options =>
 {
@@ -87,7 +86,7 @@ builder.Services.AddRabbitMQEventBus(options =>
     options.Port = builder.Configuration.GetValue("EventBus:Port", 5672);
     options.UserName = builder.Configuration.GetValue("EventBus:UserName", "admin")!;
     options.Password = builder.Configuration.GetValue("EventBus:Password", "admin")!;
-    options.ExchangeName = "his_hope_appointment";
+    options.ExchangeName = builder.Configuration.GetValue("EventBus:InternalExchangeName", "his_hope_exchange")!;
     options.UseSsl = builder.Configuration.GetValue("EventBus:UseSsl", false);
 });
 
@@ -103,26 +102,33 @@ builder.Services.AddHealthChecks()
         name: "rabbitmq", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded)
     .AddRedisCheck(
         builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!,
-        name: "redis", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded)
+        name: "redis", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded,
+        configuration: builder.Configuration)
     .AddGrpcServiceCheck("patient-service",
         builder.Configuration.GetValue("GrpcServices:PatientService", "https://patientservice:5006")!,
         failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded);
 
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.ListenAnyIP(5003, l =>
+    // Docker/VM runtime contract uses 5003 for the HTTP service endpoint;
+    // keep the Kubernetes-native 5004 listener below for compatibility.
+    options.Listen(System.Net.IPAddress.Any, 5003, l =>
     {
         l.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
     });
-    options.ListenAnyIP(5009, l =>
+    options.Listen(System.Net.IPAddress.Any, 5004, l =>
     {
         l.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
     });
-    options.ListenAnyIP(5007, l =>
+    options.Listen(System.Net.IPAddress.Any, 5008, l =>
     {
         l.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
     });
-    options.ListenAnyIP(5014, l =>
+    options.Listen(System.Net.IPAddress.Any, 5007, l =>
+    {
+        l.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
+    });
+    options.Listen(System.Net.IPAddress.Any, 5014, l =>
     {
         l.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
     });
@@ -137,10 +143,16 @@ if (app.Environment.IsDevelopment())
     var db = scope.ServiceProvider.GetRequiredService<AppointmentDbContext>();
     db.Database.EnsureCreated();
 }
-else
+else if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
+         builder.Configuration.GetValue("Persistence:MigrationOnly", false))
 {
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+}
+
+if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
+{
+    return;
 }
 
 app.UseHisHopeServiceDefaults();
@@ -165,35 +177,46 @@ var grp = app.MapGroup("/api/v1/appointments").RequireAuthorization();
 
 grp.MapGet("/", async (
     IMediator mediator,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
-    var result = await mediator.Send(new SearchAppointmentsQuery("", 1, 1000), ct);
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var result = await mediator.Send(new SearchAppointmentsQuery("", 1, 1000, accessScope.FacilityIds, accessScope.IsCrossFacility), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:appointments.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.AppointmentsView).WithOpenApi();
 
 grp.MapGet("/{id:guid}", async (
     Guid id,
     IMediator mediator,
+    AppointmentDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(db.Appointments,
+        appointment => appointment.Id == AppointmentId.From(id), appointment => appointment.FacilityId,
+        httpContext.User, HisHopePermissions.Appointments.View, "appointment", id.ToString("D"), ct);
+    if (!decision.Allowed) return Results.NotFound();
+
     var appointment = await mediator.Send(new GetAppointmentByIdQuery(id), ct);
     return appointment is null ? Results.NotFound() : Results.Ok(appointment);
-}).RequireAuthorization("Permission:appointments.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.AppointmentsView).WithOpenApi();
 
 grp.MapGet("/search", async (
     string? q, int page, int pageSize,
     IMediator mediator,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
-    var result = await mediator.Send(new SearchAppointmentsQuery(q ?? "", page, pageSize), ct);
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var result = await mediator.Send(new SearchAppointmentsQuery(q ?? "", page, pageSize, accessScope.FacilityIds, accessScope.IsCrossFacility), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:appointments.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.AppointmentsView).WithOpenApi();
 
 grp.MapPost("/", async (
     ScheduleAppointmentRequest request,
     PatientGrpcService.PatientGrpcServiceClient patientClient,
     IMediator mediator,
-    IEventBus eventBus,
     CancellationToken ct) =>
 {
     var existsResponse = await patientClient.CheckPatientExistsAsync(
@@ -208,41 +231,81 @@ grp.MapPost("/", async (
 
     var appointmentDto = await mediator.Send(command, ct);
 
-    await eventBus.PublishAsync(new AppointmentScheduledIntegrationEvent(
-        appointmentDto.Id, appointmentDto.PatientId,
-        appointmentDto.ProviderId, appointmentDto.ScheduledDate,
-        appointmentDto.StartTime, appointmentDto.EndTime), ct);
-
     return Results.Created($"/api/v1/appointments/{appointmentDto.Id}", appointmentDto);
-}).RequireAuthorization("Permission:appointments.create").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.AppointmentsCreate).WithOpenApi();
 
 grp.MapPut("/{id:guid}/cancel", async (
     Guid id,
     CancelRequest request,
     IMediator mediator,
+    AppointmentDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(
+        db.Appointments,
+        appointment => appointment.Id == AppointmentId.From(id),
+        appointment => appointment.FacilityId,
+        httpContext.User,
+        HisHopePermissions.Appointments.Cancel,
+        "appointment",
+        id.ToString("D"),
+        ct);
+    if (!decision.Allowed)
+        return Results.NotFound();
+
     await mediator.Send(new CancelAppointmentCommand(id, request.Reason), ct);
     return Results.NoContent();
-}).RequireAuthorization("Permission:appointments.cancel").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.AppointmentsCancel).WithOpenApi();
 
 grp.MapPut("/{id:guid}/checkin", async (
     Guid id,
     IMediator mediator,
+    AppointmentDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(
+        db.Appointments,
+        appointment => appointment.Id == AppointmentId.From(id),
+        appointment => appointment.FacilityId,
+        httpContext.User,
+        HisHopePermissions.Appointments.CheckIn,
+        "appointment",
+        id.ToString("D"),
+        ct);
+    if (!decision.Allowed)
+        return Results.NotFound();
+
     await mediator.Send(new CheckInAppointmentCommand(id), ct);
     return Results.NoContent();
-}).RequireAuthorization("Permission:appointments.check-in").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.AppointmentsCheckIn).WithOpenApi();
 
 grp.MapPut("/{id:guid}/checkout", async (
     Guid id,
     IMediator mediator,
+    AppointmentDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(
+        db.Appointments,
+        appointment => appointment.Id == AppointmentId.From(id),
+        appointment => appointment.FacilityId,
+        httpContext.User,
+        HisHopePermissions.Appointments.Update,
+        "appointment",
+        id.ToString("D"),
+        ct);
+    if (!decision.Allowed)
+        return Results.NotFound();
+
     await mediator.Send(new CheckOutAppointmentCommand(id), ct);
     return Results.NoContent();
-}).RequireAuthorization("Permission:appointments.update").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.AppointmentsUpdate).WithOpenApi();
 
 grp.MapGet("/patient/{patientId:guid}", async (
     Guid patientId,
@@ -256,18 +319,18 @@ grp.MapGet("/patient/{patientId:guid}", async (
     var result = await mediator.Send(
         new GetAppointmentsByPatientQuery(patientId, page, pageSize, fromDate, toDate), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:appointments.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.AppointmentsView).WithOpenApi();
 
 // Patient-specific appointments aggregate endpoint (routed via YARP from /api/v1/patients/{patientId:guid}/appointments)
 app.MapGet("/api/v1/patients/{patientId:guid}/appointments", async (Guid patientId) =>
 {
     return Results.Ok(new { patientId, items = new List<object>() });
-}).RequireAuthorization("Permission:appointments.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.AppointmentsView).WithOpenApi();
 
 app.MapGrpcService<AppointmentGrpcServiceImpl>();
 app.MapGrpcHealthChecksService();
 
-app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+app.MapHealthChecks("/health/details", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = _ => true,
     ResponseWriter = async (ctx, report) =>

@@ -11,13 +11,13 @@ public static class BulkImportEndpoints
     public static RouteGroupBuilder MapBulkImportEndpoints(this RouteGroupBuilder group)
     {
         group.MapPost("/users/bulk", BulkImportUsers)
-            .RequireAuthorization("Permission:admin.users.write");
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
         group.MapPost("/users/bulk/csv", BulkImportCsv)
-            .RequireAuthorization("Permission:admin.users.write");
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
         group.MapPost("/users/bulk/file", BulkImportFile)
-            .RequireAuthorization("Permission:admin.users.write");
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
         group.MapPost("/users/bulk/preview", PreviewImport)
-            .RequireAuthorization("Permission:admin.users.read");
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         return group;
     }
 
@@ -109,9 +109,11 @@ public static class BulkImportEndpoints
             var fields = ParseCsvLine(lines[i]);
             if (fields.Length < 4) continue;
 
+            var email = GetField(fields, headers, "email") ?? "";
+            var username = GetField(fields, headers, "username");
             var record = new BulkUserRecord(
-                UserName: GetField(fields, headers, "username") ?? GetField(fields, headers, "email"),
-                Email: GetField(fields, headers, "email") ?? "",
+                UserName: string.IsNullOrWhiteSpace(username) ? email : username,
+                Email: email,
                 FirstName: GetField(fields, headers, "firstname") ?? "",
                 LastName: GetField(fields, headers, "lastname") ?? "",
                 MiddleName: GetField(fields, headers, "middlename"),

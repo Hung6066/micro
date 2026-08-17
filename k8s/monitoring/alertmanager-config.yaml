@@ -46,7 +46,7 @@ data:
 
     - name: 'sre-team-critical'
       pagerduty_configs:
-      - routing_key: 'xxxxx'
+      - routing_key: '${PAGERDUTY_ROUTING_KEY}'
         severity: critical
         description: '{{ .GroupLabels.alertname }} - {{ .CommonAnnotations.summary }}'
       slack_configs:

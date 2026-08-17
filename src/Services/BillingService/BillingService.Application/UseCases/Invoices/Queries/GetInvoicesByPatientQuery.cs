@@ -3,4 +3,6 @@ using MediatR;
 
 namespace His.Hope.BillingService.Application.UseCases.Invoices.Queries;
 
-public record GetInvoicesByPatientQuery(Guid PatientId) : IRequest<IReadOnlyList<InvoiceDto>>;
+public record GetInvoicesByPatientQuery(
+    Guid PatientId, IReadOnlySet<string>? FacilityIds = null, bool CrossFacility = false)
+    : IRequest<IReadOnlyList<InvoiceDto>>;

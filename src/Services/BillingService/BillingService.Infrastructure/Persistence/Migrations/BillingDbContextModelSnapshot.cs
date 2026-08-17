@@ -104,6 +104,12 @@ namespace His.Hope.BillingService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Status");
 
+                    b.HasIndex("PatientId", "InvoiceDate")
+                        .HasDatabaseName("IX_Invoices_Patient_Date_Id");
+
+                    b.HasIndex("FacilityId", "Status", "InvoiceDate")
+                        .HasDatabaseName("IX_Invoices_Facility_Status_Date_Id");
+
                     b.ToTable("Invoices", "billing");
                 });
 

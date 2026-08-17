@@ -1,0 +1,119 @@
+# Compatibility DNS names for the existing API Gateway/BFF route manifests.
+# Docker Compose uses these names; the dev k3d topology keeps them as aliases
+# until all route configuration is environment-driven.
+apiVersion: v1
+kind: Service
+metadata:
+  name: apigateway
+spec:
+  selector:
+    app.kubernetes.io/name: api-gateway
+  ports:
+    - name: http-compose
+      port: 5000
+      targetPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: identityservice
+spec:
+  selector:
+    app.kubernetes.io/name: identity-service
+  ports:
+    - name: http-compose
+      port: 5001
+      targetPort: 5003
+    - name: grpc-compose
+      port: 5012
+      targetPort: 5007
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: patientservice
+spec:
+  selector:
+    app.kubernetes.io/name: patient-service
+  ports:
+    - name: http-compose
+      port: 5002
+      targetPort: 5002
+    - name: grpc-compose
+      port: 5006
+      targetPort: 5006
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: appointmentservice
+spec:
+  selector:
+    app.kubernetes.io/name: appointment-service
+  ports:
+    - name: http-compose
+      port: 5003
+      targetPort: 5004
+    - name: grpc-compose
+      port: 5007
+      targetPort: 5008
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: clinicalservice
+spec:
+  selector:
+    app.kubernetes.io/name: clinical-service
+  ports:
+    - name: http-compose
+      port: 5004
+      targetPort: 5005
+    - name: grpc-compose
+      port: 5009
+      targetPort: 5009
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: labservice
+spec:
+  selector:
+    app.kubernetes.io/name: lab-service
+  ports:
+    - name: http-compose
+      port: 5010
+      targetPort: 5010
+    - name: grpc-compose
+      port: 5012
+      targetPort: 5012
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: billingservice
+spec:
+  selector:
+    app.kubernetes.io/name: billing-service
+  ports:
+    - name: http-compose
+      port: 5020
+      targetPort: 5020
+    - name: grpc-compose
+      port: 5022
+      targetPort: 5022
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pharmacyservice
+spec:
+  selector:
+    app.kubernetes.io/name: pharmacy-service
+  ports:
+    - name: http-compose
+      port: 5030
+      targetPort: 5030
+    - name: grpc-compose
+      port: 5032
+      targetPort: 5032

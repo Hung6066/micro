@@ -6,10 +6,16 @@
     <RootNamespace>His.Hope.FhirGateway.Api</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Protobuf Include="..\..\..\Shared\Protos\patient.proto" GrpcServices="Client" Link="Protos\patient.proto" />
+    <Protobuf Include="..\..\..\Shared\Protos\clinical.proto" GrpcServices="Client" Link="Protos\clinical.proto" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Hl7.Fhir.R4" Version="5.8.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.4" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
+    <PackageReference Include="Grpc.Net.Client" Version="2.62.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.62.0" PrivateAssets="All" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FhirGateway.Application\FhirGateway.Application.csproj" />

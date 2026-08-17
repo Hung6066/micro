@@ -16,6 +16,7 @@ using His.Hope.Bff.Core.Authentication;
 using His.Hope.IdentityService.Api.Endpoints;
 using His.Hope.IdentityService.Api.Jobs;
 using His.Hope.IdentityService.Api.Services;
+using His.Hope.SharedKernel.Authorization;
 using His.Hope.IdentityService.Api.Configuration;
 using His.Hope.IdentityService.Application;
 using His.Hope.IdentityService.Application.DTOs;
@@ -122,6 +123,125 @@ public static class IdentityServicePipelineExtensions
         app.UseRouting();
         app.UseRateLimiter();
         app.UseDpopAuthorizationSchemeNormalization();
+
+        // BFF-only browser sessions keep the access token server-side in Redis.
+        // API calls arriving through the shared parent-domain cookie therefore
+        // need the same session bridge as the gateway/BFFs before authentication
+        // selects the bearer policy. Never override an explicit Authorization
+        // header, and never accept an unprotected/expired session payload.
+        app.Use(async (context, next) =>
+        {
+            if (!context.Request.Headers.ContainsKey("Authorization") &&
+                context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
+                !string.IsNullOrWhiteSpace(sessionId) &&
+                !context.Request.Path.StartsWithSegments("/connect") &&
+                !context.Request.Path.StartsWithSegments("/Account"))
+            {
+                var redis = context.RequestServices.GetRequiredService<StackExchange.Redis.IConnectionMultiplexer>();
+                var protector = context.RequestServices.GetRequiredService<SessionTokenProtector>();
+                var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
+                if (sessionJson.HasValue)
+                {
+                    try
+                    {
+                        using var document = JsonDocument.Parse((string)sessionJson!);
+                        var root = document.RootElement;
+                        var protectedJwt = root.TryGetProperty("Jwt", out var jwtElement)
+                            ? jwtElement.GetString()
+                            : null;
+                        var expiresAt = root.TryGetProperty("ExpiresAt", out var expiryElement)
+                            ? expiryElement.GetDateTimeOffset()
+                            : DateTimeOffset.MinValue;
+                        var sessionPrincipalType = root.TryGetProperty("PrincipalType", out var principalTypeElement)
+                            ? principalTypeElement.GetString()
+                            : null;
+                        if (!string.IsNullOrWhiteSpace(protectedJwt) && expiresAt > DateTimeOffset.UtcNow)
+                        {
+                            var jwt = protector.Unprotect(protectedJwt);
+
+                            // Migrate legacy/stale BFF sessions. A session can
+                            // carry a valid human marker while its permission
+                            // snapshot is empty or obsolete; that state makes
+                            // every HumanAdmin permission policy return 403.
+                            var tokenGenerator = context.RequestServices.GetRequiredService<JwtTokenGenerator>();
+                            ClaimsPrincipal? tokenPrincipal = null;
+                            try
+                            {
+                                tokenPrincipal = tokenGenerator.GetPrincipalFromExpiredToken(jwt);
+                            }
+                            catch (UnauthorizedAccessException)
+                            {
+                                // Preserve the existing fail-closed behavior
+                                // for invalid or legacy session payloads.
+                            }
+                            var sessionData = JsonSerializer.Deserialize<SessionData>((string)sessionJson!);
+                            var hasHumanPrincipal = string.Equals(sessionPrincipalType, AuthorizationConstants.PrincipalTypes.Human, StringComparison.Ordinal) ||
+                                string.Equals(tokenPrincipal?.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value, AuthorizationConstants.PrincipalTypes.Human, StringComparison.Ordinal);
+                            var hasPermissionClaims = tokenPrincipal?.FindAll("permissions")
+                                .SelectMany(claim => claim.Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+                                .Any() == true;
+                            if ((!hasHumanPrincipal || !hasPermissionClaims) &&
+                                tokenPrincipal is not null &&
+                                Guid.TryParse(root.GetProperty("UserId").GetString(), out var sessionUserId))
+                            {
+                                var userManager = context.RequestServices.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<User>>();
+                                var db = context.RequestServices.GetRequiredService<IdentityDbContext>();
+                                var user = await userManager.FindByIdAsync(sessionUserId.ToString());
+                                if (user is not null)
+                                {
+                                    var roles = await userManager.GetRolesAsync(user);
+                                    var permissions = await db.RolePermissions
+                                        .Where(mapping => roles.Contains(mapping.Role.Name!))
+                                        .Select(mapping => mapping.PermissionCode)
+                                        .Concat(db.BreakGlassRequests
+                                            .Where(request => request.SubjectUserId == user.Id &&
+                                                request.Status == "approved" &&
+                                                request.RevokedAt == null &&
+                                                request.ExpiresAt > DateTime.UtcNow)
+                                            .Select(request => request.PermissionCode))
+                                        .Distinct()
+                                        .ToListAsync();
+                                    var (migratedJwt, migratedExpiry) = tokenGenerator.GenerateAccessToken(
+                                        user,
+                                        roles,
+                                        permissions);
+                                    jwt = migratedJwt;
+                                    if (sessionData is not null)
+                                    {
+                                        sessionData = sessionData with
+                                        {
+                                            Jwt = protector.Protect(migratedJwt),
+                                            PrincipalType = AuthorizationConstants.PrincipalTypes.Human,
+                                            Permissions = permissions.ToArray(),
+                                            ExpiresAt = migratedExpiry < sessionData.ExpiresAt ? migratedExpiry : sessionData.ExpiresAt
+                                        };
+                                        await redis.GetDatabase().StringSetAsync(
+                                            $"session:{sessionId}",
+                                            JsonSerializer.Serialize(sessionData),
+                                            sessionData.ExpiresAt - DateTimeOffset.UtcNow);
+                                    }
+                                }
+                            }
+
+                            context.Request.Headers.Authorization = $"Bearer {jwt}";
+                            context.Request.Headers["X-HisHope-Session"] = "1";
+                        }
+                    }
+                    catch (CryptographicException)
+                    {
+                        // Treat an invalid session as anonymous; the normal
+                        // authentication middleware returns the RFC 401/403.
+                    }
+                    catch (JsonException)
+                    {
+                        // Treat malformed Redis data as an anonymous request.
+                    }
+                }
+            }
+
+            await next();
+        });
+
         app.UseAuthentication();
         app.UseDpopAccessTokenValidation();
         

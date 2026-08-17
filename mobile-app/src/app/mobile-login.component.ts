@@ -1,6 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { Router } from '@angular/router';
-import { HisHopeBrandComponent, HisHopeThemeService, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
+import { HisHopeBrandComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { MobileAuthService } from './core/auth.service';
 
 @Component({

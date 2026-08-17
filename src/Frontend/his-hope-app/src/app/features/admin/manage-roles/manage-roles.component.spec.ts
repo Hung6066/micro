@@ -48,6 +48,8 @@ describe('ManageRolesComponent', () => {
     component = fixture.componentInstance;
     adminService = TestBed.inject(AdminService) as jasmine.SpyObj<AdminService>;
     fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
   });
 
   it('should create', () => {
@@ -64,9 +66,8 @@ describe('ManageRolesComponent', () => {
   });
 
   it('should display role rows', () => {
-    const compiled = fixture.nativeElement as HTMLElement;
-    const rows = compiled.querySelectorAll('mat-row');
-    expect(rows.length).toBe(2);
+    expect(component.roles.length).toBe(2);
+    expect(component.rows.length).toBe(2);
   });
 
   it('should show add role button', () => {

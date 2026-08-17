@@ -53,6 +53,9 @@ public class BillingDbContext : DbContext, IUnitOfWork
             entity.Property(e => e.RetryCount).HasColumnName("RetryCount");
             entity.Property(e => e.LastRetryOn).HasColumnName("LastRetryOn");
             entity.Property(e => e.LockExpiresAt).HasColumnName("LockExpiresAt");
+            entity.Property(e => e.ClaimedBy).HasColumnName("ClaimedBy").HasMaxLength(100);
+            entity.Property(e => e.NextAttemptAt).HasColumnName("NextAttemptAt");
+            entity.Property(e => e.DeadLetteredOn).HasColumnName("DeadLetteredOn");
             entity.HasIndex(e => new { e.Status, e.OccurredOn });
         });
         base.OnModelCreating(modelBuilder);

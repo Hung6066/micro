@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-service
+spec:
+  template:
+    metadata:
+      annotations:
+        config.linkerd.io/skip-outbound-ports: "8200"
+        # K3s service-cluster VIP traffic must bypass Linkerd's outbound
+        # socket rewrite; the Vault TLS session remains end-to-end.
+        config.linkerd.io/skip-subnets: "10.43.0.0/16"
+    spec:
+      containers:
+        - name: identity-service
+          env:
+            - name: Redis__ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: identity-redis-config
+                  key: connection-string
+            - name: Redis__TlsCaFile
+              value: /etc/tls/redis/ca.crt
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+            - name: SSL_CERT_FILE
+              value: /etc/tls/redis/ca.crt
+          volumeMounts:
+            - name: vault-tls-ca
+              mountPath: /etc/tls/vault
+              readOnly: true
+            - name: redis-tls-ca
+              mountPath: /etc/tls/redis
+              readOnly: true
+        - name: pgbouncer
+          volumeMounts:
+            - name: pgbouncer-tmp
+              mountPath: /tmp
+      volumes:
+        - name: pgbouncer-tmp
+          emptyDir: {}
+        - name: vault-tls-ca
+          secret:
+            secretName: vault-tls-ca
+            defaultMode: 0440
+        - name: redis-tls-ca
+          secret:
+            secretName: redis-tls
+            items:
+              - key: ca.crt
+                path: ca.crt
+            defaultMode: 0440

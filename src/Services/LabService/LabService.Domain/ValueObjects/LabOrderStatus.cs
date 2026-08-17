@@ -9,6 +9,9 @@ public class LabOrderStatus : Enumeration<LabOrderStatus>
     public static readonly LabOrderStatus InProgress = new("IN_PROGRESS", "In Progress");
     public static readonly LabOrderStatus Completed = new("COMPLETED", "Completed");
     public static readonly LabOrderStatus Cancelled = new("CANCELLED", "Cancelled");
+    // Legacy orders persisted ORDERED before the order-level status catalog
+    // was aligned with the laboratory workflow.
+    public static readonly LabOrderStatus Ordered = new("ORDERED", "Ordered");
 
     private LabOrderStatus(string code, string name) : base(code, name) { }
 }

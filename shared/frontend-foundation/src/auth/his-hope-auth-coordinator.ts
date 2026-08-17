@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { EMPTY, Observable, ReplaySubject, of, timer } from 'rxjs';
+import { EMPTY, Observable, ReplaySubject, of, throwError, timer } from 'rxjs';
 import { catchError, exhaustMap, finalize, map, shareReplay, switchMap, take, tap } from 'rxjs/operators';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 
@@ -43,6 +43,7 @@ export class HisHopeAuthCoordinator {
   private lastAuthenticated = false;
   private ssoLoginInProgress = false;
   private refreshAccessTokenInFlight$?: Observable<boolean>;
+  private exchangeBffSessionInFlight$?: Observable<void>;
 
   readonly isAuthenticated$: Observable<boolean> = this.authenticatedSubject.asObservable();
 
@@ -112,7 +113,11 @@ export class HisHopeAuthCoordinator {
       this.markSsoLoginInProgress();
       const authorityOrigin = new URL(this.sessionStatusUrl, window.location.origin).origin;
       const target = safeReturnUrl ?? this.defaultReturnUrl;
-      window.location.assign(`${authorityOrigin}/Account/Login?returnUrl=${encodeURIComponent(target)}`);
+      // Return through the SPA login route after Identity authentication so
+      // the coordinator can exchange the Identity cookie for the BFF session
+      // before a protected route guard evaluates the target page.
+      const callbackRoute = `${this.loginRoute}?returnUrl=${encodeURIComponent(target)}`;
+      window.location.assign(`${authorityOrigin}/Account/Login?returnUrl=${encodeURIComponent(callbackRoute)}`);
       return;
     }
     this.oidcLogin();
@@ -146,7 +151,11 @@ export class HisHopeAuthCoordinator {
   }
 
   trySsoLogin(returnUrl?: string): Observable<boolean> {
-    if (this.isSsoLoginInProgress() || this.isSsoSuppressed()) {
+    // In BFF mode the Identity cookie is established by the full-document
+    // redirect. The SPA returns to /auth/login while the in-progress marker
+    // is still present, so that marker must not suppress the cookie exchange.
+    // Token-based OIDC flows retain the suppression guard to avoid loops.
+    if ((!this.bffOnly && this.isSsoLoginInProgress()) || this.isSsoSuppressed()) {
       return of(false);
     }
 
@@ -312,18 +321,36 @@ export class HisHopeAuthCoordinator {
   }
 
   private exchangeBffSession(): Observable<void> {
-    return this.http.post<void>(this.sessionExchangeUrl, {}, { withCredentials: true }).pipe(
-      map(() => void 0),
-      catchError((error: unknown) => {
-        // A restarted Identity service can invalidate development tokens (or
-        // a revoked session can reach this path). Never leave the UI marked
-        // authenticated while every API request is guaranteed to return 401.
-        if (error instanceof HttpErrorResponse && error.status === 401) {
-          this.forceLocalLogout();
-        }
-        return of(void 0);
-      }),
-    );
+    // Several bootstrap paths can observe the Identity cookie at the same
+    // time (initial checkAuth, callback handling and the route guard). A
+    // session exchange rotates hishop_sid, so concurrent exchanges can race:
+    // the later request deletes the first session while its Set-Cookie can
+    // arrive first, leaving the browser with a stale cookie and downstream
+    // APIs returning 401. Share one in-flight exchange across all callers.
+    if (!this.exchangeBffSessionInFlight$) {
+      this.exchangeBffSessionInFlight$ = this.http.post<void>(this.sessionExchangeUrl, {}, { withCredentials: true }).pipe(
+        map(() => void 0),
+        catchError((error: unknown) => {
+          // A restarted Identity service can invalidate development tokens (or
+          // a revoked session can reach this path). Never leave the UI marked
+          // authenticated while every API request is guaranteed to return 401.
+          if (error instanceof HttpErrorResponse && error.status === 401) {
+            this.forceLocalLogout();
+          }
+          // Preserve the failure so the surrounding auth flow publishes
+          // `false`; swallowing a 401 here made the caller continue with
+          // `map(() => true)` and left the UI authenticated while every API
+          // request was rejected.
+          return throwError(() => error);
+        }),
+        finalize(() => {
+          this.exchangeBffSessionInFlight$ = undefined;
+        }),
+        shareReplay({ bufferSize: 1, refCount: false }),
+      );
+    }
+
+    return this.exchangeBffSessionInFlight$;
   }
 
   private requireCompletedMfa(): Observable<boolean> {

@@ -155,7 +155,7 @@ public class Invoice : AggregateRoot<InvoiceId>
         Status = InvoiceStatus.Paid;
         UpdatedAt = DateTime.UtcNow;
 
-        AddDomainEvent(new InvoicePaidDomainEvent(Id.Value, PaidAmount, TotalAmount));
+        AddDomainEvent(new InvoicePaidDomainEvent(Id.Value, PatientId, PaidAmount, TotalAmount));
     }
 
     public void Cancel(string reason)
@@ -204,7 +204,7 @@ public class Invoice : AggregateRoot<InvoiceId>
         if (BalanceDue <= 0)
         {
             Status = InvoiceStatus.Paid;
-            AddDomainEvent(new InvoicePaidDomainEvent(Id.Value, payment.Amount, TotalAmount));
+            AddDomainEvent(new InvoicePaidDomainEvent(Id.Value, PatientId, payment.Amount, TotalAmount));
         }
         else if (PaidAmount > 0)
         {

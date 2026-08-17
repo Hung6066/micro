@@ -12,12 +12,13 @@ public class ValueObjectTests
         {
             var all = LabOrderStatus.GetAll();
 
-            all.Should().HaveCount(5);
+            all.Should().HaveCount(6);
             all.Should().Contain(LabOrderStatus.Pending);
             all.Should().Contain(LabOrderStatus.Submitted);
             all.Should().Contain(LabOrderStatus.InProgress);
             all.Should().Contain(LabOrderStatus.Completed);
             all.Should().Contain(LabOrderStatus.Cancelled);
+            all.Should().Contain(LabOrderStatus.Ordered);
         }
 
         [Fact]
@@ -28,6 +29,7 @@ public class ValueObjectTests
             LabOrderStatus.FromCode("IN_PROGRESS").Should().Be(LabOrderStatus.InProgress);
             LabOrderStatus.FromCode("COMPLETED").Should().Be(LabOrderStatus.Completed);
             LabOrderStatus.FromCode("CANCELLED").Should().Be(LabOrderStatus.Cancelled);
+            LabOrderStatus.FromCode("ORDERED").Should().Be(LabOrderStatus.Ordered);
         }
 
         [Fact]
@@ -55,6 +57,7 @@ public class ValueObjectTests
             LabOrderStatus.InProgress.Code.Should().Be("IN_PROGRESS");
             LabOrderStatus.Completed.Code.Should().Be("COMPLETED");
             LabOrderStatus.Cancelled.Code.Should().Be("CANCELLED");
+            LabOrderStatus.Ordered.Code.Should().Be("ORDERED");
         }
 
         [Fact]
@@ -65,6 +68,7 @@ public class ValueObjectTests
             LabOrderStatus.InProgress.Name.Should().Be("In Progress");
             LabOrderStatus.Completed.Name.Should().Be("Completed");
             LabOrderStatus.Cancelled.Name.Should().Be("Cancelled");
+            LabOrderStatus.Ordered.Name.Should().Be("Ordered");
         }
     }
 

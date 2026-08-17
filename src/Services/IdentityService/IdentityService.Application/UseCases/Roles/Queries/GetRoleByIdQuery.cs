@@ -37,7 +37,15 @@ public class GetRoleByIdQueryHandler : IRequestHandler<GetRoleByIdQuery, RoleDto
                 rp.Permission.Group,
                 rp.Permission.Description,
                 rp.Permission.IsSystem
-            )).ToList()
+            )).ToList(),
+            role.ConcurrencyStamp,
+            role.Owner,
+            role.AuthorizationVersion,
+            role.RiskTier,
+            role.ReviewCadenceDays,
+            role.LifecycleStatus,
+            role.PublishedAt,
+            role.PublishedBy
         );
     }
 }

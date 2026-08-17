@@ -1,10 +1,13 @@
 using His.Hope.AspNetCore;
+using His.Hope.Contracts.Identity;
 using His.Hope.Validation;
 using His.Hope.ServiceDefaults;
+using His.Hope.Persistence;
 using His.Hope.Observability;
 using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
@@ -16,6 +19,7 @@ using His.Hope.Bff.Core.Authentication;
 using His.Hope.IdentityService.Api.Endpoints;
 using His.Hope.IdentityService.Api.Jobs;
 using His.Hope.IdentityService.Api.Services;
+using His.Hope.SharedKernel.Authorization;
 using His.Hope.IdentityService.Api.Configuration;
 using His.Hope.IdentityService.Api.Handlers;
 using His.Hope.IdentityService.Application;
@@ -25,6 +29,8 @@ using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Application.Services;
+using His.Hope.IdentityService.Application.Scim;
+using His.Hope.IdentityService.Application.Provisioning;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.IdentityService.Infrastructure.Facility;
 using His.Hope.Persistence;
@@ -41,6 +47,7 @@ using MediatR;
 using OpenIddictEntityFrameworkCore = OpenIddict.EntityFrameworkCore.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -64,6 +71,15 @@ public static class IdentityServiceRegistrationExtensions
     {
         builder.Services.AddOptions<PushProviderOptions>()
             .Bind(builder.Configuration.GetSection("PushProviders"))
+            .PostConfigure(options =>
+            {
+                if (string.IsNullOrWhiteSpace(options.FirebaseCredentialsJson) &&
+                    !string.IsNullOrWhiteSpace(options.FirebaseCredentialsFile) &&
+                    File.Exists(options.FirebaseCredentialsFile))
+                {
+                    options.FirebaseCredentialsJson = File.ReadAllText(options.FirebaseCredentialsFile);
+                }
+            })
             // Production must never be able to disable provider validation via
             // configuration. Development can still run without push material.
             .Validate(options => !builder.Environment.IsProduction() || !options.Validate().Any(),
@@ -77,10 +93,34 @@ public static class IdentityServiceRegistrationExtensions
             Origins = new HashSet<string>(builder.Configuration.GetSection("Passkeys:Origins").Get<string[]>() ?? new[] { builder.Configuration["OpenIddict:Issuer"] ?? "https://localhost" })
         }));
         builder.Services.AddHttpClient();
+        builder.Services.AddHttpClient("vault")
+            .ConfigurePrimaryHttpMessageHandler(() =>
+            {
+                var handler = new HttpClientHandler();
+                var caPath = builder.Configuration["Vault:TlsCaFile"];
+                if (!string.IsNullOrWhiteSpace(caPath))
+                {
+                    if (!File.Exists(caPath))
+                        throw new InvalidOperationException($"Vault TLS CA file '{caPath}' is missing.");
+                    var ca = new X509Certificate2(caPath);
+                    handler.ServerCertificateCustomValidationCallback = (_, certificate, _, _) =>
+                    {
+                        if (certificate is null) return false;
+                        using var chain = new X509Chain();
+                        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+                        chain.ChainPolicy.CustomTrustStore.Add(ca);
+                        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+                        return chain.Build(new X509Certificate2(certificate));
+                    };
+                }
+                return handler;
+            });
         builder.Services.AddScoped<SamlRuntimeConfigurationService>();
+        builder.Services.AddScoped<IEmailSender, NoOpEmailSender>();
         builder.Services.AddScoped<IPushDeliveryService, PushDeliveryService>();
         builder.Services.AddScoped<OidcLoginCompletionService>();
-        builder.Services.AddHostedService<PushNotificationOutboxWorker>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<PushNotificationOutboxWorker>();
         builder.Services.BindConfig<Saml2Configuration>(builder.Configuration, "Saml2", (services, configuration) =>
         {
             configuration.DetectReplayedTokens = true;
@@ -122,16 +162,13 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
         builder.Services.AddSwaggerGen();
         builder.Services.AddHisHopeContractProblemDetails();
         
-        builder.Services.AddDbContext<IdentityDbContext>(options =>
-            options.UseNpgsql(builder.Configuration.GetConnectionString("IdentityDb"))
+        builder.Services.AddDbContext<IdentityDbContext>((serviceProvider, options) =>
+            options.UseHisHopeNpgsql(serviceProvider, builder.Configuration, "IdentityDb")
                 .UseSnakeCaseNamingConvention());
         builder.Services.AddHisHopeMigrationRunner<IdentityDbContext>();
         builder.Services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<IdentityDbContext>());
         
-        builder.Services.AddHisHopeEnterpriseInfrastructure(
-            builder.Configuration,
-            "identity-service",
-            builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379"));
+        builder.Services.AddHisHopeServicePlatform(builder.Configuration, "identity-service");
         
         // Use Redis distributed cache for token blacklist + refresh token storage (shared across services).
         builder.Services.AddStackExchangeRedisCache(options =>
@@ -197,7 +234,9 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
              options.Cookie.Name = "hishop_auth";
              options.Cookie.HttpOnly = true;
              options.Cookie.SameSite = SameSiteMode.Lax;
-             options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+             options.Cookie.SecurePolicy = builder.Environment.IsProduction()
+                 ? CookieSecurePolicy.Always
+                 : CookieSecurePolicy.SameAsRequest;
              options.LoginPath = "/Account/Login";
              options.Events.OnRedirectToLogin = context =>
              {
@@ -261,17 +300,117 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
                     options.SignInScheme = IdentityConstants.ExternalScheme;
                 });
         }
+
+        // Enterprise Microsoft Entra ID federation. This is intentionally a
+        // separate scheme from the consumer MicrosoftAccount handler so tenant,
+        // issuer and scopes cannot be confused at login time.
+        var entraClientId = builder.Configuration["Authentication:Entra:ClientId"];
+        var entraClientSecret = builder.Configuration["Authentication:Entra:ClientSecret"];
+        var entraAuthority = builder.Configuration["Authentication:Entra:Authority"];
+        if (!string.IsNullOrWhiteSpace(entraClientId) &&
+            !string.IsNullOrWhiteSpace(entraClientSecret) &&
+            Uri.TryCreate(entraAuthority, UriKind.Absolute, out _))
+        {
+            builder.Services.AddAuthentication()
+                .AddOpenIdConnect("Entra", options =>
+                {
+                    options.SignInScheme = IdentityConstants.ExternalScheme;
+                    options.Authority = entraAuthority;
+                    options.ClientId = entraClientId;
+                    options.ClientSecret = entraClientSecret;
+                    options.ResponseType = "code";
+                    options.UsePkce = true;
+                    options.SaveTokens = false;
+                    options.GetClaimsFromUserInfoEndpoint = true;
+                    options.Scope.Clear();
+                    options.Scope.Add("openid");
+                    options.Scope.Add("profile");
+                    options.Scope.Add("email");
+                    options.TokenValidationParameters.NameClaimType = "name";
+                    options.TokenValidationParameters.RoleClaimType = "roles";
+                });
+        }
+
+        // Configured external OIDC sources are isolated schemes. Names are
+        // validated before registration so an upstream cannot select an
+        // arbitrary authentication handler through the callback route.
+        foreach (var source in builder.Configuration.GetSection("Authentication:ExternalSources").GetChildren())
+        {
+            var name = source["Name"];
+            var authority = source["Authority"];
+            var clientId = source["ClientId"];
+            var clientSecret = source["ClientSecret"];
+            if (string.IsNullOrWhiteSpace(name) || !System.Text.RegularExpressions.Regex.IsMatch(name, "^[A-Za-z][A-Za-z0-9_-]{1,31}$") ||
+                !Uri.TryCreate(authority, UriKind.Absolute, out var sourceAuthority) || sourceAuthority.Scheme != Uri.UriSchemeHttps ||
+                string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(clientSecret))
+                continue;
+            builder.Services.AddAuthentication().AddOpenIdConnect(name, options =>
+            {
+                options.SignInScheme = IdentityConstants.ExternalScheme;
+                options.Authority = sourceAuthority.ToString().TrimEnd('/');
+                options.ClientId = clientId;
+                options.ClientSecret = clientSecret;
+                options.ResponseType = "code";
+                options.UsePkce = true;
+                options.SaveTokens = false;
+                options.GetClaimsFromUserInfoEndpoint = true;
+                options.Scope.Clear();
+                options.Scope.Add("openid");
+                options.Scope.Add("profile");
+                options.Scope.Add("email");
+            });
+        }
         
         // SECURITY: Token blacklist service for JWT revocation
         builder.Services.AddHisHopeTokenBlacklist();
         
         // SECURITY: Register permission-based authorization policies
         builder.Services.AddHisHopeAuthorization();
+        builder.Services.AddAuthorizationBuilder()
+            .AddPolicy("ScimM2M", policy => policy
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context =>
+                {
+                    var hasScimScope = ScimAuthorization.HasProvisioningScope(context.User);
+                    var hasClientIdentity = context.User.HasClaim(claim =>
+                        claim.Type is "client_id" or "azp" && !string.IsNullOrWhiteSpace(claim.Value));
+                    var isWorkload = string.Equals(
+                        context.User.FindFirst(AuthorizationConstants.Claims.PrincipalType)?.Value,
+                        AuthorizationConstants.PrincipalTypes.Workload,
+                        StringComparison.Ordinal);
+                    if (hasScimScope && hasClientIdentity && isWorkload)
+                        return true;
+
+                    // Preserve existing integration-test/admin workflow only in
+                    // non-production environments; production is M2M-only.
+                    var http = context.Resource as HttpContext;
+                    var environment = http?.RequestServices.GetService<IHostEnvironment>();
+                    return environment?.IsDevelopment() == true ||
+                           environment?.EnvironmentName == "Testing" && context.User.IsInRole("Admin");
+                }));
+        builder.Services.AddAuthorizationBuilder()
+            .AddPolicy("ScimM2MRead", policy => policy.RequireAssertion(context =>
+                ScimAuthorization.HasScope(context.User, ScimAuthorization.ReadScope) ||
+                ScimAuthorization.HasScope(context.User, ScimAuthorization.WriteScope)))
+            .AddPolicy("ScimM2MWrite", policy => policy.RequireAssertion(context =>
+                ScimAuthorization.HasScope(context.User, ScimAuthorization.WriteScope)));
         
         // SECURITY: Facility/tenant boundary — scoped FacilityContext + authorization handler
         builder.Services.AddFacilityBoundary();
         builder.Services.AddScoped<JwtTokenGenerator>();
         builder.Services.AddScoped<IIdentityService, His.Hope.IdentityService.Infrastructure.Services.IdentityService>();
+        builder.Services.AddHttpClient("security-signals", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+        builder.Services.AddHttpClient("directory-provisioning", client => client.Timeout = TimeSpan.FromSeconds(15));
+        builder.Services.AddScoped<IProvisioningTarget, ScimOutboundProvisioningTarget>();
+        builder.Services.AddScoped<IProvisioningTarget, EntraOutboundProvisioningTarget>();
+        builder.Services.AddScoped<IProvisioningTarget, GoogleWorkspaceProvisioningTarget>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<DirectoryProvisioningDispatcher>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<SecuritySignalDispatcher>();
         builder.Services.AddScoped<TotpService>();
         builder.Services.AddScoped<RecoveryCodeService>();
         builder.Services.AddScoped<IdentityBrokerService>();
@@ -282,10 +421,20 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
         {
             options.AddDefaultPolicy(policy =>
             {
-                policy.WithOrigins(
-                        "http://localhost:8081", "http://localhost:8082", "http://localhost:8083",
-                        "http://localhost:4200", "http://localhost:4201", "http://localhost:4202", "http://localhost:4300",
-                        "https://localhost", "http://localhost", "capacitor://localhost")
+                var configuredOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+                var developmentOrigins = new[]
+                {
+                    "http://localhost:8081", "http://localhost:8082", "http://localhost:8083",
+                    "http://localhost:4200", "http://localhost:4201", "http://localhost:4202", "http://localhost:4300",
+                    "https://localhost", "http://localhost", "capacitor://localhost",
+                    "http://app.his-hope.local:9080", "http://dashboard.his-hope.local:9080", "http://admin.his-hope.local:9080"
+                };
+                var origins = configuredOrigins.Length > 0
+                    ? configuredOrigins
+                    : builder.Environment.IsProduction()
+                        ? new[] { "https://app.his-hope.vn", "https://dashboard.his-hope.vn", "https://admin.his-hope.vn" }
+                        : developmentOrigins;
+                policy.WithOrigins(origins)
                     .WithHeaders("Authorization", "DPoP", "Content-Type", "X-CSRF-Token", "X-Correlation-ID", "Accept-Language", "X-Timezone", "X-Currency")
                     .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                     .AllowCredentials();
@@ -301,11 +450,17 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
                 await context.HttpContext.Response.WriteAsJsonAsync(
                     new { error = "rate_limit_exceeded" }, cancellationToken);
             };
+            string RateLimitKey(HttpContext context)
+            {
+                var configuredForwardedKey = context.Request.Headers["X-RateLimit-Key"].FirstOrDefault();
+                if (builder.Configuration.GetValue("RateLimiting:TrustForwardedKey", false) &&
+                    !string.IsNullOrWhiteSpace(configuredForwardedKey))
+                    return configuredForwardedKey;
+                return context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            }
             options.AddPolicy("auth", context =>
             {
-                var key = context.Request.Headers["X-RateLimit-Key"].FirstOrDefault()
-                    ?? context.Connection.RemoteIpAddress?.ToString()
-                    ?? "unknown";
+                var key = RateLimitKey(context);
                 return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
                 {
                     PermitLimit = builder.Configuration.GetValue("RateLimiting:AuthPermitLimit", 30),
@@ -316,9 +471,7 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
             });
             options.AddPolicy("mfa", context =>
             {
-                var key = context.Request.Headers["X-RateLimit-Key"].FirstOrDefault()
-                    ?? context.Connection.RemoteIpAddress?.ToString()
-                    ?? "unknown";
+                var key = RateLimitKey(context);
                 return RateLimitPartition.GetFixedWindowLimiter($"mfa:{key}", _ => new FixedWindowRateLimiterOptions
                 {
                     PermitLimit = builder.Configuration.GetValue(
@@ -330,9 +483,7 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
             });
             options.AddPolicy("scim", context =>
             {
-                var key = context.Request.Headers["X-RateLimit-Key"].FirstOrDefault()
-                    ?? context.Connection.RemoteIpAddress?.ToString()
-                    ?? "unknown";
+                var key = RateLimitKey(context);
                 return RateLimitPartition.GetFixedWindowLimiter($"scim:{key}", _ => new FixedWindowRateLimiterOptions
                 {
                     PermitLimit = builder.Configuration.GetValue(
@@ -346,21 +497,25 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
         
         // SECURITY: Redis-backed refresh token store (replaces in-memory ConcurrentDictionary)
         builder.Services.AddSingleton<RedisRefreshTokenStore>();
+        builder.Services.AddSingleton<IWorkloadSessionStore, RedisWorkloadSessionStore>();
         
         // Durable admin bulk/export jobs. Redis Streams provides at-least-once delivery;
         // job state and export results have bounded TTLs to avoid unbounded Redis growth.
         builder.Services.AddSingleton<RedisAdminJobStore>();
-        builder.Services.AddHostedService<AdminJobWorker>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<AdminJobWorker>();
         
         // SECURITY: Binds tokens to (user_id, ip_hash, client_id) to prevent cross-IP replay attacks
         builder.Services.AddSingleton<TokenBindingService>();
         
         builder.Services.AddIdentityApplication();
+        builder.Services.AddSingleton<His.Hope.IdentityService.Application.DevicePosture.DevicePosturePolicyEvaluator>();
         
         // LDAP Sync service (disabled by default)
         builder.Services.AddScoped<ExternalIdentityProviderRuntime>();
         builder.Services.AddScoped<LdapSyncService>();
-        builder.Services.AddHostedService<LdapBackgroundService>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<LdapBackgroundService>();
         
         // gRPC services
         builder.Services.AddGrpc(options =>
@@ -374,14 +529,17 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
         builder.Services.AddSingleton<VaultClientSecretStore>();
         
         // Health checks: Vault, DB, Redis — tagged for readiness probe
+        builder.Services.AddSingleton<DbHealthCheck>(sp => new DbHealthCheck(
+            builder.Configuration.GetConnectionString("IdentityDb")!,
+            sp.GetRequiredService<His.Hope.Secrets.IVaultDatabaseConnectionStringResolver>()));
         builder.Services.AddHealthChecks()
             .AddCheck<VaultHealthCheck>("vault-transit", tags: new[] { "ready" })
-            .AddCheck("identity-db", new DbHealthCheck(
-                builder.Configuration.GetConnectionString("IdentityDb")!), tags: new[] { "ready" })
+            .AddCheck<DbHealthCheck>("identity-db", tags: new[] { "ready" })
             .AddCheck("redis", new RedisHealthCheck(
                 builder.Configuration.GetConnectionString("Redis")
                     ?? builder.Configuration.GetValue<string>("Redis:ConnectionString")
-                    ?? "localhost:6379"), tags: new[] { "ready" });
+                    ?? "localhost:6379",
+                builder.Configuration), tags: new[] { "ready" });
         
         // Persist the DataProtection key ring in Redis so cookies, BFF session protection,
         // and MFA encryption survive container replacement and work across replicas.
@@ -393,7 +551,7 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
         builder.Services.AddDataProtection()
             .SetApplicationName("His.Hope.IdentityService")
             .PersistKeysToStackExchangeRedis(
-                ConnectionMultiplexer.Connect(dataProtectionRedis),
+                RedisConnectionFactory.Connect(dataProtectionRedis, builder.Configuration),
                 dataProtectionKeyName);
         builder.Services.AddSingleton<SessionTokenProtector>();
         
@@ -427,15 +585,16 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
             {
                 options.SetIssuer(new Uri(oidcConfig["Issuer"]!));
         
-                options.SetAuthorizationEndpointUris("/connect/authorize");
-                options.SetTokenEndpointUris("/connect/token");
-                options.SetLogoutEndpointUris("/connect/logout");
-                options.SetRevocationEndpointUris("/connect/revoke");
-                options.SetIntrospectionEndpointUris("/connect/introspect");
+                options.SetAuthorizationEndpointUris(IdentityApiRoutes.OidcAuthorize);
+                options.SetTokenEndpointUris(IdentityApiRoutes.OidcToken);
+                options.SetLogoutEndpointUris(IdentityApiRoutes.OidcLogout);
+                options.SetRevocationEndpointUris(IdentityApiRoutes.OidcRevoke);
+                options.SetIntrospectionEndpointUris(IdentityApiRoutes.OidcIntrospect);
         
                 options.AllowAuthorizationCodeFlow()
                        .AllowRefreshTokenFlow()
                        .AllowClientCredentialsFlow()
+                       .AllowCustomFlow(AuthorizationConstants.GrantTypes.TokenExchange)
                        .RequireProofKeyForCodeExchange();
         
                 // Keep refresh-token payloads server-side and make redeemed tokens
@@ -452,7 +611,19 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
                     OpenIddictConstants.Scopes.Roles,
                     OpenIddictConstants.Scopes.OfflineAccess,
                     "hishop:permissions",
-                    "hishop:admin");
+                    "hishop:admin",
+                    "hishop:patients",
+                    "hishop:appointments",
+                    "hishop:clinical",
+                    "hishop:lab",
+                    "hishop:billing",
+                    "hishop:pharmacy",
+                    // Resource-specific scopes keep interoperability clients
+                    // from turning a broad clinical permission into an
+                    // unrestricted FHIR read surface.
+                    "fhir.patient.read",
+                    "fhir.encounter.read",
+                    "platform.continuity.write");
         
                 options.SetAccessTokenLifetime(TimeSpan.Parse(oidcConfig["AccessTokenLifetime"]!));
                 options.SetRefreshTokenLifetime(TimeSpan.Parse(oidcConfig["RefreshTokenLifetime"]!));
@@ -484,6 +655,8 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
                 options.AddEventHandler(DpopTokenBindingHandler.Descriptor);
                 options.AddEventHandler(DpopTokenResponseHandler.Descriptor);
                 options.AddEventHandler(CustomPopulateTokenClaims.Descriptor);
+                options.AddEventHandler(CustomHandleClientCredentialsRequest.Descriptor);
+                options.AddEventHandler(CustomHandleTokenExchangeRequest.Descriptor);
                 if (builder.Environment.IsDevelopment() || oidcConfig.GetValue<bool>("AllowInsecureHttp"))
                     aspNetCore.DisableTransportSecurityRequirement();
 
@@ -502,10 +675,15 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
             });
         
         // PHI Audit with durable background processing (HIPAA 164.312(b))
-        var auditChannel = System.Threading.Channels.Channel.CreateBounded<His.Hope.Infrastructure.Audit.PhiAuditEntry>(
-            new System.Threading.Channels.BoundedChannelOptions(10_000)
+        // Audit events must not be discarded under load. The worker drains an
+        // unbounded in-process queue to the durable database; shutdown drains
+        // remaining entries before completing.
+        var auditChannel = System.Threading.Channels.Channel.CreateUnbounded<His.Hope.Infrastructure.Audit.PhiAuditEntry>(
+            new System.Threading.Channels.UnboundedChannelOptions
             {
-                FullMode = System.Threading.Channels.BoundedChannelFullMode.DropOldest
+                SingleReader = true,
+                SingleWriter = false,
+                AllowSynchronousContinuations = false
             });
         builder.Services.AddSingleton(auditChannel);
         
@@ -515,7 +693,8 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
             builder.Services.Remove(defaultAuditDescriptor);
         
         builder.Services.AddSingleton<DatabaseAuditService>();
-        builder.Services.AddHostedService<DatabaseAuditBackgroundService>();
+        if (!builder.Environment.IsEnvironment("Testing"))
+            builder.Services.AddHostedService<DatabaseAuditBackgroundService>();
         
         builder.Services.AddSingleton<His.Hope.Infrastructure.Audit.IAuditService>(sp =>
         {
@@ -533,11 +712,11 @@ builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "IdentityServi
         {
             builder.WebHost.ConfigureKestrel(options =>
             {
-                options.ListenAnyIP(5001, listenOptions =>
+                options.Listen(System.Net.IPAddress.Any, 5003, listenOptions =>
                 {
                     listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
                 });
-                options.ListenAnyIP(5012, listenOptions =>
+                options.Listen(System.Net.IPAddress.Any, 5007, listenOptions =>
                 {
                     listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
                 });

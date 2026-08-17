@@ -2,11 +2,13 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using His.Hope.Infrastructure;
+using His.Hope.Contracts.Identity;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Locking;
 using His.Hope.Observability;
 using His.Hope.IdentityService.Application.Interfaces;
+using His.Hope.Secrets;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Npgsql;
 using StackExchange.Redis;
@@ -17,6 +19,12 @@ namespace His.Hope.IdentityService.Api.Composition;
 
 internal static class BffHelpers
 {
+    internal static string? CookieDomain(IConfiguration configuration)
+    {
+        var domain = configuration["Authentication:CookieDomain"]?.Trim();
+        return string.IsNullOrWhiteSpace(domain) ? null : domain;
+    }
+
     internal static string ComputeSha256(string input)
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(input ?? ""));
@@ -45,7 +53,7 @@ internal static class LegacyEndpointFilter
         {
             ctx.HttpContext.Response.Headers["Deprecation"] = "true";
             ctx.HttpContext.Response.Headers["Sunset"] = "Sat, 01 Jan 2028 00:00:00 GMT";
-            ctx.HttpContext.Response.Headers["Link"] = "</connect/authorize>; rel=\"successor-version\"";
+            ctx.HttpContext.Response.Headers["Link"] = $"<{IdentityApiRoutes.OidcAuthorize}>; rel=\"successor-version\"";
             return await next(ctx);
         });
     }
@@ -60,6 +68,7 @@ internal class ProductionConfigurationValidator
 
         var config = app.Services.GetRequiredService<IConfiguration>();
         var logger = app.Services.GetRequiredService<ILogger<Program>>();
+        var localHttpMode = config.GetValue("HisHope:LocalHttpMode", false);
 
         var errors = new List<string>();
 
@@ -69,13 +78,16 @@ internal class ProductionConfigurationValidator
             errors.Add("Vault:Address is required in production.");
         if (!config.GetValue("Vault:EnableTransit", false))
             errors.Add("Vault:EnableTransit must be true in production.");
-        var vaultToken = config["Vault:Token"] ?? config["VAULT_TOKEN"];
-        if (string.IsNullOrWhiteSpace(vaultToken) || IsPlaceholder(vaultToken))
-            errors.Add("Vault:Token or VAULT_TOKEN is required in production.");
+        var vaultRole = config["Vault:Role"];
+        var vaultJwtFile = config["Vault:JwtTokenFile"];
+        if (string.IsNullOrWhiteSpace(vaultRole) || string.IsNullOrWhiteSpace(vaultJwtFile))
+            errors.Add("Vault:Role and Vault:JwtTokenFile are required in production; static Vault tokens are forbidden.");
+        if (!string.IsNullOrWhiteSpace(config["Vault:Token"]) || !string.IsNullOrWhiteSpace(config["VAULT_TOKEN"]))
+            errors.Add("Vault:Token and VAULT_TOKEN are forbidden in production.");
 
         // Issuer must use HTTPS
         var issuer = config["OpenIddict:Issuer"];
-        if (string.IsNullOrWhiteSpace(issuer) || !issuer.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        if (!localHttpMode && (string.IsNullOrWhiteSpace(issuer) || !issuer.StartsWith("https://", StringComparison.OrdinalIgnoreCase)))
             errors.Add("OpenIddict:Issuer must use HTTPS in production.");
 
         // Redis must be configured
@@ -84,7 +96,7 @@ internal class ProductionConfigurationValidator
             errors.Add("Redis connection string is required in production.");
 
         // Insecure HTTP must be disabled
-        if (config.GetValue<bool>("OpenIddict:AllowInsecureHttp"))
+        if (!localHttpMode && config.GetValue<bool>("OpenIddict:AllowInsecureHttp"))
             errors.Add("OpenIddict:AllowInsecureHttp must be false in production.");
 
         if (errors.Count > 0)
@@ -97,18 +109,26 @@ internal class ProductionConfigurationValidator
                 string.Join("\n", errors.Select(e => $"  - {e}")));
         }
 
+        if (localHttpMode)
+            logger.LogWarning("Local HTTP compatibility mode is enabled; HTTPS is required before production use.");
         logger.LogInformation("Production configuration validation passed.");
     }
 
-    private static bool IsPlaceholder(string value) =>
-        value.StartsWith("${", StringComparison.Ordinal) && value.EndsWith('}');
 }
 
 // Health check for PostgreSQL connectivity
 internal class DbHealthCheck : Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck
 {
     private readonly string _connectionString;
-    public DbHealthCheck(string connectionString) => _connectionString = connectionString;
+    private readonly IVaultDatabaseConnectionStringResolver? _resolver;
+
+    public DbHealthCheck(
+        string connectionString,
+        IVaultDatabaseConnectionStringResolver? resolver = null)
+    {
+        _connectionString = connectionString;
+        _resolver = resolver;
+    }
 
     public async Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult> CheckHealthAsync(
         Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext context,
@@ -116,7 +136,8 @@ internal class DbHealthCheck : Microsoft.Extensions.Diagnostics.HealthChecks.IHe
     {
         try
         {
-            using var conn = new Npgsql.NpgsqlConnection(_connectionString);
+            var connectionString = _resolver?.Resolve(_connectionString, "IdentityDb") ?? _connectionString;
+            using var conn = new Npgsql.NpgsqlConnection(connectionString);
             await conn.OpenAsync(ct);
             await using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT 1";
@@ -134,7 +155,13 @@ internal class DbHealthCheck : Microsoft.Extensions.Diagnostics.HealthChecks.IHe
 internal class RedisHealthCheck : Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck
 {
     private readonly string _connectionString;
-    public RedisHealthCheck(string connectionString) => _connectionString = connectionString;
+    private readonly IConfiguration _configuration;
+
+    public RedisHealthCheck(string connectionString, IConfiguration configuration)
+    {
+        _connectionString = connectionString;
+        _configuration = configuration;
+    }
 
     public async Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult> CheckHealthAsync(
         Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckContext context,
@@ -142,8 +169,9 @@ internal class RedisHealthCheck : Microsoft.Extensions.Diagnostics.HealthChecks.
     {
         try
         {
-            using var redis = await StackExchange.Redis.ConnectionMultiplexer.ConnectAsync(
-                _connectionString, _ => _.ConnectTimeout = 3000);
+            var options = RedisConnectionFactory.CreateOptions(_connectionString, _configuration);
+            options.ConnectTimeout = 3000;
+            using var redis = await StackExchange.Redis.ConnectionMultiplexer.ConnectAsync(options);
             var db = redis.GetDatabase();
             await db.PingAsync();
             return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Redis OK");

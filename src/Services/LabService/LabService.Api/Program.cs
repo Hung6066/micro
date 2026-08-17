@@ -14,6 +14,8 @@ using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Authorization;
+using His.Hope.SharedKernel.Authorization;
+using His.Hope.LabService.Domain.Entities;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Persistence;
@@ -56,10 +58,7 @@ His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuth
 builder.Services.AddHisHopeAuthorization();
 
 // Enterprise Infrastructure
-builder.Services.AddHisHopeEnterpriseInfrastructure(
-    builder.Configuration,
-    "lab-service",
-    builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379"));
+builder.Services.AddHisHopeServicePlatform(builder.Configuration, "lab-service");
 
 builder.Services.AddOutbox<LabDbContext>();
 
@@ -78,7 +77,7 @@ builder.Services.AddRabbitMQEventBus(options =>
     options.Port = builder.Configuration.GetValue("EventBus:Port", 5672);
     options.UserName = builder.Configuration.GetValue("EventBus:UserName", "admin")!;
     options.Password = builder.Configuration.GetValue("EventBus:Password", "admin")!;
-    options.ExchangeName = "his_hope_lab";
+    options.ExchangeName = builder.Configuration.GetValue("EventBus:InternalExchangeName", "his_hope_exchange")!;
     options.UseSsl = builder.Configuration.GetValue("EventBus:UseSsl", false);
     options.ClientCertificatePath = builder.Configuration["EventBus:ClientCertificatePath"];
     options.ClientCertificatePassword = builder.Configuration["EventBus:ClientCertificatePassword"];
@@ -95,32 +94,33 @@ builder.Services.AddHealthChecks()
         name: "rabbitmq", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded)
     .AddRedisCheck(
         builder.Configuration.GetValue("Redis:ConnectionString", "localhost:6379")!,
-        name: "redis", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded);
+        name: "redis", failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded,
+        configuration: builder.Configuration);
 
 // Kestrel Configuration
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.ListenAnyIP(5010, listenOptions =>
+    options.Listen(System.Net.IPAddress.Any, 5010, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
     });
 
-    options.ListenAnyIP(5017, listenOptions =>
-    {
-        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-    });
-
-    options.ListenAnyIP(5018, listenOptions =>
-    {
-        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
-    });
-
-    options.ListenAnyIP(5019, listenOptions =>
+    options.Listen(System.Net.IPAddress.Any, 5012, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
     });
 
-    options.ListenAnyIP(5020, listenOptions =>
+    options.Listen(System.Net.IPAddress.Any, 5018, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1AndHttp2;
+    });
+
+    options.Listen(System.Net.IPAddress.Any, 5019, listenOptions =>
+    {
+        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
+    });
+
+    options.Listen(System.Net.IPAddress.Any, 5020, listenOptions =>
     {
         listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
     });
@@ -135,10 +135,16 @@ if (app.Environment.IsDevelopment())
     var db = scope.ServiceProvider.GetRequiredService<LabDbContext>();
     db.Database.EnsureCreated();
 }
-else
+else if (builder.Configuration.GetValue("Persistence:RunMigrationsOnStartup", false) ||
+         builder.Configuration.GetValue("Persistence:MigrationOnly", false))
 {
     using var scope = app.Services.CreateScope();
     await scope.ServiceProvider.GetRequiredService<IMigrationRunner>().MigrateAsync();
+}
+
+if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
+{
+    return;
 }
 
 // Middleware Pipeline (order matters)
@@ -173,6 +179,7 @@ var labOrders = app.MapGroup("/api/v1/lab-orders").RequireAuthorization();
 labOrders.MapGet("/", async (
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct,
     int page = 1,
     int pageSize = 20,
@@ -182,14 +189,17 @@ labOrders.MapGet("/", async (
     DateTime? dateFrom = null,
     DateTime? dateTo = null) =>
 {
-    var cacheKey = $"laborders:search:{search}:{page}:{pageSize}:{patientId}:{status}:{dateFrom}:{dateTo}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"laborders:search:{scopeKey}:{search}:{page}:{pageSize}:{patientId}:{status}:{dateFrom}:{dateTo}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
         async () => await mediator.Send(new SearchLabOrdersQuery(
-            search ?? "", page, pageSize, patientId, status, dateFrom, dateTo), ct),
+            search ?? "", page, pageSize, patientId, status, dateFrom, dateTo,
+            accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:lab.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.LabView).WithOpenApi();
 
 labOrders.MapGet("/search", async (
     string? q,
@@ -197,27 +207,39 @@ labOrders.MapGet("/search", async (
     int pageSize,
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct,
     Guid? patientId = null,
     string? status = null,
     DateTime? dateFrom = null,
     DateTime? dateTo = null) =>
 {
-    var cacheKey = $"laborders:search:{q}:{page}:{pageSize}:{patientId}:{status}:{dateFrom}:{dateTo}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"laborders:search:{scopeKey}:{q}:{page}:{pageSize}:{patientId}:{status}:{dateFrom}:{dateTo}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
         async () => await mediator.Send(new SearchLabOrdersQuery(
-            q ?? "", page, pageSize, patientId, status, dateFrom, dateTo), ct),
+            q ?? "", page, pageSize, patientId, status, dateFrom, dateTo,
+            accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:lab.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.LabView).WithOpenApi();
 
 labOrders.MapGet("/{id:guid}", async (
     Guid id,
     IMediator mediator,
     ICacheService cache,
+    LabDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(db.LabOrders,
+        order => order.Id == LabOrderId.From(id), order => order.FacilityId,
+        httpContext.User, HisHopePermissions.LabOrders.View, "lab-order", id.ToString("D"), ct);
+    if (!decision.Allowed) return Results.NotFound();
+
     var result = await mediator.Send(new GetLabOrderByIdQuery(id), ct);
     if (result is null) return Results.NotFound();
     var labOrder = await cache.GetOrSetAsync(
@@ -225,27 +247,30 @@ labOrders.MapGet("/{id:guid}", async (
         () => Task.FromResult(result),
         TimeSpan.FromMinutes(5), ct);
     return Results.Ok(labOrder);
-}).RequireAuthorization("Permission:lab.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.LabView).WithOpenApi();
 
 labOrders.MapGet("/patient/{patientId:guid}", async (
     Guid patientId,
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
-    var cacheKey = $"laborders:patient:{patientId}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"laborders:patient:{scopeKey}:{patientId}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
-        async () => await mediator.Send(new GetLabOrdersByPatientQuery(patientId), ct),
+        async () => await mediator.Send(new GetLabOrdersByPatientQuery(patientId,
+            accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(5), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:lab.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.LabView).WithOpenApi();
 
 labOrders.MapPost("/", async (
     CreateLabOrderRequest request,
     IMediator mediator,
     ICacheService cache,
-    IEventBus eventBus,
     CancellationToken ct) =>
 {
     var command = new CreateLabOrderCommand(
@@ -255,84 +280,110 @@ labOrders.MapPost("/", async (
 
     var labOrder = await mediator.Send(command, ct);
 
-    await eventBus.PublishAsync(new LabOrderCreatedIntegrationEvent(
-        labOrder.Id, labOrder.PatientId, labOrder.ProviderId), ct);
-
     await cache.RemoveByPrefixAsync("laborders:", ct);
 
     return Results.Created($"/api/v1/lab-orders/{labOrder.Id}", labOrder);
-}).RequireAuthorization("Permission:lab.create").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.LabCreate).WithOpenApi();
 
 labOrders.MapPut("/{id:guid}/submit", async (
     Guid id,
     IMediator mediator,
     ICacheService cache,
-    IEventBus eventBus,
+    LabDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
-    await mediator.Send(new SubmitLabOrderCommand(id), ct);
+    var decision = await authorization.EvaluateResourceAsync(db.LabOrders,
+        order => order.Id == LabOrderId.From(id), order => order.FacilityId,
+        httpContext.User, HisHopePermissions.LabOrders.Update, "lab-order", id.ToString("D"), ct);
+    if (!decision.Allowed) return Results.NotFound();
 
-    await eventBus.PublishAsync(new LabOrderSubmittedIntegrationEvent(id), ct);
+    await mediator.Send(new SubmitLabOrderCommand(id), ct);
 
     await cache.RemoveAsync($"laborder:{id}", ct);
     await cache.RemoveByPrefixAsync("laborders:", ct);
 
     return Results.NoContent();
-}).RequireAuthorization("Permission:lab.update").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.LabUpdate).WithOpenApi();
 
 labOrders.MapPut("/{id:guid}/collect", async (
     Guid id,
     IMediator mediator,
     ICacheService cache,
+    LabDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(db.LabOrders,
+        order => order.Id == LabOrderId.From(id), order => order.FacilityId,
+        httpContext.User, HisHopePermissions.LabOrders.Update, "lab-order", id.ToString("D"), ct);
+    if (!decision.Allowed) return Results.NotFound();
+
     await mediator.Send(new CollectLabOrderSpecimenCommand(id), ct);
     await cache.RemoveAsync($"laborder:{id}", ct);
     await cache.RemoveByPrefixAsync("laborders:", ct);
     return Results.NoContent();
-}).RequireAuthorization("Permission:lab.update").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.LabUpdate).WithOpenApi();
 
 labOrders.MapPut("/{id:guid}/result", async (
     Guid id,
     RecordLabResultRequest request,
     IMediator mediator,
     ICacheService cache,
+    LabDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(db.LabOrders,
+        order => order.Id == LabOrderId.From(id), order => order.FacilityId,
+        httpContext.User, HisHopePermissions.LabOrders.Result, "lab-order", id.ToString("D"), ct);
+    if (!decision.Allowed) return Results.NotFound();
+
     await mediator.Send(new RecordLabOrderResultCommand(
         id, request.TestId, request.Value, request.AbnormalFlagCode, request.Notes), ct);
     await cache.RemoveAsync($"laborder:{id}", ct);
     await cache.RemoveByPrefixAsync("laborders:", ct);
     return Results.NoContent();
-}).RequireAuthorization("Permission:lab.result").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.LabResult).WithOpenApi();
 
 labOrders.MapPut("/{id:guid}/cancel", async (
     Guid id,
     CancelLabOrderRequest request,
     IMediator mediator,
     ICacheService cache,
+    LabDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(db.LabOrders,
+        order => order.Id == LabOrderId.From(id), order => order.FacilityId,
+        httpContext.User, HisHopePermissions.LabOrders.Cancel, "lab-order", id.ToString("D"), ct);
+    if (!decision.Allowed) return Results.NotFound();
+
     await mediator.Send(new CancelLabOrderCommand(id, request.Reason), ct);
     await cache.RemoveAsync($"laborder:{id}", ct);
     await cache.RemoveByPrefixAsync("laborders:", ct);
     return Results.NoContent();
-}).RequireAuthorization("Permission:lab.cancel").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.LabCancel).WithOpenApi();
 
 // Patient-specific lab-orders aggregate endpoint (routed via YARP from /api/v1/patients/{patientId:guid}/lab-orders)
 app.MapGet("/api/v1/patients/{patientId:guid}/lab-orders", async (Guid patientId) =>
 {
     return Results.Ok(new { patientId, items = new List<object>() });
-}).RequireAuthorization("Permission:lab.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.LabView).WithOpenApi();
 
 // gRPC
 app.MapGrpcService<LabGrpcServiceImpl>();
 app.MapGrpcHealthChecksService();
-app.MapHub<LabCriticalAlertHub>("/hubs/lab-critical-alerts").RequireAuthorization("Permission:lab.view");
+app.MapHub<LabCriticalAlertHub>("/hubs/lab-critical-alerts").RequireAuthorization(AuthorizationPolicyNames.Permissions.LabView);
 app.MapCriticalAlertEndpoints();
 
 // Health checks
-app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+app.MapHealthChecks("/health/details", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = _ => true,
     ResponseWriter = async (ctx, report) =>

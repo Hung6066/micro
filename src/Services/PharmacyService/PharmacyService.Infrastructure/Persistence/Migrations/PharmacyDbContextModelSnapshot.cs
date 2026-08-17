@@ -293,6 +293,12 @@ namespace His.Hope.PharmacyService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Status");
 
+                    b.HasIndex("PatientId", "PrescribedDate")
+                        .HasDatabaseName("IX_Prescriptions_Patient_Date_Id");
+
+                    b.HasIndex("FacilityId", "Status", "PrescribedDate")
+                        .HasDatabaseName("IX_Prescriptions_Facility_Status_Date_Id");
+
                     b.ToTable("Prescriptions", (string)null);
                 });
 #pragma warning restore 612, 618

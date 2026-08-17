@@ -1,0 +1,209 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: patient-service
+          env:
+            - name: Vault__Address
+              value: https://vault-active.his-hope-dev.svc.cluster.local:8200
+            - name: Vault__AuthMount
+              value: kubernetes
+            - name: Vault__Role
+              value: patient-service
+            - name: Vault__JwtTokenFile
+              value: /var/run/secrets/tokens/vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+          volumeMounts:
+            - name: vault-workload-token
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
+      volumes:
+        - name: vault-workload-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: vault
+                  audience: vault
+                  expirationSeconds: 3600
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: clinical-service
+          env:
+            - name: Vault__Address
+              value: https://vault-active.his-hope-dev.svc.cluster.local:8200
+            - name: Vault__AuthMount
+              value: kubernetes
+            - name: Vault__Role
+              value: clinical-service
+            - name: Vault__JwtTokenFile
+              value: /var/run/secrets/tokens/vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+          volumeMounts:
+            - name: vault-workload-token
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
+      volumes:
+        - name: vault-workload-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: vault
+                  audience: vault
+                  expirationSeconds: 3600
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: appointment-service
+          env:
+            - name: Vault__Address
+              value: https://vault-active.his-hope-dev.svc.cluster.local:8200
+            - name: Vault__AuthMount
+              value: kubernetes
+            - name: Vault__Role
+              value: appointment-service
+            - name: Vault__JwtTokenFile
+              value: /var/run/secrets/tokens/vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+          volumeMounts:
+            - name: vault-workload-token
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
+      volumes:
+        - name: vault-workload-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: vault
+                  audience: vault
+                  expirationSeconds: 3600
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: lab-service
+          env:
+            - name: Vault__Address
+              value: https://vault-active.his-hope-dev.svc.cluster.local:8200
+            - name: Vault__AuthMount
+              value: kubernetes
+            - name: Vault__Role
+              value: lab-service
+            - name: Vault__JwtTokenFile
+              value: /var/run/secrets/tokens/vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+          volumeMounts:
+            - name: vault-workload-token
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
+      volumes:
+        - name: vault-workload-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: vault
+                  audience: vault
+                  expirationSeconds: 3600
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: billing-service
+          env:
+            - name: Vault__Address
+              value: https://vault-active.his-hope-dev.svc.cluster.local:8200
+            - name: Vault__AuthMount
+              value: kubernetes
+            - name: Vault__Role
+              value: billing-service
+            - name: Vault__JwtTokenFile
+              value: /var/run/secrets/tokens/vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+          volumeMounts:
+            - name: vault-workload-token
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
+      volumes:
+        - name: vault-workload-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: vault
+                  audience: vault
+                  expirationSeconds: 3600
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: pharmacy-service
+          env:
+            - name: Vault__Address
+              value: https://vault-active.his-hope-dev.svc.cluster.local:8200
+            - name: Vault__AuthMount
+              value: kubernetes
+            - name: Vault__Role
+              value: pharmacy-service
+            - name: Vault__JwtTokenFile
+              value: /var/run/secrets/tokens/vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+          volumeMounts:
+            - name: vault-workload-token
+              mountPath: /var/run/secrets/tokens
+              readOnly: true
+      volumes:
+        - name: vault-workload-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: vault
+                  audience: vault
+                  expirationSeconds: 3600

@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using His.Hope.IdentityService.Application.Interfaces;
+using His.Hope.Secrets;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -26,11 +28,14 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
     private const int OverlapMinutes = 120;
     private const string KeyIdFormat = "{0}:{1}:v{2}";
 
-    public VaultKeyService(IConfiguration config, ILogger<VaultKeyService> logger, IHostEnvironment environment)
+    private readonly IVaultTokenProvider _tokenProvider;
+
+    public VaultKeyService(IConfiguration config, ILogger<VaultKeyService> logger, IHostEnvironment environment, IVaultTokenProvider tokenProvider)
     {
         _config = config;
         _logger = logger;
         _production = environment.IsProduction();
+        _tokenProvider = tokenProvider;
         _keyName = config["Vault:Transit:KeyName"] ?? "jwt-signing";
 
         var vaultAddr = config["Vault:Address"];
@@ -112,9 +117,33 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
         {
             try
             {
-                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                using var handler = new HttpClientHandler();
+                var caPath = _config["Vault:TlsCaFile"];
+                if (!string.IsNullOrWhiteSpace(caPath))
+                {
+                    if (!File.Exists(caPath))
+                        throw new InvalidOperationException($"Vault TLS CA file '{caPath}' is missing.");
+
+                    var ca = new X509Certificate2(caPath);
+                    handler.ServerCertificateCustomValidationCallback = (_, certificate, _, _) =>
+                    {
+                        if (certificate is null)
+                            return false;
+
+                        using var chain = new X509Chain();
+                        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+                        chain.ChainPolicy.CustomTrustStore.Add(ca);
+                        chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
+                        return chain.Build(new X509Certificate2(certificate));
+                    };
+                }
+
+                using var httpClient = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(5) };
                 var vaultAddr = _config["Vault:Address"]!;
-                var response = await httpClient.GetAsync($"{vaultAddr}/v1/sys/health", ct);
+                // Vault returns 429 for a healthy standby node. The service endpoint
+                // load-balances across the HA set, so standbyok keeps readiness from
+                // flapping while still returning non-success for sealed/uninitialized Vault.
+                var response = await httpClient.GetAsync($"{vaultAddr}/v1/sys/health?standbyok=true&sealedcode=503&uninitcode=503", ct);
                 return response.IsSuccessStatusCode;
             }
             catch (Exception ex)
@@ -162,13 +191,10 @@ public class VaultKeyService : IVaultKeyProvider, IDisposable
 
         if (_useVault)
         {
-            var vaultToken = FirstConfigured(_config["Vault:Token"], _config["VAULT_TOKEN"]);
-            if (string.IsNullOrWhiteSpace(vaultToken))
-                throw new InvalidOperationException("Vault transit requires Vault:Token or VAULT_TOKEN.");
             try
             {
                 using var httpClient = new HttpClient();
-                httpClient.DefaultRequestHeaders.Add("X-Vault-Token", vaultToken);
+                httpClient.DefaultRequestHeaders.Add("X-Vault-Token", await _tokenProvider.GetTokenAsync(ct));
                 var vaultAddr = _config["Vault:Address"]!;
                 var content = new StringContent(
                     System.Text.Json.JsonSerializer.Serialize(new { }),

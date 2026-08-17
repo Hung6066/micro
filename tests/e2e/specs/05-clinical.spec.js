@@ -1,38 +1,48 @@
 const { test, expect } = require('@playwright/test');
 
-const BASE_URL = 'http://localhost:8081';
-const VALID_USER = { username: 'admin', password: 'Admin@123' };
+const { clinicalUrl: BASE_URL } = require('../config/urls');
+const { signInThroughIdentity } = require('../helpers/sso-login');
 const AUTH_LOGIN_RE = /\/(?:en\/)?auth\/login(?:\?|$)/;
 const ACCESS_DENIED_RE = /\/(?:en\/)?access-denied(?:\?|$)/;
 
 async function login(page) {
-  await page.goto(BASE_URL + '/auth/login');
-  await expect(page.locator('input[formControlName="username"]')).toBeVisible({ timeout: 10000 });
-  await page.locator('input[formControlName="username"]').fill(VALID_USER.username);
-  await page.locator('input[formControlName="password"]').fill(VALID_USER.password);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL(
-    (url) => /\/(?:en\/)?dashboard(?:\?|$)/.test(url.toString()) || ACCESS_DENIED_RE.test(url.toString()),
-    { timeout: 30000 },
-  );
-
+  await signInThroughIdentity(page, BASE_URL);
   return /\/(?:en\/)?dashboard(?:\?|$)/.test(page.url());
 }
 
 async function navigateToSidebar(page, label, expectedPath) {
-  const link = page.locator('mat-nav-list a').filter({ hasText: label });
+  const link = page.locator('mat-nav-list a').filter({ hasText: label === 'Lâm sàng' ? /Lâm sàng|Clinical/i : label });
   await expect(link.first()).toBeVisible({ timeout: 10000 });
-  await link.first().click();
   if (expectedPath) {
-    try {
-      await page.waitForURL(new RegExp(expectedPath), { timeout: 15000 });
-    } catch {
+    let reached = false;
+    for (let attempt = 0; attempt < 3 && !reached; attempt += 1) {
+      const currentLink = page.locator('mat-nav-list a').filter({ hasText: label === 'Lâm sàng' ? /Lâm sàng|Clinical/i : label }).first();
+      await currentLink.click();
+      try {
+        await page.waitForURL(new RegExp(expectedPath), { timeout: 5000 });
+        reached = true;
+      } catch {
+        if (AUTH_LOGIN_RE.test(page.url())) {
+          console.log(`PermissionGuard redirected to login for ${label}, re-logging in...`);
+          await login(page);
+          continue;
+        }
+        if (ACCESS_DENIED_RE.test(page.url())) {
+          test.skip(true, `${label} is access denied in this environment.`);
+        }
+        // During Angular shell bootstrap the first click can be consumed by
+        // the route guard while the link remains on dashboard. Retry the
+        // idempotent navigation before reporting a real route failure.
+        await page.waitForTimeout(250);
+      }
+    }
+    if (!reached) {
       // PermissionGuard may redirect to login on stale auth
       if (AUTH_LOGIN_RE.test(page.url())) {
         console.log(`PermissionGuard redirected to login for ${label}, re-logging in...`);
         await login(page);
-        // Re-navigate
-        await link.first().click();
+        const retryLink = page.locator('mat-nav-list a').filter({ hasText: label === 'Lâm sàng' ? /Lâm sàng|Clinical/i : label }).first();
+        await retryLink.click();
         await page.waitForURL(new RegExp(expectedPath), { timeout: 15000 });
       } else if (ACCESS_DENIED_RE.test(page.url())) {
         test.skip(true, `${label} is access denied in this environment.`);
@@ -133,8 +143,12 @@ test.describe('Clinical (Lâm sàng) Module', () => {
       ).first();
 
       if (await backButton.isVisible().catch(() => false)) {
-        await backButton.click();
-        await page.waitForTimeout(1500);
+        // The detail workspace can still be committing deferred data when
+        // the back control is visible. Force the idempotent router action and
+        // use the URL as the navigation gate instead of waiting for the old
+        // document's load lifecycle.
+        await backButton.click({ force: true, noWaitAfter: true });
+        await page.waitForURL(/\/clinical(?:\?|$)/, { timeout: 15000 });
         expect(page.url()).toMatch(/\/clinical/);
       }
     } else {

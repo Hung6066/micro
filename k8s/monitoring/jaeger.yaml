@@ -31,6 +31,8 @@ metadata:
     app.kubernetes.io/component: tracing
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: jaeger
@@ -46,10 +48,15 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: jaeger
-          image: jaegertracing/all-in-one:1.59
+          image: jaegertracing/all-in-one@sha256:6430459b95bd15dd1f0cb63b2d4e6da3b3021b337e14b513314912a642c0e839
           imagePullPolicy: IfNotPresent
+          args:
+            - --collector.otlp.grpc.host-port=0.0.0.0:4317
+            - --collector.otlp.http.host-port=0.0.0.0:4318
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -78,13 +85,17 @@ spec:
           env:
             - name: BADGER_EPHEMERAL
               value: "false"
+            - name: COLLECTOR_OTLP_GRPC_HOST_PORT
+              value: "0.0.0.0:4317"
+            - name: COLLECTOR_OTLP_HTTP_HOST_PORT
+              value: "0.0.0.0:4318"
           resources:
             requests:
               cpu: 200m
-              memory: 512Mi
+              memory: 1Gi
             limits:
               cpu: "1"
-              memory: 1Gi
+              memory: 2Gi
           livenessProbe:
             httpGet:
               path: /
@@ -157,7 +168,7 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  storageClassName: standard
+  storageClassName: local-path
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -185,7 +196,8 @@ spec:
     kind: Deployment
     name: jaeger
   minReplicas: 1
-  maxReplicas: 3
+  # Jaeger all-in-one uses a single ReadWriteOnce Badger volume.
+  maxReplicas: 1
   metrics:
     - type: Resource
       resource:

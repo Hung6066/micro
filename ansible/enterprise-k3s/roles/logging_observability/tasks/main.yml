@@ -1,0 +1,14 @@
+---
+- name: Install Loki single-binary with persistent local storage
+  ansible.builtin.command: >-
+    helm upgrade --install loki grafana/loki --version {{ loki_chart_version }}
+    --namespace monitoring --create-namespace --values "{{ observability_repo_root }}/artifacts/loki-values.yaml"
+    --wait=false --timeout 10m
+  environment: { KUBECONFIG: "{{ observability_kubeconfig }}" }
+
+- name: Install Promtail log collection DaemonSet
+  ansible.builtin.command: >-
+    helm upgrade --install promtail grafana/promtail --version {{ promtail_chart_version }}
+    --namespace monitoring --values "{{ observability_repo_root }}/artifacts/promtail-values.yaml"
+    --wait=false --timeout 10m
+  environment: { KUBECONFIG: "{{ observability_kubeconfig }}" }

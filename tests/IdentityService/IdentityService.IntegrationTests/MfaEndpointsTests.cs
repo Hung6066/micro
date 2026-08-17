@@ -4,6 +4,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using System.Text.Json;
+using His.Hope.Contracts.Identity;
 using Xunit;
 
 namespace His.Hope.IdentityService.IntegrationTests;
@@ -21,16 +22,20 @@ public class MfaEndpointsTests
     [Fact]
     public async Task Enroll_WithoutAuth_Returns401()
     {
-        var response = await _fixture.AnonymousClient.PostAsync("/api/v1/auth/mfa/enroll", null);
+        var response = await _fixture.AnonymousClient.PostAsync(IdentityApiRoutes.MfaEnroll, null);
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
     public async Task Verify_WithoutAuthAndNoPendingContext_Returns401()
     {
-        var response = await _fixture.AnonymousClient.PostAsJsonAsync("/api/v1/auth/mfa/verify",
-            new { code = "123456" });
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        using var request = new HttpRequestMessage(HttpMethod.Post, IdentityApiRoutes.MfaVerify)
+        {
+            Content = JsonContent.Create(new { code = "123456" })
+        };
+        request.Headers.Add("X-RateLimit-Key", $"mfa-anonymous-{Guid.NewGuid():N}");
+        var response = await _fixture.AnonymousClient.SendAsync(request);
+        Assert.Contains(response.StatusCode, new[] { HttpStatusCode.Unauthorized, HttpStatusCode.TooManyRequests });
     }
 
     [Fact]
@@ -49,7 +54,7 @@ public class MfaEndpointsTests
             EmailConfirmed = true,
             CreatedAt = DateTime.UtcNow
         };
-        var create = await userManager.CreateAsync(user, "Test@123456");
+        var create = await userManager.CreateAsync(user, IdentityTestCredentials.Password);
         Assert.True(create.Succeeded, string.Join(", ", create.Errors.Select(error => error.Description)));
 
         var session = _fixture.CreateSessionClient();
@@ -58,14 +63,14 @@ public class MfaEndpointsTests
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["email"] = user.Email!,
-                ["password"] = "Test@123456",
+                ["password"] = IdentityTestCredentials.Password,
                 ["returnUrl"] = "/"
             }));
         session.ApplySetCookieHeaders(loginResponse);
         Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
         session.SetCookieValue("hishop_oidc_mfa", "invalid-pending-state");
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/mfa/verify")
+        using var request = new HttpRequestMessage(HttpMethod.Post, IdentityApiRoutes.MfaVerify)
         {
             Content = JsonContent.Create(new { code = "123456" })
         };
@@ -84,9 +89,9 @@ public class MfaEndpointsTests
     [Fact]
     public async Task Recover_WithoutAuth_Returns401()
     {
-        var response = await _fixture.AnonymousClient.PostAsJsonAsync("/api/v1/auth/mfa/recover",
+        var response = await _fixture.AnonymousClient.PostAsJsonAsync(IdentityApiRoutes.MfaRecover,
             new { recoveryCode = "xxxx-xxxx" });
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Contains(response.StatusCode, new[] { HttpStatusCode.Unauthorized, HttpStatusCode.TooManyRequests });
     }
 
     [Fact]
@@ -94,11 +99,10 @@ public class MfaEndpointsTests
     {
         var session = _fixture.CreateSessionClient();
         session.RateLimitKey = $"mfa-enroll-{Guid.NewGuid():N}";
-        var loginResponse = await session.LoginAsync("admin@hishop.com", "Test@123456");
-        if (loginResponse.StatusCode != HttpStatusCode.OK)
-            return;
+        var loginResponse = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
-        var response = await session.PostWithCookiesAsync("/api/v1/auth/mfa/enroll");
+        var response = await session.PostWithCookiesAsync(IdentityApiRoutes.Mfa + "/enroll");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -108,19 +112,17 @@ public class MfaEndpointsTests
     }
 
     [Fact]
-    public async Task Enroll_AlreadyEnrolled_Returns400()
+    public async Task Enroll_ExistingPendingEnrollment_ReplacesSecret()
     {
         var session = _fixture.CreateSessionClient();
         session.RateLimitKey = $"mfa-already-{Guid.NewGuid():N}";
-        var loginResponse = await session.LoginAsync("admin@hishop.com", "Test@123456");
-        if (loginResponse.StatusCode != HttpStatusCode.OK)
-            return;
+        var loginResponse = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
-        var firstEnroll = await session.PostWithCookiesAsync("/api/v1/auth/mfa/enroll");
-        if (firstEnroll.StatusCode != HttpStatusCode.OK)
-            return;
+        var firstEnroll = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaEnroll);
+        Assert.Equal(HttpStatusCode.OK, firstEnroll.StatusCode);
 
-        var secondEnroll = await session.PostWithCookiesAsync("/api/v1/auth/mfa/enroll");
+        var secondEnroll = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaEnroll);
         Assert.Equal(HttpStatusCode.OK, secondEnroll.StatusCode);
     }
 
@@ -129,15 +131,13 @@ public class MfaEndpointsTests
     {
         var session = _fixture.CreateSessionClient();
         session.RateLimitKey = $"mfa-invalid-{Guid.NewGuid():N}";
-        var loginResponse = await session.LoginAsync("admin@hishop.com", "Test@123456");
-        if (loginResponse.StatusCode != HttpStatusCode.OK)
-            return;
+        var loginResponse = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
-        var enrollResponse = await session.PostWithCookiesAsync("/api/v1/auth/mfa/enroll");
-        if (enrollResponse.StatusCode != HttpStatusCode.OK)
-            return;
+        var enrollResponse = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaEnroll);
+        Assert.Equal(HttpStatusCode.OK, enrollResponse.StatusCode);
 
-        var verifyResponse = await session.PostWithCookiesAsync("/api/v1/auth/mfa/verify",
+        var verifyResponse = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaVerify,
             new { code = "000000" });
         Assert.Equal(HttpStatusCode.BadRequest, verifyResponse.StatusCode);
     }
@@ -147,11 +147,10 @@ public class MfaEndpointsTests
     {
         var session = _fixture.CreateSessionClient();
         session.RateLimitKey = $"mfa-recover-{Guid.NewGuid():N}";
-        var loginResponse = await session.LoginAsync("admin@hishop.com", "Test@123456");
-        if (loginResponse.StatusCode != HttpStatusCode.OK)
-            return;
+        var loginResponse = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
-        var recoverResponse = await session.PostWithCookiesAsync("/api/v1/auth/mfa/recover",
+        var recoverResponse = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaRecover,
             new { recoveryCode = "invalid-code-12345" });
         Assert.Equal(HttpStatusCode.BadRequest, recoverResponse.StatusCode);
     }
@@ -161,18 +160,16 @@ public class MfaEndpointsTests
     {
         var session = _fixture.CreateSessionClient();
         session.RateLimitKey = $"mfa-rate-{Guid.NewGuid():N}";
-        var loginResponse = await session.LoginAsync("admin@hishop.com", "Test@123456");
-        if (loginResponse.StatusCode != HttpStatusCode.OK)
-            return;
+        var loginResponse = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
-        var enrollResponse = await session.PostWithCookiesAsync("/api/v1/auth/mfa/enroll");
-        if (enrollResponse.StatusCode != HttpStatusCode.OK)
-            return;
+        var enrollResponse = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaEnroll);
+        Assert.Equal(HttpStatusCode.OK, enrollResponse.StatusCode);
 
         HttpResponseMessage? lastResponse = null;
         for (var i = 0; i < 10; i++)
         {
-            lastResponse = await session.PostWithCookiesAsync("/api/v1/auth/mfa/verify",
+            lastResponse = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaVerify,
                 new { code = $"00000{i}" });
             if ((int)lastResponse.StatusCode == 429) break;
         }

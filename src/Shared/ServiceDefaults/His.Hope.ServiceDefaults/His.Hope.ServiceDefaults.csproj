@@ -17,6 +17,8 @@
     <ProjectReference Include="..\..\Observability\His.Hope.Observability\His.Hope.Observability.csproj" />
     <ProjectReference Include="..\..\Resilience\His.Hope.Resilience\His.Hope.Resilience.csproj" />
     <ProjectReference Include="..\..\Validation\His.Hope.Validation\His.Hope.Validation.csproj" />
+    <ProjectReference Include="..\..\Secrets\His.Hope.Secrets\His.Hope.Secrets.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\His.Hope.Infrastructure\His.Hope.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />

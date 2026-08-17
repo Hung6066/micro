@@ -1,0 +1,11 @@
+---
+- name: Install Gatekeeper
+  ansible.builtin.command: >-
+    helm upgrade --install gatekeeper gatekeeper/gatekeeper
+    --version {{ gatekeeper_chart_version }} --namespace gatekeeper-system --create-namespace
+    --set replicas=2 --set audit.replicas=1 --wait --timeout 10m
+  environment: { KUBECONFIG: "{{ observability_kubeconfig }}" }
+
+- name: Apply Gatekeeper policy templates and constraints
+  ansible.builtin.command: kubectl --kubeconfig "{{ observability_kubeconfig }}" apply -f "{{ observability_repo_root }}/k8s/security/gatekeeper-constraints.yaml"
+  changed_when: true

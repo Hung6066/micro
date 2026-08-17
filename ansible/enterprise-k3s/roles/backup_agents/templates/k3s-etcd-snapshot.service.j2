@@ -1,0 +1,16 @@
+[Unit]
+Description=His.Hope K3s embedded etcd snapshot upload
+After=k3s.service
+Requires=k3s.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/his-hope/backup.env
+ExecStart=/usr/local/sbin/k3s-etcd-snapshot-to-azure.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/rancher/k3s/server/db/snapshots /var/backups/his-hope
+Environment=AZCOPY_LOG_LOCATION=/var/backups/his-hope/azcopy/logs
+Environment=AZCOPY_JOB_PLAN_LOCATION=/var/backups/his-hope/azcopy/jobs

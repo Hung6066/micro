@@ -2,7 +2,11 @@ using His.Hope.AppointmentService.Domain.Repositories;
 using His.Hope.AppointmentService.Infrastructure.Persistence;
 using His.Hope.AppointmentService.Infrastructure.Persistence.Repositories;
 using His.Hope.Infrastructure.Outbox;
+using His.Hope.Infrastructure.Events;
+using His.Hope.IntegrationEvents.Appointment;
+using His.Hope.AppointmentService.Domain.Events;
 using His.Hope.SharedKernel.Domain.Common;
+using His.Hope.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,9 +19,11 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddDbContext<AppointmentDbContext>(options =>
-            options.UseNpgsql(
-                configuration.GetConnectionString("AppointmentDb"),
+        services.AddDbContext<AppointmentDbContext>((serviceProvider, options) =>
+            options.UseHisHopeNpgsql(
+                serviceProvider,
+                configuration,
+                "AppointmentDb",
                 b =>
                 {
                     b.MigrationsAssembly(typeof(AppointmentDbContext).Assembly.FullName);
@@ -29,6 +35,10 @@ public static class DependencyInjection
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<DomainEventDispatcher>();
         services.AddOutbox<AppointmentDbContext>();
+        services.AddIntegrationEventMapping<AppointmentScheduledDomainEvent, AppointmentScheduledIntegrationEvent>(
+            domainEvent => new AppointmentScheduledIntegrationEvent(
+                domainEvent.AppointmentId, domainEvent.PatientId, domainEvent.ProviderId,
+                domainEvent.ScheduledDate, domainEvent.StartTime, domainEvent.EndTime));
 
         return services;
     }

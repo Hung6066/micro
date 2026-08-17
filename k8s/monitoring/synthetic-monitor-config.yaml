@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: synthetic-monitor-config
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: synthetic-monitor
+    app.kubernetes.io/component: synthetic-monitoring
+    app.kubernetes.io/part-of: his-hope
+data:
+  # This is the internal ingress origin, not a cluster-local Service URL.
+  # Change only through a reviewed GitOps commit for another environment.
+  # The in-cluster Traefik service is exposed as a NodePort on the worker.
+  # Keep this endpoint explicit so the monitor does not depend on workstation DNS.
+  BASE_URL: "http://app.his-hope.local:30080/"

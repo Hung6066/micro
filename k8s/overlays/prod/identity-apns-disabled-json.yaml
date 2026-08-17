@@ -1,0 +1,10 @@
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: PushProviders__ApnsEnabled
+    value: "true"
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: PushProviders__ApnsEndpoint
+    value: "https://api.push.apple.com"

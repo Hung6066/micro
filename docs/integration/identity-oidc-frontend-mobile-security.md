@@ -294,7 +294,7 @@ sequenceDiagram
     Web->>Web: Verify state, nonce and PKCE transaction
     Web->>Id: POST /connect/token through callback bridge
     Id->>Store: Consume code once and reject replay
-    Id-->>Web: OIDC completion; token remains outside app state
+    Id-->>Web: OIDC completion, token remains outside app state
     Web->>Bff: POST /api/v1/auth/session/exchange (cookie)
     Bff->>Store: Rotate session and store protected JWE
     Bff-->>Web: Set HttpOnly hishop_sid + hishop_csrf
@@ -304,6 +304,42 @@ sequenceDiagram
     Api-->>Bff: Data or ProblemDetails
     Bff-->>Web: Data/error without exposing token
 ```
+
+### 0.4 Kiến trúc cache trong OIDC và BFF
+
+Cache không thay thế nguồn dữ liệu hoặc quyết định authorization. OIDC state,
+challenge, refresh-token family và BFF session dùng Redis dùng chung giữa các
+replica; dữ liệu đọc an toàn mới được cache theo phạm vi tenant/facility và
+quyền truy cập.
+
+```mermaid
+flowchart LR
+    Browser[Angular browser] --> Bff[BFF session boundary]
+    Bff --> L1[Replica memory cache]
+    Bff --> L2[(Redis shared cache and session store)]
+    Bff --> Id[Identity Service]
+    Id --> Oidc[(OIDC code, MFA challenge and token state)]
+    Bff --> Api[Protected API]
+    Api --> Svc[Microservice cache service]
+    Svc --> L2
+    Svc --> Db[(Service database)]
+    Write[Successful mutation] --> Invalidate[Prefix invalidation]
+    Invalidate --> L1
+    Invalidate --> L2
+```
+
+| Vùng dữ liệu | Nơi lưu | Quy tắc |
+|---|---|---|
+| Authorization code, PKCE transaction, MFA/passkey challenge | Redis | Single-use, TTL ngắn, không lưu trong browser storage |
+| BFF session | Redis, payload được bảo vệ bằng JWE | Cookie chỉ giữ session id/CSRF; rotate khi exchange/refresh |
+| Refresh-token family của mobile | Identity store/Redis theo cấu hình runtime | Rotation, replay detection, revoke cả family khi reuse |
+| Discovery/JWKS metadata | Client/server HTTP cache theo header runtime | Luôn tôn trọng `issuer`, `jwks_uri` và `kid`; không hard-code endpoint |
+| API read model | L1 memory + L2 Redis | Key phải gồm resource, query, facility/tenant và permission version |
+
+Angular không lưu access token hoặc refresh token. Mobile native lưu token
+trong Android Keystore/iOS Keychain và không đưa token vào cache UI. Khi ghi,
+đổi quyền, đổi facility hoặc logout, phải invalidate key liên quan; không dùng
+cache hit để bỏ qua authorization hoặc kiểm tra session.
 
 #### Browser failure branches
 
@@ -596,7 +632,11 @@ sequenceDiagram
 
     Client->>Api: Request with access token
     Api-->>Client: 401 token expired
-    Client->>Id: Web: internal/refresh; mobile: /connect/token
+    alt Web BFF session
+        Client->>Id: POST /api/v1/auth/internal/refresh
+    else Native mobile
+        Client->>Id: POST /connect/token with refresh_token
+    end
     Id->>Store: Check token family, expiry, revocation, client binding
     alt Valid refresh token
         Id->>Store: Revoke old token and persist replacement

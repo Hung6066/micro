@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-service
+spec:
+  template:
+    spec:
+      volumes:
+        - name: redis-tls-ca
+          secret:
+            secretName: redis-tls
+            defaultMode: 0440
+            items:
+              - key: ca.crt
+                path: ca.crt
+      containers:
+        - name: pharmacy-service
+          env:
+            - name: Redis__TlsCaFile
+              value: /etc/tls/redis/ca.crt
+          volumeMounts:
+            - name: redis-tls-ca
+              mountPath: /etc/tls/redis
+              readOnly: true

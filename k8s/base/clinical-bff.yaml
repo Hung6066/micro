@@ -60,9 +60,15 @@ spec:
                   name: clinical-bff-secrets
                   key: redis-connection
             - name: Services__Clinical
-              value: "http://clinicalservice:5005"
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_SERVICE_CLINICAL_HTTP
             - name: Services__Patient
-              value: "http://patientservice:5006"
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_SERVICE_PATIENT_HTTP
           resources:
             requests:
               cpu: 100m

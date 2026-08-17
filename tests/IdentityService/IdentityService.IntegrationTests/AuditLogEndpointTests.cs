@@ -8,8 +8,8 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -19,7 +19,8 @@ namespace His.Hope.IdentityService.IntegrationTests;
 
 public sealed class AuditLogEndpointTests : IAsyncLifetime
 {
-    private readonly SqliteConnection _connection = new("DataSource=:memory:");
+    private readonly string _databaseName = $"audit-log-tests-{Guid.NewGuid():N}";
+    private static readonly InMemoryDatabaseRoot DatabaseRoot = new();
     private WebApplication? _app;
     private HttpClient? _client;
 
@@ -31,7 +32,7 @@ public sealed class AuditLogEndpointTests : IAsyncLifetime
         var clientTimestamp = DateTimeOffset.UtcNow.AddYears(-10).ToUnixTimeMilliseconds();
         var before = DateTime.UtcNow;
 
-        var response = await _client!.PostAsJsonAsync("/api/v1/audit/events", new
+        var response = await _client!.PostAsJsonAsync(IdentityApiRoutes.AuditEvents, new
         {
             events = new[]
             {
@@ -42,7 +43,7 @@ public sealed class AuditLogEndpointTests : IAsyncLifetime
                     userId = "spoofed-user",
                     userAgent = "spoofed-agent",
                     correlationId = "corr-1",
-                    details = new { patientId = "patient-123" }
+                    details = new { patientId = "patient-123", password = "do-not-store", nested = new { accessToken = "secret-token" } }
                 }
             }
         });
@@ -56,6 +57,8 @@ public sealed class AuditLogEndpointTests : IAsyncLifetime
         log.IpAddress.ShouldNotBe("203.0.113.99");
         log.Timestamp.ShouldBeGreaterThanOrEqualTo(before);
         log.ResourceId.ShouldBe("patient-123");
+        Assert.DoesNotContain("do-not-store", log.Details, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret-token", log.Details, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -74,7 +77,7 @@ public sealed class AuditLogEndpointTests : IAsyncLifetime
                 details = new { patientId = $"patient-{i}" }
             });
 
-        var response = await _client!.PostAsJsonAsync("/api/v1/audit/events", new { events });
+        var response = await _client!.PostAsJsonAsync(IdentityApiRoutes.AuditEvents, new { events });
 
         response.StatusCode.ShouldBe(HttpStatusCode.Accepted);
         var body = await response.Content.ReadFromJsonAsync<AuditEventsResponse>();
@@ -82,16 +85,28 @@ public sealed class AuditLogEndpointTests : IAsyncLifetime
         (await db.AuditLogs.CountAsync()).ShouldBe(100);
     }
 
+    [Fact]
+    public async Task AuditLog_CannotBeModifiedOrDeleted()
+    {
+        await using var scope = _app!.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
+        var log = new His.Hope.IdentityService.Domain.Entities.AuditLog { UserId = "u", Action = "READ", ResourceType = "Patient" };
+        db.AuditLogs.Add(log);
+        await db.SaveChangesAsync();
+
+        log.Action = "DELETE";
+        await Assert.ThrowsAsync<InvalidOperationException>(() => db.SaveChangesAsync());
+    }
+
     public async Task InitializeAsync()
     {
-        await _connection.OpenAsync();
-
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             EnvironmentName = "Testing"
         });
         builder.WebHost.UseTestServer();
-        builder.Services.AddDbContext<IdentityDbContext>(options => options.UseSqlite(_connection));
+        builder.Services.AddDbContext<IdentityDbContext>(options =>
+            options.UseInMemoryDatabase(_databaseName, DatabaseRoot));
         builder.Services.AddAuthentication(TestAuthHandler.Scheme)
             .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.Scheme, _ => { });
         builder.Services.AddAuthorization();
@@ -116,7 +131,6 @@ public sealed class AuditLogEndpointTests : IAsyncLifetime
         if (_app is not null)
             await _app.DisposeAsync();
 
-        await _connection.DisposeAsync();
     }
 
     private sealed record AuditEventsResponse(int Accepted, int Dropped);

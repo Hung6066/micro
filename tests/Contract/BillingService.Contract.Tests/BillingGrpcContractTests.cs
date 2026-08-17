@@ -10,9 +10,13 @@ using His.Hope.BillingService.Domain.Repositories;
 using His.Hope.BillingService.Domain.ValueObjects;
 using His.Hope.BillingService.Application.DTOs;
 using His.Hope.BillingService.Application.UseCases.Invoices.Queries;
+using His.Hope.BillingService.Infrastructure.Persistence;
+using His.Hope.Authorization;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 
 namespace His.Hope.BillingService.Contract.Tests;
 
@@ -21,6 +25,7 @@ public class BillingGrpcContractTests
     private readonly Mock<IMediator> _mockMediator;
     private readonly Mock<IInvoiceRepository> _mockRepo;
     private readonly Mock<IMapper> _mockMapper;
+    private readonly Mock<IResourceAuthorizationEvaluator> _authorization;
     private readonly BillingGrpcServiceImpl _service;
 
     public BillingGrpcContractTests()
@@ -28,7 +33,12 @@ public class BillingGrpcContractTests
         _mockMediator = new Mock<IMediator>();
         _mockRepo = new Mock<IInvoiceRepository>();
         _mockMapper = new Mock<IMapper>();
-        _service = new BillingGrpcServiceImpl(_mockMediator.Object, _mockRepo.Object, _mockMapper.Object);
+        var db = new BillingDbContext(new DbContextOptionsBuilder<BillingDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString("N")).Options);
+        _authorization = new Mock<IResourceAuthorizationEvaluator>();
+        _authorization.Setup(a => a.EvaluateAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AuthorizationDecision.Allow("billing.view"));
+        _service = new BillingGrpcServiceImpl(_mockMediator.Object, _mockRepo.Object, _mockMapper.Object, db, _authorization.Object);
     }
 
     [Fact]
@@ -74,6 +84,20 @@ public class BillingGrpcContractTests
         var exception = await act.Should().ThrowAsync<RpcException>();
         exception.And.StatusCode.Should().Be(StatusCode.NotFound);
         exception.And.Status.Detail.Should().Contain("not found");
+    }
+
+    [Fact]
+    public async Task GetInvoice_WhenResourceDenied_ShouldReturnNotFoundWithoutRepositoryAccess()
+    {
+        _authorization.Setup(a => a.EvaluateAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AuthorizationDecision.Deny("billing.view", "facility_scope_denied"));
+
+        var act = async () => await _service.GetInvoice(
+            new InvoiceRequest { Id = Guid.NewGuid().ToString() }, new TestServerCallContext());
+
+        var exception = await act.Should().ThrowAsync<RpcException>();
+        exception.And.StatusCode.Should().Be(StatusCode.NotFound);
+        _mockRepo.Verify(r => r.GetByIdAsync(It.IsAny<InvoiceId>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -145,6 +169,7 @@ public class BillingGrpcContractTests
         _mockRepo
             .Setup(r => r.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(),
                 It.IsAny<Guid?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<DateTime?>(),
+                It.IsAny<IReadOnlySet<string>>(), It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PagedInvoiceResult(invoices, 2));
 
@@ -168,7 +193,9 @@ public class BillingGrpcContractTests
         };
 
         _mockRepo
-            .Setup(r => r.GetByPatientAsync(patientId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetByPatientAsync(
+                patientId, It.IsAny<IReadOnlySet<string>>(), It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(invoices);
 
         var request = new PatientInvoicesRequest { PatientId = patientId.ToString() };
@@ -177,6 +204,32 @@ public class BillingGrpcContractTests
 
         response.Invoices.Should().HaveCount(2);
         response.TotalCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task GetPatientInvoices_WithoutFacilityMembership_PassesEmptyScopeFailClosed()
+    {
+        IReadOnlySet<string>? capturedFacilityIds = null;
+        var capturedCrossFacility = true;
+        _mockRepo
+            .Setup(r => r.GetByPatientAsync(
+                It.IsAny<Guid>(), It.IsAny<IReadOnlySet<string>>(), It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<Guid, IReadOnlySet<string>, bool, CancellationToken>((_, ids, crossFacility, _) =>
+            {
+                capturedFacilityIds = ids;
+                capturedCrossFacility = crossFacility;
+            })
+            .ReturnsAsync(Array.Empty<Invoice>());
+
+        var response = await _service.GetPatientInvoices(
+            new PatientInvoicesRequest { PatientId = Guid.NewGuid().ToString() },
+            new TestServerCallContext());
+
+        response.Invoices.Should().BeEmpty();
+        capturedFacilityIds.Should().NotBeNull();
+        capturedFacilityIds.Should().BeEmpty();
+        capturedCrossFacility.Should().BeFalse();
     }
 
     [Fact]
@@ -304,6 +357,7 @@ public class TestServerCallContext : ServerCallContext
         _responseTrailers = new Metadata();
         _authContext = new AuthContext(string.Empty, new Dictionary<string, List<AuthProperty>>());
         _userState = new Dictionary<object, object>();
+        _userState["__HttpContext"] = new DefaultHttpContext();
     }
 
     protected override string MethodCore => "/his.hope.billing.BillingGrpcService/TestMethod";

@@ -1,48 +1,27 @@
 const { test, expect } = require('@playwright/test');
 const path = require('path');
+const { clinicalUrl, dashboardUrl, adminUrl } = require('../config/urls');
+const { signInThroughIdentity: sharedSignInThroughIdentity } = require('../helpers/sso-login');
 
 if (process.env.E2E_AUTH_REQUIRED === 'true') {
   test.use({ storageState: path.join(__dirname, '..', 'fixtures', 'shared-foundation-auth.json') });
 }
 
 const APPS = {
-  clinical: 'http://localhost:8081',
-  dashboard: 'http://localhost:8082',
-  admin: 'http://localhost:8083',
-};
-
-const USER = {
-  email: process.env.E2E_EMAIL || 'admin@hishop.com',
-  password: process.env.E2E_PASSWORD || 'Admin@123',
+  clinical: clinicalUrl,
+  dashboard: dashboardUrl,
+  admin: adminUrl,
 };
 
 async function signInThroughIdentity(page) {
-  await page.goto(`${APPS.clinical}/en/dashboard`, { waitUntil: 'domcontentloaded' });
-  if (/\/auth\/login(?:\?|$)/.test(page.url())) {
-    await page.getByRole('button', { name: /Sign in with His\.Hope/i }).click();
-  }
-  const email = page.locator('input[type="email"]');
-  // The Angular auth guard redirects asynchronously after the initial document
-  // load. Wait for either the Identity form or the authenticated dashboard
-  // component; app-root alone also exists during the unauthenticated bootstrap.
-  await Promise.race([
-    email.waitFor({ state: 'visible', timeout: 30000 }),
-    page.locator('app-root app-dashboard').waitFor({ state: 'attached', timeout: 30000 }),
-  ]);
-  if (await email.count()) {
-    await expect(email).toBeVisible({ timeout: 15000 });
-    await email.fill(USER.email);
-    await page.locator('input[type="password"]').fill(USER.password);
-    await page.locator('button[type="submit"]').click();
-    await page.waitForURL(/localhost:8081\/en\/dashboard/, { timeout: 30000 });
-  }
-  await expect(page).toHaveURL(/localhost:8081\/en\/dashboard/, { timeout: 30000 });
-  await page.waitForLoadState('load');
+  await sharedSignInThroughIdentity(page, APPS.clinical);
 }
 
 async function openAuthenticatedApp(context, url, marker) {
   const page = await context.newPage();
-  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  const parsed = new URL(url);
+  const dashboardPath = parsed.pathname.startsWith('/clients') ? '/clients' : '/resources';
+  await sharedSignInThroughIdentity(page, parsed.origin, { dashboardPath });
   await expect(page).not.toHaveURL(/Account\/Login/, { timeout: 15000 });
   await expect(page.locator('body')).toContainText(marker, { timeout: 15000 });
   await page.waitForLoadState('load');
@@ -70,8 +49,8 @@ test.describe('His.Hope current SSO and responsive smoke', () => {
     const clinical = await context.newPage();
     await signInThroughIdentity(clinical);
 
-    const dashboard = await openAuthenticatedApp(context, `${APPS.dashboard}/resources`, 'Resources');
-    const admin = await openAuthenticatedApp(context, `${APPS.admin}/clients`, 'Clients');
+    const dashboard = await openAuthenticatedApp(context, `${APPS.dashboard}/resources`, /Resources|Tài nguyên/);
+    const admin = await openAuthenticatedApp(context, `${APPS.admin}/clients`, /Clients|Khách hàng|Ứng dụng/);
 
     await expect(clinical).toHaveURL(/\/en\/dashboard/);
     await expect(dashboard).toHaveURL(/\/resources/);
@@ -88,8 +67,8 @@ test.describe('His.Hope current SSO and responsive smoke', () => {
 
     const pages = [
       clinical,
-      await openAuthenticatedApp(context, `${APPS.dashboard}/resources`, 'Resources'),
-      await openAuthenticatedApp(context, `${APPS.admin}/clients`, 'Clients'),
+      await openAuthenticatedApp(context, `${APPS.dashboard}/resources`, /Resources|Tài nguyên/),
+      await openAuthenticatedApp(context, `${APPS.admin}/clients`, /Clients|Khách hàng|Ứng dụng/),
     ];
 
     for (const page of pages) {
@@ -103,10 +82,15 @@ test.describe('His.Hope current SSO and responsive smoke', () => {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const clinical = await context.newPage();
     await signInThroughIdentity(clinical);
-    const dashboard = await openAuthenticatedApp(context, `${APPS.dashboard}/resources`, 'Resources');
+    const dashboard = await openAuthenticatedApp(context, `${APPS.dashboard}/resources`, /Resources|Tài nguyên/);
     await dashboard.waitForTimeout(2500);
 
-    for (const [path, marker] of [['/logs', 'Logs'], ['/traces', 'Traces'], ['/metrics', 'Metrics'], ['/slo', 'SLO']]) {
+    for (const [path, marker] of [
+      ['/logs', /Logs|Nhật ký/],
+      ['/traces', /Traces|Dấu vết/],
+      ['/metrics', /Metrics|Số liệu/],
+      ['/slo', /SLO/],
+    ]) {
       await dashboard.locator(`a[href="${path}"]`).first().click();
       await expect(dashboard).toHaveURL(new RegExp(`${path}$`), { timeout: 30000 });
       await expect(dashboard.locator('body')).toContainText(marker, { timeout: 15000 });
@@ -118,7 +102,7 @@ test.describe('His.Hope current SSO and responsive smoke', () => {
     const context = await browser.newContext({ viewport: { width: 1920, height: 900 } });
     const clinical = await context.newPage();
     await signInThroughIdentity(clinical);
-    const admin = await openAuthenticatedApp(context, `${APPS.admin}/clients`, 'Clients');
+    const admin = await openAuthenticatedApp(context, `${APPS.admin}/clients`, /Clients|Khách hàng|Ứng dụng/);
 
     await expect(admin.locator('hh-data-table')).toBeVisible({ timeout: 15000 });
     const desktop = await admin.evaluate(() => ({

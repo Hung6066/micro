@@ -21,13 +21,15 @@ public static class EventBusServiceExtensions
             return new RabbitMQConnection(options, logger);
         });
 
-        services.AddSingleton<IEventBus, RabbitMQEventBus>(sp =>
+        services.AddSingleton<RabbitMQEventBus>(sp =>
         {
             var connection = sp.GetRequiredService<RabbitMQConnection>();
             var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
             var logger = sp.GetRequiredService<ILogger<RabbitMQEventBus>>();
             return new RabbitMQEventBus(connection, options, scopeFactory, logger);
         });
+        services.AddSingleton<IEventBus>(sp => sp.GetRequiredService<RabbitMQEventBus>());
+        services.AddSingleton<IExternalEventPublisher>(sp => sp.GetRequiredService<RabbitMQEventBus>());
 
         return services;
     }

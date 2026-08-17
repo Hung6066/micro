@@ -1,6 +1,5 @@
 import { Routes } from '@angular/router';
 import { authGuard } from '@core/guards/auth.guard';
-import { roleGuard } from '@core/guards/role.guard';
 import { permissionGuard } from '@core/guards/permission.guard';
 
 export const routes: Routes = [
@@ -25,7 +24,8 @@ export const routes: Routes = [
     path: 'dashboard',
     loadChildren: () =>
       import('@features/dashboard/dashboard.routes').then((m) => m.DASHBOARD_ROUTES),
-    canActivate: [authGuard],
+    canActivate: [authGuard, permissionGuard],
+    data: { permissions: ['dashboard.view'] },
   },
   {
     path: 'patients',
@@ -71,8 +71,8 @@ export const routes: Routes = [
   },
   {
     path: 'admin',
-    canActivate: [authGuard, roleGuard],
-    data: { roles: ['admin'] },
+    canActivate: [authGuard, permissionGuard],
+    data: { permissions: ['admin.users.read'] },
     loadChildren: () =>
       import('@features/admin/admin.routes').then((m) => m.ADMIN_ROUTES),
   },

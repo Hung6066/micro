@@ -9,7 +9,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AdminApiService, AdminPageQuery, OidcClient } from '../../core/services/admin-api.service';
 import { HisHopePageQuery } from '@his-hope/frontend-foundation';
-import { HisHopeAuditFeedbackService, HisHopeBulkAction, HisHopeBulkActionRequest, HisHopeConfirmDialogComponent, HisHopeDataTableCellDirective, HisHopeDataTableColumn, HisHopeDataTableComponent, HisHopeDataTableDetailDirective, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeTableExportRequest, HisHopeToolbarComponent } from '@his-hope/frontend-foundation';
+import { HisHopeAuditFeedbackService, HisHopeBulkAction, HisHopeBulkActionRequest, HisHopeConfirmDialogComponent, HisHopeDataTableCellDirective, HisHopeDataTableColumn, HisHopeDataTableComponent, HisHopeDataTableDetailDirective, HisHopeI18nService, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopePermissionService, HisHopeTableExportRequest, HisHopeToolbarComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { ClientEditDialogComponent } from './client-edit-dialog.component';
 import { catchError, finalize } from 'rxjs/operators';
 import { of, Subscription } from 'rxjs';
@@ -18,51 +18,51 @@ import { of, Subscription } from 'rxjs';
   selector: 'app-clients-page',
   standalone: true,
   imports: [
-    CommonModule, MatTableModule, MatButtonModule, MatIconModule,
+    CommonModule, MatTableModule, MatButtonModule, MatIconModule, HisHopeTranslatePipe,
     MatDialogModule, MatSnackBarModule, MatCardModule, MatProgressSpinnerModule,
     HisHopeConfirmDialogComponent, HisHopeDataTableCellDirective, HisHopeDataTableComponent, HisHopeDataTableDetailDirective, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeToolbarComponent,
   ],
   template: `
     <hh-page-layout>
-    <hh-page-header hhPageHeader title="OIDC Clients" subtitle="Manage applications registered with the identity service">
-      <button mat-raised-button color="primary" type="button" (click)="openCreateDialog()">
-        <mat-icon>add</mat-icon> New Client
+    <hh-page-header hhPageHeader [title]="'admin.oidcApplications' | hhTranslate" [subtitle]="'admin.clientsSubtitle' | hhTranslate">
+      <button *ngIf="canWrite" mat-raised-button color="primary" type="button" (click)="openCreateDialog()">
+        <mat-icon>add</mat-icon> {{ 'admin.newClient' | hhTranslate }}
       </button>
     </hh-page-header>
 
-    <hh-toolbar hhPageToolbar label="OIDC client controls">
-      <span hhToolbarTitle>{{ totalItems }} clients</span>
-      <button hh-toolbar-actions type="button" class="hh-icon-button" (click)="loadClients()" aria-label="Refresh clients" title="Refresh clients">
+    <hh-toolbar hhPageToolbar [label]="'admin.manageClients' | hhTranslate">
+      <span hhToolbarTitle>{{ totalItems }} {{ 'admin.clients' | hhTranslate }}</span>
+      <button hh-toolbar-actions type="button" class="hh-icon-button" (click)="loadClients()" [attr.aria-label]="'admin.refresh' | hhTranslate" [attr.title]="'admin.refresh' | hhTranslate">
         <span class="material-icons" aria-hidden="true">refresh</span>
       </button>
     </hh-toolbar>
 
-    <hh-data-table label="OIDC clients" [loading]="loading" [error]="error ?? ''"
+    <hh-data-table [label]="'admin.oidcApplications' | hhTranslate" [loading]="loading" [error]="error ?? ''"
                    [empty]="!loading && !error && clients.length === 0"
-                   [columns]="columns" [rows]="tableRows" [selection]="true" [inlineEdit]="true" mode="server"
+                   [columns]="columns" [rows]="tableRows" [selection]="true" [inlineEdit]="canWrite" mode="server"
                    [totalItems]="totalItems" [query]="query" [pageSize]="20" (queryChange)="onQueryChange($event)"
-                   [exportable]="true" [bulkActions]="bulkActions" [filterBuilder]="true" [virtualizeColumns]="true" [expandedRowKeys]="expandedRowKeys" viewStorageKey="admin.clients" viewName="default" [serverBackedView]="true" [savedView]="savedView"
+                   [exportable]="canExport" [bulkActions]="bulkActions" [filterBuilder]="true" [virtualizeColumns]="true" [expandedRowKeys]="expandedRowKeys" viewStorageKey="admin.clients" viewName="default" [serverBackedView]="true" [savedView]="savedView"
                    (rowExpandChange)="toggleRowExpand($event)"
                    (viewSaveRequested)="saveView($event)" (viewResetRequested)="resetView($event)" (bulkActionRequested)="onBulkAction($event)" (exportRequested)="onExport($event)"
-                   emptyMessage="No OIDC clients found." (rowEditSave)="saveInlineClient($event)"
+                   [emptyMessage]="'admin.noClients' | hhTranslate" (rowEditSave)="saveInlineClient($event)"
                    (retry)="loadClients()">
       <ng-template hhDataTableCell="actions" let-row>
-        <button mat-icon-button type="button" (click)="rotateSecret(clientFromRow(row))" aria-label="Rotate client secret">
+        <button *ngIf="canWrite" mat-icon-button type="button" (click)="rotateSecret(clientFromRow(row))" [attr.aria-label]="'admin.rotateClientSecret' | hhTranslate">
           <mat-icon>vpn_key</mat-icon>
         </button>
-        <button mat-icon-button color="warn" type="button" (click)="deleteClient(clientFromRow(row))" aria-label="Delete client">
+        <button *ngIf="canWrite" mat-icon-button color="warn" type="button" (click)="deleteClient(clientFromRow(row))" [attr.aria-label]="'admin.delete' | hhTranslate">
           <mat-icon>delete</mat-icon>
         </button>
       </ng-template>
       <ng-template hhDataTableDetail let-row>
-        <div class="hh-data-table-detail">{{ row['clientType'] }} · {{ row['redirectUris'] || 'No redirect URI' }}</div>
+        <div class="hh-data-table-detail">{{ row['clientType'] }} · {{ row['redirectUris'] || (i18n.t('admin.noRedirectUri', 'No redirect URI')) }}</div>
       </ng-template>
     </hh-data-table>
     <hh-confirm-dialog
       [open]="!!clientPendingDelete"
-      title="Delete OIDC client?"
-      [message]="clientPendingDelete ? 'This will revoke the client registration and cannot be undone.' : ''"
-      confirmLabel="Delete client"
+      [title]="i18n.t('admin.deleteClientConfirmTitle', 'Delete OIDC client?')"
+      [message]="clientPendingDelete ? i18n.t('admin.deleteClientConfirmMessage', 'This will revoke the client registration and cannot be undone.') : ''"
+      [confirmLabel]="i18n.t('admin.deleteClient', 'Delete client')"
       (confirmed)="confirmDeleteClient()"
       (cancelled)="clientPendingDelete = null" />
     </hh-page-layout>
@@ -73,15 +73,19 @@ export class ClientsPageComponent implements OnInit {
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
   private readonly auditFeedback = inject(HisHopeAuditFeedbackService);
+  readonly i18n = inject(HisHopeI18nService);
+  private readonly permissions = inject(HisHopePermissionService);
+  get canExport(): boolean { return this.permissions.has('reports.export'); }
+  get canWrite(): boolean { return this.permissions.has('admin.clients.write'); }
 
   clients: OidcClient[] = [];
-  columns: HisHopeDataTableColumn[] = [
-    { key: 'clientId', label: 'Client ID', sortable: true, responsivePriority: 1, pinned: 'left' },
-    { key: 'displayName', label: 'Display Name', sortable: true, editable: true, responsivePriority: 1 },
-    { key: 'clientType', label: 'Type', editable: true, responsivePriority: 2 },
-    { key: 'redirectUris', label: 'Redirect URIs', responsivePriority: 3 },
-    { key: 'actions', label: 'Actions', hideable: false, sortable: false, reorderable: false, width: '112px', minWidth: 112, align: 'center' as const, responsivePriority: 1, pinned: 'right' },
-  ];
+  get columns(): HisHopeDataTableColumn[] { return [
+    { key: 'clientId', label: this.i18n.t('admin.clientId', 'Client ID'), sortable: true, responsivePriority: 1, pinned: 'left' },
+    { key: 'displayName', label: this.i18n.t('admin.displayName', 'Display name'), sortable: true, editable: true, responsivePriority: 1 },
+    { key: 'clientType', label: this.i18n.t('admin.type', 'Type'), editable: true, responsivePriority: 2 },
+    { key: 'redirectUris', label: this.i18n.t('admin.redirectUris', 'Redirect URIs'), responsivePriority: 3 },
+    { key: 'actions', label: this.i18n.t('admin.actions', 'Actions'), hideable: false, sortable: false, reorderable: false, width: '112px', minWidth: 112, align: 'center' as const, responsivePriority: 1, pinned: 'right' },
+  ]; }
   loading = false;
   error: string | null = null;
   clientPendingDelete: OidcClient | null = null;
@@ -90,7 +94,7 @@ export class ClientsPageComponent implements OnInit {
   savedView: any = null;
   expandedRowKeys: string[] = [];
   private pageRequest?: Subscription;
-  readonly bulkActions: HisHopeBulkAction[] = [{ id: 'delete', label: 'Delete selected', tone: 'danger' }];
+  get bulkActions(): HisHopeBulkAction[] { return this.canWrite ? [{ id: 'delete', label: this.i18n.t('admin.deleteSelected'), tone: 'danger' }] : []; }
 
   get tableRows(): Record<string, unknown>[] {
     return this.clients.map(client => ({
@@ -106,6 +110,7 @@ export class ClientsPageComponent implements OnInit {
   clientFromRow(row: Record<string, unknown>): OidcClient { return row['entity'] as OidcClient; }
 
   saveInlineClient(row: Record<string, unknown>): void {
+    if (!this.canWrite) return;
     const client = this.clientFromRow(row);
     if (!client?.id) return;
     this.api.updateClient(client.id, {
@@ -114,15 +119,15 @@ export class ClientsPageComponent implements OnInit {
       concurrencyToken: client.concurrencyToken,
     }).pipe(
       catchError(() => {
-        this.auditFeedback.report({ action: 'Update', resource: 'OIDC client', outcome: 'failure', message: 'Failed to update client.' });
-        this.snackBar.open('Failed to update client', 'Close', { duration: 3000 });
+        this.auditFeedback.report({ action: 'Update', resource: 'OIDC client', outcome: 'failure', message: this.i18n.t('admin.updateClientFailed', 'Failed to update client.') });
+        this.snackBar.open(this.i18n.t('admin.updateClientFailed', 'Failed to update client'), this.i18n.t('admin.close', 'Close'), { duration: 3000 });
         this.loadClients();
         return of(null);
       }),
     ).subscribe(result => {
       if (result) {
-        this.auditFeedback.report({ action: 'Update', resource: 'OIDC client', outcome: 'success', message: 'Client updated.' });
-        this.snackBar.open('Client updated', 'Close', { duration: 2000 });
+        this.auditFeedback.report({ action: 'Update', resource: 'OIDC client', outcome: 'success', message: this.i18n.t('admin.clientUpdated', 'Client updated.') });
+        this.snackBar.open(this.i18n.t('admin.clientUpdated', 'Client updated'), this.i18n.t('admin.close', 'Close'), { duration: 2000 });
         this.loadClients();
       }
     });
@@ -149,7 +154,7 @@ export class ClientsPageComponent implements OnInit {
     this.pageRequest = this.api.getClientsPage(query).pipe(
       finalize(() => this.loading = false),
       catchError(err => {
-        this.error = 'Failed to load clients. Make sure the API is running.';
+        this.error = this.i18n.t('admin.loadClientsFailed', 'Failed to load clients. Make sure the API is running.');
         return of({ items: [], totalCount: 0, page: query.page, pageSize: query.pageSize, totalPages: 0, hasNextPage: false, hasPreviousPage: false });
       }),
     ).subscribe(result => { this.totalItems = result.totalCount; this.clients = result.items; });
@@ -158,8 +163,9 @@ export class ClientsPageComponent implements OnInit {
   onQueryChange(query: HisHopePageQuery): void { this.loadClients(query); }
 
   onBulkAction(request: HisHopeBulkActionRequest): void {
+    if (!this.canWrite) return;
     this.loading = true;
-    this.api.bulkTable('clients', request).pipe(finalize(() => this.loading = false), catchError(() => { this.error = 'Failed to update selected clients.'; return of(null); }))
+    this.api.bulkTable('clients', request).pipe(finalize(() => this.loading = false), catchError(() => { this.error = this.i18n.t('admin.updateClientsFailed', 'Failed to update selected clients.'); return of(null); }))
       .subscribe(result => { if (result) this.loadClients(this.query); });
   }
 
@@ -175,6 +181,7 @@ export class ClientsPageComponent implements OnInit {
   }
 
   openCreateDialog(): void {
+    if (!this.canWrite) return;
     const ref = this.dialog.open(ClientEditDialogComponent, {
       width: 'min(720px, calc(100vw - 32px))',
       maxWidth: 'calc(100vw - 32px)',
@@ -187,6 +194,7 @@ export class ClientsPageComponent implements OnInit {
   }
 
   openEditDialog(client: OidcClient): void {
+    if (!this.canWrite) return;
     const ref = this.dialog.open(ClientEditDialogComponent, {
       width: 'min(720px, calc(100vw - 32px))',
       maxWidth: 'calc(100vw - 32px)',
@@ -200,24 +208,27 @@ export class ClientsPageComponent implements OnInit {
   }
 
   deleteClient(client: OidcClient): void {
+    if (!this.canWrite) return;
     this.clientPendingDelete = client;
   }
 
   rotateSecret(client: OidcClient): void {
+    if (!this.canWrite) return;
     if (!client.id || client.clientType?.toLowerCase() !== 'confidential') {
-      this.snackBar.open('Only confidential clients can rotate a secret.', 'Close', { duration: 3000 });
+      this.snackBar.open(this.i18n.t('admin.onlyConfidentialClients', 'Only confidential clients can rotate a secret.'), this.i18n.t('admin.close', 'Close'), { duration: 3000 });
       return;
     }
     this.api.rotateClientSecret(client.id).subscribe({
       next: result => {
         navigator.clipboard?.writeText(result.clientSecret);
-        this.snackBar.open(`New secret copied for ${result.clientId}. It will not be shown again.`, 'Close', { duration: 6000 });
+        this.snackBar.open(this.i18n.t('admin.newSecretCopied', 'New secret copied for {{clientId}}. It will not be shown again.').replace('{{clientId}}', result.clientId), this.i18n.t('admin.close', 'Close'), { duration: 6000 });
       },
-      error: () => this.snackBar.open('Failed to rotate client secret.', 'Close', { duration: 3000 }),
+      error: () => this.snackBar.open(this.i18n.t('admin.rotateClientFailed', 'Failed to rotate client secret.'), this.i18n.t('admin.close', 'Close'), { duration: 3000 }),
     });
   }
 
   confirmDeleteClient(): void {
+    if (!this.canWrite) return;
     const client = this.clientPendingDelete;
     this.clientPendingDelete = null;
     if (!client?.id) return;

@@ -20,11 +20,18 @@ public class SearchPatientsQueryHandler : IRequestHandler<SearchPatientsQuery, P
     public async Task<PagedResult<PatientDto>> Handle(SearchPatientsQuery request,
         CancellationToken cancellationToken)
     {
-        var (items, totalCount) = await _patientRepository.SearchAsync(
-            request.SearchTerm, request.Page, request.PageSize, cancellationToken);
+        var result = request.FacilityIds is null
+            ? await _patientRepository.SearchAsync(request.SearchTerm, request.Page, request.PageSize, cancellationToken)
+            : await _patientRepository.SearchAsync(
+                request.SearchTerm,
+                request.Page,
+                request.PageSize,
+                request.FacilityIds,
+                request.CrossFacility,
+                cancellationToken);
 
-        var dtos = _mapper.Map<List<PatientDto>>(items);
+        var dtos = _mapper.Map<List<PatientDto>>(result.Items);
 
-        return new PagedResult<PatientDto>(dtos, totalCount, request.Page, request.PageSize);
+        return new PagedResult<PatientDto>(dtos, result.TotalCount, request.Page, request.PageSize);
     }
 }

@@ -1,0 +1,16 @@
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: HIS_HOPE_RELEASE_SHA
+    valueFrom:
+      configMapKeyRef:
+        name: release-metadata
+        key: HIS_HOPE_RELEASE_SHA
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: HIS_HOPE_RELEASE_DIGEST
+    valueFrom:
+      configMapKeyRef:
+        name: release-metadata
+        key: HIS_HOPE_RELEASE_DIGEST

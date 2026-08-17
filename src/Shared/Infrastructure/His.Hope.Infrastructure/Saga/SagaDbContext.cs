@@ -73,7 +73,7 @@ public class SagaDbContext : DbContext
             // Partial index: only Running/Compensating sagas need heartbeat monitoring
             entity.HasIndex(e => e.LastHeartbeat)
                 .HasDatabaseName("idx_saga_heartbeat")
-                .HasFilter("[status] IN ('Running', 'Compensating')");
+                .HasFilter("\"status\" IN ('Running', 'Compensating')");
         });
     }
 }

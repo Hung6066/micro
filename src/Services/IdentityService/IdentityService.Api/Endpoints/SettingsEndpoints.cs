@@ -3,6 +3,7 @@ using His.Hope.IdentityService.Application.UseCases.Settings.Commands;
 using His.Hope.IdentityService.Application.UseCases.Settings.Queries;
 using MediatR;
 using System.Security.Claims;
+using His.Hope.Contracts.Identity;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -15,26 +16,26 @@ public static class SettingsEndpoints
     public static RouteGroupBuilder MapSettingsEndpoints(this RouteGroupBuilder group)
     {
         // GET /api/v1/settings - All settings (key-value)
-        group.MapGet("/settings", async (
+        group.MapGet(IdentityApiRoutes.SettingsSegment, async (
             IMediator mediator = null!,
             CancellationToken ct = default) =>
         {
             var settings = await mediator.Send(new GetSettingsQuery(), ct);
             return Results.Ok(settings);
-        }).RequireAuthorization("Permission:admin.settings.read");
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsRead);
 
         // GET /api/v1/settings/{key} - Get single setting
-        group.MapGet("/settings/{key}", async (
+        group.MapGet(IdentityApiRoutes.SettingsSegment + "/{key}", async (
             string key,
             IMediator mediator = null!,
             CancellationToken ct = default) =>
         {
             var setting = await mediator.Send(new GetSettingByKeyQuery(key), ct);
             return setting is null ? Results.NotFound() : Results.Ok(setting);
-        }).RequireAuthorization("Permission:admin.settings.read");
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsRead);
 
         // PUT /api/v1/settings/{key} - Update single setting
-        group.MapPut("/settings/{key}", async (
+        group.MapPut(IdentityApiRoutes.SettingsSegment + "/{key}", async (
             string key,
             UpdateSettingRequest request,
             HttpContext httpContext,
@@ -47,10 +48,10 @@ public static class SettingsEndpoints
             var setting = await mediator.Send(
                 new UpdateSettingCommand(key, request.Value, request.Description, userId), ct);
             return Results.Ok(setting);
-        }).RequireAuthorization("Permission:admin.settings.write");
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsWrite);
 
         // PUT /api/v1/settings - Bulk update settings
-        group.MapPut("/settings", async (
+        group.MapPut(IdentityApiRoutes.SettingsSegment, async (
             List<BulkUpdateSettingItem> request,
             HttpContext httpContext,
             IMediator mediator = null!,
@@ -62,10 +63,10 @@ public static class SettingsEndpoints
             var settings = await mediator.Send(
                 new BulkUpdateSettingsCommand(request, userId), ct);
             return Results.Ok(settings);
-        }).RequireAuthorization("Permission:admin.settings.write");
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsWrite);
 
         // Frontend admin module calls PUT /api/v1/admin/settings/bulk.
-        group.MapPut("/settings/bulk", async (
+        group.MapPut(IdentityApiRoutes.SettingsSegment + "/bulk", async (
             BulkUpdateSettingsRequest request,
             HttpContext httpContext,
             IMediator mediator = null!,
@@ -77,7 +78,7 @@ public static class SettingsEndpoints
             var settings = await mediator.Send(
                 new BulkUpdateSettingsCommand(request.Settings, userId), ct);
             return Results.Ok(settings);
-        }).RequireAuthorization("Permission:admin.settings.write");
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsWrite);
 
         return group;
     }

@@ -1,5 +1,9 @@
 param(
-    [string[]] $ServerUrls = @('http://localhost:8081/', 'http://localhost:8082/', 'http://localhost:8083/'),
+    [string[]] $ServerUrls = @(
+        "$(if ($env:E2E_CLINICAL_URL) { $env:E2E_CLINICAL_URL } else { 'http://localhost:8081' })/",
+        "$(if ($env:E2E_DASHBOARD_URL) { $env:E2E_DASHBOARD_URL } else { 'http://localhost:8082' })/",
+        "$(if ($env:E2E_ADMIN_URL) { $env:E2E_ADMIN_URL } else { 'http://localhost:8083' })/"
+    ),
     [string] $AuthProbeUrl = $env:E2E_AUTH_PROBE_URL,
     [string] $AuthToken = $env:E2E_AUTH_TOKEN
 )

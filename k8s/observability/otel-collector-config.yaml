@@ -40,7 +40,7 @@ data:
     
     exporters:
       jaeger:
-        endpoint: jaeger-collector:14250
+        endpoint: jaeger.monitoring.svc.cluster.local:14250
         tls:
           insecure: true
     

@@ -1,0 +1,51 @@
+---
+- name: Repair ownership for local-path PostgreSQL volume
+  hosts: k3s-worker-2
+  become: true
+  gather_facts: false
+  vars:
+    local_path_postgres_volume: /var/lib/rancher/k3s/storage/pvc-1a33d093-2f37-41c5-9217-07a2d12449ff_his-hope-data_postgres-data-his-hope-postgres-0
+    local_path_rabbitmq_volume: /var/lib/rancher/k3s/storage/pvc-572023b1-23df-4307-8939-866d4f0ddd7a_his-hope-data_rabbitmq-data-his-hope-rabbitmq-0
+  tasks:
+    - name: Verify exact local-path volume exists
+      ansible.builtin.stat:
+        path: "{{ local_path_postgres_volume }}"
+      register: postgres_volume
+      failed_when: not postgres_volume.stat.exists or not postgres_volume.stat.isdir
+
+    - name: Set PostgreSQL volume ownership
+      ansible.builtin.file:
+        path: "{{ local_path_postgres_volume }}"
+        owner: "999"
+        group: "999"
+        recurse: true
+        mode: "0700"
+
+    - name: Verify exact RabbitMQ local-path volume exists
+      ansible.builtin.stat:
+        path: "{{ local_path_rabbitmq_volume }}"
+      register: rabbitmq_volume
+      failed_when: not rabbitmq_volume.stat.exists or not rabbitmq_volume.stat.isdir
+
+    - name: Set RabbitMQ volume ownership
+      ansible.builtin.file:
+        path: "{{ local_path_rabbitmq_volume }}"
+        owner: "999"
+        group: "999"
+        recurse: true
+        mode: "0700"
+
+    - name: Enforce Erlang cookie owner-only permissions when present
+      ansible.builtin.file:
+        path: "{{ item }}"
+        owner: "999"
+        group: "999"
+        mode: "0600"
+      loop:
+        - "{{ local_path_rabbitmq_volume }}/.erlang.cookie"
+        - "{{ local_path_rabbitmq_volume }}/mnesia/.erlang.cookie"
+      failed_when: false
+
+    - name: Reapply cookie permissions for every Erlang cookie in the exact volume
+      ansible.builtin.shell: "find '{{ local_path_rabbitmq_volume }}' -name .erlang.cookie -type f -exec chown 999:999 {} + -exec chmod 0600 {} +"
+      changed_when: false

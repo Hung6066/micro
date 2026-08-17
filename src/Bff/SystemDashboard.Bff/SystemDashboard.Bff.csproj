@@ -16,6 +16,7 @@
     <PackageReference Include="StackExchange.Redis" Version="2.7.27" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Shared\Configuration\His.Hope.Configuration\His.Hope.Configuration.csproj" />
     <ProjectReference Include="..\..\Shared\AspNetCore\His.Hope.AspNetCore\His.Hope.AspNetCore.csproj" />
     <ProjectReference Include="..\..\Shared\Contracts\His.Hope.Contracts\His.Hope.Contracts.csproj" />
     <ProjectReference Include="..\..\Shared\Messaging\His.Hope.Messaging.Abstractions\His.Hope.Messaging.Abstractions.csproj" />
@@ -24,6 +25,7 @@
     <ProjectReference Include="..\..\Shared\Resilience\His.Hope.Resilience\His.Hope.Resilience.csproj" />
     <ProjectReference Include="..\..\Shared\Infrastructure\His.Hope.Infrastructure\His.Hope.Infrastructure.csproj" />
     <ProjectReference Include="..\His.Hope.Bff.Core\His.Hope.Bff.Core.csproj" />
+    <ProjectReference Include="..\..\Shared\Configuration\His.Hope.Configuration\His.Hope.Configuration.csproj" />
   </ItemGroup>
 
   <!-- Test packages -->

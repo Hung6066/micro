@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  template:
+    spec:
+      containers:
+        - name: api-gateway
+          env:
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                secretKeyRef:
+                  name: systemdashboard-bff-secrets
+                  key: redis-url

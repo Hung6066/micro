@@ -54,7 +54,9 @@ metadata:
     app.kubernetes.io/component: database
 spec:
   serviceName: postgres
-  replicas: 3
+  # Plain PostgreSQL StatefulSet replicas are independent databases, not HA.
+  # Keep one writer until a PostgreSQL operator/managed HA cluster is installed.
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: postgres
@@ -70,9 +72,14 @@ spec:
           type: RuntimeDefault
       containers:
         - name: postgres
-          image: postgres:16
+          # Pin the upstream image to satisfy the production digest admission
+          # policy. Harbor mirroring can replace the registry without changing
+          # the immutable content digest.
+          image: docker.io/library/postgres@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
           imagePullPolicy: Always
           securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
             seccompProfile:
               type: RuntimeDefault
             capabilities:
@@ -95,7 +102,7 @@ spec:
                   name: postgres-secret
                   key: password
             - name: POSTGRES_MULTIPLE_DATABASES
-              value: "patientdb,identitydb,appointmentdb,clinicaldb"
+              value: "patientdb,identitydb,appointmentdb,clinicaldb,billingdb,labdb,pharmacydb,unleashdb"
             - name: POSTGRES_DB
               value: "patientdb"
           resources:
@@ -111,6 +118,8 @@ spec:
                 - pg_isready
                 - -U
                 - his_hope
+                - -d
+                - patientdb
             initialDelaySeconds: 15
             periodSeconds: 10
             timeoutSeconds: 5
@@ -121,6 +130,8 @@ spec:
                 - pg_isready
                 - -U
                 - his_hope
+                - -d
+                - patientdb
             initialDelaySeconds: 30
             periodSeconds: 15
             timeoutSeconds: 5

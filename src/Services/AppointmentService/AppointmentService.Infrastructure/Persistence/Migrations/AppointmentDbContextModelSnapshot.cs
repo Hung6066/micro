@@ -110,6 +110,15 @@ namespace His.Hope.AppointmentService.Infrastructure.Persistence.Migrations
                     b.HasIndex("Status")
                         .HasDatabaseName("IX_Appointments_Status");
 
+                    b.HasIndex("PatientId", "ScheduledDate")
+                        .HasDatabaseName("IX_Appointments_Patient_Scheduled_Id");
+
+                    b.HasIndex("ProviderId", "ScheduledDate")
+                        .HasDatabaseName("IX_Appointments_Provider_Scheduled_Id");
+
+                    b.HasIndex("FacilityId", "Status", "ScheduledDate")
+                        .HasDatabaseName("IX_Appointments_Facility_Status_Scheduled_Id");
+
                     b.ToTable("appointments", (string)null);
                 });
 

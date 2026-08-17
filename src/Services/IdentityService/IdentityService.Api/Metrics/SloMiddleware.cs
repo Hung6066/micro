@@ -1,3 +1,5 @@
+using His.Hope.Contracts.Identity;
+
 namespace His.Hope.IdentityService.Api.Metrics;
 
 public class SloMiddleware
@@ -15,7 +17,7 @@ public class SloMiddleware
     {
         var path = context.Request.Path.Value?.ToLowerInvariant();
 
-        if (path?.StartsWith("/connect/token") == true)
+        if (path?.StartsWith(IdentityApiRoutes.OidcToken, StringComparison.Ordinal) == true)
         {
             using (IdentitySloMetrics.MeasureTokenIssue())
             {
@@ -27,7 +29,7 @@ public class SloMiddleware
                     IdentitySloMetrics.RecordTokenFailure("authorization_code", $"http_{context.Response.StatusCode}");
             }
         }
-        else if (path?.StartsWith("/connect/introspect") == true)
+        else if (path?.StartsWith(IdentityApiRoutes.OidcIntrospect, StringComparison.Ordinal) == true)
         {
             using (IdentitySloMetrics.MeasureIntrospection())
             {
@@ -35,7 +37,7 @@ public class SloMiddleware
                 IdentitySloMetrics.RecordIntrospection();
             }
         }
-        else if (path?.StartsWith("/api/v1/auth/login") == true)
+        else if (path?.StartsWith(IdentityApiRoutes.Login, StringComparison.Ordinal) == true)
         {
             using (IdentitySloMetrics.MeasureLogin())
             {

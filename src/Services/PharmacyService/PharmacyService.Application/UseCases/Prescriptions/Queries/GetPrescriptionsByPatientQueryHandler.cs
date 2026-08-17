@@ -19,7 +19,10 @@ public class GetPrescriptionsByPatientQueryHandler : IRequestHandler<GetPrescrip
     public async Task<IReadOnlyList<PrescriptionDto>> Handle(GetPrescriptionsByPatientQuery request,
         CancellationToken cancellationToken)
     {
-        var prescriptions = await _prescriptionRepository.GetByPatientIdAsync(request.PatientId, cancellationToken);
+        var prescriptions = request.FacilityIds is null
+            ? await _prescriptionRepository.GetByPatientIdAsync(request.PatientId, cancellationToken)
+            : await _prescriptionRepository.GetByPatientIdAsync(request.PatientId,
+                request.FacilityIds, request.CrossFacility, cancellationToken);
         return _mapper.Map<List<PrescriptionDto>>(prescriptions);
     }
 }

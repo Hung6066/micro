@@ -12,9 +12,13 @@ using His.Hope.ClinicalService.Domain.Repositories;
 using His.Hope.ClinicalService.Domain.ValueObjects;
 using His.Hope.Contracts.Pagination;
 using His.Hope.SharedKernel.Domain.Common;
+using His.Hope.ClinicalService.Infrastructure.Persistence;
+using His.Hope.Authorization;
+using Microsoft.EntityFrameworkCore;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using Moq;
+using Microsoft.AspNetCore.Http;
 
 namespace His.Hope.ClinicalService.Contract.Tests;
 
@@ -28,13 +32,19 @@ public class ClinicalGrpcContractTests
 {
     private readonly Mock<IMediator> _mockMediator;
     private readonly Mock<ILogger<ClinicalGrpcServiceImpl>> _mockLogger;
+    private readonly Mock<IResourceAuthorizationEvaluator> _authorization;
     private readonly ClinicalGrpcServiceImpl _service;
 
     public ClinicalGrpcContractTests()
     {
         _mockMediator = new Mock<IMediator>();
         _mockLogger = new Mock<ILogger<ClinicalGrpcServiceImpl>>();
-        _service = new ClinicalGrpcServiceImpl(_mockMediator.Object, _mockLogger.Object);
+        var db = new ClinicalDbContext(new DbContextOptionsBuilder<ClinicalDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString("N")).Options);
+        _authorization = new Mock<IResourceAuthorizationEvaluator>();
+        _authorization.Setup(a => a.EvaluateAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AuthorizationDecision.Allow("clinical.view"));
+        _service = new ClinicalGrpcServiceImpl(_mockMediator.Object, _mockLogger.Object, db, _authorization.Object);
     }
 
     private static EncounterDto CreateSampleEncounterDto(Guid? id = null)
@@ -173,6 +183,20 @@ public class ClinicalGrpcContractTests
         var exception = await act.Should().ThrowAsync<RpcException>();
         exception.And.StatusCode.Should().Be(StatusCode.NotFound);
         exception.And.Status.Detail.Should().Contain("not found");
+    }
+
+    [Fact]
+    public async Task GetEncounter_WhenResourceDenied_ShouldReturnNotFoundWithoutMediatorAccess()
+    {
+        _authorization.Setup(a => a.EvaluateAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AuthorizationDecision.Deny("clinical.view", "facility_scope_denied"));
+
+        var act = async () => await _service.GetEncounter(
+            new EncounterRequest { Id = Guid.NewGuid().ToString() }, new TestServerCallContext());
+
+        var exception = await act.Should().ThrowAsync<RpcException>();
+        exception.And.StatusCode.Should().Be(StatusCode.NotFound);
+        _mockMediator.Verify(m => m.Send(It.IsAny<GetEncounterByIdQuery>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -320,6 +344,25 @@ public class ClinicalGrpcContractTests
         // Assert - should default to page 1, pageSize 20
         response.Page.Should().Be(1);
         response.PageSize.Should().Be(20);
+    }
+
+    [Fact]
+    public async Task SearchEncounters_WithoutFacilityMembership_PassesEmptyScopeFailClosed()
+    {
+        _mockMediator
+            .Setup(m => m.Send(
+                It.Is<SearchEncountersQuery>(q =>
+                    q.FacilityIds != null && q.FacilityIds.Count == 0 && !q.CrossFacility),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PagedResult<EncounterDto>(
+                new List<EncounterDto>(), 0, 1, 20));
+
+        var response = await _service.SearchEncounters(
+            new EncounterSearchRequest { SearchTerm = "restricted" },
+            new TestServerCallContext());
+
+        response.Encounters.Should().BeEmpty();
+        response.TotalCount.Should().Be(0);
     }
 
     [Fact]
@@ -556,6 +599,7 @@ public class TestServerCallContext : ServerCallContext
         _responseTrailers = new Metadata();
         _authContext = new AuthContext(string.Empty, new Dictionary<string, List<AuthProperty>>());
         _userState = new Dictionary<object, object>();
+        _userState["__HttpContext"] = new DefaultHttpContext();
     }
 
     protected override string MethodCore => "/his.hope.clinical.ClinicalGrpcService/TestMethod";

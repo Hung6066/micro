@@ -119,6 +119,12 @@ spec:
         prometheus.io/port: "8080"
     spec:
       serviceAccountName: vault-agent-injector
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -135,6 +141,11 @@ spec:
         - name: sidecar-injector
           image: hashicorp/vault-k8s:1.3.1
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: AGENT_INJECT_LISTEN
               value: ":8080"

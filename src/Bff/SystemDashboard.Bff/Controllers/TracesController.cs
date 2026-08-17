@@ -8,7 +8,7 @@ namespace SystemDashboard.Bff.Controllers;
 
 [ApiController]
 [Route("api/traces")]
-[Authorize(Roles = DashboardRoles.ReadOnly)]
+[Authorize(Policy = "Permission:dashboard.view")]
 public sealed class TracesController : ControllerBase
 {
     private readonly ITracesAggregator _tracesAggregator;
@@ -33,10 +33,7 @@ public sealed class TracesController : ControllerBase
             "Searching traces: service={Service}, from={From}, to={To}, minDurationMs={MinDurationMs}, limit={Limit}",
             service, from, to, minDurationMs, limit);
 
-        if (string.IsNullOrEmpty(service))
-            return Ok(Array.Empty<TraceSummary>());
-
-        var traces = await _tracesAggregator.SearchTracesAsync(service, from, to, minDurationMs, limit, ct);
+        var traces = await _tracesAggregator.SearchTracesAsync(service ?? string.Empty, from, to, minDurationMs, limit, ct);
         return Ok(traces);
     }
 

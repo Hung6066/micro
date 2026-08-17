@@ -17,6 +17,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { CommonModule } from '@angular/common';
 import { of } from 'rxjs';
 import { LabOrderDetailComponent } from './lab-order-detail.component';
+import { HisHopePermissionService } from '@his-hope/frontend-foundation';
 import { LabService } from '@core/services/lab.service';
 import { LabCriticalAlertService } from '@core/services/lab-critical-alert.service';
 import { createMockLabOrder } from '@testing/mock-data';
@@ -88,7 +89,10 @@ describe('LabOrderDetailComponent', () => {
     component = fixture.componentInstance;
     labService = TestBed.inject(LabService) as jasmine.SpyObj<LabService>;
     alertService = TestBed.inject(LabCriticalAlertService) as jasmine.SpyObj<LabCriticalAlertService>;
+    TestBed.inject(HisHopePermissionService).setPermissions(['lab.alert.acknowledge']);
     jest.spyOn(component as any, 'notify').mockImplementation(() => undefined);
+    fixture.detectChanges();
+    await fixture.whenStable();
     fixture.detectChanges();
   });
 

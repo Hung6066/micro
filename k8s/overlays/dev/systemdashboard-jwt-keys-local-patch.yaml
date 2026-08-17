@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: systemdashboard-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: systemdashboard-bff
+          env:
+            - name: Jwt__RsaPublicKeyPath
+              value: /mnt/identity-jwt-keys/jwt-public-key.pem
+            - name: Jwt__RsaEncryptionPrivateKeyPath
+              value: /mnt/identity-jwt-keys/jwt-encryption-private-key.pem
+          volumeMounts:
+            - name: identity-jwt-keys
+              mountPath: /mnt/identity-jwt-keys
+              readOnly: true
+      volumes:
+        - name: identity-jwt-keys
+          secret:
+            secretName: identity-jwt-keys
+            defaultMode: 0440

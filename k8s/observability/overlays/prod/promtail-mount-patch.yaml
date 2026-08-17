@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  namespace: monitoring
+spec:
+  template:
+    spec:
+      containers:
+        - name: promtail
+          volumeMounts:
+            - $patch: replace
+            - name: config
+              mountPath: /etc/promtail/promtail.yaml
+              subPath: promtail.yaml
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+            - name: run
+              mountPath: /run/promtail
+      volumes:
+        - $patch: replace
+        - name: config
+          configMap:
+            name: promtail-config
+        - name: varlog
+          hostPath:
+            path: /var/log
+            type: Directory
+        - name: run
+          hostPath:
+            path: /var/lib/promtail
+            type: DirectoryOrCreate

@@ -25,6 +25,7 @@ public interface IInboxStore
 {
     ValueTask<bool> TryBeginAsync(Guid eventId, string consumer, CancellationToken cancellationToken = default);
     ValueTask MarkCompletedAsync(Guid eventId, string consumer, CancellationToken cancellationToken = default);
+    ValueTask ReleaseAsync(Guid eventId, string consumer, CancellationToken cancellationToken = default);
 }
 
 public sealed record IdempotencyRecord(

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+using His.Hope.Infrastructure.Caching;
 
 namespace His.Hope.Infrastructure.Abuse;
 
@@ -49,13 +50,10 @@ public sealed class PerUserRateLimitingMiddleware
             var redisConnectionString = configuration.GetValue<string>("Redis:ConnectionString")
                 ?? configuration.GetValue<string>("RateLimiting:RedisConnectionString")
                 ?? "localhost:6379";
-            _redis = ConnectionMultiplexer.Connect(new ConfigurationOptions
-            {
-                EndPoints = { redisConnectionString },
-                AbortOnConnectFail = false,
-                ConnectTimeout = 2000,
-                SyncTimeout = 1000
-            });
+            var options = RedisConnectionFactory.CreateOptions(redisConnectionString, configuration);
+            options.ConnectTimeout = 2000;
+            options.SyncTimeout = 1000;
+            _redis = ConnectionMultiplexer.Connect(options);
             _redisAvailable = _redis.IsConnected;
         }
         catch (Exception ex)

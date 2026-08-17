@@ -1,0 +1,47 @@
+name: Alertmanager Notification E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_test:
+        description: Send a synthetic critical alert to the production receiver
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alertmanager-notification-e2e
+  cancel-in-progress: false
+
+jobs:
+  notification-e2e:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Validate Alertmanager notification delivery
+        shell: pwsh
+        env:
+          ALERTMANAGER_URL: ${{ secrets.ALERTMANAGER_PRODUCTION_URL }}
+          ALERTMANAGER_TEST_RECEIVER_URL: ${{ secrets.ALERTMANAGER_E2E_RECEIVER_URL }}
+          ALERTMANAGER_BEARER_TOKEN: ${{ secrets.ALERTMANAGER_PRODUCTION_BEARER_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:ALERTMANAGER_URL) -or [string]::IsNullOrWhiteSpace($env:ALERTMANAGER_TEST_RECEIVER_URL)) {
+            throw 'ALERTMANAGER_PRODUCTION_URL and ALERTMANAGER_E2E_RECEIVER_URL are required in the protected production environment.'
+          }
+          $args = @('-AlertmanagerUrl', $env:ALERTMANAGER_URL, '-TestReceiverUrl', $env:ALERTMANAGER_TEST_RECEIVER_URL, '-OutputPath', 'artifacts/evidence/alertmanager-notification-e2e.json')
+          if ('${{ inputs.run_test }}' -eq 'true') { $args += @('-RunTest', '-AllowProduction') }
+          New-Item -ItemType Directory -Force artifacts/evidence | Out-Null
+          & ./scripts/test-alertmanager-notification.ps1 @args
+      - name: Upload notification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: alertmanager-notification-e2e-${{ github.run_id }}
+          path: artifacts/evidence/alertmanager-notification-e2e.json
+          if-no-files-found: error

@@ -1,0 +1,21 @@
+services:
+  vault-1:
+    ports: !override ["18200:8200"]
+    environment:
+      AZURE_CLIENT_SECRET_FILE: /run/secrets/azure_client_secret
+    secrets: [azure_client_secret]
+
+  vault-2:
+    ports: !override ["18201:8200"]
+    environment:
+      AZURE_CLIENT_SECRET_FILE: /run/secrets/azure_client_secret
+    secrets: [azure_client_secret]
+
+  vault-3:
+    ports: !override ["18202:8200"]
+    environment:
+      AZURE_CLIENT_SECRET_FILE: /run/secrets/azure_client_secret
+    secrets: [azure_client_secret]
+
+secrets:
+  azure_client_secret: { file: "${AZURE_CLIENT_SECRET_FILE:?set local Azure client secret file}" }

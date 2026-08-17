@@ -19,11 +19,14 @@ public class SearchAppointmentsQueryHandler : IRequestHandler<SearchAppointments
     public async Task<PagedResult<AppointmentDto>> Handle(SearchAppointmentsQuery request,
         CancellationToken cancellationToken)
     {
-        var (items, totalCount) = await _appointmentRepository.SearchAsync(
-            request.SearchTerm, request.Page, request.PageSize, cancellationToken);
+        var result = request.FacilityIds is null
+            ? await _appointmentRepository.SearchAsync(request.SearchTerm, request.Page, request.PageSize, cancellationToken)
+            : await _appointmentRepository.SearchAsync(
+                request.SearchTerm, request.Page, request.PageSize,
+                request.FacilityIds, request.CrossFacility, cancellationToken);
 
-        var dtos = _mapper.Map<List<AppointmentDto>>(items);
+        var dtos = _mapper.Map<List<AppointmentDto>>(result.Items);
 
-        return new PagedResult<AppointmentDto>(dtos, totalCount, request.Page, request.PageSize);
+        return new PagedResult<AppointmentDto>(dtos, result.TotalCount, request.Page, request.PageSize);
     }
 }

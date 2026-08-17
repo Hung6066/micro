@@ -23,9 +23,24 @@ public sealed class JaegerQueryService : IJaegerQueryService
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(service))
+                return await SearchAllServicesAsync(from, to, minDurationMs, limit, ct);
+
+            return await SearchServiceAsync(service, from, to, minDurationMs, limit, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to search Jaeger traces for service {Service}", service);
+            return [];
+        }
+    }
+
+    private async Task<List<TraceSummary>> SearchServiceAsync(
+        string service, DateTime? from, DateTime? to,
+        long? minDurationMs, int limit, CancellationToken ct)
+    {
             var query = $"limit={limit}";
-            if (!string.IsNullOrEmpty(service))
-                query += $"&service={Uri.EscapeDataString(service)}";
+            query += $"&service={Uri.EscapeDataString(service)}";
 
             if (from.HasValue)
                 query += $"&start={ToUnixTimeMicroseconds(new DateTimeOffset(from.Value))}";
@@ -45,12 +60,27 @@ public sealed class JaegerQueryService : IJaegerQueryService
             return jaegerResponse.Data
                 .Select(t => MapToTraceSummary(t))
                 .ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to search Jaeger traces for service {Service}", service);
+    }
+
+    private async Task<List<TraceSummary>> SearchAllServicesAsync(
+        DateTime? from, DateTime? to, long? minDurationMs, int limit, CancellationToken ct)
+    {
+        var servicesResponse = await _httpClient.GetFromJsonAsync<JaegerServicesResponse>("/api/services", ct);
+        var services = servicesResponse?.Data ?? [];
+        if (services.Count == 0)
             return [];
-        }
+
+        var perService = Math.Clamp(limit, 1, 100);
+        var results = await Task.WhenAll(services.Select(service =>
+            SearchServiceAsync(service, from, to, minDurationMs, perService, ct)));
+
+        return results
+            .SelectMany(traces => traces)
+            .GroupBy(trace => trace.TraceId, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .OrderByDescending(trace => trace.StartTime)
+            .Take(limit)
+            .ToList();
     }
 
     public async Task<TraceDetail?> GetTraceAsync(string traceId, CancellationToken ct = default)
@@ -191,6 +221,12 @@ public sealed class JaegerQueryService : IJaegerQueryService
 
         [JsonPropertyName("errors")]
         public List<JaegerError>? Errors { get; init; }
+    }
+
+    private sealed record JaegerServicesResponse
+    {
+        [JsonPropertyName("data")]
+        public List<string>? Data { get; init; }
     }
 
     private sealed record JaegerError

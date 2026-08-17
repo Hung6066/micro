@@ -1,0 +1,1082 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/enforce-version: latest
+---
+# The central Prometheus is intentionally not mesh-injected in the local K3s
+# profile. Allow only the cluster pod CIDR to federate Linkerd Viz metrics;
+# production should replace this with a mesh identity authorization after
+# injecting the monitoring workload.
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  name: linkerd-viz-prometheus-from-monitoring
+  namespace: linkerd-viz
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: observability
+spec:
+  server:
+    name: prometheus-admin
+  client:
+    unauthenticated: true
+    networks:
+      - cidr: 10.42.0.0/16
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: prometheus
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: his-hope-prometheus
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "nodes/proxy", "services", "endpoints", "pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/metrics"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: his-hope-prometheus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: his-hope-prometheus
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: monitoring
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: his-hope-k3s
+        environment: development
+    rule_files:
+      - /etc/prometheus/rules/*.yml
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: [alertmanager.monitoring.svc.cluster.local:9093]
+    scrape_configs:
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_namespace]
+            action: keep
+            regex: his-hope-dev|linkerd-viz|kube-system
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            action: keep
+            regex: http|metrics|admin-http
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            action: drop
+            regex: linkerd-proxy
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
+            action: replace
+            regex: (.+);(.+)
+            replacement: $1:$2
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            target_label: service
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+      - job_name: kubernetes-nodes
+        kubernetes_sd_configs:
+          - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/$1/proxy/metrics
+      # Kubelet/cAdvisor is the historical CPU and memory source. Do not
+      # scrape pod IPs for container usage; k3d/NetworkPolicy can legitimately
+      # block those addresses while the Kubernetes API remains reachable.
+      - job_name: kubernetes-nodes-cadvisor
+        kubernetes_sd_configs:
+          - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - target_label: __address__
+            replacement: kubernetes.default.svc:443
+          - source_labels: [__meta_kubernetes_node_name]
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/$1/proxy/metrics/cadvisor
+      # Linkerd Viz already owns a working proxy scrape in this cluster. Use
+      # Prometheus federation instead of depending on podIP:4191 reachability.
+      - job_name: linkerd-viz-federation
+        scrape_interval: 15s
+        scrape_timeout: 10s
+        honor_labels: true
+        metrics_path: /federate
+        params:
+          'match[]':
+            - '{__name__=~"request_total|response_total|response_latency_ms.*|inbound_http_requests_total|outbound_http_route_backend_requests_total|process_cpu_seconds_total|process_resident_memory_bytes"}'
+        static_configs:
+          - targets:
+              - prometheus.linkerd-viz.svc.cluster.local:9090
+      - job_name: linkerd-proxy
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_linkerd_io_proxy_version]
+            action: keep
+            regex: .+
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:4191
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+            target_label: service
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: monitoring
+data:
+  platform.yml: |
+    groups:
+      - name: his-hope-platform
+        rules:
+          - alert: HisHopeWorkloadDown
+            expr: up{job="kubernetes-pods",namespace=~"his-hope(-dev|-staging)?",service=~"patient-service|identity-service|appointment-service|clinical-service|lab-service|billing-service|pharmacy-service"} == 0
+            for: 2m
+            labels:
+              severity: critical
+            annotations:
+              summary: "His.Hope workload is down"
+              description: "{{ $labels.service }} pod {{ $labels.pod }} is not scrapeable."
+          - alert: HisHopeHighErrorRate
+            expr: |
+              sum(rate(http_server_request_duration_seconds_count{namespace="his-hope-dev",http_response_status_code=~"5.."}[5m]))
+              /
+              sum(rate(http_server_request_duration_seconds_count{namespace="his-hope-dev"}[5m])) > 0.05
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "His.Hope 5xx error rate is high"
+              description: "5xx rate is above 5% for five minutes."
+          - alert: HisHopeHighLatency
+            expr: |
+              histogram_quantile(0.99,
+                sum(rate(http_server_request_duration_seconds_bucket{namespace="his-hope-dev"}[5m])) by (le, service)) > 1
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "His.Hope p99 latency is high"
+              description: "p99 latency is above one second for {{ $labels.service }}."
+          - alert: HisHopeLinkerdProxyUnavailable
+            expr: sum(linkerd_proxy_live{namespace="his-hope-dev"}) by (service) < 1
+            for: 3m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Linkerd proxy unavailable"
+              description: "No live Linkerd proxy is reported for {{ $labels.service }}."
+          - alert: HisHopeDeploymentUnavailable
+            expr: kube_deployment_status_replicas_unavailable{namespace=~"his-hope|his-hope-staging"} > 0
+            for: 5m
+            labels:
+              severity: critical
+              category: release-health
+            annotations:
+              summary: "His.Hope deployment has unavailable replicas"
+              description: "Deployment {{ $labels.deployment }} has unavailable replicas in {{ $labels.namespace }}."
+              runbook_url: "https://docs.his-hope.local/runbooks/failed-deployment-rollback"
+          - alert: HisHopeContainerCrashLoop
+            expr: max by (namespace, pod, container) (kube_pod_container_status_waiting_reason{namespace=~"his-hope|his-hope-staging",reason=~"CrashLoopBackOff|ImagePullBackOff|ErrImagePull"}) > 0
+            for: 2m
+            labels:
+              severity: critical
+              category: release-health
+            annotations:
+              summary: "His.Hope container is not starting"
+              description: "{{ $labels.container }} in {{ $labels.pod }} is waiting with {{ $labels.reason }}."
+              runbook_url: "https://docs.his-hope.local/runbooks/failed-deployment-rollback"
+          - alert: HisHopeJaegerOomKilled
+            expr: max by (namespace, pod, container) (kube_pod_container_status_last_terminated_reason{namespace="monitoring",pod=~"jaeger-.*",reason="OOMKilled"}) > 0
+            for: 2m
+            labels:
+              severity: critical
+              category: observability
+            annotations:
+              summary: "Jaeger was terminated by the OOM killer"
+              description: "{{ $labels.container }} in {{ $labels.pod }} exceeded its memory budget; hold observability rollout and inspect the Jaeger retention/storage path."
+              runbook_url: "https://docs.his-hope.local/runbooks/observability"
+          - alert: HisHopeMigrationJobFailed
+            expr: max by (namespace, job_name) (kube_job_status_failed{namespace=~"his-hope|his-hope-data",job_name=~".*migration.*"}) > 0
+            for: 1m
+            labels:
+              severity: critical
+              category: migration
+            annotations:
+              summary: "His.Hope migration job failed"
+              description: "Migration job {{ $labels.job_name }} failed in {{ $labels.namespace }}; hold rollout and review migration evidence."
+              runbook_url: "https://docs.his-hope.local/runbooks/database-platform"
+          - alert: HisHopeAdmissionRejections
+            expr: sum(increase(gatekeeper_validation_request_count{admission_status="deny"}[5m])) > 0
+            for: 2m
+            labels:
+              severity: warning
+              category: admission
+            annotations:
+              summary: "Admission policy rejected workload requests"
+              description: "Gatekeeper recorded rejected admission requests; inspect constraint and release digest evidence."
+              runbook_url: "https://docs.his-hope.local/runbooks/k3s-devsecops-remaining-gates"
+          - alert: HisHopeVaultOrRedisDependencyDown
+            expr: up{job=~"(vault|redis).*"} == 0
+            for: 3m
+            labels:
+              severity: critical
+              category: dependency
+            annotations:
+              summary: "His.Hope Vault or Redis scrape target is down"
+              description: "Dependency target {{ $labels.instance }} for job {{ $labels.job }} is not reachable."
+              runbook_url: "https://docs.his-hope.local/runbooks/incident-response"
+          - alert: HisHopeErrorBudgetBurnCritical
+            expr: |
+              (
+                1 - sum(rate(http_server_request_duration_seconds_count{namespace=~"his-hope|his-hope-staging",http_response_status_code!~"5.."}[5m]))
+                / clamp_min(sum(rate(http_server_request_duration_seconds_count{namespace=~"his-hope|his-hope-staging"}[5m])), 1)
+              ) > 0.0144
+              and
+              (
+                1 - sum(rate(http_server_request_duration_seconds_count{namespace=~"his-hope|his-hope-staging",http_response_status_code!~"5.."}[1h]))
+                / clamp_min(sum(rate(http_server_request_duration_seconds_count{namespace=~"his-hope|his-hope-staging"}[1h])), 1)
+              ) > 0.0144
+            for: 5m
+            labels:
+              severity: critical
+              category: slo
+            annotations:
+              summary: "His.Hope error budget burn is critical"
+              description: "Short-window error rate exceeds the 14.4x burn threshold; hold production promotion."
+              runbook_url: "https://docs.his-hope.local/operations/slo-error-budget-policy"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-data
+  namespace: monitoring
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: prometheus
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+        app.kubernetes.io/name: prometheus
+    spec:
+      serviceAccountName: prometheus
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: prometheus
+          image: prom/prometheus@sha256:5ccad477d0057e62a7cd1981ffcc43785ac10c5a35522dc207466ff7e7ec845f
+          args: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=15d", "--web.enable-lifecycle"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          ports:
+            - name: http
+              containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus/prometheus.yml
+              subPath: prometheus.yml
+            - name: rules
+              mountPath: /etc/prometheus/rules
+            - name: data
+              mountPath: /prometheus
+          readinessProbe:
+            httpGet: {path: /-/ready, port: http}
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet: {path: /-/healthy, port: http}
+            initialDelaySeconds: 30
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+        - name: rules
+          configMap:
+            name: prometheus-rules
+        - name: data
+          persistentVolumeClaim:
+            claimName: prometheus-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  selector:
+    app.kubernetes.io/name: prometheus
+  ports:
+    - name: http
+      port: 9090
+      targetPort: http
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: monitoring
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+    route:
+      receiver: default
+      group_by: [alertname, severity, service]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+    receivers:
+      - name: default
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: alertmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: alertmanager
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: alertmanager
+          image: prom/alertmanager@sha256:e13b6ed5cb929eeaee733479dce55e10eb3bc2e9c4586c705a4e8da41e5eacf5
+          args: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          ports:
+            - name: http
+              containerPort: 9093
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alertmanager/alertmanager.yml
+              subPath: alertmanager.yml
+      volumes:
+        - name: config
+          configMap:
+            name: alertmanager-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  selector:
+    app.kubernetes.io/name: alertmanager
+  ports:
+    - name: http
+      port: 9093
+      targetPort: http
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        uid: his-hope-prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus.monitoring.svc.cluster.local:9090
+        isDefault: true
+      - name: Jaeger
+        uid: his-hope-jaeger
+        type: jaeger
+        access: proxy
+        url: http://jaeger.monitoring.svc.cluster.local:16686
+      - name: Loki
+        uid: his-hope-loki
+        type: loki
+        access: proxy
+        url: http://loki.monitoring.svc.cluster.local:3100
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: monitoring
+data:
+  provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: his-hope
+        orgId: 1
+        folder: His.Hope
+        type: file
+        disableDeletion: true
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard
+  namespace: monitoring
+data:
+  platform.json: |
+    {"title":"His.Hope Platform","schemaVersion":39,"version":3,"panels":[{"type":"timeseries","title":"Request rate","datasource":{"type":"prometheus","uid":"his-hope-prometheus"},"gridPos":{"h":8,"w":12,"x":0,"y":0},"targets":[{"refId":"A","expr":"sum(rate(http_server_request_duration_seconds_count{namespace=\"his-hope-dev\"}[5m])) by (service)","legendFormat":"{{service}}"}]},{"type":"timeseries","title":"p99 latency","datasource":{"type":"prometheus","uid":"his-hope-prometheus"},"gridPos":{"h":8,"w":12,"x":12,"y":0},"targets":[{"refId":"A","expr":"histogram_quantile(0.99,sum(rate(http_server_request_duration_seconds_bucket{namespace=\"his-hope-dev\"}[5m])) by (le,service))","legendFormat":"{{service}}"}]},{"type":"logs","title":"Application logs","datasource":{"type":"loki","uid":"his-hope-loki"},"gridPos":{"h":8,"w":24,"x":0,"y":8},"targets":[{"refId":"A","expr":"{job=\"kubernetes-pods\",filename=~\"/var/log/pods/his-hope-dev_.*\"}"}]},{"type":"traces","title":"Recent distributed traces","datasource":{"type":"jaeger","uid":"his-hope-jaeger"},"gridPos":{"h":8,"w":24,"x":0,"y":16},"targets":[{"refId":"A","queryType":"search","serviceName":"patient-service","limit":20,"lookback":"1h"}]}]}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: monitoring
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: grafana
+    spec:
+      securityContext:
+        fsGroup: 472
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: grafana
+          image: grafana/grafana@sha256:f9811e4e687ffecf1a43adb9b64096c50bc0d7a782f8608530f478b6542de7d5
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: username
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: password
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 3000
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/grafana
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources/datasources.yaml
+              subPath: datasources.yaml
+            - name: provider
+              mountPath: /etc/grafana/provisioning/dashboards/provider.yaml
+              subPath: provider.yaml
+            - name: dashboard
+              mountPath: /var/lib/grafana/dashboards/platform.json
+              subPath: platform.json
+            - name: vault-secrets
+              mountPath: /mnt/vault-secrets
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: grafana-data
+        - name: datasources
+          configMap:
+            name: grafana-datasources
+        - name: provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboard
+          configMap:
+            name: grafana-dashboard
+        - name: vault-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: observability-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  selector:
+    app.kubernetes.io/name: grafana
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jaeger-config
+  namespace: monitoring
+data:
+  SPAN_STORAGE_TYPE: badger
+  BADGER_EPHEMERAL: "false"
+  BADGER_DIRECTORY_KEY: /badger/key
+  BADGER_DIRECTORY_VALUE: /badger/data
+  COLLECTOR_OTLP_ENABLED: "true"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jaeger-data
+  namespace: monitoring
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: jaeger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jaeger
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jaeger
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: jaeger
+          image: jaegertracing/all-in-one@sha256:f6b5d09073f14f76873d300f565a6691d815e81bea8e07e1dc3ff67e0596dd4e
+          envFrom:
+            - configMapRef:
+                name: jaeger-config
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 1Gi
+            limits:
+              cpu: 1
+              memory: 2Gi
+          ports:
+            - name: ui
+              containerPort: 16686
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+            - name: jaeger-thrift
+              containerPort: 14278
+          volumeMounts:
+            - name: data
+              mountPath: /badger
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: jaeger-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  namespace: monitoring
+spec:
+  selector:
+    app.kubernetes.io/name: jaeger
+  ports:
+    - name: ui
+      port: 16686
+      targetPort: ui
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+    - name: jaeger-thrift
+      port: 14278
+      targetPort: jaeger-thrift
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: monitoring
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 256
+      batch:
+        timeout: 5s
+        send_batch_size: 256
+    exporters:
+      otlp/jaeger:
+        endpoint: jaeger.monitoring.svc.cluster.local:4317
+        tls:
+          insecure: true
+      debug:
+        verbosity: basic
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp/jaeger]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otel-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: otel-collector
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib@sha256:1ab0baba0ee3695d823c46653d8a6e8894896e668ce8bd7ebe002e948d827bc7
+          args: ["--config=/etc/otelcol-contrib/config.yaml"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol-contrib/config.yaml
+              subPath: config.yaml
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: monitoring
+spec:
+  selector:
+    app.kubernetes.io/name: otel-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-config
+  namespace: monitoring
+data:
+  loki.yaml: |
+    auth_enabled: false
+    server:
+      http_listen_port: 3100
+    common:
+      path_prefix: /loki
+      replication_factor: 1
+      ring:
+        kvstore:
+          store: inmemory
+    schema_config:
+      configs:
+        - from: 2024-01-01
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+    storage_config:
+      filesystem:
+        directory: /loki/chunks
+    limits_config:
+      retention_period: 168h
+    compactor:
+      working_directory: /loki/compactor
+      retention_enabled: true
+      delete_request_store: filesystem
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: loki-data
+  namespace: monitoring
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loki
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: loki
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: loki
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: loki
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: loki
+          image: grafana/loki@sha256:757b5fadf816a1396f1fea598152947421fa49cb8b2db1ddd2a6e30fae003253
+          args: ["-config.file=/etc/loki/loki.yaml"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          ports:
+            - name: http
+              containerPort: 3100
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet: {path: /ready, port: http}
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /etc/loki/loki.yaml
+              subPath: loki.yaml
+            - name: data
+              mountPath: /loki
+      volumes:
+        - name: config
+          configMap:
+            name: loki-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: loki-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loki
+  namespace: monitoring
+spec:
+  selector:
+    app.kubernetes.io/name: loki
+  ports:
+    - name: http
+      port: 3100
+      targetPort: http
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-config
+  namespace: monitoring
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 9080
+      grpc_listen_port: 0
+    positions:
+      filename: /run/promtail/positions.yaml
+    clients:
+      - url: http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push
+    scrape_configs:
+      - job_name: kubernetes-pods
+        static_configs:
+          - targets: [localhost]
+            labels:
+              job: kubernetes-pods
+              __path__: /var/log/pods/his-hope_*/*/*.log
+          - targets: [localhost]
+            labels:
+              job: kubernetes-pods
+              __path__: /var/log/pods/monitoring_*/*/*.log
+        pipeline_stages:
+          - cri: {}
+        relabel_configs:
+          - source_labels: [filename]
+            regex: /var/log/pods/([^_]+)_[^_]+_[^/]+/.*
+            target_label: namespace
+          - source_labels: [filename]
+            regex: /var/log/pods/[^_]+_([^_]+)_[^/]+/.*
+            target_label: pod
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: promtail
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: promtail
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: promtail
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: promtail
+          image: grafana/promtail@sha256:d3de3da9431cfbe74a6a94555050df5257f357e827be8e63f8998d509c37af8b
+          args: ["-config.file=/etc/promtail/promtail.yaml"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/promtail/promtail.yaml
+              subPath: promtail.yaml
+            - name: varlog
+              mountPath: /var/log
+              readOnly: true
+            - name: run
+              mountPath: /run/promtail
+      volumes:
+        - name: config
+          configMap:
+            name: promtail-config
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: run
+          hostPath:
+            path: /var/lib/promtail
+            type: DirectoryOrCreate
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: observability-local
+  namespace: monitoring
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: grafana.his-hope.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: grafana, port: {number: 3000}}
+    - host: prometheus.his-hope.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: prometheus, port: {number: 9090}}
+    - host: jaeger.his-hope.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: {name: jaeger, port: {number: 16686}}

@@ -1,8 +1,10 @@
 using Grpc.Net.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Configuration;
 using RabbitMQ.Client;
 using StackExchange.Redis;
+using His.Hope.Infrastructure.Caching;
 
 namespace His.Hope.Infrastructure.HealthChecks;
 
@@ -28,13 +30,14 @@ public static class HealthCheckExtensions
         this IHealthChecksBuilder builder,
         string connectionString = "localhost:6379",
         string name = "redis",
-        HealthStatus? failureStatus = null)
+        HealthStatus? failureStatus = null,
+        IConfiguration? configuration = null)
     {
         return builder.AddTypeActivatedCheck<RedisHealthCheck>(
             name,
             failureStatus ?? HealthStatus.Degraded,
             ["cache", "redis"],
-            connectionString);
+            connectionString, configuration ?? new ConfigurationBuilder().Build());
     }
 
     public static IHealthChecksBuilder AddGrpcServiceCheck(
@@ -91,17 +94,20 @@ public static class HealthCheckExtensions
     private class RedisHealthCheck : IHealthCheck
     {
         private readonly string _connectionString;
+        private readonly IConfiguration? _configuration;
 
-        public RedisHealthCheck(string connectionString)
+        public RedisHealthCheck(string connectionString, IConfiguration? configuration)
         {
             _connectionString = connectionString;
+            _configuration = configuration;
         }
 
         public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
         {
             try
             {
-                var multiplexer = ConnectionMultiplexer.Connect(_connectionString);
+                var multiplexer = RedisConnectionFactory.Connect(
+                    _connectionString, _configuration ?? new ConfigurationBuilder().Build());
                 var db = multiplexer.GetDatabase();
                 db.Ping();
                 multiplexer.Close();

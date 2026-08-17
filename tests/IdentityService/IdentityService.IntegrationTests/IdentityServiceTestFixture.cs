@@ -8,6 +8,8 @@ using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.ServiceDefaults;
+using His.Hope.IdentityService.Testing;
+using His.Hope.Contracts.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
@@ -19,6 +21,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Testcontainers.PostgreSql;
 using Testcontainers.Redis;
+using Npgsql;
+using StackExchange.Redis;
 using Xunit;
 
 namespace His.Hope.IdentityService.IntegrationTests;
@@ -26,34 +30,80 @@ namespace His.Hope.IdentityService.IntegrationTests;
 public class IdentityServiceTestFixture : IAsyncLifetime
 {
     private PostgreSqlContainer? _postgres;
+    private string? _postgresConnectionString;
     private RedisContainer? _redis;
     private WebApplication? _app;
+    private string? _keyDirectory;
 
     public HttpClient AnonymousClient { get; private set; } = null!;
     public IServiceProvider Services => _app!.Services;
-    public string PostgresConnectionString => _postgres?.GetConnectionString() ?? "";
+    public string PostgresConnectionString => _postgresConnectionString ?? "";
 
     public async Task InitializeAsync()
     {
-        _postgres = new PostgreSqlBuilder()
-            .WithImage("postgres:16-alpine")
-            .WithDatabase("hishopetest")
-            .WithUsername("testuser")
-            .WithPassword("testpass123!")
-            .WithCleanUp(true)
-            .Build();
+        var configuredPostgres = Environment.GetEnvironmentVariable("IDENTITY_TEST_POSTGRES_CONNECTION");
+        if (string.IsNullOrWhiteSpace(configuredPostgres))
+        {
+            _postgres = new PostgreSqlBuilder("postgres:16-alpine")
+                .WithDatabase("hishopetest")
+                .WithUsername("testuser")
+                .WithPassword("testpass123!")
+                .WithCleanUp(true)
+                .Build();
 
-        _redis = new RedisBuilder()
-            .WithImage("redis:7-alpine")
-            .WithCleanUp(true)
-            .Build();
+            await _postgres.StartAsync();
+            _postgresConnectionString = GetPostgresConnectionString(_postgres);
+        }
+        else
+        {
+            // Windows Docker Desktop can intermittently lose Testcontainers' random
+            // host-port forwarding during a long suite. CI/local callers may opt into
+            // a dedicated, already-running PostgreSQL database without changing the
+            // production wiring or default isolated-container behavior.
+            _postgresConnectionString = configuredPostgres;
+        }
 
-        await Task.WhenAll(_postgres.StartAsync(), _redis.StartAsync());
-
-        var pgConnStr = _postgres.GetConnectionString();
-        var redisConnStr = _redis.GetConnectionString();
+        var pgConnStr = _postgresConnectionString;
+        var configuredRedis = Environment.GetEnvironmentVariable("IDENTITY_TEST_REDIS_CONNECTION");
+        string redisConnStr;
+        if (!string.IsNullOrWhiteSpace(configuredRedis))
+        {
+            // Allows local Docker Compose/CI to provide an already-running
+            // isolated Redis and avoids flaky Windows host-port forwarding.
+            redisConnStr = configuredRedis;
+        }
+        else
+        {
+            _redis = new RedisBuilder("redis:7-alpine")
+                .WithCleanUp(true)
+                .Build();
+            await _redis.StartAsync();
+            redisConnStr = GetRedisConnectionString(_redis);
+        }
         using var signingRsa = RSA.Create(2048);
         using var encryptionRsa = RSA.Create(2048);
+        _keyDirectory = Path.Combine(Path.GetTempPath(), "hishop-identity-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_keyDirectory);
+        var signingKeyPath = Path.Combine(_keyDirectory, "jwt-signing-private.pem");
+        var signingPublicKeyPath = Path.Combine(_keyDirectory, "jwt-signing-public.pem");
+        var encryptionKeyPath = Path.Combine(_keyDirectory, "jwt-encryption-private.pem");
+        await File.WriteAllTextAsync(signingKeyPath, signingRsa.ExportRSAPrivateKeyPem());
+        await File.WriteAllTextAsync(signingPublicKeyPath, signingRsa.ExportRSAPublicKeyPem());
+        await File.WriteAllTextAsync(encryptionKeyPath, encryptionRsa.ExportRSAPrivateKeyPem());
+
+        for (var attempt = 1; attempt <= 20; attempt++)
+        {
+            try
+            {
+                await using var redis = await ConnectionMultiplexer.ConnectAsync(redisConnStr);
+                if (redis.IsConnected)
+                    break;
+            }
+            catch (RedisConnectionException) when (attempt < 20)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(250 * attempt));
+            }
+        }
 
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
@@ -62,6 +112,7 @@ public class IdentityServiceTestFixture : IAsyncLifetime
 
         builder.WebHost.UseTestServer();
         builder.Logging.ClearProviders();
+        builder.Logging.AddConsole();
 
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -75,18 +126,42 @@ public class IdentityServiceTestFixture : IAsyncLifetime
             ["OpenIddict:AllowInsecureHttp"] = "true",
             ["Jwt:Issuer"] = "http://localhost:5001",
             ["Jwt:Audience"] = "His.Hope",
+            ["Jwt:AllowHttp"] = "true",
             ["Jwt:Key"] = "integration-test-signing-key-32-bytes-long!",
-            ["Jwt:RsaPrivateKey"] = signingRsa.ExportRSAPrivateKeyPem(),
-            ["Jwt:RsaEncryptionPrivateKey"] = encryptionRsa.ExportRSAPrivateKeyPem(),
+            ["Jwt:RsaPrivateKeyPath"] = signingKeyPath,
+            ["Jwt:RsaPublicKeyPath"] = signingPublicKeyPath,
+            ["Jwt:RsaEncryptionPrivateKeyPath"] = encryptionKeyPath,
+            // Match the production-shaped auth bucket; individual session
+            // clients and explicit rate-limit tests use isolated keys.
             ["RateLimiting:AuthPermitLimit"] = "120",
-            ["RateLimiting:MaxRequestsPerIp"] = "1000",
+            // The full integration suite intentionally exercises hundreds of
+            // endpoints through one TestServer IP. Keep abuse-limit behavior
+            // covered by dedicated rate-limit tests, while preventing the
+            // aggregate suite from exhausting a shared infrastructure bucket.
+            ["RateLimiting:MaxRequestsPerIp"] = "10000",
+            ["RateLimiting:MaxRequestsPerUser"] = "5000",
+            // Tests deliberately send isolated X-RateLimit-Key values. This
+            // switch is scoped to the in-memory Testing configuration only;
+            // production keeps the forwarded-key trust default disabled.
+            ["RateLimiting:TrustForwardedKey"] = "true",
             ["Vault:EnableTransit"] = "false",
             ["Vault:RequireVault"] = "false",
-            ["Identity:BootstrapAdmin:Password"] = "Test@123456"
+            ["Identity:BootstrapAdmin:Password"] = IdentityTestData.DefaultPassword
             , ["Authentication:Google:ClientId"] = "integration-google-client"
             , ["Authentication:Google:ClientSecret"] = "integration-google-secret"
         });
         builder.AddIdentityService();
+        // AddIdentityService loads the API appsettings after the test overlay;
+        // force the isolated fixture back to its no-external-Vault contract.
+        builder.Configuration["Vault:Address"] = "";
+        builder.Configuration["Vault:RequireVault"] = "false";
+        // Re-apply test-only rate-limit isolation after the API registration
+        // loads appsettings.json. Production keeps forwarded-key trust off;
+        // integration tests use a unique key per independent flow so the
+        // aggregate suite does not exhaust one shared TestServer IP bucket.
+        builder.Configuration["RateLimiting:TrustForwardedKey"] = "true";
+        builder.Configuration["RateLimiting:MaxRequestsPerIp"] = "10000";
+        builder.Configuration["RateLimiting:MaxRequestsPerUser"] = "5000";
 
         _app = builder.Build();
 
@@ -100,7 +175,7 @@ public class IdentityServiceTestFixture : IAsyncLifetime
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
             var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<His.Hope.IdentityService.Domain.Entities.Role>>();
             var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-            await db.Database.EnsureCreatedAsync();
+            await EnsureDatabaseCreatedWithRetryAsync(db);
 
             if (!await roleManager.RoleExistsAsync("Admin"))
             {
@@ -113,27 +188,137 @@ public class IdentityServiceTestFixture : IAsyncLifetime
                 });
             }
 
-            if (await userManager.FindByNameAsync("admin") is null)
+            // The API intentionally skips production migration/seed during tests.
+            // Seed the canonical permission catalog and grant the test Admin role
+            // the same unrestricted permission set as IdentityDbInitializer so
+            // authenticated endpoint tests exercise authorization, not a hollow
+            // role with zero permissions.
+            var adminRole = await roleManager.FindByNameAsync("Admin")
+                ?? throw new InvalidOperationException("Test Admin role was not created.");
+            foreach (var descriptor in IdentityTestData.CanonicalPermissions())
             {
-                var adminUser = new User
+                if (!await db.Permissions.AnyAsync(permission => permission.Code == descriptor.Code))
                 {
-                    Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
-                    UserName = "admin",
-                    Email = "admin@hishop.com",
+                    db.Permissions.Add(new Permission
+                    {
+                        Code = descriptor.Code,
+                        Name = descriptor.Name,
+                        Group = descriptor.Group,
+                        Description = descriptor.Description,
+                        IsSystem = true
+                    });
+                }
+
+                if (!await db.RolePermissions.AnyAsync(rolePermission =>
+                        rolePermission.RoleId == adminRole.Id && rolePermission.PermissionCode == descriptor.Code))
+                {
+                    db.RolePermissions.Add(new RolePermission
+                    {
+                        RoleId = adminRole.Id,
+                        PermissionCode = descriptor.Code
+                    });
+                }
+            }
+            await db.SaveChangesAsync();
+
+            var adminUser = await userManager.FindByNameAsync(IdentityTestData.AdminUserName);
+            if (adminUser is null)
+            {
+                adminUser = new User
+                {
+                    Id = IdentityTestData.AdminId,
+                    UserName = IdentityTestData.AdminUserName,
+                    Email = IdentityTestData.AdminEmail,
                     FirstName = "Test",
                     LastName = "Admin",
                     IsActive = true,
                     EmailConfirmed = true,
                     CreatedAt = DateTime.UtcNow
                 };
-                var result = await userManager.CreateAsync(adminUser, "Test@123456");
-                if (result.Succeeded)
-                    await userManager.AddToRoleAsync(adminUser, "Admin");
+                var result = await userManager.CreateAsync(adminUser, IdentityTestData.DefaultPassword);
+                if (!result.Succeeded)
+                    throw new InvalidOperationException($"Could not create integration admin: {string.Join(';', result.Errors.Select(error => error.Description))}");
             }
+
+            // Initializers may have created the bootstrap admin before this
+            // fixture runs. Always repair its test invariants so every test
+            // gets the same authenticated permission surface.
+            if (!adminUser.IsActive)
+            {
+                adminUser.IsActive = true;
+                await userManager.UpdateAsync(adminUser);
+            }
+
+            if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
+                await userManager.AddToRoleAsync(adminUser, "Admin");
         }
 
         await _app.StartAsync();
+        await WaitForRedisAsync(_app.Services);
         AnonymousClient = _app.GetTestClient();
+    }
+
+    private static bool UseContainerNetworkAddresses =>
+        string.Equals(Environment.GetEnvironmentVariable("IDENTITY_TEST_USE_CONTAINER_IP"), "true", StringComparison.OrdinalIgnoreCase);
+
+    private static string GetPostgresConnectionString(PostgreSqlContainer container)
+    {
+        var connectionString = container.GetConnectionString();
+        if (!UseContainerNetworkAddresses)
+            return connectionString;
+
+        var builder = new NpgsqlConnectionStringBuilder(connectionString)
+        {
+            Host = container.IpAddress,
+            Port = 5432
+        };
+        return builder.ConnectionString;
+    }
+
+    private static string GetRedisConnectionString(RedisContainer container) =>
+        UseContainerNetworkAddresses ? $"{container.IpAddress}:6379" : container.GetConnectionString();
+
+    private static async Task WaitForRedisAsync(IServiceProvider services)
+    {
+        var redis = services.GetRequiredService<IConnectionMultiplexer>();
+        Exception? last = null;
+        for (var attempt = 1; attempt <= 20; attempt++)
+        {
+            try
+            {
+                await redis.GetDatabase().PingAsync();
+                return;
+            }
+            catch (Exception ex) when (ex is RedisException or TimeoutException)
+            {
+                last = ex;
+                await Task.Delay(TimeSpan.FromMilliseconds(Math.Min(500 * attempt, 3000)));
+            }
+        }
+
+        throw new TimeoutException("Redis test connection could not execute PING after retries.", last);
+    }
+
+    private static async Task EnsureDatabaseCreatedWithRetryAsync(IdentityDbContext db)
+    {
+        Exception? last = null;
+        for (var attempt = 1; attempt <= 12; attempt++)
+        {
+            try
+            {
+                // Apply the complete migration chain so provisioned Docker
+                // databases exercise the same schema as the running service.
+                await db.Database.MigrateAsync();
+                return;
+            }
+            catch (Exception ex) when (ex is NpgsqlException or TimeoutException)
+            {
+                last = ex;
+                await Task.Delay(TimeSpan.FromMilliseconds(Math.Min(500 * attempt, 3000)));
+            }
+        }
+
+        throw new TimeoutException("PostgreSQL test database could not be created after retries.", last);
     }
 
     public async Task DisposeAsync()
@@ -145,6 +330,8 @@ public class IdentityServiceTestFixture : IAsyncLifetime
             await _postgres.DisposeAsync();
         if (_redis is not null)
             await _redis.DisposeAsync();
+        if (_keyDirectory is not null && Directory.Exists(_keyDirectory))
+            Directory.Delete(_keyDirectory, recursive: true);
     }
 
     public SessionClient CreateSessionClient()
@@ -156,20 +343,20 @@ public class IdentityServiceTestFixture : IAsyncLifetime
     public async Task<SessionClient> CreateAuthenticatedSessionAsync()
     {
         var session = CreateSessionClient();
-        var response = await session.LoginAsync("admin@hishop.com", "Test@123456");
+        var response = await session.LoginAsync(IdentityTestData.AdminEmail, IdentityTestData.DefaultPassword);
         if (!response.IsSuccessStatusCode)
         {
             // Registration fallback
-            var regResponse = await session.InnerClient.PostAsJsonAsync("/api/v1/auth/register",
-                new { email = "test-user@test.test", password = "Test@123456", firstName = "Test", lastName = "User" });
+            var regResponse = await session.InnerClient.PostAsJsonAsync(IdentityApiRoutes.Auth + "/register",
+                new { email = "test-user@test.test", password = IdentityTestData.DefaultPassword, firstName = "Test", lastName = "User" });
             if (regResponse.IsSuccessStatusCode)
-                await session.LoginAsync("test-user@test.test", "Test@123456");
+                await session.LoginAsync("test-user@test.test", IdentityTestCredentials.Password);
         }
         return session;
     }
 }
 
-[CollectionDefinition("IdentityServiceIntegration")]
+[CollectionDefinition("IdentityServiceIntegration", DisableParallelization = true)]
 public class IdentityServiceIntegrationCollection : ICollectionFixture<IdentityServiceTestFixture>
 {
 }
@@ -178,14 +365,23 @@ public class SessionClient : IDisposable
 {
     private readonly HttpClient _client;
     private readonly List<Cookie> _cookies = new();
+    private readonly string _authRateLimitKey = $"session-auth-{Guid.NewGuid():N}";
 
     public HttpClient InnerClient => _client;
     public string? RateLimitKey { get; set; }
     public SessionClient(HttpClient client) => _client = client;
 
+    public Task<HttpResponseMessage> LoginAsAdminAsync() =>
+        LoginAsync(IdentityTestData.AdminEmail, IdentityTestData.DefaultPassword);
+
     public async Task<HttpResponseMessage> LoginAsync(string email, string password)
     {
-        var response = await _client.PostAsJsonAsync("/api/v1/auth/login", new { email, password });
+        using var request = new HttpRequestMessage(HttpMethod.Post, IdentityApiRoutes.Login)
+        {
+            Content = JsonContent.Create(new { email, password })
+        };
+        request.Headers.Add("X-RateLimit-Key", _authRateLimitKey);
+        var response = await _client.SendAsync(request);
         if (response.Headers.TryGetValues("Set-Cookie", out var setCookieHeaders))
         {
             _cookies.Clear();
@@ -226,6 +422,36 @@ public class SessionClient : IDisposable
         var csrf = GetCookieValue("hishop_csrf");
         if (csrf is not null)
             request.Headers.Add("X-CSRF-Token", csrf);
+        if (RateLimitKey is not null)
+            request.Headers.Add("X-RateLimit-Key", RateLimitKey);
+        return await _client.SendAsync(request);
+    }
+
+    public async Task<HttpResponseMessage> PutWithCookiesAsync(string url, object? body = null)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, url);
+        foreach (var cookie in _cookies)
+            request.Headers.TryAddWithoutValidation("Cookie", $"{cookie.Name}={cookie.Value}");
+        var csrf = GetCookieValue("hishop_csrf");
+        if (csrf is not null)
+            request.Headers.Add("X-CSRF-Token", csrf);
+        if (RateLimitKey is not null)
+            request.Headers.Add("X-RateLimit-Key", RateLimitKey);
+        if (body is not null)
+            request.Content = JsonContent.Create(body);
+        return await _client.SendAsync(request);
+    }
+
+    public async Task<HttpResponseMessage> DeleteWithCookiesAsync(string url)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, url);
+        foreach (var cookie in _cookies)
+            request.Headers.TryAddWithoutValidation("Cookie", $"{cookie.Name}={cookie.Value}");
+        var csrf = GetCookieValue("hishop_csrf");
+        if (csrf is not null)
+            request.Headers.Add("X-CSRF-Token", csrf);
+        if (RateLimitKey is not null)
+            request.Headers.Add("X-RateLimit-Key", RateLimitKey);
         return await _client.SendAsync(request);
     }
 

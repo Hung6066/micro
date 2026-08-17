@@ -19,7 +19,7 @@ data:
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
           "targets": [
             {
-              "expr": "sum(rate(pipeline_deployments_total[7d])) by (service, environment)",
+              "expr": "pipeline_deployment_frequency_per_day",
               "legendFormat": "{{service}} ({{environment}})"
             }
           ],
@@ -48,8 +48,8 @@ data:
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
           "targets": [
             {
-              "expr": "avg(pipeline_lead_time_seconds{environment=\"production\"}) by (service)",
-              "legendFormat": "{{service}} avg"
+              "expr": "pipeline_lead_time_seconds{environment=\"production\"}",
+              "legendFormat": "{{service}} p{{quantile}}"
             }
           ],
           "fieldConfig": {
@@ -77,7 +77,7 @@ data:
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
           "targets": [
             {
-              "expr": "sum by (service, environment) (rate(pipeline_deployments_total{status=\"failure\"}[7d])) / sum by (service, environment) (rate(pipeline_deployments_total[7d])) * 100",
+              "expr": "pipeline_change_failure_rate_ratio * 100",
               "legendFormat": "{{service}} ({{environment}})"
             }
           ],
@@ -106,8 +106,8 @@ data:
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
           "targets": [
             {
-              "expr": "avg(incident_duration_seconds) by (service, environment)",
-              "legendFormat": "{{service}} avg ({{environment}})"
+              "expr": "pipeline_mttr_seconds{environment=\"production\"}",
+              "legendFormat": "{{service}} p{{quantile}} ({{environment}})"
             }
           ],
           "fieldConfig": {

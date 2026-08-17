@@ -68,9 +68,11 @@ spec:
   provider: vault
   parameters:
     roleName: patient-service
+    vaultAuthMountPath: "kubernetes-jwt"
+    audience: "vault"
     vaultAddress: "https://vault-active.his-hope.svc.cluster.local:8200"
     vaultSkipTLSVerify: "false"
-    vaultCACertPath: "/etc/tls/vault/ca.crt"
+    vaultCACertPath: "/vault/tls/ca.crt"
     objects: |
       - objectName: "db_host"
         secretPath: "secret/data/his-hope/database/patientdb"
@@ -144,7 +146,9 @@ spec:
         - objectName: "mtls_ca"
           key: "ca.crt"
       secretName: patient-service-mtls
-      type: kubernetes.io/tls
+      # Includes ca.crt in addition to tls.key/tls.crt; use Opaque so the
+      # Secrets Store sync controller accepts the complete mTLS bundle.
+      type: Opaque
     - data:
         - objectName: "rabbitmq_host"
           key: "host"
@@ -180,9 +184,11 @@ spec:
   provider: vault
   parameters:
     roleName: identity-service
+    vaultAuthMountPath: "kubernetes-jwt"
+    audience: "vault"
     vaultAddress: "https://vault-active.his-hope.svc.cluster.local:8200"
     vaultSkipTLSVerify: "false"
-    vaultCACertPath: "/etc/tls/vault/ca.crt"
+    vaultCACertPath: "/vault/tls/ca.crt"
     objects: |
       - objectName: "db_host"
         secretPath: "secret/data/his-hope/database/identitydb"
@@ -253,6 +259,9 @@ spec:
       - objectName: "mtls_ca"
         secretPath: "secret/data/his-hope/identity-service/mtls"
         secretKey: "ca_cert"
+      - objectName: "admin_bootstrap_password"
+        secretPath: "secret/data/his-hope/identity-service/bootstrap-admin"
+        secretKey: "password"
   secretObjects:
     - data:
         - objectName: "db_host"
@@ -314,7 +323,12 @@ spec:
         - objectName: "mtls_ca"
           key: "ca.crt"
       secretName: identity-service-mtls
-      type: kubernetes.io/tls
+      type: Opaque
+    - data:
+        - objectName: "admin_bootstrap_password"
+          key: "password"
+      secretName: identity-bootstrap-admin
+      type: Opaque
 
 ---
 # SecretProviderClass for Clinical Service
@@ -330,9 +344,11 @@ spec:
   provider: vault
   parameters:
     roleName: clinical-service
+    vaultAuthMountPath: "kubernetes-jwt"
+    audience: "vault"
     vaultAddress: "https://vault-active.his-hope.svc.cluster.local:8200"
     vaultSkipTLSVerify: "false"
-    vaultCACertPath: "/etc/tls/vault/ca.crt"
+    vaultCACertPath: "/vault/tls/ca.crt"
     objects: |
       - objectName: "db_host"
         secretPath: "secret/data/his-hope/database/clinicaldb"
@@ -380,7 +396,7 @@ spec:
         - objectName: "mtls_ca"
           key: "ca.crt"
       secretName: clinical-service-mtls
-      type: kubernetes.io/tls
+      type: Opaque
 
 ---
 # SecretProviderClass for Appointment Service
@@ -396,9 +412,11 @@ spec:
   provider: vault
   parameters:
     roleName: appointment-service
+    vaultAuthMountPath: "kubernetes-jwt"
+    audience: "vault"
     vaultAddress: "https://vault-active.his-hope.svc.cluster.local:8200"
     vaultSkipTLSVerify: "false"
-    vaultCACertPath: "/etc/tls/vault/ca.crt"
+    vaultCACertPath: "/vault/tls/ca.crt"
     objects: |
       - objectName: "db_host"
         secretPath: "secret/data/his-hope/database/appointmentdb"
@@ -446,4 +464,4 @@ spec:
         - objectName: "mtls_ca"
           key: "ca.crt"
       secretName: appointment-service-mtls
-      type: kubernetes.io/tls
+      type: Opaque

@@ -1,0 +1,27 @@
+# Values for the HashiCorp Vault CSI provider in the production namespace.
+# The provider's TLS CA is a separate Secret from the Vault server keypair;
+# project both into the path used by -vault-tls-ca-cert.
+csi:
+  extraArgs:
+    - -vault-addr=https://vault-active.his-hope.svc.cluster.local:8200
+    - -vault-tls-ca-cert=/vault/tls/ca.crt
+  volumeMounts:
+    - name: tls
+      mountPath: /vault/tls
+      readOnly: true
+  volumes:
+    - name: tls
+      projected:
+        sources:
+          - secret:
+              name: vault-tls
+              items:
+                - key: tls.crt
+                  path: tls.crt
+                - key: tls.key
+                  path: tls.key
+          - secret:
+              name: vault-tls-ca
+              items:
+                - key: ca.crt
+                  path: ca.crt

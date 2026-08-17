@@ -6,6 +6,10 @@ using His.Hope.AppointmentService.Api.GrpcServices;
 using His.Hope.AppointmentService.Domain.Aggregates;
 using His.Hope.AppointmentService.Domain.Repositories;
 using His.Hope.AppointmentService.Domain.ValueObjects;
+using His.Hope.AppointmentService.Infrastructure.Persistence;
+using His.Hope.Authorization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 using Moq;
 
 namespace His.Hope.AppointmentService.Contract.Tests;
@@ -13,12 +17,18 @@ namespace His.Hope.AppointmentService.Contract.Tests;
 public class AppointmentGrpcContractTests
 {
     private readonly Mock<IAppointmentRepository> _mockRepo;
+    private readonly Mock<IResourceAuthorizationEvaluator> _authorization;
     private readonly AppointmentGrpcServiceImpl _service;
 
     public AppointmentGrpcContractTests()
     {
         _mockRepo = new Mock<IAppointmentRepository>();
-        _service = new AppointmentGrpcServiceImpl(_mockRepo.Object);
+        var db = new AppointmentDbContext(new DbContextOptionsBuilder<AppointmentDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString("N")).Options);
+        _authorization = new Mock<IResourceAuthorizationEvaluator>();
+        _authorization.Setup(a => a.EvaluateAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AuthorizationDecision.Allow("appointments.view"));
+        _service = new AppointmentGrpcServiceImpl(_mockRepo.Object, db, _authorization.Object);
     }
 
     [Fact]
@@ -65,6 +75,20 @@ public class AppointmentGrpcContractTests
     }
 
     [Fact]
+    public async Task GetAppointment_WhenResourceDenied_ShouldReturnNotFoundWithoutRepositoryAccess()
+    {
+        _authorization.Setup(a => a.EvaluateAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AuthorizationDecision.Deny("appointments.view", "facility_scope_denied"));
+
+        var act = async () => await _service.GetAppointment(
+            new AppointmentRequest { Id = Guid.NewGuid().ToString() }, new TestServerCallContext());
+
+        var exception = await act.Should().ThrowAsync<RpcException>();
+        exception.And.StatusCode.Should().Be(StatusCode.NotFound);
+        _mockRepo.Verify(r => r.GetByIdAsync(It.IsAny<AppointmentId>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task GetAppointment_WithEmptyId_ShouldThrowRpcException()
     {
         var request = new AppointmentRequest { Id = string.Empty };
@@ -85,7 +109,11 @@ public class AppointmentGrpcContractTests
         };
 
         _mockRepo
-            .Setup(r => r.GetByPatientIdAsync(patientId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetByPatientIdAsync(
+                patientId,
+                It.IsAny<IReadOnlySet<string>>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(appointments);
 
         var request = new PatientAppointmentsRequest { PatientId = patientId.ToString() };
@@ -102,7 +130,11 @@ public class AppointmentGrpcContractTests
     public async Task GetPatientAppointments_WithNoResults_ShouldReturnEmptyList()
     {
         _mockRepo
-            .Setup(r => r.GetByPatientIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetByPatientIdAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<IReadOnlySet<string>>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Appointment>());
 
         var request = new PatientAppointmentsRequest { PatientId = Guid.NewGuid().ToString() };
@@ -111,6 +143,35 @@ public class AppointmentGrpcContractTests
 
         response.Appointments.Should().BeEmpty();
         response.TotalCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task GetPatientAppointments_WithoutFacilityMembership_PassesEmptyScopeFailClosed()
+    {
+        IReadOnlySet<string>? capturedFacilityIds = null;
+        var capturedCrossFacility = true;
+
+        _mockRepo
+            .Setup(r => r.GetByPatientIdAsync(
+                It.IsAny<Guid>(),
+                It.IsAny<IReadOnlySet<string>>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<Guid, IReadOnlySet<string>, bool, CancellationToken>((_, ids, crossFacility, _) =>
+            {
+                capturedFacilityIds = ids;
+                capturedCrossFacility = crossFacility;
+            })
+            .ReturnsAsync(Array.Empty<Appointment>());
+
+        var response = await _service.GetPatientAppointments(
+            new PatientAppointmentsRequest { PatientId = Guid.NewGuid().ToString() },
+            new TestServerCallContext());
+
+        response.Appointments.Should().BeEmpty();
+        capturedFacilityIds.Should().NotBeNull();
+        capturedFacilityIds.Should().BeEmpty();
+        capturedCrossFacility.Should().BeFalse();
     }
 
     [Fact]
@@ -264,6 +325,7 @@ public class TestServerCallContext : ServerCallContext
         _responseTrailers = new Metadata();
         _authContext = new AuthContext(string.Empty, new Dictionary<string, List<AuthProperty>>());
         _userState = new Dictionary<object, object>();
+        _userState["__HttpContext"] = new DefaultHttpContext();
     }
 
     protected override string MethodCore => "/his.hope.appointment.AppointmentGrpcService/TestMethod";

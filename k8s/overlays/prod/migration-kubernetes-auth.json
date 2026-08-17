@@ -1,0 +1,13 @@
+[
+  { "op": "add", "path": "/spec/template/spec/initContainers", "value": [] },
+  { "op": "replace", "path": "/spec/template/spec/containers/0/env/4/value", "value": "kubernetes" },
+  { "op": "replace", "path": "/spec/template/spec/containers/0/env/5/value", "value": "kubernetes" },
+  { "op": "remove", "path": "/spec/template/spec/containers/0/env/8" },
+  { "op": "remove", "path": "/spec/template/spec/containers/0/env/7" },
+  { "op": "remove", "path": "/spec/template/spec/containers/0/volumeMounts/2" },
+  { "op": "remove", "path": "/spec/template/spec/containers/0/volumeMounts/1" },
+  { "op": "remove", "path": "/spec/template/spec/volumes/2" },
+  { "op": "remove", "path": "/spec/template/spec/volumes/1" },
+  { "op": "add", "path": "/spec/template/spec/containers/0/volumeMounts/-", "value": { "name": "vault-jwt", "mountPath": "/var/run/secrets/tokens", "readOnly": true } },
+  { "op": "add", "path": "/spec/template/spec/volumes/-", "value": { "name": "vault-jwt", "projected": { "sources": [ { "serviceAccountToken": { "path": "vault", "audience": "vault", "expirationSeconds": 3600 } } ] } } }
+]

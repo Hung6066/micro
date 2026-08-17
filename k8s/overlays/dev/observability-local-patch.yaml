@@ -1,0 +1,127 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+        - name: api-gateway
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-service
+spec:
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+        - name: identity-service
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+spec:
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+        - name: patient-service
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+spec:
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+        - name: appointment-service
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-service
+spec:
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+        - name: clinical-service
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-service
+spec:
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+        - name: lab-service
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-service
+spec:
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+        - name: billing-service
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-service
+spec:
+  template:
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+    spec:
+      containers:
+        - name: pharmacy-service
+          env:
+            - name: Otlp__Endpoint
+              valueFrom: {configMapKeyRef: {name: runtime-contract-config, key: OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}}

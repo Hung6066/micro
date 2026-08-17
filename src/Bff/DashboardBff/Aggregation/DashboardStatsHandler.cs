@@ -6,6 +6,7 @@ using His.Hope.BillingGrpc;
 using His.Hope.PharmacyGrpc;
 using Polly;
 using Polly.Registry;
+using Grpc.Core;
 
 namespace DashboardBff.Aggregation;
 
@@ -43,6 +44,7 @@ public sealed class DashboardStatsHandler : IAggregationHandler
     public async Task<AggregationResult> HandleAsync(AggregationContext context)
     {
         var ct = context.CancellationToken;
+        var headers = CreateHeaders(context.SessionJwt);
 
         var results = await ParallelAggregationExecutor.RunAsync(new()
         {
@@ -50,7 +52,7 @@ public sealed class DashboardStatsHandler : IAggregationHandler
             {
                 _logger.LogDebug("Fetching total patient count");
                 var resp = await _patientClient.SearchPatientsAsync(
-                    new PatientSearchRequest(), cancellationToken: ct);
+                    new PatientSearchRequest(), headers: headers, cancellationToken: ct);
                 return (object)new { count = resp.TotalCount };
             }, ct).AsTask(),
 
@@ -58,7 +60,7 @@ public sealed class DashboardStatsHandler : IAggregationHandler
             {
                 _logger.LogDebug("Fetching encounter count");
                 var resp = await _clinicalClient.SearchEncountersAsync(
-                    new EncounterSearchRequest(), cancellationToken: ct);
+                    new EncounterSearchRequest(), headers: headers, cancellationToken: ct);
                 return (object)new { count = resp.TotalCount };
             }, ct).AsTask(),
 
@@ -66,7 +68,7 @@ public sealed class DashboardStatsHandler : IAggregationHandler
             {
                 _logger.LogDebug("Fetching lab order count");
                 var resp = await _labClient.SearchLabOrdersAsync(
-                    new LabOrderSearchRequest(), cancellationToken: ct);
+                    new LabOrderSearchRequest(), headers: headers, cancellationToken: ct);
                 return (object)new { count = resp.TotalCount };
             }, ct).AsTask(),
 
@@ -74,7 +76,7 @@ public sealed class DashboardStatsHandler : IAggregationHandler
             {
                 _logger.LogDebug("Fetching invoice count");
                 var resp = await _billingClient.SearchInvoicesAsync(
-                    new InvoiceSearchRequest(), cancellationToken: ct);
+                    new InvoiceSearchRequest(), headers: headers, cancellationToken: ct);
                 return (object)new { count = resp.TotalCount };
             }, ct).AsTask(),
 
@@ -82,7 +84,7 @@ public sealed class DashboardStatsHandler : IAggregationHandler
             {
                 _logger.LogDebug("Fetching medication count");
                 var resp = await _pharmacyClient.SearchMedicationsAsync(
-                    new MedicationSearchRequest(), cancellationToken: ct);
+                    new MedicationSearchRequest(), headers: headers, cancellationToken: ct);
                 return (object)new { count = resp.TotalCount };
             }, ct).AsTask()
         });
@@ -91,4 +93,9 @@ public sealed class DashboardStatsHandler : IAggregationHandler
             ? AggregationResult.Partial(new { stats = results.Successes }, results.Failures)
             : AggregationResult.Failed("All downstream services unavailable");
     }
+
+    private static Metadata? CreateHeaders(string jwt) =>
+        string.IsNullOrWhiteSpace(jwt)
+            ? null
+            : new Metadata { { "authorization", $"Bearer {jwt}" } };
 }

@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - k3s-observability.yaml
+  - production-secrets.yaml
+  - security-exceptions.yaml

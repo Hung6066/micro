@@ -1,0 +1,51 @@
+---
+- name: Validate mirror prerequisites
+  ansible.builtin.assert:
+    that:
+      - git_mirror_kubeconfig is file
+    fail_msg: "Kubeconfig not found: {{ git_mirror_kubeconfig }}"
+
+- name: Apply internal Git mirror manifests
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ git_mirror_kubeconfig }}"
+      - apply
+      - -k
+      - "{{ git_mirror_manifest_dir }}"
+  register: git_mirror_apply
+  changed_when: "'configured' in git_mirror_apply.stdout or 'created' in git_mirror_apply.stdout"
+
+- name: Wait for Gitea rollout
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ git_mirror_kubeconfig }}"
+      - -n
+      - git-mirror
+      - rollout
+      - status
+      - deployment/gitea
+      - --timeout=180s
+  changed_when: false
+
+- name: Verify internal Git mirror service
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ git_mirror_kubeconfig }}"
+      - -n
+      - git-mirror
+      - get
+      - svc/gitea
+      - -o
+      - jsonpath={.spec.clusterIP}
+  register: git_mirror_service
+  changed_when: false
+
+- name: Report internal Git mirror endpoint
+  ansible.builtin.debug:
+    msg: "Gitea endpoint: http://gitea.git-mirror.svc.cluster.local:3000 (ClusterIP {{ git_mirror_service.stdout }})"

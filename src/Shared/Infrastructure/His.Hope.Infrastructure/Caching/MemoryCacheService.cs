@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Collections.Concurrent;
 
 namespace His.Hope.Infrastructure.Caching;
 
@@ -32,6 +33,7 @@ public interface IMemoryCacheService
     Task SetAsync<T>(string key, T value, TimeSpan? expiry = null,
         CancellationToken ct = default) where T : class;
     Task RemoveAsync(string key, CancellationToken ct = default);
+    Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default);
 }
 
 public class MemoryCacheService : IMemoryCacheService
@@ -40,6 +42,7 @@ public class MemoryCacheService : IMemoryCacheService
     private readonly ILogger<MemoryCacheService> _logger;
     private readonly MemoryCacheServiceOptions _options;
     private readonly AuthorizationCacheKeyPartitioner _keyPartitioner;
+    private readonly ConcurrentDictionary<string, byte> _knownKeys = new(StringComparer.Ordinal);
     private static readonly TimeSpan DefaultTtl = TimeSpan.FromMinutes(5);
 
     public MemoryCacheService(
@@ -86,7 +89,12 @@ public class MemoryCacheService : IMemoryCacheService
             SlidingExpiration = expiry ?? _options.DefaultSlidingExpiration,
             Size = 1
         };
+        entryOptions.RegisterPostEvictionCallback((evictedKey, _, _, _) =>
+        {
+            if (evictedKey is string key) _knownKeys.TryRemove(key, out _);
+        });
         _cache.Set(key, value, entryOptions);
+        _knownKeys[key] = 0;
 
         return value;
     }
@@ -100,7 +108,12 @@ public class MemoryCacheService : IMemoryCacheService
             SlidingExpiration = expiry ?? _options.DefaultSlidingExpiration,
             Size = 1
         };
+        entryOptions.RegisterPostEvictionCallback((evictedKey, _, _, _) =>
+        {
+            if (evictedKey is string key) _knownKeys.TryRemove(key, out _);
+        });
         _cache.Set(key, value, entryOptions);
+        _knownKeys[key] = 0;
         _logger.LogTrace("L1 cache SET for key {Key}", key);
         return Task.CompletedTask;
     }
@@ -109,7 +122,21 @@ public class MemoryCacheService : IMemoryCacheService
     {
         key = _keyPartitioner.Partition(key);
         _cache.Remove(key);
+        _knownKeys.TryRemove(key, out _);
         _logger.LogTrace("L1 cache REMOVE for key {Key}", key);
+        return Task.CompletedTask;
+    }
+
+    public Task RemoveByPrefixAsync(string prefix, CancellationToken ct = default)
+    {
+        foreach (var key in _knownKeys.Keys.Where(key =>
+            key.StartsWith(prefix, StringComparison.Ordinal) ||
+            key.Contains($":{prefix}", StringComparison.Ordinal)))
+        {
+            _cache.Remove(key);
+            _knownKeys.TryRemove(key, out _);
+        }
+
         return Task.CompletedTask;
     }
 }

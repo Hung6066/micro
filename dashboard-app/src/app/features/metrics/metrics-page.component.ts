@@ -280,7 +280,10 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
   readonly error$ = new BehaviorSubject<string | null>(null);
 
   selectedServices: string[] = [];
-  selectedMetricType: MetricType = 'cpu';
+  // Request metrics are emitted by every instrumented service in the
+  // current K3s scrape contract. CPU/memory require a separate cAdvisor
+  // scrape and are intentionally selectable but not the empty default.
+  selectedMetricType: MetricType = 'requests';
   selectedTimeRange = '1h';
 
   availableServices: Resource[] = [];
@@ -288,7 +291,7 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
   timeRanges = TIME_RANGES;
   hasData = false;
 
-  currentMetric = METRIC_TYPES[0];
+  currentMetric = METRIC_TYPES.find(m => m.key === 'requests') ?? METRIC_TYPES[0];
 
   private chart: Chart | null = null;
 

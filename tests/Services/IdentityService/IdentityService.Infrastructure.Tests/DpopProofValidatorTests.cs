@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Cryptography;
 using System.Text.Json;
 using FluentAssertions;
+using His.Hope.Contracts.Identity;
 using His.Hope.IdentityService.Infrastructure.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.Tokens;
@@ -11,6 +12,66 @@ namespace His.Hope.IdentityService.Infrastructure.Tests;
 
 public sealed class DpopProofValidatorTests
 {
+    [Fact]
+    public void Validate_rejects_missing_or_non_compact_proof()
+    {
+        var validator = new DpopProofValidator(new InMemoryDpopReplayCache(), TimeProvider.System);
+        var missing = CreateRequest(string.Empty, "GET", "/patients/1");
+        var malformed = CreateRequest("not-a-jwt", "GET", "/patients/1");
+
+        validator.Invoking(value => value.Validate(missing)).Should()
+            .Throw<DpopValidationException>().WithMessage("*required*");
+        validator.Invoking(value => value.Validate(malformed)).Should()
+            .Throw<DpopValidationException>().WithMessage("*compact JWT*");
+    }
+
+    [Fact]
+    public void Validate_rejects_invalid_header_and_payload_encoding()
+    {
+        var validator = new DpopProofValidator(new InMemoryDpopReplayCache(), TimeProvider.System);
+
+        validator.Invoking(value => value.Validate(CreateRequest("%%%.bad.sig", "GET", "/patients/1")))
+            .Should().Throw<DpopValidationException>().WithMessage("*header*");
+        var validHeader = Base64UrlEncoder.Encode(System.Text.Encoding.UTF8.GetBytes("{\"typ\":\"dpop+jwt\",\"alg\":\"ES256\"}"));
+        validator.Invoking(value => value.Validate(CreateRequest($"{validHeader}.%%%.sig", "GET", "/patients/1")))
+            .Should().Throw<DpopValidationException>().WithMessage("*payload*");
+    }
+
+    [Fact]
+    public void Validate_rejects_wrong_type_algorithm_key_and_uri()
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var validator = new DpopProofValidator(new InMemoryDpopReplayCache(), TimeProvider.System);
+
+        var wrongType = CreateProof(key, "GET", "https://api.his-hope.test/patients/1", Guid.NewGuid().ToString("N"), typ: "jwt");
+        validator.Invoking(value => value.Validate(CreateRequest(wrongType, "GET", "/patients/1")))
+            .Should().Throw<DpopValidationException>().WithMessage("*typ*");
+
+        var wrongAlgorithm = CreateProof(key, "GET", "https://api.his-hope.test/patients/1", Guid.NewGuid().ToString("N"), alg: "RS256");
+        validator.Invoking(value => value.Validate(CreateRequest(wrongAlgorithm, "GET", "/patients/1")))
+            .Should().Throw<DpopValidationException>().WithMessage("*ES256*");
+
+        var valid = CreateProof(key, "GET", "https://api.his-hope.test/patients/1", Guid.NewGuid().ToString("N"));
+        validator.Invoking(value => value.Validate(CreateRequest(valid, "GET", "/different")))
+            .Should().Throw<DpopValidationException>().WithMessage("*htu*");
+    }
+
+    [Fact]
+    public void Validate_rejects_proof_outside_clock_window_and_oversized_jti()
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var validator = new DpopProofValidator(new InMemoryDpopReplayCache(), TimeProvider.System);
+        var stale = CreateProof(key, "GET", "https://api.his-hope.test/patients/1", Guid.NewGuid().ToString("N"),
+            issuedAt: DateTimeOffset.UtcNow.AddMinutes(-6).ToUnixTimeSeconds());
+        validator.Invoking(value => value.Validate(CreateRequest(stale, "GET", "/patients/1")))
+            .Should().Throw<DpopValidationException>().WithMessage("*clock window*");
+
+        var oversizedJti = new string('x', 201);
+        var oversized = CreateProof(key, "GET", "https://api.his-hope.test/patients/1", oversizedJti);
+        validator.Invoking(value => value.Validate(CreateRequest(oversized, "GET", "/patients/1")))
+            .Should().Throw<DpopValidationException>().WithMessage("*jti*");
+    }
+
     [Fact]
     public void Validate_AcceptsValidProofAndReturnsJwkThumbprint()
     {
@@ -81,8 +142,8 @@ public sealed class DpopProofValidatorTests
     public void Validate_UsesForwardedPublicOriginBehindGateway()
     {
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-        var proof = CreateProof(key, "POST", "http://10.0.2.2:5000/connect/token", Guid.NewGuid().ToString("N"));
-        var request = CreateRequest(proof, "POST", "/connect/token");
+        var proof = CreateProof(key, "POST", $"http://10.0.2.2:5000{IdentityApiRoutes.OidcToken}", Guid.NewGuid().ToString("N"));
+        var request = CreateRequest(proof, "POST", IdentityApiRoutes.OidcToken);
         request.Scheme = "http";
         request.Host = new HostString("identityservice", 5001);
         request.Headers["X-Forwarded-Proto"] = "http";
@@ -104,7 +165,8 @@ public sealed class DpopProofValidatorTests
         return context.Request;
     }
 
-    private static string CreateProof(ECDsa key, string method, string uri, string jti)
+    private static string CreateProof(ECDsa key, string method, string uri, string jti,
+        string typ = "dpop+jwt", string alg = SecurityAlgorithms.EcdsaSha256, long? issuedAt = null)
     {
         var parameters = key.ExportParameters(false);
         var jwk = new Dictionary<string, string>
@@ -115,13 +177,14 @@ public sealed class DpopProofValidatorTests
             ["y"] = Base64UrlEncoder.Encode(parameters.Q.Y!)
         };
         var header = new JwtHeader(new SigningCredentials(new ECDsaSecurityKey(key), SecurityAlgorithms.EcdsaSha256));
-        header["typ"] = "dpop+jwt";
+        header["typ"] = typ;
+        header["alg"] = alg;
         header["jwk"] = jwk;
         var payload = new JwtPayload
         {
             ["htm"] = method,
             ["htu"] = uri,
-            ["iat"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            ["iat"] = issuedAt ?? DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             ["jti"] = jti
         };
         return new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(header, payload));

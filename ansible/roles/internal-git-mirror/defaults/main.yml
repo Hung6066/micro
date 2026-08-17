@@ -1,0 +1,3 @@
+---
+git_mirror_kubeconfig: "{{ playbook_dir }}/../../artifacts/kubeconfig-production.yaml"
+git_mirror_manifest_dir: "{{ playbook_dir }}/../../k8s/git-mirror"

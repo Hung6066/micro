@@ -6,27 +6,14 @@ using His.Hope.Infrastructure.Security;
 using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.Tokens;
 using StackExchange.Redis;
-using Testcontainers.Redis;
 using Xunit;
 
 namespace His.Hope.Infrastructure.Tests;
 
-public sealed class DpopResourceProofValidatorTests : IAsyncLifetime
+ [Collection("shared-redis")]
+public sealed class DpopResourceProofValidatorTests(RedisTestFixture fixture)
 {
-    private readonly RedisContainer _redis = new RedisBuilder().Build();
-    private IConnectionMultiplexer _connection = null!;
-
-    public async Task InitializeAsync()
-    {
-        await _redis.StartAsync();
-        _connection = await ConnectionMultiplexer.ConnectAsync(_redis.GetConnectionString());
-    }
-
-    public async Task DisposeAsync()
-    {
-        await _connection.CloseAsync();
-        await _redis.DisposeAsync();
-    }
+    private readonly IConnectionMultiplexer _connection = fixture.Connection;
 
     [Fact]
     public void Valid_proof_is_accepted_once_and_replay_is_rejected()

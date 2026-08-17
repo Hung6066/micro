@@ -4,22 +4,35 @@ using His.Hope.AppointmentGrpc;
 using His.Hope.AppointmentService.Domain.Aggregates;
 using His.Hope.AppointmentService.Domain.Repositories;
 using His.Hope.AppointmentService.Domain.ValueObjects;
+using His.Hope.AppointmentService.Infrastructure.Persistence;
+using His.Hope.Authorization;
+using His.Hope.SharedKernel.Authorization;
 using Microsoft.AspNetCore.Authorization;
 
 namespace His.Hope.AppointmentService.Api.GrpcServices;
 
-[Authorize]
+[Authorize(Policy = AuthorizationPolicyNames.Permissions.AppointmentsView)]
 public class AppointmentGrpcServiceImpl : AppointmentGrpcService.AppointmentGrpcServiceBase
 {
     private readonly IAppointmentRepository _repository;
+    private readonly AppointmentDbContext _db;
+    private readonly IResourceAuthorizationEvaluator _authorization;
 
-    public AppointmentGrpcServiceImpl(IAppointmentRepository repository) =>
+    public AppointmentGrpcServiceImpl(
+        IAppointmentRepository repository,
+        AppointmentDbContext db,
+        IResourceAuthorizationEvaluator authorization)
+    {
         _repository = repository;
+        _db = db;
+        _authorization = authorization;
+    }
 
     public override async Task<AppointmentResponse> GetAppointment(AppointmentRequest request,
         ServerCallContext context)
     {
         var appointmentId = ParseGuidOrThrow(request.Id, "Appointment id");
+        await EnsureResourceAccessAsync(appointmentId, context);
         var apt = await _repository.GetByIdAsync(
             AppointmentId.From(appointmentId), context.CancellationToken);
 
@@ -35,8 +48,10 @@ public class AppointmentGrpcServiceImpl : AppointmentGrpcService.AppointmentGrpc
         var patientId = ParseGuidOrThrow(request.PatientId, "Patient id");
         var page = request.Page > 0 ? request.Page : 1;
         var pageSize = request.PageSize > 0 ? request.PageSize : 20;
+        var accessScope = FacilityAccessScope.FromPrincipal(context.GetHttpContext().User);
 
-        var allAppointments = await _repository.GetByPatientIdAsync(patientId, context.CancellationToken);
+        var allAppointments = await _repository.GetByPatientIdAsync(
+            patientId, accessScope.FacilityIds, accessScope.IsCrossFacility, context.CancellationToken);
         var totalCount = allAppointments.Count;
         var paged = allAppointments
             .Skip((page - 1) * pageSize)
@@ -55,10 +70,26 @@ public class AppointmentGrpcServiceImpl : AppointmentGrpcService.AppointmentGrpc
         AppointmentExistsRequest request, ServerCallContext context)
     {
         var appointmentId = ParseGuidOrThrow(request.Id, "Appointment id");
+        await EnsureResourceAccessAsync(appointmentId, context);
         var exists = await _repository.ExistsAsync(
             AppointmentId.From(appointmentId), context.CancellationToken);
 
         return new AppointmentExistsResponse { Exists = exists };
+    }
+
+    private async Task EnsureResourceAccessAsync(Guid appointmentId, ServerCallContext context)
+    {
+        var decision = await _authorization.EvaluateResourceAsync(
+            _db.Appointments,
+            appointment => appointment.Id == AppointmentId.From(appointmentId),
+            appointment => appointment.FacilityId,
+            context.GetHttpContext().User,
+            HisHopePermissions.Appointments.View,
+            "appointment",
+            appointmentId.ToString("D"),
+            context.CancellationToken);
+        if (!decision.Allowed)
+            throw new RpcException(new Status(StatusCode.NotFound, "Appointment not found"));
     }
 
     private static Guid ParseGuidOrThrow(string value, string fieldName)

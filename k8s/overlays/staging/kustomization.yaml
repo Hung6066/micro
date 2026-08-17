@@ -14,6 +14,13 @@ bases:
   - ../../base
 
 resources:
+  - ../../base/postgres.yaml
+  - ../../base/postgres-pdb.yaml
+  - ../../base/rabbitmq.yaml
+  - ../../base/redis.yaml
+  - ../../linkerd/traffic-split-crd.yaml
+  - ../../base/seccomp-profiles.yaml
+  - ../../base/seccomp-daemonset.yaml
   - ../../linkerd/server.yaml
   - ../../linkerd/server-authorization.yaml
   - ../../linkerd/traffic-split.yaml
@@ -23,6 +30,9 @@ resources:
   - ../../infrastructure/pgbouncer-secret.yaml
   - ../../infrastructure/unleash-deployment.yaml
   - ../../priority/priority-classes.yaml
+patchesStrategicMerge:
+  - runtime-contract-patch.yaml
+  - namespace-policy-patch.yaml
 
 patches:
   - target:

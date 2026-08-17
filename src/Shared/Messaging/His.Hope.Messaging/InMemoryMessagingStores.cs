@@ -9,6 +9,7 @@ public sealed class InMemoryOutboxStore : IOutboxStore
     public ValueTask EnqueueAsync(EventEnvelope @event, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        EventDeliveryPolicy.Default.Validate(@event);
         var message = new OutboxMessage(@event.Id, @event, DateTimeOffset.UtcNow);
         _messages.TryAdd(message.Id, message);
         return ValueTask.CompletedTask;
@@ -67,6 +68,13 @@ public sealed class InMemoryInboxStore : IInboxStore
     public ValueTask MarkCompletedAsync(Guid eventId, string consumer, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask ReleaseAsync(Guid eventId, string consumer, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _started.TryRemove((eventId, consumer), out _);
         return ValueTask.CompletedTask;
     }
 }

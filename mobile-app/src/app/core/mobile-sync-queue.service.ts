@@ -12,9 +12,12 @@ export class MobileSyncQueueService {
   private readonly key = "his-hope.mobile.sync.queue";
   private readonly endpoint = `${environment.adminApiUrl.replace(/\/admin$/, "")}/mobile/sync`;
 
-  async enqueue(operation: string, payload: Record<string, unknown>): Promise<void> {
+  async enqueue(operation: string, payload: Record<string, unknown>, metadata: Partial<Pick<HisHopeSyncEnvelope, 'entityType' | 'entityId' | 'baseVersion' | 'conflictPolicy'>> = {}): Promise<void> {
+    if (metadata.entityType?.toLowerCase().startsWith('patient') && metadata.conflictPolicy !== 'reject_on_stale') {
+      throw new Error('Patient data offline writes require reject_on_stale conflict policy.');
+    }
     const queue = await this.read();
-    queue.push({ idempotencyKey: crypto.randomUUID(), operation, payload, createdAt: new Date().toISOString() });
+    queue.push({ idempotencyKey: crypto.randomUUID(), operation, payload, createdAt: new Date().toISOString(), schemaVersion: 1, ...metadata });
     await this.native.secureSet(this.key, JSON.stringify(queue.slice(-100)));
   }
 

@@ -6,11 +6,12 @@
     <RootNamespace>PharmacyBff</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Shared\Configuration\His.Hope.Configuration\His.Hope.Configuration.csproj" />
     <ProjectReference Include="..\His.Hope.Bff.Core\His.Hope.Bff.Core.csproj" />
     <Protobuf Include="..\..\Shared\Protos\pharmacy.proto" GrpcServices="Client" Link="Protos\pharmacy.proto" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Grpc.Net.ClientFactory" Version="2.60.0" />
+    <PackageReference Include="Grpc.Net.ClientFactory" Version="2.62.0" />
     <PackageReference Include="Grpc.Tools" Version="2.62.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
@@ -19,5 +20,11 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="PharmacyBff.IntegrationTests" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Update="Routes\pharmacy-routes.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
 </Project>

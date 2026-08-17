@@ -54,66 +54,67 @@ images:
   #############################################################################
   # api-gateway
   - name: his-hope/api-gateway
-    newTag: 1.0.0
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    newTag: redis-tls-fixed
+    digest: sha256:a4074ac87719478a9fb9e3ad4b17b24b9389abfe8d2b532e4adb95ba12e11aa8
 
   # patient-service
   - name: his-hope/patient-service
-    newTag: 1.0.0
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    newTag: redis-tls-fixed
+    digest: sha256:4b61891e91345278c200308151f439467688ae7ecf842074e4b113e69d7b780f
 
   # identity-service
   - name: his-hope/identity-service
-    newTag: 1.0.0
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    newTag: admin-reset-20260808
+    digest: sha256:cb024d88b7bda7b8fb5027c3ac705b92da39a88767f15f0e78e7f31d1b1716a6
 
   # appointment-service
   - name: his-hope/appointment-service
-    newTag: 1.0.0
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    newTag: redis-tls-fixed
+    digest: sha256:9ce0c0d46b526cb2f0a4ee38ff8aa05c44554de1430938b919864c058e7703ae
 
   # clinical-service
   - name: his-hope/clinical-service
-    newTag: 1.0.0
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    newTag: redis-tls-fixed
+    digest: sha256:2f1871eb42f1b516f244c9a933a57736aaeec7ac3710e57aaaf8310fad3658c9
 
   # lab-service
   - name: his-hope/lab-service
-    newTag: 1.0.0
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    newTag: redis-tls-fixed
+    digest: sha256:f15ff2278e2428825f66ea71e99d6df64feb2eb449fae0249a39c1e357221d7c
 
   # billing-service
   - name: his-hope/billing-service
-    newTag: 1.0.0
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    newTag: redis-tls-fixed
+    digest: sha256:aae3b6aee4f0d4aece51f47fc8e033abb32f5d069d47d1f2f32c7e59e76b0155
 
   # pharmacy-service
   - name: his-hope/pharmacy-service
-    newTag: 1.0.0
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    newTag: redis-tls-fixed
+    digest: sha256:5521cd88501bc328403e3a5178a5e43336cfe23c565016ea8586af70304d053b
 
   # frontend
   - name: his-hope/frontend
-    newTag: 1.0.0
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    newTag: rum-20260808
+    digest: sha256:6190eb95d1ccf10692f7a9a85f9984bfb59356467fd04b9b80fbe1bb3e3f3338
 
   #############################################################################
   # Infrastructure Images
   #############################################################################
   # postgres
   - name: postgres
-    newTag: "16.2"
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    newTag: "16"
+    digest: sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
 
   # rabbitmq
   - name: rabbitmq
-    newTag: "3.13"
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    newTag: "3-management-alpine"
+    digest: sha256:606d8c0d6b3c18d1da9afc53bc7cdb2a8d5486df91b5a9830e9e07626c9ae281
 
   # redis
   - name: redis
-    newTag: "7.2"
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    newTag: "7-alpine"
+    digest: sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
+
 
 patches:
   #############################################################################

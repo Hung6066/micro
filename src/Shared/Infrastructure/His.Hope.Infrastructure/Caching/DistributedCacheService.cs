@@ -158,20 +158,16 @@ public class DistributedCacheService : ICacheService
 
         try
         {
-            var endpoints = _connectionMultiplexer.GetEndPoints();
-            var keysToDelete = new List<RedisKey>();
-
-            foreach (var endpoint in endpoints)
+            var keysToDelete = new HashSet<RedisKey>();
+            foreach (var pattern in CacheKeyPattern.ForPrefix(_instancePrefix, prefix))
             {
-                var server = _connectionMultiplexer.GetServer(endpoint);
-
-                if (!server.IsConnected) continue;
-
-                var pattern = $"{_instancePrefix}{prefix}*";
-
-                await foreach (var key in server.KeysAsync(pattern: pattern))
+                foreach (var endpoint in _connectionMultiplexer.GetEndPoints())
                 {
-                    keysToDelete.Add(key);
+                    var server = _connectionMultiplexer.GetServer(endpoint);
+                    if (!server.IsConnected) continue;
+
+                    await foreach (var key in server.KeysAsync(pattern: pattern))
+                        keysToDelete.Add(key);
                 }
             }
 

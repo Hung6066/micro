@@ -15,5 +15,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\His.Hope.EventBus\His.Hope.EventBus.csproj" />
+    <ProjectReference Include="..\..\..\Messaging\His.Hope.Messaging.Abstractions\His.Hope.Messaging.Abstractions.csproj" />
   </ItemGroup>
 </Project>

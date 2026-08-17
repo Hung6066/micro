@@ -22,6 +22,122 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.AccessRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("approved_by");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("requested_at");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("requested_by");
+
+                    b.Property<string>("RoleIdsJson")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("role_ids_json");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("SubjectUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("subject_user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_access_requests");
+
+                    b.HasIndex("SubjectUserId", "Status", "ExpiresAt")
+                        .HasDatabaseName("ix_access_requests_subject_user_id_status_expires_at");
+
+                    b.ToTable("access_requests", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.AccessReview", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<string>("DecisionReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("decision_reason");
+
+                    b.Property<DateTime>("DueAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("due_at");
+
+                    b.Property<string>("Reviewer")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("reviewer");
+
+                    b.Property<string>("RoleIdsJson")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("role_ids_json");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("SubjectUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("subject_user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_access_reviews");
+
+                    b.HasIndex("SubjectUserId", "Status", "DueAt")
+                        .HasDatabaseName("ix_access_reviews_subject_user_id_status_due_at");
+
+                    b.ToTable("access_reviews", (string)null);
+                });
+
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.AuditLog", b =>
                 {
                     b.Property<Guid>("Id")
@@ -36,6 +152,21 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("action");
 
+                    b.Property<string>("AfterJson")
+                        .HasMaxLength(8000)
+                        .HasColumnType("character varying(8000)")
+                        .HasColumnName("after_json");
+
+                    b.Property<string>("BeforeJson")
+                        .HasMaxLength(8000)
+                        .HasColumnType("character varying(8000)")
+                        .HasColumnName("before_json");
+
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("correlation_id");
+
                     b.Property<string>("Details")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")
@@ -45,6 +176,11 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("ip_address");
+
+                    b.Property<string>("Outcome")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("outcome");
 
                     b.Property<string>("ResourceId")
                         .HasMaxLength(100)
@@ -56,6 +192,11 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("resource_type");
+
+                    b.Property<string>("Source")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source");
 
                     b.Property<DateTime>("Timestamp")
                         .HasColumnType("timestamp with time zone")
@@ -83,6 +224,9 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.HasIndex("Action")
                         .HasDatabaseName("ix_audit_logs_action");
 
+                    b.HasIndex("CorrelationId")
+                        .HasDatabaseName("ix_audit_logs_correlation_id");
+
                     b.HasIndex("ResourceType")
                         .HasDatabaseName("ix_audit_logs_resource_type");
 
@@ -93,6 +237,159 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_audit_logs_user_id");
 
                     b.ToTable("audit_logs", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.AuthorizationPolicyDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("LifecycleStatus")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("lifecycle_status");
+
+                    b.Property<string>("Owner")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("owner");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<string>("PublishedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("published_by");
+
+                    b.Property<string>("RulesJson")
+                        .IsRequired()
+                        .HasMaxLength(12000)
+                        .HasColumnType("character varying(12000)")
+                        .HasColumnName("rules_json");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_authorization_policy_definitions");
+
+                    b.HasIndex("Key", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_authorization_policy_definitions_key_version");
+
+                    b.ToTable("authorization_policy_definitions", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.BreakGlassRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("approved_at");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("approved_by");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("FacilityId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("facility_id");
+
+                    b.Property<string>("PermissionCode")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("permission_code");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("requested_at");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("requested_by");
+
+                    b.Property<string>("ResourceId")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("resource_id");
+
+                    b.Property<string>("ResourceType")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("resource_type");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("SubjectUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("subject_user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_break_glass_requests");
+
+                    b.HasIndex("FacilityId", "Status", "ExpiresAt")
+                        .HasDatabaseName("ix_break_glass_requests_facility_id_status_expires_at");
+
+                    b.HasIndex("SubjectUserId", "Status", "ExpiresAt")
+                        .HasDatabaseName("ix_break_glass_requests_subject_user_id_status_expires_at");
+
+                    b.ToTable("break_glass_requests", (string)null);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.ClientConsent", b =>
@@ -148,6 +445,790 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_openiddict_consents_user_id_client_id");
 
                     b.ToTable("openiddict_consents", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.DevicePostureAssessment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("correlation_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("decision");
+
+                    b.Property<string>("DeviceId")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("device_id");
+
+                    b.Property<string>("EvidenceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("evidence_hash");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<DateTime>("ObservedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("observed_at");
+
+                    b.Property<string>("PolicyVersion")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("policy_version");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("provider");
+
+                    b.Property<string>("SignalsJson")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("signals_json");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_device_posture_assessments");
+
+                    b.HasIndex("Provider", "EvidenceHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_device_posture_assessments_provider_evidence_hash");
+
+                    b.HasIndex("UserId", "DeviceId", "ExpiresAt")
+                        .HasDatabaseName("ix_device_posture_assessments_user_id_device_id_expires_at");
+
+                    b.ToTable("device_posture_assessments", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.DevicePosturePolicy", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("id");
+
+                    b.Property<int>("EvidenceTtlSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("evidence_ttl_seconds");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("mode");
+
+                    b.Property<string>("ProvidersJson")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("providers_json");
+
+                    b.Property<string>("RequiredSignalsJson")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("required_signals_json");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("updated_by");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_device_posture_policies");
+
+                    b.ToTable("device_posture_policies", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.DirectoryProvisioningBinding", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("external_id");
+
+                    b.Property<string>("ResourceId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("resource_id");
+
+                    b.Property<string>("ResourceType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("resource_type");
+
+                    b.Property<string>("Target")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("target");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_directory_provisioning_bindings");
+
+                    b.HasIndex("Target", "ResourceType", "ExternalId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_directory_provisioning_bindings_target_resource_type_extern");
+
+                    b.HasIndex("Target", "ResourceType", "ResourceId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_directory_provisioning_bindings_target_resource_type_resour");
+
+                    b.ToTable("directory_provisioning_bindings", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.DirectoryProvisioningOutbox", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<DateTime>("AvailableAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("available_at");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ExternalId")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("external_id");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("operation");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("character varying(16000)")
+                        .HasColumnName("payload_json");
+
+                    b.Property<string>("ResourceId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("resource_id");
+
+                    b.Property<string>("ResourceType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("resource_type");
+
+                    b.Property<string>("Target")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("target");
+
+                    b.HasKey("Id")
+                        .HasName("pk_directory_provisioning_outbox");
+
+                    b.HasIndex("Target", "CompletedAt", "AvailableAt")
+                        .HasDatabaseName("ix_directory_provisioning_outbox_target_completed_at_available");
+
+                    b.HasIndex("Target", "Operation", "ResourceType", "ResourceId", "CreatedAt")
+                        .HasDatabaseName("ix_directory_provisioning_outbox_target_operation_resource_typ");
+
+                    b.ToTable("directory_provisioning_outbox", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamGroup", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("display_name");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("key");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("scope_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_iam_groups");
+
+                    b.HasIndex("ScopeId", "Key")
+                        .IsUnique()
+                        .HasDatabaseName("ix_iam_groups_scope_id_key");
+
+                    b.ToTable("iam_groups", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamGroupMembership", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_iam_group_memberships");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_iam_group_memberships_user_id");
+
+                    b.HasIndex("GroupId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_iam_group_memberships_group_id_user_id");
+
+                    b.ToTable("iam_group_memberships", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamPermissionBoundary", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AllowedPermissionsJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("character varying(16000)")
+                        .HasColumnName("allowed_permissions_json");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("created_by");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<Guid>("PrincipalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("principal_id");
+
+                    b.Property<string>("PrincipalType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("principal_type");
+
+                    b.Property<string>("ResourceConstraintsJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("character varying(16000)")
+                        .HasColumnName("resource_constraints_json");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("scope_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_iam_permission_boundaries");
+
+                    b.HasIndex("ScopeId")
+                        .HasDatabaseName("ix_iam_permission_boundaries_scope_id");
+
+                    b.HasIndex("PrincipalId", "PrincipalType", "ScopeId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_iam_permission_boundaries_principal_id_principal_type_scope");
+
+                    b.ToTable("iam_permission_boundaries", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamPermissionSet", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("LifecycleStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("lifecycle_status");
+
+                    b.Property<string>("PermissionsJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("character varying(16000)")
+                        .HasColumnName("permissions_json");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("scope_id");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_iam_permission_sets");
+
+                    b.HasIndex("ScopeId", "Key")
+                        .IsUnique()
+                        .HasDatabaseName("ix_iam_permission_sets_scope_id_key");
+
+                    b.ToTable("iam_permission_sets", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamPermissionSetAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid>("PermissionSetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("permission_set_id");
+
+                    b.Property<Guid>("PrincipalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("principal_id");
+
+                    b.Property<string>("PrincipalType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("principal_type");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("scope_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_iam_permission_set_assignments");
+
+                    b.HasIndex("ScopeId")
+                        .HasDatabaseName("ix_iam_permission_set_assignments_scope_id");
+
+                    b.HasIndex("PermissionSetId", "PrincipalId", "ScopeId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_iam_permission_set_assignments_permission_set_id_principal_");
+
+                    b.HasIndex("PrincipalId", "ScopeId", "Status")
+                        .HasDatabaseName("ix_iam_permission_set_assignments_principal_id_scope_id_status");
+
+                    b.ToTable("iam_permission_set_assignments", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamResourcePolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("LifecycleStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("lifecycle_status");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<string>("ResourcePattern")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("resource_pattern");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("scope_id");
+
+                    b.Property<string>("ServiceKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("service_key");
+
+                    b.Property<string>("StatementsJson")
+                        .IsRequired()
+                        .HasMaxLength(32000)
+                        .HasColumnType("character varying(32000)")
+                        .HasColumnName("statements_json");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_iam_resource_policies");
+
+                    b.HasIndex("ScopeId", "ServiceKey", "ResourcePattern")
+                        .IsUnique()
+                        .HasDatabaseName("ix_iam_resource_policies_scope_id_service_key_resource_pattern");
+
+                    b.ToTable("iam_resource_policies", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamScope", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("display_name");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid?>("ParentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_iam_scopes");
+
+                    b.HasIndex("ParentId")
+                        .HasDatabaseName("ix_iam_scopes_parent_id");
+
+                    b.HasIndex("Kind", "Key")
+                        .IsUnique()
+                        .HasDatabaseName("ix_iam_scopes_kind_key");
+
+                    b.ToTable("iam_scopes", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamServiceDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("display_name");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Owner")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("owner");
+
+                    b.Property<string>("PermissionPrefix")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("permission_prefix");
+
+                    b.HasKey("Id")
+                        .HasName("pk_iam_service_definitions");
+
+                    b.HasIndex("Key")
+                        .IsUnique()
+                        .HasDatabaseName("ix_iam_service_definitions_key");
+
+                    b.ToTable("iam_service_definitions", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamWorkloadRole", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Audience")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("audience");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("display_name");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("key");
+
+                    b.Property<int>("MaxSessionSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_session_seconds");
+
+                    b.Property<string>("PermissionsJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("character varying(16000)")
+                        .HasColumnName("permissions_json");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("scope_id");
+
+                    b.Property<string>("TrustPolicyJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("character varying(16000)")
+                        .HasColumnName("trust_policy_json");
+
+                    b.HasKey("Id")
+                        .HasName("pk_iam_workload_roles");
+
+                    b.HasIndex("ScopeId", "Key")
+                        .IsUnique()
+                        .HasDatabaseName("ix_iam_workload_roles_scope_id_key");
+
+                    b.ToTable("iam_workload_roles", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.InAppNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("body");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DataJson")
+                        .HasMaxLength(8000)
+                        .HasColumnType("character varying(8000)")
+                        .HasColumnName("data_json");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_in_app_notifications");
+
+                    b.HasIndex("UserId", "ReadAt", "CreatedAt")
+                        .HasDatabaseName("ix_in_app_notifications_user_id_read_at_created_at");
+
+                    b.ToTable("in_app_notifications", (string)null);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.LocalizationResource", b =>
@@ -302,6 +1383,741 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         {
                             Key = "mobile.providers.saml",
                             Description = "SAML identity provider"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.title",
+                            Description = "Dashboard shell: app title"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.toggleNav",
+                            Description = "Dashboard shell: toggle navigation"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.openPalette",
+                            Description = "Dashboard shell: open command palette"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.toggleTheme",
+                            Description = "Dashboard shell: toggle dark mode"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.userMenu",
+                            Description = "Dashboard shell: user menu"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.logout",
+                            Description = "Dashboard shell: logout"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.login",
+                            Description = "Dashboard shell: login"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.workspace",
+                            Description = "Dashboard shell: workspace caption"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.resources",
+                            Description = "Dashboard shell: resources nav"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.logs",
+                            Description = "Dashboard shell: logs nav"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.traces",
+                            Description = "Dashboard shell: traces nav"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.slo",
+                            Description = "Dashboard shell: SLO nav"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.metrics",
+                            Description = "Dashboard shell: metrics nav"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.openResources",
+                            Description = "Dashboard shell: cmd palette resources"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.openLogs",
+                            Description = "Dashboard shell: cmd palette logs"
+                        },
+                        new
+                        {
+                            Key = "app.dashboard.openTraces",
+                            Description = "Dashboard shell: cmd palette traces"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.title",
+                            Description = "Dashboard: system resources title"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.loading",
+                            Description = "Dashboard: loading resources"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.retry",
+                            Description = "Dashboard: retry"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.refreshing",
+                            Description = "Dashboard: refreshing"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.noResources",
+                            Description = "Dashboard: no resources found"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.cards",
+                            Description = "Dashboard: cards view"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.graph",
+                            Description = "Dashboard: graph view"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.refresh",
+                            Description = "Dashboard: refresh"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.basicInfo",
+                            Description = "Dashboard: basic info"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.name",
+                            Description = "Dashboard: name"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.version",
+                            Description = "Dashboard: version"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.status",
+                            Description = "Dashboard: status"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.health",
+                            Description = "Dashboard: health"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.healthChecks",
+                            Description = "Dashboard: health checks"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.envVars",
+                            Description = "Dashboard: environment variables"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.operations",
+                            Description = "Dashboard: operations info"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.replicas",
+                            Description = "Dashboard: replicas"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.close",
+                            Description = "Dashboard: close"
+                        },
+                        new
+                        {
+                            Key = "dashboard.resources.endpoints",
+                            Description = "Dashboard: endpoints"
+                        },
+                        new
+                        {
+                            Key = "dashboard.dependencyGraph.title",
+                            Description = "Dashboard: dependency graph"
+                        },
+                        new
+                        {
+                            Key = "dashboard.dependencyGraph.healthy",
+                            Description = "Dashboard: healthy"
+                        },
+                        new
+                        {
+                            Key = "dashboard.dependencyGraph.degraded",
+                            Description = "Dashboard: degraded"
+                        },
+                        new
+                        {
+                            Key = "dashboard.healthTimeline.title",
+                            Description = "Dashboard: health timeline"
+                        },
+                        new
+                        {
+                            Key = "dashboard.healthTimeline.incidents",
+                            Description = "Dashboard: incident count"
+                        },
+                        new
+                        {
+                            Key = "dashboard.healthTimeline.allHealthy",
+                            Description = "Dashboard: all healthy"
+                        },
+                        new
+                        {
+                            Key = "dashboard.healthTimeline.waiting",
+                            Description = "Dashboard: waiting for data"
+                        },
+                        new
+                        {
+                            Key = "dashboard.healthTimeline.healthy",
+                            Description = "Dashboard: healthy"
+                        },
+                        new
+                        {
+                            Key = "dashboard.healthTimeline.degraded",
+                            Description = "Dashboard: degraded"
+                        },
+                        new
+                        {
+                            Key = "dashboard.healthTimeline.down",
+                            Description = "Dashboard: down"
+                        },
+                        new
+                        {
+                            Key = "dashboard.healthTimeline.unknown",
+                            Description = "Dashboard: unknown"
+                        },
+                        new
+                        {
+                            Key = "dashboard.healthTimeline.incident",
+                            Description = "Dashboard: incident"
+                        },
+                        new
+                        {
+                            Key = "dashboard.healthTimeline.started",
+                            Description = "Dashboard: started"
+                        },
+                        new
+                        {
+                            Key = "dashboard.healthTimeline.duration",
+                            Description = "Dashboard: duration"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.pageTitle",
+                            Description = "Dashboard logs: page title"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.refresh",
+                            Description = "Dashboard logs: refresh"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.clearFilters",
+                            Description = "Dashboard logs: clear filters"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.tabSearch",
+                            Description = "Dashboard logs: search tab"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.tabStream",
+                            Description = "Dashboard logs: stream tab"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.timeRange",
+                            Description = "Dashboard logs: time range"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.service",
+                            Description = "Dashboard logs: service"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.allServices",
+                            Description = "Dashboard logs: all services"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.fullTextSearch",
+                            Description = "Dashboard logs: full text search"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.searchPlaceholder",
+                            Description = "Dashboard logs: search placeholder"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.level",
+                            Description = "Dashboard logs: level"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.searchBtn",
+                            Description = "Dashboard logs: search button"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.loading",
+                            Description = "Dashboard logs: loading"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.noLogs",
+                            Description = "Dashboard logs: no logs"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.loadMore",
+                            Description = "Dashboard logs: load more"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.retry",
+                            Description = "Dashboard logs: retry"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.time",
+                            Description = "Dashboard logs: time column"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.message",
+                            Description = "Dashboard logs: message"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.traceId",
+                            Description = "Dashboard logs: trace ID"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.spanId",
+                            Description = "Dashboard logs: span ID"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.exception",
+                            Description = "Dashboard logs: exception"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.properties",
+                            Description = "Dashboard logs: properties"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logs.results",
+                            Description = "Dashboard logs: results"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logStream.following",
+                            Description = "Dashboard stream: following"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logStream.realTime",
+                            Description = "Dashboard stream: real-time"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logStream.newRecords",
+                            Description = "Dashboard stream: new records"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logStream.streaming",
+                            Description = "Dashboard stream: streaming"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logStream.disconnected",
+                            Description = "Dashboard stream: disconnected"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logStream.entries",
+                            Description = "Dashboard stream: entries"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logStream.pause",
+                            Description = "Dashboard stream: pause"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logStream.start",
+                            Description = "Dashboard stream: start"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logStream.clear",
+                            Description = "Dashboard stream: clear"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logStream.autoScrollOn",
+                            Description = "Dashboard stream: auto scroll on"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logStream.scrollToBottom",
+                            Description = "Dashboard stream: scroll to bottom"
+                        },
+                        new
+                        {
+                            Key = "dashboard.logStream.clickStartToBegin",
+                            Description = "Dashboard stream: click start"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metrics.pageTitle",
+                            Description = "Dashboard metrics: page title"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metrics.live",
+                            Description = "Dashboard metrics: live"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metrics.refresh",
+                            Description = "Dashboard metrics: refresh"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metrics.service",
+                            Description = "Dashboard metrics: service"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metrics.metricType",
+                            Description = "Dashboard metrics: metric type"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metrics.timeRange",
+                            Description = "Dashboard metrics: time range"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metrics.apply",
+                            Description = "Dashboard metrics: apply"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metrics.selectServiceHint",
+                            Description = "Dashboard metrics: select service"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metrics.loading",
+                            Description = "Dashboard metrics: loading"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metrics.retry",
+                            Description = "Dashboard metrics: retry"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metrics.timeRangeLabel",
+                            Description = "Dashboard metrics: time range"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metrics.servicesSelected",
+                            Description = "Dashboard metrics: services selected"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metrics.emptyState",
+                            Description = "Dashboard metrics: empty state"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metricsOverview.running",
+                            Description = "Dashboard metrics: running"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metricsOverview.stopped",
+                            Description = "Dashboard metrics: stopped"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metricsOverview.degraded",
+                            Description = "Dashboard metrics: degraded"
+                        },
+                        new
+                        {
+                            Key = "dashboard.metricsOverview.totalServices",
+                            Description = "Dashboard metrics: total services"
+                        },
+                        new
+                        {
+                            Key = "dashboard.slo.pageTitle",
+                            Description = "Dashboard SLO: page title"
+                        },
+                        new
+                        {
+                            Key = "dashboard.slo.refresh",
+                            Description = "Dashboard SLO: refresh"
+                        },
+                        new
+                        {
+                            Key = "dashboard.slo.loading",
+                            Description = "Dashboard SLO: loading"
+                        },
+                        new
+                        {
+                            Key = "dashboard.slo.retry",
+                            Description = "Dashboard SLO: retry"
+                        },
+                        new
+                        {
+                            Key = "dashboard.slo.availability",
+                            Description = "Dashboard SLO: availability"
+                        },
+                        new
+                        {
+                            Key = "dashboard.slo.errorBudget",
+                            Description = "Dashboard SLO: error budget"
+                        },
+                        new
+                        {
+                            Key = "dashboard.slo.burn1h",
+                            Description = "Dashboard SLO: burn rate 1h"
+                        },
+                        new
+                        {
+                            Key = "dashboard.slo.burn6h",
+                            Description = "Dashboard SLO: burn rate 6h"
+                        },
+                        new
+                        {
+                            Key = "dashboard.slo.p99Latency",
+                            Description = "Dashboard SLO: p99 latency"
+                        },
+                        new
+                        {
+                            Key = "dashboard.slo.latencyTrend",
+                            Description = "Dashboard SLO: latency trend"
+                        },
+                        new
+                        {
+                            Key = "dashboard.slo.last24h",
+                            Description = "Dashboard SLO: last 24h"
+                        },
+                        new
+                        {
+                            Key = "dashboard.slo.emptyState",
+                            Description = "Dashboard SLO: empty state"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.title",
+                            Description = "Dashboard traces: page title"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.refresh",
+                            Description = "Dashboard traces: refresh"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.loading",
+                            Description = "Dashboard traces: loading"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.retry",
+                            Description = "Dashboard traces: retry"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.emptyState",
+                            Description = "Dashboard traces: empty state"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.traceId",
+                            Description = "Dashboard traces: trace ID"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.service",
+                            Description = "Dashboard traces: service"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.operation",
+                            Description = "Dashboard traces: operation"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.duration",
+                            Description = "Dashboard traces: duration"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.spans",
+                            Description = "Dashboard traces: spans"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.startTime",
+                            Description = "Dashboard traces: start time"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.viewDetail",
+                            Description = "Dashboard traces: view detail"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.detailTitle",
+                            Description = "Dashboard traces: detail title"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.spanId",
+                            Description = "Dashboard traces: span ID"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.parentSpanId",
+                            Description = "Dashboard traces: parent"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.tags",
+                            Description = "Dashboard traces: tags"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.logs",
+                            Description = "Dashboard traces: logs"
+                        },
+                        new
+                        {
+                            Key = "dashboard.traces.back",
+                            Description = "Dashboard traces: back"
+                        },
+                        new
+                        {
+                            Key = "dashboard.alerts.critical",
+                            Description = "Dashboard alerts: critical"
+                        },
+                        new
+                        {
+                            Key = "dashboard.alerts.warning",
+                            Description = "Dashboard alerts: warning"
+                        },
+                        new
+                        {
+                            Key = "dashboard.alerts.info",
+                            Description = "Dashboard alerts: info"
+                        },
+                        new
+                        {
+                            Key = "dashboard.alerts.systemAlerts",
+                            Description = "Dashboard alerts: system alerts"
+                        },
+                        new
+                        {
+                            Key = "dashboard.alerts.noAlerts",
+                            Description = "Dashboard alerts: no alerts"
+                        },
+                        new
+                        {
+                            Key = "dashboard.alerts.criticalAlert",
+                            Description = "Dashboard alerts: critical alert"
+                        },
+                        new
+                        {
+                            Key = "dashboard.alerts.view",
+                            Description = "Dashboard alerts: view"
+                        },
+                        new
+                        {
+                            Key = "dashboard.time.minutesAgo",
+                            Description = "Dashboard time: minutes ago"
+                        },
+                        new
+                        {
+                            Key = "dashboard.time.hoursAgo",
+                            Description = "Dashboard time: hours ago"
+                        },
+                        new
+                        {
+                            Key = "dashboard.time.daysAgo",
+                            Description = "Dashboard time: days ago"
+                        },
+                        new
+                        {
+                            Key = "dashboard.time.ago",
+                            Description = "Dashboard time: ago"
+                        },
+                        new
+                        {
+                            Key = "dashboard.auth.completingSignIn",
+                            Description = "Dashboard auth: completing sign in"
+                        },
+                        new
+                        {
+                            Key = "app.hishope.title",
+                            Description = "His-Hope shell: app title"
+                        },
+                        new
+                        {
+                            Key = "app.navigation.openMenu",
+                            Description = "His-Hope shell: open menu"
+                        },
+                        new
+                        {
+                            Key = "app.navigation.changed",
+                            Description = "His-Hope shell: navigation changed"
+                        },
+                        new
+                        {
+                            Key = "app.theme.toggle",
+                            Description = "His-Hope shell: toggle theme"
                         });
                 });
 
@@ -881,6 +2697,57 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.ToTable("permissions", (string)null);
                 });
 
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.PushDeliveryAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<string>("ErrorCode")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("error_code");
+
+                    b.Property<Guid>("OutboxId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("outbox_id");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("platform");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_push_delivery_attempts");
+
+                    b.HasIndex("DeviceId")
+                        .HasDatabaseName("ix_push_delivery_attempts_device_id");
+
+                    b.HasIndex("OutboxId")
+                        .HasDatabaseName("ix_push_delivery_attempts_outbox_id");
+
+                    b.HasIndex("CreatedAt", "Platform", "Status")
+                        .HasDatabaseName("ix_push_delivery_attempts_created_at_platform_status");
+
+                    b.ToTable("push_delivery_attempts", (string)null);
+                });
+
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.PushNotificationOutbox", b =>
                 {
                     b.Property<Guid>("Id")
@@ -954,6 +2821,12 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<int>("AuthorizationVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("authorization_version");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("text")
@@ -974,6 +2847,14 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("is_system");
 
+                    b.Property<string>("LifecycleStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("active")
+                        .HasColumnName("lifecycle_status");
+
                     b.Property<string>("Name")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)")
@@ -983,6 +2864,37 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)")
                         .HasColumnName("normalized_name");
+
+                    b.Property<string>("Owner")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasDefaultValue("identity-service")
+                        .HasColumnName("owner");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<string>("PublishedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("published_by");
+
+                    b.Property<int>("ReviewCadenceDays")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(180)
+                        .HasColumnName("review_cadence_days");
+
+                    b.Property<string>("RiskTier")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasDefaultValue("standard")
+                        .HasColumnName("risk_tier");
 
                     b.HasKey("Id")
                         .HasName("pk_asp_net_roles");
@@ -1011,6 +2923,88 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_role_permissions_permission_code");
 
                     b.ToTable("role_permissions", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.RoleTemplateVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("LifecycleStatus")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("lifecycle_status");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Owner")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("owner");
+
+                    b.Property<string>("PermissionsJson")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)")
+                        .HasColumnName("permissions_json");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<string>("PublishedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("published_by");
+
+                    b.Property<int>("ReviewCadenceDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("review_cadence_days");
+
+                    b.Property<string>("RiskTier")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("risk_tier");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("role_id");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_role_template_versions");
+
+                    b.HasIndex("RoleId", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_role_template_versions_role_id_version");
+
+                    b.ToTable("role_template_versions", (string)null);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.SecurityEvent", b =>
@@ -1089,6 +3083,61 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasDatabaseName("ix_security_events_user_id");
 
                     b.ToTable("security_events", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.SecuritySignalOutbox", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<DateTime>("AvailableAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("available_at");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DispatchedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("dispatched_at");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("event_type");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasMaxLength(16000)
+                        .HasColumnType("character varying(16000)")
+                        .HasColumnName("payload_json");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("subject");
+
+                    b.HasKey("Id")
+                        .HasName("pk_security_signal_outbox");
+
+                    b.HasIndex("DispatchedAt", "AvailableAt")
+                        .HasDatabaseName("ix_security_signal_outbox_dispatched_at_available_at");
+
+                    b.ToTable("security_signal_outbox", (string)null);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.SystemSetting", b =>
@@ -1322,6 +3371,52 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.ToTable("asp_net_users", (string)null);
                 });
 
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.UserClientCertificate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime>("NotAfter")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("not_after");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<string>("Subject")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("subject");
+
+                    b.Property<string>("Thumbprint")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("thumbprint");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_user_client_certificates");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_user_client_certificates_user_id");
+
+                    b.HasIndex("Thumbprint", "RevokedAt")
+                        .HasDatabaseName("ix_user_client_certificates_thumbprint_revoked_at");
+
+                    b.ToTable("user_client_certificates", (string)null);
+                });
+
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.UserFacility", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -1406,6 +3501,36 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasName("pk_user_mfa");
 
                     b.ToTable("user_mfa", (string)null);
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.UserPasswordHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("ChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("changed_at");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)")
+                        .HasColumnName("password_hash");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_user_password_history");
+
+                    b.HasIndex("UserId", "ChangedAt")
+                        .HasDatabaseName("ix_user_password_history_user_id_changed_at");
+
+                    b.ToTable("user_password_history", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -1767,6 +3892,100 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.ToTable("openiddict_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.DevicePostureAssessment", b =>
+                {
+                    b.HasOne("His.Hope.IdentityService.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_device_posture_assessments_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamGroup", b =>
+                {
+                    b.HasOne("His.Hope.IdentityService.Domain.Entities.IamScope", null)
+                        .WithMany()
+                        .HasForeignKey("ScopeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_iam_groups_iam_scopes_scope_id");
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamGroupMembership", b =>
+                {
+                    b.HasOne("His.Hope.IdentityService.Domain.Entities.IamGroup", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_iam_group_memberships_iam_groups_group_id");
+
+                    b.HasOne("His.Hope.IdentityService.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_iam_group_memberships_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamPermissionBoundary", b =>
+                {
+                    b.HasOne("His.Hope.IdentityService.Domain.Entities.IamScope", null)
+                        .WithMany()
+                        .HasForeignKey("ScopeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_iam_permission_boundaries_iam_scopes_scope_id");
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamPermissionSet", b =>
+                {
+                    b.HasOne("His.Hope.IdentityService.Domain.Entities.IamScope", null)
+                        .WithMany()
+                        .HasForeignKey("ScopeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_iam_permission_sets_iam_scopes_scope_id");
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamPermissionSetAssignment", b =>
+                {
+                    b.HasOne("His.Hope.IdentityService.Domain.Entities.IamPermissionSet", null)
+                        .WithMany()
+                        .HasForeignKey("PermissionSetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_iam_permission_set_assignments_iam_permission_sets_permissi");
+
+                    b.HasOne("His.Hope.IdentityService.Domain.Entities.IamScope", null)
+                        .WithMany()
+                        .HasForeignKey("ScopeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_iam_permission_set_assignments_iam_scopes_scope_id");
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamResourcePolicy", b =>
+                {
+                    b.HasOne("His.Hope.IdentityService.Domain.Entities.IamScope", null)
+                        .WithMany()
+                        .HasForeignKey("ScopeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_iam_resource_policies_iam_scopes_scope_id");
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.IamWorkloadRole", b =>
+                {
+                    b.HasOne("His.Hope.IdentityService.Domain.Entities.IamScope", null)
+                        .WithMany()
+                        .HasForeignKey("ScopeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_iam_workload_roles_iam_scopes_scope_id");
+                });
+
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.LocalizationTranslation", b =>
                 {
                     b.HasOne("His.Hope.IdentityService.Domain.Entities.LocalizationResource", "Resource")
@@ -1800,6 +4019,30 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.RoleTemplateVersion", b =>
+                {
+                    b.HasOne("His.Hope.IdentityService.Domain.Entities.Role", "Role")
+                        .WithMany("TemplateVersions")
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_role_template_versions_roles_role_id");
+
+                    b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.UserClientCertificate", b =>
+                {
+                    b.HasOne("His.Hope.IdentityService.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_user_client_certificates_users_user_id");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.UserFacility", b =>
                 {
                     b.HasOne("His.Hope.IdentityService.Domain.Entities.User", "User")
@@ -1820,6 +4063,18 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_user_mfa_asp_net_users_user_id");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.UserPasswordHistory", b =>
+                {
+                    b.HasOne("His.Hope.IdentityService.Domain.Entities.User", "User")
+                        .WithMany("PasswordHistory")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_user_password_history_asp_net_users_user_id");
 
                     b.Navigation("User");
                 });
@@ -1921,11 +4176,15 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.Role", b =>
                 {
                     b.Navigation("RolePermissions");
+
+                    b.Navigation("TemplateVersions");
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.User", b =>
                 {
                     b.Navigation("FacilityMemberships");
+
+                    b.Navigation("PasswordHistory");
                 });
 
             modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreApplication", b =>

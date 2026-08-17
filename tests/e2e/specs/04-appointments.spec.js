@@ -1,26 +1,18 @@
 const { test, expect } = require('@playwright/test');
 
-const BASE_URL = 'http://localhost:8081';
-const VALID_USER = { username: 'admin', password: 'Admin@123' };
+const { clinicalUrl: BASE_URL } = require('../config/urls');
+const { signInThroughIdentity } = require('../helpers/sso-login');
 const AUTH_LOGIN_RE = /\/(?:en\/)?auth\/login(?:\?|$)/;
 const ACCESS_DENIED_RE = /\/(?:en\/)?access-denied(?:\?|$)/;
 
 async function login(page) {
-  await page.goto(BASE_URL + '/auth/login');
-  await expect(page.locator('input[formControlName="username"]')).toBeVisible({ timeout: 10000 });
-  await page.locator('input[formControlName="username"]').fill(VALID_USER.username);
-  await page.locator('input[formControlName="password"]').fill(VALID_USER.password);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL(
-    (url) => /\/(?:en\/)?dashboard(?:\?|$)/.test(url.toString()) || ACCESS_DENIED_RE.test(url.toString()),
-    { timeout: 30000 },
-  );
-
+  await signInThroughIdentity(page, BASE_URL);
   return /\/(?:en\/)?dashboard(?:\?|$)/.test(page.url());
 }
 
 async function navigateToSidebar(page, label, expectedPath) {
-  const link = page.locator('mat-nav-list a').filter({ hasText: label });
+  const labelPattern = label === 'Lịch hẹn' ? /Lịch hẹn|Appointments/i : label;
+  const link = page.locator('mat-nav-list a').filter({ hasText: labelPattern });
   await expect(link.first()).toBeVisible({ timeout: 10000 });
   await link.first().click();
   if (expectedPath) {
@@ -272,7 +264,7 @@ test.describe('Appointments', () => {
       }
     }
 
-    const table = page.locator('mat-table, table, mat-card, .list-container');
+    const table = page.locator('hh-data-table, .hh-data-table, mat-table, table, mat-card, .list-container');
     await expect(table.first()).toBeVisible();
   });
 });

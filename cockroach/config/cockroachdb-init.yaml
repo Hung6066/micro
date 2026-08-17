@@ -9,10 +9,24 @@ spec:
       name: cockroachdb-init
     spec:
       serviceAccountName: cockroachdb
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
       - name: wait-for-cluster
         image: cockroachdb/cockroach:v24.1.2
         imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
         command:
         - /bin/bash
         - -c
@@ -31,14 +45,30 @@ spec:
             sleep 3
           done
           echo "CockroachDB cluster ready."
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
       containers:
       - name: init-cluster
         image: cockroachdb/cockroach:v24.1.2
         imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
         command:
         - /bin/bash
         - -c
         - |
           cockroach init --host=cockroachdb-0.cockroachdb:26257 --insecure
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
       restartPolicy: Never
   backoffLimit: 5

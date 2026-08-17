@@ -5,6 +5,7 @@
  */
 const { test: base, expect } = require('@playwright/test');
 const path = require('path');
+const { clinicalUrl } = require('../config/urls');
 
 const STORAGE_STATE_FILE = path.join(__dirname, 'auth-storage.json');
 
@@ -12,7 +13,7 @@ const test = base.extend({
   // Override context with saved auth state
   context: async ({ browser }, use) => {
     const context = await browser.newContext({
-      baseURL: 'http://localhost:8081',
+      baseURL: clinicalUrl,
       storageState: STORAGE_STATE_FILE,
     });
     await use(context);

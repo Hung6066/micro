@@ -3,6 +3,7 @@ import {
   resolveMobileRedirectUri,
   resolveMobileSentryDsn,
   resolveMobileSentryEnvironment,
+  resolveMobilePushNotificationsEnabled,
 } from '../app/core/mobile-runtime';
 
 const apiOrigin = resolveMobileApiOrigin();
@@ -22,9 +23,10 @@ postLogoutRedirectUri: resolveMobileRedirectUri('/auth/logout-callback'),
   // Configure the GlitchTip project DSN through the release environment.
   sentryDsn: resolveMobileSentryDsn(''),
   sentryEnvironment: resolveMobileSentryEnvironment('development'),
-  // Local emulator builds do not ship google-services.json. Calling the
-  // Capacitor push plugin without Firebase initialization terminates the app.
-  pushNotificationsEnabled: false,
+  // Native debug builds now ship google-services.json / GoogleService-Info.plist.
+  // Web preview remains safe because NativeCapabilityService gates registration
+  // with Capacitor.isNativePlatform(). Ops can still disable push at runtime.
+  pushNotificationsEnabled: resolveMobilePushNotificationsEnabled(true),
   security: {
     // Release builds must replace these with the production SPKI hashes.
     certificatePins: [{ host: 'api.his-hope.example', sha256Spki: 'sha256/REPLACE_IN_RELEASE' }],

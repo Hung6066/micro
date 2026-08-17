@@ -12,7 +12,9 @@ public record SearchLabOrdersQuery(
     Guid? PatientId = null,
     string? Status = null,
     DateTime? DateFrom = null,
-    DateTime? DateTo = null)
+    DateTime? DateTo = null,
+    IReadOnlySet<string>? FacilityIds = null,
+    bool CrossFacility = false)
     : IRequest<PagedResult<LabOrderDto>>;
 
 public class SearchLabOrdersQueryHandler : IRequestHandler<SearchLabOrdersQuery, PagedResult<LabOrderDto>>
@@ -29,10 +31,13 @@ public class SearchLabOrdersQueryHandler : IRequestHandler<SearchLabOrdersQuery,
     public async Task<PagedResult<LabOrderDto>> Handle(SearchLabOrdersQuery request,
         CancellationToken cancellationToken)
     {
-        var (items, totalCount) = await _labOrderRepository.SearchAsync(
-            request.Term, request.Page, request.PageSize,
-            request.PatientId, request.Status, request.DateFrom, request.DateTo,
-            cancellationToken);
+        var result = request.FacilityIds is null
+            ? await _labOrderRepository.SearchAsync(request.Term, request.Page, request.PageSize,
+                request.PatientId, request.Status, request.DateFrom, request.DateTo, cancellationToken)
+            : await _labOrderRepository.SearchAsync(request.Term, request.Page, request.PageSize,
+                request.PatientId, request.Status, request.DateFrom, request.DateTo,
+                request.FacilityIds, request.CrossFacility, cancellationToken);
+        var (items, totalCount) = result;
 
         var dtos = _mapper.Map<List<LabOrderDto>>(items);
 

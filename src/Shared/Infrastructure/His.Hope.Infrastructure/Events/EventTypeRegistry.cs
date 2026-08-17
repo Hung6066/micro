@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using His.Hope.EventBus.Abstractions;
+using His.Hope.SharedKernel.Domain.Common;
 
 namespace His.Hope.Infrastructure.Events;
 
@@ -40,6 +41,7 @@ public class EventTypeRegistry
     private void ScanAssemblies()
     {
         var integrationEventType = typeof(IntegrationEvent);
+        var domainEventType = typeof(IDomainEvent);
 
         var eventTypes = AppDomain.CurrentDomain.GetAssemblies()
             .Where(asm => asm.FullName is not null &&
@@ -57,7 +59,7 @@ public class EventTypeRegistry
                 }
             })
             .Where(t => t is { IsAbstract: false, IsClass: true } &&
-                        integrationEventType.IsAssignableFrom(t));
+                        (integrationEventType.IsAssignableFrom(t) || domainEventType.IsAssignableFrom(t)));
 
         foreach (var type in eventTypes)
         {

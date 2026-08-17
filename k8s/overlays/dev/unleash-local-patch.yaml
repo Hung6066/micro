@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: unleash-secret
+stringData:
+  DATABASE_URL: postgres://his_hope:postgres@postgres:5432/unleashdb?sslmode=disable
+  INIT_ADMIN_API_TOKENS: '*:*.development.unleash-internal'
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unleash
+spec:
+  template:
+    spec:
+      containers:
+        - name: unleash
+          env:
+            - name: DATABASE_SSL
+              value: "false"

@@ -10,6 +10,7 @@ public static class ConsentEndpoints
 {
     public static RouteGroupBuilder MapConsentEndpoints(this RouteGroupBuilder group)
     {
+        group.RequireAuthorization();
         group.MapGet("/", GetUserConsents);
         group.MapPost("/", GrantConsent);
         group.MapDelete("/{clientId}", RevokeConsent);

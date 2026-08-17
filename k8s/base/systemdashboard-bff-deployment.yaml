@@ -21,6 +21,9 @@ spec:
       app.kubernetes.io/name: systemdashboard-bff
   template:
     metadata:
+      # Redis TLS and OTLP are opaque to Linkerd protocol detection.
+      annotations:
+        config.linkerd.io/skip-outbound-ports: "6379,4317,4318"
       labels:
         app.kubernetes.io/name: systemdashboard-bff
         app.kubernetes.io/component: dashboard
@@ -62,18 +65,25 @@ spec:
                   fieldPath: metadata.namespace
             - name: Consul__Address
               value: "http://consul-server:8500"
-            - name: Elasticsearch__Url
-              value: "http://elasticsearch:9200"
             - name: Jaeger__QueryUrl
-              value: "http://jaeger-query:16686"
+              value: "http://jaeger.monitoring.svc.cluster.local:16686"
             - name: Prometheus__Url
-              value: "http://prometheus-server:9090"
+              value: "http://prometheus.monitoring.svc.cluster.local:9090"
+            - name: Loki__Url
+              value: "http://loki.monitoring.svc.cluster.local:3100"
+            - name: Loki__DefaultQuery
+              value: "{job=\"kubernetes-pods\",filename=~\"/var/log/pods/his-hope-dev_.*\"}"
+            - name: AlertManager__Url
+              value: "http://alertmanager.monitoring.svc.cluster.local:9093"
             - name: Kubernetes__Enabled
               value: "true"
             - name: K8S_NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+          envFrom:
+            - configMapRef:
+                name: runtime-contract-config
           resources:
             requests:
               cpu: 100m

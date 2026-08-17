@@ -1,47 +1,50 @@
 import { Capacitor } from "@capacitor/core";
+import { RuntimeConfigService } from "../../../../shared/mobile-foundation/src/runtime/runtime-config.service";
 
-/** Injected by ops at deploy time (e.g. a config.js loaded before main.js) so the
- *  real API origin can change per environment without rebuilding the app bundle. */
-declare global {
-  interface Window {
-    __HISHOPE_CONFIG__?: {
-      apiOrigin?: string;
-      sentryDsn?: string;
-      sentryEnvironment?: string;
-      pushNotificationsEnabled?: boolean;
-    };
-  }
+function defaultMobileRuntimeSource() {
+  const platform = Capacitor.isNativePlatform() ? Capacitor.getPlatform() : "web";
+  const fallbackOrigin =
+    platform === "android"
+      ? "http://10.0.2.2:5000"
+      : "http://localhost:5000";
+
+  return (
+    window.__HISHOPE_CONFIG__ ?? {
+      apiOrigin: fallbackOrigin,
+      oidcAuthority: fallbackOrigin,
+      production: false,
+    }
+  );
+}
+
+function requireMobileRuntime(production: boolean) {
+  return new RuntimeConfigService(defaultMobileRuntimeSource()).require({
+    platform: {
+      isNative: Capacitor.isNativePlatform(),
+      platform: Capacitor.isNativePlatform()
+        ? (Capacitor.getPlatform() as "android" | "ios")
+        : "web",
+    },
+    clientId: "his-hope-mobile",
+    scope: "openid profile email roles hishop:permissions offline_access",
+    secureRoutes: ["/api/v1/"],
+    redirectPath: "/auth/callback",
+    postLogoutRedirectPath: "/auth/logout-callback",
+    production,
+    webOrigin:
+      typeof window !== "undefined" && window.location.origin
+        ? window.location.origin
+        : "http://localhost:4300",
+  });
 }
 
 export function resolveMobileApiOrigin(): string {
-  if (Capacitor.isNativePlatform()) {
-    if (Capacitor.getPlatform() === "android") return "http://10.0.2.2:5000";
-    if (Capacitor.getPlatform() === "ios") return "http://localhost:5000";
-  }
-
-  if (
-    typeof window !== "undefined" &&
-    window.location.hostname &&
-    window.location.hostname !== "localhost"
-  ) {
-    return `http://${window.location.hostname}:5000`;
-  }
-
-  return "http://localhost:5000";
+  return requireMobileRuntime(false).apiOrigin;
 }
 
 /** Production origin resolution — no emulator IPs, no http fallback. */
 export function resolveProductionApiOrigin(): string {
-  const runtimeOrigin =
-    typeof window !== "undefined"
-      ? window.__HISHOPE_CONFIG__?.apiOrigin
-      : undefined;
-  if (!runtimeOrigin?.trim()) {
-    throw new Error(
-      "Production mobile API origin is not configured. Provide window.__HISHOPE_CONFIG__.apiOrigin before boot.",
-    );
-  }
-  return runtimeOrigin.trim();
+  return requireMobileRuntime(true).apiOrigin;
 }
 
 export function resolveMobileSentryDsn(defaultDsn = ""): string {
@@ -64,15 +67,8 @@ export function resolveMobilePushNotificationsEnabled(defaultEnabled: boolean): 
 export function resolveMobileRedirectUri(
   path: "/auth/callback" | "/auth/logout-callback",
 ): string {
-  if (Capacitor.isNativePlatform()) {
-    return path === "/auth/callback"
-      ? "hishope://auth/callback"
-      : "hishope://auth/logout-callback";
-  }
-
-  const origin =
-    typeof window !== "undefined" && window.location.origin
-      ? window.location.origin
-      : "http://localhost:4300";
-  return `${origin}${path}`;
+  const runtime = requireMobileRuntime(false);
+  return path === "/auth/callback"
+    ? runtime.redirectUrl
+    : runtime.postLogoutRedirectUri;
 }

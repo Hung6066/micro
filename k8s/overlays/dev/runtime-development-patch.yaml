@@ -1,0 +1,140 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-config
+data:
+  # ApiGateway has a Development JSON profile with localhost destinations.
+  # Kubernetes local uses the base profile plus the Service DNS overrides below.
+  ASPNETCORE_ENVIRONMENT: Production
+  Jwt__AllowHttp: "true"
+  # Use the canonical Kubernetes Service and listener. The compose-compatible
+  # alias exposes port 5001, but the in-cluster workload listens on 5003; using
+  # the canonical service keeps gateway routing aligned with NetworkPolicy and
+  # Linkerd service discovery.
+  ReverseProxy__Clusters__identity__Destinations__dest__Address: http://identity-service:5003/
+  ReverseProxy__Clusters__patients__Destinations__dest__Address: http://patientservice:5002/
+  ReverseProxy__Clusters__appointments__Destinations__dest__Address: http://appointmentservice:5003/
+  ReverseProxy__Clusters__clinical__Destinations__dest__Address: http://clinicalservice:5004/
+  ReverseProxy__Clusters__lab__Destinations__dest__Address: http://labservice:5010/
+  ReverseProxy__Clusters__billing__Destinations__dest__Address: http://billingservice:5020/
+  ReverseProxy__Clusters__pharmacy__Destinations__dest__Address: http://pharmacyservice:5030/
+  ReverseProxy__Clusters__lab-bff__Destinations__dest__Address: http://lab-bff:5300/
+  ReverseProxy__Clusters__billing-bff__Destinations__dest__Address: http://billing-bff:5400/
+  ReverseProxy__Clusters__dashboard-bff__Destinations__dest__Address: http://dashboard-bff:5600/
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: appointment-service-config
+data:
+  ASPNETCORE_ENVIRONMENT: Development
+  Jwt__AllowHttp: "true"
+  ConnectionStrings__AppointmentDb: Host=postgres;Port=5432;Database=appointmentdb;Username=his_hope;Password=postgres
+  RabbitMQ__Host: rabbitmq
+  EventBus__HostName: rabbitmq
+  EventBus__UserName: his_hope
+  EventBus__Password: rabbitmq
+  EventBus__Port: "5672"
+  Redis__ConnectionString: redis:6379
+  ConnectionStrings__Redis: redis:6379,abortConnect=false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: billing-service-config
+data:
+  ASPNETCORE_ENVIRONMENT: Development
+  Jwt__AllowHttp: "true"
+  ConnectionStrings__BillingDb: Host=postgres;Port=5432;Database=billingdb;Username=his_hope;Password=postgres
+  RabbitMQ__Host: rabbitmq
+  EventBus__HostName: rabbitmq
+  EventBus__UserName: his_hope
+  EventBus__Password: rabbitmq
+  EventBus__Port: "5672"
+  Redis__ConnectionString: redis:6379
+  ConnectionStrings__Redis: redis:6379,abortConnect=false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: clinical-service-config
+data:
+  ASPNETCORE_ENVIRONMENT: Development
+  Jwt__AllowHttp: "true"
+  ConnectionStrings__ClinicalDb: Host=postgres;Port=5432;Database=clinicaldb;Username=his_hope;Password=postgres
+  RabbitMQ__Host: rabbitmq
+  EventBus__HostName: rabbitmq
+  EventBus__UserName: his_hope
+  EventBus__Password: rabbitmq
+  EventBus__Port: "5672"
+  Redis__ConnectionString: redis:6379
+  ConnectionStrings__Redis: redis:6379,abortConnect=false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: identity-service-config
+data:
+  ASPNETCORE_ENVIRONMENT: Development
+  Jwt__AllowHttp: "true"
+  # Share the Identity and BFF cookies across the local app subdomains.
+  # Production uses the explicit parent domain from appsettings.Production.json.
+  Authentication__CookieDomain: .his-hope.local
+  Persistence__RunMigrationsOnStartup: "true"
+  ConnectionStrings__IdentityDb: Host=postgres;Port=5432;Database=identitydb;Username=his_hope;Password=postgres
+  RabbitMQ__Host: rabbitmq
+  EventBus__HostName: rabbitmq
+  EventBus__UserName: his_hope
+  EventBus__Password: rabbitmq
+  EventBus__Port: "5672"
+  Redis__ConnectionString: redis:6379
+  ConnectionStrings__Redis: redis:6379,abortConnect=false
+  vault_address: ""
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lab-service-config
+data:
+  ASPNETCORE_ENVIRONMENT: Development
+  Jwt__AllowHttp: "true"
+  ConnectionStrings__LabDb: Host=postgres;Port=5432;Database=labdb;Username=his_hope;Password=postgres
+  RabbitMQ__Host: rabbitmq
+  EventBus__HostName: rabbitmq
+  EventBus__UserName: his_hope
+  EventBus__Password: rabbitmq
+  EventBus__Port: "5672"
+  Redis__ConnectionString: redis:6379
+  ConnectionStrings__Redis: redis:6379,abortConnect=false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: patient-service-config
+data:
+  ASPNETCORE_ENVIRONMENT: Development
+  Jwt__AllowHttp: "true"
+  ConnectionStrings__PatientDb: Host=postgres;Port=5432;Database=patientdb;Username=his_hope;Password=postgres
+  RabbitMQ__Host: rabbitmq
+  EventBus__HostName: rabbitmq
+  EventBus__UserName: his_hope
+  EventBus__Password: rabbitmq
+  EventBus__Port: "5672"
+  Redis__ConnectionString: redis:6379
+  ConnectionStrings__Redis: redis:6379,abortConnect=false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pharmacy-service-config
+data:
+  ASPNETCORE_ENVIRONMENT: Development
+  Jwt__AllowHttp: "true"
+  ConnectionStrings__PharmacyDb: Host=postgres;Port=5432;Database=pharmacydb;Username=his_hope;Password=postgres
+  RabbitMQ__Host: rabbitmq
+  EventBus__HostName: rabbitmq
+  EventBus__UserName: his_hope
+  EventBus__Password: rabbitmq
+  EventBus__Port: "5672"
+  Redis__ConnectionString: redis:6379
+  ConnectionStrings__Redis: redis:6379,abortConnect=false

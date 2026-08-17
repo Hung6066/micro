@@ -1,0 +1,72 @@
+name: Database Continuity PVC Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Copy the bound local-path PVC to a new Longhorn PVC (false is preflight only)
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-continuity-pvc-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: production
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install pinned kubectl
+        uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+        with:
+          version: 'v1.35.5'
+
+      - name: Materialize protected kubeconfig
+        id: kubeconfig
+        shell: pwsh
+        env:
+          KUBECONFIG_PRODUCTION_B64: ${{ secrets.KUBECONFIG_PRODUCTION_B64 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:KUBECONFIG_PRODUCTION_B64)) {
+            throw 'KUBECONFIG_PRODUCTION_B64 is required in the protected production environment.'
+          }
+          $path = Join-Path $env:RUNNER_TEMP 'kubeconfig-production.yaml'
+          [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($env:KUBECONFIG_PRODUCTION_B64))
+          "path=$path" >> $env:GITHUB_OUTPUT
+
+      - name: Preflight or migrate database-continuity PVC
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.kubeconfig.outputs.path }}
+        run: |
+          New-Item -ItemType Directory -Force artifacts/evidence | Out-Null
+          $args = @(
+            '-Kubeconfig', $env:KUBECONFIG,
+            '-OutputPath', 'artifacts/evidence/database-continuity-pvc-migration.json'
+          )
+          if ('${{ inputs.apply }}' -eq 'true') {
+            $args += @('-Apply', '-AllowProduction')
+          }
+          ./scripts/migrate-database-continuity-pvc.ps1 @args
+
+      - name: Upload migration evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: database-continuity-pvc-migration-${{ github.run_id }}
+          path: artifacts/evidence/database-continuity-pvc-migration.json
+          if-no-files-found: error
+
+      - name: Remove protected kubeconfig
+        if: always()
+        shell: pwsh
+        run: Remove-Item -LiteralPath '${{ steps.kubeconfig.outputs.path }}' -Force -ErrorAction SilentlyContinue

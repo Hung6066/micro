@@ -46,13 +46,15 @@ public sealed class EfSagaStateStore : ISagaStateStore, IAsyncDisposable
     {
         await using var context = await _contextFactory.CreateDbContextAsync(ct);
 
-        var rows = await context.SagaInstances
-            .Where(s => s.SagaId == sagaId)
-            .ExecuteUpdateAsync(setters => setters
+        var query = context.SagaInstances.Where(s => s.SagaId == sagaId);
+        var rows = stepIndex >= 0
+            ? await query.ExecuteUpdateAsync(setters => setters
                 .SetProperty(s => s.Status, status)
                 .SetProperty(s => s.StepIndex, stepIndex)
-                .SetProperty(s => s.LastHeartbeat, heartbeat),
-                ct);
+                .SetProperty(s => s.LastHeartbeat, heartbeat), ct)
+            : await query.ExecuteUpdateAsync(setters => setters
+                .SetProperty(s => s.Status, status)
+                .SetProperty(s => s.LastHeartbeat, heartbeat), ct);
 
         if (rows == 0)
         {

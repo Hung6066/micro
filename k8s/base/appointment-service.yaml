@@ -15,12 +15,8 @@ metadata:
     app.kubernetes.io/name: appointment-service
 data:
   ASPNETCORE_ENVIRONMENT: Production
-  ASPNETCORE_URLS: "http://0.0.0.0:5004;https://0.0.0.0:5005"
-  ConnectionStrings__AppointmentDb: "Host=postgres;Port=5432;Database=appointmentdb;Username=his_hope;Password="
   RabbitMQ__Host: rabbitmq
-  Redis__Connection: redis:6379
-  Consul__Address: http://consul:8500
-  OpenTelemetry__JaegerEndpoint: http://jaeger:14278/api/traces
+  Redis__ConnectionString: redis:6379
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -77,12 +73,29 @@ spec:
           envFrom:
             - configMapRef:
                 name: appointment-service-config
+            - configMapRef:
+                name: runtime-contract-config
           env:
+            - name: GrpcServices__PatientService
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_GRPC_PATIENT_URL
             - name: ConnectionStrings__AppointmentDb
               valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: appointment_connection_string
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_CONNECTIONSTRINGS_APPOINTMENTDB
+            - name: Consul__Address
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_CONSUL_ADDRESS
+            - name: OpenTelemetry__JaegerEndpoint
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_JAEGER_TRACES_ENDPOINT
           volumeMounts: []
           resources:
             requests:
@@ -93,7 +106,11 @@ spec:
               memory: 1Gi
           livenessProbe:
             httpGet:
-              path: /health
+              # Liveness must only answer whether the process is alive.  The
+              # aggregate /health endpoint includes Redis and downstream gRPC
+              # checks and can restart a healthy process during a dependency
+              # outage.
+              path: /health/live
               port: 5004
             initialDelaySeconds: 30
             periodSeconds: 15
@@ -109,7 +126,7 @@ spec:
             failureThreshold: 2
           startupProbe:
             httpGet:
-              path: /health/startup
+              path: /health/live
               port: 5004
             initialDelaySeconds: 5
             periodSeconds: 5
@@ -135,6 +152,7 @@ spec:
     - name: grpc
       port: 5008
       targetPort: 5008
+      appProtocol: grpc
       protocol: TCP
 ---
 apiVersion: autoscaling/v2

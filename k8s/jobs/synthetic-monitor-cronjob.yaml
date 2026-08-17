@@ -1,15 +1,5 @@
 ---
 apiVersion: v1
-kind: Namespace
-metadata:
-  name: monitoring
-  labels:
-    app.kubernetes.io/part-of: his-hope
-    app.kubernetes.io/managed-by: kustomize
-    pod-security.kubernetes.io/enforce: restricted
-    pod-security.kubernetes.io/enforce-version: latest
----
-apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: synthetic-monitor
@@ -31,13 +21,14 @@ metadata:
 data:
   playwright.config.js: |
     const { defineConfig } = require('@playwright/test');
-    module.exports = defineConfig({
-      testDir: '/tests',
+      module.exports = defineConfig({
+        testDir: '/tests',
+        outputDir: '/results/playwright',
       testMatch: 'login-journey.spec.js',
       timeout: 120000,
       expect: { timeout: 15000 },
       use: {
-        baseURL: process.env.BASE_URL || 'http://frontend.monitoring.svc.cluster.local/',
+        baseURL: process.env.BASE_URL || 'https://app.his-hope.local/',
         headless: true,
         viewport: { width: 1920, height: 1080 },
         screenshot: 'off',
@@ -72,9 +63,9 @@ data:
   login-journey.spec.js: |
     const { test, expect } = require('@playwright/test');
 
-    const BASE_URL   = process.env.BASE_URL   || 'http://frontend.monitoring.svc.cluster.local/';
-    const USERNAME   = process.env.USERNAME   || 'admin';
-    const PASSWORD   = process.env.PASSWORD   || 'Admin@123';
+    const BASE_URL   = process.env.BASE_URL   || 'https://app.his-hope.local/';
+    const USERNAME   = process.env.USERNAME   || '';
+    const PASSWORD   = process.env.PASSWORD   || '';
     const SEARCH_TERM = process.env.SEARCH_TERM || 'Nguyễn';
 
     test.describe('Synthetic Monitoring — Login → Search Patient → Logout', () => {
@@ -145,6 +136,14 @@ data:
         const response = await request.get(`${BASE_URL}/`);
         expect(response.ok()).toBeTruthy();
       });
+
+      test('should reject an unauthenticated protected API request', async ({ request }) => {
+        const response = await request.get(
+          `${BASE_URL}/api/v1/patients/search?q=&page=1&pageSize=1`,
+          { failOnStatusCode: false },
+        );
+        expect([401, 403]).toContain(response.status());
+      });
     });
 
   package.json: |
@@ -152,8 +151,8 @@ data:
       "name": "synthetic-monitor",
       "private": true,
       "dependencies": {
-        "@playwright/test": "^1.51.0",
-        "playwright": "^1.51.0"
+        "@playwright/test": "1.51.0",
+        "playwright": "1.51.0"
       }
     }
 ---
@@ -201,6 +200,10 @@ spec:
         spec:
           serviceAccountName: synthetic-monitor
           restartPolicy: Never
+          hostAliases:
+            - ip: 172.16.102.10
+              hostnames:
+                - app.his-hope.local
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
@@ -213,12 +216,22 @@ spec:
               configMap:
                 name: synthetic-monitor-tests
                 defaultMode: 0644
+            - name: vault-secrets
+              csi:
+                driver: secrets-store.csi.k8s.io
+                readOnly: true
+                volumeAttributes:
+                  secretProviderClass: synthetic-monitor-secrets
             - name: results
               persistentVolumeClaim:
                 claimName: synthetic-monitor-results
+            - name: npm-node-modules
+              emptyDir: {}
+            - name: test-results
+              emptyDir: {}
           initContainers:
             - name: install-deps
-              image: mcr.microsoft.com/playwright:v1.51.0-noble
+              image: mcr.microsoft.com/playwright@sha256:d9266ee97f0dbd297618a10afb00b5006ebf2bb19dd38887da3230ed4b7829ea
               imagePullPolicy: IfNotPresent
               securityContext:
                 allowPrivilegeEscalation: false
@@ -226,14 +239,21 @@ spec:
                   drop:
                     - ALL
                 readOnlyRootFilesystem: false
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
               command:
                 - /bin/bash
                 - -c
                 - |
                   set -euo pipefail
                   cd /tests
-                  npm install --no-audit --no-fund --no-update-notifier
-                  npx playwright install chromium 2>/dev/null || true
+                  npm install --no-audit --no-fund --no-update-notifier --no-package-lock
+                  npx playwright install chromium
                   echo "Dependencies installed"
               volumeMounts:
                 - name: tests
@@ -248,9 +268,16 @@ spec:
                   mountPath: /tests/login-journey.spec.js
                   subPath: login-journey.spec.js
                   readOnly: true
+                - name: npm-node-modules
+                  mountPath: /tests/node_modules
+                - name: test-results
+                  mountPath: /tests/test-results
+                - name: vault-secrets
+                  mountPath: /mnt/secrets
+                  readOnly: true
           containers:
             - name: playwright
-              image: mcr.microsoft.com/playwright:v1.51.0-noble
+              image: mcr.microsoft.com/playwright@sha256:d9266ee97f0dbd297618a10afb00b5006ebf2bb19dd38887da3230ed4b7829ea
               imagePullPolicy: IfNotPresent
               securityContext:
                 allowPrivilegeEscalation: false
@@ -260,15 +287,21 @@ spec:
                 readOnlyRootFilesystem: false
               env:
                 - name: BASE_URL
-                  value: "http://frontend.monitoring.svc.cluster.local/"
+                  valueFrom:
+                    configMapKeyRef:
+                      name: synthetic-monitor-config
+                      key: BASE_URL
                 - name: USERNAME
-                  value: "admin"
+                  valueFrom:
+                    secretKeyRef:
+                      name: synthetic-monitor-credentials
+                      key: username
                 - name: PASSWORD
                   valueFrom:
                     secretKeyRef:
                       name: synthetic-monitor-credentials
                       key: password
-                      optional: true
+                      optional: false
                 - name: SEARCH_TERM
                   value: "Nguyễn"
                 - name: PLAYWRIGHT_HTML_REPORT
@@ -277,17 +310,17 @@ spec:
                 - /bin/bash
                 - -c
                 - |
-                  set -euo pipefail
+                  set -uo pipefail
                   cd /tests
                   echo "=== Synthetic Monitor Run - $(date -u -Iseconds) ==="
+                  set +e
                   npx playwright test \
                     --config=playwright.config.js \
                     --project=chromium 2>&1
                   EXIT_CODE=$?
+                  set -e
                   echo "=== Exit code: ${EXIT_CODE} ==="
-                  # Exit 0 to avoid job retries — alerting is handled by
-                  # the Prometheus metric probe_success from the Blackbox Exporter
-                  exit 0
+                  exit "${EXIT_CODE}"
               resources:
                 requests:
                   cpu: 500m
@@ -296,6 +329,10 @@ spec:
                   cpu: 1000m
                   memory: 1Gi
               volumeMounts:
+                - name: npm-node-modules
+                  mountPath: /tests/node_modules
+                - name: test-results
+                  mountPath: /tests/test-results
                 - name: tests
                   mountPath: /tests/playwright.config.js
                   subPath: playwright.config.js

@@ -40,17 +40,25 @@ public class AppointmentDbContext : DbContext, IUnitOfWork
         {
             entity.ToTable("outbox_messages");
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Type).HasMaxLength(500).IsRequired();
-            entity.Property(e => e.Content).IsRequired();
-            entity.Property(e => e.CorrelationId).HasMaxLength(200);
-            entity.Property(e => e.CausationId).HasMaxLength(200);
-            entity.Property(e => e.OccurredOn).IsRequired();
-            entity.Property(e => e.ProcessedOn);
-            entity.Property(e => e.Status).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.Error).HasMaxLength(1000);
-            entity.Property(e => e.RetryCount);
-            entity.Property(e => e.LastRetryOn);
-            entity.Property(e => e.LockExpiresAt);
+            // The initial appointment migration created every outbox column with
+            // PascalCase names. Map the complete legacy shape explicitly; the
+            // service-wide snake_case convention must not rewrite these names to
+            // lowercase SQL (for example, o.id instead of "Id").
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.Type).HasColumnName("Type").HasMaxLength(500).IsRequired();
+            entity.Property(e => e.Content).HasColumnName("Content").IsRequired();
+            entity.Property(e => e.CorrelationId).HasColumnName("CorrelationId").HasMaxLength(200);
+            entity.Property(e => e.CausationId).HasColumnName("CausationId").HasMaxLength(200);
+            entity.Property(e => e.OccurredOn).HasColumnName("OccurredOn").IsRequired();
+            entity.Property(e => e.ProcessedOn).HasColumnName("ProcessedOn");
+            entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Error).HasColumnName("Error").HasMaxLength(1000);
+            entity.Property(e => e.RetryCount).HasColumnName("RetryCount");
+            entity.Property(e => e.LastRetryOn).HasColumnName("LastRetryOn");
+            entity.Property(e => e.LockExpiresAt).HasColumnName("LockExpiresAt");
+            entity.Property(e => e.ClaimedBy).HasColumnName("ClaimedBy");
+            entity.Property(e => e.NextAttemptAt).HasColumnName("NextAttemptAt");
+            entity.Property(e => e.DeadLetteredOn).HasColumnName("DeadLetteredOn");
             entity.HasIndex(e => new { e.Status, e.OccurredOn });
         });
         base.OnModelCreating(modelBuilder);

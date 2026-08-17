@@ -1,0 +1,143 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: appointment-service
+          env:
+            - name: Jwt__RsaPublicKeyPath
+              value: /mnt/identity-jwt-keys/jwt-public-key.pem
+            - name: Jwt__RsaEncryptionPrivateKeyPath
+              value: /mnt/identity-jwt-keys/jwt-encryption-private-key.pem
+          volumeMounts:
+            - name: identity-jwt-keys
+              mountPath: /mnt/identity-jwt-keys
+              readOnly: true
+      volumes:
+        - name: identity-jwt-keys
+          secret:
+            secretName: identity-jwt-keys
+            defaultMode: 0440
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: billing-service
+          env:
+            - name: Jwt__RsaPublicKeyPath
+              value: /mnt/identity-jwt-keys/jwt-public-key.pem
+            - name: Jwt__RsaEncryptionPrivateKeyPath
+              value: /mnt/identity-jwt-keys/jwt-encryption-private-key.pem
+          volumeMounts:
+            - name: identity-jwt-keys
+              mountPath: /mnt/identity-jwt-keys
+              readOnly: true
+      volumes:
+        - name: identity-jwt-keys
+          secret:
+            secretName: identity-jwt-keys
+            defaultMode: 0440
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: clinical-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: clinical-service
+          env:
+            - name: Jwt__RsaPublicKeyPath
+              value: /mnt/identity-jwt-keys/jwt-public-key.pem
+            - name: Jwt__RsaEncryptionPrivateKeyPath
+              value: /mnt/identity-jwt-keys/jwt-encryption-private-key.pem
+          volumeMounts:
+            - name: identity-jwt-keys
+              mountPath: /mnt/identity-jwt-keys
+              readOnly: true
+      volumes:
+        - name: identity-jwt-keys
+          secret:
+            secretName: identity-jwt-keys
+            defaultMode: 0440
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lab-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: lab-service
+          env:
+            - name: Jwt__RsaPublicKeyPath
+              value: /mnt/identity-jwt-keys/jwt-public-key.pem
+            - name: Jwt__RsaEncryptionPrivateKeyPath
+              value: /mnt/identity-jwt-keys/jwt-encryption-private-key.pem
+          volumeMounts:
+            - name: identity-jwt-keys
+              mountPath: /mnt/identity-jwt-keys
+              readOnly: true
+      volumes:
+        - name: identity-jwt-keys
+          secret:
+            secretName: identity-jwt-keys
+            defaultMode: 0440
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: patient-service
+          env:
+            - name: Jwt__RsaPublicKeyPath
+              value: /mnt/identity-jwt-keys/jwt-public-key.pem
+            - name: Jwt__RsaEncryptionPrivateKeyPath
+              value: /mnt/identity-jwt-keys/jwt-encryption-private-key.pem
+          volumeMounts:
+            - name: identity-jwt-keys
+              mountPath: /mnt/identity-jwt-keys
+              readOnly: true
+      volumes:
+        - name: identity-jwt-keys
+          secret:
+            secretName: identity-jwt-keys
+            defaultMode: 0440
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pharmacy-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: pharmacy-service
+          env:
+            - name: Jwt__RsaPublicKeyPath
+              value: /mnt/identity-jwt-keys/jwt-public-key.pem
+            - name: Jwt__RsaEncryptionPrivateKeyPath
+              value: /mnt/identity-jwt-keys/jwt-encryption-private-key.pem
+          volumeMounts:
+            - name: identity-jwt-keys
+              mountPath: /mnt/identity-jwt-keys
+              readOnly: true
+      volumes:
+        - name: identity-jwt-keys
+          secret:
+            secretName: identity-jwt-keys
+            defaultMode: 0440

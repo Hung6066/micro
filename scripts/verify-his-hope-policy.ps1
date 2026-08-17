@@ -37,7 +37,7 @@ if ($frontendChanged) {
 }
 
 if ($backendChanged) {
-    Invoke-Checked 'pwsh' @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'scripts/validate-api-platform-conventions.ps1')
+    Invoke-Checked 'powershell' @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', 'scripts/validate-api-platform-conventions.ps1')
     if ($Ci) {
         Invoke-Checked 'dotnet' @('restore', 'His.Hope.sln', '-warnAsError:NU1605', '-warnAsError:NU1901', '-warnAsError:NU1902', '-warnAsError:NU1903', '-warnAsError:NU1904')
         Invoke-Checked 'dotnet' @('build', 'His.Hope.sln', '--no-restore', '--warnaserror:NU1605', '--warnaserror:NU1901', '--warnaserror:NU1902', '--warnaserror:NU1903', '--warnaserror:NU1904')

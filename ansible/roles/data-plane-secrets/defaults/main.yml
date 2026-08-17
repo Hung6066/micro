@@ -1,0 +1,10 @@
+---
+data_plane_secrets_kubeconfig: ""
+data_plane_secrets_source_namespace: his-hope
+data_plane_secrets_target_namespace: his-hope-data
+data_plane_secrets:
+  - postgres-secret
+  - redis-secret
+  - rabbitmq-secret
+  - redis-tls
+  - rabbitmq-tls

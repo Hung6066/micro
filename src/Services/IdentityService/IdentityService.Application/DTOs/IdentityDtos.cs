@@ -1,3 +1,5 @@
+using His.Hope.SharedKernel.Authorization;
+
 namespace His.Hope.IdentityService.Application.DTOs;
 
 // ============================================================================
@@ -56,25 +58,45 @@ public record RoleDto(
     bool IsSystem,
     DateTime CreatedAt,
     List<PermissionDto>? Permissions,
-    string? ConcurrencyToken = null);
+    string? ConcurrencyToken = null,
+    string Owner = "identity-service",
+    int Version = 1,
+    string RiskTier = "standard",
+    int ReviewCadenceDays = 180,
+    string LifecycleStatus = "active",
+    DateTime? PublishedAt = null,
+    string? PublishedBy = null);
 
 public record CreateRoleRequest(
     string Name,
     string? Description,
-    string[]? Permissions);
+    string[]? Permissions,
+    string? Owner = null);
 
 public record UpdateRoleRequest(
     string Name,
     string? Description,
     string[]? Permissions,
-    string? ConcurrencyToken = null);
+    string? ConcurrencyToken = null,
+    string? Owner = null);
 
 public record PermissionDto(
     string Code,
     string Name,
     string Group,
     string? Description,
-    bool IsSystem);
+    bool IsSystem)
+{
+    private PermissionDescriptor? Descriptor => HisHopePermissions.FindDescriptor(Code);
+
+    public string Owner => Descriptor?.Owner ?? "unknown";
+    public int Version => Descriptor?.Version ?? 1;
+    public string RiskTier => Descriptor?.RiskTier ?? "standard";
+    public string RequiredAssurance => Descriptor?.RequiredAssurance ?? "standard";
+    public string AuditClass => Descriptor?.AuditClass ?? "authorization";
+    public bool IsDeprecated => Descriptor?.IsDeprecated ?? false;
+    public string? ReplacedBy => Descriptor?.ReplacedBy;
+}
 
 // ============================================================================
 // System Settings DTOs

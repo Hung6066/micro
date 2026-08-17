@@ -21,6 +21,8 @@ export interface HisHopePushCapability {
   unregister(): Promise<void>;
 }
 
+export * from "./notifications";
+
 export interface HisHopeDpopKeyStore {
   get(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<void>;
@@ -163,6 +165,12 @@ export interface HisHopeSyncEnvelope {
   readonly operation: string;
   readonly payload: Readonly<Record<string, unknown>>;
   readonly createdAt: string;
+  /** Versioned conflict contract; patient data must use reject_on_stale. */
+  readonly schemaVersion?: 1;
+  readonly entityType?: string;
+  readonly entityId?: string;
+  readonly baseVersion?: string;
+  readonly conflictPolicy?: "reject_on_stale" | "last_write_wins";
 }
 
 export interface HisHopeOfflineSyncCapability {
@@ -231,3 +239,4 @@ export * from "./secure-storage/his-hope-caching-secure-storage";
 export * from "./deep-link/his-hope-deep-link-allow-list";
 export * from "./internationalization";
 export * from "./security/his-hope-native-mfa";
+export * from "./runtime/runtime-config.contract";

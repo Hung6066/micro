@@ -9,26 +9,235 @@ commonLabels:
   app.kubernetes.io/version: latest
 
 commonAnnotations:
-  linkerd.io/inject: enabled
+  # Injection is enabled by the namespace label. Do not add a global pod
+  # annotation here: one-shot migration Jobs explicitly disable Linkerd so
+  # their main container can exit and Argo can observe Job completion.
+  config.linkerd.io/proxy-cpu-request: 10m
+  config.linkerd.io/proxy-memory-request: 20Mi
 
 resources:
+  - release-metadata.yaml
+  - cache-service-aliases.yaml
+  # Argo PreSync migration hooks run before application Deployments. The
+  # hooks are digest-transformed by the production image component below.
+  - ../../jobs/production-migration-job.yaml
+  - identity-dns-egress.yaml
+  - allow-backends-redis-egress.yaml
+  - bff-grpc-egress.yaml
+  - ingress-local.yaml
   - ../../base
-  - ../../linkerd/server.yaml
-  - ../../linkerd/server-authorization.yaml
-  - ../../linkerd/traffic-split.yaml
-  - ../../linkerd/service-profiles.yaml
-  - ../../linkerd/pod-monitor.yaml
-  - ../../infrastructure/pgbouncer-configmap.yaml
-  - ../../infrastructure/pgbouncer-secret.yaml
-  - ../../infrastructure/unleash-deployment.yaml
-  - ../../priority/priority-classes.yaml
-  - ../../security/gatekeeper-constraints.yaml
-  - ../../vault/vault-statefulset.yaml
-  - ../../vault/vault-agent-injector.yaml
-  - ../../vault/vault-csi-provider.yaml
+  # PgBouncer configuration is non-secret and is owned by the production
+  # overlay. Authentication material remains provisioned out-of-band.
+  - pgbouncer-configmap.yaml
+  - runtime-secret-provider-class.yaml
+  - resource-governance.yaml
+  - ../../policies/namespace-security-exceptions.yaml
 
 patches:
+  - path: migration-resource-fit.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      labelSelector: "his-hope.io/operation=database-migration"
+  - path: release-metadata-env-patch.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/component in (backend,bff)"
+  - path: release-metadata-api-gateway-patch.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: api-gateway
+  - path: hpa-remove-custom-metric.json
+    target:
+      group: autoscaling
+      version: v2
+      kind: HorizontalPodAutoscaler
+      name: .*
+  - path: systemdashboard-kube-api-networkpolicy-patch.yaml
+    target:
+      group: networking.k8s.io
+      version: v1
+      kind: NetworkPolicy
+      name: allow-systemdashboard-bff-dependencies
+  - path: backend-linkerd-skip-subnets.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/component=backend"
+  - path: bff-linkerd-grpc-patch.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/component=bff"
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/component=bff"
+    patch: |
+      - op: add
+        path: /spec/template/metadata/annotations/linkerd.io~1inject
+        value: disabled
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/component=bff"
+    patch: |
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          kubernetes.io/hostname: k3s-worker-1
   - path: identity-security-patch.yaml
+  # The current VIP test profile uses *.his-hope.local. Share the browser
+  # session cookie across identity/admin/dashboard/app hosts in that profile.
+  - path: identity-local-cookie-domain-patch.yaml
+  - path: identity-bootstrap-admin-local-patch.yaml
+  - path: systemdashboard-prometheus-patch.yaml
+  - path: clinical-health-probe-patch.yaml
+  - path: production-runtime-patch.yaml
+  - path: runtime-contract-patch.yaml
+  - path: identity-runtime-seccomp-json.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: identity-service
+  - path: migration-kubernetes-auth.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-identity
+  - path: migration-kubernetes-auth.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-patient
+  - path: migration-kubernetes-auth.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-appointment
+  - path: migration-kubernetes-auth.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-clinical
+  - path: migration-kubernetes-auth.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-lab
+  - path: migration-kubernetes-auth.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-billing
+  - path: migration-kubernetes-auth.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-pharmacy
+  - path: migration-disable-background-workers.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-identity
+  - path: migration-disable-background-workers.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-patient
+  - path: migration-disable-background-workers.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-appointment
+  - path: migration-disable-background-workers.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-clinical
+  - path: migration-disable-background-workers.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-lab
+  - path: migration-disable-background-workers.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-billing
+  - path: migration-disable-background-workers.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-pharmacy
+  - path: migration-identity-signing.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      name: production-migrate-identity
+  - path: identity-apns-disabled-json.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: identity-service
+  - target:
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/part-of=his-hope"
+    patch: |
+      - op: add
+        path: /spec/template/spec/imagePullSecrets
+        value:
+          - name: harbor-pull
+  - target:
+      kind: StatefulSet
+      labelSelector: "app.kubernetes.io/part-of=his-hope"
+    patch: |
+      - op: add
+        path: /spec/template/spec/imagePullSecrets
+        value:
+          - name: harbor-pull
+  - target:
+      kind: NetworkPolicy
+      name: allow-kube-api-egress
+    patch: |
+      - op: replace
+        path: /spec/podSelector/matchLabels
+        value:
+          app.kubernetes.io/name: vault
+  - target:
+      kind: NetworkPolicy
+      name: allow-vault-csi-provider-egress
+    patch: |
+      - op: replace
+        path: /spec/podSelector/matchLabels
+        value:
+          app.kubernetes.io/name: vault-csi-provider
   - target:
       kind: Deployment
       labelSelector: "app.kubernetes.io/component=backend"
@@ -51,19 +260,216 @@ patches:
           name: oidc-encryption-key
           mountPath: /mnt/oidc-secrets
           readOnly: true
+  # Backends authenticate to Vault with a native SPIRE JWT-SVID. The old
+  # projected Kubernetes-token/Vault-kubernetes flow is intentionally removed.
   - target:
+      group: apps
+      version: v1
       kind: Deployment
-      labelSelector: "app.kubernetes.io/part-of=his-hope"
+      labelSelector: "app.kubernetes.io/component=backend"
     patch: |
       - op: add
-        path: /spec/template/metadata/annotations
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: IfNotPresent
+  - path: database-continuity-redis-tls-json-patch.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: database-continuity
+  - path: database-continuity-redis-tls-ca-patch.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: database-continuity
+  # Application containers are hardened before the namespace is switched to
+  # Pod Security restricted. Data stores and node-level installers remain in
+  # the explicit exception inventory until they are isolated into system/data
+  # namespaces.
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/component in (backend,bff)"
+    patch: |-
+      - op: add
+        path: /spec/template/spec/securityContext
         value:
-          vault.hashicorp.com/agent-inject: "true"
-          vault.hashicorp.com/role: "default"
-          vault.hashicorp.com/agent-inject-status: "update"
-          vault.hashicorp.com/agent-pre-populate: "true"
-          vault.hashicorp.com/agent-pre-populate-only: "false"
-          linkerd.io/inject: enabled
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+      - op: add
+        path: /spec/template/spec/containers/0/securityContext
+        value:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/component=backend"
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/1/securityContext
+        value:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
+      - op: add
+        path: /spec/template/spec/containers/1/resources
+        value:
+          requests:
+            cpu: 5m
+            memory: 16Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: clinical-service|identity-service|patient-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/2/securityContext
+        value:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
+  # Migration hooks share the service image contract but need explicit bounded
+  # resources because they are Jobs, not Deployments.
+  - target:
+      group: batch
+      version: v1
+      kind: Job
+      labelSelector: "his-hope.io/operation=database-migration"
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+      - op: replace
+        path: /spec/template/metadata/annotations/linkerd.io~1inject
+        value: disabled
+      - op: add
+        path: /spec/template/spec/securityContext
+        value:
+          runAsNonRoot: true
+          fsGroup: 1654
+          seccompProfile:
+            type: RuntimeDefault
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: Redis__ConnectionString
+          valueFrom:
+            secretKeyRef:
+              name: systemdashboard-bff-secrets
+              key: redis-connection
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: ConnectionStrings__Redis
+          valueFrom:
+            secretKeyRef:
+              name: systemdashboard-bff-secrets
+              key: redis-connection
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: Redis__TlsCaFile
+          value: /etc/tls/redis/ca.crt
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value:
+          name: redis-tls-ca
+          mountPath: /etc/tls/redis
+          readOnly: true
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: redis-tls-ca
+          secret:
+            secretName: redis-tls
+            defaultMode: 0440
+  # Argo sync ordering: infrastructure/configuration (default wave) first,
+  # one-shot migration hooks at wave 20, then serving workloads at wave 30.
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/part-of=his-hope"
+    patch: |-
+      - op: add
+        path: /metadata/annotations/argocd.argoproj.io~1sync-wave
+        value: "30"
+  - target:
+      group: networking.k8s.io
+      version: v1
+      kind: Ingress
+    patch: |-
+      - op: add
+        path: /metadata/annotations/argocd.argoproj.io~1sync-wave
+        value: "40"
+  - path: identity-kubernetes-vault-json-patch.yaml
+    target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: identity-service
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: identity-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: identity-service-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: identity-service-secrets
+
+patchesStrategicMerge:
+  - runtime-data-plane-patch.yaml
+  - production-runtime-contract-services-patch.yaml
+  - identity-service-sa-token-patch.yaml
+  - namespace-pod-security-patch.yaml
+  # The checked-in localhost profile currently blocks vfork/clone paths used
+  # by the .NET host and PgBouncer image on this K3d runtime. Keep the
+  # workload on RuntimeDefault until the profile is regenerated from an
+  # audit-compatible baseline; do not weaken the cluster-wide policy.
+  - identity-runtime-seccomp-patch.yaml
+  - runtime-default-workload-patch.yaml
+  - service-runtime-fix-patch.yaml
+  - enterprise-runtime-security-patch.yaml
+  - k3s-local-backend-auth-patch.yaml
+  - systemdashboard-bff-rbac-patch.yaml
+  - pharmacy-redis-tls-ca-patch.yaml
+  - bff-runtime-contract-env-patch.yaml
+  - bff-health-probe-patch.yaml
+  - frontend-runtime-patch.yaml
+  - api-gateway-runtime-contract-patch.yaml
+  - observability-otel-env-patch.yaml
+  - api-gateway-health-probe-patch.yaml
+  - redis-tls-runtime-patch.yaml
+  - workload-spiffe-patches.yaml
+  - workload-readonly-root-patches.yaml
+  - database-continuity-storage-patch.yaml
+  - k3s-local-capacity-patch.yaml
 
 components:
   - image-digests
@@ -72,15 +478,19 @@ namespace: his-hope
 
 replicas:
   - name: patient-service
-    count: 5
+    count: 1
   - name: identity-service
-    count: 3
+    count: 1
   - name: clinical-service
-    count: 5
+    count: 1
   - name: appointment-service
-    count: 3
-  - name: vault-agent-injector
-    count: 2
+    count: 1
+  - name: billing-service
+    count: 1
+  - name: lab-service
+    count: 1
+  - name: pharmacy-service
+    count: 1
 
 configMapGenerator:
   - name: vault-agent-config

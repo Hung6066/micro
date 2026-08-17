@@ -10,30 +10,51 @@ jobs:
   backend-coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       
       - name: Setup .NET
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '8.0.x'
       
       - name: Restore
         run: dotnet restore
+
+      - name: Verify Docker for Identity integration tests
+        run: docker info
       
       - name: Backend Tests with Coverage
         run: |
-          find tests/Services -type f -name '*.csproj' -print0 |
-            xargs -0 -n1 dotnet test --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/PatientService/PatientService.Domain.Tests/PatientService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/PatientService/PatientService.Application.Tests/PatientService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/IdentityService/IdentityService.Domain.Tests/IdentityService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/IdentityService/IdentityService.Application.Tests/IdentityService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/IdentityService/IdentityService.Infrastructure.Tests/IdentityService.Infrastructure.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          pwsh -NoProfile -File ./scripts/run-identity-tests-docker.ps1 -Network bridge -CollectCoverage -ResultsDirectory coverage-results/identity-integration
+          dotnet test tests/Services/ClinicalService/ClinicalService.Domain.Tests/ClinicalService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/ClinicalService/ClinicalService.Application.Tests/ClinicalService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/AppointmentService/AppointmentService.Domain.Tests/AppointmentService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/AppointmentService/AppointmentService.Application.Tests/AppointmentService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/BillingService/BillingService.Domain.Tests/BillingService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/BillingService/BillingService.Application.Tests/BillingService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/LabService/LabService.Domain.Tests/LabService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/LabService/LabService.Application.Tests/LabService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/PharmacyService/PharmacyService.Domain.Tests/PharmacyService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/PharmacyService/PharmacyService.Application.Tests/PharmacyService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
       
       - name: Generate Coverage Report
-        uses: danielpalme/ReportGenerator-GitHub-Action@5.5.11
+        uses: danielpalme/ReportGenerator-GitHub-Action@049f7ec958c672fd31d5cc1cb01622dc8d2e23ab # 5.5.10
         with:
           reports: 'coverage-results/**/coverage.cobertura.xml'
           targetdir: 'coverage-report'
           reporttypes: 'Html;HtmlSummary;Cobertura;lcov'
+
+      - name: Enforce Identity Service coverage
+        shell: pwsh
+        run: ./scripts/validate-identity-coverage.ps1 -CoverageRoot coverage-results -LineThreshold 90 -BranchThreshold 80
       
       - name: Upload Coverage Report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage-report
           path: coverage-report
@@ -41,10 +62,10 @@ jobs:
   frontend-coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       
       - name: Setup Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
       
@@ -56,10 +77,10 @@ jobs:
       - name: Frontend Tests with Coverage
         run: |
           cd src/Frontend/his-hope-app
-          npm run test:coverage -- --runInBand
+          npx ng test --no-watch --browsers=ChromeHeadless --code-coverage
       
       - name: Upload Frontend Coverage
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: frontend-coverage
           path: src/Frontend/his-hope-app/coverage

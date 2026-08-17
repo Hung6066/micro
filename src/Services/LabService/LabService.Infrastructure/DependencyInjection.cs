@@ -1,4 +1,7 @@
 using His.Hope.Infrastructure.Outbox;
+using His.Hope.Infrastructure.Events;
+using His.Hope.IntegrationEvents.Lab;
+using His.Hope.LabService.Domain.Events;
 using His.Hope.LabService.Application.Common.Abstractions;
 using His.Hope.LabService.Application.Services;
 using His.Hope.LabService.Domain.Repositories;
@@ -6,6 +9,7 @@ using His.Hope.LabService.Infrastructure.Persistence;
 using His.Hope.LabService.Infrastructure.Persistence.Repositories;
 using His.Hope.LabService.Infrastructure.Services;
 using His.Hope.SharedKernel.Domain.Common;
+using His.Hope.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,9 +22,11 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddDbContext<LabDbContext>(options =>
-            options.UseNpgsql(
-                configuration.GetConnectionString("LabDb"),
+        services.AddDbContext<LabDbContext>((serviceProvider, options) =>
+            options.UseHisHopeNpgsql(
+                serviceProvider,
+                configuration,
+                "LabDb",
                 b =>
                 {
                     b.MigrationsAssembly(typeof(LabDbContext).Assembly.FullName);
@@ -37,6 +43,10 @@ public static class DependencyInjection
         services.AddScoped<ICriticalAlertRepository, CriticalAlertRepository>();
         services.AddScoped<DomainEventDispatcher>();
         services.AddOutbox<LabDbContext>();
+        services.AddIntegrationEventMapping<LabOrderCreatedDomainEvent, LabOrderCreatedIntegrationEvent>(
+            domainEvent => new LabOrderCreatedIntegrationEvent(domainEvent.LabOrderId, domainEvent.PatientId, domainEvent.ProviderId));
+        services.AddIntegrationEventMapping<LabOrderSubmittedDomainEvent, LabOrderSubmittedIntegrationEvent>(
+            domainEvent => new LabOrderSubmittedIntegrationEvent(domainEvent.LabOrderId));
 
         return services;
     }

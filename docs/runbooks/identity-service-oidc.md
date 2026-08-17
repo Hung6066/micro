@@ -34,8 +34,9 @@ Run these checks before promoting an Identity Service OIDC deployment:
    - `kubectl -n his-hope get configmap identity-service-config -o yaml`
    - `OpenIddict__Issuer` must match the externally trusted issuer, for example `https://identity.his-hope.local`.
 5. Confirm service ports:
-   - HTTP/OIDC: `identity-service:5003`
-   - gRPC introspection: `identity-service:5007`
+   - Local Docker HTTP/OIDC: `identityservice:5001` (host `localhost:5001`)
+   - Local Docker gRPC: `identityservice:5012` (host `localhost:5012`)
+   - Production: use the service/ingress hostname from the deployed discovery document; do not copy local ports.
 
 Local Docker Compose is for development compatibility only. If `docker/docker-compose.yml` exposes ephemeral signing or `Jwt__Key` defaults, do not use that stack as production evidence for persistent RS256 signing.
 
@@ -55,6 +56,24 @@ Check the discovery response for:
 - `token_endpoint` points to `/connect/token`
 - `jwks_uri` points to `/.well-known/jwks`
 - `introspection_endpoint` points to `/connect/introspect`
+
+The discovery document is authoritative for endpoint URLs. Clients must not
+construct `/connect/token`, `/connect/authorize`, or JWKS URLs from a second
+base URL. For web, the BFF performs the code/token exchange and keeps tokens
+outside browser state; only native mobile performs the token exchange directly.
+
+## Cache and session consistency
+
+- Redis is the shared state boundary for OIDC authorization transactions, MFA
+  challenges, refresh-token families, and BFF sessions across replicas.
+- BFF session payloads are protected JWE values; the browser receives only
+  `HttpOnly` session/CSRF cookies.
+- Read caches use cache-aside with bounded TTL and a key containing resource,
+  query, facility/tenant and permission/security version.
+- Mutations invalidate the matching prefix in both local memory and shared
+  Redis caches. A cache hit never replaces authentication or authorization.
+- After key rotation, validate the active `kid` from JWKS and retain previous
+  verification keys until all issued tokens have expired.
 
 Issue a canary token through Authorization Code + PKCE from the BFF canary route, then validate:
 

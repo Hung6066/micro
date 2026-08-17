@@ -1,5 +1,5 @@
 <mat-toolbar color="primary" class="app-toolbar">
-  <button mat-icon-button (click)="toggleSidenav()" [attr.aria-label]="'app.dashboard.toggleNav' | hhTranslate:'Toggle navigation'">
+  <button mat-icon-button (click)="toggleSidenav()" [attr.aria-label]="(sidenavOpened$ | async) ? ('app.dashboard.closeNav' | hhTranslate:'Close navigation') : ('app.dashboard.openNav' | hhTranslate:'Open navigation')">
     <mat-icon>menu</mat-icon>
   </button>
   <span class="app-title">{{ 'app.dashboard.title' | hhTranslate:'His.Hope Dashboard' }}</span>

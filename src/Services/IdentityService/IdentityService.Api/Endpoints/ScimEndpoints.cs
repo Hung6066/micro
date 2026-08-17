@@ -7,12 +7,15 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using His.Hope.Authorization;
+using His.Hope.Contracts.Identity;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
 /// <summary>
 /// SCIM v2 provisioning endpoints (RFC 7643/7644).
-/// Requires SCIM API key in X-SCIM-API-Key header or Bearer token with admin scope.
+/// Requires a bearer token issued for a registered SCIM machine client with
+/// scim.read/scim.write scope. Admin-cookie compatibility is test/development only.
 /// </summary>
 public static class ScimEndpoints
 {
@@ -21,41 +24,49 @@ public static class ScimEndpoints
 
     public static void MapScimEndpoints(this WebApplication app)
     {
-        var scimMetadata = app.MapGroup("/scim/v2");
+        var scimMetadata = app.MapGroup(IdentityApiRoutes.ScimV2);
         scimMetadata.MapGet("/ServiceProviderConfig", GetServiceProviderConfig).AllowAnonymous();
         scimMetadata.MapGet("/ResourceTypes", GetResourceTypes).AllowAnonymous();
 
-        var scim = app.MapGroup("/scim/v2").RequireAuthorization("RequireRole:Admin").RequireRateLimiting("scim");
+        var scim = app.MapGroup(IdentityApiRoutes.ScimV2).RequireAuthorization("ScimM2M").RequireRateLimiting("scim");
+        var scimRead = scim.RequireAuthorization("ScimM2MRead");
+        var scimWrite = scim.RequireAuthorization("ScimM2MWrite");
 
         // Users
-        scim.MapGet("/Users", GetUsers);
-        scim.MapPost("/Users", CreateUser);
-        scim.MapGet("/Users/{id}", GetUser);
-        scim.MapPut("/Users/{id}", UpdateUser);
-        scim.MapPatch("/Users/{id}", PatchUser);
-        scim.MapDelete("/Users/{id}", DeleteUser);
+        scimRead.MapGet("/Users", GetUsers);
+        scimWrite.MapPost("/Users", CreateUser);
+        scimRead.MapGet("/Users/{id}", GetUser);
+        scimWrite.MapPut("/Users/{id}", UpdateUser);
+        scimWrite.MapPatch("/Users/{id}", PatchUser);
+        scimWrite.MapDelete("/Users/{id}", DeleteUser);
 
         // Groups (maps to His.Hope roles)
-        scim.MapGet("/Groups", GetGroups);
-        scim.MapPost("/Groups", CreateGroup);
-        scim.MapGet("/Groups/{id}", GetGroup);
-        scim.MapDelete("/Groups/{id}", DeleteGroup);
+        scimRead.MapGet("/Groups", GetGroups);
+        scimWrite.MapPost("/Groups", CreateGroup);
+        scimRead.MapGet("/Groups/{id}", GetGroup);
+        scimWrite.MapDelete("/Groups/{id}", DeleteGroup);
 
     }
 
     // ─── Users ───
 
     private static async Task<Results<Ok<ScimListResponse<ScimUserResponse>>, ProblemHttpResult>> GetUsers(
-        HttpContext httpContext, IdentityDbContext db, CancellationToken ct)
+        HttpContext httpContext, IdentityDbContext db, IConfiguration configuration, CancellationToken ct)
     {
+        var scope = ScimScope.Resolve(httpContext, configuration);
+        if (!scope.IsValid)
+            return TypedResults.Problem("A facility-scoped SCIM token is required.", statusCode: 403);
         var query = ParseScimQuery(httpContext);
-        var users = await db.Users
+        var usersQuery = db.Users.AsNoTracking();
+        if (scope.IsEnforced && !scope.IsCrossFacility)
+            usersQuery = usersQuery.Where(user => user.FacilityMemberships.Any(membership => membership.IsActive && scope.FacilityIds.Contains(membership.FacilityId)));
+        var users = await usersQuery
             .OrderBy(u => u.UserName)
             .Skip(query.StartIndex - 1)
             .Take(query.Count)
             .ToListAsync(ct);
 
-        var total = await db.Users.CountAsync(ct);
+        var total = await usersQuery.CountAsync(ct);
         var resources = users.Select(MapToScimUser).ToList();
 
         return TypedResults.Ok(new ScimListResponse<ScimUserResponse>
@@ -68,8 +79,11 @@ public static class ScimEndpoints
     }
 
     private static async Task<Results<Created<ScimUserResponse>, ProblemHttpResult>> CreateUser(
-        ScimUserRequest request, UserManager<User> userManager, CancellationToken ct)
+        ScimUserRequest request, UserManager<User> userManager, IdentityDbContext db, HttpContext httpContext, IConfiguration configuration, CancellationToken ct)
     {
+        var scope = ScimScope.Resolve(httpContext, configuration);
+        if (!scope.IsValid || !scope.CanWrite(request.HisHopeExtension?.FacilityId))
+            return TypedResults.Problem("The SCIM request is outside the token facility scope.", statusCode: 403);
         if (await userManager.FindByNameAsync(request.UserName) is not null)
             return TypedResults.Problem("User already exists", statusCode: 409);
 
@@ -112,6 +126,12 @@ public static class ScimEndpoints
             foreach (var ent in request.Entitlements)
                 await userManager.AddToRoleAsync(user, ent.Value);
 
+        if (!string.IsNullOrWhiteSpace(request.HisHopeExtension?.FacilityId))
+        {
+            db.UserFacilities.Add(new UserFacility { UserId = user.Id, FacilityId = request.HisHopeExtension.FacilityId!, IsPrimary = true });
+            await db.SaveChangesAsync(ct);
+        }
+
         var response = MapToScimUser(user);
         response.Meta.Location = $"/scim/v2/Users/{user.Id}";
 
@@ -119,10 +139,12 @@ public static class ScimEndpoints
     }
 
     private static async Task<Results<Ok<ScimUserResponse>, NotFound>> GetUser(
-        string id, UserManager<User> userManager, CancellationToken ct)
+        string id, UserManager<User> userManager, IdentityDbContext db, HttpContext httpContext, IConfiguration configuration, CancellationToken ct)
     {
         var user = await userManager.FindByIdAsync(id);
         if (user is null) return TypedResults.NotFound();
+        var scope = ScimScope.Resolve(httpContext, configuration);
+        if (!scope.IsValid || !await scope.CanAccessUserAsync(db, user.Id, ct)) return TypedResults.NotFound();
 
         var response = MapToScimUser(user);
         response.Meta.Location = $"/scim/v2/Users/{user.Id}";
@@ -131,10 +153,12 @@ public static class ScimEndpoints
     }
 
     private static async Task<Results<Ok<ScimUserResponse>, NotFound>> UpdateUser(
-        string id, ScimUserRequest request, UserManager<User> userManager, CancellationToken ct)
+        string id, ScimUserRequest request, UserManager<User> userManager, IdentityDbContext db, HttpContext httpContext, IConfiguration configuration, CancellationToken ct)
     {
         var user = await userManager.FindByIdAsync(id);
         if (user is null) return TypedResults.NotFound();
+        var scope = ScimScope.Resolve(httpContext, configuration);
+        if (!scope.IsValid || !await scope.CanAccessUserAsync(db, user.Id, ct) || !scope.CanWrite(request.HisHopeExtension?.FacilityId)) return TypedResults.NotFound();
 
         user.UserName = request.UserName;
         user.FirstName = request.Name?.GivenName ?? user.FirstName;
@@ -153,10 +177,12 @@ public static class ScimEndpoints
     }
 
     private static async Task<Results<Ok<ScimUserResponse>, NotFound>> PatchUser(
-        string id, ScimPatchRequest patch, UserManager<User> userManager, CancellationToken ct)
+        string id, ScimPatchRequest patch, UserManager<User> userManager, IdentityDbContext db, HttpContext httpContext, IConfiguration configuration, CancellationToken ct)
     {
         var user = await userManager.FindByIdAsync(id);
         if (user is null) return TypedResults.NotFound();
+        var scope = ScimScope.Resolve(httpContext, configuration);
+        if (!scope.IsValid || !await scope.CanAccessUserAsync(db, user.Id, ct)) return TypedResults.NotFound();
 
         foreach (var op in patch.Operations)
         {
@@ -179,10 +205,12 @@ public static class ScimEndpoints
     }
 
     private static async Task<Results<NoContent, NotFound>> DeleteUser(
-        string id, UserManager<User> userManager, CancellationToken ct)
+        string id, UserManager<User> userManager, IdentityDbContext db, HttpContext httpContext, IConfiguration configuration, CancellationToken ct)
     {
         var user = await userManager.FindByIdAsync(id);
         if (user is null) return TypedResults.NotFound();
+        var scope = ScimScope.Resolve(httpContext, configuration);
+        if (!scope.IsValid || !await scope.CanAccessUserAsync(db, user.Id, ct)) return TypedResults.NotFound();
 
         user.IsActive = false;
         await userManager.UpdateAsync(user);
@@ -333,5 +361,36 @@ public static class ScimEndpoints
             StartIndex = int.TryParse(query["startIndex"].FirstOrDefault(), out var si) ? Math.Max(1, si) : 1,
             Count = int.TryParse(query["count"].FirstOrDefault(), out var c) ? Math.Min(200, Math.Max(1, c)) : 100
         };
+    }
+
+    private sealed record ScimScope(IReadOnlySet<string> FacilityIds, bool IsCrossFacility, bool IsEnforced)
+    {
+        public bool IsValid => !IsEnforced || IsCrossFacility || FacilityIds.Count > 0;
+
+        public bool CanWrite(string? facilityId) => !IsEnforced || IsCrossFacility || (!string.IsNullOrWhiteSpace(facilityId) && FacilityIds.Contains(facilityId));
+
+        public Task<bool> CanAccessUserAsync(IdentityDbContext db, Guid userId, CancellationToken ct) =>
+            !IsEnforced || IsCrossFacility
+                ? Task.FromResult(true)
+                : db.UserFacilities.AsNoTracking().AnyAsync(item => item.UserId == userId && item.IsActive && FacilityIds.Contains(item.FacilityId), ct);
+
+        public static ScimScope Resolve(HttpContext httpContext, IConfiguration configuration)
+        {
+            var enforced = configuration.GetValue("Scim:RequireFacilityScope", false);
+            var principal = httpContext.User;
+            var scope = FacilityAccessScope.FromPrincipal(principal);
+            // Machine clients do not have a human user's memberships. Allow
+            // their registration to carry an explicit SCIM facility claim,
+            // while retaining the normal user-token claims for delegated use.
+            var machineFacilities = principal.FindAll("scim_facility_ids")
+                .SelectMany(claim => claim.Value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                .Concat(principal.FindAll("scim_facility_id").Select(claim => claim.Value))
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (machineFacilities.Count > 0)
+                return new ScimScope(machineFacilities, scope.IsCrossFacility, enforced);
+
+            return new ScimScope(scope.FacilityIds, scope.IsCrossFacility, enforced);
+        }
     }
 }

@@ -1,0 +1,212 @@
+# Local K3s ingress is intentionally HTTP (the public production profile must
+# use HTTPS). Allow the shared JWT metadata endpoint over HTTP only for this
+# local adapter; do not carry this patch into a TLS production overlay.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: identity-service
+          image: harbor.his-hope.local:9443/his-hope/identity-service:vault-health-ca-20260806
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: systemdashboard-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: systemdashboard-bff
+          image: harbor.his-hope.local:9443/his-hope/systemdashboard-bff:kube-api-fqdn-20260806
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  template:
+    spec:
+      containers:
+        - name: api-gateway
+          image: harbor.his-hope.local:9443/his-hope/api-gateway:redis-ca-normalized-20260806
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: appointment-service
+          image: his-hope/appointment-service:runtime-20260806b
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: patient-bff
+          image: harbor.his-hope.local:9443/his-hope/patient-bff:routes-runtime-20260806
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patient-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: patient-service
+          image: harbor.his-hope.local:9443/his-hope/patient-service:jwt-runtime-20260806
+          imagePullPolicy: IfNotPresent
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: identity-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: identity-service
+          env:
+            - name: Jwt__AllowHttp
+              value: "true"
+            - name: Jwt__Authority
+              value: "http://his-hope-identity-service.his-hope.svc.cluster.local:5003"
+            - name: Jwt__MetadataAddress
+              value: "http://his-hope-identity-service.his-hope.svc.cluster.local:5003/.well-known/openid-configuration"
+            - name: Authentication__CookieDomain
+              value: ".his-hope.local"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: systemdashboard-bff
+spec:
+  template:
+    spec:
+      containers:
+        - name: systemdashboard-bff
+          env:
+            - name: Jwt__AllowHttp
+              value: "true"
+            - name: Jwt__Authority
+              value: "http://his-hope-identity-service.his-hope.svc.cluster.local:5003"
+            - name: Jwt__MetadataAddress
+              value: "http://his-hope-identity-service.his-hope.svc.cluster.local:5003/.well-known/openid-configuration"
+            - name: Jwt__Issuer
+              value: "His.Hope.IdentityService"
+            - name: Jwt__RsaPublicKeyPath
+              value: "/mnt/jwt-secrets/jwt_public_key"
+            - name: Jwt__RsaEncryptionPrivateKeyPath
+              value: "/mnt/oidc-secrets/private_key"
+          volumeMounts:
+            - name: identity-service-jwt
+              mountPath: /mnt/jwt-secrets
+              readOnly: true
+            - name: oidc-encryption-key
+              mountPath: /mnt/oidc-secrets
+              readOnly: true
+      volumes:
+        - name: identity-service-jwt
+          secret:
+            secretName: identity-service-jwt
+            items:
+              - key: public_key
+                path: jwt_public_key
+        - name: oidc-encryption-key
+          secret:
+            secretName: identity-service-oidc-encryption
+            defaultMode: 0440
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  template:
+    spec:
+      containers:
+        - name: api-gateway
+          env:
+            - name: Jwt__AllowHttp
+              value: "true"
+            - name: Jwt__Authority
+              value: "http://his-hope-identity-service.his-hope.svc.cluster.local:5003"
+            - name: Jwt__MetadataAddress
+              value: "http://his-hope-identity-service.his-hope.svc.cluster.local:5003/.well-known/openid-configuration"
+            - name: Jwt__Issuer
+              value: "His.Hope.IdentityService"
+            - name: Jwt__RsaPublicKeyPath
+              value: "/mnt/jwt-secrets/jwt_public_key"
+            - name: Redis__TlsCaFile
+              value: "/etc/tls/redis/ca.crt"
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: systemdashboard-bff-secrets
+                  key: redis-url
+          volumeMounts:
+            - name: identity-service-jwt
+              mountPath: /mnt/jwt-secrets
+              readOnly: true
+            - name: redis-tls-ca
+              mountPath: /etc/tls/redis
+              readOnly: true
+      volumes:
+        - name: identity-service-jwt
+          secret:
+            secretName: identity-service-jwt
+            items:
+              - key: public_key
+                path: jwt_public_key
+        - name: redis-tls-ca
+          secret:
+            secretName: redis-tls
+            defaultMode: 0440
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: appointment-service
+          env:
+            - name: Jwt__AllowHttp
+              value: "true"
+            - name: Jwt__Authority
+              value: "http://his-hope-identity-service.his-hope.svc.cluster.local:5003"
+            - name: Jwt__MetadataAddress
+              value: "http://his-hope-identity-service.his-hope.svc.cluster.local:5003/.well-known/openid-configuration"
+            - name: Jwt__Issuer
+              value: "His.Hope.IdentityService"
+            - name: Jwt__RsaPublicKeyPath
+              value: "/mnt/jwt-secrets/jwt_public_key"
+          volumeMounts:
+            - name: identity-service-jwt
+              mountPath: /mnt/jwt-secrets
+              readOnly: true
+      volumes:
+        - name: identity-service-jwt
+          secret:
+            secretName: identity-service-jwt
+            items:
+              - key: public_key
+                path: jwt_public_key

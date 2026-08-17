@@ -1,9 +1,13 @@
 using His.Hope.Infrastructure.Outbox;
+using His.Hope.Infrastructure.Events;
+using His.Hope.IntegrationEvents.Patient;
+using His.Hope.PatientService.Domain.Events;
 using His.Hope.PatientService.Domain.Repositories;
 using His.Hope.PatientService.Infrastructure.Persistence;
 using His.Hope.PatientService.Infrastructure.Persistence.Repositories;
 using His.Hope.PatientService.Infrastructure.Projections;
 using His.Hope.SharedKernel.Domain.Common;
+using His.Hope.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,9 +21,11 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         // Write-side DbContext
-        services.AddDbContext<PatientDbContext>(options =>
-            options.UseNpgsql(
-                configuration.GetConnectionString("PatientDb"),
+        services.AddDbContext<PatientDbContext>((serviceProvider, options) =>
+            options.UseHisHopeNpgsql(
+                serviceProvider,
+                configuration,
+                "PatientDb",
                 b =>
                 {
                     b.MigrationsAssembly(typeof(PatientDbContext).Assembly.FullName);
@@ -28,9 +34,11 @@ public static class DependencyInjection
             .AddInterceptors(new OutboxDomainEventInterceptor()));
 
         // Read-side DbContext (no tracking by default, optimized for queries)
-        services.AddDbContext<PatientReadDbContext>(options =>
-            options.UseNpgsql(
-                configuration.GetConnectionString("PatientDb"),
+        services.AddDbContext<PatientReadDbContext>((serviceProvider, options) =>
+            options.UseHisHopeNpgsql(
+                serviceProvider,
+                configuration,
+                "PatientDb",
                 b =>
                 {
                     b.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
@@ -39,6 +47,18 @@ public static class DependencyInjection
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<DomainEventDispatcher>();
         services.AddOutbox<PatientDbContext>();
+        services.AddIntegrationEventMapping<PatientRegisteredDomainEvent, PatientRegisteredIntegrationEvent>(
+            domainEvent => new PatientRegisteredIntegrationEvent(
+                domainEvent.PatientId,
+                domainEvent.FullName,
+                domainEvent.Phone,
+                domainEvent.GenderCode,
+                domainEvent.DateOfBirth));
+        services.AddIntegrationEventMapping<PatientUpdatedDomainEvent, PatientUpdatedIntegrationEvent>(
+            domainEvent => new PatientUpdatedIntegrationEvent(
+                domainEvent.PatientId,
+                domainEvent.FullName,
+                domainEvent.Phone));
 
         // CQRS read-side projection services
         services.AddScoped<PatientProjector>();

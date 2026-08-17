@@ -1,0 +1,39 @@
+# Sigstore Policy Controller policy for the private Harbor production images.
+# The authority deliberately matches the same GitHub OIDC keyless identity used
+# by container-release.yml. The Policy Controller Helm release and CRDs are
+# installed separately after staging verification; namespace enforcement stays
+# disabled until positive/negative admission tests pass.
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: his-hope-harbor-cosign
+  annotations:
+    his-hope.io/signing-identity: github-actions-container-release
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: admission-control
+    app.kubernetes.io/managed-by: argocd
+spec:
+  images:
+    - glob: harbor.his-hope.local:9443/his-hope/**
+  authorities:
+    - name: github-actions-container-release
+      keyless:
+        identities:
+          - issuer: https://token.actions.githubusercontent.com
+            subjectRegExp: ^https://github\.com/Hung6066/micro/\.github/workflows/container-release\.yml@refs/(heads/main|tags/v[0-9]+\.[0-9]+\.[0-9]+)$
+      ctlog:
+        url: https://rekor.sigstore.dev
+      attestations:
+        - name: slsa-provenance
+          predicateType: https://slsa.dev/provenance/v1
+    # Controlled migration authority for artifacts promoted before the
+    # GitHub-OIDC provenance workflow was enabled. The private key never
+    # enters Git; it is held only in the secure operator store.
+    - name: his-hope-cosign-migration-key
+      key:
+        data: |
+          -----BEGIN PUBLIC KEY-----
+          MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEIdncky2HNsK1fYixRIl0cqWidBmR
+          3RbxDEvZnt6bqvpYS4F4F3TjYIuSZbATNtMzubN7UBGMlqJE3TSVaom6nQ==
+          -----END PUBLIC KEY-----

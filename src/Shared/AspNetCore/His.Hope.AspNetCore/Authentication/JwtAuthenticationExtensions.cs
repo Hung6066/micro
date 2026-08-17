@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
@@ -107,6 +108,16 @@ public static class JwtAuthenticationExtensions
                     ?.CreateLogger("His.Hope.AspNetCore.Authentication");
                 logger?.LogWarning(context.Exception, "JWT authentication failed");
                 return Task.CompletedTask;
+            },
+            OnTokenValidated = context =>
+            {
+                // ASP.NET Core may map the JWT `sub` claim to
+                // ClaimTypes.NameIdentifier. Keep both canonical forms on
+                // the principal so every service and newly-added endpoint
+                // observes the same user identity contract.
+                HisHopeUserClaims.NormalizeSubjectClaims(context.Principal);
+
+                return Task.CompletedTask;
             }
         };
     }
@@ -116,11 +127,11 @@ public static class JwtAuthenticationExtensions
         var parameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            // TODO: Re-enable audience validation after aligning IdentityService
-            // audience with client resource requests. OpenIddict sets the audience
-            // based on the resource parameter, which may differ from the configured
-            // Jwt__Audience value.
-            ValidateAudience = false,
+            // Validate both the configured service audience and the OpenIddict
+            // resource used by service-to-service access tokens. Accepting an
+            // arbitrary audience would let a token minted for another resource
+            // cross the service boundary.
+            ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             ValidIssuer = settings.ValidIssuers is { Length: > 0 }
@@ -129,7 +140,15 @@ public static class JwtAuthenticationExtensions
             ValidIssuers = settings.ValidIssuers is { Length: > 0 }
                 ? settings.ValidIssuers
                 : null,
-            ValidAudience = settings.Audience ?? "His.Hope",
+            ValidAudiences =
+            [
+                settings.Audience ?? "His.Hope",
+                "his-hope-services",
+                // IdentityService issues human session/access tokens with
+                // the canonical product audience even when a local Compose
+                // host audience is configured for browser routing.
+                "His.Hope"
+            ],
             // The session token is a nested JWT: RSA-SHA256 signs the inner JWS,
             // while RSA-OAEP/RSA-OAEP-256 wraps the JWE content-encryption key.
             // Include both key-wrapping variants and the content algorithm so
@@ -146,8 +165,45 @@ public static class JwtAuthenticationExtensions
 
         if (!string.IsNullOrWhiteSpace(settings.PublicKeyPath) && File.Exists(settings.PublicKeyPath))
         {
+            // Vault/CSI may materialize either PEM text or binary DER/SPKI
+            // depending on how the key was seeded. Accept both encodings so
+            // a valid production key cannot be mistaken for a malformed PEM.
             var rsa = RSA.Create();
-            rsa.ImportFromPem(File.ReadAllText(settings.PublicKeyPath));
+            var keyBytes = File.ReadAllBytes(settings.PublicKeyPath);
+            var keyText = Encoding.UTF8.GetString(keyBytes).Trim();
+            try
+            {
+                if (keyText.Contains("BEGIN", StringComparison.Ordinal))
+                {
+                    if (keyText.Contains("BEGIN CERTIFICATE", StringComparison.Ordinal))
+                    {
+                        using var certificate = X509Certificate2.CreateFromPem(keyText);
+                        using var certificateRsa = certificate.GetRSAPublicKey()
+                            ?? throw new CryptographicException("JWT public certificate does not contain an RSA key.");
+                        rsa.ImportParameters(certificateRsa.ExportParameters(false));
+                    }
+                    else
+                    {
+                        rsa.ImportFromPem(keyText);
+                    }
+                }
+                else
+                {
+                    try
+                    {
+                        rsa.ImportSubjectPublicKeyInfo(keyBytes, out _);
+                    }
+                    catch (CryptographicException)
+                    {
+                        rsa.ImportRSAPublicKey(keyBytes, out _);
+                    }
+                }
+            }
+            catch (CryptographicException) when (TryImportBase64PublicKey(rsa, keyText))
+            {
+                // Some secret backends store the DER payload as base64 text.
+            }
+
             parameters.IssuerSigningKey = new RsaSecurityKey(rsa);
         }
 
@@ -180,6 +236,32 @@ public static class JwtAuthenticationExtensions
         }
 
         return parameters;
+    }
+
+    private static bool TryImportBase64PublicKey(RSA rsa, string value)
+    {
+        try
+        {
+            var decoded = Convert.FromBase64String(value);
+            try
+            {
+                rsa.ImportSubjectPublicKeyInfo(decoded, out _);
+            }
+            catch (CryptographicException)
+            {
+                rsa.ImportRSAPublicKey(decoded, out _);
+            }
+
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+        catch (CryptographicException)
+        {
+            return false;
+        }
     }
 
     private static RSA? LoadRsaPrivateKey(string? pem, string? path)

@@ -77,8 +77,34 @@ public sealed class AspNetCoreExtensionsTests
             .GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<JwtBearerOptions>>()
             .Get(JwtBearerDefaults.AuthenticationScheme);
 
-        options.TokenValidationParameters.ValidAlgorithms.Should().ContainSingle()
-            .Which.Should().Be(SecurityAlgorithms.RsaSha256);
+        options.TokenValidationParameters.ValidAlgorithms.Should().Contain(SecurityAlgorithms.RsaSha256);
+    }
+
+    [Fact]
+    public void Oidc_registration_rejects_unconfigured_audiences_by_enabling_audience_validation()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Jwt:Authority"] = "https://identity.test",
+                ["Jwt:Issuer"] = "https://identity.test",
+                ["Jwt:Audience"] = "service-a",
+                ["Jwt:AllowHttp"] = "false"
+            })
+            .Build();
+
+        var services = new ServiceCollection();
+        services.AddHisHopeJwtAuthentication(configuration);
+        using var provider = services.BuildServiceProvider();
+
+        var options = provider
+            .GetRequiredService<Microsoft.Extensions.Options.IOptionsMonitor<JwtBearerOptions>>()
+            .Get(JwtBearerDefaults.AuthenticationScheme);
+
+        options.TokenValidationParameters.ValidateAudience.Should().BeTrue();
+        options.TokenValidationParameters.ValidAudiences.Should().Contain("service-a");
+        options.TokenValidationParameters.ValidAudiences.Should().Contain("his-hope-services");
+        options.TokenValidationParameters.ValidAudiences.Should().NotContain("other-service");
     }
 
     [Fact]

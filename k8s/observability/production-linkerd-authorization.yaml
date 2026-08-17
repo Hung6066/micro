@@ -1,0 +1,15 @@
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  name: linkerd-viz-prometheus-mtls
+  namespace: linkerd-viz
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: observability
+spec:
+  server:
+    name: prometheus-admin
+  client:
+    meshTLS:
+      identities:
+        - prometheus.linkerd-viz.serviceaccount.identity.linkerd.cluster.local

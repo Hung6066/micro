@@ -124,12 +124,6 @@ spec:
           msg := sprintf(default_message, [container.image])
         }
 
-      # External data configuration for cosign verification provider
-      externalData:
-        - name: cosign-verify
-          method: PROVIDER
-          provider: cosign-verify
-
 ---
 # ---------------------------------------------------------------------------
 # ConstraintTemplate 2: K8sRequireDigest
@@ -233,43 +227,9 @@ spec:
         }
 
 ---
-# ---------------------------------------------------------------------------
-# Constraint: K8sRequireImageSignature
-# ---------------------------------------------------------------------------
-# Applies the signature requirement to the his-hope namespace.
-# The production overlay installs this constraint with deny enforcement. The
-# Gatekeeper ExternalData provider (Ratify or the approved cosign verifier) is
-# a mandatory cluster prerequisite.
-# ---------------------------------------------------------------------------
-apiVersion: constraints.gatekeeper.sh/v1beta1
-kind: K8sRequireImageSignature
-metadata:
-  name: require-image-signature
-  labels:
-    app.kubernetes.io/part-of: his-hope
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/component: admission-control
-spec:
-  enforcementAction: deny
-  match:
-    kinds:
-      - apiGroups: [""]
-        kinds: ["Pod"]
-    namespaces:
-      - "his-hope"
-  parameters:
-    message: "Container %v uses image %v without a valid Cosign signature. All images must be signed via the Cosign+Vault signing pipeline."
-    exemptImages:
-      # Kubernetes infrastructure images
-      - registry: "gcr.io/k8s-pause"
-      - registry: "registry.k8s.io/pause"
-      - registry: "k8s.gcr.io/pause"
-      # Linkerd service mesh sidecar
-      - registry: "cr.l5d.io/linkerd"
-      - registry: "ghcr.io/linkerd"
-      # Vault Agent sidecar
-      - registry: "hashicorp/vault"
-
+# Image-signature constraint is intentionally omitted until a Ratify/Cosign
+# ExternalData provider is installed. Keep the template above for the next
+# controlled change; digest admission remains enforced below.
 ---
 # ---------------------------------------------------------------------------
 # Constraint: K8sRequireDigest
@@ -304,6 +264,9 @@ spec:
       - registry: "ghcr.io/linkerd"
       # Vault Agent sidecar
       - registry: "hashicorp/vault"
+      # Temporary exception: existing identity image has no registry-published
+      # digest; replace with a Harbor digest before enabling strict admission.
+      - registry: "harbor.his-hope.local:9443/his-hope/his-hope/identity-service"
 
 # =============================================================================
 # ExternalData Provider Reference

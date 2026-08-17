@@ -1,0 +1,21 @@
+- op: add
+  path: /spec/template/spec/containers/0/env/-
+  value:
+    name: Redis__TlsCaFile
+    value: /etc/tls/redis/ca.crt
+- op: add
+  path: /spec/template/spec/containers/0/volumeMounts/-
+  value:
+    name: redis-tls-ca
+    mountPath: /etc/tls/redis/ca.crt
+    subPath: ca.crt
+    readOnly: true
+- op: add
+  path: /spec/template/spec/volumes/-
+  value:
+    name: redis-tls-ca
+    secret:
+      secretName: redis-tls
+      items:
+        - key: ca.crt
+          path: ca.crt

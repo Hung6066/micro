@@ -18,6 +18,8 @@ public class RabbitMQConnection : IAsyncDisposable
 
     public bool IsConnected => _connection is { IsOpen: true } && !_disposed;
 
+    public IModel CreateChannel() => GetConnectionAsync().GetAwaiter().GetResult().CreateModel();
+
     public RabbitMQConnection(EventBusOptions options, ILogger<RabbitMQConnection> logger)
     {
         _options = options;

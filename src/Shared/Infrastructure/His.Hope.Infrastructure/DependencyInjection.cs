@@ -15,11 +15,13 @@ using His.Hope.Infrastructure.Security;
 using His.Hope.Messaging.RabbitMq;
 using His.Hope.Messaging.Redis;
 using His.Hope.Messaging.Sql;
+using His.Hope.Messaging;
 using His.Hope.Observability.OpenTelemetry;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
 namespace His.Hope.Infrastructure;
@@ -39,7 +41,17 @@ public static class DependencyInjection
         // Register singleton Redis ConnectionMultiplexer for lock manager and cache
         // Uses default settings matching the health check's ConnectionMultiplexer
         services.AddSingleton<IConnectionMultiplexer>(sp =>
-            ConnectionMultiplexer.Connect(redisConnectionString));
+            RedisConnectionFactory.Connect(redisConnectionString, configuration));
+        // Keep the platform contract compatible with components that consume
+        // Microsoft.Extensions.Caching.Distributed (token blacklist and
+        // brute-force protection). The custom hybrid cache above uses the same
+        // connection multiplexer, while this adapter supplies the standard
+        // IDistributedCache abstraction to every service.
+        services.AddStackExchangeRedisCache(options =>
+        {
+            options.ConfigurationOptions = RedisConnectionFactory.CreateOptions(redisConnectionString, configuration);
+            options.InstanceName = $"HisHope:{serviceName}:";
+        });
         services.AddHisHopeRedisMessaging();
         services.AddHisHopeRabbitMqMessaging(configuration);
 
@@ -70,6 +82,13 @@ public static class DependencyInjection
         services.AddPhiAudit();
 
         services.AddSingleton<EventTypeRegistry>();
+        // P2 schema compatibility seam. Individual bounded contexts register
+        // their event versions; consumers can reject incompatible payloads
+        // before side effects are executed.
+        services.AddSingleton<EventSchemaRegistry>();
+        services.AddOptions<OutboxOptions>()
+            .Bind(configuration.GetSection("Outbox"))
+            .PostConfigure(options => options.Validate());
         services.AddScoped<CorrelationContext>();
         // Locking pipeline behavior registered before tracing so it wraps externally
         services.AddSingleton<ILockManager, RedisLockManager>();

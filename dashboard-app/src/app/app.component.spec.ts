@@ -6,6 +6,7 @@ import { BehaviorSubject, of } from 'rxjs';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { HisHopeThemeService } from '@his-hope/frontend-foundation';
 
 describe('AppComponent', () => {
   let authServiceStub: Partial<AuthService>;
@@ -36,20 +37,21 @@ describe('AppComponent', () => {
     expect(app).toBeTruthy();
   });
 
-  it('should start with light theme by default', () => {
+  it('should expose the shared theme service', () => {
     const fixture = TestBed.createComponent(AppComponent);
     const app = fixture.componentInstance;
-    expect(app.isDarkMode$).toBeDefined();
+    expect(TestBed.inject(HisHopeThemeService).resolvedTheme()).toBeDefined();
   });
 
   it('should toggle theme on toggleTheme()', () => {
     const fixture = TestBed.createComponent(AppComponent);
     const app = fixture.componentInstance;
-    const initial = app['isDarkModeSubject'].value;
+    const themeService = TestBed.inject(HisHopeThemeService);
+    const initial = themeService.resolvedTheme();
     app.toggleTheme();
-    expect(app['isDarkModeSubject'].value).toBe(!initial);
+    expect(themeService.resolvedTheme()).not.toBe(initial);
     app.toggleTheme();
-    expect(app['isDarkModeSubject'].value).toBe(initial);
+    expect(themeService.resolvedTheme()).toBe(initial);
   });
 
   it('should set data-theme attribute on the document root', () => {

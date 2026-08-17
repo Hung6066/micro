@@ -1,0 +1,49 @@
+---
+- name: Read K3s node status
+  ansible.builtin.command: /usr/local/bin/k3s kubectl get nodes --no-headers
+  register: k3s_nodes
+  changed_when: false
+
+- name: Assert expected Ready K3s nodes
+  ansible.builtin.assert:
+    that:
+      - k3s_nodes.stdout_lines | length == k3s_expected_node_count | int
+      - k3s_nodes.stdout | regex_findall('\\bReady\\b') | length == k3s_expected_node_count | int
+    fail_msg: Expected exactly {{ k3s_expected_node_count }} Ready K3s nodes.
+
+- name: Read Kubernetes Secrets encryption state
+  ansible.builtin.command: /usr/local/bin/k3s secrets-encrypt status
+  register: k3s_encryption
+  changed_when: false
+
+- name: Assert Kubernetes Secrets encryption is enabled
+  ansible.builtin.assert:
+    that:
+      - k3s_encryption.stdout is search('Encryption Status: Enabled')
+    fail_msg: Kubernetes Secrets encryption is not enabled.
+
+- name: Inspect required audit and PSA files
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ k3s_audit_log_path }}"
+    - "{{ k3s_audit_policy_path }}"
+    - "{{ k3s_psa_policy_path }}"
+  register: k3s_security_files
+
+- name: Assert API audit and PSA artifacts exist
+  ansible.builtin.assert:
+    that:
+      - k3s_security_files.results | map(attribute='stat.exists') | min
+    fail_msg: Required K3s audit or Pod Security Admission artifact is missing.
+
+- name: Verify API readiness
+  ansible.builtin.command: /usr/local/bin/k3s kubectl get --raw=/readyz
+  register: k3s_readyz
+  changed_when: false
+
+- name: Assert API is ready
+  ansible.builtin.assert:
+    that:
+      - k3s_readyz.stdout | trim == 'ok'
+    fail_msg: K3s API server is not ready.

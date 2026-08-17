@@ -1,0 +1,27 @@
+# Reference values for the Velero Azure provider.
+# Credentials are created out-of-band; do not put client secrets in this file.
+configuration:
+  backupStorageLocation:
+    - name: azure
+      provider: azure
+      bucket: REPLACE_WITH_AZURE_CONTAINER
+      config:
+        resourceGroup: REPLACE_WITH_RESOURCE_GROUP
+        storageAccount: REPLACE_WITH_STORAGE_ACCOUNT
+        subscriptionId: REPLACE_WITH_SUBSCRIPTION_ID
+        tenantId: REPLACE_WITH_TENANT_ID
+        useAAD: "true"
+  volumeSnapshotLocation:
+    - name: azure
+      provider: azure
+      config:
+        subscriptionId: REPLACE_WITH_SUBSCRIPTION_ID
+        resourceGroup: REPLACE_WITH_RESOURCE_GROUP
+        apiTimeout: 5m
+credentials:
+  useSecret: true
+  existingSecret: velero-azure-credentials
+deployNodeAgent: true
+snapshotsEnabled: true
+defaultVolumesToFsBackup: true
+uploaderType: restic

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using His.Hope.Bff.Core.Authentication;
+using His.Hope.IdentityService.Api.Composition;
 using His.Hope.IdentityService.Api.Services;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.Interfaces;
@@ -11,6 +12,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.Infrastructure.Security;
+using His.Hope.Contracts.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +24,7 @@ public static class MfaEndpoints
 {
     public static RouteGroupBuilder MapMfaEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet("/mfa/methods", async (
+        group.MapGet(IdentityApiRoutes.MfaMethodsSegment, async (
             HttpContext httpContext,
             OidcLoginCompletionService completion,
             CancellationToken ct) =>
@@ -69,7 +71,7 @@ public static class MfaEndpoints
         .RequireAuthorization()
         .WithOpenApi();
 
-        group.MapPost("/mfa/enroll", async (
+        group.MapPost(IdentityApiRoutes.MfaEnrollSegment, async (
             HttpContext httpContext,
             TotpService totpService,
             RecoveryCodeService recoveryCodeService,
@@ -122,11 +124,12 @@ public static class MfaEndpoints
         .RequireAuthorization()
         .WithOpenApi();
 
-        group.MapPost("/mfa/verify", async (
+        group.MapPost(IdentityApiRoutes.MfaVerifySegment, async (
             MfaVerifyRequest request,
             HttpContext httpContext,
             OidcLoginCompletionService completion,
             IServiceProvider services,
+            IConfiguration configuration,
             CancellationToken ct) =>
         {
             var pending = completion.TryGetPendingMfaContext(httpContext);
@@ -164,6 +167,11 @@ public static class MfaEndpoints
             if (mfa is null)
                 return Results.Problem("MFA not enrolled. Enroll first.", statusCode: 400);
 
+            // Reject malformed input before decrypting the secret or invoking
+            // the TOTP parser; blank codes must be a client error, never a 500.
+            if (string.IsNullOrWhiteSpace(request.Code))
+                return Results.Problem("Invalid TOTP code.", statusCode: 400);
+
             var encryptor = services.GetRequiredService<IMfaSecretEncryptor>();
             var totpService = services.GetRequiredService<TotpService>();
             var decryptedSecret = encryptor.Decrypt(mfa.SecretKey);
@@ -183,7 +191,7 @@ public static class MfaEndpoints
             await tokenBlacklist.RevokeAllUserTokensAsync(user.Id.ToString(), ct);
 
             var roles = await userManager.GetRolesAsync(user);
-            var permissions = await GetPermissionsForRoles(roles, db, ct);
+            var permissions = await GetPermissionsForRoles(roles, db, user.Id, ct);
             var tokenGenerator = services.GetRequiredService<JwtTokenGenerator>();
             var (accessToken, expiresAt) = tokenGenerator.GenerateAccessToken(
                 user, roles, permissions, amrValues: ["pwd", "otp"]);
@@ -199,6 +207,7 @@ public static class MfaEndpoints
                 Jwt = services.GetRequiredService<SessionTokenProtector>().Protect(accessToken),
                 RefreshToken = services.GetRequiredService<SessionTokenProtector>().Protect(refreshTokenValue),
                 Permissions = permissions.ToArray(),
+                PrincipalType = AuthorizationConstants.PrincipalTypes.Human,
                 CsrfToken = csrfToken,
                 UserAgentHash = ComputeSha256(httpContext.Request.Headers.UserAgent.ToString()),
                 IssuedAt = DateTimeOffset.UtcNow,
@@ -217,7 +226,8 @@ public static class MfaEndpoints
                 HttpOnly = true,
                 Secure = httpContext.Request.IsHttps,
                 SameSite = SameSiteMode.Lax,
-                Path = "/api",
+                Domain = BffHelpers.CookieDomain(configuration),
+                Path = "/",
                 MaxAge = TimeSpan.FromHours(1)
             });
 
@@ -226,6 +236,7 @@ public static class MfaEndpoints
                 HttpOnly = false,
                 Secure = httpContext.Request.IsHttps,
                 SameSite = SameSiteMode.Strict,
+                Domain = BffHelpers.CookieDomain(configuration),
                 Path = "/",
                 MaxAge = TimeSpan.FromHours(1)
             });
@@ -236,7 +247,7 @@ public static class MfaEndpoints
         .RequireRateLimiting("mfa")
         .WithOpenApi();
 
-        group.MapPost("/mfa/recover", async (
+        group.MapPost(IdentityApiRoutes.MfaRecoverSegment, async (
             MfaRecoverRequest request,
             HttpContext httpContext,
             RecoveryCodeService recoveryCodeService,
@@ -298,20 +309,24 @@ public static class MfaEndpoints
                 string.Equals(value.Trim('"'), "passkey", StringComparison.OrdinalIgnoreCase));
 
     private static async Task<List<string>> GetPermissionsForRoles(
-        IList<string> roleNames, IdentityDbContext db, CancellationToken ct)
+        IList<string> roleNames, IdentityDbContext db, Guid? userId, CancellationToken ct)
     {
         var roleIds = await db.Roles
             .Where(r => roleNames.Contains(r.Name!))
             .Select(r => r.Id)
             .ToListAsync(ct);
 
-        if (roleIds.Count == 0) return [];
-
-        return await db.RolePermissions
+        var permissions = await db.RolePermissions
             .Where(rp => roleIds.Contains(rp.RoleId))
             .Select(rp => rp.PermissionCode)
             .Distinct()
             .ToListAsync(ct);
+        if (userId is Guid subjectUserId)
+            permissions.AddRange(await db.BreakGlassRequests
+                .Where(request => request.SubjectUserId == subjectUserId && request.Status == "approved" && request.RevokedAt == null && request.ExpiresAt > DateTime.UtcNow)
+                .Select(request => request.PermissionCode)
+                .ToListAsync(ct));
+        return permissions.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     private static UserDto MapToDto(User user, IList<string> roles) => new(

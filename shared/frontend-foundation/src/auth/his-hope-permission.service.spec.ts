@@ -65,4 +65,28 @@ describe("HisHopePermissionService", () => {
     expect(service.snapshot()?.facilityIds).toEqual(["facility-a", "facility-b"]);
     expect(service.has("patients.read")).toBeTrue();
   });
+
+  it("exposes OAuth scopes as normalized UX entitlements", () => {
+    service.setSnapshot({ permissions: ["patients.view"], scopes: [" fhir.patient.read ", "fhir.patient.read"] });
+    expect(service.hasScope("fhir.patient.read")).toBeTrue();
+    expect(service.hasScope("fhir.encounter.read")).toBeFalse();
+    expect(service.hasAllScopes(["fhir.patient.read"])).toBeTrue();
+  });
+
+  it("clears the snapshot on an authentication failure and records the denial", () => {
+    service.setPermissions(["patients.view"]);
+    service.recordAuthorizationFailure(401, "patients.view");
+
+    expect(service.hasSnapshot()).toBeFalse();
+    expect(service.lastAuthorizationFailure()?.status).toBe(401);
+    expect(service.lastAuthorizationFailure()?.action).toBe("patients.view");
+  });
+
+  it("keeps the snapshot on a resource denial but exposes failure state to UX", () => {
+    service.setPermissions(["patients.view"]);
+    service.recordAuthorizationFailure(403, "patients.view");
+
+    expect(service.has("patients.view")).toBeTrue();
+    expect(service.lastAuthorizationFailure()?.status).toBe(403);
+  });
 });

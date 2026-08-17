@@ -13,8 +13,19 @@ public static class OpenTelemetryRegistration
     public static IServiceCollection AddHisHopeOpenTelemetryExporters(this IServiceCollection services, IConfiguration configuration, string serviceName)
     {
         var endpoint = configuration["OpenTelemetry:OtlpEndpoint"] ?? configuration["Otlp:Endpoint"];
+        var releaseSha = configuration["HIS_HOPE_RELEASE_SHA"]
+            ?? Environment.GetEnvironmentVariable("HIS_HOPE_RELEASE_SHA")
+            ?? "unknown";
+        var releaseDigest = configuration["HIS_HOPE_RELEASE_DIGEST"]
+            ?? Environment.GetEnvironmentVariable("HIS_HOPE_RELEASE_DIGEST")
+            ?? "unknown";
         var builder = services.AddOpenTelemetry()
-            .ConfigureResource(resource => resource.AddService(serviceName, serviceVersion: "1.0.0"))
+            .ConfigureResource(resource => resource
+                .AddService(serviceName, serviceVersion: releaseSha)
+                .AddAttributes([
+                    new KeyValuePair<string, object>("release.sha", releaseSha),
+                    new KeyValuePair<string, object>("release.digest", releaseDigest),
+                ]))
             .WithTracing(tracing =>
             {
                 tracing.AddAspNetCoreInstrumentation(options => options.RecordException = true)

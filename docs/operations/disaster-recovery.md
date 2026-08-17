@@ -4,6 +4,67 @@
 > **Version:** 2.0
 > **Audience:** SRE, Platform Engineer, Security Officer
 > **Cập nhật:** 2026-07-23
+>
+> **Trạng thái:** Các lệnh CockroachDB/GCS/GKE bên dưới là tài liệu legacy và
+> không được dùng cho production K3s hiện tại. Profile authoritative hiện hành
+> nằm trong phần 0 và các runbook/workflow được liên kết ở đó.
+
+---
+
+## 0. Profile DR production hiện hành (authoritative)
+
+| Thành phần | Cơ chế hiện hành | Bằng chứng bắt buộc |
+|------------|------------------|---------------------|
+| K3s control-plane | 3 server độc lập, etcd snapshot qua Azure | `control-plane-rebuild-drill.json` |
+| PostgreSQL | CloudNativePG + Barman plugin tới Azure Blob | `database-restore-drill.json` |
+| Secrets | Vault recovery/unseal và rotation không lộ giá trị | `vault-recovery-drill.json` |
+| Harbor | Pull image digest từ clean node | `harbor-clean-node-test.json` |
+| PVC/stateful data | CSI replicated storage + VolumeSnapshot restore | `longhorn-snapshot-restore.json` |
+| Application | Restore → migration → auth/API smoke test | `application-restore-smoke.json` |
+
+Các giá trị Azure chỉ được đọc từ `azure-production.env` trong protected
+workflow; không commit hoặc ghi vào evidence. Mỗi evidence phải có
+`status=pass`, `restoreVerified=true`, `target`, `rpoMinutes`, `rtoMinutes` và
+`executedAtUtc`. Validator fail-closed:
+
+```powershell
+pwsh scripts/validate-dr-evidence.ps1 `
+  -EvidenceDirectory artifacts/evidence `
+  -OutputPath artifacts/evidence/production-dr-evidence.json
+pwsh scripts/validate-storage-backup-contract.ps1 `
+  -SecureEnvFile D:\secure\his-hope\azure-production.env `
+  -RequireSecureEnv `
+  -OutputPath artifacts/evidence/production-storage-backup.json
+```
+
+Bootstrap/restore không chạy trực tiếp từ build CI. Dùng protected workflows:
+
+- `.github/workflows/cnpg-azure-backup-bootstrap.yml`
+- `.github/workflows/cnpg-restore-drill.yml`
+- `.github/workflows/vault-recovery-drill.yml`
+- `.github/workflows/longhorn-storage-bootstrap.yml`
+- `.github/workflows/k3s-production-go-live-gate.yml`
+
+Mọi thao tác `apply` hoặc restore production cần change approval và target cô
+lập; không tạo evidence giả để làm xanh gate.
+
+### CNPG restore drill hiện hành
+
+Dùng `cnpg-restore-drill.yml` với một manifest CNPG đã review, namespace mới
+không trùng `spire`/`his-hope`, và `apply=true` trong protected environment.
+
+`scripts/test-cnpg-restore-drill.ps1` chỉ apply manifest vào namespace cô lập,
+chờ cluster healthy, chạy `SELECT 1` trên primary, ghi RPO/RTO redacted rồi
+xóa namespace restore. Không dùng workflow này để restore in-place hoặc ghi
+secret vào evidence. Dry-run là mặc định.
+
+### Vault recovery drill hiện hành
+
+`vault-recovery-drill.yml` chỉ restart một member của Vault StatefulSet trong
+protected environment rồi kiểm tra `initialized=true` và `sealed=false` bằng
+Vault CLI qua TLS nội bộ. Drill xác minh Raft member recovery và Azure Key
+Vault auto-unseal, không in recovery key/token, và không thay đổi secret data.
+Production yêu cầu `apply=true` cùng change approval.
 
 ---
 

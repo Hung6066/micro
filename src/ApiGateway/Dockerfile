@@ -3,13 +3,14 @@
 # ============================================================
 # BUILD STAGE
 # ============================================================
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0@sha256:e2f26f26169fd10d6f1b426e01c97397717b32e9d5ab4ee4a7d5497ed9403007 AS build
 WORKDIR /src
 
 # --- Restore dependencies (layer cached) ---
 # Copy ONLY .csproj files first for layer caching
 COPY ["src/ApiGateway/*.csproj", "ApiGateway/"]
 COPY ["src/Bff/His.Hope.Bff.Core/*.csproj", "Bff/His.Hope.Bff.Core/"]
+COPY ["src/Shared/Configuration/His.Hope.Configuration/*.csproj", "Shared/Configuration/His.Hope.Configuration/"]
 COPY ["src/Shared/SharedKernel/Src/His.Hope.SharedKernel/*.csproj", "Shared/SharedKernel/Src/His.Hope.SharedKernel/"]
 COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/*.csproj", "Shared/Infrastructure/His.Hope.Infrastructure/"]
 COPY ["src/Shared/AspNetCore/His.Hope.AspNetCore/*.csproj", "Shared/AspNetCore/His.Hope.AspNetCore/"]
@@ -29,6 +30,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
 # --- Copy source and publish ---
 COPY ["src/ApiGateway/", "ApiGateway/"]
 COPY ["src/Bff/His.Hope.Bff.Core/", "Bff/His.Hope.Bff.Core/"]
+COPY ["src/Shared/Configuration/His.Hope.Configuration/", "Shared/Configuration/His.Hope.Configuration/"]
 COPY ["src/Shared/SharedKernel/Src/His.Hope.SharedKernel/", "Shared/SharedKernel/Src/His.Hope.SharedKernel/"]
 COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/", "Shared/Infrastructure/His.Hope.Infrastructure/"]
 COPY ["src/Shared/AspNetCore/His.Hope.AspNetCore/", "Shared/AspNetCore/His.Hope.AspNetCore/"]
@@ -53,7 +55,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
 # ============================================================
 # RUNTIME STAGE (distroless chiseled-extra)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy-chiseled-extra@sha256:5ca699b92bdafde798d1177500586f915ff49b3c12cac77a27dbcdbcf0e760c6 AS runtime
 WORKDIR /app
 EXPOSE 8080
 

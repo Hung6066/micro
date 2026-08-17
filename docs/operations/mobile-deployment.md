@@ -372,3 +372,45 @@ Record these values in the deployment ticket for every release:
 - certificate expiry and SPKI rotation date;
 - push provider credential version;
 - on-call engineer and rollback approver.
+
+## 14. P0 device management and delivery dashboard
+
+Identity records only a SHA-256 token hash and Data Protection-protected provider
+token in `mobile_device_registrations`. Administrative operations are exposed
+through the authenticated admin API:
+
+- `GET /api/v1/admin/mobile/devices` lists active and revoked devices;
+- `POST /api/v1/admin/mobile/devices/{id}/revoke` immediately disables delivery;
+- `GET /api/v1/admin/push/delivery-summary?hours=24` reports queued, pending,
+  sent and failed delivery attempts by platform.
+
+The admin Mobile operations page is an operational view, not a place to expose
+provider tokens or notification payloads. Delivery attempts store only device,
+platform, status, sanitized provider error code and timestamp.
+
+APNs uses `PushProviders__ApnsEndpoint` (production default
+`https://api.push.apple.com`) and requires the APNs key, team ID, bundle ID and
+ES256 private key from Vault/secrets. Use the sandbox endpoint only for a
+development-signed app. An APNs physical-device test is not passed until the
+token is registered, the dashboard shows the device, and a non-PHI test
+notification is observed on the device.
+
+## 15. Offline conflict and encryption gate
+
+The mobile queue is encrypted by the native Keychain/Keystore adapter and uses
+schema-versioned envelopes with a seven-day idempotency key. The P0 contract is:
+
+- `schemaVersion=1`;
+- `conflictPolicy=reject_on_stale` for clinical entities;
+- `entityType`, `entityId` and `baseVersion` are required for future clinical
+  mutations;
+- patient offline writes are rejected unless the explicit server policy
+  `Mobile__Offline__PatientDataEnabled=true` is enabled;
+- `last_write_wins` is never permitted for patient data;
+- crash, RUM, telemetry and notification payloads must not contain PHI,
+  access tokens or cookies.
+
+This deliberately makes offline patient data a release gate rather than a
+silent fallback. Before enabling it, implement and test per-entity version
+checks, deterministic conflict responses, encrypted-at-rest retention, remote
+wipe/revocation, and an audit record for every replay and conflict.

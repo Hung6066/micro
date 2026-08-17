@@ -1,3 +1,4 @@
+using System.Text.Json;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.SharedKernel.Authorization;
@@ -41,8 +42,22 @@ public static class IdentityDbInitializer
         var logger = loggerFactory.CreateLogger("IdentityDbInitializer");
         var ct = CancellationToken.None;
 
+        var migrationOnly = configuration?.GetValue<bool>("Persistence:MigrationOnly") == true;
+        if (configuration?.GetValue<bool>("Persistence:RunMigrationsOnStartup") != true && !migrationOnly)
+        {
+            logger.LogInformation(
+                "Skipping identity migration and seed on API startup; run the dedicated persistence job first.");
+            return;
+        }
+
         var migrationRunner = scope.ServiceProvider.GetRequiredService<IMigrationRunner>();
-        await migrationRunner.MigrateAsync(ct);
+        await MigrateWhenDatabaseReadyAsync(migrationRunner, logger, ct);
+
+        if (migrationOnly)
+        {
+            logger.LogInformation("Identity migration-only mode completed; skipping seed and API startup.");
+            return;
+        }
 
         // ──────────────────────────────────────────────
         // Step 0: Clean up old/incorrect permission codes
@@ -152,6 +167,7 @@ public static class IdentityDbInitializer
                 HisHopePermissions.Pharmacy.View,
                 HisHopePermissions.Pharmacy.Create,
                 HisHopePermissions.Pharmacy.Dispense,
+                HisHopePermissions.Dashboard.View,
             },
 
             ["Nurse"] = new HashSet<string>
@@ -164,6 +180,7 @@ public static class IdentityDbInitializer
                 HisHopePermissions.Clinical.Create,
                 HisHopePermissions.Clinical.Update,
                 HisHopePermissions.LabOrders.View,
+                HisHopePermissions.Dashboard.View,
             },
 
             ["Receptionist"] = new HashSet<string>
@@ -175,6 +192,7 @@ public static class IdentityDbInitializer
                 HisHopePermissions.Appointments.CheckIn,
                 HisHopePermissions.Billing.View,
                 HisHopePermissions.Billing.Create,
+                HisHopePermissions.Dashboard.View,
             },
 
             ["LabTechnician"] = new HashSet<string>
@@ -183,7 +201,10 @@ public static class IdentityDbInitializer
                 HisHopePermissions.LabOrders.Create,
                 HisHopePermissions.LabOrders.Update,
                 HisHopePermissions.LabOrders.Result,
+                HisHopePermissions.LabOrders.AlertAcknowledge,
+                HisHopePermissions.LabOrders.AlertResolve,
                 HisHopePermissions.Patients.View,
+                HisHopePermissions.Dashboard.View,
             },
 
             ["Pharmacist"] = new HashSet<string>
@@ -192,6 +213,7 @@ public static class IdentityDbInitializer
                 HisHopePermissions.Pharmacy.Update,
                 HisHopePermissions.Pharmacy.Dispense,
                 HisHopePermissions.Patients.View,
+                HisHopePermissions.Dashboard.View,
             },
 
             ["BillingClerk"] = new HashSet<string>
@@ -201,6 +223,7 @@ public static class IdentityDbInitializer
                 HisHopePermissions.Billing.Update,
                 HisHopePermissions.Billing.Void,
                 HisHopePermissions.Patients.View,
+                HisHopePermissions.Dashboard.View,
             },
         };
 
@@ -281,6 +304,11 @@ public static class IdentityDbInitializer
             {
                 var errors = string.Join(", ", result.Errors.Select(e => e.Description));
                 logger.LogError("Failed to create admin user: {Errors}", errors);
+                // Do not continue with role assignment for an entity that was
+                // not persisted. Otherwise UserManager attempts to insert a
+                // dangling asp_net_user_roles row and prevents the service
+                // from becoming ready on the next restart.
+                adminUser = null;
             }
             else
             {
@@ -290,6 +318,23 @@ public static class IdentityDbInitializer
         else
         {
             logger.LogInformation("Admin user already exists.");
+
+            if (ShouldResetAdminPassword(configuration) && !adminBootstrap.SkipUserSeed)
+            {
+                var resetToken = await userManager.GeneratePasswordResetTokenAsync(adminUser);
+                var resetResult = await userManager.ResetPasswordAsync(
+                    adminUser,
+                    resetToken,
+                    adminBootstrap.Password!);
+
+                if (!resetResult.Succeeded)
+                {
+                    var errors = string.Join(", ", resetResult.Errors.Select(e => e.Description));
+                    throw new InvalidOperationException($"Failed to reset the Identity admin bootstrap password: {errors}");
+                }
+
+                logger.LogInformation("Admin bootstrap password reset completed.");
+            }
         }
 
         if (adminUser is not null && !adminBootstrap.SkipUserSeed)
@@ -495,18 +540,22 @@ public static class IdentityDbInitializer
             new { ClientId = "billing-service", DisplayName = "Billing Service (M2M)", Scopes = "hishop:billing hishop:patients" },
             new { ClientId = "clinical-service", DisplayName = "Clinical Service (M2M)", Scopes = "hishop:clinical hishop:patients" },
             new { ClientId = "appointment-service", DisplayName = "Appointment Service (M2M)", Scopes = "hishop:appointments hishop:patients" },
+            new { ClientId = "scim-provisioner", DisplayName = "SCIM Provisioner (M2M)", Scopes = "scim.read scim.write" },
         };
 
         var vaultStore = scope.ServiceProvider.GetRequiredService<VaultClientSecretStore>();
+        var isDevelopment = hostEnvironment?.IsDevelopment() == true ||
+            string.Equals(configuration?["ASPNETCORE_ENVIRONMENT"], Environments.Development, StringComparison.OrdinalIgnoreCase);
 
         foreach (var m2m in m2mClients)
         {
-            if (await appManager.FindByClientIdAsync(m2m.ClientId, ct) is null)
+            var existingM2m = await appManager.FindByClientIdAsync(m2m.ClientId, ct);
+            if (existingM2m is null)
             {
                 var secret = vaultStore.GenerateSecret(m2m.ClientId);
                 await vaultStore.StoreSecretAsync(m2m.ClientId, secret, ct);
 
-                await appManager.CreateAsync(new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
+                var descriptor = new OpenIddict.Abstractions.OpenIddictApplicationDescriptor
                 {
                     ClientId = m2m.ClientId,
                     ClientSecret = secret,
@@ -517,10 +566,26 @@ public static class IdentityDbInitializer
                         OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Token,
                         OpenIddict.Abstractions.OpenIddictConstants.Permissions.Endpoints.Introspection,
                         OpenIddict.Abstractions.OpenIddictConstants.Permissions.GrantTypes.ClientCredentials,
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "openid",
+                        OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + "profile",
                     }
-                }, ct);
+                };
+                foreach (var requestedScope in m2m.Scopes.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                    descriptor.Permissions.Add(OpenIddict.Abstractions.OpenIddictConstants.Permissions.Prefixes.Scope + requestedScope);
+                await appManager.CreateAsync(descriptor, ct);
 
                 logger.LogInformation("M2M client '{ClientId}' created with scopes: {Scopes}", m2m.ClientId, m2m.Scopes);
+            }
+            else if (isDevelopment && !vaultStore.UsesPersistentStore)
+            {
+                // In local development the OpenIddict database stores only a
+                // hash. Re-derive the configured dev secret on startup so a
+                // restart does not strand seeded M2M clients. Production uses
+                // Vault/KMS and never enters this branch.
+                var secret = vaultStore.GenerateSecret(m2m.ClientId);
+                await vaultStore.StoreSecretAsync(m2m.ClientId, secret, ct);
+                await appManager.UpdateAsync(existingM2m, secret, ct);
+                logger.LogInformation("Synchronized development M2M client secret for '{ClientId}'.", m2m.ClientId);
             }
         }
 
@@ -532,7 +597,13 @@ public static class IdentityDbInitializer
         var scopeManager = scope.ServiceProvider.GetRequiredService<
             OpenIddict.Abstractions.IOpenIddictScopeManager>();
 
-        var scopeNames = new[] { "hishop:permissions", "hishop:patients", "hishop:appointments", "hishop:clinical", "hishop:lab", "hishop:billing", "hishop:pharmacy", "hishop:admin" };
+        var scopeNames = new[]
+        {
+            "hishop:permissions", "hishop:patients", "hishop:appointments",
+            "hishop:clinical", "hishop:lab", "hishop:billing", "hishop:pharmacy",
+            "hishop:admin", "fhir.patient.read", "fhir.encounter.read",
+            "platform.continuity.write", "scim.read", "scim.write"
+        };
         foreach (var scopeName in scopeNames)
         {
             if (await scopeManager.FindByNameAsync(scopeName, ct) is null)
@@ -547,7 +618,213 @@ public static class IdentityDbInitializer
         }
 
         logger.LogInformation("OIDC scopes seeded successfully.");
+        await SeedControlPlaneSampleDataAsync(context, logger, ct);
         logger.LogInformation("Database seeding completed successfully.");
+    }
+
+    private static async Task SeedControlPlaneSampleDataAsync(
+        IdentityDbContext db,
+        ILogger logger,
+        CancellationToken ct)
+    {
+        // Stable sample graph used by the admin-app local/demo environment.
+        // Every lookup is by a canonical key so rerunning startup remains idempotent.
+        var actor = await db.Users.AsNoTracking().OrderBy(x => x.UserName).FirstOrDefaultAsync(ct);
+        if (actor is null) return;
+        var actorId = actor.Id;
+
+        async Task<IamScope> Scope(string key, string name, string kind, Guid? parentId)
+        {
+            var item = await db.IamScopes.FirstOrDefaultAsync(x => x.Key == key && x.Kind == kind, ct);
+            if (item is not null) return item;
+            item = new IamScope { Key = key, DisplayName = name, Kind = kind, ParentId = parentId };
+            db.IamScopes.Add(item); await db.SaveChangesAsync(ct); return item;
+        }
+
+        var organization = await Scope("his-hope", "His.Hope Healthcare", "organization", null);
+        var tenant = await Scope("demo-hospital", "Demo Hospital", "tenant", organization.Id);
+        var account = await Scope("clinical-account", "Clinical account", "account", tenant.Id);
+        var environment = await Scope("local", "Local development", "environment", account.Id);
+
+        var serviceDefinitions = new (string Key, string Name, string Prefix)[]
+        {
+            ("identity", "Identity Service", "identity"), ("patients", "Patient Service", "patients"),
+            ("clinical", "Clinical Service", "clinical"), ("appointments", "Appointment Service", "appointments"),
+            ("billing", "Billing Service", "billing"), ("pharmacy", "Pharmacy Service", "pharmacy"),
+            ("lab", "Laboratory Service", "lab"),
+            ("fhir", "FHIR Service", "fhir"),
+            ("external-integration", "External Integration Service", "external"),
+            ("database-continuity", "Database Continuity Service", "admin"),
+            ("remediation", "Remediation Operator", "admin"),
+            ("mobile", "Mobile Platform", "admin")
+        };
+        foreach (var definition in serviceDefinitions)
+        {
+            if (!await db.IamServiceDefinitions.AnyAsync(x => x.Key == definition.Key, ct))
+                db.IamServiceDefinitions.Add(new IamServiceDefinition { Key = definition.Key, DisplayName = definition.Name, PermissionPrefix = definition.Prefix, Owner = "identity-service" });
+        }
+        await db.SaveChangesAsync(ct);
+
+        // Publish an auditable template snapshot for each workforce role. The
+        // ASP.NET Identity role remains the effective grant; this snapshot is
+        // what the IAM workflow reviews and the admin-app renders.
+        foreach (var role in await db.Roles.AsNoTracking().Where(x => x.Name != null).ToListAsync(ct))
+        {
+            if (!await db.RoleTemplateVersions.AnyAsync(x => x.RoleId == role.Id && x.Version == role.AuthorizationVersion, ct))
+            {
+                var rolePermissions = await db.RolePermissions.AsNoTracking()
+                    .Where(x => x.RoleId == role.Id)
+                    .Select(x => x.PermissionCode)
+                    .ToArrayAsync(ct);
+                db.RoleTemplateVersions.Add(new RoleTemplateVersion
+                {
+                    RoleId = role.Id,
+                    Version = role.AuthorizationVersion,
+                    Name = role.Name!,
+                    Description = role.Description,
+                    Owner = role.Owner,
+                    RiskTier = role.RiskTier,
+                    ReviewCadenceDays = role.ReviewCadenceDays,
+                    LifecycleStatus = "published",
+                    PermissionsJson = JsonSerializer.Serialize(rolePermissions),
+                    CreatedBy = actorId.ToString(),
+                    PublishedAt = role.PublishedAt ?? DateTime.UtcNow,
+                    PublishedBy = actorId.ToString()
+                });
+            }
+        }
+        await db.SaveChangesAsync(ct);
+
+        var permissionSets = new Dictionary<string, IamPermissionSet>(StringComparer.Ordinal);
+        async Task<IamPermissionSet> PermissionSet(string key, string name, string[] permissions, string status = "published")
+        {
+            var item = await db.IamPermissionSets.FirstOrDefaultAsync(x => x.Key == key, ct);
+            if (item is null)
+            {
+                item = new IamPermissionSet { Key = key, DisplayName = name, ScopeId = environment.Id, PermissionsJson = JsonSerializer.Serialize(permissions), LifecycleStatus = status, CreatedBy = actorId.ToString(), PublishedAt = status == "published" ? DateTime.UtcNow : null };
+                db.IamPermissionSets.Add(item); await db.SaveChangesAsync(ct);
+            }
+            permissionSets[key] = item; return item;
+        }
+
+        var workforceSet = await PermissionSet("demo-clinical-admin", "Demo clinical administrator", new[] { "patients.view", "patients.update", "clinical.view", "clinical.update", "appointments.view" });
+        var readOnlySet = await PermissionSet("demo-audit-readonly", "Demo audit read-only", new[] { "patients.view", "clinical.view", "audit.read" });
+        var draftSet = await PermissionSet("demo-billing-draft", "Demo billing draft", new[] { "billing.view", "billing.create" }, "draft");
+
+        if (!await db.IamPermissionSetAssignments.AnyAsync(x => x.PermissionSetId == workforceSet.Id && x.PrincipalId == actorId, ct))
+            db.IamPermissionSetAssignments.Add(new IamPermissionSetAssignment { PermissionSetId = workforceSet.Id, PrincipalId = actorId, PrincipalType = "human", ScopeId = environment.Id, CreatedBy = actorId.ToString() });
+        if (!await db.IamPermissionSetAssignments.AnyAsync(x => x.PermissionSetId == readOnlySet.Id && x.PrincipalId == actorId, ct))
+            db.IamPermissionSetAssignments.Add(new IamPermissionSetAssignment { PermissionSetId = readOnlySet.Id, PrincipalId = actorId, PrincipalType = "human", ScopeId = tenant.Id, CreatedBy = actorId.ToString(), ExpiresAt = DateTime.UtcNow.AddDays(30) });
+
+        var group = await db.IamGroups.FirstOrDefaultAsync(x => x.Key == "clinical-operators", ct);
+        if (group is null) { group = new IamGroup { Key = "clinical-operators", DisplayName = "Clinical operators", ScopeId = tenant.Id, CreatedBy = actorId.ToString() }; db.IamGroups.Add(group); await db.SaveChangesAsync(ct); }
+        if (!await db.IamGroupMemberships.AnyAsync(x => x.GroupId == group.Id && x.UserId == actorId, ct)) db.IamGroupMemberships.Add(new IamGroupMembership { GroupId = group.Id, UserId = actorId, CreatedBy = actorId.ToString() });
+        if (!await db.IamPermissionSetAssignments.AnyAsync(x => x.PermissionSetId == readOnlySet.Id && x.PrincipalId == group.Id && x.PrincipalType == "group", ct))
+            db.IamPermissionSetAssignments.Add(new IamPermissionSetAssignment { PermissionSetId = readOnlySet.Id, PrincipalId = group.Id, PrincipalType = "group", ScopeId = tenant.Id, CreatedBy = actorId.ToString(), ExpiresAt = DateTime.UtcNow.AddDays(30) });
+
+        var workloadDefinitions = new (string Key, string Name, string Audience, string[] Permissions)[]
+        {
+            ("clinical-api-reader", "Clinical API reader", "clinical-service", new[] { "clinical.view", "patients.view" }),
+            ("appointment-api-writer", "Appointment API writer", "appointment-service", new[] { "appointments.view", "appointments.update" }),
+            ("lab-api-reader", "Laboratory API reader", "lab-service", new[] { "lab.view", "lab.result" }),
+            ("billing-api-reader", "Billing API reader", "billing-service", new[] { "billing.view" }),
+            ("pharmacy-api-reader", "Pharmacy API reader", "pharmacy-service", new[] { "pharmacy.view" })
+        };
+        foreach (var definition in workloadDefinitions)
+        {
+            if (await db.IamWorkloadRoles.AnyAsync(x => x.Key == definition.Key, ct)) continue;
+            db.IamWorkloadRoles.Add(new IamWorkloadRole
+            {
+                Key = definition.Key,
+                DisplayName = definition.Name,
+                ScopeId = environment.Id,
+                Audience = definition.Audience,
+                TrustPolicyJson = JsonSerializer.Serialize(new { principals = new[] { definition.Audience }, conditions = new { environment = "local" } }),
+                PermissionsJson = JsonSerializer.Serialize(definition.Permissions),
+                MaxSessionSeconds = 900
+            });
+        }
+        await db.SaveChangesAsync(ct);
+        // Link every workload role to a permission envelope, boundary and
+        // resource policy. This makes the demo graph representative of the
+        // control-plane relationships rendered by the IAM menu.
+        var workloadRoles = await db.IamWorkloadRoles.Where(x => x.ScopeId == environment.Id).ToListAsync(ct);
+        foreach (var workloadRole in workloadRoles)
+        {
+            var permissions = workloadRole.PermissionsJson;
+            if (!await db.IamPermissionSetAssignments.AnyAsync(x => x.PermissionSetId == readOnlySet.Id && x.PrincipalId == workloadRole.Id && x.PrincipalType == "workload", ct))
+                db.IamPermissionSetAssignments.Add(new IamPermissionSetAssignment { PermissionSetId = readOnlySet.Id, PrincipalId = workloadRole.Id, PrincipalType = "workload", ScopeId = environment.Id, CreatedBy = actorId.ToString(), ExpiresAt = DateTime.UtcNow.AddDays(30) });
+
+            if (!await db.IamPermissionBoundaries.AnyAsync(x => x.PrincipalId == workloadRole.Id && x.PrincipalType == "workload", ct))
+                db.IamPermissionBoundaries.Add(new IamPermissionBoundary { PrincipalId = workloadRole.Id, PrincipalType = "workload", ScopeId = environment.Id, AllowedPermissionsJson = permissions, ResourceConstraintsJson = "{\"tenant\":\"demo-hospital\"}", CreatedBy = actorId.ToString() });
+
+            var serviceKey = workloadRole.Audience switch
+            {
+                "appointment-service" => "appointments",
+                "clinical-service" => "clinical",
+                "lab-service" => "lab",
+                "billing-service" => "billing",
+                "pharmacy-service" => "pharmacy",
+                _ when workloadRole.Audience.EndsWith("-service", StringComparison.Ordinal) => workloadRole.Audience[..^"-service".Length],
+                _ => workloadRole.Audience
+            };
+            if (!await db.IamResourcePolicies.AnyAsync(x => x.ServiceKey == serviceKey && x.ResourcePattern == $"{serviceKey}/*", ct))
+                db.IamResourcePolicies.Add(new IamResourcePolicy { ScopeId = environment.Id, ServiceKey = serviceKey, ResourcePattern = $"{serviceKey}/*", StatementsJson = $"[{{\"effect\":\"allow\",\"actions\":{permissions},\"principal\":\"{workloadRole.Key}\"}}]", LifecycleStatus = "published", PublishedAt = DateTime.UtcNow, CreatedBy = actorId.ToString() });
+        }
+        if (!await db.AuthorizationPolicies.AnyAsync(x => x.Key == "demo-clinical-hours", ct)) db.AuthorizationPolicies.Add(new AuthorizationPolicyDefinition { Key = "demo-clinical-hours", Description = "Clinical access during hospital hours", Owner = "identity-service", LifecycleStatus = "published", RulesJson = "{\"all\":[{\"attribute\":\"facility\",\"equals\":\"demo-hospital\"}]}", CreatedBy = actorId.ToString(), PublishedAt = DateTime.UtcNow, PublishedBy = actorId.ToString() });
+
+        if (!await db.AccessRequests.AnyAsync(x => x.SubjectUserId == actorId && x.Reason == "Demo JIT access", ct)) db.AccessRequests.Add(new AccessRequest { SubjectUserId = actorId, RequestedBy = actorId.ToString(), RoleIdsJson = JsonSerializer.Serialize(new[] { workforceSet.Id.ToString() }), Reason = "Demo JIT access", Status = "pending", ExpiresAt = DateTime.UtcNow.AddHours(8) });
+        if (!await db.AccessReviews.AnyAsync(x => x.SubjectUserId == actorId && x.RoleIdsJson.Contains(workforceSet.Id.ToString()), ct)) db.AccessReviews.Add(new AccessReview { SubjectUserId = actorId, Reviewer = actorId.ToString(), RoleIdsJson = JsonSerializer.Serialize(new[] { workforceSet.Id.ToString() }), Status = "pending", DueAt = DateTime.UtcNow.AddDays(30) });
+        if (!await db.BreakGlassRequests.AnyAsync(x => x.SubjectUserId == actorId && x.Reason == "Demo break-glass", ct)) db.BreakGlassRequests.Add(new BreakGlassRequest { Id = Guid.NewGuid(), SubjectUserId = actorId, PermissionCode = "clinical.view", FacilityId = "demo-hospital", Reason = "Demo break-glass", RequestedBy = actorId.ToString(), Status = "pending", ExpiresAt = DateTime.UtcNow.AddHours(1) });
+        if (!await db.DevicePosturePolicies.AnyAsync(x => x.Id == "default", ct)) db.DevicePosturePolicies.Add(new DevicePosturePolicy { Id = "default", Mode = "observe", ProvidersJson = "[\"chrome-enterprise\",\"advanced-compliance\",\"windows-local-login\"]", RequiredSignalsJson = "[\"disk-encryption\",\"screen-lock\"]", Version = "1", UpdatedBy = actorId.ToString() });
+        if (!await db.DevicePostureAssessments.AnyAsync(x => x.UserId == actorId && x.DeviceId == "demo-device", ct)) db.DevicePostureAssessments.Add(new DevicePostureAssessment { UserId = actorId, DeviceId = "demo-device", Provider = "advanced-compliance", EvidenceHash = "demo-evidence", SignalsJson = "{\"disk-encryption\":true,\"screen-lock\":true}", Decision = "observe", ExpiresAt = DateTime.UtcNow.AddMinutes(15), PolicyVersion = "1", CorrelationId = "seed-demo" });
+        if (!await db.DirectoryProvisioningBindings.AnyAsync(x => x.Target == "scim" && x.ResourceId == actorId.ToString(), ct)) db.DirectoryProvisioningBindings.Add(new DirectoryProvisioningBinding { Target = "scim", ResourceType = "User", ResourceId = actorId.ToString(), ExternalId = "scim-demo-admin" });
+        if (!await db.DirectoryProvisioningOutbox.AnyAsync(x => x.Target == "scim" && x.ResourceId == actorId.ToString(), ct)) db.DirectoryProvisioningOutbox.Add(new DirectoryProvisioningOutbox { Target = "scim", Operation = "update", ResourceType = "User", ResourceId = actorId.ToString(), PayloadJson = "{\"email\":\"admin@hishop.com\",\"groups\":[\"clinical-operators\"]}", CompletedAt = DateTime.UtcNow, Attempts = 1, ExternalId = "scim-demo-admin" });
+        if (!await db.UserClientCertificates.AnyAsync(x => x.UserId == actorId && x.Thumbprint == "DEMO-MTLS-THUMBPRINT", ct)) db.UserClientCertificates.Add(new UserClientCertificate { UserId = actorId, Thumbprint = "DEMO-MTLS-THUMBPRINT", Subject = "CN=admin@hishop.com", NotAfter = DateTime.UtcNow.AddDays(90) });
+        if (!await db.AuditLogs.AnyAsync(x => x.Source == "seed-demo" && x.ResourceType == "IamPermissionSet", ct)) db.AuditLogs.Add(new AuditLog { UserId = actorId.ToString(), UserName = actor.UserName, Action = "CREATE", ResourceType = "IamPermissionSet", ResourceId = workforceSet.Id.ToString(), Details = "Seeded demo clinical permission set", Outcome = "success", Source = "seed-demo", CorrelationId = "seed-demo-iam", Timestamp = DateTime.UtcNow });
+        await db.SaveChangesAsync(ct);
+        logger.LogInformation("Seeded idempotent IAM demo graph for organization {Organization}, tenant {Tenant}, environment {Environment}.", organization.Key, tenant.Key, environment.Key);
+    }
+
+    private static async Task MigrateWhenDatabaseReadyAsync(
+        IMigrationRunner migrationRunner,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        const int maxAttempts = 12;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
+            {
+                await migrationRunner.MigrateAsync(cancellationToken);
+                return;
+            }
+            catch (PostgresException exception) when (exception.SqlState == "57P03" && attempt < maxAttempts)
+            {
+                var delay = TimeSpan.FromSeconds(Math.Min(5, attempt));
+                logger.LogWarning(
+                    exception,
+                    "Identity database is still starting (attempt {Attempt}/{MaxAttempts}); retrying in {DelaySeconds}s.",
+                    attempt,
+                    maxAttempts,
+                    delay.TotalSeconds);
+                await Task.Delay(delay, cancellationToken);
+            }
+            catch (NpgsqlException exception) when (attempt < maxAttempts)
+            {
+                var delay = TimeSpan.FromSeconds(Math.Min(5, attempt));
+                logger.LogWarning(
+                    exception,
+                    "Identity database connection is not ready (attempt {Attempt}/{MaxAttempts}); retrying in {DelaySeconds}s.",
+                    attempt,
+                    maxAttempts,
+                    delay.TotalSeconds);
+                await Task.Delay(delay, cancellationToken);
+            }
+        }
+
+        // Preserve the original exception and startup failure semantics after the bounded retry window.
+        await migrationRunner.MigrateAsync(cancellationToken);
     }
 
     public static IReadOnlyDictionary<string, OidcClientUris> ResolveOidcClientUris(
@@ -677,6 +954,9 @@ public static class IdentityDbInitializer
 
         return new AdminBootstrapConfiguration(null, SkipUserSeed: true);
     }
+
+    public static bool ShouldResetAdminPassword(IConfiguration? configuration)
+        => configuration?.GetValue<bool>("Identity:BootstrapAdmin:ResetPassword") == true;
 
     public sealed record AdminBootstrapConfiguration(string? Password, bool SkipUserSeed)
     {

@@ -12,8 +12,8 @@ function Assert-Contains([string]$Path, [string]$Pattern, [string]$Description) 
     }
 }
 
-Assert-Contains 'src/Services/IdentityService/IdentityService.Api/Endpoints/BulkImportEndpoints.cs' '.RequireAuthorization("Permission:admin.users.write")' 'bulk writes require admin.users.write'
-Assert-Contains 'src/Services/IdentityService/IdentityService.Api/Endpoints/BulkImportEndpoints.cs' '.RequireAuthorization("Permission:admin.users.read")' 'bulk preview requires admin.users.read'
+Assert-Contains 'src/Services/IdentityService/IdentityService.Api/Endpoints/BulkImportEndpoints.cs' '.RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite)' 'bulk writes require admin.users.write via canonical policy names'
+Assert-Contains 'src/Services/IdentityService/IdentityService.Api/Endpoints/BulkImportEndpoints.cs' '.RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead)' 'bulk preview requires admin.users.read via canonical policy names'
 Assert-Contains 'src/Shared/Authorization/His.Hope.Authorization/Handlers/PermissionHandler.cs' 'token has no permissions claim' 'canonical handler fails closed without permission claims'
 Assert-Contains 'src/Shared/Infrastructure/His.Hope.Infrastructure/Security/Authorization/Handlers/PermissionHandler.cs' 'token has no matching permission claim' 'legacy handler fails closed without permission claims'
 Assert-Contains 'src/Services/IdentityService/IdentityService.Infrastructure/Persistence/IdentityDbContext.cs' 'entity.ToTable("user_facilities")' 'facility membership is persisted'

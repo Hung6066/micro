@@ -1,4 +1,5 @@
 using His.Hope.IdentityService.Application.DTOs;
+using His.Hope.IdentityService.Application.Authorization;
 using His.Hope.IdentityService.Domain.Entities;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
@@ -42,6 +43,9 @@ public class AssignRolesCommandHandler : IRequestHandler<AssignRolesCommand, Use
                 roleNames.Add(roleId);
             }
         }
+
+        if (RoleSeparationOfDuties.TryFindConflict(roleNames, out var conflict))
+            throw new InvalidOperationException($"ROLE_SOD_CONFLICT: The requested role set violates separation of duties ({conflict}).");
 
         // Remove all current roles
         var currentRoles = await _userManager.GetRolesAsync(user);

@@ -20,16 +20,31 @@ public class AppointmentRepository : IAppointmentRepository
             .FirstOrDefaultAsync(a => a.Id == id, ct);
 
     public async Task<IReadOnlyList<Appointment>> GetByPatientIdAsync(Guid patientId, CancellationToken ct = default) =>
-        await _context.Appointments
-            .Where(a => a.PatientId == patientId)
+        await GetByPatientIdAsync(patientId, new HashSet<string>(StringComparer.OrdinalIgnoreCase), true, ct);
+
+    public async Task<IReadOnlyList<Appointment>> GetByPatientIdAsync(
+        Guid patientId, IReadOnlySet<string> facilityIds, bool crossFacility, CancellationToken ct = default)
+    {
+        var query = _context.Appointments
+            .AsNoTracking()
+            .Where(a => a.PatientId == patientId);
+        if (!crossFacility)
+        {
+            if (facilityIds.Count == 0) return Array.Empty<Appointment>();
+            query = query.Where(appointment => appointment.FacilityId != null && facilityIds.Contains(appointment.FacilityId));
+        }
+
+        return await query
             .OrderByDescending(a => a.ScheduledDate)
             .ThenBy(a => a.StartTime)
+            .ThenBy(a => a.Id)
             .ToListAsync(ct);
+    }
 
     public async Task<(IReadOnlyList<Appointment> Items, int TotalCount)> GetByPatientIdAsync(
         Guid patientId, int page, int pageSize, DateTime? fromDate, DateTime? toDate, CancellationToken ct = default)
     {
-        var query = _context.Appointments.Where(a => a.PatientId == patientId);
+        var query = _context.Appointments.AsNoTracking().Where(a => a.PatientId == patientId);
 
         if (fromDate.HasValue)
             query = query.Where(a => a.ScheduledDate >= fromDate.Value);
@@ -42,6 +57,7 @@ public class AppointmentRepository : IAppointmentRepository
         var items = await query
             .OrderByDescending(a => a.ScheduledDate)
             .ThenBy(a => a.StartTime)
+            .ThenBy(a => a.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);
@@ -51,6 +67,7 @@ public class AppointmentRepository : IAppointmentRepository
 
     public async Task<IReadOnlyList<Appointment>> GetByProviderIdAsync(Guid providerId, CancellationToken ct = default) =>
         await _context.Appointments
+            .AsNoTracking()
             .Where(a => a.ProviderId == providerId)
             .OrderByDescending(a => a.ScheduledDate)
             .ThenBy(a => a.StartTime)
@@ -58,8 +75,23 @@ public class AppointmentRepository : IAppointmentRepository
 
     public async Task<(IReadOnlyList<Appointment> Items, int TotalCount)> SearchAsync(
         string searchTerm, int page, int pageSize, CancellationToken ct = default)
+        => await SearchAsync(searchTerm, page, pageSize, new HashSet<string>(StringComparer.OrdinalIgnoreCase), true, ct);
+
+    public async Task<(IReadOnlyList<Appointment> Items, int TotalCount)> SearchAsync(
+        string searchTerm,
+        int page,
+        int pageSize,
+        IReadOnlySet<string> facilityIds,
+        bool crossFacility,
+        CancellationToken ct = default)
     {
-        var query = _context.Appointments.AsQueryable();
+        var query = _context.Appointments.AsNoTracking().AsQueryable();
+
+        if (!crossFacility)
+        {
+            if (facilityIds.Count == 0) return (Array.Empty<Appointment>(), 0);
+            query = query.Where(appointment => appointment.FacilityId != null && facilityIds.Contains(appointment.FacilityId));
+        }
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
@@ -76,6 +108,7 @@ public class AppointmentRepository : IAppointmentRepository
         var items = await query
             .OrderByDescending(a => a.ScheduledDate)
             .ThenBy(a => a.StartTime)
+            .ThenBy(a => a.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(ct);

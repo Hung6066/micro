@@ -26,10 +26,10 @@ public sealed class LogStreamBackgroundService : BackgroundService
             try
             {
                 using var scope = _serviceProvider.CreateScope();
-                var esQuery = scope.ServiceProvider.GetRequiredService<IElasticsearchQueryService>();
+                var logQuery = scope.ServiceProvider.GetRequiredService<ILogQueryService>();
                 var hubContext = scope.ServiceProvider.GetRequiredService<IHubContext<LogStreamHub>>();
 
-                var logs = await esQuery.QueryLogsAsync(
+                var logs = await logQuery.QueryLogsAsync(
                     size: 50,
                     afterTimestamp: _lastPushedTimestamp,
                     ct: stoppingToken);

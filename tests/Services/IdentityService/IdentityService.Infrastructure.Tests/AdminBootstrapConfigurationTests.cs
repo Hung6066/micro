@@ -72,6 +72,23 @@ public class AdminBootstrapConfigurationTests
         result.Password.Should().Be(configuredSecret);
     }
 
+    [Fact]
+    public void ShouldResetAdminPassword_WhenExplicitlyEnabled_ShouldReturnTrue()
+    {
+        var configuration = BuildConfiguration(new Dictionary<string, string?>
+        {
+            ["Identity:BootstrapAdmin:ResetPassword"] = "true"
+        });
+
+        IdentityDbInitializer.ShouldResetAdminPassword(configuration).Should().BeTrue();
+    }
+
+    [Fact]
+    public void ShouldResetAdminPassword_WhenNotConfigured_ShouldReturnFalse()
+    {
+        IdentityDbInitializer.ShouldResetAdminPassword(BuildConfiguration()).Should().BeFalse();
+    }
+
     private static IConfiguration BuildConfiguration(IDictionary<string, string?>? values = null)
     {
         return new ConfigurationBuilder()

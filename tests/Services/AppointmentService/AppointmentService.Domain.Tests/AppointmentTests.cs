@@ -484,6 +484,7 @@ public class AppointmentTests
         AppointmentType.Vaccination.Should().NotBeNull();
         AppointmentType.LabWork.Should().NotBeNull();
         AppointmentType.Telehealth.Should().NotBeNull();
+        AppointmentType.Clinic.Should().NotBeNull();
 
         // Verify all are distinct
         var types = new[]
@@ -495,10 +496,11 @@ public class AppointmentTests
             AppointmentType.Procedure,
             AppointmentType.Vaccination,
             AppointmentType.LabWork,
-            AppointmentType.Telehealth
+            AppointmentType.Telehealth,
+            AppointmentType.Clinic
         };
 
-        types.Distinct().Should().HaveCount(8);
+        types.Distinct().Should().HaveCount(9);
     }
 
     [Fact]

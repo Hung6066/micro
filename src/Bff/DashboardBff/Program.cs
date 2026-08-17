@@ -1,37 +1,42 @@
 using His.Hope.Bff.Core;
 using His.Hope.Bff.Core.Aggregation;
+using His.Hope.Configuration;
 using His.Hope.PatientGrpc;
 using His.Hope.ClinicalGrpc;
 using His.Hope.LabGrpc;
 using His.Hope.BillingGrpc;
 using His.Hope.PharmacyGrpc;
-using His.Hope.AppointmentGrpc;
 using DashboardBff.Aggregation;
 
 var builder = WebApplication.CreateBuilder(args);
+var runtimeEndpoints = RuntimeConfigurationExtensions.BindServiceEndpoints(builder.Configuration, "DashboardBff");
 
-builder.Services.AddBffCore(builder.Configuration);
+builder.Services.AddBffCore(builder.Configuration, "DashboardBff");
 
 builder.Services.AddGrpcClient<PatientGrpcService.PatientGrpcServiceClient>(o =>
-    o.Address = new Uri(builder.Configuration["Services:Patient"]!));
+    o.Address = runtimeEndpoints.GetRequired("patient-grpc"));
 builder.Services.AddGrpcClient<ClinicalGrpcService.ClinicalGrpcServiceClient>(o =>
-    o.Address = new Uri(builder.Configuration["Services:Clinical"]!));
+    o.Address = runtimeEndpoints.GetRequired("clinical-grpc"));
 builder.Services.AddGrpcClient<LabGrpcService.LabGrpcServiceClient>(o =>
-    o.Address = new Uri(builder.Configuration["Services:Lab"]!));
+    o.Address = runtimeEndpoints.GetRequired("lab-grpc"));
 builder.Services.AddGrpcClient<BillingGrpcService.BillingGrpcServiceClient>(o =>
-    o.Address = new Uri(builder.Configuration["Services:Billing"]!));
+    o.Address = runtimeEndpoints.GetRequired("billing-grpc"));
 builder.Services.AddGrpcClient<PharmacyGrpcService.PharmacyGrpcServiceClient>(o =>
-    o.Address = new Uri(builder.Configuration["Services:Pharmacy"]!));
-builder.Services.AddGrpcClient<AppointmentGrpcService.AppointmentGrpcServiceClient>(o =>
-    o.Address = new Uri(builder.Configuration["Services:Appointment"]!));
+    o.Address = runtimeEndpoints.GetRequired("pharmacy-grpc"));
+builder.Services.AddHttpClient("appointment-api", client =>
+    client.BaseAddress = runtimeEndpoints.GetRequired("appointment-api"));
 
-builder.Services.AddScoped<IAggregationHandler, DashboardStatsHandler>();
-builder.Services.AddScoped<IAggregationHandler, RecentEncountersHandler>();
-builder.Services.AddScoped<IAggregationHandler, UpcomingAppointmentsHandler>();
+// Aggregation handlers are stateless and use thread-safe gRPC/HTTP clients. Registering
+// them as singletons also lets the route map be built once at startup without resolving
+// scoped services from the root provider.
+builder.Services.AddSingleton<IAggregationHandler, DashboardStatsHandler>();
+builder.Services.AddSingleton<IAggregationHandler, RecentEncountersHandler>();
+builder.Services.AddSingleton<IAggregationHandler, UpcomingAppointmentsHandler>();
 
 var app = builder.Build();
 
 app.UseBffCoreMiddleware();
+app.MapBffHealth();
 app.MapBffAggregation();
 
 app.Run();

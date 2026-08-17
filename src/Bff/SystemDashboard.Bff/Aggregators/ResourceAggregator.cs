@@ -3,6 +3,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
+using His.Hope.Configuration;
 using SystemDashboard.Bff.Models;
 using SystemDashboard.Bff.Services;
 
@@ -10,57 +12,33 @@ namespace SystemDashboard.Bff.Aggregators;
 
 public sealed class ResourceAggregator : IResourceAggregator
 {
-    /// <summary>
-    /// Maps service names to Docker Compose service hostnames.
-    /// Used for direct health checks when running inside a container.
-    /// </summary>
-    private static readonly Dictionary<string, string> _dockerHostnames = new()
-    {
-        ["identity-service"] = "identityservice",
-        ["patient-service"] = "patientservice",
-        ["appointment-service"] = "appointmentservice",
-        ["clinical-service"] = "clinicalservice",
-        ["lab-service"] = "labservice",
-        ["billing-service"] = "billingservice",
-        ["pharmacy-service"] = "pharmacyservice",
-    };
-
     private readonly IConsulDiscoveryService _consul;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IPrometheusQueryService _prometheus;
+    private readonly IKubernetesPodMetricsService _kubernetesMetrics;
     private readonly IMemoryCache _cache;
     private readonly ILogger<ResourceAggregator> _logger;
-    private readonly bool _runningInContainer;
+    private readonly ServiceEndpointOptions _runtimeEndpoints;
+    private readonly bool _runningInKubernetes;
 
-    private static readonly Dictionary<string, string> ServiceToJobMap = new()
+    private static readonly string CpuPromqlTemplate = "rate(process_cpu_seconds_total{service=\"{service}\"}[5m]) * 100";
+    private static readonly string MemoryPromqlTemplate = "process_resident_memory_bytes{service=\"{service}\"} / 1024 / 1024";
+
+    private static readonly Dictionary<string, ServiceRuntimeRegistration> _serviceMap = new()
     {
-        ["identity-service"] = "identityservice",
-        ["patient-service"] = "patientservice",
-        ["appointment-service"] = "appointmentservice",
-        ["clinical-service"] = "clinicalservice",
-        ["lab-service"] = "labservice",
-        ["billing-service"] = "billingservice",
-        ["pharmacy-service"] = "pharmacyservice",
-    };
-
-    private static readonly string CpuPromqlTemplate = "rate(process_cpu_time_seconds_total{job=\"{job}\"}[5m]) * 100";
-    private static readonly string MemoryPromqlTemplate = "process_memory_usage_bytes{job=\"{job}\"} / 1024 / 1024";
-
-    private static readonly Dictionary<string, (int httpPort, int? grpcPort, string type, string[] databases)> _serviceMap = new()
-    {
-        ["identity-service"] = (5001, 5007, "service", new[] { "identitydb" }),
-        ["patient-service"] = (5002, 5006, "service", new[] { "patientdb" }),
-        ["appointment-service"] = (5003, 5007, "service", new[] { "appointmentdb" }),
-        ["clinical-service"] = (5004, null, "service", new[] { "clinicaldb" }),
-        ["lab-service"] = (5010, null, "service", new[] { "labdb" }),
-        ["billing-service"] = (5020, null, "service", new[] { "billingdb" }),
-        ["pharmacy-service"] = (5030, null, "service", new[] { "pharmacydb" }),
-        ["patient-bff"] = (5100, null, "bff", Array.Empty<string>()),
-        ["clinical-bff"] = (5200, null, "bff", Array.Empty<string>()),
-        ["lab-bff"] = (5300, null, "bff", Array.Empty<string>()),
-        ["billing-bff"] = (5400, null, "bff", Array.Empty<string>()),
-        ["pharmacy-bff"] = (5500, null, "bff", Array.Empty<string>()),
-        ["dashboard-bff"] = (5700, null, "bff", Array.Empty<string>()),
+        ["identity-service"] = new("identity-api", "identity-grpc", new[] { "identitydb" }),
+        ["patient-service"] = new("patient-api", "patient-grpc", new[] { "patientdb" }),
+        ["appointment-service"] = new("appointment-api", "appointment-grpc", new[] { "appointmentdb" }),
+        ["clinical-service"] = new("clinical-api", "clinical-grpc", new[] { "clinicaldb" }),
+        ["lab-service"] = new("lab-api", "lab-grpc", new[] { "labdb" }),
+        ["billing-service"] = new("billing-api", "billing-grpc", new[] { "billingdb" }),
+        ["pharmacy-service"] = new("pharmacy-api", "pharmacy-grpc", new[] { "pharmacydb" }),
+        ["patient-bff"] = new("patient-bff", null, Array.Empty<string>()),
+        ["clinical-bff"] = new("clinical-bff", null, Array.Empty<string>()),
+        ["lab-bff"] = new("lab-bff", null, Array.Empty<string>()),
+        ["billing-bff"] = new("billing-bff", null, Array.Empty<string>()),
+        ["pharmacy-bff"] = new("pharmacy-bff", null, Array.Empty<string>()),
+        ["dashboard-bff"] = new("dashboard-bff", null, Array.Empty<string>()),
     };
 
     private static readonly InfrastructureResource[] _infraResources =
@@ -87,17 +65,22 @@ public sealed class ResourceAggregator : IResourceAggregator
         IConsulDiscoveryService consul,
         IHttpClientFactory httpClientFactory,
         IPrometheusQueryService prometheus,
+        IKubernetesPodMetricsService kubernetesMetrics,
+        IOptions<KubernetesOptions> kubernetesOptions,
         IMemoryCache cache,
-        ILogger<ResourceAggregator> logger)
+        ILogger<ResourceAggregator> logger,
+        ServiceEndpointOptions runtimeEndpoints)
     {
         _consul = consul;
         _httpClientFactory = httpClientFactory;
         _prometheus = prometheus;
+        _kubernetesMetrics = kubernetesMetrics;
         _cache = cache;
         _logger = logger;
-        _runningInContainer = string.Equals(
-            Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"),
-            "true", StringComparison.OrdinalIgnoreCase);
+        _runtimeEndpoints = runtimeEndpoints;
+        _runningInKubernetes = kubernetesOptions.Value.Enabled || !string.IsNullOrWhiteSpace(
+            Environment.GetEnvironmentVariable("KUBERNETES_SERVICE_HOST"));
+        _logger.LogInformation("Resource metrics source selected: KubernetesMetricsApi={Enabled}", _runningInKubernetes);
     }
 
     public async Task<List<Resource>> GetAllResourcesAsync(CancellationToken ct = default)
@@ -106,35 +89,68 @@ public sealed class ResourceAggregator : IResourceAggregator
         {
             // Fetch Consul services (eager — needed for health lookup)
             List<string> consulServices;
-            try
+            if (_runningInKubernetes)
             {
-                consulServices = await _consul.GetServiceNamesAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to get service names from Consul");
+                // K3s uses Kubernetes service DNS and does not require Consul
+                // for liveness. Avoid making the health page depend on an
+                // optional Consul deployment.
                 consulServices = [];
+            }
+            else
+            {
+                try
+                {
+                    consulServices = await _consul.GetServiceNamesAsync(ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to get service names from Consul");
+                    consulServices = [];
+                }
             }
 
             // Phase 1: Launch all queries simultaneously
             var healthTasks = new Dictionary<string, Task<ConsulServiceHealth?>>();
+            var directHealthTasks = new Dictionary<string, Task<(string stateStr, string healthStr, List<HealthCheckResult> checks)>>();
             var cpuTasks = new Dictionary<string, Task<double?>>();
             var memoryTasks = new Dictionary<string, Task<double?>>();
+            var k8sMetrics = _runningInKubernetes
+                ? await _kubernetesMetrics.GetServiceMetricsAsync(_serviceMap.Keys, ct)
+                : new Dictionary<string, KubernetesServiceMetrics>();
 
-            foreach (var (name, _) in _serviceMap)
+            foreach (var name in _serviceMap.Keys)
             {
-                healthTasks[name] = GetHealthSafeAsync(name, ct);
-                if (ServiceToJobMap.TryGetValue(name, out var job))
+                healthTasks[name] = _runningInKubernetes
+                    ? Task.FromResult<ConsulServiceHealth?>(null)
+                    : GetHealthSafeAsync(name, ct);
+                if (_runningInKubernetes)
                 {
-                    cpuTasks[name] = QueryLatestMetricValueAsync(
-                        CpuPromqlTemplate.Replace("{job}", job), ct);
-                    memoryTasks[name] = QueryLatestMetricValueAsync(
-                        MemoryPromqlTemplate.Replace("{job}", job), ct);
+                    // Do not serialize the 3-second health-check timeout for
+                    // every service; one slow pod must not make /api/resources
+                    // exceed the dashboard request timeout.
+                    directHealthTasks[name] = CheckDirectHealthAsync(
+                        _serviceMap[name].HttpEndpointKey, ct);
+                }
+                if (_serviceMap.ContainsKey(name))
+                {
+                    if (k8sMetrics.TryGetValue(name, out var metrics))
+                    {
+                        cpuTasks[name] = Task.FromResult<double?>(metrics.CpuPercent);
+                        memoryTasks[name] = Task.FromResult<double?>(metrics.MemoryUsedMb);
+                    }
+                    else
+                    {
+                        cpuTasks[name] = QueryLatestMetricValueAsync(
+                            CpuPromqlTemplate.Replace("{service}", name), ct);
+                        memoryTasks[name] = QueryLatestMetricValueAsync(
+                            MemoryPromqlTemplate.Replace("{service}", name), ct);
+                    }
                 }
             }
 
             // Await all at once
             var allTasks = healthTasks.Values
+                .Concat<object>(directHealthTasks.Values)
                 .Concat<object>(cpuTasks.Values)
                 .Concat<object>(memoryTasks.Values)
                 .Cast<Task>();
@@ -142,7 +158,7 @@ public sealed class ResourceAggregator : IResourceAggregator
 
             // Phase 2: Assemble results
             var resources = new List<Resource>();
-            foreach (var (name, (httpPort, grpcPort, _, databases)) in _serviceMap)
+            foreach (var (name, registration) in _serviceMap)
             {
                 var consulHealth = healthTasks.TryGetValue(name, out var hTask)
                     ? (hTask.IsCompletedSuccessfully ? hTask.Result : null)
@@ -150,12 +166,18 @@ public sealed class ResourceAggregator : IResourceAggregator
 
                 var (stateStr, healthStr, checks) = consulHealth is not null
                     ? MapFromConsul(consulHealth)
-                    : await CheckDirectHealthAsync(name, httpPort, ct);
+                    : directHealthTasks.TryGetValue(name, out var directHealthTask)
+                        ? await directHealthTask
+                        : await CheckDirectHealthAsync(registration.HttpEndpointKey, ct);
 
                 double? cpuPercent = cpuTasks.TryGetValue(name, out var cTask)
                     && cTask.IsCompletedSuccessfully ? cTask.Result : null;
                 double? memoryMb = memoryTasks.TryGetValue(name, out var mTask)
                     && mTask.IsCompletedSuccessfully ? mTask.Result : null;
+                var httpPort = _runtimeEndpoints.GetRequired(registration.HttpEndpointKey).Port;
+                int? grpcPort = registration.GrpcEndpointKey is null
+                    ? null
+                    : _runtimeEndpoints.GetRequired(registration.GrpcEndpointKey).Port;
 
                 resources.Add(new ServiceResource
                 {
@@ -169,7 +191,7 @@ public sealed class ResourceAggregator : IResourceAggregator
                     GrpcPort = grpcPort,
                     CpuPercent = cpuPercent,
                     MemoryUsedMb = memoryMb,
-                    Databases = databases.ToList(),
+                    Databases = registration.Databases.ToList(),
                 });
             }
 
@@ -227,29 +249,23 @@ public sealed class ResourceAggregator : IResourceAggregator
 
     /// <summary>
     /// Falls back to a direct HTTP health check when Consul has no data for a service.
-    /// Tries GET http://localhost:{port}/health (or http://{dockerHost}:{port}/health in container)
-    /// with a 3-second timeout.
+    /// Tries GET {serviceBaseUrl}/health with a 3-second timeout.
     /// </summary>
     private async Task<(string stateStr, string healthStr, List<HealthCheckResult> checks)>
-        CheckDirectHealthAsync(string serviceName, int port, CancellationToken ct)
+        CheckDirectHealthAsync(string endpointKey, CancellationToken ct)
     {
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(3));
 
-            // Determine host: use Docker service name in container, localhost otherwise
-            var host = _runningInContainer && _dockerHostnames.TryGetValue(serviceName, out var dockerHost)
-                ? dockerHost
-                : "localhost";
-
             var client = _httpClientFactory.CreateClient("health-check");
-            var url = $"http://{host}:{port}/health";
-            var response = await client.GetAsync(url, cts.Token);
+            var healthUrl = new Uri(_runtimeEndpoints.GetRequired(endpointKey), "health");
+            var response = await client.GetAsync(healthUrl, cts.Token);
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogDebug("Health check for {Service} returned {Status}", serviceName, response.StatusCode);
+                _logger.LogDebug("Health check for {EndpointKey} returned {Status}", endpointKey, response.StatusCode);
                 return ("Stopped", "Unhealthy", []);
             }
 
@@ -283,12 +299,12 @@ public sealed class ResourceAggregator : IResourceAggregator
         }
         catch (OperationCanceledException)
         {
-            _logger.LogDebug("Health check for {Service} timed out on port {Port}", serviceName, port);
+            _logger.LogDebug("Health check for {EndpointKey} timed out", endpointKey);
             return ("Stopped", "Unhealthy", []);
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogDebug(ex, "Health check for {Service} failed on port {Port}", serviceName, port);
+            _logger.LogDebug(ex, "Health check for {EndpointKey} failed", endpointKey);
             return ("Stopped", "Unhealthy", []);
         }
     }
@@ -328,7 +344,11 @@ public sealed class ResourceAggregator : IResourceAggregator
     {
         try
         {
-            var point = await _prometheus.QueryAsync(promql, ct);
+            // Metrics are supplementary to service liveness. A missing or
+            // restarting Prometheus must not block /api/resources.
+            using var metricsCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            metricsCts.CancelAfter(TimeSpan.FromMilliseconds(750));
+            var point = await _prometheus.QueryAsync(promql, metricsCts.Token);
             return point?.Value;
         }
         catch (Exception ex)
@@ -351,4 +371,9 @@ public sealed class ResourceAggregator : IResourceAggregator
             return null;
         }
     }
+
+    private sealed record ServiceRuntimeRegistration(
+        string HttpEndpointKey,
+        string? GrpcEndpointKey,
+        string[] Databases);
 }

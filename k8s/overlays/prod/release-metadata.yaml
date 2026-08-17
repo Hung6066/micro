@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: release-metadata
+  labels:
+    app.kubernetes.io/name: release-metadata
+    app.kubernetes.io/component: release
+data:
+  # Updated by scripts/update-gitops-digest.ps1 as part of a reviewed
+  # promotion PR. These are non-secret release identifiers.
+  HIS_HOPE_RELEASE_SHA: 7b77f09d8a38393df3a8cf0ab2e99bd6e6f1d9be
+  HIS_HOPE_RELEASE_DIGEST: sha256:3ee12c853ff3d3d11385d408022f523098bbdf3d6fd9f79dc52cc5065791e048

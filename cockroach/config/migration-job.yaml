@@ -39,10 +39,24 @@ spec:
         app: cockroachdb
         component: migrations
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
       - name: wait-for-cockroach
         image: cockroachdb/cockroach:v24.1.2
         imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
         command:
         - /bin/bash
         - -c
@@ -53,10 +67,20 @@ spec:
             sleep 3
           done
           echo "CockroachDB is ready!"
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
       containers:
       - name: migrate
         image: cockroachdb/cockroach:v24.1.2
         imagePullPolicy: IfNotPresent
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
+          seccompProfile:
+            type: RuntimeDefault
         env:
         - name: COCKROACH_HOST
           value: cockroachdb-public:26257
@@ -72,6 +96,8 @@ spec:
         - name: scripts
           mountPath: /scripts
           readOnly: true
+        - name: tmp
+          mountPath: /tmp
       volumes:
       - name: migrations
         configMap:
@@ -80,5 +106,7 @@ spec:
         configMap:
           name: cockroach-migration-scripts
           defaultMode: 0755
+      - name: tmp
+        emptyDir: {}
       restartPolicy: Never
   backoffLimit: 3

@@ -181,6 +181,9 @@ namespace His.Hope.PatientService.Infrastructure.Persistence.Migrations
                     b.HasIndex("IsActive")
                         .HasDatabaseName("ix_patients_is_active");
 
+                    b.HasIndex("FacilityId", "IsActive")
+                        .HasDatabaseName("ix_patients_facility_active_id");
+
                     b.ToTable("patients", (string)null);
                 });
 

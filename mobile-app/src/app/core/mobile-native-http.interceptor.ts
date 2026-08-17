@@ -65,6 +65,16 @@ export const mobileNativeHttpInterceptor: HttpInterceptorFn = (request: HttpRequ
     if (value !== null) headers[key] = value;
   });
   const body = serializeNativeBody(request);
+  // Angular's browser backend infers JSON content type for object bodies,
+  // but the native Capacitor transport receives only the copied headers.
+  // Without this header ASP.NET Core rejects PushTokenRequest with 415.
+  if (body !== undefined && !request.headers.has("Content-Type") &&
+      request.body !== null && typeof request.body === "object" &&
+      !(request.body instanceof URLSearchParams) &&
+      !(request.body instanceof ArrayBuffer) &&
+      !(request.body instanceof Blob)) {
+    headers["Content-Type"] = "application/json";
+  }
 
   const proof$ = isDpopTokenRequest(request.urlWithParams) || accessToken
     ? from(dpop.createProof(request.urlWithParams, request.method, accessToken))

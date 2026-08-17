@@ -14,7 +14,7 @@ public abstract class Enumeration<TEnum> : ValueObject, IComparable<TEnum>
             .Where(f => f.FieldType == typeof(TEnum))
             .Select(f => f.GetValue(null))
             .Cast<TEnum>()
-            .ToDictionary(e => e.Code));
+            .ToDictionary(e => e.Code, StringComparer.OrdinalIgnoreCase));
 
     private static readonly Lazy<Dictionary<string, TEnum>> _byName = new(() =>
         typeof(TEnum)
@@ -30,10 +30,20 @@ public abstract class Enumeration<TEnum> : ValueObject, IComparable<TEnum>
         Name = Guard.Against.NullOrWhiteSpace(name, nameof(name));
     }
 
-    public static TEnum FromCode(string code) =>
-        _byCode.Value.TryGetValue(code, out var result)
-            ? result
-            : throw new InvalidOperationException($"'{code}' is not a valid {typeof(TEnum).Name}");
+    public static TEnum FromCode(string code)
+    {
+        if (_byCode.Value.TryGetValue(code, out var result))
+            return result;
+
+        // Persisted data from older services sometimes used the display name
+        // (for example MARRIED) instead of the canonical short code (M).
+        // Accept that legacy representation at the boundary, while all new
+        // writes continue to use Code through the value converter.
+        if (_byName.Value.TryGetValue(code, out var legacyResult))
+            return legacyResult;
+
+        throw new InvalidOperationException($"'{code}' is not a valid {typeof(TEnum).Name}");
+    }
 
     public static TEnum FromName(string name) =>
         _byName.Value.TryGetValue(name, out var result)

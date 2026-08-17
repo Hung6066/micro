@@ -132,5 +132,9 @@ public class LabOrderConfiguration : IEntityTypeConfiguration<LabOrder>
         builder.HasIndex(o => o.Status);
         builder.HasIndex(o => o.OrderDate);
         builder.HasIndex(o => o.FacilityId);
+        builder.HasIndex(o => new { o.PatientId, o.OrderDate })
+            .HasDatabaseName("IX_LabOrders_Patient_Date_Id");
+        builder.HasIndex(o => new { o.FacilityId, o.Status, o.OrderDate })
+            .HasDatabaseName("IX_LabOrders_Facility_Status_Date_Id");
     }
 }

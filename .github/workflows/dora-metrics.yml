@@ -1,0 +1,44 @@
+name: DORA Metrics
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Collection window in days
+        required: false
+        default: '30'
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: dora-metrics
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Test DORA calculations
+        shell: bash
+        run: python -m unittest discover -s scripts/tests -p 'test_*.py' -v
+      - name: Collect DORA metrics from production promotion runs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DORA_DAYS: ${{ inputs.days || '30' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/collect-dora-metrics.py --days "${DORA_DAYS}" --output-dir artifacts/dora
+      - name: Upload auditable DORA evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dora-metrics-${{ github.run_id }}
+          path: artifacts/dora/
+          if-no-files-found: error

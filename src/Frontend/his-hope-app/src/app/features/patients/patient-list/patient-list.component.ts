@@ -35,6 +35,7 @@ import { HisHopeDataTableCellDirective, HisHopeDataTableComponent, HisHopeFilter
       <hh-data-table label="Patients" [loading]="loading" [error]="error"
                      [empty]="!loading && !error && patients.length === 0"
                      [columns]="columns" [rows]="tableRows" [selection]="true" emptyMessage="No patients found."
+                     [rowClickable]="true" (rowClick)="viewPatient(patientFromRow($event).id)"
                      (retry)="loadPatients()">
         <ng-template hhDataTableCell="dateOfBirth" let-row>{{ row['dateOfBirth'] | date:'mediumDate' }}</ng-template>
         <ng-template hhDataTableCell="actions" let-row>

@@ -1,0 +1,27 @@
+# Security exception inventory. This file is evidence and ownership metadata;
+# it does not weaken Pod Security or Gatekeeper by itself.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: production-security-exception-inventory
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: security-governance
+data:
+  exceptions.yaml: |
+    version: 2
+    reviewRequired: true
+    entries:
+      - workload: seccomp-profile-installer
+        category: node-system
+        reason: copies profiles into the host kubelet seccomp directory through hostPath
+        owner: platform-security
+        targetNamespace: his-hope-system
+        expiry: 2026-09-30
+      - workload: production-migrate-*
+        category: workload-identity-bootstrap
+        reason: one-shot migration hooks read the node-local SPIRE Workload API socket before the native SPIRE CSI integration is available
+        owner: platform-security
+        targetNamespace: his-hope
+        expiry: 2026-09-30

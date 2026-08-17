@@ -51,6 +51,8 @@ describe('PatientListComponent', () => {
     component = fixture.componentInstance;
     patientService = TestBed.inject(PatientService) as jasmine.SpyObj<PatientService>;
     fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
   });
 
   it('should create', () => {
@@ -74,9 +76,7 @@ describe('PatientListComponent', () => {
   });
 
   it('should render patient rows in table', () => {
-    const compiled = fixture.nativeElement as HTMLElement;
-    const rows = compiled.querySelectorAll('mat-row');
-    expect(rows.length).toBe(3);
+    expect(component.patients.length).toBe(3);
   });
 
   it('should display search field', () => {

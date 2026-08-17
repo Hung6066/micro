@@ -140,7 +140,7 @@ public class AppointmentValueObjectTests
         public void All_ShouldContainAllTypes()
         {
             var all = AppointmentType.GetAll();
-            all.Should().HaveCount(8);
+            all.Should().HaveCount(9);
             all.Should().Contain(AppointmentType.Checkup);
             all.Should().Contain(AppointmentType.Consultation);
             all.Should().Contain(AppointmentType.FollowUp);
@@ -149,6 +149,7 @@ public class AppointmentValueObjectTests
             all.Should().Contain(AppointmentType.Vaccination);
             all.Should().Contain(AppointmentType.LabWork);
             all.Should().Contain(AppointmentType.Telehealth);
+            all.Should().Contain(AppointmentType.Clinic);
         }
 
         [Theory]

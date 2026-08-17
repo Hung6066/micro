@@ -1,0 +1,74 @@
+---
+- name: Rebuild one embedded-etcd control plane from a reviewed snapshot
+  hosts: k3s_servers
+  become: true
+  serial: 1
+  any_errors_fatal: true
+  vars:
+    control_plane_rebuild_drill_approved: false
+    control_plane_rebuild_environment: isolated
+    control_plane_snapshot_path: ''
+    control_plane_allow_production: false
+  pre_tasks:
+    - name: Require explicit drill approval
+      ansible.builtin.assert:
+        that:
+          - control_plane_rebuild_drill_approved | bool
+          - control_plane_snapshot_path | length > 0
+          - control_plane_rebuild_environment == 'isolated' or control_plane_allow_production | bool
+        fail_msg: 'Control-plane rebuild requires an approved snapshot and explicit environment guard.'
+      run_once: true
+    - name: Verify snapshot exists on every control-plane host
+      ansible.builtin.stat:
+        path: '{{ control_plane_snapshot_path }}'
+      register: control_plane_snapshot
+    - name: Refuse rebuild without a verified snapshot file
+      ansible.builtin.assert:
+        that:
+          - control_plane_snapshot.stat.exists | bool
+          - control_plane_snapshot.stat.isreg | bool
+        fail_msg: 'The reviewed etcd snapshot path is missing or is not a regular file.'
+  tasks:
+    - name: Stop the control-plane member before cluster reset
+      ansible.builtin.systemd_service:
+        name: k3s
+        state: stopped
+      when: inventory_hostname == groups['k3s_servers'][0]
+
+    - name: Restore embedded etcd from the reviewed snapshot
+      ansible.builtin.command:
+        argv:
+          - /usr/local/bin/k3s
+          - server
+          - --cluster-reset
+          - '--cluster-reset-restore-path={{ control_plane_snapshot_path }}'
+      when: inventory_hostname == groups['k3s_servers'][0]
+      no_log: true
+      changed_when: true
+
+    - name: Start the rebuilt control-plane member
+      ansible.builtin.systemd_service:
+        name: k3s
+        enabled: true
+        state: started
+      when: inventory_hostname == groups['k3s_servers'][0]
+
+    - name: Wait for the rebuilt local API port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6443
+        timeout: 180
+      when: inventory_hostname == groups['k3s_servers'][0]
+
+    - name: Restart the remaining control-plane members one at a time
+      ansible.builtin.systemd_service:
+        name: k3s
+        state: restarted
+      when: inventory_hostname != groups['k3s_servers'][0]
+
+    - name: Wait for every remaining member to expose the API
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6443
+        timeout: 180
+      when: inventory_hostname != groups['k3s_servers'][0]

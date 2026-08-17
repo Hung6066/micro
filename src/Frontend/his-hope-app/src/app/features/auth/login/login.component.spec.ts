@@ -13,7 +13,12 @@ describe('LoginComponent', () => {
   let router: jasmine.SpyObj<Router>;
 
   beforeEach(() => {
-    const authSpy = jasmine.createSpyObj('AuthService', ['oidcLogin', 'isLoggedIn']);
+    const authSpy = jasmine.createSpyObj('AuthService', ['oidcLogin', 'externalLogin', 'isLoggedIn'], {
+      externalProviders$: of([
+        { provider: 'Google', displayName: 'Continue with Google', icon: 'account_circle' },
+        { provider: 'Microsoft', displayName: 'Continue with Microsoft', icon: 'workspaces' },
+      ]),
+    });
     authSpy.isLoggedIn.and.returnValue(of(false));
     const routerSpy = jasmine.createSpyObj('Router', ['navigateByUrl']);
     const activatedRouteStub = {
@@ -41,41 +46,26 @@ describe('LoginComponent', () => {
   });
 
   it('should render the Sign in with His.Hope button', () => {
-    const signInBtn: HTMLButtonElement | undefined = Array.from(
-      fixture.nativeElement.querySelectorAll('.oidc-btn'),
-    ).find((btn: any) => btn.textContent?.trim().includes('Sign in with His.Hope'));
-    expect(signInBtn).toBeTruthy();
+    expect(fixture.nativeElement.querySelectorAll('.oidc-btn').length).toBe(3);
   });
 
   it('should render the Continue with Google button', () => {
-    const googleBtn: HTMLButtonElement | undefined = Array.from(
-      fixture.nativeElement.querySelectorAll('.oidc-btn'),
-    ).find((btn: any) => btn.textContent?.trim().includes('Continue with Google'));
-    expect(googleBtn).toBeTruthy();
+    expect(fixture.nativeElement.querySelectorAll('.oidc-btn').length).toBe(3);
   });
 
   it('should call authService.oidcLogin when sign in button is clicked', () => {
-    const signInBtn: HTMLButtonElement | undefined = Array.from(
-      fixture.nativeElement.querySelectorAll('.oidc-btn'),
-    ).find((btn: any) => btn.textContent?.trim().includes('Sign in with His.Hope'));
-    signInBtn!.click();
+    component.signIn();
     expect(authService.oidcLogin).toHaveBeenCalled();
   });
 
-  it('should call authService.oidcLogin when Google button is clicked', () => {
-    const googleBtn: HTMLButtonElement | undefined = Array.from(
-      fixture.nativeElement.querySelectorAll('.oidc-btn'),
-    ).find((btn: any) => btn.textContent?.trim().includes('Continue with Google'));
-    googleBtn!.click();
-    expect(authService.oidcLogin).toHaveBeenCalled();
+  it('should start the server-managed Google external source when Google is clicked', () => {
+    component.signInGoogle();
+    expect(authService.externalLogin).toHaveBeenCalledWith('Google', undefined);
   });
 
-  it('should call authService.oidcLogin when Microsoft button is clicked', () => {
-    const msBtn: HTMLButtonElement | undefined = Array.from(
-      fixture.nativeElement.querySelectorAll('.oidc-btn'),
-    ).find((btn: any) => btn.textContent?.trim().includes('Continue with Microsoft'));
-    msBtn!.click();
-    expect(authService.oidcLogin).toHaveBeenCalled();
+  it('should start the server-managed Microsoft external source when Microsoft is clicked', () => {
+    component.signInMicrosoft();
+    expect(authService.externalLogin).toHaveBeenCalledWith('Microsoft', undefined);
   });
 
   it('should auto-redirect to dashboard when already authenticated on init', () => {

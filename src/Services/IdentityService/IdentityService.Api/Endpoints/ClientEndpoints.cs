@@ -1,6 +1,7 @@
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
+using His.Hope.Contracts.Identity;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
@@ -13,19 +14,19 @@ public static class ClientEndpoints
 {
     public static RouteGroupBuilder MapClientEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet("/", GetClients).RequireAuthorization("Permission:admin.clients.read");
-        group.MapGet("/{id}", GetClientById).RequireAuthorization("Permission:admin.clients.read");
-        group.MapPost("/", CreateClient).RequireAuthorization("Permission:admin.clients.write");
-        group.MapPut("/{id}", UpdateClient).RequireAuthorization("Permission:admin.clients.write");
-        group.MapDelete("/{id}", DeleteClient).RequireAuthorization("Permission:admin.clients.write");
-        group.MapPost("/{id}/rotate-secret", RotateSecret).RequireAuthorization("Permission:admin.clients.write");
-        group.MapGet("/{id}/onboarding", GetOnboarding).RequireAuthorization("Permission:admin.clients.read");
+        group.MapGet("/", GetClients).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsRead);
+        group.MapGet("/{id}", GetClientById).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsRead);
+        group.MapPost("/", CreateClient).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite);
+        group.MapPut("/{id}", UpdateClient).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite);
+        group.MapDelete("/{id}", DeleteClient).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite);
+        group.MapPost("/{id}/rotate-secret", RotateSecret).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite);
+        group.MapGet("/{id}/onboarding", GetOnboarding).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsRead);
         return group;
     }
 
     public static IEndpointRouteBuilder MapDynamicClientRegistration(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/connect/register", RegisterDynamicClient).AllowAnonymous();
+        app.MapPost(IdentityApiRoutes.OidcRegister, RegisterDynamicClient).AllowAnonymous();
         return app;
     }
 
@@ -88,7 +89,7 @@ public static class ClientEndpoints
         string id, IdentityDbContext db, CancellationToken ct)
     {
         var client = await db.OpenIddictApplications
-            .FirstOrDefaultAsync(a => a.Id.ToString() == id, ct);
+            .FirstOrDefaultAsync(a => a.Id == id, ct);
 
         if (client is null) return TypedResults.NotFound();
 
@@ -171,7 +172,7 @@ public static class ClientEndpoints
         IAuditService audit, HttpContext http, CancellationToken ct)
     {
         var client = await db.OpenIddictApplications
-            .FirstOrDefaultAsync(a => a.Id.ToString() == id, ct);
+            .FirstOrDefaultAsync(a => a.Id == id, ct);
 
         if (client is null) return TypedResults.NotFound();
 
@@ -211,7 +212,7 @@ public static class ClientEndpoints
         VaultClientSecretStore vaultStore, IAuditService audit, HttpContext http, CancellationToken ct)
     {
         var client = await db.OpenIddictApplications
-            .FirstOrDefaultAsync(a => a.Id.ToString() == id, ct);
+            .FirstOrDefaultAsync(a => a.Id == id, ct);
 
         if (client is null) return TypedResults.NotFound();
 
@@ -228,7 +229,7 @@ public static class ClientEndpoints
         VaultClientSecretStore vaultStore, IAuditService audit, HttpContext http, CancellationToken ct)
     {
         var client = await db.OpenIddictApplications
-            .FirstOrDefaultAsync(a => a.Id.ToString() == id, ct);
+            .FirstOrDefaultAsync(a => a.Id == id, ct);
 
         if (client is null) return TypedResults.NotFound();
         if (client.ClientType != OpenIddictConstants.ClientTypes.Confidential)
@@ -254,9 +255,9 @@ public static class ClientEndpoints
             client.ClientId ?? "",
             client.DisplayName ?? client.ClientId ?? "",
             issuer,
-            $"{issuer}/connect/authorize",
-            $"{issuer}/connect/token",
-            $"{issuer}/connect/jwks",
+            $"{issuer}{IdentityApiRoutes.OidcAuthorize}",
+            $"{issuer}{IdentityApiRoutes.OidcToken}",
+            $"{issuer}{IdentityApiRoutes.OidcJwks}",
             ParseGrantTypes(client.Permissions).ToArray(),
             ParseScopes(client.Permissions).ToArray(),
             client.ClientType == OpenIddictConstants.ClientTypes.Confidential ? "client_secret_basic" : "none"));
@@ -266,6 +267,7 @@ public static class ClientEndpoints
         DynamicClientRegistrationRequest request,
         HttpContext httpContext,
         IConfiguration configuration,
+        IHostEnvironment hostEnvironment,
         IOpenIddictApplicationManager appManager,
         VaultClientSecretStore vaultStore,
         CancellationToken ct)
@@ -282,7 +284,7 @@ public static class ClientEndpoints
 
         if (string.IsNullOrWhiteSpace(request.ClientName) || request.RedirectUris is not { Length: > 0 })
             return TypedResults.BadRequest("client_name and at least one redirect_uris entry are required.");
-        if (request.RedirectUris.Any(uri => !Uri.TryCreate(uri, UriKind.Absolute, out var parsed) || parsed.Scheme is not ("https" or "http")))
+        if (request.RedirectUris.Any(uri => !IsAllowedRedirectUri(uri, hostEnvironment.IsDevelopment())))
             return TypedResults.BadRequest("redirect_uris must be absolute HTTPS URIs (HTTP is allowed only for local development).");
 
         var clientId = $"partner_{Guid.NewGuid():N}";
@@ -314,8 +316,25 @@ public static class ClientEndpoints
             await vaultStore.StoreSecretAsync(clientId, secret, ct);
         }
         await appManager.CreateAsync(descriptor, ct);
-        return TypedResults.Created($"/connect/register/{clientId}", new DynamicClientRegistrationResponse(
+        return TypedResults.Created($"{IdentityApiRoutes.OidcRegister}/{clientId}", new DynamicClientRegistrationResponse(
             clientId, secret, request.ClientName.Trim(), request.RedirectUris, grants, scopes, authMethod));
+    }
+
+    private static bool IsAllowedRedirectUri(string value, bool development)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+            uri.Fragment.Length > 0 ||
+            uri.UserInfo.Length > 0)
+            return false;
+
+        if (uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // HTTP redirect URIs are limited to loopback during local development.
+        // Never permit clear-text callbacks for a deployed registration endpoint.
+        return development &&
+               uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
+            (uri.IsLoopback || uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase));
     }
 
     private static List<string> ParseGrantTypes(string? permissions)

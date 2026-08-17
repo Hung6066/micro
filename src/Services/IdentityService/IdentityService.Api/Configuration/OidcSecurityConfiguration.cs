@@ -20,6 +20,7 @@ public static class OidcSecurityConfiguration
         var encryptionKey = encryptionKeys.FirstOrDefault();
         var allowInsecureHttp = configuration.GetValue<bool?>("OpenIddict:AllowInsecureHttp")
             ?? environment.IsDevelopment();
+        var localHttpMode = configuration.GetValue("HisHope:LocalHttpMode", false);
 
         if (environment.IsProduction() && (signingKey is null || encryptionKey is null))
         {
@@ -35,7 +36,7 @@ public static class OidcSecurityConfiguration
                 "Set OpenIddict:Encryption:PrivateKeyPath or Jwt:RsaEncryptionPrivateKeyPath.");
         }
 
-        if (environment.IsProduction() && allowInsecureHttp)
+        if (environment.IsProduction() && allowInsecureHttp && !localHttpMode)
         {
             throw new InvalidOperationException(
                 "OpenIddict:AllowInsecureHttp cannot be true in Production.");

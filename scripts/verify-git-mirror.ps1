@@ -2,19 +2,8 @@
 param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-f]{40}$')][string]$ExpectedRevision,
     [string]$Kubeconfig = 'artifacts/kubeconfig-production.yaml',
-    [string[]]$ApplicationName = @(
-        'his-hope-data-plane',
-        'his-hope-system-plane',
-        'his-hope-production-ha',
-        'his-hope-security-boundaries',
-        'his-hope-staging',
-        'his-hope-production-policies',
-        'his-hope-signature-policy',
-        'his-hope-observability-production',
-        'his-hope-production'
-    ),
+    [string]$ApplicationName = 'his-hope-production',
     [switch]$RequireSynced,
-    [string]$ExpectedRepoUrl = 'https://git-mirror.his-hope.local/gitops-admin/micro.git',
     [string]$OutputPath
 )
 
@@ -34,36 +23,29 @@ function Invoke-Kubectl {
     return $output -join "`n"
 }
 
-$checks = [System.Collections.Generic.List[object]]::new()
-foreach ($name in $ApplicationName) {
-    $application = (Invoke-Kubectl @('get', 'application', $name, '-n', 'argocd', '-o', 'json')) | ConvertFrom-Json
-    $targetRevision = [string]$application.spec.source.targetRevision
-    if ([string]::IsNullOrWhiteSpace($targetRevision)) {
-        throw "Argo CD application $name has no source.targetRevision"
-    }
-    if ($targetRevision -notmatch '^[A-Za-z0-9][A-Za-z0-9._/-]*$') {
-        throw "Argo CD application $name has an unsupported targetRevision: $targetRevision"
-    }
+$application = (Invoke-Kubectl @('get', 'application', $ApplicationName, '-n', 'argocd', '-o', 'json')) | ConvertFrom-Json
+$targetRevision = $application.spec.source.targetRevision
+if ([string]::IsNullOrWhiteSpace($targetRevision)) {
+    throw "Argo CD application $ApplicationName has no source.targetRevision"
+}
+if ($targetRevision -notmatch '^[A-Za-z0-9][A-Za-z0-9._/-]*$') {
+    throw "Argo CD application $ApplicationName has an unsupported targetRevision: $targetRevision"
+}
 
-    $mirrorRevision = (Invoke-Kubectl @('-n', 'git-mirror', 'exec', 'deployment/gitea', '--', 'git', '--git-dir=/var/lib/gitea/git/repositories/gitops-admin/micro.git', 'rev-parse', "refs/heads/$targetRevision")).Trim()
-    $checks.Add([pscustomobject]@{ application = $name; name = 'mirror-target-revision'; pass = $mirrorRevision -eq $ExpectedRevision; actual = $mirrorRevision })
-    $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-source'; pass = $application.spec.source.repoURL -eq $ExpectedRepoUrl; actual = $application.spec.source.repoURL })
-    # Argo reports the resolved branch name for branch-based Applications on
-    # some versions and the resolved commit SHA on others. The immutable
-    # mirror-target-revision check above proves that the reviewed production
-    # branch points at ExpectedRevision; here we only require Argo to report
-    # either representation rather than treating a valid branch name as drift.
-    $argocdRevision = [string]$application.status.sync.revision
-    $revisionPass = $argocdRevision -eq $ExpectedRevision -or $argocdRevision -eq $targetRevision
-    $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-revision'; pass = $revisionPass; actual = $argocdRevision })
-    if ($RequireSynced) {
-        $checks.Add([pscustomobject]@{ application = $name; name = 'argocd-synced'; pass = $application.status.sync.status -eq 'Synced'; actual = $application.status.sync.status })
-    }
+$mirrorRevision = (Invoke-Kubectl @('-n', 'git-mirror', 'exec', 'deployment/gitea', '--', 'git', '--git-dir=/var/lib/gitea/git/repositories/gitops-admin/micro.git', 'rev-parse', "refs/heads/$targetRevision")).Trim()
+$checks = @(
+    [pscustomobject]@{ name = 'mirror-target-revision'; pass = $mirrorRevision -eq $ExpectedRevision; actual = $mirrorRevision },
+    [pscustomobject]@{ name = 'argocd-source'; pass = $application.spec.source.repoURL -eq 'http://gitea.git-mirror.svc.cluster.local:3000/gitops-admin/micro.git'; actual = $application.spec.source.repoURL },
+    [pscustomobject]@{ name = 'argocd-revision'; pass = $application.status.sync.revision -eq $ExpectedRevision; actual = $application.status.sync.revision }
+)
+if ($RequireSynced) {
+    $checks += [pscustomobject]@{ name = 'argocd-synced'; pass = $application.status.sync.status -eq 'Synced'; actual = $application.status.sync.status }
 }
 
 $result = [pscustomobject]@{
     expectedRevision = $ExpectedRevision
-    applications = @($ApplicationName)
+    application = $ApplicationName
+    targetRevision = $targetRevision
     checks = $checks
     status = if (($checks | Where-Object { -not $_.pass }).Count -eq 0) { 'pass' } else { 'fail' }
 }

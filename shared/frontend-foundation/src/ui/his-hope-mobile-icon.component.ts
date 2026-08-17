@@ -13,6 +13,7 @@ export type HisHopeMobileIconName =
   | 'more'
   | 'security'
   | 'mfa'
+  | 'notifications'
   | 'qr'
   | 'key'
   | 'link'
@@ -36,6 +37,7 @@ const MOBILE_ICON_GLYPHS: Record<HisHopeMobileIconName, string> = {
   more: 'more_vert',
   security: 'verified_user',
   mfa: 'shield',
+  notifications: 'notifications',
   qr: 'qr_code_2',
   key: 'key',
   link: 'link',

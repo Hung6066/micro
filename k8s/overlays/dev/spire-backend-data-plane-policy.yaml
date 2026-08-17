@@ -1,0 +1,115 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dev-backends-to-data-plane
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: backend
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: his-hope-dev
+      ports:
+        - port: 5432
+          protocol: TCP
+        - port: 6379
+          protocol: TCP
+        - port: 5672
+          protocol: TCP
+        - port: 5671
+          protocol: TCP
+        # Backend-to-backend traffic is still mTLS-protected by Linkerd.
+        # Keep the egress allow-list explicit for the internal service ports.
+        # Linkerd CNI redirects meshed outbound traffic to the proxy listener.
+        - port: 4140
+          protocol: TCP
+        - port: 5002
+          protocol: TCP
+        - port: 5003
+          protocol: TCP
+        - port: 5004
+          protocol: TCP
+        - port: 5005
+          protocol: TCP
+        - port: 5006
+          protocol: TCP
+        - port: 5007
+          protocol: TCP
+        - port: 5008
+          protocol: TCP
+        - port: 5009
+          protocol: TCP
+        - port: 5010
+          protocol: TCP
+        - port: 5012
+          protocol: TCP
+        - port: 5013
+          protocol: TCP
+        - port: 5014
+          protocol: TCP
+        - port: 5015
+          protocol: TCP
+        - port: 5016
+          protocol: TCP
+        - port: 5018
+          protocol: TCP
+        - port: 5019
+          protocol: TCP
+        - port: 5020
+          protocol: TCP
+        - port: 5022
+          protocol: TCP
+        - port: 5025
+          protocol: TCP
+        - port: 5026
+          protocol: TCP
+        - port: 5030
+          protocol: TCP
+        - port: 5032
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkerd
+      ports:
+        - port: 8080
+          protocol: TCP
+        - port: 8086
+          protocol: TCP
+        - port: 8090
+          protocol: TCP
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 4317
+          protocol: TCP
+        - port: 4318
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dev-postgres-from-namespace
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: his-hope-dev
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: spire
+      ports:
+        - port: 5432
+          protocol: TCP

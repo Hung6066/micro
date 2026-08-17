@@ -104,6 +104,8 @@ public class PatientConfiguration : IEntityTypeConfiguration<Patient>
 
         builder.HasIndex(p => p.IsActive).HasDatabaseName("ix_patients_is_active");
         builder.HasIndex(p => p.FacilityId).HasDatabaseName("ix_patients_facility_id");
+        builder.HasIndex(p => new { p.FacilityId, p.IsActive })
+            .HasDatabaseName("ix_patients_facility_active_id");
         builder.OwnsOne(p => p.ContactInfo, contact =>
         {
             contact.HasIndex(c => c.Phone).IsUnique().HasFilter("\"is_active\" = true").HasDatabaseName("ix_patients_phone");

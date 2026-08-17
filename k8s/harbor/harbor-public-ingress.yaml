@@ -1,0 +1,61 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: harbor-public
+  namespace: harbor
+  labels:
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/component: registry
+  annotations:
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/service.serversscheme: https
+    # Configure a trusted enterprise/ACME issuer before applying this file.
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - harbor.myduchospital.com
+      # This secret must contain a CA-trusted certificate whose SAN includes
+      # harbor.myduchospital.com. Do not reuse harbor-tls (local CA only).
+      secretName: harbor-public-tls
+  rules:
+    - host: harbor.myduchospital.com
+      http:
+        paths:
+          - path: /api/
+            pathType: Prefix
+            backend:
+              service:
+                name: harbor
+                port:
+                  number: 443
+          - path: /service/
+            pathType: Prefix
+            backend:
+              service:
+                name: harbor
+                port:
+                  number: 443
+          - path: /v2/
+            pathType: Prefix
+            backend:
+              service:
+                name: harbor
+                port:
+                  number: 443
+          - path: /c/
+            pathType: Prefix
+            backend:
+              service:
+                name: harbor
+                port:
+                  number: 443
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: harbor
+                port:
+                  number: 443

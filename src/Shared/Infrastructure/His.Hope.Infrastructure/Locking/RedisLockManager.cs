@@ -6,15 +6,14 @@ namespace His.Hope.Infrastructure.Locking;
 /// <summary>
 /// Redis-backed distributed lock manager implementing a RedLock-style algorithm.
 /// Uses atomic SET NX for acquisition and Lua scripting for safe release/extend.
-/// Generates monotonically increasing fencing tokens per process.
+/// Generates monotonically increasing fencing tokens across replicas via Redis.
 /// </summary>
 public sealed class RedisLockManager : ILockManager
 {
     private readonly IConnectionMultiplexer _connectionMultiplexer;
     private readonly ILogger<RedisLockManager> _logger;
-    private static long _fencingTokenCounter;
-
     private const string LockKeyPrefix = "hishop:lock:";
+    private const string FencingKeyPrefix = "hishop:lock-fence:";
     private const int DefaultTtlSeconds = 30;
     private const int MaxTtlSeconds = 300; // 5 minutes safety cap
 
@@ -39,16 +38,22 @@ public sealed class RedisLockManager : ILockManager
     public async Task<IDistributedLock?> AcquireAsync(string key, TimeSpan? ttl = null, CancellationToken ct = default)
     {
         var lockKey = BuildLockKey(key);
-        var fencingToken = Interlocked.Increment(ref _fencingTokenCounter);
         var expiry = SanitizeTtl(ttl ?? TimeSpan.FromSeconds(DefaultTtlSeconds));
 
         var db = _connectionMultiplexer.GetDatabase();
+        long? fencingToken = null;
 
         try
         {
+            // Fencing tokens must be monotonic across replicas, not merely
+            // within one process. Redis INCR provides the global sequence;
+            // the token is then stored as the lock value and checked by the
+            // release/extend scripts.
+            fencingToken = await db.StringIncrementAsync(
+                FencingKey(key), 1, CommandFlags.DemandMaster);
             var acquired = await db.StringSetAsync(
                 lockKey,
-                fencingToken.ToString(),
+                fencingToken.Value.ToString(),
                 expiry,
                 When.NotExists,
                 CommandFlags.DemandMaster);
@@ -59,8 +64,8 @@ public sealed class RedisLockManager : ILockManager
                 return null;
             }
 
-            _logger.LogDebug("Acquired lock for key {LockKey} with fencing token {Token}", lockKey, fencingToken);
-            return new RedisDistributedLock(this, lockKey, fencingToken);
+            _logger.LogDebug("Acquired lock for key {LockKey} with fencing token {Token}", lockKey, fencingToken.Value);
+            return new RedisDistributedLock(this, lockKey, fencingToken.Value);
         }
         catch (RedisException ex)
         {
@@ -70,7 +75,8 @@ public sealed class RedisLockManager : ILockManager
         catch (OperationCanceledException)
         {
             // If cancellation happened mid-flight, attempt to clean up a partial acquisition
-            await TryCleanup(lockKey, fencingToken);
+            if (fencingToken.HasValue)
+                await TryCleanup(lockKey, fencingToken.Value);
             throw;
         }
     }
@@ -145,6 +151,12 @@ public sealed class RedisLockManager : ILockManager
         // Sanitize key to prevent Redis key collisions
         var sanitized = key.Replace(' ', '-');
         return $"{LockKeyPrefix}{sanitized}";
+    }
+
+    private static string FencingKey(string key)
+    {
+        var sanitized = key.Replace(' ', '-');
+        return $"{FencingKeyPrefix}{sanitized}";
     }
 
     private static TimeSpan SanitizeTtl(TimeSpan ttl)

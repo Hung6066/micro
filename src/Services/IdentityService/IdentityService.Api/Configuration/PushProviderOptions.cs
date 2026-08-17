@@ -8,20 +8,29 @@ namespace His.Hope.IdentityService.Api.Configuration;
 public sealed class PushProviderOptions
 {
     /// <summary>
-    /// Development compatibility flag. Production registration always validates
-    /// provider material regardless of this value.
+    /// Legacy compatibility flag retained for configuration compatibility.
+    /// APNs is controlled explicitly by <see cref="ApnsEnabled"/>.
     /// </summary>
     public bool RequireProductionCredentials { get; set; } = true;
+    public bool ApnsEnabled { get; set; } = true;
     public string FirebaseCredentialsJson { get; set; } = string.Empty;
+    public string FirebaseCredentialsFile { get; set; } = string.Empty;
     public string ApnsKeyId { get; set; } = string.Empty;
     public string ApnsTeamId { get; set; } = string.Empty;
     public string ApnsPrivateKey { get; set; } = string.Empty;
     public string ApnsBundleId { get; set; } = string.Empty;
+    public string ApnsEndpoint { get; set; } = "https://api.push.apple.com";
 
     public IEnumerable<ValidationResult> Validate()
     {
+        if (!Uri.TryCreate(ApnsEndpoint, UriKind.Absolute, out var apnsEndpoint) ||
+            apnsEndpoint.Scheme != Uri.UriSchemeHttps)
+            yield return new ValidationResult("PushProviders:ApnsEndpoint must be an HTTPS URL");
         if (!IsValidFirebaseCredentials(FirebaseCredentialsJson))
             yield return new ValidationResult("PushProviders:FirebaseCredentialsJson is required");
+        if (!ApnsEnabled)
+            yield break;
+
         if (!IsConfigured(ApnsKeyId) || !IsConfigured(ApnsTeamId) ||
             !IsConfigured(ApnsPrivateKey) || !IsConfigured(ApnsBundleId))
             yield return new ValidationResult("PushProviders APNs key, team, private key and bundle id are required");

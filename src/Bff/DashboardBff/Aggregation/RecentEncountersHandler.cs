@@ -2,6 +2,7 @@ using His.Hope.Bff.Core.Aggregation;
 using His.Hope.ClinicalGrpc;
 using Polly;
 using Polly.Registry;
+using Grpc.Core;
 
 namespace DashboardBff.Aggregation;
 
@@ -28,12 +29,13 @@ public sealed class RecentEncountersHandler : IAggregationHandler
     {
         try
         {
+            var headers = CreateHeaders(context.SessionJwt);
             var encounters = await _pipeline.ExecuteAsync(async ct =>
             {
                 _logger.LogDebug("Fetching recent encounters");
                 var resp = await _clinicalClient.SearchEncountersAsync(
                     new EncounterSearchRequest { Page = 1, PageSize = 10 },
-                    cancellationToken: ct);
+                    headers: headers, cancellationToken: ct);
                 return resp.Encounters;
             }, context.CancellationToken).AsTask();
 
@@ -45,4 +47,9 @@ public sealed class RecentEncountersHandler : IAggregationHandler
             return AggregationResult.Failed("Clinical service unavailable");
         }
     }
+
+    private static Metadata? CreateHeaders(string jwt) =>
+        string.IsNullOrWhiteSpace(jwt)
+            ? null
+            : new Metadata { { "authorization", $"Bearer {jwt}" } };
 }

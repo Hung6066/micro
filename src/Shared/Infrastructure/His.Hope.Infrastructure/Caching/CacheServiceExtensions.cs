@@ -42,11 +42,8 @@ public static class CacheServiceExtensions
         services.TryAddSingleton<IMemoryCacheService, MemoryCacheService>();
 
         // Register hybrid cache options
-        services.AddOptions<HybridCacheOptions>();
-        services.PostConfigure<HybridCacheOptions>(options =>
-        {
-            // Sensible defaults already set in the options class
-        });
+        services.AddOptions<HybridCacheOptions>()
+            .BindConfiguration("Caching:Hybrid");
 
         // Register hybrid cache as both IHybridCacheService (new) and ICacheService (replacement)
         services.TryAddSingleton<IHybridCacheService, HybridCacheService>();

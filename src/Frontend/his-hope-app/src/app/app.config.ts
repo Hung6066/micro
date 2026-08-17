@@ -22,10 +22,40 @@ import { GlobalErrorHandler } from '@core/errors/global-error-handler';
 import { environment } from '@env/environment';
 import { mockServiceProviders } from '@core/services/mock/mock-providers';
 import { HisHopeI18nService, HisHopeLocalizationApiService, HIS_HOPE_LOCALIZATION_API_URL, hisHopeInternationalizationInterceptor, hisHopeCookieSessionInterceptor } from '@his-hope/frontend-foundation';
+import { RuntimeConfigService } from '@his-hope/frontend-foundation';
+
+function defaultClinicalRuntimeSource() {
+  return (
+    window.__HISHOPE_CONFIG__ ?? {
+      apiOrigin: environment.oidc.authority,
+      oidcAuthority: environment.oidc.authority,
+      // The .local profile is an explicit lab-only HTTP compatibility mode.
+      // Real production origins remain HTTPS and keep the production guard.
+      production: environment.production && !window.location.hostname.endsWith('.his-hope.local'),
+    }
+  );
+}
+
+export function createClinicalRuntimeConfig(source = defaultClinicalRuntimeSource()) {
+  return new RuntimeConfigService(source).requireWeb({
+    clientId: environment.oidc.clientId,
+    scope: environment.oidc.scope,
+    secureRoutes: [environment.apiUrl + '/'],
+    redirectPath: "/auth/callback",
+    postLogoutRedirectPath: "/auth/login",
+    silentRenewPath: "/auth/silent-refresh",
+    responseType: environment.oidc.responseType,
+    maxIdTokenIatOffsetInSeconds:
+      environment.oidc.maxIdTokenIatOffsetInSeconds,
+    usePkce: environment.oidc.usePkce,
+  });
+}
+
+const runtime = createClinicalRuntimeConfig();
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    { provide: HIS_HOPE_LOCALIZATION_API_URL, useValue: environment.apiUrl },
+    { provide: HIS_HOPE_LOCALIZATION_API_URL, useValue: runtime.localizationApiUrl },
     { provide: HisHopeI18nService, useFactory: (document: Document, platformId: object) => new HisHopeI18nService(document, platformId), deps: [DOCUMENT, PLATFORM_ID] },
     { provide: HisHopeLocalizationApiService, useFactory: (http: HttpClient, i18n: HisHopeI18nService, apiUrl: string) => new HisHopeLocalizationApiService(http, i18n, apiUrl), deps: [HttpClient, HisHopeI18nService, HIS_HOPE_LOCALIZATION_API_URL] },
     provideZoneChangeDetection({ eventCoalescing: true }),
@@ -33,22 +63,22 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(withInterceptorsFromDi(), withInterceptors([hisHopeInternationalizationInterceptor, hisHopeCookieSessionInterceptor, authInterceptor, csrfInterceptor])),
     provideAuth({
       config: {
-        authority: environment.oidc.authority,
-        redirectUrl: environment.oidc.redirectUrl,
-        postLogoutRedirectUri: environment.oidc.postLogoutRedirectUri,
-        clientId: environment.oidc.clientId,
-        scope: environment.oidc.scope,
-        responseType: environment.oidc.responseType,
+        authority: runtime.oidcAuthority,
+        redirectUrl: runtime.redirectUrl,
+        postLogoutRedirectUri: runtime.postLogoutRedirectUri,
+        clientId: runtime.clientId,
+        scope: runtime.scope,
+        responseType: runtime.responseType,
         silentRenew: true,
         useRefreshToken: false,
-        silentRenewUrl: environment.oidc.silentRenewUrl,
+        silentRenewUrl: runtime.silentRenewUrl,
         renewTimeBeforeTokenExpiresInSeconds: 120,
-        secureRoutes: [environment.apiUrl + '/'],
+        secureRoutes: runtime.secureRoutes,
         triggerAuthorizationResultEvent: true,
-        logLevel: environment.production ? LogLevel.None : LogLevel.Debug,
+        logLevel: runtime.production ? LogLevel.None : LogLevel.Debug,
         ignoreNonceAfterRefresh: true,
         historyCleanupOff: true,
-        maxIdTokenIatOffsetAllowedInSeconds: environment.oidc.maxIdTokenIatOffsetInSeconds,
+        maxIdTokenIatOffsetAllowedInSeconds: runtime.maxIdTokenIatOffsetInSeconds,
         autoUserInfo: false,
       },
     }),

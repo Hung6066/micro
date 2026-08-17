@@ -1,6 +1,9 @@
 using System.Net;
+using His.Hope.Configuration;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using SystemDashboard.Bff.Aggregators;
 using SystemDashboard.Bff.Models;
@@ -32,9 +35,12 @@ public sealed class ResourceAggregatorTests
 
         var cache = new MemoryCache(new MemoryCacheOptions());
         var logger = NullLogger<ResourceAggregator>.Instance;
+        var kubernetesMetrics = new Mock<IKubernetesPodMetricsService>();
+        var runtimeEndpoints = CreateRuntimeEndpoints();
 
         var aggregator = new ResourceAggregator(
-            consul.Object, httpClientFactory.Object, prometheus.Object, cache, logger);
+            consul.Object, httpClientFactory.Object, prometheus.Object, kubernetesMetrics.Object,
+            Options.Create(new KubernetesOptions { Enabled = false }), cache, logger, runtimeEndpoints);
 
         var resources1 = await aggregator.GetAllResourcesAsync();
 
@@ -71,9 +77,12 @@ public sealed class ResourceAggregatorTests
 
         var cache = new MemoryCache(new MemoryCacheOptions());
         var logger = NullLogger<ResourceAggregator>.Instance;
+        var kubernetesMetrics = new Mock<IKubernetesPodMetricsService>();
+        var runtimeEndpoints = CreateRuntimeEndpoints();
 
         var aggregator = new ResourceAggregator(
-            consul.Object, httpClientFactory.Object, prometheus.Object, cache, logger);
+            consul.Object, httpClientFactory.Object, prometheus.Object, kubernetesMetrics.Object,
+            Options.Create(new KubernetesOptions { Enabled = false }), cache, logger, runtimeEndpoints);
 
         var resources = await aggregator.GetAllResourcesAsync();
 
@@ -83,6 +92,36 @@ public sealed class ResourceAggregatorTests
         Assert.Null(svc.CpuPercent);
         Assert.Null(svc.MemoryUsedMb);
     }
+
+    private static ServiceEndpointOptions CreateRuntimeEndpoints() =>
+        RuntimeConfigurationExtensions.BindServiceEndpoints(
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["REDIS_URL"] = "redis://localhost:6379",
+                    ["SERVICE_IDENTITY_API_URL"] = "http://localhost:5012",
+                    ["SERVICE_IDENTITY_GRPC_URL"] = "http://localhost:5012",
+                    ["SERVICE_PATIENT_API_URL"] = "http://localhost:5008",
+                    ["SERVICE_PATIENT_GRPC_URL"] = "http://localhost:5006",
+                    ["SERVICE_APPOINTMENT_API_URL"] = "http://localhost:5009",
+                    ["SERVICE_APPOINTMENT_GRPC_URL"] = "http://localhost:5007",
+                    ["SERVICE_CLINICAL_API_URL"] = "http://localhost:5010",
+                    ["SERVICE_CLINICAL_GRPC_URL"] = "http://localhost:5005",
+                    ["SERVICE_LAB_API_URL"] = "http://localhost:5018",
+                    ["SERVICE_LAB_GRPC_URL"] = "http://localhost:5018",
+                    ["SERVICE_BILLING_API_URL"] = "http://localhost:5022",
+                    ["SERVICE_BILLING_GRPC_URL"] = "http://localhost:5022",
+                    ["SERVICE_PHARMACY_API_URL"] = "http://localhost:5030",
+                    ["SERVICE_PHARMACY_GRPC_URL"] = "http://localhost:5030",
+                    ["SERVICE_PATIENT_BFF_URL"] = "http://localhost:5100",
+                    ["SERVICE_CLINICAL_BFF_URL"] = "http://localhost:5200",
+                    ["SERVICE_LAB_BFF_URL"] = "http://localhost:5300",
+                    ["SERVICE_BILLING_BFF_URL"] = "http://localhost:5400",
+                    ["SERVICE_PHARMACY_BFF_URL"] = "http://localhost:5500",
+                    ["SERVICE_DASHBOARD_BFF_URL"] = "http://localhost:5700"
+                })
+                .Build(),
+            "SystemDashboard.Bff");
 }
 
 public sealed class HealthyMessageHandler : HttpMessageHandler

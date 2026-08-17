@@ -62,7 +62,8 @@ public class Prescription : AggregateRoot<PrescriptionId>
         CreatedAt = DateTime.UtcNow;
 
         AddDomainEvent(new PrescriptionCreatedDomainEvent(
-            Id.Value, patientId, providerId, medicationName, quantity));
+            Id.Value, patientId, providerId, medicationName, strength, dosageForm,
+            dosageInstructions, quantity, refills, PrescribedDate));
     }
 
     public static Prescription Create(

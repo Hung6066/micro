@@ -91,7 +91,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: blackbox-exporter
-          image: prom/blackbox-exporter:v0.25.0
+          image: prom/blackbox-exporter@sha256:67847e8aaec3c4852a2c7d84d5344e7931521962988c48df00cd980cd1b490a2
           imagePullPolicy: IfNotPresent
           args:
             - "--config.file=/config/blackbox.yml"

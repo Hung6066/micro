@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: database-continuity
+spec:
+  template:
+    metadata:
+      annotations:
+        checksum/runtime-contract: "2026-08-04-prod-runtime-contract"
+    spec:
+      containers:
+        - name: database-continuity
+          volumeMounts:
+            - name: runtime-contract-secrets
+              mountPath: /mnt/runtime-contract-secrets
+              readOnly: true
+      volumes:
+        - name: runtime-contract-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: his-hope-runtime-contract-secrets

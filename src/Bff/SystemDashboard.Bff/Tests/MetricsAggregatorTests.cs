@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using SystemDashboard.Bff.Aggregators;
 using SystemDashboard.Bff.Models;
@@ -22,7 +23,7 @@ public sealed class MetricsAggregatorTests
         };
 
         prometheus.QueryRangeAsync(
-                Arg.Is<string>(q => q.Contains("process_cpu_time_seconds_total")),
+                Arg.Is<string>(q => q.Contains("process_cpu_seconds_total") && q.Contains("service=\"identity-service\"")),
                 Arg.Any<DateTime>(),
                 Arg.Any<DateTime>(),
                 Arg.Is<string>(s => s == "15s"),
@@ -31,7 +32,9 @@ public sealed class MetricsAggregatorTests
 
         var logger = Substitute.For<ILogger<MetricsAggregator>>();
         var cache = Substitute.For<IMemoryCache>();
-        var aggregator = new MetricsAggregator(prometheus, logger, cache);
+        var kubernetesMetrics = Substitute.For<IKubernetesPodMetricsService>();
+        var aggregator = new MetricsAggregator(prometheus, logger, cache, kubernetesMetrics,
+            Options.Create(new KubernetesOptions { Enabled = false }));
 
         // Act
         var results = await aggregator.GetMetricsAsync("identity-service", ["cpu"], "5m");
@@ -56,7 +59,7 @@ public sealed class MetricsAggregatorTests
         var prometheus = Substitute.For<IPrometheusQueryService>();
 
         prometheus.QueryRangeAsync(
-                Arg.Is<string>(q => q.Contains("process_cpu_time_seconds_total")),
+                Arg.Is<string>(q => q.Contains("process_cpu_seconds_total")),
                 Arg.Any<DateTime>(),
                 Arg.Any<DateTime>(),
                 Arg.Any<string>(),
@@ -67,7 +70,7 @@ public sealed class MetricsAggregatorTests
             });
 
         prometheus.QueryRangeAsync(
-                Arg.Is<string>(q => q.Contains("process_memory_usage_bytes")),
+                Arg.Is<string>(q => q.Contains("process_resident_memory_bytes")),
                 Arg.Any<DateTime>(),
                 Arg.Any<DateTime>(),
                 Arg.Any<string>(),
@@ -79,7 +82,9 @@ public sealed class MetricsAggregatorTests
 
         var logger = Substitute.For<ILogger<MetricsAggregator>>();
         var cache = Substitute.For<IMemoryCache>();
-        var aggregator = new MetricsAggregator(prometheus, logger, cache);
+        var kubernetesMetrics = Substitute.For<IKubernetesPodMetricsService>();
+        var aggregator = new MetricsAggregator(prometheus, logger, cache, kubernetesMetrics,
+            Options.Create(new KubernetesOptions { Enabled = false }));
 
         // Act
         var results = await aggregator.GetMetricsAsync("patient-service", ["cpu", "memory"], "5m");
@@ -105,7 +110,9 @@ public sealed class MetricsAggregatorTests
 
         var logger = Substitute.For<ILogger<MetricsAggregator>>();
         var cache = Substitute.For<IMemoryCache>();
-        var aggregator = new MetricsAggregator(prometheus, logger, cache);
+        var kubernetesMetrics = Substitute.For<IKubernetesPodMetricsService>();
+        var aggregator = new MetricsAggregator(prometheus, logger, cache, kubernetesMetrics,
+            Options.Create(new KubernetesOptions { Enabled = false }));
 
         // Act
         var results = await aggregator.GetMetricsAsync("identity-service", ["cpu"], "5m");
@@ -124,12 +131,41 @@ public sealed class MetricsAggregatorTests
         var prometheus = Substitute.For<IPrometheusQueryService>();
         var logger = Substitute.For<ILogger<MetricsAggregator>>();
         var cache = Substitute.For<IMemoryCache>();
-        var aggregator = new MetricsAggregator(prometheus, logger, cache);
+        var kubernetesMetrics = Substitute.For<IKubernetesPodMetricsService>();
+        var aggregator = new MetricsAggregator(prometheus, logger, cache, kubernetesMetrics,
+            Options.Create(new KubernetesOptions { Enabled = false }));
 
         // Act
         var summary = await aggregator.GetSummaryAsync();
 
         // Assert
         Assert.Empty(summary);
+    }
+
+    [Fact]
+    public async Task GetMetricsAsync_UsesCurrentKubernetesMetricsWhenPrometheusHasNoContainerSeries()
+    {
+        var prometheus = Substitute.For<IPrometheusQueryService>();
+        prometheus.QueryRangeAsync(Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(),
+                Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new List<MetricDataPoint>());
+        var kubernetesMetrics = Substitute.For<IKubernetesPodMetricsService>();
+        kubernetesMetrics.GetServiceMetricsAsync(
+                Arg.Is<IReadOnlyCollection<string>>(names => names.Contains("patient-service")),
+                Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<string, KubernetesServiceMetrics>
+            {
+                ["patient-service"] = new(7.5, 192)
+            });
+
+        var aggregator = new MetricsAggregator(prometheus, Substitute.For<ILogger<MetricsAggregator>>(),
+            Substitute.For<IMemoryCache>(), kubernetesMetrics,
+            Options.Create(new KubernetesOptions { Enabled = true }));
+
+        var results = await aggregator.GetMetricsAsync("patient-service", ["cpu", "memory"], "1h");
+
+        Assert.Equal(2, results.Count);
+        Assert.Contains(results, metric => metric.Name == "cpu" && metric.CurrentValue == 7.5 && metric.DataPoints!.Count == 1);
+        Assert.Contains(results, metric => metric.Name == "memory" && metric.CurrentValue == 192 && metric.DataPoints!.Count == 1);
     }
 }

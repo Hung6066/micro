@@ -54,4 +54,22 @@ public sealed class PushProviderOptionsTests
 
         Assert.NotEmpty(options.Validate());
     }
+
+    [Fact]
+    public void Validate_AllowsExplicitlyDisabledApnsWithoutPlaceholderMaterial()
+    {
+        using var firebaseRsa = RSA.Create(2048);
+        var options = new PushProviderOptions
+        {
+            FirebaseCredentialsJson = JsonSerializer.Serialize(new
+            {
+                project_id = "his-hope-test",
+                client_email = "firebase-admin@his-hope-test.iam.gserviceaccount.com",
+                private_key = firebaseRsa.ExportPkcs8PrivateKeyPem()
+            }),
+            ApnsEnabled = false
+        };
+
+        Assert.Empty(options.Validate());
+    }
 }

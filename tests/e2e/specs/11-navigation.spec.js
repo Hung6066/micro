@@ -1,20 +1,12 @@
 const { test, expect } = require('@playwright/test');
 
-const BASE = 'http://localhost:8081';
+const { clinicalUrl: BASE } = require('../config/urls');
+const { signInThroughIdentity } = require('../helpers/sso-login');
 const AUTH_LOGIN_RE = /\/(?:en\/)?auth\/login(?:\?|$)/;
 const ACCESS_DENIED_RE = /\/(?:en\/)?access-denied(?:\?|$)/;
 
 async function doLogin(page) {
-  await page.goto(BASE + '/auth/login');
-  await expect(page.locator('input[formControlName="username"]')).toBeVisible({ timeout: 10000 });
-  await page.locator('input[formControlName="username"]').fill('admin');
-  await page.locator('input[formControlName="password"]').fill('Admin@123');
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL(
-    (url) => /\/(?:en\/)?dashboard(?:\?|$)/.test(url.toString()) || ACCESS_DENIED_RE.test(url.toString()),
-    { timeout: 30000 },
-  );
-
+  await signInThroughIdentity(page, BASE);
   return /\/(?:en\/)?dashboard(?:\?|$)/.test(page.url());
 }
 
@@ -29,7 +21,16 @@ test.describe('Sidebar Navigation', () => {
   });
 
   async function clickSidebarLink(page, text, expectedPath) {
-    const link = page.locator('mat-nav-list a').filter({ hasText: text });
+    const labels = {
+      'Bệnh nhân': /Bệnh nhân|Patients/i,
+      'Lịch hẹn': /Lịch hẹn|Appointments/i,
+      'Lâm sàng': /Lâm sàng|Clinical/i,
+      'Dược phẩm': /Dược phẩm|Pharmacy/i,
+      'Xét nghiệm': /Xét nghiệm|Laboratory|Lab/i,
+      'Thanh toán': /Thanh toán|Billing/i,
+      'Quản trị': /Quản trị|Administration|Admin/i,
+    };
+    const link = page.locator('mat-nav-list a').filter({ hasText: labels[text] || text });
     await expect(link.first()).toBeVisible({ timeout: 10000 });
     await link.first().click();
     if (expectedPath) {

@@ -1,0 +1,929 @@
+﻿[
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  70,
+        "method":  "POST",
+        "route":  "/policies/{id:guid}/lint",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  90,
+        "method":  "POST",
+        "route":  "/rebac/list-objects",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  103,
+        "method":  "POST",
+        "route":  "/policies",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  127,
+        "method":  "PUT",
+        "route":  "/policies/{id:guid}",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  148,
+        "method":  "POST",
+        "route":  "/policies/{id:guid}/publish",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  171,
+        "method":  "POST",
+        "route":  "/policies/{id:guid}/rollback",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  237,
+        "method":  "POST",
+        "route":  "/access-requests",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  283,
+        "method":  "POST",
+        "route":  "/access-reviews",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  304,
+        "method":  "POST",
+        "route":  "/access-reviews/{id:guid}/certify",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  322,
+        "method":  "POST",
+        "route":  "/access-reviews/{id:guid}/revoke",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  351,
+        "method":  "POST",
+        "route":  "/access-requests/{id:guid}/approve",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  397,
+        "method":  "POST",
+        "route":  "/access-requests/{id:guid}/reject",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  446,
+        "method":  "POST",
+        "route":  "/break-glass/requests",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  483,
+        "method":  "POST",
+        "route":  "/break-glass/requests/{id:guid}/revoke",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  502,
+        "method":  "POST",
+        "route":  "/break-glass/requests/{id:guid}/approve",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccessGovernanceEndpoints.cs",
+        "line":  525,
+        "method":  "POST",
+        "route":  "/policy/simulate",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccountLinkingEndpoints.cs",
+        "line":  15,
+        "method":  "DELETE",
+        "route":  "/linked-accounts/{provider}",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "routeGroup.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccountRecoveryEndpoints.cs",
+        "line":  17,
+        "method":  "POST",
+        "route":  "/forgot-password",
+        "receiver":  "group",
+        "classification":  "anonymous",
+        "evidence":  "RouteGroupBuilder parameter; caller must be audited"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccountRecoveryEndpoints.cs",
+        "line":  45,
+        "method":  "POST",
+        "route":  "/reset-password",
+        "receiver":  "group",
+        "classification":  "anonymous",
+        "evidence":  "RouteGroupBuilder parameter; caller must be audited"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccountRecoveryEndpoints.cs",
+        "line":  75,
+        "method":  "POST",
+        "route":  "/change-password",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccountRecoveryEndpoints.cs",
+        "line":  115,
+        "method":  "POST",
+        "route":  "/send-email-verification",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccountRecoveryEndpoints.cs",
+        "line":  145,
+        "method":  "POST",
+        "route":  "/verify-email",
+        "receiver":  "group",
+        "classification":  "anonymous",
+        "evidence":  "RouteGroupBuilder parameter; caller must be audited"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccountRecoveryEndpoints.cs",
+        "line":  219,
+        "method":  "DELETE",
+        "route":  "/sessions/{sessionId}",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AccountRecoveryEndpoints.cs",
+        "line":  241,
+        "method":  "DELETE",
+        "route":  "/sessions",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AdminIncidentEndpoints.cs",
+        "line":  52,
+        "method":  "DELETE",
+        "route":  "/users/{id:guid}/sessions/{sessionId}",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AdminIncidentEndpoints.cs",
+        "line":  75,
+        "method":  "POST",
+        "route":  "/users/{id:guid}/sessions/revoke-all",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AdminIncidentEndpoints.cs",
+        "line":  100,
+        "method":  "POST",
+        "route":  "/users/{id:guid}/credentials/reset",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AdminTableEndpoints.cs",
+        "line":  23,
+        "method":  "POST",
+        "route":  "/tables/users/bulk",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AdminTableEndpoints.cs",
+        "line":  25,
+        "method":  "POST",
+        "route":  "/tables/roles/bulk",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AdminTableEndpoints.cs",
+        "line":  27,
+        "method":  "POST",
+        "route":  "/tables/clients/bulk",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AdminTableEndpoints.cs",
+        "line":  29,
+        "method":  "POST",
+        "route":  "/tables/{resource}/export",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AdminTableEndpoints.cs",
+        "line":  35,
+        "method":  "POST",
+        "route":  "/tables/jobs/{jobId}/cancel",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\AuditLogEndpoints.cs",
+        "line":  37,
+        "method":  "POST",
+        "route":  "/audit/events",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\BulkImportEndpoints.cs",
+        "line":  13,
+        "method":  "POST",
+        "route":  "/users/bulk",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\BulkImportEndpoints.cs",
+        "line":  15,
+        "method":  "POST",
+        "route":  "/users/bulk/csv",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\BulkImportEndpoints.cs",
+        "line":  17,
+        "method":  "POST",
+        "route":  "/users/bulk/file",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\BulkImportEndpoints.cs",
+        "line":  19,
+        "method":  "POST",
+        "route":  "/users/bulk/preview",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\ClientEndpoints.cs",
+        "line":  18,
+        "method":  "POST",
+        "route":  "/",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\ClientEndpoints.cs",
+        "line":  19,
+        "method":  "PUT",
+        "route":  "/{id}",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\ClientEndpoints.cs",
+        "line":  20,
+        "method":  "DELETE",
+        "route":  "/{id}",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\ClientEndpoints.cs",
+        "line":  21,
+        "method":  "POST",
+        "route":  "/{id}/rotate-secret",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\ClientEndpoints.cs",
+        "line":  28,
+        "method":  "POST",
+        "route":  "/connect/register",
+        "receiver":  "app",
+        "classification":  "anonymous",
+        "evidence":  "AllowAnonymous"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\ConsentEndpoints.cs",
+        "line":  15,
+        "method":  "POST",
+        "route":  "/",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "routeGroup.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\ConsentEndpoints.cs",
+        "line":  16,
+        "method":  "DELETE",
+        "route":  "/{clientId}",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "routeGroup.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\DevicePostureEndpoints.cs",
+        "line":  23,
+        "method":  "PUT",
+        "route":  "/policy",
+        "receiver":  "admin",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\DevicePostureEndpoints.cs",
+        "line":  47,
+        "method":  "POST",
+        "route":  "/policy/rollback",
+        "receiver":  "admin",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\DevicePostureEndpoints.cs",
+        "line":  73,
+        "method":  "POST",
+        "route":  "/assessments",
+        "receiver":  "admin",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\DevicePostureEndpoints.cs",
+        "line":  95,
+        "method":  "POST",
+        "route":  "/preview",
+        "receiver":  "admin",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\DirectoryProvisioningEndpoints.cs",
+        "line":  70,
+        "method":  "POST",
+        "route":  "/queue",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\DirectoryProvisioningEndpoints.cs",
+        "line":  131,
+        "method":  "POST",
+        "route":  "/jobs/{id:guid}/retry",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\DirectoryProvisioningEndpoints.cs",
+        "line":  142,
+        "method":  "POST",
+        "route":  "/reconcile/{target}",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\HrWebhookEndpoints.cs",
+        "line":  20,
+        "method":  "POST",
+        "route":  "/webhook/hr",
+        "receiver":  "group",
+        "classification":  "custom-auth",
+        "evidence":  "custom HMAC webhook signature"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\MfaEndpoints.cs",
+        "line":  73,
+        "method":  "POST",
+        "route":  "/mfa/enroll",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\MfaEndpoints.cs",
+        "line":  126,
+        "method":  "POST",
+        "route":  "/mfa/verify",
+        "receiver":  "group",
+        "classification":  "anonymous",
+        "evidence":  "RouteGroupBuilder parameter; caller must be audited"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\MfaEndpoints.cs",
+        "line":  244,
+        "method":  "POST",
+        "route":  "/mfa/recover",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\MobilePlatformEndpoints.cs",
+        "line":  34,
+        "method":  "POST",
+        "route":  "/push-tokens",
+        "receiver":  "mobile",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\MobilePlatformEndpoints.cs",
+        "line":  110,
+        "method":  "POST",
+        "route":  "/notifications/{id:guid}/read",
+        "receiver":  "mobile",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\MobilePlatformEndpoints.cs",
+        "line":  125,
+        "method":  "POST",
+        "route":  "/notifications/read-all",
+        "receiver":  "mobile",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\MobilePlatformEndpoints.cs",
+        "line":  139,
+        "method":  "POST",
+        "route":  "/crash-reports",
+        "receiver":  "mobile",
+        "classification":  "anonymous",
+        "evidence":  "AllowAnonymous"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\MobilePlatformEndpoints.cs",
+        "line":  165,
+        "method":  "POST",
+        "route":  "/rum",
+        "receiver":  "mobile",
+        "classification":  "anonymous",
+        "evidence":  "AllowAnonymous"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\MobilePlatformEndpoints.cs",
+        "line":  192,
+        "method":  "POST",
+        "route":  "/sync",
+        "receiver":  "mobile",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\MobilePlatformEndpoints.cs",
+        "line":  257,
+        "method":  "POST",
+        "route":  "/devices/{id:guid}/revoke",
+        "receiver":  "adminMobile",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\MobilePlatformEndpoints.cs",
+        "line":  293,
+        "method":  "POST",
+        "route":  "/notifications",
+        "receiver":  "adminPush",
+        "classification":  "protected",
+        "evidence":  "routeGroup.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\MtlsEndpoints.cs",
+        "line":  72,
+        "method":  "POST",
+        "route":  "/bindings",
+        "receiver":  "admin",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\MtlsEndpoints.cs",
+        "line":  91,
+        "method":  "DELETE",
+        "route":  "/bindings/{id:guid}",
+        "receiver":  "admin",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\PasskeyEndpoints.cs",
+        "line":  45,
+        "method":  "POST",
+        "route":  "/register/options",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "routeGroup.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\PasskeyEndpoints.cs",
+        "line":  63,
+        "method":  "POST",
+        "route":  "/register/complete",
+        "receiver":  "group",
+        "classification":  "anonymous",
+        "evidence":  "routeGroup.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\PasskeyEndpoints.cs",
+        "line":  96,
+        "method":  "POST",
+        "route":  "/authenticate/options",
+        "receiver":  "login",
+        "classification":  "anonymous",
+        "evidence":  "AllowAnonymous"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\PasskeyEndpoints.cs",
+        "line":  120,
+        "method":  "POST",
+        "route":  "/authenticate/complete",
+        "receiver":  "login",
+        "classification":  "anonymous",
+        "evidence":  "AllowAnonymous"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\PasskeyEndpoints.cs",
+        "line":  154,
+        "method":  "POST",
+        "route":  "/mfa/options",
+        "receiver":  "login",
+        "classification":  "anonymous",
+        "evidence":  "AllowAnonymous"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\PasskeyEndpoints.cs",
+        "line":  185,
+        "method":  "POST",
+        "route":  "/mfa/complete",
+        "receiver":  "login",
+        "classification":  "anonymous",
+        "evidence":  "AllowAnonymous"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\PasskeyEndpoints.cs",
+        "line":  238,
+        "method":  "POST",
+        "route":  "/mfa/native/start",
+        "receiver":  "login",
+        "classification":  "anonymous",
+        "evidence":  "AllowAnonymous"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\PasskeyEndpoints.cs",
+        "line":  306,
+        "method":  "POST",
+        "route":  "/mfa/native/options",
+        "receiver":  "login",
+        "classification":  "anonymous",
+        "evidence":  "AllowAnonymous"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\PasskeyEndpoints.cs",
+        "line":  341,
+        "method":  "POST",
+        "route":  "/mfa/native/reject",
+        "receiver":  "login",
+        "classification":  "anonymous",
+        "evidence":  "AllowAnonymous"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\PasskeyEndpoints.cs",
+        "line":  367,
+        "method":  "POST",
+        "route":  "/mfa/native/complete",
+        "receiver":  "login",
+        "classification":  "anonymous",
+        "evidence":  "AllowAnonymous"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\RoleEndpoints.cs",
+        "line":  61,
+        "method":  "POST",
+        "route":  "/roles",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\RoleEndpoints.cs",
+        "line":  86,
+        "method":  "PUT",
+        "route":  "/roles/{id:guid}",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\RoleEndpoints.cs",
+        "line":  140,
+        "method":  "POST",
+        "route":  "/roles/{id:guid}/publish",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\RoleEndpoints.cs",
+        "line":  167,
+        "method":  "POST",
+        "route":  "/roles/{id:guid}/rollback",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\RoleEndpoints.cs",
+        "line":  216,
+        "method":  "DELETE",
+        "route":  "/roles/{id:guid}",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\ScimEndpoints.cs",
+        "line":  35,
+        "method":  "POST",
+        "route":  "/Users",
+        "receiver":  "scimWrite",
+        "classification":  "protected",
+        "evidence":  "routeGroup.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\ScimEndpoints.cs",
+        "line":  37,
+        "method":  "PUT",
+        "route":  "/Users/{id}",
+        "receiver":  "scimWrite",
+        "classification":  "protected",
+        "evidence":  "routeGroup.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\ScimEndpoints.cs",
+        "line":  38,
+        "method":  "PATCH",
+        "route":  "/Users/{id}",
+        "receiver":  "scimWrite",
+        "classification":  "protected",
+        "evidence":  "routeGroup.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\ScimEndpoints.cs",
+        "line":  39,
+        "method":  "DELETE",
+        "route":  "/Users/{id}",
+        "receiver":  "scimWrite",
+        "classification":  "protected",
+        "evidence":  "routeGroup.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\ScimEndpoints.cs",
+        "line":  43,
+        "method":  "POST",
+        "route":  "/Groups",
+        "receiver":  "scimWrite",
+        "classification":  "protected",
+        "evidence":  "routeGroup.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\ScimEndpoints.cs",
+        "line":  45,
+        "method":  "DELETE",
+        "route":  "/Groups/{id}",
+        "receiver":  "scimWrite",
+        "classification":  "protected",
+        "evidence":  "routeGroup.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\SecuritySignalAdminEndpoints.cs",
+        "line":  59,
+        "method":  "POST",
+        "route":  "/outbox/{id:guid}/retry",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\SettingsEndpoints.cs",
+        "line":  37,
+        "method":  "PUT",
+        "route":  "/settings/{key}",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\SettingsEndpoints.cs",
+        "line":  53,
+        "method":  "PUT",
+        "route":  "/settings",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\SettingsEndpoints.cs",
+        "line":  68,
+        "method":  "PUT",
+        "route":  "/settings/bulk",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\TableAnalysisEndpoints.cs",
+        "line":  19,
+        "method":  "POST",
+        "route":  "/tables/{resource}/analysis",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\TableViewEndpoints.cs",
+        "line":  13,
+        "method":  "PUT",
+        "route":  "/tables/{resource}/views/{name}",
+        "receiver":  "group",
+        "classification":  "indirect-route-group",
+        "evidence":  "RouteGroupBuilder parameter; caller must be audited"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\TableViewEndpoints.cs",
+        "line":  14,
+        "method":  "DELETE",
+        "route":  "/tables/{resource}/views/{name}",
+        "receiver":  "group",
+        "classification":  "indirect-route-group",
+        "evidence":  "RouteGroupBuilder parameter; caller must be audited"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\UserEndpoints.cs",
+        "line":  75,
+        "method":  "POST",
+        "route":  "/users",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\UserEndpoints.cs",
+        "line":  101,
+        "method":  "PUT",
+        "route":  "/users/{id:guid}",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\UserEndpoints.cs",
+        "line":  132,
+        "method":  "PUT",
+        "route":  "/users/{id:guid}/deactivate",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\UserEndpoints.cs",
+        "line":  154,
+        "method":  "PUT",
+        "route":  "/users/{id:guid}/activate",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\IdentityService\\IdentityService.Api\\Endpoints\\UserEndpoints.cs",
+        "line":  176,
+        "method":  "PUT",
+        "route":  "/users/{id:guid}/roles",
+        "receiver":  "group",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\LabService\\LabService.Api\\Endpoints\\CriticalAlertEndpoints.cs",
+        "line":  18,
+        "method":  "POST",
+        "route":  "/",
+        "receiver":  "criticalAlertRules",
+        "classification":  "protected",
+        "evidence":  "routeGroup.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\LabService\\LabService.Api\\Endpoints\\CriticalAlertEndpoints.cs",
+        "line":  33,
+        "method":  "PUT",
+        "route":  "/{id:guid}",
+        "receiver":  "criticalAlertRules",
+        "classification":  "protected",
+        "evidence":  "routeGroup.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\LabService\\LabService.Api\\Endpoints\\CriticalAlertEndpoints.cs",
+        "line":  44,
+        "method":  "DELETE",
+        "route":  "/{id:guid}",
+        "receiver":  "criticalAlertRules",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\LabService\\LabService.Api\\Endpoints\\CriticalAlertEndpoints.cs",
+        "line":  56,
+        "method":  "POST",
+        "route":  "/{id:guid}/acknowledge",
+        "receiver":  "criticalAlerts",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    },
+    {
+        "file":  "src\\Services\\LabService\\LabService.Api\\Endpoints\\CriticalAlertEndpoints.cs",
+        "line":  61,
+        "method":  "POST",
+        "route":  "/{id:guid}/resolve",
+        "receiver":  "criticalAlerts",
+        "classification":  "protected",
+        "evidence":  "endpoint.RequireAuthorization"
+    }
+]

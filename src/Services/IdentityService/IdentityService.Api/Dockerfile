@@ -3,7 +3,7 @@
 # ============================================================
 # BUILD STAGE
 # ============================================================
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0@sha256:e2f26f26169fd10d6f1b426e01c97397717b32e9d5ab4ee4a7d5497ed9403007 AS build
 WORKDIR /src
 
 # --- Restore dependencies (layer cached) ---
@@ -13,12 +13,14 @@ COPY ["src/Services/IdentityService/IdentityService.Application/*.csproj", "Serv
 COPY ["src/Services/IdentityService/IdentityService.Domain/*.csproj", "Services/IdentityService/IdentityService.Domain/"]
 COPY ["src/Services/IdentityService/IdentityService.Infrastructure/*.csproj", "Services/IdentityService/IdentityService.Infrastructure/"]
 COPY ["src/Bff/His.Hope.Bff.Core/*.csproj", "Bff/His.Hope.Bff.Core/"]
+COPY ["src/Shared/Configuration/His.Hope.Configuration/*.csproj", "Shared/Configuration/His.Hope.Configuration/"]
 COPY ["src/Shared/SharedKernel/Src/His.Hope.SharedKernel/*.csproj", "Shared/SharedKernel/Src/His.Hope.SharedKernel/"]
 COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/*.csproj", "Shared/Infrastructure/His.Hope.Infrastructure/"]
 COPY ["src/Shared/Core/His.Hope.Core/*.csproj", "Shared/Core/His.Hope.Core/"]
 COPY ["src/Shared/AspNetCore/His.Hope.AspNetCore/*.csproj", "Shared/AspNetCore/His.Hope.AspNetCore/"]
 COPY ["src/Shared/Contracts/His.Hope.Contracts/*.csproj", "Shared/Contracts/His.Hope.Contracts/"]
 COPY ["src/Shared/Validation/His.Hope.Validation/*.csproj", "Shared/Validation/His.Hope.Validation/"]
+COPY ["src/Shared/Secrets/His.Hope.Secrets/*.csproj", "Shared/Secrets/His.Hope.Secrets/"]
 COPY ["src/Shared/ServiceDefaults/His.Hope.ServiceDefaults/*.csproj", "Shared/ServiceDefaults/His.Hope.ServiceDefaults/"]
 COPY ["src/Shared/Authorization/His.Hope.Authorization/*.csproj", "Shared/Authorization/His.Hope.Authorization/"]
 COPY ["src/Shared/Resilience/His.Hope.Resilience/*.csproj", "Shared/Resilience/His.Hope.Resilience/"]
@@ -41,12 +43,14 @@ COPY ["src/Services/IdentityService/IdentityService.Application/", "Services/Ide
 COPY ["src/Services/IdentityService/IdentityService.Domain/", "Services/IdentityService/IdentityService.Domain/"]
 COPY ["src/Services/IdentityService/IdentityService.Infrastructure/", "Services/IdentityService/IdentityService.Infrastructure/"]
 COPY ["src/Bff/His.Hope.Bff.Core/", "Bff/His.Hope.Bff.Core/"]
+COPY ["src/Shared/Configuration/His.Hope.Configuration/", "Shared/Configuration/His.Hope.Configuration/"]
 COPY ["src/Shared/SharedKernel/Src/His.Hope.SharedKernel/", "Shared/SharedKernel/Src/His.Hope.SharedKernel/"]
 COPY ["src/Shared/Infrastructure/His.Hope.Infrastructure/", "Shared/Infrastructure/His.Hope.Infrastructure/"]
 COPY ["src/Shared/Core/His.Hope.Core/", "Shared/Core/His.Hope.Core/"]
 COPY ["src/Shared/AspNetCore/His.Hope.AspNetCore/", "Shared/AspNetCore/His.Hope.AspNetCore/"]
 COPY ["src/Shared/Contracts/His.Hope.Contracts/", "Shared/Contracts/His.Hope.Contracts/"]
 COPY ["src/Shared/Validation/His.Hope.Validation/", "Shared/Validation/His.Hope.Validation/"]
+COPY ["src/Shared/Secrets/His.Hope.Secrets/", "Shared/Secrets/His.Hope.Secrets/"]
 COPY ["src/Shared/ServiceDefaults/His.Hope.ServiceDefaults/", "Shared/ServiceDefaults/His.Hope.ServiceDefaults/"]
 COPY ["src/Shared/Authorization/His.Hope.Authorization/", "Shared/Authorization/His.Hope.Authorization/"]
 COPY ["src/Shared/Resilience/His.Hope.Resilience/", "Shared/Resilience/His.Hope.Resilience/"]
@@ -70,7 +74,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
 # ============================================================
 # RUNTIME STAGE (distroless chiseled)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy@sha256:e297e0c11c7b60b4a6f424cd42981fba04e25b8e88a9b45bfe5f4a3f11c15a74 AS final
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 5012

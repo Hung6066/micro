@@ -19,7 +19,7 @@ public class AuthEndpointsTests
     public async Task Login_WithValidCredentials_ReturnsSessionCookies()
     {
         var session = _fixture.CreateSessionClient();
-        var response = await session.LoginAsync("admin@hishop.com", "Test@123456");
+        var response = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -44,11 +44,11 @@ public class AuthEndpointsTests
     {
         var client = _fixture.AnonymousClient;
         HttpResponseMessage? lastResponse = null;
-        for (var i = 0; i < 130; i++)
+        for (var i = 0; i < 121; i++)
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login")
+            using var request = new HttpRequestMessage(HttpMethod.Post, IdentityApiRoutes.Login)
             {
-                Content = JsonContent.Create(new { email = $"rate-test{i}@test.test", password = "Test@123456" })
+                Content = JsonContent.Create(new { email = $"rate-test{i}@test.test", password = IdentityTestCredentials.Password })
             };
             request.Headers.Add("X-RateLimit-Key", "integration-auth-rate-limit-secondary");
             lastResponse = await client.SendAsync(request);
@@ -62,10 +62,10 @@ public class AuthEndpointsTests
     public async Task Refresh_WithValidSession_ReturnsNewTokens()
     {
         var session = _fixture.CreateSessionClient();
-        var loginResponse = await session.LoginAsync("admin@hishop.com", "Test@123456");
+        var loginResponse = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
-        var refreshResponse = await session.PostWithCookiesAsync("/api/v1/auth/refresh", new
+        var refreshResponse = await session.PostWithCookiesAsync(IdentityApiRoutes.Refresh, new
         {
             accessToken = "",
             refreshToken = ""
@@ -83,10 +83,10 @@ public class AuthEndpointsTests
     public async Task Refresh_WithoutCsrfToken_Returns403()
     {
         var session = _fixture.CreateSessionClient();
-        var loginResponse = await session.LoginAsync("admin@hishop.com", "Test@123456");
+        var loginResponse = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/refresh")
+        var request = new HttpRequestMessage(HttpMethod.Post, IdentityApiRoutes.Refresh)
         {
             Content = JsonContent.Create(new { accessToken = "", refreshToken = "" })
         };
@@ -107,7 +107,7 @@ public class AuthEndpointsTests
     {
         var client = _fixture.AnonymousClient;
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/refresh")
+        var request = new HttpRequestMessage(HttpMethod.Post, IdentityApiRoutes.Refresh)
         {
             Content = JsonContent.Create(new { accessToken = "expired", refreshToken = "expired" })
         };
@@ -121,14 +121,14 @@ public class AuthEndpointsTests
     [Fact]
     public async Task InternalRefresh_WithoutSession_Returns400()
     {
-        var response = await _fixture.AnonymousClient.PostAsync("/api/v1/auth/internal/refresh", null);
+        var response = await _fixture.AnonymousClient.PostAsync(IdentityApiRoutes.InternalRefresh, null);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
     public async Task InternalRefresh_WithExpiredSessionCookie_Returns401()
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/internal/refresh");
+        var request = new HttpRequestMessage(HttpMethod.Post, IdentityApiRoutes.InternalRefresh);
         request.Headers.TryAddWithoutValidation("Cookie", "hishop_sid=invalid-session-id");
 
         var response = await _fixture.AnonymousClient.SendAsync(request);
@@ -139,10 +139,10 @@ public class AuthEndpointsTests
     public async Task Logout_ClearsSessionAndRevokesTokens()
     {
         var session = _fixture.CreateSessionClient();
-        var loginResponse = await session.LoginAsync("admin@hishop.com", "Test@123456");
+        var loginResponse = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
-        var logoutResponse = await session.PostWithCookiesAsync("/api/v1/auth/logout");
+        var logoutResponse = await session.PostWithCookiesAsync(IdentityApiRoutes.Logout);
         Assert.Equal(HttpStatusCode.NoContent, logoutResponse.StatusCode);
 
         Assert.Contains(logoutResponse.Headers,
@@ -152,7 +152,7 @@ public class AuthEndpointsTests
     [Fact]
     public async Task Me_WithoutAuth_Returns401()
     {
-        var response = await _fixture.AnonymousClient.GetAsync("/api/v1/auth/me");
+        var response = await _fixture.AnonymousClient.GetAsync(IdentityApiRoutes.Me);
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
@@ -160,10 +160,10 @@ public class AuthEndpointsTests
     public async Task Me_WithValidSession_ReturnsUser()
     {
         var session = _fixture.CreateSessionClient();
-        var loginResponse = await session.LoginAsync("admin@hishop.com", "Test@123456");
+        var loginResponse = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
         Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
-        var meResponse = await session.GetWithCookiesAsync("/api/v1/auth/me");
+        var meResponse = await session.GetWithCookiesAsync(IdentityApiRoutes.Me);
         Assert.Equal(HttpStatusCode.OK, meResponse.StatusCode);
 
         var body = await meResponse.Content.ReadFromJsonAsync<JsonElement>();
@@ -173,14 +173,14 @@ public class AuthEndpointsTests
     [Fact]
     public async Task Logout_WithoutActiveSession_ReturnsNoContent()
     {
-        var response = await _fixture.AnonymousClient.PostAsync("/api/v1/auth/logout", null);
+        var response = await _fixture.AnonymousClient.PostAsync(IdentityApiRoutes.Logout, null);
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
     [Fact]
     public async Task Verify_ReturnsAuthenticationStatus()
     {
-        var response = await _fixture.AnonymousClient.GetAsync("/api/v1/auth/verify");
+        var response = await _fixture.AnonymousClient.GetAsync(IdentityApiRoutes.Verify);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();

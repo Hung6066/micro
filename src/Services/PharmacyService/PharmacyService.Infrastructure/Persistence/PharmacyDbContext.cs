@@ -56,6 +56,9 @@ public class PharmacyDbContext : DbContext, IUnitOfWork
             entity.Property(e => e.RetryCount).HasColumnName("retrycount");
             entity.Property(e => e.LastRetryOn).HasColumnName("lastretryon");
             entity.Property(e => e.LockExpiresAt).HasColumnName("lockexpiresat");
+            entity.Property(e => e.ClaimedBy).HasColumnName("claimed_by").HasMaxLength(100);
+            entity.Property(e => e.NextAttemptAt).HasColumnName("next_attempt_at");
+            entity.Property(e => e.DeadLetteredOn).HasColumnName("dead_lettered_on");
             entity.HasIndex(e => new { e.Status, e.OccurredOn });
         });
         base.OnModelCreating(modelBuilder);

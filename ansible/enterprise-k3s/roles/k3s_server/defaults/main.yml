@@ -1,0 +1,4 @@
+---
+# Keep installer output hidden by default. Set this false only for a single
+# diagnostic run; the rendered K3s config remains protected by no_log.
+k3s_install_no_log: true

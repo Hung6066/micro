@@ -185,13 +185,14 @@ public class PatientValueObjectTests
             var all = Race.GetAll();
 
             // Assert
-            all.Should().HaveCount(6);
+            all.Should().HaveCount(7);
             all.Should().Contain(Race.Asian);
             all.Should().Contain(Race.Black);
             all.Should().Contain(Race.Hispanic);
             all.Should().Contain(Race.White);
             all.Should().Contain(Race.Other);
             all.Should().Contain(Race.Unknown);
+            all.Should().Contain(Race.Kinh);
         }
 
         [Theory]
@@ -201,6 +202,7 @@ public class PatientValueObjectTests
         [InlineData("WHITE", "White")]
         [InlineData("OTHER", "Other")]
         [InlineData("UNK", "Unknown")]
+        [InlineData("KINH", "Kinh")]
         public void FromCode_WithValidCode_ShouldReturnCorrectRace(string code, string expectedName)
         {
             // Act

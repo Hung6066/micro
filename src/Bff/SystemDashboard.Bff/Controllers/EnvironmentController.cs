@@ -7,7 +7,7 @@ namespace SystemDashboard.Bff.Controllers;
 
 [ApiController]
 [Route("api/environment")]
-[Authorize(Roles = DashboardRoles.ReadOnly)]
+[Authorize(Policy = "Permission:dashboard.view")]
 public sealed class EnvironmentController : ControllerBase
 {
     [HttpGet]

@@ -60,17 +60,35 @@ spec:
                   name: dashboard-bff-secrets
                   key: redis-connection
             - name: Services__Patient
-              value: "http://patientservice:5006"
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_SERVICE_PATIENT_HTTP
             - name: Services__Clinical
-              value: "http://clinicalservice:5005"
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_SERVICE_CLINICAL_HTTP
             - name: Services__Lab
-              value: "http://labservice:5010"
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_SERVICE_LAB_HTTP
             - name: Services__Billing
-              value: "http://billingservice:5020"
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_SERVICE_BILLING_HTTP
             - name: Services__Pharmacy
-              value: "http://pharmacyservice:5030"
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_SERVICE_PHARMACY_HTTP
             - name: Services__Appointment
-              value: "http://appointmentservice:5007"
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_SERVICE_APPOINTMENT_HTTP
           resources:
             requests:
               cpu: 100m

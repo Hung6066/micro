@@ -54,7 +54,7 @@ import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
       justify-content: center;
       align-items: center;
       min-height: 100vh;
-      background: #F7F6F3;
+      background: var(--bg-warm);
       padding: 24px;
     }
     .login-card {
@@ -70,18 +70,18 @@ import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
       font-weight: 600;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: #7C7A75;
+      color: var(--text-secondary);
       margin-bottom: 8px;
     }
     .login-header h2 {
       font-size: 24px;
       font-weight: 600;
-      color: #1A1A1A;
+      color: var(--text-primary);
       margin: 0 0 4px;
     }
     .subtitle {
       font-size: 14px;
-      color: #A1A09B;
+      color: var(--text-secondary);
       margin: 0;
     }
     .login-buttons {

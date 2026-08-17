@@ -7,6 +7,7 @@ import { MobileDashboardComponent } from './features/mobile-dashboard.component'
 import { MobileResourcePageComponent } from './features/mobile-resource-page.component';
 import { MobileMfaComponent } from './features/mobile-mfa.component';
 import { MobileNativeMfaComponent } from './mobile-native-mfa.component';
+import { MobileNotificationsComponent } from './features/mobile-notifications.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'admin/dashboard', pathMatch: 'full' },
@@ -18,6 +19,7 @@ export const routes: Routes = [
     { path: 'roles', component: MobileResourcePageComponent, data: { resource: 'roles' } },
     { path: 'consents', component: MobileResourcePageComponent, data: { resource: 'consents' } },
     { path: 'mfa', component: MobileMfaComponent },
+    { path: 'notifications', component: MobileNotificationsComponent },
   ] },
   { path: 'auth/login', component: MobileLoginComponent },
   { path: 'auth/callback', component: MobileCallbackComponent },

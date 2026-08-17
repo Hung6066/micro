@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spire-oidc
+  namespace: spire
+  labels:
+    app.kubernetes.io/name: spire-oidc
+    app.kubernetes.io/component: oidc-discovery
+    app.kubernetes.io/part-of: his-hope
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/version: latest
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: spire-oidc
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: spire-oidc
+        app.kubernetes.io/component: oidc-discovery
+        app.kubernetes.io/part-of: his-hope
+        app.kubernetes.io/managed-by: kustomize
+        app.kubernetes.io/version: latest
+    spec:
+      hostPID: true
+      serviceAccountName: spire-oidc
+      containers:
+        - name: oidc-provider
+          image: ghcr.io/spiffe/oidc-discovery-provider:1.15.2
+          imagePullPolicy: IfNotPresent
+          args:
+            - -config
+            - /run/spire/config/oidc-provider.conf
+          ports:
+            - name: http
+              containerPort: 8082
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /.well-known/openid-configuration
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: oidc.his-hope.local
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /.well-known/openid-configuration
+              port: http
+              httpHeaders:
+                - name: Host
+                  value: oidc.his-hope.local
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: spire-oidc
+        - name: agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: Directory

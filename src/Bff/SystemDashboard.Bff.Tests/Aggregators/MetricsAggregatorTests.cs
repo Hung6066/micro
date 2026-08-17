@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using SystemDashboard.Bff.Aggregators;
 using SystemDashboard.Bff.Models;
@@ -20,8 +21,10 @@ public sealed class MetricsAggregatorTests
 
         var cache = new MemoryCache(new MemoryCacheOptions());
         var logger = NullLogger<MetricsAggregator>.Instance;
+        var kubernetesMetrics = new Mock<IKubernetesPodMetricsService>();
 
-        var aggregator = new MetricsAggregator(prometheus.Object, logger, cache);
+        var aggregator = new MetricsAggregator(prometheus.Object, logger, cache,
+            kubernetesMetrics.Object, Options.Create(new KubernetesOptions { Enabled = false }));
 
         var results = await aggregator.GetMetricsAsync(
             "identity-service", ["cpu", "memory"], "5m");
@@ -49,8 +52,10 @@ public sealed class MetricsAggregatorTests
 
         var cache = new MemoryCache(new MemoryCacheOptions());
         var logger = NullLogger<MetricsAggregator>.Instance;
+        var kubernetesMetrics = new Mock<IKubernetesPodMetricsService>();
 
-        var aggregator = new MetricsAggregator(prometheus.Object, logger, cache);
+        var aggregator = new MetricsAggregator(prometheus.Object, logger, cache,
+            kubernetesMetrics.Object, Options.Create(new KubernetesOptions { Enabled = false }));
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var results = await aggregator.GetMetricsAsync(

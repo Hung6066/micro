@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-linkerd-skip-subnets
+spec:
+  template:
+    metadata:
+      annotations:
+        config.linkerd.io/skip-subnets: "10.43.0.0/16"
+        # Redis is TLS-enabled but Redis Cluster redirects clients to pod IPs
+        # (10.42.0.0/16), which must bypass the Linkerd TCP proxy.
+        config.linkerd.io/skip-outbound-ports: "6379,8200"
+        # gRPC listeners use HTTP/2 prior knowledge; keep Linkerd from
+        # classifying these internal ports as default HTTP/1.1 routes.
+        config.linkerd.io/skip-inbound-ports: "5006,5008,5009,5012,5022,5032"

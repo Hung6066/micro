@@ -96,6 +96,15 @@ namespace His.Hope.ClinicalService.Infrastructure.Persistence.Migrations
                     b.HasIndex("Status")
                         .HasDatabaseName("ix_encounters_status");
 
+                    b.HasIndex("PatientId", "EncounterDate")
+                        .HasDatabaseName("ix_encounters_patient_date_id");
+
+                    b.HasIndex("ProviderId", "EncounterDate")
+                        .HasDatabaseName("ix_encounters_provider_date_id");
+
+                    b.HasIndex("FacilityId", "Status", "EncounterDate")
+                        .HasDatabaseName("ix_encounters_facility_status_date_id");
+
                     b.ToTable("encounters", (string)null);
                 });
 

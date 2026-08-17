@@ -157,10 +157,10 @@ describe('HealthTimelineComponent', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     const legend = compiled.querySelector('.ht-legend');
     expect(legend).toBeTruthy();
-    expect(legend!.textContent).toContain('Healthy');
-    expect(legend!.textContent).toContain('Degraded');
-    expect(legend!.textContent).toContain('Down');
-    expect(legend!.textContent).toContain('Unknown');
+    expect(legend!.textContent).toContain('Khỏe mạnh');
+    expect(legend!.textContent).toContain('Suy giảm');
+    expect(legend!.textContent).toContain('Ngừng');
+    expect(legend!.textContent).toContain('Không xác định');
   });
 
   it('should show incident chip when incidents exist', () => {
@@ -170,7 +170,7 @@ describe('HealthTimelineComponent', () => {
     // appointment is Unhealthy, so there should be at least 1 incident
     expect(component.incidentCount).toBeGreaterThan(0);
     expect(chip).toBeTruthy();
-    expect(chip!.textContent).toContain('incident');
+    expect(chip!.textContent).toContain('sự cố');
   });
 
   it('should render empty state when no data', () => {
@@ -179,6 +179,6 @@ describe('HealthTimelineComponent', () => {
     emptyFixture.detectChanges();
     const compiled = emptyFixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('.ht-empty')).toBeTruthy();
-    expect(compiled.querySelector('.ht-empty')!.textContent).toContain('Waiting');
+    expect(compiled.querySelector('.ht-empty')!.textContent).toContain('Đang chờ dữ liệu');
   });
 });

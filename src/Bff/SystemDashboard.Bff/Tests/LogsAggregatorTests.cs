@@ -14,7 +14,7 @@ public sealed class LogsAggregatorTests
     public async Task QueryLogsAsync_FiltersByServiceAndLevel()
     {
         // Arrange
-        var esService = Substitute.For<IElasticsearchQueryService>();
+        var esService = Substitute.For<ILogQueryService>();
         var expectedLogs = new List<LogEntry>
         {
             new()
@@ -58,7 +58,7 @@ public sealed class LogsAggregatorTests
     public async Task QueryLogsAsync_PassesParametersThrough()
     {
         // Arrange
-        var esService = Substitute.For<IElasticsearchQueryService>();
+        var esService = Substitute.For<ILogQueryService>();
         var fromOffset = 50;
 
         esService.QueryLogsAsync(
@@ -93,7 +93,7 @@ public sealed class LogsAggregatorTests
     public async Task QueryLogsAsync_ReturnsEmptyOnEsFailure()
     {
         // Arrange
-        var esService = Substitute.For<IElasticsearchQueryService>();
+        var esService = Substitute.For<ILogQueryService>();
         esService.QueryLogsAsync(
                 Arg.Any<string?>(),
                 Arg.Any<string?>(),

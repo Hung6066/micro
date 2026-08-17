@@ -7,13 +7,13 @@ namespace SystemDashboard.Bff.Aggregators;
 public sealed class LogsAggregator : ILogsAggregator
 {
     private readonly IMemoryCache _cache;
-    private readonly IElasticsearchQueryService _esService;
+    private readonly ILogQueryService _logService;
     private readonly ILogger<LogsAggregator> _logger;
 
-    public LogsAggregator(IMemoryCache cache, IElasticsearchQueryService esService, ILogger<LogsAggregator> logger)
+    public LogsAggregator(IMemoryCache cache, ILogQueryService logService, ILogger<LogsAggregator> logger)
     {
         _cache = cache;
-        _esService = esService;
+        _logService = logService;
         _logger = logger;
     }
 
@@ -27,7 +27,7 @@ public sealed class LogsAggregator : ILogsAggregator
         {
             try
             {
-                return await _esService.QueryLogsAsync(service, level, from, size, searchQuery, null, ct);
+                return await _logService.QueryLogsAsync(service, level, from, size, searchQuery, null, ct);
             }
             catch (Exception ex)
             {

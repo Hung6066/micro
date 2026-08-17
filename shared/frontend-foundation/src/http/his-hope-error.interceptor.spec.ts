@@ -11,11 +11,13 @@ import {
 } from "@angular/common/http/testing";
 import { hisHopeErrorInterceptor } from "./his-hope-error.interceptor";
 import { HisHopeErrorReportingService } from "./his-hope-error-reporting.service";
+import { HisHopePermissionService } from "../auth/his-hope-permission.service";
 
 describe("hisHopeErrorInterceptor", () => {
   let httpMock: HttpTestingController;
   let http: HttpClient;
   let errorReporting: HisHopeErrorReportingService;
+  let permissionService: HisHopePermissionService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -27,6 +29,7 @@ describe("hisHopeErrorInterceptor", () => {
     httpMock = TestBed.inject(HttpTestingController);
     http = TestBed.inject(HttpClient);
     errorReporting = TestBed.inject(HisHopeErrorReportingService);
+    permissionService = TestBed.inject(HisHopePermissionService);
   });
 
   afterEach(() => httpMock.verify());
@@ -94,4 +97,23 @@ describe("hisHopeErrorInterceptor", () => {
     expect(error?.status).toBe(503);
     expect(errorReporting.events().length).toBe(1);
   }));
+
+  it("records a 403 resource denial without clearing the usable snapshot", () => {
+    permissionService.setPermissions(["patients.view"]);
+    let error: HttpErrorResponse | undefined;
+
+    http
+      .get("/api/v1/patients/patient-1", {
+        headers: { "X-Authorization-Action": "patients.view" },
+      })
+      .subscribe({ error: (err) => (error = err) });
+
+    httpMock
+      .expectOne("/api/v1/patients/patient-1")
+      .flush("forbidden", { status: 403, statusText: "Forbidden" });
+
+    expect(error?.status).toBe(403);
+    expect(permissionService.has("patients.view")).toBeTrue();
+    expect(permissionService.lastAuthorizationFailure()?.action).toBe("patients.view");
+  });
 });

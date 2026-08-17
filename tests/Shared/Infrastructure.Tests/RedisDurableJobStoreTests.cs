@@ -1,35 +1,20 @@
 using FluentAssertions;
 using His.Hope.Infrastructure.Jobs;
 using StackExchange.Redis;
-using Testcontainers.Redis;
 using Xunit;
 
 namespace His.Hope.Infrastructure.Tests;
 
-public sealed class RedisDurableJobStoreTests : IAsyncLifetime
+ [Collection("shared-redis")]
+public sealed class RedisDurableJobStoreTests(RedisTestFixture fixture)
 {
-    private readonly RedisContainer _redis = new RedisBuilder().Build();
-    private IConnectionMultiplexer _connection = null!;
-    private RedisDurableJobStore _store = null!;
-
-    public async Task InitializeAsync()
+    private readonly RedisDurableJobStore _store = new(fixture.Connection, new DurableJobOptions
     {
-        await _redis.StartAsync();
-        _connection = await ConnectionMultiplexer.ConnectAsync(_redis.GetConnectionString());
-        _store = new RedisDurableJobStore(_connection, new DurableJobOptions
-        {
-            StreamKey = $"tests:jobs:{Guid.NewGuid():N}",
-            ConsumerGroup = "workers",
-            VisibilityTimeout = TimeSpan.FromMinutes(1),
-            MaxAttempts = 3
-        });
-    }
-
-    public async Task DisposeAsync()
-    {
-        await _connection.CloseAsync();
-        await _redis.DisposeAsync();
-    }
+        StreamKey = $"tests:jobs:{Guid.NewGuid():N}",
+        ConsumerGroup = "workers",
+        VisibilityTimeout = TimeSpan.FromMinutes(1),
+        MaxAttempts = 3
+    });
 
     [Fact]
     public async Task Concurrent_claims_allow_only_one_worker_to_execute_a_delivery()

@@ -1,0 +1,1022 @@
+# Production migration hooks
+
+# Each service owns a separate Job and ServiceAccount. Jobs are Argo PreSync
+# hooks at wave 20, run with a Vault database lease, and exit after
+# Persistence:MigrationOnly completes. The SPIRE socket hostPath is an
+# explicit, time-bounded exception for the JWT bootstrap init container; it
+# must be removed when a SPIRE CSI/native workload API integration is available.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: production-migrate-identity
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: production-migrate-identity
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: his-hope
+    his-hope.io/operation: database-migration
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "20"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    his-hope.io/security-exception: spire-socket-init
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: identity-service
+        app.kubernetes.io/name: production-migrate-identity
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: his-hope
+        his-hope.io/operation: database-migration
+      annotations:
+        linkerd.io/inject: disabled
+    spec:
+      serviceAccountName: identity-service
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+        - name: harbor-pull
+      initContainers:
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              mkdir -p /run/spire/jwt
+              until [ -S /run/spire/sockets/agent.sock ]; do sleep 2; done
+              /opt/spire/bin/spire-agent api fetch jwt -socketPath /run/spire/sockets/agent.sock -audience vault -spiffeID "spiffe://his-hope.local/ns/his-hope/sa/identity-service" |
+                sed -n 's/^[[:space:]]*\(eyJ[^[:space:]]*\).*$/\1/p' | head -n 1 > /run/spire/jwt/vault.jwt
+              test -s /run/spire/jwt/vault.jwt
+              chmod 0440 /run/spire/jwt/vault.jwt
+          securityContext:
+            runAsUser: 1654
+            runAsGroup: 1654
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          volumeMounts:
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+      containers:
+        - name: identity-service
+          image: his-hope/identity-service:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: identity-service-config
+            - configMapRef:
+                name: runtime-contract-config
+          env:
+            - name: ConnectionStrings__IdentityDb
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_CONNECTIONSTRINGS_IDENTITYDB
+            - name: Persistence__RunMigrationsOnStartup
+              value: "true"
+            - name: Persistence__MigrationOnly
+              value: "true"
+            - name: Vault__Address
+              value: https://vault-active.his-hope.svc.cluster.local:8200
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: identity-service-db
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__Database__Enabled
+              value: "true"
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+          securityContext:
+            runAsUser: 1654
+            runAsGroup: 1654
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+              readOnly: true
+            - name: vault-tls-ca
+              mountPath: /etc/tls/vault
+              readOnly: true
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: Socket
+        - name: spire-jwt
+          emptyDir:
+            medium: Memory
+        - name: vault-tls-ca
+          secret:
+            secretName: vault-tls-ca
+            defaultMode: 0440
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: production-migrate-patient
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: production-migrate-patient
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: his-hope
+    his-hope.io/operation: database-migration
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "20"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    his-hope.io/security-exception: spire-socket-init
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: patient-service
+        app.kubernetes.io/name: production-migrate-patient
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: his-hope
+        his-hope.io/operation: database-migration
+      annotations:
+        linkerd.io/inject: disabled
+    spec:
+      serviceAccountName: patient-service
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+        - name: harbor-pull
+      initContainers:
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              mkdir -p /run/spire/jwt
+              until [ -S /run/spire/sockets/agent.sock ]; do sleep 2; done
+              /opt/spire/bin/spire-agent api fetch jwt -socketPath /run/spire/sockets/agent.sock -audience vault -spiffeID "spiffe://his-hope.local/ns/his-hope/sa/patient-service" |
+                sed -n 's/^[[:space:]]*\(eyJ[^[:space:]]*\).*$/\1/p' | head -n 1 > /run/spire/jwt/vault.jwt
+              test -s /run/spire/jwt/vault.jwt
+              chmod 0440 /run/spire/jwt/vault.jwt
+          securityContext:
+            runAsUser: 1654
+            runAsGroup: 1654
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+      containers:
+        - name: patient-service
+          image: his-hope/patient-service:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: patient-service-config
+            - configMapRef:
+                name: runtime-contract-config
+          env:
+            - name: ConnectionStrings__PatientDb
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_CONNECTIONSTRINGS_PATIENTDB
+            - name: Persistence__RunMigrationsOnStartup
+              value: "true"
+            - name: Persistence__MigrationOnly
+              value: "true"
+            - name: Vault__Address
+              value: https://vault-active.his-hope.svc.cluster.local:8200
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: patient-service-db
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__Database__Enabled
+              value: "true"
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+          securityContext:
+            runAsUser: 1654
+            runAsGroup: 1654
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+              readOnly: true
+            - name: vault-tls-ca
+              mountPath: /etc/tls/vault
+              readOnly: true
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: Socket
+        - name: spire-jwt
+          emptyDir:
+            medium: Memory
+        - name: vault-tls-ca
+          secret:
+            secretName: vault-tls-ca
+            defaultMode: 0440
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: production-migrate-appointment
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: production-migrate-appointment
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: his-hope
+    his-hope.io/operation: database-migration
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "20"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    his-hope.io/security-exception: spire-socket-init
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: appointment-service
+        app.kubernetes.io/name: production-migrate-appointment
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: his-hope
+        his-hope.io/operation: database-migration
+      annotations:
+        linkerd.io/inject: disabled
+    spec:
+      serviceAccountName: appointment-service
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+        - name: harbor-pull
+      initContainers:
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              mkdir -p /run/spire/jwt
+              until [ -S /run/spire/sockets/agent.sock ]; do sleep 2; done
+              /opt/spire/bin/spire-agent api fetch jwt -socketPath /run/spire/sockets/agent.sock -audience vault -spiffeID "spiffe://his-hope.local/ns/his-hope/sa/appointment-service" |
+                sed -n 's/^[[:space:]]*\(eyJ[^[:space:]]*\).*$/\1/p' | head -n 1 > /run/spire/jwt/vault.jwt
+              test -s /run/spire/jwt/vault.jwt
+              chmod 0440 /run/spire/jwt/vault.jwt
+          securityContext:
+            runAsUser: 1654
+            runAsGroup: 1654
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+      containers:
+        - name: appointment-service
+          image: his-hope/appointment-service:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: appointment-service-config
+            - configMapRef:
+                name: runtime-contract-config
+          env:
+            - name: ConnectionStrings__AppointmentDb
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_CONNECTIONSTRINGS_APPOINTMENTDB
+            - name: Persistence__RunMigrationsOnStartup
+              value: "true"
+            - name: Persistence__MigrationOnly
+              value: "true"
+            - name: Vault__Address
+              value: https://vault-active.his-hope.svc.cluster.local:8200
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: appointment-service-db
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__Database__Enabled
+              value: "true"
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+          securityContext:
+            runAsUser: 1654
+            runAsGroup: 1654
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+              readOnly: true
+            - name: vault-tls-ca
+              mountPath: /etc/tls/vault
+              readOnly: true
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: Socket
+        - name: spire-jwt
+          emptyDir:
+            medium: Memory
+        - name: vault-tls-ca
+          secret:
+            secretName: vault-tls-ca
+            defaultMode: 0440
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: production-migrate-clinical
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: production-migrate-clinical
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: his-hope
+    his-hope.io/operation: database-migration
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "20"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    his-hope.io/security-exception: spire-socket-init
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: clinical-service
+        app.kubernetes.io/name: production-migrate-clinical
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: his-hope
+        his-hope.io/operation: database-migration
+      annotations:
+        linkerd.io/inject: disabled
+    spec:
+      serviceAccountName: clinical-service
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+        - name: harbor-pull
+      initContainers:
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              mkdir -p /run/spire/jwt
+              until [ -S /run/spire/sockets/agent.sock ]; do sleep 2; done
+              /opt/spire/bin/spire-agent api fetch jwt -socketPath /run/spire/sockets/agent.sock -audience vault -spiffeID "spiffe://his-hope.local/ns/his-hope/sa/clinical-service" |
+                sed -n 's/^[[:space:]]*\(eyJ[^[:space:]]*\).*$/\1/p' | head -n 1 > /run/spire/jwt/vault.jwt
+              test -s /run/spire/jwt/vault.jwt
+              chmod 0440 /run/spire/jwt/vault.jwt
+          securityContext:
+            runAsUser: 1654
+            runAsGroup: 1654
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+      containers:
+        - name: clinical-service
+          image: his-hope/clinical-service:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: clinical-service-config
+            - configMapRef:
+                name: runtime-contract-config
+          env:
+            - name: ConnectionStrings__ClinicalDb
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_CONNECTIONSTRINGS_CLINICALDB
+            - name: Persistence__RunMigrationsOnStartup
+              value: "true"
+            - name: Persistence__MigrationOnly
+              value: "true"
+            - name: Vault__Address
+              value: https://vault-active.his-hope.svc.cluster.local:8200
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: clinical-service-db
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__Database__Enabled
+              value: "true"
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+          securityContext:
+            runAsUser: 1654
+            runAsGroup: 1654
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+              readOnly: true
+            - name: vault-tls-ca
+              mountPath: /etc/tls/vault
+              readOnly: true
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: Socket
+        - name: spire-jwt
+          emptyDir:
+            medium: Memory
+        - name: vault-tls-ca
+          secret:
+            secretName: vault-tls-ca
+            defaultMode: 0440
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: production-migrate-lab
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: production-migrate-lab
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: his-hope
+    his-hope.io/operation: database-migration
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "20"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    his-hope.io/security-exception: spire-socket-init
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: lab-service
+        app.kubernetes.io/name: production-migrate-lab
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: his-hope
+        his-hope.io/operation: database-migration
+      annotations:
+        linkerd.io/inject: disabled
+    spec:
+      serviceAccountName: lab-service
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+        - name: harbor-pull
+      initContainers:
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              mkdir -p /run/spire/jwt
+              until [ -S /run/spire/sockets/agent.sock ]; do sleep 2; done
+              /opt/spire/bin/spire-agent api fetch jwt -socketPath /run/spire/sockets/agent.sock -audience vault -spiffeID "spiffe://his-hope.local/ns/his-hope/sa/lab-service" |
+                sed -n 's/^[[:space:]]*\(eyJ[^[:space:]]*\).*$/\1/p' | head -n 1 > /run/spire/jwt/vault.jwt
+              test -s /run/spire/jwt/vault.jwt
+              chmod 0440 /run/spire/jwt/vault.jwt
+          securityContext:
+            runAsUser: 1654
+            runAsGroup: 1654
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+      containers:
+        - name: lab-service
+          image: his-hope/lab-service:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: lab-service-config
+            - configMapRef:
+                name: runtime-contract-config
+          env:
+            - name: ConnectionStrings__LabDb
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_CONNECTIONSTRINGS_LABDB
+            - name: Persistence__RunMigrationsOnStartup
+              value: "true"
+            - name: Persistence__MigrationOnly
+              value: "true"
+            - name: Vault__Address
+              value: https://vault-active.his-hope.svc.cluster.local:8200
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: lab-service-db
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__Database__Enabled
+              value: "true"
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+          securityContext:
+            runAsUser: 1654
+            runAsGroup: 1654
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+              readOnly: true
+            - name: vault-tls-ca
+              mountPath: /etc/tls/vault
+              readOnly: true
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: Socket
+        - name: spire-jwt
+          emptyDir:
+            medium: Memory
+        - name: vault-tls-ca
+          secret:
+            secretName: vault-tls-ca
+            defaultMode: 0440
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: production-migrate-billing
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: production-migrate-billing
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: his-hope
+    his-hope.io/operation: database-migration
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "20"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    his-hope.io/security-exception: spire-socket-init
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: billing-service
+        app.kubernetes.io/name: production-migrate-billing
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: his-hope
+        his-hope.io/operation: database-migration
+      annotations:
+        linkerd.io/inject: disabled
+    spec:
+      serviceAccountName: billing-service
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+        - name: harbor-pull
+      initContainers:
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              mkdir -p /run/spire/jwt
+              until [ -S /run/spire/sockets/agent.sock ]; do sleep 2; done
+              /opt/spire/bin/spire-agent api fetch jwt -socketPath /run/spire/sockets/agent.sock -audience vault -spiffeID "spiffe://his-hope.local/ns/his-hope/sa/billing-service" |
+                sed -n 's/^[[:space:]]*\(eyJ[^[:space:]]*\).*$/\1/p' | head -n 1 > /run/spire/jwt/vault.jwt
+              test -s /run/spire/jwt/vault.jwt
+              chmod 0440 /run/spire/jwt/vault.jwt
+          securityContext:
+            runAsUser: 1654
+            runAsGroup: 1654
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+      containers:
+        - name: billing-service
+          image: his-hope/billing-service:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: billing-service-config
+            - configMapRef:
+                name: runtime-contract-config
+          env:
+            - name: ConnectionStrings__BillingDb
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_CONNECTIONSTRINGS_BILLINGDB
+            - name: Persistence__RunMigrationsOnStartup
+              value: "true"
+            - name: Persistence__MigrationOnly
+              value: "true"
+            - name: Vault__Address
+              value: https://vault-active.his-hope.svc.cluster.local:8200
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: billing-service-db
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__Database__Enabled
+              value: "true"
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+          securityContext:
+            runAsUser: 1654
+            runAsGroup: 1654
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+              readOnly: true
+            - name: vault-tls-ca
+              mountPath: /etc/tls/vault
+              readOnly: true
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: Socket
+        - name: spire-jwt
+          emptyDir:
+            medium: Memory
+        - name: vault-tls-ca
+          secret:
+            secretName: vault-tls-ca
+            defaultMode: 0440
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: production-migrate-pharmacy
+  namespace: his-hope
+  labels:
+    app.kubernetes.io/name: production-migrate-pharmacy
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: his-hope
+    his-hope.io/operation: database-migration
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "20"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+    his-hope.io/security-exception: spire-socket-init
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: pharmacy-service
+        app.kubernetes.io/name: production-migrate-pharmacy
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: his-hope
+        his-hope.io/operation: database-migration
+      annotations:
+        linkerd.io/inject: disabled
+    spec:
+      serviceAccountName: pharmacy-service
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+        - name: harbor-pull
+      initContainers:
+        - name: spire-jwt-fetcher
+          image: harbor.his-hope.local:9443/his-hope/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              mkdir -p /run/spire/jwt
+              until [ -S /run/spire/sockets/agent.sock ]; do sleep 2; done
+              /opt/spire/bin/spire-agent api fetch jwt -socketPath /run/spire/sockets/agent.sock -audience vault -spiffeID "spiffe://his-hope.local/ns/his-hope/sa/pharmacy-service" |
+                sed -n 's/^[[:space:]]*\(eyJ[^[:space:]]*\).*$/\1/p' | head -n 1 > /run/spire/jwt/vault.jwt
+              test -s /run/spire/jwt/vault.jwt
+              chmod 0440 /run/spire/jwt/vault.jwt
+          securityContext:
+            runAsUser: 1654
+            runAsGroup: 1654
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+      containers:
+        - name: pharmacy-service
+          image: his-hope/pharmacy-service:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: pharmacy-service-config
+            - configMapRef:
+                name: runtime-contract-config
+          env:
+            - name: ConnectionStrings__PharmacyDb
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_CONNECTIONSTRINGS_PHARMACYDB
+            - name: Persistence__RunMigrationsOnStartup
+              value: "true"
+            - name: Persistence__MigrationOnly
+              value: "true"
+            - name: Vault__Address
+              value: https://vault-active.his-hope.svc.cluster.local:8200
+            - name: Vault__AuthMethod
+              value: spiffe-jwt
+            - name: Vault__AuthMount
+              value: jwt-spiffe
+            - name: Vault__Role
+              value: pharmacy-service-db
+            - name: Vault__SpiffeJwtTokenFile
+              value: /run/spire/jwt/vault.jwt
+            - name: Vault__SpiffeAudience
+              value: vault
+            - name: Vault__RequireVault
+              value: "true"
+            - name: Vault__AllowStaticToken
+              value: "false"
+            - name: Vault__Database__Enabled
+              value: "true"
+            - name: Vault__TlsCaFile
+              value: /etc/tls/vault/ca.crt
+          securityContext:
+            runAsUser: 1654
+            runAsGroup: 1654
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: runtime-tmp
+              mountPath: /tmp
+            - name: agent-socket
+              mountPath: /run/spire/sockets
+              readOnly: true
+            - name: spire-jwt
+              mountPath: /run/spire/jwt
+              readOnly: true
+            - name: vault-tls-ca
+              mountPath: /etc/tls/vault
+              readOnly: true
+      volumes:
+        - name: runtime-tmp
+          emptyDir: {}
+        - name: agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: Socket
+        - name: spire-jwt
+          emptyDir:
+            medium: Memory
+        - name: vault-tls-ca
+          secret:
+            secretName: vault-tls-ca
+            defaultMode: 0440

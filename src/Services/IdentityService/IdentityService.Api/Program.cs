@@ -7,6 +7,12 @@ builder.AddIdentityService();
 
 var app = builder.Build();
 app.UseIdentityServicePipeline();
+
+if (builder.Configuration.GetValue("Persistence:MigrationOnly", false))
+{
+    return;
+}
+
 app.MapIdentityServiceEndpoints();
 app.MapHisHopeHealthEndpoints();
 app.Run();

@@ -2,6 +2,9 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using FluentAssertions;
+using Grpc.Core;
+using Grpc.Net.Client;
+using His.Hope.LabGrpc;
 using His.Hope.LabService.Application.DTOs;
 using His.Hope.LabService.Domain.Aggregates;
 using His.Hope.LabService.Domain.Entities;
@@ -21,29 +24,36 @@ namespace His.Hope.LabService.Integration.Tests;
 
 public class CriticalAlertEndpointsTests : IAsyncLifetime
 {
-    private PostgreSqlContainer _container = null!;
+    private PostgreSqlContainer? _container;
     private WebApplicationFactory<Program> _factory = null!;
     private HttpClient _client = null!;
+    private string _connectionString = string.Empty;
 
     public async Task InitializeAsync()
     {
-        _container = new PostgreSqlBuilder()
-            .WithImage("postgres:16-alpine")
-            .WithDatabase("hishopetest")
-            .WithUsername("testuser")
-            .WithPassword("testpass123!")
-            .WithCleanUp(true)
-            .Build();
+        _connectionString = Environment.GetEnvironmentVariable("LAB_TEST_POSTGRES_CONNECTION") ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(_connectionString))
+        {
+            _container = new PostgreSqlBuilder()
+                .WithImage("postgres:16-alpine")
+                .WithDatabase("hishopetest")
+                .WithUsername("testuser")
+                .WithPassword("testpass123!")
+                .WithCleanUp(true)
+                .Build();
 
-        await _container.StartAsync();
+            await _container.StartAsync();
+            _connectionString = _container.GetConnectionString();
+        }
 
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
+            builder.UseSetting("ConnectionStrings:LabDb", _connectionString);
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<DbContextOptions<LabDbContext>>();
                 services.RemoveAll<LabDbContext>();
-                services.AddDbContext<LabDbContext>(options => options.UseNpgsql(_container.GetConnectionString()));
+                services.AddDbContext<LabDbContext>(options => options.UseNpgsql(_connectionString));
                 services.AddDistributedMemoryCache();
 
                 services.AddAuthentication(TestAuthHandler.Scheme)
@@ -68,7 +78,8 @@ public class CriticalAlertEndpointsTests : IAsyncLifetime
     {
         _client.Dispose();
         _factory.Dispose();
-        await _container.DisposeAsync();
+        if (_container is not null)
+            await _container.DisposeAsync();
     }
 
     [Fact]
@@ -118,6 +129,65 @@ public class CriticalAlertEndpointsTests : IAsyncLifetime
 
         var inbox = await _client.GetFromJsonAsync<List<CriticalAlertDto>>("/api/v1/critical-alerts");
         inbox.Should().ContainSingle(alert => alert.Status == CriticalAlertStatus.Open);
+    }
+
+    [Fact]
+    public async Task GetLabOrder_DeniesResourceOutsideAuthenticatedFacility()
+    {
+        var (orderId, _) = await SeedOrderWithCollectedTestAsync("facility-2");
+
+        var response = await _client.GetAsync($"/api/v1/lab-orders/{orderId}");
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GetLabOrder_AllowsResourceInsideAuthenticatedFacility()
+    {
+        var (orderId, _) = await SeedOrderWithCollectedTestAsync("facility-1");
+
+        var response = await _client.GetAsync($"/api/v1/lab-orders/{orderId}");
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task CancelLabOrder_DeniesResourceOutsideAuthenticatedFacility()
+    {
+        var (orderId, _) = await SeedOrderWithCollectedTestAsync("facility-2");
+        var response = await _client.PutAsJsonAsync($"/api/v1/lab-orders/{orderId}/cancel", new { Reason = "RBAC integration" });
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GrpcGetLabOrder_DeniesResourceOutsideAuthenticatedFacility()
+    {
+        var (orderId, _) = await SeedOrderWithCollectedTestAsync("facility-2");
+        using var channel = GrpcChannel.ForAddress("http://localhost", new GrpcChannelOptions
+        {
+            HttpHandler = _factory.Server.CreateHandler()
+        });
+        var client = new LabGrpcService.LabGrpcServiceClient(channel);
+
+        var act = async () => await client.GetLabOrderAsync(new LabOrderRequest { Id = orderId.ToString() });
+
+        var error = await act.Should().ThrowAsync<RpcException>();
+        error.Which.StatusCode.Should().Be(StatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GrpcGetLabOrder_AllowsResourceInsideAuthenticatedFacility()
+    {
+        var (orderId, _) = await SeedOrderWithCollectedTestAsync("facility-1");
+        using var channel = GrpcChannel.ForAddress("http://localhost", new GrpcChannelOptions
+        {
+            HttpHandler = _factory.Server.CreateHandler()
+        });
+        var client = new LabGrpcService.LabGrpcServiceClient(channel);
+
+        var response = await client.GetLabOrderAsync(new LabOrderRequest { Id = orderId.ToString() });
+
+        response.Id.Should().Be(orderId.ToString());
     }
 
     [Fact]
@@ -188,7 +258,7 @@ public class CriticalAlertEndpointsTests : IAsyncLifetime
         publisherType.GetMethod("PublishResolvedAsync").Should().NotBeNull();
     }
 
-    private async Task<(Guid OrderId, Guid TestId)> SeedOrderWithCollectedTestAsync()
+    private async Task<(Guid OrderId, Guid TestId)> SeedOrderWithCollectedTestAsync(string facilityId = "facility-1")
     {
         var order = LabOrder.Create(Guid.NewGuid(), Guid.NewGuid(), null, LabOrderPriority.Routine, null);
         var test = LabTest.Create(order.Id, "CBC", "Complete Blood Count", "x10^9/L");
@@ -199,6 +269,8 @@ public class CriticalAlertEndpointsTests : IAsyncLifetime
         await using var scope = _factory.Services.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<LabDbContext>();
         context.LabOrders.Add(order);
+        await context.SaveChangesAsync();
+        context.Entry(order).Property(nameof(LabOrder.FacilityId)).CurrentValue = facilityId;
         await context.SaveChangesAsync();
 
         return (order.Id.Value, test.Id.Value);
@@ -258,7 +330,7 @@ public sealed class TestAuthHandler : AuthenticationHandler<AuthenticationScheme
         identity.AddClaim(new Claim("sub", "user-1"));
         identity.AddClaim(new Claim("facility_id", "facility-1"));
         identity.AddClaim(new Claim("fullName", "Dr. Jones"));
-        identity.AddClaim(new Claim("permissions", "lab.view,lab.manage,lab.result"));
+        identity.AddClaim(new Claim("permissions", "lab.view,lab.manage,lab.result,lab.cancel,lab.alert.acknowledge,lab.alert.resolve"));
         identity.AddClaim(new Claim(ClaimTypes.Role, "LabTechnician"));
 
         var principal = new ClaimsPrincipal(identity);

@@ -60,7 +60,10 @@ spec:
                   name: billing-bff-secrets
                   key: redis-connection
             - name: Services__Billing
-              value: "http://billingservice:5020"
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: ADAPTER_SERVICE_BILLING_HTTP
           resources:
             requests:
               cpu: 100m

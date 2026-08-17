@@ -93,6 +93,19 @@ vault write pki_int/roles/internal-service \
   client_flag=true \
   require_cn=false
 
+# Harbor public internal DNS certificate. Keep this role narrowly scoped so
+# cert-manager cannot mint certificates for unrelated services.
+vault write pki_int/roles/harbor-public \
+  allowed_domains="harbor.myduchospital.com" \
+  allow_bare_domains=true \
+  allow_subdomains=false \
+  max_ttl=720h \
+  key_type=rsa \
+  key_bits=3072 \
+  server_flag=true \
+  client_flag=false \
+  require_cn=false
+
 echo "=== Step 6: Creating Vault Policies ==="
 # SECURITY: Each service has a dedicated policy with least-privilege access
 vault policy write patient-service ./policies/patient-service.hcl

@@ -175,6 +175,13 @@ spec:
         prometheus.io/path: "/v1/sys/metrics"
     spec:
       serviceAccountName: vault
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       terminationGracePeriodSeconds: 30
       affinity:
         podAntiAffinity:
@@ -195,6 +202,11 @@ spec:
             - server
             - -config=/vault/config/config.hcl
           args: []
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: POD_NAME
               valueFrom:
@@ -246,6 +258,8 @@ spec:
               readOnly: true
             - name: raft-storage
               mountPath: /vault/data
+            - name: tmp
+              mountPath: /tmp
           lifecycle:
             preStop:
               exec:
@@ -293,12 +307,6 @@ spec:
             limits:
               memory: "2Gi"
               cpu: "1"
-          securityContext:
-            capabilities:
-              add:
-                - IPC_LOCK
-            runAsNonRoot: false
-            runAsUser: 0
       volumes:
         - name: config
           configMap:
@@ -308,6 +316,8 @@ spec:
           secret:
             secretName: vault-tls
             defaultMode: 0444
+        - name: tmp
+          emptyDir: {}
   volumeClaimTemplates:
     - metadata:
         name: raft-storage

@@ -57,6 +57,10 @@ Thumbs.db
 **/.env.*
 !**/*.env.example
 
+# Provider credentials must be mounted as runtime secrets, never copied into images.
+**/account.json
+**/*firebase*credentials*.json
+
 # --- Logs ---
 **/*.log
 **/logs/

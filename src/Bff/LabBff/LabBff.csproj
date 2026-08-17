@@ -6,11 +6,12 @@
     <RootNamespace>LabBff</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\Shared\Configuration\His.Hope.Configuration\His.Hope.Configuration.csproj" />
     <ProjectReference Include="..\His.Hope.Bff.Core\His.Hope.Bff.Core.csproj" />
     <Protobuf Include="..\..\Shared\Protos\lab.proto" GrpcServices="Client" Link="Protos\lab.proto" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Grpc.Net.ClientFactory" Version="2.60.0" />
+    <PackageReference Include="Grpc.Net.ClientFactory" Version="2.62.0" />
     <PackageReference Include="Grpc.Tools" Version="2.62.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
