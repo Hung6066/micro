@@ -7,7 +7,7 @@ namespace SystemDashboard.Bff.Controllers;
 
 [ApiController]
 [Route("api/metrics")]
-[Authorize(Roles = DashboardRoles.ReadOnly)]
+[Authorize(Policy = "Permission:dashboard.view")]
 public sealed class MetricsController : ControllerBase
 {
     private readonly IMetricsAggregator _metricsAggregator;

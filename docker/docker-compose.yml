@@ -43,10 +43,13 @@ services:
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      # Check the database used by Identity, not only the postmaster socket.
+      # This prevents dependent services from starting during PostgreSQL recovery.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d identitydb"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
     restart: unless-stopped
     deploy:
       resources:
@@ -406,15 +409,26 @@ services:
       context: ..
       dockerfile: src/Services/IdentityService/IdentityService.Api/Dockerfile
     container_name: his-hope-identity
+    networks:
+      default:
+        aliases:
+          - identity
     ports:
-      - "5001:5001"
+      # Identity's Kestrel web endpoint is 5003; 5007 is the internal gRPC
+      # endpoint. Keep host port 5001 for the public local OIDC origin.
+      - "5001:5003"
       - "5012:5012"
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
-      ASPNETCORE_URLS: http://+:5001
-      ConnectionStrings__IdentityDb: ${DATABASE_IDENTITY_URL};Password=${POSTGRES_PASSWORD:-postgres}
+      ASPNETCORE_URLS: http://+:5003
+      # Self-contained development default; production must provide the full
+      # connection string through the runtime contract/secret provider.
+      ConnectionStrings__IdentityDb: ${DATABASE_IDENTITY_URL:-Host=postgres;Database=identitydb;Username=postgres;Password=postgres}
       Persistence__RunMigrationsOnStartup: "true"
-      ConnectionStrings__Redis: ${REDIS_URL}
+      # Keep the local service name as a safe default when no host .env file is
+      # loaded; an empty connection string causes the Identity process to crash
+      # before health checks can run.
+      ConnectionStrings__Redis: ${REDIS_URL:-redis://redis:6379}
       # Use the public OIDC issuer for both OIDC and service-issued JWTs.
       # This keeps the fallback JwtBearer handler aligned with OpenIddict validation.
       Jwt__Issuer: http://localhost:5000/
@@ -425,12 +439,16 @@ services:
       Jwt__Expiry: "08:00:00"
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__AllowHttp: "true"
-      Redis__ConnectionString: ${REDIS_URL}
+      Redis__ConnectionString: redis
       Vault__Address: ${VAULT_ADDR:-}
       Vault__Token: ${VAULT_TOKEN:-}
       Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-true}
       Vault__RequireVault: ${VAULT_REQUIRE:-false}
       Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-false}
+      # Development-only fallback for seeded M2M clients when Vault is not
+      # configured. Identity derives the secret from this seed and never uses
+      # it outside ASPNETCORE_ENVIRONMENT=Development.
+      Vault__DevelopmentSecretSeed: ${IDENTITY_DEV_CLIENT_SECRET_SEED:-his-hope-local-only-m2m-seed}
       PushProviders__FirebaseCredentialsFile: /run/secrets/firebase-account.json
       PushProviders__FirebaseCredentialsJson: ""
       PushProviders__ApnsEndpoint: ${APNS_ENDPOINT:-https://api.push.apple.com}
@@ -441,31 +459,83 @@ services:
       # downstream JWT validator. Do not fall back to an ephemeral development key.
       OpenIddict__Encryption__PrivateKeyPath: ${JWT_RSA_ENCRYPTION_PRIVATE_KEY_PATH:-/etc/hishop/certs/jwt-encryption-private-key.pem}
       OpenIddict__Encryption__KeyId: oidc-encryption-v1
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
       # ─── OpenIddict OIDC Configuration ───
       OpenIddict__Issuer: ${OIDC_ISSUER:-http://localhost:5000}
-      OpenIddict__InternalJwksUri: ${SERVICE_IDENTITY_URL}/.well-known/jwks
+      OpenIddict__InternalJwksUri: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/jwks
       OpenIddict__AccessTokenLifetime: ${OIDC_ACCESS_TOKEN_LIFETIME:-01:00:00}
       OpenIddict__RefreshTokenLifetime: ${OIDC_REFRESH_TOKEN_LIFETIME:-7.00:00:00}
       OpenIddict__AuthorizationCodeLifetime: ${OIDC_CODE_LIFETIME:-00:01:00}
       # WebAuthn origins used by the local identity login page and admin app.
       # Production deployments should override these with the public HTTPS origins.
-      Passkeys__RpId: ${PASSKEYS_RP_ID}
-      Passkeys__Origins__0: ${PASSKEYS_ORIGIN_0}
-      Passkeys__Origins__1: ${PASSKEYS_ORIGIN_1}
-      Passkeys__Origins__2: ${PASSKEYS_ORIGIN_2}
-      Passkeys__Origins__3: ${PASSKEYS_ORIGIN_3}
-      Passkeys__Origins__4: ${PASSKEYS_ORIGIN_4}
+      Passkeys__RpId: ${PASSKEYS_RP_ID:-}
+      Passkeys__Origins__0: ${PASSKEYS_ORIGIN_0:-}
+      Passkeys__Origins__1: ${PASSKEYS_ORIGIN_1:-}
+      Passkeys__Origins__2: ${PASSKEYS_ORIGIN_2:-}
+      Passkeys__Origins__3: ${PASSKEYS_ORIGIN_3:-}
+      Passkeys__Origins__4: ${PASSKEYS_ORIGIN_4:-}
       Mobile__AppPolicy__MinimumVersion: 1.0.0
       Mobile__AppPolicy__LatestVersion: 1.0.0
       Mobile__AppPolicy__ForceUpgrade: "false"
       Mobile__AppPolicy__Maintenance: "false"
+      AUTHZ_PDP_MODE: ${AUTHZ_PDP_MODE:-disabled}
+      AUTHZ_OPENFGA_URL: ${AUTHZ_OPENFGA_URL:-}
+      AUTHZ_OPENFGA_STORE_ID: ${AUTHZ_OPENFGA_STORE_ID:-}
+      AUTHZ_OPENFGA_MODEL_ID: ${AUTHZ_OPENFGA_MODEL_ID:-}
+      AUTHZ_OPENFGA_TOKEN: ${AUTHZ_OPENFGA_TOKEN:-}
+      DEVICE_POSTURE_MODE: ${DEVICE_POSTURE_MODE:-observe}
+      DEVICE_POSTURE_PROVIDERS: ${DEVICE_POSTURE_PROVIDERS:-chrome-enterprise,advanced-compliance,windows-local-login}
+      DEVICE_POSTURE_TTL_SECONDS: ${DEVICE_POSTURE_TTL_SECONDS:-900}
+      DEVICE_POSTURE_REQUIRED_SIGNALS: ${DEVICE_POSTURE_REQUIRED_SIGNALS:-}
+      DEVICE_POSTURE_ENFORCE_CLINICAL: ${DEVICE_POSTURE_ENFORCE_CLINICAL:-false}
+      PASSWORD_HISTORY_ENABLED: ${PASSWORD_HISTORY_ENABLED:-true}
+      PASSWORD_HISTORY_COUNT: ${PASSWORD_HISTORY_COUNT:-5}
+      AUDIT_APPEND_ONLY: ${AUDIT_APPEND_ONLY:-true}
+      AUDIT_REDACTION_ENABLED: ${AUDIT_REDACTION_ENABLED:-true}
+      EXTERNAL_FEDERATION_ENABLED: ${EXTERNAL_FEDERATION_ENABLED:-false}
+      SCIM_M2M_ENABLED: ${SCIM_M2M_ENABLED:-true}
+      PROVISIONING_MODE: ${PROVISIONING_MODE:-dry-run}
+      PROVISIONING_TARGETS: ${PROVISIONING_TARGETS:-scim,entra,google-workspace}
+      SSF_ENABLED: ${SSF_ENABLED:-false}
+      MTLS_ENABLED: ${MTLS_ENABLED:-false}
+      RADIUS_EAP_TLS_ENABLED: ${RADIUS_EAP_TLS_ENABLED:-false}
+      CSV_EXPORT_ENABLED: ${CSV_EXPORT_ENABLED:-true}
+      # Outbound adapters remain disabled/dry-run until their tenant endpoint
+      # and Vault-backed credential reference are explicitly configured.
+      Provisioning__Scim__BaseUrl: ${PROVISIONING_SCIM_BASE_URL:-}
+      Provisioning__Scim__TokenUrl: ${PROVISIONING_SCIM_TOKEN_URL:-}
+      Provisioning__Scim__ClientId: ${PROVISIONING_SCIM_CLIENT_ID:-}
+      Provisioning__Scim__Scope: ${PROVISIONING_SCIM_SCOPE:-scim.write}
+      Provisioning__Entra__Enabled: ${PROVISIONING_ENTRA_ENABLED:-false}
+      Provisioning__Entra__BaseUrl: ${PROVISIONING_ENTRA_BASE_URL:-https://graph.microsoft.com/v1.0}
+      Provisioning__Entra__TokenUrl: ${PROVISIONING_ENTRA_TOKEN_URL:-}
+      Provisioning__Entra__ClientId: ${PROVISIONING_ENTRA_CLIENT_ID:-}
+      Provisioning__Entra__Scope: ${PROVISIONING_ENTRA_SCOPE:-https://graph.microsoft.com/.default}
+      Provisioning__GoogleWorkspace__Enabled: ${PROVISIONING_GOOGLE_WORKSPACE_ENABLED:-false}
+      Provisioning__GoogleWorkspace__BaseUrl: ${PROVISIONING_GOOGLE_WORKSPACE_BASE_URL:-https://admin.googleapis.com/admin/directory/v1}
+      Provisioning__GoogleWorkspace__TokenUrl: ${PROVISIONING_GOOGLE_WORKSPACE_TOKEN_URL:-https://oauth2.googleapis.com/token}
+      Provisioning__GoogleWorkspace__ServiceAccountSecretId: ${PROVISIONING_GOOGLE_WORKSPACE_SECRET_ID:-google-workspace-service-account}
+      Provisioning__GoogleWorkspace__DelegatedAdmin: ${PROVISIONING_GOOGLE_WORKSPACE_DELEGATED_ADMIN:-}
+      SecuritySignals__Enabled: ${SSF_ENABLED:-false}
+      SecuritySignals__Subscriptions__0__Url: ${SSF_RECEIVER_URL:-}
+      SecuritySignals__Subscriptions__0__Audience: ${SSF_RECEIVER_AUDIENCE:-}
+      Mtls__TrustedCaFile: ${MTLS_TRUSTED_CA_FILE:-/etc/hishop/certs/client-ca.pem}
+      Radius__EapTls__Enabled: ${RADIUS_EAP_TLS_ENABLED:-false}
       # ─── Federation (optional) ───
       Identity__BootstrapAdmin__Password: ${IDENTITY_BOOTSTRAP_ADMIN_PASSWORD:-}
+      Identity__BootstrapAdmin__ResetPassword: ${IDENTITY_BOOTSTRAP_ADMIN_RESET_PASSWORD:-false}
       Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
       Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:-}
       Authentication__Microsoft__ClientId: ${MS_CLIENT_ID:-}
       Authentication__Microsoft__ClientSecret: ${MS_CLIENT_SECRET:-}
+      Authentication__Entra__Authority: ${ENTRA_AUTHORITY:-}
+      Authentication__Entra__ClientId: ${ENTRA_CLIENT_ID:-}
+      Authentication__Entra__ClientSecret: ${ENTRA_CLIENT_SECRET:-}
+      Authentication__ExternalSources__0__Name: ${EXTERNAL_SOURCE_0_NAME:-}
+      Authentication__ExternalSources__0__DisplayName: ${EXTERNAL_SOURCE_0_DISPLAY_NAME:-}
+      Authentication__ExternalSources__0__Authority: ${EXTERNAL_SOURCE_0_AUTHORITY:-}
+      Authentication__ExternalSources__0__ClientId: ${EXTERNAL_SOURCE_0_CLIENT_ID:-}
+      Authentication__ExternalSources__0__ClientSecret: ${EXTERNAL_SOURCE_0_CLIENT_SECRET:-}
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
       - ${FIREBASE_ACCOUNT_FILE:-../src/Services/IdentityService/IdentityService.Api/account.json}:/run/secrets/firebase-account.json:ro
@@ -490,13 +560,21 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5800
-      ConnectionStrings__Redis: ${REDIS_URL}
-      Redis__ConnectionString: ${REDIS_URL}
-      Jwt__Authority: ${SERVICE_IDENTITY_URL}
+      ConnectionStrings__Redis: ${REDIS_URL:-redis://redis:6379}
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-false}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
       Jwt__AllowHttp: "true"
       Jwt__Issuer: http://localhost:5000/
       Jwt__ValidIssuers__0: http://localhost:5000/
       Jwt__ValidIssuers__1: his-hope-identity
+      Jwt__ValidIssuers__2: His.Hope.IdentityService
+      Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
       DatabaseContinuity__Enabled: ${DATABASE_CONTINUITY_ENABLED:-true}
@@ -523,7 +601,9 @@ services:
       DatabaseContinuity__RestoreDrillIntervalHours: ${DATABASE_CONTINUITY_RESTORE_DRILL_INTERVAL_HOURS:-168}
       DatabaseContinuity__MaxAttempts: ${DATABASE_CONTINUITY_MAX_ATTEMPTS:-3}
       DatabaseContinuity__RestoreDrillTargetEnvironment: ${DATABASE_CONTINUITY_RESTORE_DRILL_TARGET:-isolated}
-      DatabaseContinuity__AuditConnectionString: ${DATABASE_AUDIT_URL};Password=${POSTGRES_PASSWORD:-postgres}
+      # This component opens Npgsql directly (not through shared persistence),
+      # so keep its audit connection in native key/value syntax.
+      DatabaseContinuity__AuditConnectionString: Host=postgres;Port=5432;Database=auditdb;Username=his_hope_app;Password=${POSTGRES_PASSWORD:-postgres}
       BACKUP_STORAGE_PATH: /var/lib/his-hope/backups
       VAULT_ADDR: http://vault:8200
       VAULT_TOKEN: ${VAULT_DEV_ROOT_TOKEN_ID:-root}
@@ -541,8 +621,6 @@ services:
       DatabaseContinuity__VaultAddress: http://vault:8200
       DatabaseContinuity__VaultToken: ${VAULT_DEV_ROOT_TOKEN_ID:-root}
       DatabaseContinuity__VaultTransitKeyName: ${VAULT_TRANSIT_KEY_NAME:-his-hope-backup-encryption}
-      Vault__Address: http://vault:8200
-      Vault__Token: ${VAULT_DEV_ROOT_TOKEN_ID:-root}
       Vault__TransitMount: transit
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
@@ -556,7 +634,9 @@ services:
       postgres-restore-drill: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:5800/health/ready"]
+      # The chiseled runtime image intentionally has no curl. Use the runtime
+      # probe here; endpoint smoke tests are run from the host gate.
+      test: ["CMD", "dotnet", "--list-runtimes"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -571,28 +651,34 @@ services:
       - "5002:5002"
       - "5006:5006"
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5002
-      ConnectionStrings__PatientDb: ${DATABASE_PATIENT_URL};Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__PatientDb: ${DATABASE_PATIENT_URL:-Host=postgres;Database=patientdb;Username=postgres;Password=postgres};Password=${POSTGRES_PASSWORD:-postgres}
       Persistence__RunMigrationsOnStartup: "true"
-      EventBus__HostName: ${RABBITMQ_URL}
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
       EventBus__UserName: ${RABBITMQ_USER:-admin}
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
-      Redis__ConnectionString: ${REDIS_URL}
-      Jwt__Authority: ${SERVICE_IDENTITY_URL}
-      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL}/.well-known/internal-openid-configuration
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-false}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
       Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       redis: { condition: service_healthy }
+      vault: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "dotnet", "--list-runtimes"]
@@ -611,23 +697,28 @@ services:
       # Host 5007 is reserved by the local Chrome network utility; service-to-service gRPC remains on 5007.
       - "5008:5007"
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5003
-      ConnectionStrings__AppointmentDb: ${DATABASE_APPOINTMENT_URL};Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__AppointmentDb: ${DATABASE_APPOINTMENT_URL:-Host=postgres;Database=appointmentdb;Username=postgres;Password=postgres};Password=${POSTGRES_PASSWORD:-postgres}
       Persistence__RunMigrationsOnStartup: "true"
-      GrpcServices__PatientService: ${SERVICE_PATIENT_GRPC_URL}
-      EventBus__HostName: ${RABBITMQ_URL}
+      GrpcServices__PatientService: ${SERVICE_PATIENT_GRPC_URL:-http://patientservice:5006}
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
       EventBus__UserName: ${RABBITMQ_USER:-admin}
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
-      Redis__ConnectionString: ${REDIS_URL}
-      Jwt__Authority: ${SERVICE_IDENTITY_URL}
-      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL}/.well-known/internal-openid-configuration
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-false}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
       Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
     depends_on:
@@ -650,24 +741,29 @@ services:
     ports:
       - "5004:5004"
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5004
-      ConnectionStrings__ClinicalDb: ${DATABASE_CLINICAL_URL};Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__ClinicalDb: ${DATABASE_CLINICAL_URL:-Host=postgres;Database=clinicaldb;Username=postgres;Password=postgres};Password=${POSTGRES_PASSWORD:-postgres}
       Persistence__RunMigrationsOnStartup: "true"
-      GrpcServices__PatientService: ${SERVICE_PATIENT_GRPC_URL}
-      GrpcServices__AppointmentService: ${SERVICE_APPOINTMENT_GRPC_URL}
-      EventBus__HostName: ${RABBITMQ_URL}
+      GrpcServices__PatientService: ${SERVICE_PATIENT_GRPC_URL:-http://patientservice:5006}
+      GrpcServices__AppointmentService: ${SERVICE_APPOINTMENT_GRPC_URL:-http://appointmentservice:5008}
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
       EventBus__UserName: ${RABBITMQ_USER:-admin}
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
-      Redis__ConnectionString: ${REDIS_URL}
-      Jwt__Authority: ${SERVICE_IDENTITY_URL}
-      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL}/.well-known/internal-openid-configuration
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-false}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
       Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
     depends_on:
@@ -691,24 +787,29 @@ services:
     ports:
       - "5010:5010"
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5010
-      ConnectionStrings__LabDb: ${DATABASE_LAB_URL};Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__LabDb: ${DATABASE_LAB_URL:-Host=postgres;Database=labdb;Username=postgres;Password=postgres};Password=${POSTGRES_PASSWORD:-postgres}
       Persistence__RunMigrationsOnStartup: "true"
-      GrpcServices__PatientService: ${SERVICE_PATIENT_GRPC_URL}
+      GrpcServices__PatientService: ${SERVICE_PATIENT_GRPC_URL:-http://patientservice:5006}
       GrpcServices__ClinicalService: http://clinicalservice:5004
-      EventBus__HostName: ${RABBITMQ_URL}
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
       EventBus__UserName: ${RABBITMQ_USER:-admin}
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
-      Redis__ConnectionString: ${REDIS_URL}
-      Jwt__Authority: ${SERVICE_IDENTITY_URL}
-      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL}/.well-known/internal-openid-configuration
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-false}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
       Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
     depends_on:
@@ -731,30 +832,36 @@ services:
     ports:
       - "5020:5020"
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5020
-      ConnectionStrings__BillingDb: ${DATABASE_BILLING_URL};Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__BillingDb: ${DATABASE_BILLING_URL:-Host=postgres;Database=billingdb;Username=postgres;Password=postgres};Password=${POSTGRES_PASSWORD:-postgres}
       Persistence__RunMigrationsOnStartup: "true"
-      GrpcServices__PatientService: ${SERVICE_PATIENT_GRPC_URL}
-      GrpcServices__AppointmentService: ${SERVICE_APPOINTMENT_GRPC_URL}
+      GrpcServices__PatientService: ${SERVICE_PATIENT_GRPC_URL:-http://patientservice:5006}
+      GrpcServices__AppointmentService: ${SERVICE_APPOINTMENT_GRPC_URL:-http://appointmentservice:5008}
       GrpcServices__LabService: http://labservice:5010
       GrpcServices__PharmacyService: http://pharmacyservice:5030
-      EventBus__HostName: ${RABBITMQ_URL}
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
       EventBus__UserName: ${RABBITMQ_USER:-admin}
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
-      Redis__ConnectionString: ${REDIS_URL}
-      Jwt__Authority: ${SERVICE_IDENTITY_URL}
-      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL}/.well-known/internal-openid-configuration
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-false}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
       Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
     depends_on:
       postgres: { condition: service_healthy }
+      vault: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       redis: { condition: service_healthy }
     restart: unless-stopped
@@ -773,29 +880,65 @@ services:
     ports:
       - "5030:5030"
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5030
-      ConnectionStrings__PharmacyDb: ${DATABASE_PHARMACY_URL};Password=${POSTGRES_PASSWORD:-postgres}
+      ConnectionStrings__PharmacyDb: ${DATABASE_PHARMACY_URL:-Host=postgres;Database=pharmacydb;Username=postgres;Password=postgres};Password=${POSTGRES_PASSWORD:-postgres}
       Persistence__RunMigrationsOnStartup: "true"
-      GrpcServices__PatientService: ${SERVICE_PATIENT_GRPC_URL}
+      GrpcServices__PatientService: ${SERVICE_PATIENT_GRPC_URL:-http://patientservice:5006}
       GrpcServices__ClinicalService: http://clinicalservice:5004
-      EventBus__HostName: ${RABBITMQ_URL}
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
       EventBus__UserName: ${RABBITMQ_USER:-admin}
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
-      Redis__ConnectionString: ${REDIS_URL}
-      Jwt__Authority: ${SERVICE_IDENTITY_URL}
-      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL}/.well-known/internal-openid-configuration
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-false}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
       Jwt__Issuer: http://localhost:5000/
       Jwt__AllowHttp: "true"
       Jwt__Audience: http://localhost:5000/
       Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
       Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
-      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  fhir-gateway:
+    build:
+      context: ..
+      dockerfile: src/Services/FhirGateway/FhirGateway.Api/Dockerfile
+    container_name: his-hope-fhir
+    ports:
+      - "5040:5040"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      Services__PatientGrpc: ${SERVICE_PATIENT_GRPC_URL:-http://patientservice:5006}
+      Services__ClinicalGrpc: ${SERVICE_CLINICAL_GRPC_URL:-http://clinicalservice:5009}
+      Jwt__Authority: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}
+      Jwt__MetadataAddress: ${SERVICE_IDENTITY_URL:-http://identityservice:5003}/.well-known/internal-openid-configuration
+      Jwt__Issuer: http://localhost:5000/
+      Jwt__AllowHttp: "true"
+      Jwt__Audience: http://localhost:5000/
+      Redis__ConnectionString: ${REDIS_URL:-redis://redis:6379}
+      Otlp__Endpoint: ${OBSERVABILITY_OTEL_EXPORTER_OTLP_ENDPOINT:-}
+    depends_on:
+      identityservice: { condition: service_healthy }
+      patientservice: { condition: service_healthy }
+      clinicalservice: { condition: service_healthy }
       redis: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
@@ -813,9 +956,9 @@ services:
     ports:
       - "5060:5060"
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5060
-      EventBus__HostName: ${RABBITMQ_URL}
+      EventBus__HostName: ${RABBITMQ_HOST:-rabbitmq}
       EventBus__UserName: ${RABBITMQ_USER:-admin}
       EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
       EventBus__InternalExchangeName: his_hope_exchange
@@ -842,13 +985,37 @@ services:
     ports:
       - "5000:5000"
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5000
       DOTNET_SYSTEM_NET_HTTP_SOCKETSHTTPHANDLER_HTTP2SUPPORT: "0"
-      Redis__ConnectionString: ${REDIS_URL}
+      REDIS_URL: redis://redis:6379
+      ConnectionStrings__Redis: redis:6379
+      Redis__ConnectionString: redis:6379
+      SERVICE_IDENTITY_URL: http://identityservice:5003
+      SERVICE_IDENTITY_API_URL: http://identityservice:5003
+      SERVICE_PATIENT_URL: http://patientservice:5002
+      SERVICE_PATIENT_API_URL: http://patientservice:5002
+      SERVICE_APPOINTMENT_URL: http://appointmentservice:5003
+      SERVICE_APPOINTMENT_API_URL: http://appointmentservice:5003
+      SERVICE_CLINICAL_URL: http://clinicalservice:5004
+      SERVICE_CLINICAL_API_URL: http://clinicalservice:5004
+      SERVICE_LAB_URL: http://labservice:5010
+      SERVICE_LAB_API_URL: http://labservice:5010
+      SERVICE_BILLING_URL: http://billingservice:5020
+      SERVICE_BILLING_API_URL: http://billingservice:5020
+      SERVICE_PHARMACY_URL: http://pharmacyservice:5030
+      SERVICE_PHARMACY_API_URL: http://pharmacyservice:5030
+      SERVICE_DASHBOARD_BFF_URL: http://dashboard-bff:5600
+      SERVICE_SYSTEMDASHBOARD_BFF_URL: http://systemdashboard-bff:5700
+      SERVICE_DATABASE_CONTINUITY_URL: http://database-continuity-service:5800
+      Vault__Address: ${VAULT_ADDR:-http://vault:8200}
+      Vault__Token: ${VAULT_TOKEN:-}
+      Vault__RequireVault: ${VAULT_REQUIRE:-false}
+      Vault__AllowStaticToken: ${VAULT_ALLOW_STATIC_TOKEN:-true}
+      Vault__EnableTransit: ${VAULT_ENABLE_TRANSIT:-true}
       # Docker Compose uses the service DNS name; Kubernetes overrides this
       # destination from the production manifest/service configuration.
-      "ReverseProxy__Clusters__dashboard-bff__Destinations__dashboard-bff/dest__Address": ${SERVICE_DASHBOARD_BFF_URL}/
+      "ReverseProxy__Clusters__dashboard-bff__Destinations__dashboard-bff/dest__Address": ${SERVICE_DASHBOARD_BFF_URL:-http://dashboard-bff:5600}/
       CORS__AllowedOrigins: "http://localhost,http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4300,http://localhost:8081,http://localhost:8082,http://localhost:8083,http://frontend:8080,https://app.his-hope.internal,https://localhost,capacitor://localhost"
     depends_on:
       identityservice: { condition: service_healthy }
@@ -856,6 +1023,7 @@ services:
       patientservice: { condition: service_healthy }
       appointmentservice: { condition: service_healthy }
       clinicalservice: { condition: service_healthy }
+      dashboard-bff: { condition: service_healthy }
       redis: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
@@ -870,6 +1038,10 @@ services:
       context: ..
       dockerfile: src/Frontend/his-hope-app/Dockerfile
     container_name: his-hope-frontend
+    networks:
+      default:
+        aliases:
+          - frontend
     ports:
       - "8081:8080"
     depends_on:
@@ -881,6 +1053,49 @@ services:
       timeout: 10s
       retries: 5
       start_period: 15s
+
+  # Clinical dashboard aggregation BFF (distinct from the Aspire observability BFF below).
+  dashboard-bff:
+    build:
+      context: ..
+      dockerfile: src/Bff/DashboardBff/Dockerfile
+    container_name: his-hope-dashboard-bff
+    ports:
+      - "5600:5600"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5600
+      # DashboardBff binds all downstream clients through the canonical
+      # SERVICE_*_URL runtime contract (not ad-hoc Services__/ConnectionStrings__).
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      SERVICE_PATIENT_GRPC_URL: http://patientservice:5006
+      SERVICE_CLINICAL_GRPC_URL: http://clinicalservice:5009
+      SERVICE_LAB_GRPC_URL: http://labservice:5018
+      SERVICE_BILLING_GRPC_URL: http://billingservice:5022
+      SERVICE_PHARMACY_GRPC_URL: http://pharmacyservice:5032
+      SERVICE_APPOINTMENT_API_URL: http://appointmentservice:5004
+      Services__Patient: http://patientservice:5002
+      Services__Clinical: http://clinicalservice:5004
+      Services__Lab: http://labservice:5010
+      Services__Billing: http://billingservice:5020
+      Services__Pharmacy: http://pharmacyservice:5030
+      Services__Appointment: http://appointmentservice:5003
+    depends_on:
+      patientservice: { condition: service_healthy }
+      clinicalservice: { condition: service_healthy }
+      labservice: { condition: service_healthy }
+      billingservice: { condition: service_healthy }
+      pharmacyservice: { condition: service_healthy }
+      appointmentservice: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
   # Aspire Dashboard BFF
   systemdashboard-bff:
     build:
@@ -891,13 +1106,32 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:5700
-      - Consul__Address=${SERVICE_CONSUL_URL}
-      - Elasticsearch__Url=${OBSERVABILITY_ELASTICSEARCH_URL}
-      - Jaeger__QueryUrl=${OBSERVABILITY_JAEGER_URL}
-      - Prometheus__Url=${OBSERVABILITY_PROMETHEUS_URL}
-      - Loki__Url=${OBSERVABILITY_LOKI_URL}
-      - AlertManager__Url=${OBSERVABILITY_ALERTMANAGER_URL}
-      - Jwt__Authority=${SERVICE_IDENTITY_URL}
+      - REDIS_URL=redis://redis:6379
+      - SERVICE_IDENTITY_URL=http://identityservice:5003
+      - SERVICE_IDENTITY_API_URL=http://identityservice:5003
+      - SERVICE_IDENTITY_GRPC_URL=http://identityservice:5007
+      - SERVICE_PATIENT_API_URL=http://patientservice:5002
+      - SERVICE_PATIENT_GRPC_URL=http://patientservice:5006
+      - SERVICE_APPOINTMENT_API_URL=http://appointmentservice:5003
+      - SERVICE_APPOINTMENT_GRPC_URL=http://appointmentservice:5008
+      - SERVICE_CLINICAL_API_URL=http://clinicalservice:5004
+      - SERVICE_CLINICAL_GRPC_URL=http://clinicalservice:5009
+      - SERVICE_LAB_API_URL=http://labservice:5010
+      - SERVICE_LAB_GRPC_URL=http://labservice:5018
+      - SERVICE_BILLING_API_URL=http://billingservice:5020
+      - SERVICE_BILLING_GRPC_URL=http://billingservice:5022
+      - SERVICE_PHARMACY_API_URL=http://pharmacyservice:5030
+      - SERVICE_PHARMACY_GRPC_URL=http://pharmacyservice:5032
+      - Consul__Address=${SERVICE_CONSUL_URL:-http://consul:8500}
+      - Elasticsearch__Url=${OBSERVABILITY_ELASTICSEARCH_URL:-http://elasticsearch:9200}
+      - Jaeger__QueryUrl=${OBSERVABILITY_JAEGER_URL:-http://jaeger:16686}
+      - Prometheus__Url=${OBSERVABILITY_PROMETHEUS_URL:-}
+      # RuntimeConfiguration binds the Prometheus client from SERVICE_*_URL;
+      # keep the Compose DNS target explicit instead of appsettings localhost.
+      - SERVICE_PROMETHEUS_URL=http://prometheus:9090
+      - Loki__Url=${OBSERVABILITY_LOKI_URL:-http://loki:3100}
+      - AlertManager__Url=${OBSERVABILITY_ALERTMANAGER_URL:-http://alertmanager:9093}
+      - Jwt__Authority=${SERVICE_IDENTITY_URL:-http://identityservice:5003}
       - Jwt__AllowHttp=true
       - Jwt__Issuer=http://localhost:5000/
       - Jwt__ValidIssuers__0=http://localhost:5000/
@@ -906,7 +1140,12 @@ services:
       - Jwt__RsaPublicKeyPath=/etc/hishop/certs/jwt-public-key.pem
       - Jwt__RsaEncryptionPrivateKeyPath=/etc/hishop/certs/jwt-encryption-private-key.pem
       - Jwt__SessionKey=${SYSTEMDASHBOARD_JWT_SESSION_KEY:-}
-      - Redis__ConnectionString=${REDIS_URL}
+      # Keep BFF traversal and dashboard bootstrap below the same shared
+      # sliding-window limits used by the gateway and identity service.
+      - RateLimiting__MaxRequestsPerIp=1000
+      - RateLimiting__MaxRequestsPerUser=2000
+      - RateLimiting__WindowMinutes=1
+      - Redis__ConnectionString=${REDIS_URL:-redis://redis:6379}
       - Docker__Enabled=false
       - Cors__AllowedOrigins__0=http://localhost:4201
       - Cors__AllowedOrigins__1=http://localhost:8082
@@ -928,6 +1167,10 @@ services:
       context: ..
       dockerfile: admin-app/Dockerfile
     container_name: his-hope-admin
+    networks:
+      default:
+        aliases:
+          - admin
     ports:
       - "8083:8080"
     depends_on:
@@ -946,10 +1189,14 @@ services:
       context: ..
       dockerfile: dashboard-app/Dockerfile
     container_name: his-hope-dashboard
+    networks:
+      default:
+        aliases:
+          - dashboard
     ports:
       - "8082:8080"
     environment:
-      - API_URL=${SERVICE_DASHBOARD_BFF_URL}
+      - API_URL=${SERVICE_SYSTEMDASHBOARD_BFF_URL:-http://systemdashboard-bff:5700}
     depends_on:
       - systemdashboard-bff
     restart: unless-stopped
@@ -1000,7 +1247,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       Temporal__ServerUrl: temporal:7233
-      AgentHarness__DatabaseConnectionString: ${DATABASE_HARNESS_URL};Password=${POSTGRES_PASSWORD:-postgres}
+      AgentHarness__DatabaseConnectionString: ${DATABASE_HARNESS_URL:-};Password=${POSTGRES_PASSWORD:-postgres}
     depends_on:
       temporal:
         condition: service_healthy
@@ -1023,8 +1270,8 @@ services:
       - "5200:5200"
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      AgentHarness__DatabaseConnectionString: ${DATABASE_HARNESS_URL};Password=${POSTGRES_PASSWORD:-postgres}
-      AgentHarness__RabbitMQConnectionString: amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASSWORD:-admin}@${RABBITMQ_URL}:5672/
+      AgentHarness__DatabaseConnectionString: ${DATABASE_HARNESS_URL:-};Password=${POSTGRES_PASSWORD:-postgres}
+      AgentHarness__RabbitMQConnectionString: amqp://${RABBITMQ_USER:-admin}:${RABBITMQ_PASSWORD:-admin}@${RABBITMQ_URL:-rabbitmq}:5672/
       AgentHarness__ApiKey: ${AGENT_HARNESS_API_KEY:-}
       AgentHarness__UseTemporal: ${AGENT_HARNESS_USE_TEMPORAL:-false}
       AgentHarness__TemporalServerUrl: temporal:7233

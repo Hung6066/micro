@@ -45,6 +45,9 @@ jobs:
           release="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
           test "$(jq -r '.conclusion' <<<"$release")" = success
           test "$(jq -r '.name' <<<"$release")" = 'Container Release Supply Chain'
+          test "$(jq -r '.repository.full_name' <<<"$release")" = "$GITHUB_REPOSITORY"
+          head_branch="$(jq -r '.head_branch' <<<"$release")"
+          [[ "$head_branch" == v* ]] || { echo 'Manual promotion requires a version-tagged release run.' >&2; exit 1; }
           sha="$(jq -r '.head_sha' <<<"$release")"
           [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo 'Release has an invalid head SHA' >&2; exit 1; }
           printf 'run_id=%s\nrelease_sha=%s\n' "$run_id" "$sha" >> "$GITHUB_OUTPUT"

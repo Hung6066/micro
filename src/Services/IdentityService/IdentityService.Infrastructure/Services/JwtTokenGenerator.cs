@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Domain.Entities;
+using His.Hope.SharedKernel.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 
@@ -133,6 +134,10 @@ public class JwtTokenGenerator
             new(JwtRegisteredClaimNames.UniqueName, user.UserName!),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),  // Unique token ID for replay prevention
             new(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+            // Browser/BFF access tokens represent an interactive human
+            // principal. HumanAdmin policy relies on this explicit type and
+            // must not infer it from the user's role.
+            new(AuthorizationConstants.Claims.PrincipalType, AuthorizationConstants.PrincipalTypes.Human),
             new("fullName", user.FullName),
             new("licenseNumber", user.LicenseNumber ?? string.Empty),
             new("securityVersion", user.SecurityStamp ?? "1"),

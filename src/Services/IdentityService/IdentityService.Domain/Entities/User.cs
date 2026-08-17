@@ -33,11 +33,7 @@ public class User : IdentityUser<Guid>
     // SECURITY: Trusted devices for MFA skip
     public string? TrustedDeviceToken { get; set; }
 
-    // SECURITY: Password history (last 5 hashes, prevents reuse)
-    // NOTE: Requires EF Core migration to add column.
-    // TODO: Remove [NotMapped] after running migration.
-    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
-    public List<string> PreviousPasswordHashes { get; set; } = new();
+    public ICollection<UserPasswordHistory> PasswordHistory { get; set; } = new List<UserPasswordHistory>();
 
     public string FullName
     {
@@ -76,6 +72,15 @@ public class Role : IdentityRole<Guid>
     /// </summary>
     public bool IsSystem { get; set; }
 
+    /// <summary>Governance owner and lifecycle metadata for the role template.</summary>
+    public string Owner { get; set; } = "identity-service";
+    public int AuthorizationVersion { get; set; } = 1;
+    public string RiskTier { get; set; } = "standard";
+    public int ReviewCadenceDays { get; set; } = 180;
+    public string LifecycleStatus { get; set; } = "active";
+    public DateTime? PublishedAt { get; set; }
+    public string? PublishedBy { get; set; }
+
     /// <summary>
     /// When the role was created.
     /// </summary>
@@ -83,6 +88,7 @@ public class Role : IdentityRole<Guid>
 
     // Navigation
     public ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
+    public ICollection<RoleTemplateVersion> TemplateVersions { get; set; } = new List<RoleTemplateVersion>();
 
     public override bool Equals(object? obj) =>
         obj is Role other && Id == other.Id;

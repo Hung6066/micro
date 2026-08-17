@@ -5,31 +5,41 @@ using His.Hope.PharmacyGrpc;
 using His.Hope.PharmacyService.Domain.Repositories;
 using His.Hope.PharmacyService.Domain.ValueObjects;
 using His.Hope.PharmacyService.Application.DTOs;
+using His.Hope.PharmacyService.Infrastructure.Persistence;
+using His.Hope.Authorization;
+using His.Hope.SharedKernel.Authorization;
 using Microsoft.AspNetCore.Authorization;
 
 namespace His.Hope.PharmacyService.Api.GrpcServices;
 
-[Authorize]
+[Authorize(Policy = AuthorizationPolicyNames.Permissions.PharmacyView)]
 public class PharmacyGrpcServiceImpl : PharmacyGrpcService.PharmacyGrpcServiceBase
 {
     private readonly IMedicationRepository _medicationRepository;
     private readonly IPrescriptionRepository _prescriptionRepository;
     private readonly IMapper _mapper;
+    private readonly PharmacyDbContext _db;
+    private readonly IResourceAuthorizationEvaluator _authorization;
 
     public PharmacyGrpcServiceImpl(
         IMedicationRepository medicationRepository,
         IPrescriptionRepository prescriptionRepository,
-        IMapper mapper)
+        IMapper mapper,
+        PharmacyDbContext db,
+        IResourceAuthorizationEvaluator authorization)
     {
         _medicationRepository = medicationRepository;
         _prescriptionRepository = prescriptionRepository;
         _mapper = mapper;
+        _db = db;
+        _authorization = authorization;
     }
 
     public override async Task<MedicationResponse> GetMedication(MedicationRequest request,
         ServerCallContext context)
     {
         var medicationId = MedicationId.From(ParseGuidOrThrow(request.Id, "Medication id"));
+        await EnsureMedicationAccessAsync(medicationId, context);
         var medication = await _medicationRepository.GetByIdAsync(medicationId);
 
         if (medication is null)
@@ -43,9 +53,11 @@ public class PharmacyGrpcServiceImpl : PharmacyGrpcService.PharmacyGrpcServiceBa
     {
         var page = request.Page > 0 ? request.Page : 1;
         var pageSize = request.PageSize > 0 ? request.PageSize : 20;
+        var accessScope = FacilityAccessScope.FromPrincipal(context.GetHttpContext().User);
 
         var (items, totalCount) = await _medicationRepository.SearchAsync(
-            request.SearchTerm, page, pageSize, null, context.CancellationToken);
+            request.SearchTerm, page, pageSize, null,
+            accessScope.FacilityIds, accessScope.IsCrossFacility, context.CancellationToken);
 
         var response = new MedicationListResponse();
         response.Medications.AddRange(items.Select(MapToResponse));
@@ -59,6 +71,7 @@ public class PharmacyGrpcServiceImpl : PharmacyGrpcService.PharmacyGrpcServiceBa
         MedicationExistsRequest request, ServerCallContext context)
     {
         var medicationId = MedicationId.From(ParseGuidOrThrow(request.Id, "Medication id"));
+        await EnsureMedicationAccessAsync(medicationId, context);
         var exists = await _medicationRepository.ExistsAsync(medicationId);
 
         return new MedicationExistsResponse { Exists = exists };
@@ -68,6 +81,7 @@ public class PharmacyGrpcServiceImpl : PharmacyGrpcService.PharmacyGrpcServiceBa
         PrescriptionRequest request, ServerCallContext context)
     {
         var prescriptionId = PrescriptionId.From(ParseGuidOrThrow(request.Id, "Prescription id"));
+        await EnsurePrescriptionAccessAsync(prescriptionId, context);
         var prescription = await _prescriptionRepository.GetByIdAsync(prescriptionId, context.CancellationToken);
 
         if (prescription is null)
@@ -76,14 +90,46 @@ public class PharmacyGrpcServiceImpl : PharmacyGrpcService.PharmacyGrpcServiceBa
         return MapPrescriptionToResponse(prescription);
     }
 
+    private async Task EnsureMedicationAccessAsync(MedicationId medicationId, ServerCallContext context)
+    {
+        var decision = await _authorization.EvaluateResourceAsync(
+            _db.Medications,
+            medication => medication.Id == medicationId,
+            medication => medication.FacilityId,
+            context.GetHttpContext().User,
+            HisHopePermissions.Pharmacy.View,
+            "medication",
+            medicationId.Value.ToString("D"),
+            context.CancellationToken);
+        if (!decision.Allowed)
+            throw new RpcException(new Status(StatusCode.NotFound, "Medication not found"));
+    }
+
+    private async Task EnsurePrescriptionAccessAsync(PrescriptionId prescriptionId, ServerCallContext context)
+    {
+        var decision = await _authorization.EvaluateResourceAsync(
+            _db.Prescriptions,
+            prescription => prescription.Id == prescriptionId,
+            prescription => prescription.FacilityId,
+            context.GetHttpContext().User,
+            HisHopePermissions.Pharmacy.View,
+            "prescription",
+            prescriptionId.Value.ToString("D"),
+            context.CancellationToken);
+        if (!decision.Allowed)
+            throw new RpcException(new Status(StatusCode.NotFound, "Prescription not found"));
+    }
+
     public override async Task<PrescriptionListResponse> SearchPrescriptions(
         PrescriptionSearchRequest request, ServerCallContext context)
     {
         var page = request.Page > 0 ? request.Page : 1;
         var pageSize = request.PageSize > 0 ? request.PageSize : 20;
+        var accessScope = FacilityAccessScope.FromPrincipal(context.GetHttpContext().User);
 
         var result = await _prescriptionRepository.SearchAsync(
-            request.SearchTerm, page, pageSize, null, null, context.CancellationToken);
+            request.SearchTerm, page, pageSize, null, null,
+            accessScope.FacilityIds, accessScope.IsCrossFacility, context.CancellationToken);
 
         var response = new PrescriptionListResponse();
         response.Prescriptions.AddRange(result.Items.Select(MapPrescriptionToResponse));
@@ -113,8 +159,8 @@ public class PharmacyGrpcServiceImpl : PharmacyGrpcService.PharmacyGrpcServiceBa
             Route = medication.Route ?? string.Empty,
             RequiresPrescription = medication.RequiresPrescription,
             IsActive = medication.IsActive,
-            CreatedAt = medication.CreatedAt.ToTimestamp(),
-            UpdatedAt = medication.UpdatedAt?.ToTimestamp()
+            CreatedAt = AsUtc(medication.CreatedAt).ToTimestamp(),
+            UpdatedAt = medication.UpdatedAt is null ? null : AsUtc(medication.UpdatedAt.Value).ToTimestamp()
         };
 
     private static PrescriptionResponse MapPrescriptionToResponse(Domain.Aggregates.Prescription prescription) =>
@@ -133,9 +179,12 @@ public class PharmacyGrpcServiceImpl : PharmacyGrpcService.PharmacyGrpcServiceBa
             Refills = prescription.Refills,
             StatusCode = prescription.Status.Code,
             StatusName = prescription.Status.Name,
-            PrescribedAt = prescription.PrescribedDate.ToTimestamp(),
-            FilledAt = prescription.FilledDate?.ToTimestamp(),
-            CreatedAt = prescription.CreatedAt.ToTimestamp(),
-            UpdatedAt = prescription.UpdatedAt?.ToTimestamp()
+            PrescribedAt = AsUtc(prescription.PrescribedDate).ToTimestamp(),
+            FilledAt = prescription.FilledDate is null ? null : AsUtc(prescription.FilledDate.Value).ToTimestamp(),
+            CreatedAt = AsUtc(prescription.CreatedAt).ToTimestamp(),
+            UpdatedAt = prescription.UpdatedAt is null ? null : AsUtc(prescription.UpdatedAt.Value).ToTimestamp()
         };
+
+    private static DateTime AsUtc(DateTime value) =>
+        value.Kind == DateTimeKind.Utc ? value : DateTime.SpecifyKind(value, DateTimeKind.Utc);
 }

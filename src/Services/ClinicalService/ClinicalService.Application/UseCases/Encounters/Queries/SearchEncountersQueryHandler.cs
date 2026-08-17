@@ -19,8 +19,13 @@ public class SearchEncountersQueryHandler : IRequestHandler<SearchEncountersQuer
     public async Task<PagedResult<EncounterDto>> Handle(SearchEncountersQuery request,
         CancellationToken cancellationToken)
     {
-        var (items, totalCount) = await _encounterRepository.SearchAsync(
-            request.SearchTerm ?? string.Empty, request.Page, request.PageSize, cancellationToken);
+        var result = request.FacilityIds is null
+            ? await _encounterRepository.SearchAsync(
+                request.SearchTerm ?? string.Empty, request.Page, request.PageSize, cancellationToken)
+            : await _encounterRepository.SearchAsync(
+                request.SearchTerm ?? string.Empty, request.Page, request.PageSize,
+                request.FacilityIds, request.CrossFacility, cancellationToken);
+        var (items, totalCount) = result;
 
         var dtos = _mapper.Map<List<EncounterDto>>(items);
 

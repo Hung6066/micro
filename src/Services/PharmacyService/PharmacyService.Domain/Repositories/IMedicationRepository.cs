@@ -11,6 +11,10 @@ public interface IMedicationRepository : IRepository<Medication>
         string searchTerm, int page, int pageSize,
         string? category = null,
         CancellationToken cancellationToken = default);
+    Task<(IReadOnlyList<Medication> Items, int TotalCount)> SearchAsync(
+        string searchTerm, int page, int pageSize, string? category,
+        IReadOnlySet<string> facilityIds, bool crossFacility,
+        CancellationToken cancellationToken = default);
     Task<Medication> AddAsync(Medication medication, CancellationToken cancellationToken = default);
     Task UpdateAsync(Medication medication, CancellationToken cancellationToken = default);
     Task<bool> ExistsAsync(MedicationId id, CancellationToken cancellationToken = default);

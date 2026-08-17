@@ -2,6 +2,7 @@ using His.Hope.LabService.Application.DTOs;
 using His.Hope.LabService.Application.UseCases.CriticalAlerts.Commands;
 using His.Hope.LabService.Application.UseCases.CriticalAlerts.Queries;
 using MediatR;
+using His.Hope.SharedKernel.Authorization;
 
 namespace His.Hope.LabService.Api.Endpoints;
 
@@ -9,7 +10,7 @@ public static class CriticalAlertEndpoints
 {
     public static IEndpointRouteBuilder MapCriticalAlertEndpoints(this IEndpointRouteBuilder app)
     {
-        var criticalAlertRules = app.MapGroup("/api/v1/critical-alert-rules").RequireAuthorization("Permission:lab.manage");
+        var criticalAlertRules = app.MapGroup("/api/v1/critical-alert-rules").RequireAuthorization(AuthorizationPolicyNames.Permissions.LabManage);
 
         criticalAlertRules.MapGet("/", async (IMediator mediator, CancellationToken ct) =>
             Results.Ok(await mediator.Send(new GetCriticalAlertRulesQuery(), ct)))
@@ -47,7 +48,7 @@ public static class CriticalAlertEndpoints
             return Results.NoContent();
         }).WithOpenApi();
 
-        var criticalAlerts = app.MapGroup("/api/v1/critical-alerts").RequireAuthorization("Permission:lab.view");
+        var criticalAlerts = app.MapGroup("/api/v1/critical-alerts").RequireAuthorization(AuthorizationPolicyNames.Permissions.LabView);
 
         criticalAlerts.MapGet("/", async (IMediator mediator, CancellationToken ct) =>
             Results.Ok(await mediator.Send(new GetCriticalAlertsQuery(), ct)))
@@ -55,10 +56,12 @@ public static class CriticalAlertEndpoints
 
         criticalAlerts.MapPost("/{id:guid}/acknowledge", async (Guid id, IMediator mediator, CancellationToken ct) =>
             Results.Ok(await mediator.Send(new AcknowledgeCriticalAlertCommand(id), ct)))
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.LabAlertAcknowledge)
             .WithOpenApi();
 
         criticalAlerts.MapPost("/{id:guid}/resolve", async (Guid id, IMediator mediator, CancellationToken ct) =>
             Results.Ok(await mediator.Send(new ResolveCriticalAlertCommand(id), ct)))
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.LabAlertResolve)
             .WithOpenApi();
 
         return app;

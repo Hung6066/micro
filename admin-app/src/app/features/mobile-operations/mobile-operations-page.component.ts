@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { AdminApiService, MobileDeliverySummary, MobileDeviceRegistration } from '../../core/services/admin-api.service';
-import { HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
+import { HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopePermissionService, HisHopeStateComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
 import { catchError, finalize, forkJoin, of } from 'rxjs';
 
 @Component({
@@ -18,7 +18,7 @@ import { catchError, finalize, forkJoin, of } from 'rxjs';
       } @else if (error) {
         <hh-state kind="error" icon="error" [message]="error | hhTranslate"><button mat-stroked-button type="button" (click)="load()">{{ 'common.retry' | hhTranslate }}</button></hh-state>
       } @else {
-        <section class="summary-grid" aria-label="Mobile delivery summary">
+        <section class="summary-grid" [attr.aria-label]="'admin.mobileDeliverySummary' | hhTranslate:'Mobile delivery summary'">
           <article><strong>{{ summary?.queued ?? 0 }}</strong><span>{{ 'admin.mobileQueued' | hhTranslate }}</span></article>
           <article><strong>{{ summary?.sent ?? 0 }}</strong><span>{{ 'admin.mobileSent' | hhTranslate }}</span></article>
           <article><strong>{{ summary?.failed ?? 0 }}</strong><span>{{ 'admin.mobileFailed' | hhTranslate }}</span></article>
@@ -29,7 +29,7 @@ import { catchError, finalize, forkJoin, of } from 'rxjs';
           @if (!devices.length) { <hh-state kind="empty" [message]="'admin.noMobileDevices' | hhTranslate" /> }
           @else {
             <div class="table-wrap"><table><thead><tr><th>{{ 'admin.platform' | hhTranslate }}</th><th>{{ 'admin.userId' | hhTranslate }}</th><th>{{ 'admin.lastSeen' | hhTranslate }}</th><th>{{ 'admin.status' | hhTranslate }}</th><th></th></tr></thead><tbody>
-              @for (device of devices; track device.id) { <tr><td>{{ device.platform }}</td><td class="mono">{{ device.userId }}</td><td>{{ device.lastSeenAt | date:'short' }}</td><td>{{ device.active ? ('admin.active' | hhTranslate) : ('admin.revoked' | hhTranslate) }}</td><td>@if (device.active) { <button mat-button color="warn" type="button" (click)="revoke(device)">{{ 'admin.revoke' | hhTranslate }}</button> }</td></tr> }
+              @for (device of devices; track device.id) { <tr><td>{{ device.platform }}</td><td class="mono">{{ device.userId }}</td><td>{{ device.lastSeenAt | date:'short' }}</td><td>{{ device.active ? ('admin.active' | hhTranslate) : ('admin.revoked' | hhTranslate) }}</td><td>@if (device.active && canWrite) { <button mat-button color="warn" type="button" (click)="revoke(device)">{{ 'admin.revoke' | hhTranslate }}</button> }</td></tr> }
             </tbody></table></div>
           }
         </section>
@@ -49,6 +49,8 @@ import { catchError, finalize, forkJoin, of } from 'rxjs';
 export class MobileOperationsPageComponent implements OnInit {
   private readonly api = inject(AdminApiService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly permissions = inject(HisHopePermissionService);
+  get canWrite(): boolean { return this.permissions.has('admin.users.write'); }
   devices: MobileDeviceRegistration[] = [];
   summary: MobileDeliverySummary | null = null;
   loading = false;
@@ -69,6 +71,7 @@ export class MobileOperationsPageComponent implements OnInit {
   }
 
   revoke(device: MobileDeviceRegistration): void {
+    if (!this.canWrite) return;
     this.api.revokeMobileDevice(device.id).subscribe(() => {
       device.active = false;
       device.revokedAt = new Date().toISOString();

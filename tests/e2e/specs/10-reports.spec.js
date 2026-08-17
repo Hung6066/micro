@@ -1,16 +1,10 @@
 const { test, expect } = require('@playwright/test');
 
 const { clinicalUrl: BASE } = require('../config/urls');
-const TEST_USER = 'admin';
-const TEST_PASS = 'Admin@123';
+const { signInThroughIdentity } = require('../helpers/sso-login');
 
 async function login(page) {
-  await page.goto(BASE + '/auth/login');
-  await page.waitForLoadState('networkidle');
-  await page.locator('input[formControlName="username"]').fill(TEST_USER);
-  await page.locator('input[formControlName="password"]').fill(TEST_PASS);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL(/\/dashboard/, { timeout: 30000 });
+  await signInThroughIdentity(page, BASE);
 }
 
 async function navigateToSidebar(page, label, expectedPath) {

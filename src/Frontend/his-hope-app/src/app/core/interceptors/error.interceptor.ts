@@ -6,7 +6,7 @@ import { Router } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { AuthService } from '@core/services/auth.service';
 import { AuditService } from '@core/services/audit.service';
-import { HisHopeI18nService } from '@his-hope/frontend-foundation';
+import { HisHopeI18nService, HisHopePermissionService } from '@his-hope/frontend-foundation';
 
 @Injectable()
 export class ErrorInterceptor implements HttpInterceptor {
@@ -22,6 +22,7 @@ export class ErrorInterceptor implements HttpInterceptor {
   private ngZone = inject(NgZone);
   private auditService = inject(AuditService);
   private i18n = inject(HisHopeI18nService);
+  private permissionService = inject(HisHopePermissionService);
 
   intercept(req: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
     return next.handle(req).pipe(
@@ -46,6 +47,13 @@ export class ErrorInterceptor implements HttpInterceptor {
         }
 
         const shouldNotify = !this.isSkippableUrl(req.url);
+
+        if (error.status === 401 || error.status === 403) {
+          this.permissionService.recordAuthorizationFailure(
+            error.status,
+            req.headers.get('X-Authorization-Action') || undefined,
+          );
+        }
 
         if (error.status === 0) {
           this.showNotification(

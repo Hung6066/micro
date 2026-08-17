@@ -3,5 +3,10 @@ using MediatR;
 
 namespace His.Hope.AppointmentService.Application.UseCases.Appointments.Queries;
 
-public record SearchAppointmentsQuery(string SearchTerm, int Page = 1, int PageSize = 20)
+public record SearchAppointmentsQuery(
+    string SearchTerm,
+    int Page = 1,
+    int PageSize = 20,
+    IReadOnlySet<string>? FacilityIds = null,
+    bool CrossFacility = false)
     : IRequest<PagedResult<AppointmentDto>>;

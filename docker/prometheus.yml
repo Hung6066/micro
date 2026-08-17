@@ -42,7 +42,7 @@ scrape_configs:
   - job_name: 'identityservice'
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['identityservice:5001']
+      - targets: ['identityservice:5003']
         labels: { service: 'identity-service' }
 
   - job_name: 'database-continuity-service'

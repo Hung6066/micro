@@ -1,9 +1,12 @@
 [CmdletBinding()]
 param(
-    [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+    [string]$Root
 )
 
 $ErrorActionPreference = 'Stop'
+if ([string]::IsNullOrWhiteSpace($Root)) {
+    $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+}
 $failures = [System.Collections.Generic.List[string]]::new()
 $apiProjects = Get-ChildItem (Join-Path $Root 'src/Services') -Filter '*.Api.csproj' -Recurse
 

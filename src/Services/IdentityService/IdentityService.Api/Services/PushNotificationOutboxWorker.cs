@@ -44,13 +44,38 @@ public sealed class PushNotificationOutboxWorker(
 
         var leaseId = Guid.NewGuid();
         var leaseUntil = now.AddMinutes(2);
-        var claimed = await db.PushNotificationOutbox
-            .Where(item => item.Id == candidate.Id && item.ProcessedAt == null &&
-                (item.LeaseUntil == null || item.LeaseUntil < now))
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(item => item.AttemptCount, item => item.AttemptCount + 1)
-                .SetProperty(item => item.LeaseId, leaseId)
-                .SetProperty(item => item.LeaseUntil, leaseUntil), cancellationToken);
+        int claimed;
+        if (string.Equals(db.Database.ProviderName, "Microsoft.EntityFrameworkCore.InMemory", StringComparison.Ordinal))
+        {
+            // The in-memory provider does not implement ExecuteUpdateAsync.
+            // Keep the unit-test seam deterministic while production providers
+            // retain the atomic set-based claim below.
+            var inMemoryItem = await db.PushNotificationOutbox
+                .SingleOrDefaultAsync(item => item.Id == candidate.Id && item.ProcessedAt == null &&
+                    (item.LeaseUntil == null || item.LeaseUntil < now), cancellationToken);
+            if (inMemoryItem is null)
+            {
+                claimed = 0;
+            }
+            else
+            {
+                inMemoryItem.AttemptCount++;
+                inMemoryItem.LeaseId = leaseId;
+                inMemoryItem.LeaseUntil = leaseUntil;
+                await db.SaveChangesAsync(cancellationToken);
+                claimed = 1;
+            }
+        }
+        else
+        {
+            claimed = await db.PushNotificationOutbox
+                .Where(item => item.Id == candidate.Id && item.ProcessedAt == null &&
+                    (item.LeaseUntil == null || item.LeaseUntil < now))
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.AttemptCount, item => item.AttemptCount + 1)
+                    .SetProperty(item => item.LeaseId, leaseId)
+                    .SetProperty(item => item.LeaseUntil, leaseUntil), cancellationToken);
+        }
         if (claimed == 0) return true;
 
         var item = await db.PushNotificationOutbox

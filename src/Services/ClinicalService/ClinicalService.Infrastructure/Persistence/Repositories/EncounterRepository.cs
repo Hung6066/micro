@@ -22,17 +22,42 @@ public class EncounterRepository : IEncounterRepository
             .FirstOrDefaultAsync(e => e.Id == id, cancellationToken);
 
     public async Task<IReadOnlyList<Encounter>> GetByPatientIdAsync(Guid patientId, CancellationToken cancellationToken = default) =>
-        await _context.Encounters
+        await GetByPatientIdAsync(patientId, new HashSet<string>(StringComparer.OrdinalIgnoreCase), true, cancellationToken);
+
+    public async Task<IReadOnlyList<Encounter>> GetByPatientIdAsync(
+        Guid patientId, IReadOnlySet<string> facilityIds, bool crossFacility, CancellationToken cancellationToken = default)
+    {
+        var query = _context.Encounters
             .AsNoTracking()
-            .Where(e => e.PatientId == patientId)
+            .Where(e => e.PatientId == patientId);
+        if (!crossFacility)
+        {
+            if (facilityIds.Count == 0) return Array.Empty<Encounter>();
+            query = query.Where(encounter => encounter.FacilityId != null && facilityIds.Contains(encounter.FacilityId));
+        }
+
+        return await query
             .OrderByDescending(e => e.EncounterDate)
             .ThenBy(e => e.Id)
             .ToListAsync(cancellationToken);
+    }
 
     public async Task<(IReadOnlyList<Encounter> Items, int TotalCount)> GetByPatientIdAsync(
         Guid patientId, int page, int pageSize, DateTime? fromDate, DateTime? toDate, CancellationToken cancellationToken = default)
+        => await GetByPatientIdAsync(patientId, page, pageSize, fromDate, toDate,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase), true, cancellationToken);
+
+    public async Task<(IReadOnlyList<Encounter> Items, int TotalCount)> GetByPatientIdAsync(
+        Guid patientId, int page, int pageSize, DateTime? fromDate, DateTime? toDate,
+        IReadOnlySet<string> facilityIds, bool crossFacility, CancellationToken cancellationToken = default)
     {
         var query = _context.Encounters.AsNoTracking().Where(e => e.PatientId == patientId);
+
+        if (!crossFacility)
+        {
+            if (facilityIds.Count == 0) return (Array.Empty<Encounter>(), 0);
+            query = query.Where(encounter => encounter.FacilityId != null && facilityIds.Contains(encounter.FacilityId));
+        }
 
         if (fromDate.HasValue)
             query = query.Where(e => e.EncounterDate >= fromDate.Value);
@@ -61,8 +86,20 @@ public class EncounterRepository : IEncounterRepository
 
     public async Task<(IReadOnlyList<Encounter> Items, int TotalCount)> SearchAsync(
         string searchTerm, int page, int pageSize, CancellationToken cancellationToken = default)
+        => await SearchAsync(searchTerm, page, pageSize,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase), true, cancellationToken);
+
+    public async Task<(IReadOnlyList<Encounter> Items, int TotalCount)> SearchAsync(
+        string searchTerm, int page, int pageSize,
+        IReadOnlySet<string> facilityIds, bool crossFacility, CancellationToken cancellationToken = default)
     {
         var query = _context.Encounters.AsNoTracking().AsQueryable();
+
+        if (!crossFacility)
+        {
+            if (facilityIds.Count == 0) return (Array.Empty<Encounter>(), 0);
+            query = query.Where(encounter => encounter.FacilityId != null && facilityIds.Contains(encounter.FacilityId));
+        }
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {

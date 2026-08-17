@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
+const { IdentityRoutes } = require('../support/identity-routes');
 
 const MFA_PAGE_URL = 'http://localhost:5000/Account/Mfa';
 const identityScript = path.join(__dirname, '..', '..', '..', 'src', 'Services', 'IdentityService', 'IdentityService.Api', 'wwwroot', 'js', 'identity-login.js');
@@ -93,7 +94,7 @@ async function installAdaptiveMfaHarness(page, options = {}) {
     };
   }, { credentialResult });
 
-  await page.route('**/api/v1/auth/passkeys/mfa/options', async route => {
+  await page.route(`**${IdentityRoutes.PasskeyMfaOptions}`, async route => {
     await route.fulfill({
       status: passkeyOptionsStatus,
       contentType: 'application/json',
@@ -108,7 +109,14 @@ async function installAdaptiveMfaHarness(page, options = {}) {
     });
   });
 
-  await page.route('**/api/v1/auth/mfa/methods', async route => {
+  // The synthetic page does not have a real browser session cookie. Stub the
+  // post-MFA BFF exchange so the test verifies callback selection rather than
+  // depending on a live Identity session.
+  await page.route(`**${IdentityRoutes.SessionExchange}`, async route => {
+    await route.fulfill({ status: 204, body: '' });
+  });
+
+  await page.route(`**${IdentityRoutes.MfaMethods}`, async route => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -116,7 +124,7 @@ async function installAdaptiveMfaHarness(page, options = {}) {
     });
   });
 
-  await page.route('**/api/v1/auth/passkeys/mfa/complete', async route => {
+  await page.route(`**${IdentityRoutes.PasskeyMfaComplete}`, async route => {
     await route.fulfill({
       status: passkeyCompleteStatus,
       contentType: 'application/json',
@@ -124,7 +132,7 @@ async function installAdaptiveMfaHarness(page, options = {}) {
     });
   });
 
-  await page.route('**/api/v1/auth/passkeys/mfa/native/start', async route => {
+  await page.route(`**${IdentityRoutes.NativeMfaStart}`, async route => {
     await route.fulfill({
       status: nativeStartStatus,
       contentType: 'application/json',
@@ -136,7 +144,7 @@ async function installAdaptiveMfaHarness(page, options = {}) {
     });
   });
 
-  await page.route('**/api/v1/auth/passkeys/mfa/native/poll?**', async route => {
+  await page.route(`**${IdentityRoutes.NativeMfaPoll}?**`, async route => {
     const next = pollStatuses[Math.min(await page.evaluate(() => window.__adaptiveMfa.pollCount++), pollStatuses.length - 1)];
     const body = next === 200
       ? { redirectUrl: pollRedirectUrl }
@@ -174,7 +182,7 @@ async function openMfaPage(page, { nativePrimary = false } = {}) {
       <body>
         <main id="adaptive-mfa">
         <section class="card"
-          data-mfa-methods-endpoint="/api/v1/auth/mfa/methods"
+          data-mfa-methods-endpoint="${IdentityRoutes.MfaMethods}"
           data-preferred-method="${preferredMethod}"
           data-available-methods="passkey,mobileApproval,totp"
           data-native-hardware-unverified="true">
@@ -215,10 +223,10 @@ test.describe('Adaptive passkey-first MFA source integration contract', () => {
 
     expect(pageSource).toContain('app.MapGet("/Account/Mfa", async (HttpContext httpContext, string? error, OidcLoginCompletionService completion');
     expect(pageSource).toContain('completion.GetPendingMfaMethodsAsync(httpContext, ct)');
-    expect(pageSource).toContain('data-mfa-methods-endpoint="/api/v1/auth/mfa/methods"');
+    expect(pageSource).toContain(`data-mfa-methods-endpoint="${IdentityRoutes.MfaMethods}"`);
     expect(pageSource).toContain('id="primary-actions"');
     expect(pageSource).toContain('id="alternate-method-panel"');
-    expect(apiSource).toContain('group.MapGet("/mfa/methods"');
+    expect(apiSource).toContain('group.MapGet(IdentityApiRoutes.MfaMethodsSegment');
     expect(scriptSource).toContain("fetch(methodsEndpoint");
   });
 });

@@ -12,6 +12,9 @@ public class AppointmentType : Enumeration<AppointmentType>
     public static readonly AppointmentType Vaccination = new("VACCINE", "Vaccination");
     public static readonly AppointmentType LabWork = new("LAB", "Lab Work");
     public static readonly AppointmentType Telehealth = new("TELE", "Telehealth Visit");
+    // Legacy seed/import rows used CLINIC before the canonical appointment
+    // type catalog was introduced. Preserve that value as a readable option.
+    public static readonly AppointmentType Clinic = new("CLINIC", "Clinic");
 
     private AppointmentType(string code, string name) : base(code, name) { }
 }

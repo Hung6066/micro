@@ -32,7 +32,11 @@ var reverseProxyClusters = new Dictionary<string, string?>
     ["ReverseProxy:Clusters:lab-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("lab-bff").ToString(),
     ["ReverseProxy:Clusters:billing-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("billing-bff").ToString(),
     ["ReverseProxy:Clusters:dashboard-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("dashboard-bff").ToString(),
-    ["ReverseProxy:Clusters:database-continuity:Destinations:database-continuity/dest:Address"] = runtimeEndpoints.GetRequired("database-continuity-api").ToString()
+    ["ReverseProxy:Clusters:systemdashboard-bff:Destinations:dest:Address"] = runtimeEndpoints.GetRequired("systemdashboard-bff").ToString(),
+    // The runtime contract exposes SERVICE_DATABASE_CONTINUITY_URL. Keep the
+    // logical key identical across Compose, VM and Kubernetes so the gateway
+    // never falls back to localhost inside its own container.
+    ["ReverseProxy:Clusters:database-continuity:Destinations:database-continuity/dest:Address"] = runtimeEndpoints.GetRequired("database-continuity").ToString()
 };
 builder.Configuration.AddInMemoryCollection(reverseProxyClusters);
 builder.Services.AddHisHopeAspNetCore();
@@ -113,9 +117,14 @@ builder.Services.AddRateLimiter(options =>
             partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 100,
-                Window = TimeSpan.FromMinutes(1),
-                QueueLimit = 5,
+                // Keep the gateway limiter configurable. A single admin/IAM
+                // route loads several read endpoints in parallel; the old
+                // hard-coded 100 requests/minute caused legitimate navigation
+                // to receive 429s and made the UI appear intermittently down.
+                // Authentication endpoints retain their stricter named policy.
+                PermitLimit = builder.Configuration.GetValue("RateLimiting:MaxRequestsPerIp", 1000),
+                Window = TimeSpan.FromMinutes(builder.Configuration.GetValue("RateLimiting:WindowMinutes", 1)),
+                QueueLimit = builder.Configuration.GetValue("RateLimiting:QueueLimit", 25),
             }));
 });
 
@@ -217,7 +226,12 @@ app.Use(async (context, next) =>
         // here makes Identity select JWT validation and breaks /connect/authorize.
         context.Request.Path.StartsWithSegments("/connect") ||
         context.Request.Path.StartsWithSegments("/Account") ||
-        context.Request.Path.StartsWithSegments("/api/v1/auth");
+        context.Request.Path.StartsWithSegments("/api/v1/auth") ||
+        // Database continuity has its own shared-session bridge and policy
+        // boundary. Let it unprotect hishop_sid locally instead of receiving
+        // the gateway's generic bearer projection.
+        context.Request.Path.StartsWithSegments("/api/v1/admin/database-continuity");
+    var continuityRoute = context.Request.Path.StartsWithSegments("/api/v1/admin/database-continuity");
 
     var hasSessionCookie = context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
         !string.IsNullOrWhiteSpace(sessionId);
@@ -227,8 +241,8 @@ app.Use(async (context, next) =>
     // JWT on admin/settings/audit/auth endpoints; those endpoints validate
     // OIDC bearer tokens or the Identity application cookie.
     if (hasSessionCookie &&
-        !cookieBackedIdentityRoute &&
-        !context.Request.Headers.ContainsKey("Authorization"))
+        (!cookieBackedIdentityRoute || continuityRoute) &&
+        (!context.Request.Headers.ContainsKey("Authorization") || continuityRoute))
     {
         var redis = context.RequestServices.GetRequiredService<IConnectionMultiplexer>();
         var tokenProtector = context.RequestServices.GetRequiredService<SessionTokenProtector>();
@@ -244,6 +258,20 @@ app.Use(async (context, next) =>
                     var protectedJwt = jwtElement.GetString();
                     if (!string.IsNullOrWhiteSpace(protectedJwt))
                     {
+                        if (continuityRoute)
+                        {
+                            // Keep the protected session token opaque at the
+                            // gateway boundary. The continuity service owns
+                            // the same DataProtection key ring and unwraps
+                            // X-HisHope-Session-Token immediately before JWT
+                            // authentication. Unprotecting here first made a
+                            // transient key-ring mismatch degrade to an empty
+                            // Authorization header and an unexplained 401.
+                            context.Request.Headers.Remove("Authorization");
+                            context.Request.Headers["X-HisHope-Session-Token"] = protectedJwt;
+                            await next();
+                            return;
+                        }
                         var jwt = tokenProtector.Unprotect(protectedJwt);
                         context.Request.Headers.Authorization = $"Bearer {jwt}";
                         // Mark the internal BFF session token so IdentityService

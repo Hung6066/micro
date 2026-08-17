@@ -241,7 +241,7 @@ export class HisHopeDataTableCellDirective {
                 @if (selection()) { <th scope="col" class="hh-data-table__select"><input type="checkbox" [checked]="allVisibleSelected()" (change)="toggleAll()" [attr.aria-label]="'common.selectAllRows' | hhTranslate" /></th> }
                 @if (virtualizeColumns() && columnVirtualLeadingWidth() > 0) { <th class="hh-data-table__column-spacer" [style.width.px]="columnVirtualLeadingWidth()" aria-hidden="true"></th> }
                 @for (column of renderedColumns(); track column.key) {
-                  <th scope="col" [style.text-align]="column.align ?? 'start'" [style.width.px]="columnWidth(column)" [class.hh-data-table__cell--pin-left]="column.pinned === 'left'" [class.hh-data-table__cell--pin-right]="column.pinned === 'right'" [style.left.px]="pinnedOffset(column, 'left')" [style.right.px]="pinnedOffset(column, 'right')" [attr.draggable]="column.reorderable !== false" (dragstart)="beginColumnDrag(column.key)" (dragover)="$event.preventDefault()" (drop)="dropColumn(column.key)">
+                  <th scope="col" [style.text-align]="column.align ?? 'start'" [style.width.px]="columnWidth(column)" [class.hh-data-table__actions-column]="column.key === 'actions'" [class.hh-data-table__cell--pin-left]="column.pinned === 'left'" [class.hh-data-table__cell--pin-right]="column.pinned === 'right'" [style.left.px]="pinnedOffset(column, 'left')" [style.right.px]="pinnedOffset(column, 'right')" [attr.draggable]="column.reorderable !== false" (dragstart)="beginColumnDrag(column.key)" (dragover)="$event.preventDefault()" (drop)="dropColumn(column.key)">
                     @if (column.sortable) {
                         <button type="button" class="hh-data-table__sort" (click)="sortBy(column.key, $event)" [attr.aria-label]="sortLabel(column)" [attr.aria-pressed]="sortStates().some(item => item.key === column.key)">
                         {{ column.label }} <span class="material-icons hh-data-table__sort-icon" aria-hidden="true">{{ sortIcon(column.key) }}</span>@if (sortPriority(column.key); as priority) { <span class="hh-data-table__sort-priority">{{ priority }}</span> }
@@ -263,14 +263,14 @@ export class HisHopeDataTableCellDirective {
                     @if (selection()) { <td class="hh-data-table__select"><input type="checkbox" [checked]="isSelected(row)" (change)="toggleRow(row)" [attr.aria-label]="'Select row ' + rowKeyValue(row)" /></td> }
                     @if (virtualizeColumns() && columnVirtualLeadingWidth() > 0) { <td class="hh-data-table__column-spacer" [style.width.px]="columnVirtualLeadingWidth()" aria-hidden="true"></td> }
                     @for (column of renderedColumns(); track column.key; let columnIndex = $index) {
-                      <td [style.text-align]="column.align ?? 'start'" [class.hh-data-table__cell--pin-left]="column.pinned === 'left'" [class.hh-data-table__cell--pin-right]="column.pinned === 'right'" [style.left.px]="pinnedOffset(column, 'left')" [style.right.px]="pinnedOffset(column, 'right')" [attr.tabindex]="keyboardNavigation() ? 0 : null" (keydown)="onCellKeydown($event, rowIndex, columnIndex)">
+                      <td [style.text-align]="column.align ?? 'start'" [class.hh-data-table__actions-column]="column.key === 'actions'" [class.hh-data-table__cell--pin-left]="column.pinned === 'left'" [class.hh-data-table__cell--pin-right]="column.pinned === 'right'" [style.left.px]="pinnedOffset(column, 'left')" [style.right.px]="pinnedOffset(column, 'right')" [attr.tabindex]="keyboardNavigation() ? 0 : null" (keydown)="onCellKeydown($event, rowIndex, columnIndex)">
                         @if (columnIndex === 0 && (detailTemplate() || treeChildrenKey())) { <button type="button" class="hh-icon-button hh-icon-button--small" [attr.aria-label]="isExpanded(row) ? 'Collapse row' : 'Expand row'" [attr.title]="isExpanded(row) ? 'Collapse row' : 'Expand row'" (click)="toggleExpanded(row); $event.stopPropagation()"><span class="material-icons" aria-hidden="true">{{ isExpanded(row) ? 'expand_less' : 'expand_more' }}</span></button> }
                         @if (isEditing(row) && column.editable) {
                           <hh-table-editor [type]="column.editor ?? 'text'" [options]="column.options ?? []" [value]="draftValue(column.key)" [ariaLabel]="'Edit ' + column.label" [invalid]="!!editError(column.key)" [listId]="'hh-options-' + column.key" (valueChange)="updateDraftValue(column.key, $event)" />
                           @if (editError(column.key); as message) { <small class="hh-data-table__edit-error" role="alert">{{ message }}</small> }
                         } @else {
                           @if (cellTemplate(column.key); as template) {
-                            <ng-container *ngTemplateOutlet="template.template; context: { $implicit: row, row: row, value: cellValue(row, column.key) }" />
+                            <span class="hh-data-table__cell-template" [class.hh-data-table__actions-content]="column.key === 'actions'"><ng-container *ngTemplateOutlet="template.template; context: { $implicit: row, row: row, value: cellValue(row, column.key) }" /></span>
                           } @else {
                             {{ cellValue(row, column.key) }}
                           }
@@ -422,6 +422,30 @@ export class HisHopeDataTableCellDirective {
     .hh-data-table__mobile-item-actions { display: flex; justify-content: flex-end; gap: 8px; }
     .hh-data-table__content table { width: 100%; min-width: 640px; table-layout: fixed; border-collapse: collapse; }
     .hh-data-table th, .hh-data-table td { box-sizing: border-box; padding: 12px 16px; border-bottom: 1px solid var(--border-light); color: var(--text-primary); overflow-wrap: anywhere; }
+    /* Action buttons are a single row action group. Keep them together so the
+       second lifecycle action never drops to a new line or changes row height. */
+    .hh-data-table th.hh-data-table__actions-column,
+    .hh-data-table td.hh-data-table__actions-column {
+      width: 128px !important;
+      min-width: 128px;
+      padding-inline: 8px;
+      white-space: nowrap;
+      overflow-wrap: normal;
+      vertical-align: middle;
+    }
+    .hh-data-table td.hh-data-table__actions-column > .hh-icon-button {
+      display: inline-grid;
+      vertical-align: middle;
+    }
+    .hh-data-table__cell-template { display: inline; }
+    .hh-data-table__actions-content {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: nowrap;
+      gap: 8px;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
     .hh-data-table th { position: relative; min-width: 96px; }
     .hh-data-table__row--clickable { cursor: pointer; }
     .hh-data-table__row--clickable:hover { background: var(--surface-hover); }

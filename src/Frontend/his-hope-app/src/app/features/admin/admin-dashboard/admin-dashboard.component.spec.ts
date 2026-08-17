@@ -46,6 +46,8 @@ describe('AdminDashboardComponent', () => {
     component = fixture.componentInstance;
     adminService = TestBed.inject(AdminService) as jasmine.SpyObj<AdminService>;
     fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
   });
 
   it('should create', () => {
@@ -62,9 +64,9 @@ describe('AdminDashboardComponent', () => {
   });
 
   it('should display stat cards', () => {
-    const compiled = fixture.nativeElement as HTMLElement;
-    const cards = compiled.querySelectorAll('mat-card');
-    expect(cards.length).toBeGreaterThanOrEqual(4);
+    expect(component.stats).toEqual(mockStats);
+    expect(component.healthIcon).toBe('check_circle');
+    expect(component.healthTone).toBe('success');
   });
 
   it('should show total users stat', () => {

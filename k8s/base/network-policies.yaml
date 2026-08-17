@@ -494,6 +494,65 @@ spec:
 
 ---
 # ---------------------------------------------------------------------------
+# 7a. FHIR GATEWAY — API ingress and least-privilege downstream egress
+# ---------------------------------------------------------------------------
+# FHIR is exposed through api-gateway only. It reads clinical resources from
+# the dedicated gRPC services and never receives broad east-west access.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-fhir-gateway-runtime
+  labels:
+    app.kubernetes.io/part-of: his-hope
+spec:
+  podSelector:
+    matchLabels:
+      app: fhir-gateway
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+      ports:
+        - port: 5040
+          protocol: TCP
+        - port: 4143
+          protocol: TCP
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: identity-service
+      ports:
+        - port: 5003
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: patient-service
+      ports:
+        - port: 5006
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: clinical-service
+      ports:
+        - port: 5009
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - port: 6379
+          protocol: TCP
+
+---
+# ---------------------------------------------------------------------------
 # 8. SERVICE-TO-SERVICE gRPC (appointment-service)
 # ----------------------------------------------------------------------------
 apiVersion: networking.k8s.io/v1

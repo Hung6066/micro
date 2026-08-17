@@ -36,19 +36,41 @@ public class LabOrderRepository : ILabOrderRepository
         _context.LabOrders.Remove(labOrder);
 
     public async Task<IReadOnlyList<LabOrder>> GetByPatientAsync(Guid patientId, CancellationToken cancellationToken = default) =>
-        await _context.LabOrders
+        await GetByPatientAsync(patientId, new HashSet<string>(StringComparer.OrdinalIgnoreCase), true, cancellationToken);
+
+    public async Task<IReadOnlyList<LabOrder>> GetByPatientAsync(
+        Guid patientId, IReadOnlySet<string> facilityIds, bool crossFacility,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.LabOrders
             .Include(o => o.RequestedTests)
             .ThenInclude(t => t.Result)
             .AsNoTracking()
             .AsSplitQuery()
-            .Where(o => o.PatientId == patientId)
+            .Where(o => o.PatientId == patientId);
+        if (!crossFacility)
+        {
+            if (facilityIds.Count == 0) return Array.Empty<LabOrder>();
+            query = query.Where(order => order.FacilityId != null && facilityIds.Contains(order.FacilityId));
+        }
+
+        return await query
             .OrderByDescending(o => o.OrderDate)
             .ToListAsync(cancellationToken);
+    }
 
     public async Task<(IReadOnlyList<LabOrder> Items, int TotalCount)> SearchAsync(
         string term, int page, int pageSize,
         Guid? patientId = null, string? status = null,
         DateTime? dateFrom = null, DateTime? dateTo = null,
+        CancellationToken cancellationToken = default)
+        => await SearchAsync(term, page, pageSize, patientId, status, dateFrom, dateTo,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase), true, cancellationToken);
+
+    public async Task<(IReadOnlyList<LabOrder> Items, int TotalCount)> SearchAsync(
+        string term, int page, int pageSize,
+        Guid? patientId, string? status, DateTime? dateFrom, DateTime? dateTo,
+        IReadOnlySet<string> facilityIds, bool crossFacility,
         CancellationToken cancellationToken = default)
     {
         var query = _context.LabOrders
@@ -57,6 +79,12 @@ public class LabOrderRepository : ILabOrderRepository
             .ThenInclude(t => t.Result)
             .AsSplitQuery()
             .AsQueryable();
+
+        if (!crossFacility)
+        {
+            if (facilityIds.Count == 0) return (Array.Empty<LabOrder>(), 0);
+            query = query.Where(order => order.FacilityId != null && facilityIds.Contains(order.FacilityId));
+        }
 
         if (!string.IsNullOrWhiteSpace(term))
         {

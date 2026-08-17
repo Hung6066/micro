@@ -11,11 +11,19 @@ public interface IInvoiceRepository : IRepository<Invoice>
     Task UpdateAsync(Invoice invoice, CancellationToken cancellationToken = default);
     Task RemoveAsync(Invoice invoice, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Invoice>> GetByPatientAsync(Guid patientId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Invoice>> GetByPatientAsync(
+        Guid patientId, IReadOnlySet<string> facilityIds, bool crossFacility,
+        CancellationToken cancellationToken = default);
     Task<Invoice?> GetByInvoiceNumberAsync(string invoiceNumber, CancellationToken cancellationToken = default);
     Task<PagedInvoiceResult> SearchAsync(
         string term, int page, int pageSize,
         Guid? patientId = null, string? status = null,
         DateTime? dateFrom = null, DateTime? dateTo = null,
+        CancellationToken cancellationToken = default);
+    Task<PagedInvoiceResult> SearchAsync(
+        string term, int page, int pageSize,
+        Guid? patientId, string? status, DateTime? dateFrom, DateTime? dateTo,
+        IReadOnlySet<string> facilityIds, bool crossFacility,
         CancellationToken cancellationToken = default);
 }
 

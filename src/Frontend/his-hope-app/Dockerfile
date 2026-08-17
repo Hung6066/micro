@@ -16,7 +16,6 @@ COPY shared/frontend-foundation/README.md shared/frontend-foundation/CHANGELOG.m
 COPY shared/frontend-foundation/docs ./shared/frontend-foundation/docs
 COPY shared/frontend-foundation/src ./shared/frontend-foundation/src
 RUN cd shared/frontend-foundation && npm install --legacy-peer-deps --ignore-scripts && npm run build
-
 WORKDIR /workspace/src/Frontend/his-hope-app
 # Copy package files and install dependencies with cache
 # The application lockfile is intentionally not committed in this legacy
@@ -29,6 +28,14 @@ RUN --mount=type=cache,target=/root/.npm \
 # Copy the app and the shared design system used by its Sass entrypoints.
 COPY shared /workspace/shared
 COPY src/Frontend/his-hope-app .
+
+# The application consumes the foundation through a local file dependency.
+# npm has already completed the foundation's lifecycle above, so point its
+# dependency lookup at the application's single installed Angular tree. This
+# avoids duplicate Angular type identities while keeping peer dependencies
+# resolvable from the built package.
+RUN rm -rf /workspace/shared/frontend-foundation/node_modules && \
+    ln -s /workspace/src/Frontend/his-hope-app/node_modules /workspace/shared/frontend-foundation/node_modules
 
 # Build with production configuration
 RUN npm run build -- --configuration production

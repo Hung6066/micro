@@ -19,9 +19,15 @@ public class SearchPrescriptionsQueryHandler : IRequestHandler<SearchPrescriptio
     public async Task<PagedResult<PrescriptionDto>> Handle(SearchPrescriptionsQuery request,
         CancellationToken cancellationToken)
     {
-        var (items, totalCount) = await _prescriptionRepository.SearchAsync(
-            request.SearchTerm, request.Page, request.PageSize,
-            request.PatientId, request.Status, cancellationToken);
+        var result = request.FacilityIds is null
+            ? await _prescriptionRepository.SearchAsync(
+                request.SearchTerm, request.Page, request.PageSize,
+                request.PatientId, request.Status, cancellationToken)
+            : await _prescriptionRepository.SearchAsync(
+                request.SearchTerm, request.Page, request.PageSize,
+                request.PatientId, request.Status,
+                request.FacilityIds, request.CrossFacility, cancellationToken);
+        var (items, totalCount) = result;
 
         var dtos = _mapper.Map<List<PrescriptionDto>>(items);
 

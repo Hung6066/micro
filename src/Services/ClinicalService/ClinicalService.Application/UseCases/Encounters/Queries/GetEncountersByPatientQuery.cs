@@ -10,7 +10,9 @@ public record GetEncountersByPatientQuery(
     int Page = 1,
     int PageSize = 20,
     DateTime? FromDate = null,
-    DateTime? ToDate = null) : IRequest<PagedResult<EncounterDto>>;
+    DateTime? ToDate = null,
+    IReadOnlySet<string>? FacilityIds = null,
+    bool CrossFacility = false) : IRequest<PagedResult<EncounterDto>>;
 
 public class GetEncountersByPatientQueryHandler
     : IRequestHandler<GetEncountersByPatientQuery, PagedResult<EncounterDto>>
@@ -30,13 +32,15 @@ public class GetEncountersByPatientQueryHandler
         GetEncountersByPatientQuery request,
         CancellationToken cancellationToken)
     {
-        var (items, totalCount) = await _encounterRepository.GetByPatientIdAsync(
-            request.PatientId,
-            request.Page,
-            request.PageSize,
-            request.FromDate,
-            request.ToDate,
-            cancellationToken);
+        var result = request.FacilityIds is null
+            ? await _encounterRepository.GetByPatientIdAsync(
+                request.PatientId, request.Page, request.PageSize,
+                request.FromDate, request.ToDate, cancellationToken)
+            : await _encounterRepository.GetByPatientIdAsync(
+                request.PatientId, request.Page, request.PageSize,
+                request.FromDate, request.ToDate, request.FacilityIds,
+                request.CrossFacility, cancellationToken);
+        var (items, totalCount) = result;
 
         var dtos = _mapper.Map<List<EncounterDto>>(items);
         return new PagedResult<EncounterDto>(dtos, totalCount, request.Page, request.PageSize);

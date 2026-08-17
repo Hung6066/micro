@@ -7,5 +7,7 @@ public record SearchMedicationsQuery(
     string SearchTerm = "",
     int Page = 1,
     int PageSize = 20,
-    string? Category = null)
+    string? Category = null,
+    IReadOnlySet<string>? FacilityIds = null,
+    bool CrossFacility = false)
     : IRequest<PagedResult<MedicationDto>>;

@@ -1,0 +1,65 @@
+{
+  "cookies": [
+    {
+      "name": "hishop_auth",
+      "value": "chunks-2",
+      "domain": "127.0.0.1",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "hishop_authC1",
+      "value": "CfDJ8GfeT1IxLTtAuWATEtoHZgitHs6J3zx-plFD__CRWhvD9MrLB0NjMwztfdbMzUVXkUCNCaDYcK6vHlD6sKmrDqsbPtjQZAQKJG1fad4sFSajeG4nptmDH8w9AamLckg5mLdF0VIwucQ9FH2ciDDGVnx04yLDtdWGIimTFoBLvQNf1bEXaR1onxggNHt1tL0BAso9NQFwaVXpvaPRhemJqZljjfi52Jhldb9ltTWOQe4T1uf3mAC6mZcAxEres2dj1N_TqxhLQn3rGpg24h_gNTsf-QQznOH9Oz79u6gU9uWKKIdiqNJjWKt1k5A5JMAKViNSoLdqbJprVlxbTVI_4trNXlFFQOBsTTpIQVeFjt3ryrrKjv3QvmyO4SeCTlgqM9ZzDgqTIEm7fFDzXpvZLXLJGN39iE08uYtvwkG7pvdS9-IeQuxhm69X8MF7c8MaVMMrVlsI0tBeUjkQrCEejDeV6vaII_8iAdk8VzWxcwUOOTO22SkDFcdIjjW4t5Pk25PO5v6HOrl8Mj9A_3yrY-mf82mPFcQNeKEIH8ZC-UahKzykyFjvYA21Qjhq7dAgeBSKcfK8fTXC2MhABT5FXkzdHnfsdmTYNnTSVEXhCjqQ7WGmP7HDsA_AvSCbO5C2RtcO88aOt5J-6m6b1QYgiNbN8YxuyRsH3_Nam4QnnZAdO_rclPooMDnY0Y0mB9FVBWZgBcd8CmDIVgA_1FDhTIaN1tzVym6v2QrgkcnrlGbcjAAArN5GRmu6qA5W-06wXY-G4dk0E7E8nX3sJl9reApl0eSwF86RsO6X7r-rzVKx6UBLS2e-lRoxeRsahA06uMyXVbqLrjmHgXOfLLEunD3K36jhOA_INm-COgNW9eAPY3o3CuraLfeqIL7TecqBM9YKZRjkMawRMfkweCwrfBl2BiAh3-bEAR9l24oM9q145rHr0oSZ5SU-vrbkbqXTeYVmtl9-MYmc7xpdK32C0FBsMToXYp-Sp_f7t--b0Mw0R9jK8h0n53P6dRN5LzfT47MlLqr2JUftxT8Icn3YtTYSJNPRUPP7tDluH9ZxN_4Ry9ttiUpN92VScYp5H9hShHZUfbZG6vg1JjqYIC5azBlgYk-VxGWB7tzNrM83rKdtmskEDHB-EXoPSnDjJ0ygLwYu5TPsA4jrU59ES9G0bpqUBe9gZlg1dHZMWGJ2I5yp64Ye1cYEa94RxpzbOHAP0Iy0Rh2d0aDtst2mxDLMWiVvaUxahu3lBGoWtwsYQZSPukfKjnsGjBcvAVrbAZ631HF0HnjTJt90DFD0MSynPqmoY6KQIgc9THbBj9_uQcmJCP46i9RcoCCRnypt2gdfgaj_EXEU5neTp8_yj0J8jCkcUo1SzfysDQztAeQNJTtnu98uFszhri9CS-zCCJY0n7FXgDnzwdxBs1a1z3qWd3huPEcmIbq2dHHNKMfxVVzJmU3S9CqduoZvHy-kDbR5Hc4CA3rIYUVVvrHcGc74f9VA0VNo2aMb8bB927ahYOaTX-aVAx7Z21YzmX6D3-tQkiGeywqR-51Q4EVy0eNEZtFTzBIXZOSJh_WQkqjzF9yx-lpna1Dw-6iGncxJHVR-0ZD7Z5WnY44tZJnCl83NXBukfcjaovzWMd7EKvYhvcszwS6bCGis7wc1MdwPyWCC_hBH8rXJttl0_q74VbxtMz7camsv3muEsKr7ZOmUgW6W6pYBYu9yyxZTL_RIZ27yU2gfXD-Wp7bc6OMK9B4IA0x89Lllz37LQsQF-MhV7HQGN3Om_jucBqD-bxG2qwJU4FCK6_75riZ0aWI8tflqgGh_y6Tbhi6vZ8ZPbqDmnPlUHn_sF07ljZZ1lUMdeHrJ0ib6LFPnUfzJyzSrR-4cpY-RIjMm2QsyRiZwxljazRaJMBegBvP0i4WjcCf-Lbx4sOVQhQDgJeIC2ojCsKIX0WUUKLeCy8WB1ZZUFtuPCerrUBfYolbdlYxWr0yB6b4ococW1TLV3ZpjfCjRsKxM3Mh70Lj9jADYqu20_hjvKcN6OqzdaSDgNIy-8lu-fgqSPoXPwkoFTuxIf-HTwrZC2ywxBOfTsk577r4TSTKlX_Qdy_9qxP9nWpMYNT4utuimhMD1uPti8ssqaNP19K1QNKcB7k5qFgQiDMSXDtLoMOaovEtwfbtJbVJbJ9J_4zeFUKlA94-LFpTLs5qxiM1ciO0QFSKL-DYVfO99ARFA9e-ox2lTwDuHGubo1EdmUJ4gR9R4bJ1cG96b2aiRv-gMaszCI5lKK2xfE-YnO2f8qRCPGpB3rBjRRfBN3BDJ-Yt6wM5y25LQUywDEiCx7e7aSuv-GNfUECTAjVFHd2XmZgW1rcav5yr8_ATYMuETJowOVqoyhg1qSrduFK-YTogDjfu5q7XZVm6zVKU-v82Uth7_Ghu_zkikonpKGA0mNc7Kmc7ZY2ZYmHiIG7ue8cUXMD0zfD-L3xQBefM17OU9sWjdROzKYfHvycIBhHIG13o4b_WOccjQiLohDebDOe2NOQ4EabtfqtVhJ4EEKh4wdzorkJCSxNjq0hCunXpi3EsmvL88EkoXT2nYmZi0fFDYutcKw5IWug-yGwL_-jUQzx6MwNYKf9RSfolIy-TE7N2lB3bChGNdmSzmtuTQn9gf8Kq8OKO9htAVkVHQFADpjsxf8CA0dol9uFZDadsE5uNrjGr9HteMbjolIXS5vMMwxajRoe76tVw-jUHxMEgd0B9s8P5OhpBZMlfT8twdaEBjXniOyKn_QrgH4gPx54R4jJTtnxzT4Ov1-MR_BZVWhTjT3NI1X7yhj254wMU39PbNM_m8-7aieI5h0q6CW-iRxDk_K2uVTJs-g_STSx0VLcg6nyG_9qtAdBzgMyKeePuS6f7A2E1lObVcci01WHbNzhUE-g0_AQH4VZ3CIJrLr9sAdfaeDMg7F4EKr4BhJ5gTA2n7Ik3Alk5h_1qcBGKueu30wMes9BHvD27qFl_DURsmXpVBh1mxDh_dhpk8heJwORuE9upxD26V9ctTj53gSUEeapzlMAWyt07EPWa3facUcsC-FTHxHwOhBMDcWQe5N-UlFgB3O86StBaXPlg_R-CoRalr9D5VN4P1ohPzpSkLH6kR9AzdgaRmKx3Kqq48Lw7RuxWhX2X5tWgNBq4uxcMBYPNVf4MqVbtv27sdLS_IjRnUG42D9qpWkgi7EXYHFqkyMLzlwwnEy3Ucm9Hb_KzODnvc2u9fPYAWc700j4_tv5ydfJRicOzJSSOq6R8pRcpVV6vxwg01V0P_v30P4K3Q-_4Uv3Xp3YVNUOAhoJa5zxGjuRMZJ347EvUuzzN5hY2yWzn5c8yyHG9D-d9wftrA__S_iP5lOErLsOymW2vb7LL--4KYdvq8GsC6JMsNMcV13bOmNd9JZCpAAYMebF3tUWqANoC1TDNvLd2doyJbtvwVM-6FY2wdZX6QlNGlyy7LSXvUpKuIgONJFTwQh7s6wjNmj5xBZD8wyNfrJFLDmDP7nKAQhIKGHw7ZDo1TiRQCoqAxbMsreBkFp9xkPMxKLqcBY4RwP-588UmttTKrpYvqgrJ8yZBElESy6fNymx5Gp_S0aLncHp4p_8awmjf53g9R2B47eBwnh_le9RsAUTvcK-4bOXnNCKN9AmSpGzGlckYIlTe9eS-_Kvs5vCDSbPOVvysl13kHf5mE-SZMGr8cjkxDB338m2Hq8V8PMjVfRAkJjayGF5bPxeVc7iIFJ_TbAl48ZST5mh1Cb4DMjFY90aKaHPRMEb6bkAXyzWowhwH0KfODPsrmNT_--cMiSvBe_9iDR239YTvxjn9XUiMFJXVVR-CxMhFo9o-6xMcfid9Z1C9C6eZGJLekUE3gI97HLtYivGrGgygEZMFYaexC88Rr9GnyFZ9AaAe-c8e2K-hL5J_7WbnaGgVf5Yf0ROFcQQMcURXAP0c5ZLRfrEAPrwWKLmfpdsN92k1j12Tv3GJ6KUdQQXxakVnw23PeNPrzNkl",
+      "domain": "127.0.0.1",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "hishop_authC2",
+      "value": "Lyw6sYRcHAjr0kIkczganFWHB5FZm8IaNPhbtOA3_iSfKm08i-bnYVaDgaTAh3pu_b7SYATJC1aQynooldNgiv0fCJAxfMVKfje66Vdb76FOnVv7vddVZoYPVTx_P3WSDSjwvoAzM0sSDkiWdgizKsvNfcznl-ArqxZQWhGCgKQvRucYkKI0K8sGfjH6uvwhF3Vzk4duzKK2dD5ccJXA8mAdtjr2U6vY53w",
+      "domain": "127.0.0.1",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "hishop_sid",
+      "value": "b9123e50b0a848cda7f75a6f74745c61",
+      "domain": "127.0.0.1",
+      "path": "/",
+      "expires": 1786865518.617609,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "hishop_csrf",
+      "value": "92b0d35b1b6f443eacbaa0bc7312b990",
+      "domain": "127.0.0.1",
+      "path": "/",
+      "expires": 1786865518.617729,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Strict"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://127.0.0.1:8081",
+      "localStorage": [
+        {
+          "name": "hh-locale",
+          "value": "en"
+        }
+      ]
+    }
+  ]
+}

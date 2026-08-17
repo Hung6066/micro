@@ -1,12 +1,19 @@
+using System.Text.Json;
+using Microsoft.AspNetCore.DataProtection;
 using His.Hope.AspNetCore.Authentication;
+using His.Hope.Bff.Core.Authentication;
 using His.Hope.ServiceDefaults;
 using His.Hope.DatabaseContinuityService;
 using His.Hope.Authorization;
+using His.Hope.Authorization.Requirements;
+using His.Hope.SharedKernel.Authorization;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Caching;
 using Amazon;
 using Amazon.S3;
 using Microsoft.Extensions.Options;
+using System.Security.Claims;
+using System.Security.Cryptography;
 using Serilog;
 using StackExchange.Redis;
 
@@ -42,18 +49,37 @@ builder.Services.AddSingleton<IAmazonS3>(_ =>
 builder.Services.AddSingleton<IBackupStorageProvider, LocalBackupStorageProvider>();
 builder.Services.AddSingleton<IBackupStorageProvider, S3CompatibleBackupStorageProvider>();
 builder.Services.AddSingleton<BackupStorageCoordinator>();
-builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
-    RedisConnectionFactory.Connect(
-        builder.Configuration.GetConnectionString("Redis")
-            ?? builder.Configuration["Redis:ConnectionString"]
-            ?? "localhost:6379",
-        builder.Configuration));
+var sessionRedis = RedisConnectionFactory.Connect(
+    builder.Configuration.GetConnectionString("Redis")
+        ?? builder.Configuration["Redis:ConnectionString"]
+        ?? "localhost:6379",
+    builder.Configuration);
+builder.Services.AddSingleton<IConnectionMultiplexer>(sessionRedis);
+builder.Services.AddDataProtection()
+    .SetApplicationName("His.Hope.IdentityService")
+    .PersistKeysToStackExchangeRedis(
+        sessionRedis,
+        builder.Configuration["DataProtection:KeyName"]
+            ?? "HisHope:IdentityService:DataProtection:Keys");
+builder.Services.AddSingleton<SessionTokenProtector>();
 builder.Services.AddSingleton<ContinuityJobStore>();
 builder.Services.AddSingleton<ContinuityExecutor>();
 builder.Services.AddHostedService<ContinuityScheduler>();
 builder.Services.AddHostedService<ContinuityWorker>();
 builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
 builder.Services.AddHisHopeAuthorization();
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("Continuity.Write", policy => policy
+        .RequireAuthenticatedUser()
+        .AddRequirements(
+            new PermissionRequirement(HisHopePermissions.Admin.SettingsWrite),
+            // Backup/restore changes are workload/operator operations. A
+            // human admin permission without the explicit service scope is
+            // intentionally insufficient.
+            new ScopeRequirement("platform.continuity.write"),
+            // Both interactive operators and service workers are valid, but
+            // each must carry an explicit IdentityService principal type.
+            new PrincipalTypeRequirement(AuthorizationConstants.PrincipalTypes.Human, AuthorizationConstants.PrincipalTypes.Workload)));
 builder.Services.AddHisHopeDpopValidation();
 
 var app = builder.Build();
@@ -73,7 +99,104 @@ app.Use(async (context, next) =>
     await next();
 });
 app.UseHisHopeServiceDefaults();
+// Reuse the shared BFF session contract for direct admin service calls. The
+// gateway carries hishop_sid and this bridge turns its protected session JWT
+// into the standard bearer token before service authorization runs.
+app.Use(async (context, next) =>
+{
+    if (!context.Request.Headers.ContainsKey("Authorization"))
+    {
+        var redis = context.RequestServices.GetRequiredService<IConnectionMultiplexer>();
+        var tokenProtector = context.RequestServices.GetRequiredService<SessionTokenProtector>();
+        var protectedJwt = context.Request.Headers["X-HisHope-Session-Token"].FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(protectedJwt) &&
+            context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
+            !string.IsNullOrWhiteSpace(sessionId))
+        {
+            var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
+            if (sessionJson.HasValue)
+            {
+                using var sessionDocument = JsonDocument.Parse((string)sessionJson!);
+                protectedJwt = sessionDocument.RootElement.TryGetProperty("Jwt", out var jwtElement)
+                    ? jwtElement.GetString()
+                    : null;
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(protectedJwt))
+        {
+            try { context.Request.Headers.Authorization = $"Bearer {tokenProtector.Unprotect(protectedJwt)}"; }
+            catch (System.Security.Cryptography.CryptographicException)
+            { context.Response.StatusCode = StatusCodes.Status401Unauthorized; return; }
+        }
+    }
+    await next();
+});
 app.UseAuthentication();
+// Browser admin-app sessions are issued by Identity as a protected BFF
+// session. Most services consume the nested JWT directly, but continuity is
+// also reached through the gateway while the browser intentionally keeps the
+// access token server-side. If JWT validation cannot select the nested-token
+// decryption key during a local key-ring rotation, recover the authenticated
+// principal from the same protected session record instead of returning a
+// misleading 401. The DataProtection payload and Redis TTL remain the trust
+// boundary; permissions are never accepted from an unprotected request.
+app.Use(async (context, next) =>
+{
+    if (context.User.Identity?.IsAuthenticated != true &&
+        context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
+        !string.IsNullOrWhiteSpace(sessionId))
+    {
+        var sessionJson = await sessionRedis.GetDatabase().StringGetAsync($"session:{sessionId}");
+        if (sessionJson.HasValue)
+        {
+            try
+            {
+                using var document = JsonDocument.Parse((string)sessionJson!);
+                var root = document.RootElement;
+                var protectedJwt = root.TryGetProperty("Jwt", out var jwtElement) ? jwtElement.GetString() : null;
+                var expiresAt = root.TryGetProperty("ExpiresAt", out var expiryElement)
+                    ? expiryElement.GetDateTimeOffset()
+                    : DateTimeOffset.MinValue;
+                if (!string.IsNullOrWhiteSpace(protectedJwt) && expiresAt > DateTimeOffset.UtcNow)
+                {
+                    // Unprotect is an integrity/authenticity check against the
+                    // shared Identity key ring; the nested JWT itself remains
+                    // available for downstream services that need it.
+                    _ = context.RequestServices.GetRequiredService<SessionTokenProtector>().Unprotect(protectedJwt);
+                    var claims = new List<Claim>();
+                    if (root.TryGetProperty("UserId", out var userIdElement) && userIdElement.GetString() is { } userId)
+                    {
+                        claims.Add(new Claim("sub", userId));
+                        claims.Add(new Claim(ClaimTypes.NameIdentifier, userId));
+                    }
+                    var principalType = root.TryGetProperty("PrincipalType", out var principalTypeElement)
+                        ? principalTypeElement.GetString()
+                        : null;
+                    if (!string.IsNullOrWhiteSpace(principalType))
+                        claims.Add(new Claim(AuthorizationConstants.Claims.PrincipalType, principalType));
+                    if (root.TryGetProperty("Permissions", out var permissionsElement) && permissionsElement.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var permission in permissionsElement.EnumerateArray())
+                        {
+                            if (permission.GetString() is { Length: > 0 } value)
+                                claims.Add(new Claim("permissions", value));
+                        }
+                    }
+                    context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "HisHopeSession"));
+                }
+            }
+            catch (CryptographicException)
+            {
+                // Fail closed; the normal JWT challenge remains authoritative.
+            }
+            catch (JsonException)
+            {
+                // Fail closed on malformed session records.
+            }
+        }
+    }
+    await next();
+});
 app.UseDpopAuthorizationSchemeNormalization();
 app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
@@ -123,7 +246,7 @@ admin.MapGet("/status", async (IOptions<DatabaseContinuityOptions> config, Conti
         vault = vaultStatus,
         latestJob = latest
     });
-}).RequireAuthorization("Permission:admin.settings.read");
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsRead);
 app.MapGet("/metrics", async (ContinuityJobStore store, VaultContinuityClient vault, CancellationToken ct) =>
 {
     var latest = await store.GetLatestAsync(ct);
@@ -175,7 +298,7 @@ admin.MapPost("/backups", async (HttpContext http, ContinuityJobStore store, Vau
     };
     await store.EnqueueAsync(job, ct);
     return Results.Accepted($"/api/v1/admin/database-continuity/jobs/{job.JobId}", job);
-}).RequireAuthorization("Permission:admin.settings.write");
+}).RequireAuthorization("Continuity.Write");
 admin.MapPost("/restore-drills", async (HttpContext http, ContinuityJobStore store, VaultContinuityClient vault, IOptions<DatabaseContinuityOptions> config, CancellationToken ct) =>
 {
     var value = config.Value;
@@ -191,15 +314,15 @@ admin.MapPost("/restore-drills", async (HttpContext http, ContinuityJobStore sto
     };
     await store.EnqueueAsync(job, ct);
     return Results.Accepted($"/api/v1/admin/database-continuity/jobs/{job.JobId}", job);
-}).RequireAuthorization("Permission:admin.settings.write");
+}).RequireAuthorization("Continuity.Write");
 admin.MapGet("/jobs/{jobId}", async (string jobId, ContinuityJobStore store, CancellationToken ct) =>
 {
     var job = await store.GetAsync(jobId, ct);
     return job is null ? Results.NotFound() : Results.Ok(job);
-}).RequireAuthorization("Permission:admin.settings.read");
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsRead);
 admin.MapGet("/audit", async (int page, int pageSize, ContinuityAuditStore audit, CancellationToken ct) =>
     Results.Ok(await audit.ListAsync(page <= 0 ? 1 : page, pageSize <= 0 ? 20 : pageSize, ct)))
-    .RequireAuthorization("Permission:admin.audit.read");
+    .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead);
 
 app.Run();
 

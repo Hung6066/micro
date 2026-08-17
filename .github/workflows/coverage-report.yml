@@ -19,16 +19,28 @@ jobs:
       
       - name: Restore
         run: dotnet restore
+
+      - name: Verify Docker for Identity integration tests
+        run: docker info
       
       - name: Backend Tests with Coverage
         run: |
-          dotnet test tests/Services/PatientService/ --collect:'XPlat Code Coverage' --results-directory:coverage-results
-          dotnet test tests/Services/IdentityService/ --collect:'XPlat Code Coverage' --results-directory:coverage-results
-          dotnet test tests/Services/ClinicalService/ --collect:'XPlat Code Coverage' --results-directory:coverage-results
-          dotnet test tests/Services/AppointmentService/ --collect:'XPlat Code Coverage' --results-directory:coverage-results
-          dotnet test tests/Services/BillingService/ --collect:'XPlat Code Coverage' --results-directory:coverage-results
-          dotnet test tests/Services/LabService/ --collect:'XPlat Code Coverage' --results-directory:coverage-results
-          dotnet test tests/Services/PharmacyService/ --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/PatientService/PatientService.Domain.Tests/PatientService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/PatientService/PatientService.Application.Tests/PatientService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/IdentityService/IdentityService.Domain.Tests/IdentityService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/IdentityService/IdentityService.Application.Tests/IdentityService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/IdentityService/IdentityService.Infrastructure.Tests/IdentityService.Infrastructure.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          pwsh -NoProfile -File ./scripts/run-identity-tests-docker.ps1 -Network bridge -CollectCoverage -ResultsDirectory coverage-results/identity-integration
+          dotnet test tests/Services/ClinicalService/ClinicalService.Domain.Tests/ClinicalService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/ClinicalService/ClinicalService.Application.Tests/ClinicalService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/AppointmentService/AppointmentService.Domain.Tests/AppointmentService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/AppointmentService/AppointmentService.Application.Tests/AppointmentService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/BillingService/BillingService.Domain.Tests/BillingService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/BillingService/BillingService.Application.Tests/BillingService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/LabService/LabService.Domain.Tests/LabService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/LabService/LabService.Application.Tests/LabService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/PharmacyService/PharmacyService.Domain.Tests/PharmacyService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
+          dotnet test tests/Services/PharmacyService/PharmacyService.Application.Tests/PharmacyService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
       
       - name: Generate Coverage Report
         uses: danielpalme/ReportGenerator-GitHub-Action@049f7ec958c672fd31d5cc1cb01622dc8d2e23ab # 5.5.10
@@ -36,6 +48,10 @@ jobs:
           reports: 'coverage-results/**/coverage.cobertura.xml'
           targetdir: 'coverage-report'
           reporttypes: 'Html;HtmlSummary;Cobertura;lcov'
+
+      - name: Enforce Identity Service coverage
+        shell: pwsh
+        run: ./scripts/validate-identity-coverage.ps1 -CoverageRoot coverage-results -LineThreshold 90 -BranchThreshold 80
       
       - name: Upload Coverage Report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

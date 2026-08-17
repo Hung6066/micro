@@ -93,6 +93,11 @@ import {
             <mat-icon>brightness_6</mat-icon>
           </button>
           <hh-language-switcher />
+          @if (isLoggedIn) {
+          <button mat-icon-button type="button" (click)="logout()" [attr.aria-label]="'app.sidebar.logout' | hhTranslate:'Đăng xuất'">
+            <mat-icon aria-hidden="true">logout</mat-icon>
+          </button>
+          }
         </div>
         <div class="main-content" id="main-content">
           <router-outlet></router-outlet>
@@ -161,6 +166,10 @@ export class AppComponent implements OnInit, OnDestroy {
     const next = this.theme.resolvedTheme() === 'dark' ? 'light' : 'dark';
     this.theme.setTheme(next);
     this.cdr.markForCheck();
+  }
+
+  logout(): void {
+    this.authService.oidcLogout();
   }
 
   ngOnInit(): void {

@@ -26,7 +26,7 @@ describe('SidebarComponent', () => {
   let router: Router;
   let currentUserSubject: Subject<any>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     currentUserSubject = new Subject<any>();
     const authSpy = jasmine.createSpyObj('AuthService', ['logout'], {
       currentUser$: currentUserSubject.asObservable(),
@@ -46,6 +46,9 @@ describe('SidebarComponent', () => {
     authService = TestBed.inject(AuthService) as jasmine.SpyObj<AuthService>;
     patientService = TestBed.inject(PatientService) as jasmine.SpyObj<PatientService>;
     router = TestBed.inject(Router);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
   });
 
   it('should create', () => {
@@ -56,7 +59,7 @@ describe('SidebarComponent', () => {
     fixture.detectChanges();
 
     const brand: HTMLElement = fixture.nativeElement.querySelector('.brand');
-    const logo = brand.querySelector('.logo-mark');
+    const logo = brand.querySelector('.brand-mark');
 
     expect(logo).toBeTruthy();
     expect(brand.textContent).not.toContain('local_hospital');

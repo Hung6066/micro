@@ -14,7 +14,7 @@ export type HisHopeStateKind = 'loading' | 'empty' | 'error' | 'offline' | 'forb
              [attr.role]="kind() === 'error' || kind() === 'offline' || kind() === 'forbidden' ? 'alert' : 'status'"
              [attr.aria-live]="kind() === 'error' || kind() === 'offline' || kind() === 'forbidden' ? 'assertive' : 'polite'">
       @if (kind() === 'loading') {
-        <span class="hh-spinner" [attr.aria-label]="'common.loading' | hhTranslate"></span>
+        <span class="hh-spinner" aria-hidden="true"></span>
       } @else {
         <hh-mobile-icon class="hh-state-icon" [name]="stateIcon()" size="large" aria-hidden="true" />
       }

@@ -21,6 +21,7 @@ resources:
   - billing-service.yaml
   - billing-bff.yaml
   - pharmacy-service.yaml
+  - fhir-gateway.yaml
   - patient-bff.yaml
   - api-gateway.yaml
   - frontend.yaml

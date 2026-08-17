@@ -73,6 +73,15 @@ if (-not $runtimeConfig) {
     Add-Error -Errors $errors -Message 'runtime-contract-config ConfigMap is missing from rendered overlay.'
 }
 else {
+    $expectedPdpMode = switch ($Overlay) {
+        'staging' { 'shadow' }
+        default { 'disabled' }
+    }
+    $actualPdpMode = [string]$runtimeConfig.data.AUTHZ_PDP_MODE
+    if ($actualPdpMode -ne $expectedPdpMode) {
+        Add-Error -Errors $errors -Message "AUTHZ_PDP_MODE mismatch for [$Overlay]: expected [$expectedPdpMode], found [$actualPdpMode]."
+    }
+
     foreach ($key in @('SERVICE_API_GATEWAY_URL', 'SERVICE_IDENTITY_URL', 'SERVICE_PATIENT_URL', 'SERVICE_APPOINTMENT_URL', 'SERVICE_CLINICAL_URL', 'SERVICE_LAB_URL', 'SERVICE_BILLING_URL', 'SERVICE_PHARMACY_URL', 'SERVICE_DASHBOARD_BFF_URL', 'SERVICE_DATABASE_CONTINUITY_URL', 'REDIS_URL', 'RABBITMQ_URL')) {
         $value = [string]$runtimeConfig.data.$key
         if (-not $value) {
@@ -159,8 +168,9 @@ foreach ($service in ($documents | Where-Object { $_.kind -eq 'Service' })) {
 
 $secretProviderClasses = @($documents | Where-Object { $_.kind -eq 'SecretProviderClass' } | ForEach-Object { [string]$_.metadata.name })
 $csiReferences = @($documents | Where-Object { $_.kind -eq 'Deployment' } | ForEach-Object {
-    if ($_.spec.template.spec.PSObject.Properties.Name -contains 'volumes') {
-        foreach ($volume in @($_.spec.template.spec.volumes)) {
+    $podSpec = if ($_.spec -and $_.spec.template -and $_.spec.template.spec) { $_.spec.template.spec } else { $null }
+    if ($podSpec -and $podSpec.PSObject.Properties.Name -contains 'volumes') {
+        foreach ($volume in @($podSpec.volumes)) {
             if (($volume.PSObject.Properties.Name -contains 'csi') -and $volume.csi.driver -eq 'secrets-store.csi.k8s.io') {
                 [string]$volume.csi.volumeAttributes.secretProviderClass
             }

@@ -26,9 +26,12 @@ builder.Services.AddGrpcClient<PharmacyGrpcService.PharmacyGrpcServiceClient>(o 
 builder.Services.AddHttpClient("appointment-api", client =>
     client.BaseAddress = runtimeEndpoints.GetRequired("appointment-api"));
 
-builder.Services.AddScoped<IAggregationHandler, DashboardStatsHandler>();
-builder.Services.AddScoped<IAggregationHandler, RecentEncountersHandler>();
-builder.Services.AddScoped<IAggregationHandler, UpcomingAppointmentsHandler>();
+// Aggregation handlers are stateless and use thread-safe gRPC/HTTP clients. Registering
+// them as singletons also lets the route map be built once at startup without resolving
+// scoped services from the root provider.
+builder.Services.AddSingleton<IAggregationHandler, DashboardStatsHandler>();
+builder.Services.AddSingleton<IAggregationHandler, RecentEncountersHandler>();
+builder.Services.AddSingleton<IAggregationHandler, UpcomingAppointmentsHandler>();
 
 var app = builder.Build();
 

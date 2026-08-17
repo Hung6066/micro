@@ -22,7 +22,7 @@ import { GlobalErrorHandler } from '@core/errors/global-error-handler';
 import { environment } from '@env/environment';
 import { mockServiceProviders } from '@core/services/mock/mock-providers';
 import { HisHopeI18nService, HisHopeLocalizationApiService, HIS_HOPE_LOCALIZATION_API_URL, hisHopeInternationalizationInterceptor, hisHopeCookieSessionInterceptor } from '@his-hope/frontend-foundation';
-import { RuntimeConfigService } from '../../../../../shared/frontend-foundation/src/lib/runtime/runtime-config.service';
+import { RuntimeConfigService } from '@his-hope/frontend-foundation';
 
 function defaultClinicalRuntimeSource() {
   return (

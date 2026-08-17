@@ -139,3 +139,6 @@ test-grpc.csx
 
 .npm-cache/
 
+/tests/e2e/html-report/
+
+/artifacts/

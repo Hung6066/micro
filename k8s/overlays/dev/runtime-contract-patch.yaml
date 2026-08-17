@@ -11,6 +11,7 @@ data:
   # One stable OIDC authority is shared by all local K3s web hosts. The app
   # hosts remain redirect origins; they must not become separate issuers.
   HIS_HOPE_OIDC_AUTHORITY: http://identity.his-hope.local:9080
+  AUTHZ_PDP_MODE: disabled
   HIS_HOPE_SECRET_PROVIDER_REF: kv/data/his-hope/development/runtime
   SERVICE_API_GATEWAY_URL: http://api-gateway.his-hope-dev.svc.cluster.local:5000
   SERVICE_IDENTITY_URL: http://identity-service.his-hope-dev.svc.cluster.local:5003
@@ -26,6 +27,7 @@ data:
   SERVICE_BILLING_URL: http://billing-service.his-hope-dev.svc.cluster.local:5020
   SERVICE_BILLING_API_URL: http://billing-service.his-hope-dev.svc.cluster.local:5020
   SERVICE_PHARMACY_URL: http://pharmacy-service.his-hope-dev.svc.cluster.local:5030
+  SERVICE_FHIR_GATEWAY_URL: http://fhir-gateway.his-hope-dev.svc.cluster.local:5040
   SERVICE_PHARMACY_API_URL: http://pharmacy-service.his-hope-dev.svc.cluster.local:5030
   SERVICE_PATIENT_BFF_URL: http://patient-bff.his-hope-dev.svc.cluster.local:5100
   SERVICE_CLINICAL_BFF_URL: http://clinical-bff.his-hope-dev.svc.cluster.local:5200

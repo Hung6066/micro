@@ -426,3 +426,108 @@ Không ghi kubeconfig, token, password, private key hoặc secret value vào JSO
 10. Task 10 — DR drill và go-live approval.
 
 Không nên bắt đầu Task 7 bằng cách cho CI chạy `kubectl apply` trực tiếp; điều đó sẽ bỏ qua chính separation-of-duties và auditability mà GitOps cần cung cấp.
+
+---
+
+## Cập nhật thực thi 2026-08-11: release GitHub, scan và Git mirror
+
+### Trạng thái đã quan sát
+
+- Run GitHub Actions mới nhất cho commit `b593547bd186b38da9284c9b5fea0169eea76374` (`scope filesystem scan away from raw kubernetes manifests`) là **failure**: [Container Release Supply Chain](https://github.com/Hung6066/micro/actions/runs/31473684021), [Identity Service Security Scan](https://github.com/Hung6066/micro/actions/runs/31473684045), và [Frontend Foundation](https://github.com/Hung6066/micro/actions/runs/31473683969). Do Container Release dừng ở preflight, run này chưa tạo digest được ký, attestation hay GitOps promotion hợp lệ.
+- Trivy preflight có HIGH finding thật: migration Job CockroachDB thiếu security context (`KSV-0118`) và các Dockerfile thiếu `USER` non-root (`DS-0002`). Không được làm yếu scan hoặc bỏ qua các file này để release xanh.
+- Kubeconfig production trong workspace trỏ tới `https://127.0.0.1:16443`, nhưng API từ chối kết nối và Docker Desktop daemon cũng không chạy từ workstation này. Vì vậy trạng thái live của K3s, Argo CD và Gitea Git mirror là **unavailable**, không phải pass hay fail cluster.
+- Static source cho thấy Gitea là `ClusterIP` nội bộ, một replica dùng SQLite/PVC và image tag mutable `gitea/gitea:1.24.6-rootless`. Các Argo Application tham chiếu repository nội bộ nhưng `targetRevision` là branch feature mutable. Cấu hình này chưa đủ bằng chứng cho production promotion.
+
+### Task 11: Khôi phục release preflight và kiểm chứng supply-chain artifact
+
+**Files:**
+
+- Modify: Dockerfile bị Trivy báo `DS-0002` và migration Job bị báo `KSV-0118`.
+- Modify: `.github/workflows/container-release.yml` chỉ nếu cần thiết để quét đúng nguồn build; không thêm blanket exclusion cho workload/migration manifest.
+- Create: redacted release evidence artifact chứa run URL, commit, digest, SBOM URI, scan result, signature verification và provenance verification.
+
+**Interfaces:**
+
+- Consumes: commit SHA, Dockerfile/migration manifest, GitHub Actions OIDC, Harbor.
+- Produces: immutable Harbor digest chỉ được promotion sau khi scan, SBOM, signature và SLSA provenance đều pass.
+
+- [ ] Khắc phục từng finding HIGH theo nguyên nhân: Job phải đáp ứng `runAsNonRoot`, `allowPrivilegeEscalation: false`, capability drop, seccomp và resources; Dockerfile phải chạy runtime bằng user non-root có thể ghi vào các thư mục thực sự cần thiết.
+- [ ] Chạy lại Trivy với cùng scope; mỗi exception phải có owner, expiry và lý do, không dùng ignore không thời hạn.
+- [ ] Sau khi preflight pass, kiểm tra run release có digest Harbor, SBOM, vulnerability report, `cosign verify` và `cosign verify-attestation` trên **cùng digest**.
+- [ ] Chỉ cho phép workflow promotion mở PR sau khi artifact evidence có trạng thái `pass`; không chấp nhận tag hay digest từ run failure.
+
+**Verification:**
+
+```powershell
+gh run view <container-release-run-id> --json conclusion,url,headSha
+pwsh ./scripts/validate-container-build-contract.ps1
+pwsh ./scripts/validate-k3s-release.ps1 -Environment staging
+pwsh ./scripts/verify-image-attestations.ps1 -ImageRef '<harbor-image>@sha256:<digest>'
+```
+
+### Task 12: Chuyển Git mirror thành GitOps source đáng tin cậy
+
+**Files:**
+
+- Modify: `k8s/git-mirror/deployment.yaml`, `k8s/git-mirror/pvc.yaml`, `k8s/git-mirror/network-policy.yaml`.
+- Modify: `k8s/gitops/bootstrap/app-project.yaml`, `k8s/gitops/bootstrap/applications.yaml`.
+- Create: `scripts/verify-git-mirror.ps1` và runbook Git mirror recovery/promotion.
+
+**Interfaces:**
+
+- Consumes: approved GitHub commit/PR, internal Gitea repository and Argo CD repo-server.
+- Produces: a verified mirror commit that Argo CD can fetch, auditable source revision and no unreviewed branch deployment.
+
+- [ ] Pin Gitea image by digest; retain rootless/non-root constraints and verify its writable paths, backup and restore procedure.
+- [ ] Replace production `targetRevision` feature branch with a reviewed immutable commit SHA or protected release ref. Promotion PR phải thay đổi revision/digest tối thiểu và có reviewer.
+- [ ] Thiết lập mirror sync từ GitHub theo least privilege (deploy key/token không ghi log), xác minh mirror HEAD bằng commit SHA và chặn sync khi SHA không khớp artifact release.
+- [ ] Giới hạn network Gitea/Argo repo-server theo DNS, namespace và port thực tế; không expose Gitea public nếu không có use case cần thiết.
+- [ ] Chạy staging negative test: source branch không được duyệt, revision thiếu, repository unreachable và SHA mismatch phải làm Application `Degraded`/sync fail, không fallback sang branch khác.
+- [ ] Chạy staging positive test: Argo CD repo-server fetch được mirror, render đúng revision và reports `Synced`/`Healthy`; ghi lại commit SHA và timestamp vào evidence.
+
+**Live read-only verification (chỉ sau khi kubeconfig/tunnel hoạt động):**
+
+```powershell
+kubectl --kubeconfig artifacts/kubeconfig-production.yaml get pods,svc,pvc -n git-mirror
+kubectl --kubeconfig artifacts/kubeconfig-production.yaml get applications.argoproj.io -n argocd
+kubectl --kubeconfig artifacts/kubeconfig-production.yaml get application his-hope-production -n argocd -o jsonpath='{.status.sync.status}{" "}{.status.health.status}{"\n"}'
+pwsh ./scripts/verify-git-mirror.ps1 -ExpectedRevision '<approved-commit-sha>'
+```
+
+### Gate giao release/GitOps
+
+| Gate | Trạng thái 2026-08-11 | Điều kiện chuyển trạng thái |
+| --- | --- | --- |
+| GitHub container preflight | fail | Khắc phục toàn bộ HIGH finding hoặc exception hết hạn có phê duyệt. |
+| Signed image/SBOM/provenance | unavailable | Release preflight pass và artifact cùng digest được verify. |
+| GitHub promotion PR | unavailable | Chỉ mở sau release artifact pass. |
+| Git mirror live revision | unavailable | Khôi phục API/tunnel, sau đó verify mirror HEAD và Argo repo-server. |
+| Argo CD sync/health | unavailable | Argo CD và Application phải tồn tại, revision immutable fetch thành công. |
+| Production rollout | blocked | Tất cả gate trên, Pod Security, signature admission, storage/restore và go-live gate đều pass. |
+
+### Thứ tự bổ sung
+
+11. Task 11 — khôi phục release preflight và xác minh artifact cùng digest.
+12. Task 12 — staging Git mirror/Argo immutable-revision tests.
+13. Chỉ sau đó mới tiếp tục Task 7 production promotion, Task 10 DR/go-live và workflow mutation được bảo vệ.
+
+### Sổ cái evidence và trạng thái kế hoạch
+
+`artifacts/evidence/go-live-latest.json` (2026-08-10T07:59:08Z) là snapshot go-live live mới nhất có trong workspace. Nó chứng minh API, 5 nodes, application health, Linkerd, immutable render và secret scan đều pass tại thời điểm chạy; nó **không** chứng minh production ready. Mọi lần review phải chạy lại gate qua kubeconfig/tunnel đang reachable và thay thế snapshot này, không copy trạng thái cũ.
+
+| Task | Trạng thái evidence | Bằng chứ / blocker còn lại |
+| --- | --- | --- |
+| 1. Runtime P0 | partial | Application health đã pass trong snapshot, nhưng image drift và runtime contract mapping Appointment còn fail. |
+| 2. K3s/host security | partial | Host hardening có evidence; toolchain phải dùng kubectl 1.35 và DR/topology cần drill. |
+| 3. Linkerd/mTLS | partial | Linkerd control plane pass; negative mTLS/admission rollout chưa có production evidence. |
+| 4. Restricted Pod Security | fail | Live `his-hope` vẫn `enforce=privileged`; source hardening không thay thế controlled rollout. |
+| 5. Admission policy | blocked | Gatekeeper có mặt, nhưng signature provider/Ratify hoặc Sigstore Policy Controller chưa ready. |
+| 6. CI supply chain | partial | Contracts/source pass nhưng GitHub container preflight mới nhất fail (Task 11). |
+| 7. GitOps promotion | blocked | Argo CD chưa có live evidence; Git mirror/revision immutable phải qua Task 12. |
+| 8. Migration/rollback | partial | Source contract có; production migration execution và restore evidence còn unavailable. |
+| 9. Observability/DORA | partial | OTEL readiness pass; Alertmanager delivery thực tế và release health evidence chưa đủ. |
+| 10. Backup/DR | fail | Năm evidence drill bắt buộc (database, Vault, Harbor, control-plane, application restore) đều unavailable. |
+| 11. Release preflight | fail | Trivy HIGH findings chặn run GitHub; chưa có signed artifact cùng digest. |
+| 12. Git mirror integrity | unavailable | API endpoint local của kubeconfig không reachable trong workspace; không có live mirror HEAD/Argo fetch evidence. |
+
+**Quy tắc ghi evidence:** artifact phải chứa thời gian UTC, git SHA/revision, environment, tool version và trạng thái chuẩn. Artifact chỉ từ source render không được dùng để đóng task runtime; `unavailable`, `blocked` và `skipped` luôn chặn production promotion.

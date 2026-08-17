@@ -21,6 +21,7 @@ import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopePageSectionComponent,
+  HisHopePermissionService,
   HisHopeStateComponent,
   HisHopeStatusBadgeComponent,
   HisHopeTranslatePipe,
@@ -94,7 +95,7 @@ import {
             <p class="critical-alert-meta">{{ alert.resultValue }} {{ alert.resultUnit }} • {{ alert.status }}</p>
           </div>
           <div class="critical-alert-actions">
-            <button mat-stroked-button color="primary" (click)="acknowledgeCriticalAlert(alert)" [disabled]="alert.status !== 'OPEN'">
+            <button mat-stroked-button color="primary" (click)="acknowledgeCriticalAlert(alert)" [disabled]="alert.status !== 'OPEN' || !canAcknowledgeCriticalAlert()">
               {{ 'labOrders.acknowledge' | hhTranslate:'Ghi nhận' }}
             </button>
           </div>
@@ -286,6 +287,7 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
     private router: Router,
     private cdr: ChangeDetectorRef,
     private criticalAlertService: LabCriticalAlertService,
+    private permissionService: HisHopePermissionService,
   ) {}
 
   ngOnInit(): void {
@@ -399,6 +401,7 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
   }
 
   acknowledgeCriticalAlert(alert: CriticalAlert): void {
+    if (!this.canAcknowledgeCriticalAlert()) return;
     this.criticalAlertService.acknowledgeCriticalAlert(alert.id)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -408,6 +411,8 @@ export class LabOrderDetailComponent implements OnInit, OnDestroy {
         },
       });
   }
+
+  canAcknowledgeCriticalAlert(): boolean { return this.permissionService.has('lab.alert.acknowledge'); }
 
   private loadCriticalAlerts(): void {
     if (!this.labOrderId) {

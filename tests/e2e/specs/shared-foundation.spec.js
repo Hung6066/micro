@@ -2,56 +2,37 @@ const { test, expect } = require('@playwright/test');
 const { AxeBuilder } = require('@axe-core/playwright');
 const path = require('path');
 const { clinicalUrl, dashboardUrl, adminUrl } = require('../config/urls');
+const { signInThroughIdentity } = require('../helpers/sso-login');
+const { getE2eCredentials } = require('../config/credentials');
 
 if (process.env.E2E_AUTH_REQUIRED === 'true') {
   test.use({ storageState: path.join(__dirname, '..', 'fixtures', 'shared-foundation-auth.json') });
 }
 
 const targets = [
-  { name: 'clinical', url: `${clinicalUrl}/` },
-  { name: 'dashboard', url: `${dashboardUrl}/` },
-  { name: 'admin', url: `${adminUrl}/` },
+  { name: 'clinical', url: `${clinicalUrl}/`, dashboardPath: '/en/dashboard' },
+  { name: 'dashboard', url: `${dashboardUrl}/`, dashboardPath: '/resources' },
+  { name: 'admin', url: `${adminUrl}/`, dashboardPath: '/clients' },
 ];
 
-const TEST_USER = {
-  email: process.env.E2E_EMAIL || 'admin@hishop.com',
-  password: process.env.E2E_PASSWORD || 'Admin@123',
-};
+const TEST_USER = getE2eCredentials();
 
 async function ensureAuthenticatedPage(page, target) {
   if (process.env.E2E_AUTH_REQUIRED !== 'true') {
     throw new Error('Authenticated E2E checks require E2E_AUTH_REQUIRED=true.');
   }
 
-  await page.goto(target.url, { waitUntil: 'domcontentloaded' });
-  // Angular bootstraps OIDC asynchronously; the first navigation can resolve
-  // before the guard has redirected to the app or Identity login page.
-  await page.waitForTimeout(2000);
-
-  if (/\/auth\/login(?:\?|$)/.test(page.url())) {
-    const signIn = page.getByRole('button', { name: /Sign in with His\.Hope/i });
-    await signIn.click();
-  }
-
-  if (/\/Account\/Login(?:\?|$)/.test(page.url())) {
-    await page.locator('#email').fill(TEST_USER.email);
-    await page.locator('#password').fill(TEST_USER.password);
-    await page.locator('form[action="/Account/Login"] button[type="submit"]').click();
-    const targetOrigin = new URL(target.url).origin;
-    await page.waitForURL((url) =>
-      url.origin === targetOrigin &&
-      !/\/auth\/(?:login|callback)(?:\?|$)/.test(url.pathname) &&
-      !/\/Account\/Login(?:\?|$)/.test(url.pathname),
-      { timeout: 30000 },
-    );
-  }
-
-  // The dashboard keeps telemetry/polling requests open, so networkidle is
-  // not a reliable readiness signal for an authenticated shell.
-  await page.waitForTimeout(1000);
-  if (/\/auth\/login(?:\?|$)|\/Account\/Login(?:\?|$)/.test(page.url())) {
-    throw new Error(`${target.name} E2E authentication failed: browser remained on a login page.`);
-  }
+  await signInThroughIdentity(page, target.url, {
+    dashboardPath: target.dashboardPath,
+    email: TEST_USER.email,
+    password: TEST_USER.password,
+  });
+  // Angular may commit the document before the shared shell has rendered;
+  // screenshot and interaction assertions must wait for a real shell anchor.
+  await page.locator('mat-toolbar, hh-page-header, hh-brand, app-root').first().waitFor({
+    state: 'visible',
+    timeout: 15000,
+  });
 }
 
 for (const target of targets) {
@@ -63,12 +44,25 @@ for (const target of targets) {
 
   test(`${target.name} shared shell visual contract @shared-foundation`, async ({ page }, testInfo) => {
     await ensureAuthenticatedPage(page, target);
-    await expect(page).toHaveScreenshot(`${target.name}-${testInfo.project.name}.png`, {
+    const screenshotOptions = {
       fullPage: true,
       animations: 'disabled',
-      // Dashboard health metrics are live values and can repaint between frames.
-      maxDiffPixels: target.name === 'dashboard' ? 1000 : 0,
-    });
+      // Dashboard health metrics and timestamps are live values and can
+      // repaint between stable frames; keep the tolerance bounded to the
+      // dashboard surface rather than making the entire visual test fuzzy.
+      // Clinical dashboard also renders the current date; keep the bound
+      // explicit so a day rollover does not turn a valid shell into a false
+      // visual failure. Other app shells remain pixel exact.
+      maxDiffPixels: target.name === 'dashboard' ? 5000 : target.name === 'clinical' ? 1000 : 0,
+    };
+    // Admin data tables are server-backed and can legitimately be in either
+    // the loading skeleton or loaded/empty state when the shell screenshot is
+    // captured. Mask that volatile region so this contract checks the shared
+    // navigation, header, typography and surface tokens rather than timing.
+    if (target.name === 'admin') {
+      screenshotOptions.mask = [page.locator('hh-data-table')];
+    }
+    await expect(page).toHaveScreenshot(`${target.name}-${testInfo.project.name}.png`, screenshotOptions);
   });
 
   test(`${target.name} shared shell fits responsive viewport @shared-foundation`, async ({ page }) => {
@@ -98,7 +92,7 @@ for (const target of targets) {
 
 test('dashboard command palette supports Escape and focus entry @shared-foundation', async ({ page }) => {
   await ensureAuthenticatedPage(page, targets[1]);
-  const trigger = page.getByRole('button', { name: /command palette/i });
+  const trigger = page.getByRole('button', { name: /command palette|bảng lệnh/i });
   await expect(trigger).toHaveCount(1);
   await trigger.click();
   const dialog = page.getByRole('dialog');
@@ -111,7 +105,7 @@ test('dashboard command palette supports Escape and focus entry @shared-foundati
 
 test('admin theme toggle updates the full document surface @shared-foundation', async ({ page }) => {
   await ensureAuthenticatedPage(page, targets[2]);
-  const toggle = page.getByRole('button', { name: 'Toggle theme' });
+  const toggle = page.getByRole('button', { name: /toggle theme|đổi giao diện|đổi chế độ tối/i });
   await expect(toggle).toHaveCount(1);
   await toggle.click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');

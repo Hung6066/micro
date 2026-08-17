@@ -62,10 +62,7 @@ public class VaultMfaSecretEncryptor : IMfaSecretEncryptor, IDisposable
 
             var json = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
             using var doc = JsonDocument.Parse(json);
-            var ciphertext = doc.RootElement.GetProperty("data").GetProperty("ciphertext").GetString();
-
-            if (string.IsNullOrEmpty(ciphertext))
-                throw new InvalidOperationException("Vault encrypt response missing ciphertext.");
+            var ciphertext = ReadRequiredString(doc.RootElement, "ciphertext", "encrypt");
 
             return Convert.ToBase64String(Encoding.UTF8.GetBytes(ciphertext));
         }
@@ -95,10 +92,7 @@ public class VaultMfaSecretEncryptor : IMfaSecretEncryptor, IDisposable
 
             var json = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
             using var doc = JsonDocument.Parse(json);
-            var plaintextBase64 = doc.RootElement.GetProperty("data").GetProperty("plaintext").GetString();
-
-            if (string.IsNullOrEmpty(plaintextBase64))
-                throw new InvalidOperationException("Vault decrypt response missing plaintext.");
+            var plaintextBase64 = ReadRequiredString(doc.RootElement, "plaintext", "decrypt");
 
             return Encoding.UTF8.GetString(Convert.FromBase64String(plaintextBase64));
         }
@@ -110,6 +104,19 @@ public class VaultMfaSecretEncryptor : IMfaSecretEncryptor, IDisposable
     }
 
     public void Dispose() => _httpClient?.Dispose();
+
+    private static string ReadRequiredString(JsonElement root, string propertyName, string operation)
+    {
+        if (!root.TryGetProperty("data", out var data) ||
+            !data.TryGetProperty(propertyName, out var value) ||
+            value.ValueKind != JsonValueKind.String ||
+            string.IsNullOrWhiteSpace(value.GetString()))
+        {
+            throw new InvalidOperationException($"Vault {operation} response missing {propertyName}.");
+        }
+
+        return value.GetString()!;
+    }
 
     private static string? FirstConfigured(params string?[] values) => values.FirstOrDefault(value =>
         !string.IsNullOrWhiteSpace(value) && !(value.StartsWith("${", StringComparison.Ordinal) && value.EndsWith('}')));

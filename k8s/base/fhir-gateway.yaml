@@ -1,0 +1,120 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fhir-gateway
+  labels:
+    app.kubernetes.io/name: fhir-gateway
+    app.kubernetes.io/component: interoperability
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fhir-gateway
+  labels:
+    app.kubernetes.io/name: fhir-gateway
+    app.kubernetes.io/component: interoperability
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fhir-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fhir-gateway
+        app.kubernetes.io/component: interoperability
+        app: fhir-gateway
+    spec:
+      serviceAccountName: fhir-gateway
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        seccompProfile:
+          type: Localhost
+          localhostProfile: his-hope-dotnet-strict.json
+      containers:
+        - name: fhir-gateway
+          image: his-hope/fhir-gateway:latest
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsUser: 1654
+            runAsGroup: 1654
+            seccompProfile:
+              type: Localhost
+              localhostProfile: his-hope-dotnet-strict.json
+          ports:
+            - name: http
+              containerPort: 5040
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: runtime-contract-config
+          env:
+            - name: Services__PatientGrpc
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: SERVICE_PATIENT_GRPC_URL
+            - name: Services__ClinicalGrpc
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: SERVICE_CLINICAL_GRPC_URL
+            - name: Jwt__Authority
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: SERVICE_IDENTITY_URL
+            - name: Jwt__MetadataAddress
+              valueFrom:
+                configMapKeyRef:
+                  name: runtime-contract-config
+                  key: SERVICE_IDENTITY_URL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 5040
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 5040
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: 5040
+            failureThreshold: 30
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fhir-gateway
+  labels:
+    app.kubernetes.io/name: fhir-gateway
+    app.kubernetes.io/component: interoperability
+spec:
+  selector:
+    app.kubernetes.io/name: fhir-gateway
+  ports:
+    - name: http
+      port: 5040
+      targetPort: 5040
+      protocol: TCP

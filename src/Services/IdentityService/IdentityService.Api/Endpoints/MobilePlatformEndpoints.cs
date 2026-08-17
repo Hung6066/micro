@@ -11,6 +11,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using StackExchange.Redis;
 using His.Hope.IdentityService.Api.Services;
+using His.Hope.Contracts.Identity;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -217,11 +218,14 @@ public static class MobilePlatformEndpoints
         }).RequireAuthorization();
 
         var adminPush = app.MapGroup("/api/v1/admin/push")
-            .RequireAuthorization("Permission:admin.users.write");
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
         var adminPushRead = app.MapGroup("/api/v1/admin/push")
-            .RequireAuthorization("Permission:admin.users.read");
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         var adminMobile = app.MapGroup("/api/v1/admin/mobile")
-            .RequireAuthorization("Permission:admin.users.read");
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
 
         adminMobile.MapGet("/devices", async (
             int? page,
@@ -260,7 +264,7 @@ public static class MobilePlatformEndpoints
                 .Where(device => device.Id == id && device.RevokedAt == null)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(device => device.RevokedAt, DateTime.UtcNow), cancellationToken);
             return updated == 0 ? Results.NotFound() : Results.NoContent();
-        }).RequireAuthorization("Permission:admin.users.write");
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
 
         adminPushRead.MapGet("/delivery-summary", async (
             int? hours,
@@ -298,7 +302,7 @@ public static class MobilePlatformEndpoints
                 return Results.BadRequest(new ProblemDetails { Title = "Invalid push notification", Status = 400 });
 
             var id = await delivery.EnqueueAsync(request.UserId, request.Title, request.Body, request.DataJson, cancellationToken);
-            return Results.Accepted($"/api/v1/admin/push/notifications/{id}", new { id });
+            return Results.Accepted($"{IdentityApiRoutes.AdminPushNotifications}/{id}", new { id });
         });
     }
 

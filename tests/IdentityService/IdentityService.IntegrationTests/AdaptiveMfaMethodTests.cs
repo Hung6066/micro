@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using His.Hope.Contracts.Identity;
 using Fido2NetLib.Objects;
 using His.Hope.Bff.Core.Authentication;
 using His.Hope.IdentityService.Api.Services;
@@ -17,7 +18,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Data.Sqlite;
 using Moq;
 using StackExchange.Redis;
 using Xunit;
@@ -70,7 +70,7 @@ public sealed class AdaptiveMfaMethodTests
         };
 
         var start = harness.CreateContext("adaptive-mfa-tests/live-session");
-        await harness.Service.CompletePrimaryAsync(start, user, "/connect/authorize", ["pwd"]);
+        await harness.Service.CompletePrimaryAsync(start, user, IdentityApiRoutes.OidcAuthorize, ["pwd"]);
 
         var hishopSessionId = GetSetCookieValue(start, "hishop_sid");
         hishopSessionId.Should().NotBeNullOrWhiteSpace();
@@ -99,7 +99,7 @@ public sealed class AdaptiveMfaMethodTests
         };
 
         var start = harness.CreateContext("adaptive-mfa-tests/replay");
-        await harness.Service.CompletePrimaryAsync(start, user, "/connect/authorize", ["pwd"]);
+        await harness.Service.CompletePrimaryAsync(start, user, IdentityApiRoutes.OidcAuthorize, ["pwd"]);
 
         var replay = harness.CreateFollowUpContext(start, "adaptive-mfa-tests/replay");
         replay.Request.Headers.Cookie = BuildCookieHeader(start, name => name != "hishop_sid");
@@ -123,7 +123,7 @@ public sealed class AdaptiveMfaMethodTests
         };
 
         var start = harness.CreateContext("adaptive-mfa-tests/missing-session");
-        await harness.Service.CompletePrimaryAsync(start, user, "/connect/authorize", ["pwd"]);
+        await harness.Service.CompletePrimaryAsync(start, user, IdentityApiRoutes.OidcAuthorize, ["pwd"]);
 
         var hishopSessionId = GetSetCookieValue(start, "hishop_sid")
             ?? GetSetCookieValue(start, "hishop_oidc_mfa_session");
@@ -142,7 +142,7 @@ public sealed class AdaptiveMfaMethodTests
         await using var harness = await AdaptiveMfaServiceHarness.CreateAsync();
         var user = CreateMfaUser("expired-session");
         var start = harness.CreateContext("adaptive-mfa-tests/expired-session");
-        await harness.Service.CompletePrimaryAsync(start, user, "/connect/authorize", ["pwd"]);
+        await harness.Service.CompletePrimaryAsync(start, user, IdentityApiRoutes.OidcAuthorize, ["pwd"]);
 
         var sessionId = GetSetCookieValue(start, "hishop_sid");
         sessionId.Should().NotBeNullOrWhiteSpace();
@@ -162,7 +162,7 @@ public sealed class AdaptiveMfaMethodTests
         await using var harness = await AdaptiveMfaServiceHarness.CreateAsync();
         var user = CreateMfaUser("different-user");
         var start = harness.CreateContext("adaptive-mfa-tests/different-user");
-        await harness.Service.CompletePrimaryAsync(start, user, "/connect/authorize", ["pwd"]);
+        await harness.Service.CompletePrimaryAsync(start, user, IdentityApiRoutes.OidcAuthorize, ["pwd"]);
 
         var sessionId = GetSetCookieValue(start, "hishop_sid");
         sessionId.Should().NotBeNullOrWhiteSpace();
@@ -182,7 +182,7 @@ public sealed class AdaptiveMfaMethodTests
         await using var harness = await AdaptiveMfaServiceHarness.CreateAsync();
         var user = CreateMfaUser("different-user-agent");
         var start = harness.CreateContext("adaptive-mfa-tests/different-user-agent");
-        await harness.Service.CompletePrimaryAsync(start, user, "/connect/authorize", ["pwd"]);
+        await harness.Service.CompletePrimaryAsync(start, user, IdentityApiRoutes.OidcAuthorize, ["pwd"]);
 
         var sessionId = GetSetCookieValue(start, "hishop_sid");
         sessionId.Should().NotBeNullOrWhiteSpace();
@@ -204,7 +204,7 @@ public sealed class AdaptiveMfaMethodTests
         var start = harness.CreateContext("adaptive-mfa-tests/stale-session");
         start.Request.Headers.Cookie = "hishop_sid=stale-session-id";
 
-        await harness.Service.CompletePrimaryAsync(start, user, "/connect/authorize", ["pwd"]);
+        await harness.Service.CompletePrimaryAsync(start, user, IdentityApiRoutes.OidcAuthorize, ["pwd"]);
 
         var replacementSessionId = GetSetCookieValue(start, "hishop_sid");
         replacementSessionId.Should().NotBeNullOrWhiteSpace();
@@ -230,7 +230,7 @@ public sealed class AdaptiveMfaMethodTests
         var start = harness.CreateContext(userAgent);
         start.Request.Headers.Cookie = $"hishop_sid={sessionId}";
 
-        await harness.Service.CompletePrimaryAsync(start, user, "/connect/authorize", ["pwd"]);
+        await harness.Service.CompletePrimaryAsync(start, user, IdentityApiRoutes.OidcAuthorize, ["pwd"]);
 
         GetSetCookieValue(start, "hishop_sid").Should().BeNull();
         var followUp = harness.CreateFollowUpContext(start, userAgent);
@@ -261,7 +261,7 @@ public sealed class AdaptiveMfaMethodTests
         };
 
         var start = harness.CreateContext("adaptive-mfa-tests/fresh-browser");
-        await harness.Service.CompletePrimaryAsync(start, user, "/connect/authorize", ["pwd"]);
+        await harness.Service.CompletePrimaryAsync(start, user, IdentityApiRoutes.OidcAuthorize, ["pwd"]);
 
         var followUp = harness.CreateFollowUpContext(start, "adaptive-mfa-tests/fresh-browser");
         var pending = harness.Service.TryGetPendingMfaContext(followUp);
@@ -292,7 +292,7 @@ public sealed class AdaptiveMfaMethodTests
         };
 
         var start = harness.CreateContext("adaptive-mfa-tests/expired");
-        await harness.Service.CompletePrimaryAsync(start, user, "/connect/authorize", ["pwd"]);
+        await harness.Service.CompletePrimaryAsync(start, user, IdentityApiRoutes.OidcAuthorize, ["pwd"]);
         harness.Redis.MarkPendingRecordsExpired();
 
         var followUp = harness.CreateFollowUpContext(start, "adaptive-mfa-tests/expired");
@@ -359,7 +359,7 @@ public sealed class AdaptiveMfaMethodEndpointTests
         session.SetCookieValue("hishop_sid", "mismatched-session");
 
         var response = await session.PostWithCookiesAsync(
-            "/api/v1/auth/passkeys/mfa/complete",
+            IdentityApiRoutes.PasskeyMfaComplete,
             CreatePasskeyAssertionRequest(Guid.NewGuid().ToString()));
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -371,7 +371,7 @@ public sealed class AdaptiveMfaMethodEndpointTests
         var (session, userId) = await CreatePendingMfaSessionAsyncWithUserIdAsync();
 
         var response = await session.PostWithCookiesAsync(
-            "/api/v1/auth/passkeys/mfa/complete",
+            IdentityApiRoutes.PasskeyMfaComplete,
             CreatePasskeyAssertionRequest(Guid.NewGuid().ToString()));
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -383,7 +383,7 @@ public sealed class AdaptiveMfaMethodEndpointTests
     {
         var session = await CreatePendingMfaSessionAsync();
 
-        var response = await session.GetWithCookiesAsync("/api/v1/auth/me");
+        var response = await session.GetWithCookiesAsync(IdentityApiRoutes.Me);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -414,18 +414,19 @@ public sealed class AdaptiveMfaMethodEndpointTests
                 TwoFactorEnabled = true,
                 CreatedAt = DateTime.UtcNow
             };
-            var create = await userManager.CreateAsync(user, "Test@123456");
+            var create = await userManager.CreateAsync(user, IdentityTestCredentials.Password);
             create.Succeeded.Should().BeTrue(string.Join(", ", create.Errors.Select(error => error.Description)));
         }
 
         var session = _fixture.CreateSessionClient();
+        session.RateLimitKey = $"adaptive-mfa-{userId:N}";
         var loginResponse = await session.InnerClient.PostAsync(
             "/Account/Login",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["email"] = $"adaptive-mfa-{userId:N}@example.com",
-                ["password"] = "Test@123456",
-                ["returnUrl"] = "/connect/authorize"
+                ["password"] = IdentityTestCredentials.Password,
+                ["returnUrl"] = IdentityApiRoutes.OidcAuthorize
             }));
         session.ApplySetCookieHeaders(loginResponse);
 
@@ -455,7 +456,7 @@ public sealed class AdaptiveMfaMethodEndpointTests
                     userHandle = Convert.ToBase64String(Encoding.UTF8.GetBytes(userId))
                 }
             },
-            returnUrl = "/connect/authorize"
+            returnUrl = IdentityApiRoutes.OidcAuthorize
         };
 }
 
@@ -464,27 +465,22 @@ internal sealed class AdaptiveMfaServiceHarness : IAsyncDisposable
     private AdaptiveMfaServiceHarness(
         OidcLoginCompletionService service,
         TestRedisStore redis,
-        SqliteConnection connection,
         IdentityDbContext db)
     {
         Service = service;
         Redis = redis;
-        this.connection = connection;
         this.db = db;
     }
 
     public OidcLoginCompletionService Service { get; }
     public TestRedisStore Redis { get; }
-    private readonly SqliteConnection connection;
     private readonly IdentityDbContext db;
 
     public static async Task<AdaptiveMfaServiceHarness> CreateAsync()
     {
         var redis = new TestRedisStore();
-        var connection = new SqliteConnection("DataSource=:memory:");
-        await connection.OpenAsync();
         var options = new DbContextOptionsBuilder<IdentityDbContext>()
-            .UseSqlite(connection)
+            .UseInMemoryDatabase($"adaptive-mfa-tests-{Guid.NewGuid():N}")
             .Options;
         var db = new IdentityDbContext(options);
         await db.Database.EnsureCreatedAsync();
@@ -499,7 +495,7 @@ internal sealed class AdaptiveMfaServiceHarness : IAsyncDisposable
             redis.Connection.Object,
             new ConfigurationBuilder().Build());
 
-        return new(service, redis, connection, db);
+        return new(service, redis, db);
     }
 
     public DefaultHttpContext CreateContext(string userAgent)
@@ -521,7 +517,6 @@ internal sealed class AdaptiveMfaServiceHarness : IAsyncDisposable
     public ValueTask DisposeAsync()
     {
         db.Dispose();
-        connection.Dispose();
         GC.SuppressFinalize(this);
         return ValueTask.CompletedTask;
     }

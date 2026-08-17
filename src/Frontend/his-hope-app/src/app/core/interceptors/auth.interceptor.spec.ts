@@ -3,6 +3,7 @@ import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { AuthService } from '@core/services/auth.service';
 import { authInterceptor } from './auth.interceptor';
+import { of } from 'rxjs';
 
 describe('authInterceptor', () => {
   let http: HttpClient;
@@ -10,7 +11,9 @@ describe('authInterceptor', () => {
   let authService: jasmine.SpyObj<AuthService>;
 
   beforeEach(() => {
-    authService = jasmine.createSpyObj<AuthService>('AuthService', ['getStoredAccessToken']);
+    authService = jasmine.createSpyObj<AuthService>('AuthService', [
+      'getAccessToken', 'refreshAccessToken', 'handleSessionExpired',
+    ]);
 
     TestBed.configureTestingModule({
       providers: [
@@ -29,7 +32,7 @@ describe('authInterceptor', () => {
   });
 
   it('adds bearer authorization to API requests when an access token exists', () => {
-    authService.getStoredAccessToken.and.returnValue('access-token');
+    authService.getAccessToken.and.returnValue(of('access-token'));
 
     http.get('/api/v1/patients/search').subscribe();
 
@@ -39,7 +42,7 @@ describe('authInterceptor', () => {
   });
 
   it('does not add authorization when no access token exists', () => {
-    authService.getStoredAccessToken.and.returnValue(null);
+    authService.getAccessToken.and.returnValue(of(''));
 
     http.get('/api/v1/patients/search').subscribe();
 
@@ -49,7 +52,7 @@ describe('authInterceptor', () => {
   });
 
   it('does not add authorization to non-API requests', () => {
-    authService.getStoredAccessToken.and.returnValue('access-token');
+    authService.getAccessToken.and.returnValue(of('access-token'));
 
     http.get('/assets/logo.svg').subscribe();
 

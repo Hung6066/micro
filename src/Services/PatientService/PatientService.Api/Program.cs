@@ -28,12 +28,15 @@ using His.Hope.PatientService.Application.DTOs;
 using His.Hope.PatientService.Application.UseCases.Patients.Commands;
 using His.Hope.PatientService.Application.UseCases.Patients.Queries;
 using His.Hope.PatientService.Domain.Aggregates;
+using His.Hope.PatientService.Domain.Entities;
+using His.Hope.PatientService.Domain.ValueObjects;
 using His.Hope.PatientService.Infrastructure;
 using His.Hope.PatientService.Infrastructure.Persistence;
 using His.Hope.PatientService.Infrastructure.Projections;
 using MediatR;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Serilog;
+using His.Hope.SharedKernel.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "PatientService");
@@ -180,45 +183,57 @@ var patients = app.MapGroup("/api/v1/patients").RequireAuthorization();
 patients.MapGet("/", async (
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct,
     int page = 1,
     int pageSize = 20,
     string? search = null) =>
 {
-    var cacheKey = $"patients:search:{search}:{page}:{pageSize}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"patients:search:{scopeKey}:{search}:{page}:{pageSize}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
-        async () => await mediator.Send(new SearchPatientsQuery(search ?? "", page, pageSize), ct),
+        async () => await mediator.Send(new SearchPatientsQuery(search ?? "", page, pageSize, accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:patients.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PatientsView).WithOpenApi();
 
 patients.MapGet("/{id:guid}", async (
     Guid id,
     IMediator mediator,
     ICacheService cache,
+    PatientDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    if (!await IsPatientResourceAuthorizedAsync(id, HisHopePermissions.Patients.View, db, authorization, httpContext, ct))
+        return Results.NotFound();
+
     var patient = await cache.GetOrSetAsync(
         $"patient:{id}",
         async () => await mediator.Send(new GetPatientByIdQuery(id), ct),
         TimeSpan.FromMinutes(5), ct);
     return patient is null ? Results.NotFound() : Results.Ok(patient);
-}).RequireAuthorization("Permission:patients.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PatientsView).WithOpenApi();
 
 patients.MapGet("/search", async (
     string q, int page, int pageSize,
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
-    var cacheKey = $"patients:search:{q}:{page}:{pageSize}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"patients:search:{scopeKey}:{q}:{page}:{pageSize}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
-        async () => await mediator.Send(new SearchPatientsQuery(q, page, pageSize), ct),
+        async () => await mediator.Send(new SearchPatientsQuery(q, page, pageSize, accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:patients.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PatientsView).WithOpenApi();
 
 patients.MapPost("/", async (
     CreatePatientRequest request,
@@ -239,15 +254,21 @@ patients.MapPost("/", async (
     await cache.RemoveByPrefixAsync("patients:search:", ct);
 
     return Results.Created($"/api/v1/patients/{patient.Id}", patient);
-}).RequireAuthorization("Permission:patients.create").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PatientsCreate).WithOpenApi();
 
 patients.MapPut("/{id:guid}", async (
     Guid id,
     UpdatePatientRequest request,
     IMediator mediator,
     ICacheService cache,
+    PatientDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    if (!await IsPatientResourceAuthorizedAsync(id, HisHopePermissions.Patients.Update, db, authorization, httpContext, ct))
+        return Results.NotFound();
+
     var command = new UpdatePatientCommand(
         id, request.FirstName, request.LastName, request.MiddleName,
         request.DateOfBirth, request.GenderCode,
@@ -261,30 +282,38 @@ patients.MapPut("/{id:guid}", async (
     await cache.RemoveByPrefixAsync("patients:search:", ct);
 
     return Results.Ok(patient);
-}).RequireAuthorization("Permission:patients.update").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PatientsUpdate).WithOpenApi();
 
 patients.MapPatch("/{id:guid}/deactivate", async (
-    Guid id, IMediator mediator, ICacheService cache, CancellationToken ct) =>
+    Guid id, IMediator mediator, ICacheService cache, PatientDbContext db,
+    IResourceAuthorizationEvaluator authorization, HttpContext httpContext, CancellationToken ct) =>
 {
+    if (!await IsPatientResourceAuthorizedAsync(id, HisHopePermissions.Patients.Delete, db, authorization, httpContext, ct))
+        return Results.NotFound();
+
     await mediator.Send(new DeactivatePatientCommand(id), ct);
     await cache.RemoveAsync($"patient:{id}", ct);
     return Results.NoContent();
-}).RequireAuthorization("Permission:patients.delete").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PatientsDelete).WithOpenApi();
 
 patients.MapPatch("/{id:guid}/reactivate", async (
-    Guid id, IMediator mediator, ICacheService cache, CancellationToken ct) =>
+    Guid id, IMediator mediator, ICacheService cache, PatientDbContext db,
+    IResourceAuthorizationEvaluator authorization, HttpContext httpContext, CancellationToken ct) =>
 {
+    if (!await IsPatientResourceAuthorizedAsync(id, HisHopePermissions.Patients.Update, db, authorization, httpContext, ct))
+        return Results.NotFound();
+
     await mediator.Send(new ReactivatePatientCommand(id), ct);
     await cache.RemoveAsync($"patient:{id}", ct);
     return Results.NoContent();
-}).RequireAuthorization("Permission:patients.update").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PatientsUpdate).WithOpenApi();
 
 // gRPC - allow anonymous for health checks
 app.MapGrpcService<PatientGrpcServiceImpl>();
 app.MapGrpcHealthChecksService().AllowAnonymous();
 
 // Health checks
-app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+app.MapHealthChecks("/health/details", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = _ => true,
     ResponseWriter = async (ctx, report) =>
@@ -338,5 +367,33 @@ static X509Certificate2 LoadServerCertificate(IConfiguration config)
     req.CertificateExtensions.Add(san.Build());
     var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(5));
     return cert;
+}
+
+static async Task<bool> IsPatientResourceAuthorizedAsync(
+    Guid patientId,
+    string action,
+    PatientDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
+    CancellationToken cancellationToken)
+{
+    var patient = await db.Patients
+        .AsNoTracking()
+        .Where(candidate => candidate.Id == PatientId.From(patientId))
+        .Select(candidate => new { candidate.FacilityId })
+        .SingleOrDefaultAsync(cancellationToken);
+
+    if (patient is null)
+        return false;
+
+    var decision = await authorization.EvaluateAsync(
+        new AuthorizationContext(
+            httpContext.User,
+            action,
+            new AuthorizationResource("patient", patientId.ToString("D"), FacilityId: patient.FacilityId),
+            RequireResource: true),
+        cancellationToken);
+
+    return decision.Allowed;
 }
 

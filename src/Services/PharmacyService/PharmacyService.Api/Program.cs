@@ -14,6 +14,7 @@ using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Authorization;
+using His.Hope.SharedKernel.Authorization;
 using His.Hope.Infrastructure.Middleware;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Persistence;
@@ -28,6 +29,7 @@ using Microsoft.EntityFrameworkCore;
 using His.Hope.PharmacyService.Application.UseCases.Prescriptions.Commands;
 using His.Hope.PharmacyService.Application.UseCases.Prescriptions.Queries;
 using His.Hope.PharmacyService.Domain.Aggregates;
+using His.Hope.PharmacyService.Domain.ValueObjects;
 using His.Hope.PharmacyService.Infrastructure;
 using His.Hope.PharmacyService.Infrastructure.Persistence;
 using MediatR;
@@ -180,20 +182,24 @@ var medications = app.MapGroup("/api/v1/medications").RequireAuthorization();
 medications.MapGet("/", async (
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct,
     int page = 1,
     int pageSize = 20,
     string? search = null,
     string? category = null) =>
 {
-    var cacheKey = $"medications:search:{search}:{page}:{pageSize}:{category}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"medications:search:{scopeKey}:{search}:{page}:{pageSize}:{category}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
         async () => await mediator.Send(new SearchMedicationsQuery(
-            search ?? "", page, pageSize, category), ct),
+            search ?? "", page, pageSize, category,
+            accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:pharmacy.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyView).WithOpenApi();
 
 medications.MapGet("/search", async (
     string? q,
@@ -201,17 +207,21 @@ medications.MapGet("/search", async (
     int pageSize,
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct,
     string? category = null) =>
 {
-    var cacheKey = $"medications:search:{q}:{page}:{pageSize}:{category}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"medications:search:{scopeKey}:{q}:{page}:{pageSize}:{category}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
         async () => await mediator.Send(new SearchMedicationsQuery(
-            q ?? "", page, pageSize, category), ct),
+            q ?? "", page, pageSize, category,
+            accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:pharmacy.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyView).WithOpenApi();
 
 medications.MapGet("/{id:guid}", async (
     Guid id,
@@ -224,7 +234,7 @@ medications.MapGet("/{id:guid}", async (
         async () => await mediator.Send(new GetMedicationByIdQuery(id), ct),
         TimeSpan.FromMinutes(5), ct);
     return medication is null ? Results.NotFound() : Results.Ok(medication);
-}).RequireAuthorization("Permission:pharmacy.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyView).WithOpenApi();
 
 medications.MapPost("/", async (
     CreateMedicationRequest request,
@@ -243,7 +253,7 @@ medications.MapPost("/", async (
     await cache.RemoveByPrefixAsync("medications:", ct);
 
     return Results.Created($"/api/v1/medications/{medication.Id}", medication);
-}).RequireAuthorization("Permission:pharmacy.create").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyCreate).WithOpenApi();
 
 medications.MapPut("/{id:guid}", async (
     Guid id,
@@ -264,7 +274,7 @@ medications.MapPut("/{id:guid}", async (
     await cache.RemoveByPrefixAsync("medications:", ct);
 
     return Results.Ok(medication);
-}).RequireAuthorization("Permission:pharmacy.update").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyUpdate).WithOpenApi();
 
 medications.MapPut("/{id:guid}/deactivate", async (
     Guid id, IMediator mediator, ICacheService cache, CancellationToken ct) =>
@@ -273,7 +283,7 @@ medications.MapPut("/{id:guid}/deactivate", async (
     await cache.RemoveAsync($"medication:{id}", ct);
     await cache.RemoveByPrefixAsync("medications:", ct);
     return Results.NoContent();
-}).RequireAuthorization("Permission:pharmacy.update").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyUpdate).WithOpenApi();
 
 // Prescription Endpoints (all require JWT authorization with specific permissions)
 var prescriptions = app.MapGroup("/api/v1/prescriptions").RequireAuthorization();
@@ -281,20 +291,24 @@ var prescriptions = app.MapGroup("/api/v1/prescriptions").RequireAuthorization()
 prescriptions.MapGet("/", async (
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct,
     int page = 1,
     int pageSize = 20,
     Guid? patientId = null,
     string? status = null) =>
 {
-    var cacheKey = $"prescriptions:search:{page}:{pageSize}:{patientId}:{status}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"prescriptions:search:{scopeKey}:{page}:{pageSize}:{patientId}:{status}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
         async () => await mediator.Send(new SearchPrescriptionsQuery(
-            "", page, pageSize, patientId, status), ct),
+            "", page, pageSize, patientId, status,
+            accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:pharmacy.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyView).WithOpenApi();
 
 prescriptions.MapGet("/search", async (
     string? q,
@@ -302,45 +316,61 @@ prescriptions.MapGet("/search", async (
     int pageSize,
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct,
     Guid? patientId = null,
     string? status = null) =>
 {
-    var cacheKey = $"prescriptions:search:{q}:{page}:{pageSize}:{patientId}:{status}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"prescriptions:search:{scopeKey}:{q}:{page}:{pageSize}:{patientId}:{status}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
         async () => await mediator.Send(new SearchPrescriptionsQuery(
-            q ?? "", page, pageSize, patientId, status), ct),
+            q ?? "", page, pageSize, patientId, status,
+            accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(2), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:pharmacy.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyView).WithOpenApi();
 
 prescriptions.MapGet("/{id:guid}", async (
     Guid id,
     IMediator mediator,
     ICacheService cache,
+    PharmacyDbContext db,
+    IResourceAuthorizationEvaluator authorization,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(db.Prescriptions,
+        prescription => prescription.Id == PrescriptionId.From(id), prescription => prescription.FacilityId,
+        httpContext.User, HisHopePermissions.Pharmacy.View, "prescription", id.ToString("D"), ct);
+    if (!decision.Allowed) return Results.NotFound();
+
     var prescription = await cache.GetOrSetAsync(
         $"prescription:{id}",
         async () => await mediator.Send(new GetPrescriptionByIdQuery(id), ct),
         TimeSpan.FromMinutes(5), ct);
     return prescription is null ? Results.NotFound() : Results.Ok(prescription);
-}).RequireAuthorization("Permission:pharmacy.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyView).WithOpenApi();
 
 prescriptions.MapGet("/patient/{patientId:guid}", async (
     Guid patientId,
     IMediator mediator,
     ICacheService cache,
+    HttpContext httpContext,
     CancellationToken ct) =>
 {
-    var cacheKey = $"prescriptions:patient:{patientId}";
+    var accessScope = FacilityAccessScope.FromPrincipal(httpContext.User);
+    var scopeKey = accessScope.IsCrossFacility ? "cross" : string.Join(",", accessScope.FacilityIds.OrderBy(id => id));
+    var cacheKey = $"prescriptions:patient:{scopeKey}:{patientId}";
     var result = await cache.GetOrSetAsync(
         cacheKey,
-        async () => await mediator.Send(new GetPrescriptionsByPatientQuery(patientId), ct),
+        async () => await mediator.Send(new GetPrescriptionsByPatientQuery(patientId,
+            accessScope.FacilityIds, accessScope.IsCrossFacility), ct),
         TimeSpan.FromMinutes(5), ct);
     return Results.Ok(result);
-}).RequireAuthorization("Permission:pharmacy.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyView).WithOpenApi();
 
 prescriptions.MapPost("/", async (
     CreatePrescriptionRequest request,
@@ -363,39 +393,51 @@ prescriptions.MapPost("/", async (
     await cache.RemoveByPrefixAsync("prescriptions:", ct);
 
     return Results.Created($"/api/v1/prescriptions/{prescription.Id}", prescription);
-}).RequireAuthorization("Permission:pharmacy.create").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyCreate).WithOpenApi();
 
 prescriptions.MapPut("/{id:guid}/fill", async (
-    Guid id, IMediator mediator, ICacheService cache, CancellationToken ct) =>
+    Guid id, IMediator mediator, ICacheService cache, PharmacyDbContext db,
+    IResourceAuthorizationEvaluator authorization, HttpContext httpContext, CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(db.Prescriptions,
+        prescription => prescription.Id == PrescriptionId.From(id), prescription => prescription.FacilityId,
+        httpContext.User, HisHopePermissions.Pharmacy.Dispense, "prescription", id.ToString("D"), ct);
+    if (!decision.Allowed) return Results.NotFound();
+
     await mediator.Send(new FillPrescriptionCommand(id), ct);
     await cache.RemoveAsync($"prescription:{id}", ct);
     await cache.RemoveByPrefixAsync("prescriptions:", ct);
     return Results.NoContent();
-}).RequireAuthorization("Permission:pharmacy.dispense").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyDispense).WithOpenApi();
 
 prescriptions.MapPut("/{id:guid}/cancel", async (
     Guid id, CancelPrescriptionRequest request,
-    IMediator mediator, ICacheService cache, CancellationToken ct) =>
+    IMediator mediator, ICacheService cache, PharmacyDbContext db,
+    IResourceAuthorizationEvaluator authorization, HttpContext httpContext, CancellationToken ct) =>
 {
+    var decision = await authorization.EvaluateResourceAsync(db.Prescriptions,
+        prescription => prescription.Id == PrescriptionId.From(id), prescription => prescription.FacilityId,
+        httpContext.User, HisHopePermissions.Pharmacy.Cancel, "prescription", id.ToString("D"), ct);
+    if (!decision.Allowed) return Results.NotFound();
+
     await mediator.Send(new CancelPrescriptionCommand(id, request.Reason), ct);
     await cache.RemoveAsync($"prescription:{id}", ct);
     await cache.RemoveByPrefixAsync("prescriptions:", ct);
     return Results.NoContent();
-}).RequireAuthorization("Permission:pharmacy.cancel").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyCancel).WithOpenApi();
 
 // Patient-specific prescriptions aggregate endpoint (routed via YARP from /api/v1/patients/{patientId:guid}/prescriptions)
 app.MapGet("/api/v1/patients/{patientId:guid}/prescriptions", async (Guid patientId) =>
 {
     return Results.Ok(new { patientId, items = new List<object>() });
-}).RequireAuthorization("Permission:pharmacy.view").WithOpenApi();
+}).RequireAuthorization(AuthorizationPolicyNames.Permissions.PharmacyView).WithOpenApi();
 
 // gRPC
 app.MapGrpcService<PharmacyGrpcServiceImpl>();
 app.MapGrpcHealthChecksService();
 
 // Health checks
-app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+app.MapHealthChecks("/health/details", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
 {
     Predicate = _ => true,
     ResponseWriter = async (ctx, report) =>

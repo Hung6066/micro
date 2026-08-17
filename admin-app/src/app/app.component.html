@@ -37,38 +37,17 @@
     class="app-sidenav">
     <hh-brand [caption]="'admin.identityAdministration' | hhTranslate"></hh-brand>
     <mat-nav-list>
-      <a mat-list-item routerLink="/clients" routerLinkActive="active-link">
-        <mat-icon matListItemIcon>vpn_key</mat-icon>
-        <span matListItemTitle>{{ 'admin.clients' | hhTranslate }}</span>
-      </a>
-      <a mat-list-item routerLink="/users" routerLinkActive="active-link">
-        <mat-icon matListItemIcon>people</mat-icon>
-        <span matListItemTitle>{{ 'admin.users' | hhTranslate }}</span>
-      </a>
-      <a mat-list-item routerLink="/roles" routerLinkActive="active-link">
-        <mat-icon matListItemIcon>badge</mat-icon>
-        <span matListItemTitle>{{ 'admin.roles' | hhTranslate }}</span>
-      </a>
-      <a mat-list-item routerLink="/consents" routerLinkActive="active-link">
-        <mat-icon matListItemIcon>checklist</mat-icon>
-        <span matListItemTitle>{{ 'admin.consents' | hhTranslate }}</span>
-      </a>
-      <a mat-list-item routerLink="/security-providers" routerLinkActive="active-link">
-        <mat-icon matListItemIcon>security</mat-icon>
-        <span matListItemTitle>{{ 'admin.securityProviders' | hhTranslate }}</span>
-      </a>
-      <a mat-list-item routerLink="/dashboard" routerLinkActive="active-link">
-        <mat-icon matListItemIcon>dashboard</mat-icon>
-        <span matListItemTitle>{{ 'admin.dashboard' | hhTranslate }}</span>
-      </a>
-      <a mat-list-item routerLink="/database-platform" routerLinkActive="active-link">
-        <mat-icon matListItemIcon>storage</mat-icon>
-        <span matListItemTitle>{{ 'admin.databasePlatform' | hhTranslate:'Database platform' }}</span>
-      </a>
-      <a mat-list-item routerLink="/mobile-operations" routerLinkActive="active-link">
-        <mat-icon matListItemIcon>phonelink_lock</mat-icon>
-        <span matListItemTitle>{{ 'admin.mobileOperations' | hhTranslate }}</span>
-      </a>
+      @for (section of navSections; track section.id) {
+        @if (visibleNavItems(section).length) {
+          <div class="nav-section-label">{{ section.labelKey | hhTranslate:section.fallback }}</div>
+          @for (item of visibleNavItems(section); track item.id) {
+            <a mat-list-item [routerLink]="routePath(item.route)" [queryParams]="routeQuery(item.route)" routerLinkActive="active-link">
+              <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
+              <span matListItemTitle>{{ item.labelKey | hhTranslate:item.fallback }}</span>
+            </a>
+          }
+        }
+      }
     </mat-nav-list>
   </mat-sidenav>
   <mat-sidenav-content class="sidenav-content">

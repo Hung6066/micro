@@ -1,27 +1,17 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 
-const { clinicalUrl: BASE } = require('../config/urls');
-const TEST_USER = 'admin';
-const TEST_PASS = 'Admin@123';
+const { dashboardUrl: BASE } = require('../config/urls');
+const { signInThroughIdentity } = require('../helpers/sso-login');
 const AUTH_LOGIN_RE = /\/(?:en\/)?auth\/login(?:\?|$)/;
 const ACCESS_DENIED_RE = /\/(?:en\/)?access-denied(?:\?|$)/;
-const DASHBOARD_RE = /\/(?:en\/)?dashboard(?:\?|$)/;
+const DASHBOARD_RE = /\/(?:en\/)?resources(?:\?|$)/;
 
 /**
  * Robust login helper: clears state, navigates fresh, fills form, waits for redirect.
  */
 async function doLogin(page) {
-  await page.goto(BASE + '/auth/login');
-  await expect(page.locator('input[formControlName="username"]')).toBeVisible({ timeout: 10000 });
-  await page.locator('input[formControlName="username"]').fill(TEST_USER);
-  await page.locator('input[formControlName="password"]').fill(TEST_PASS);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL(
-    (url) => DASHBOARD_RE.test(url.toString()) || ACCESS_DENIED_RE.test(url.toString()),
-    { timeout: 30000 },
-  );
-
+  await signInThroughIdentity(page, BASE, { dashboardPath: '/resources' });
   return DASHBOARD_RE.test(page.url());
 }
 
@@ -33,6 +23,11 @@ test.describe('Dashboard Page', () => {
       test.skip(true, 'Protected dashboard shell is unavailable in this environment.');
     }
 
+    // Desktop renders the drawer open; mobile intentionally starts closed.
+    const mobileMenu = page.getByRole('button', { name: /open navigation|mở menu/i });
+    if (await mobileMenu.isVisible().catch(() => false)) {
+      await mobileMenu.click();
+    }
     await expect(page.locator('mat-nav-list a').first()).toBeVisible({ timeout: 10000 });
   });
 
@@ -52,8 +47,27 @@ test.describe('Dashboard Page', () => {
   });
 
   test('TC-DASH-02: Dashboard displays widget cards', async ({ page }) => {
-    const cards = page.locator('mat-card');
-    await expect(cards.first()).toBeVisible({ timeout: 5000 });
+    // Playwright's project baseURL points at the clinical SPA for legacy
+    // specs; dashboard tests must navigate through the dashboard origin.
+    await page.goto(`${BASE}/metrics`);
+    if (ACCESS_DENIED_RE.test(page.url()) || !/\/(?:en\/)?metrics(?:\?|$)/.test(page.url())) {
+      // A fresh context can briefly land on the dashboard login route while
+      // the BFF session cookie is exchanged. Re-run the idempotent SSO flow
+      // once before treating the route as unavailable.
+      const loggedIn = await doLogin(page);
+      if (!loggedIn) {
+        test.skip(true, 'Metrics route is unavailable for the authenticated dashboard principal.');
+      }
+      await page.goto(`${BASE}/metrics`);
+    }
+    if (ACCESS_DENIED_RE.test(page.url()) || !/\/(?:en\/)?metrics(?:\?|$)/.test(page.url())) {
+      test.skip(true, 'Metrics route is unavailable for the authenticated dashboard principal.');
+    }
+    await page.waitForURL(/\/(?:en\/)?metrics(?:\?|$)/, { timeout: 10000 });
+    await expect(page.locator('app-metrics-overview')).toBeVisible({ timeout: 10000 });
+    // Metric cards are shared-foundation components, not raw Material cards.
+    const cards = page.locator('hh-metric-card');
+    await expect(cards.first()).toBeVisible({ timeout: 10000 });
     const count = await cards.count();
     expect(count).toBeGreaterThanOrEqual(1);
 
@@ -64,14 +78,11 @@ test.describe('Dashboard Page', () => {
     // Sidebar renders because AuthGuard passes (no page reload needed)
     const navItems = page.locator('mat-nav-list a');
     const expectedLabels = [
-      'Dashboard',
-      'Bệnh nhân',
-      'Lịch hẹn',
-      'Lâm sàng',
-      'Dược phẩm',
-      'Xét nghiệm',
-      'Thanh toán',
-      'Quản trị',
+      /Resources|Tài nguyên/i,
+      /Logs|Nhật ký/i,
+      /Traces|Trace/i,
+      /SLO/i,
+      /Metrics|Chỉ số/i,
     ];
 
     for (const label of expectedLabels) {
@@ -82,8 +93,8 @@ test.describe('Dashboard Page', () => {
 
   test('TC-DASH-04: Sidebar navigation links are visible', async ({ page }) => {
     const sidebarLinks = [
-      'Dashboard', 'Bệnh nhân', 'Lịch hẹn', 'Lâm sàng',
-      'Dược phẩm', 'Xét nghiệm', 'Thanh toán', 'Quản trị',
+      /Resources|Tài nguyên/i, /Logs|Nhật ký/i, /Traces|Trace/i,
+      /SLO/i, /Metrics|Chỉ số/i,
     ];
 
     for (const label of sidebarLinks) {

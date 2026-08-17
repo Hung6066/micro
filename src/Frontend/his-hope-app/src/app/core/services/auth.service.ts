@@ -22,7 +22,7 @@ import {
   take,
 } from "rxjs/operators";
 import { OidcSecurityService } from "angular-auth-oidc-client";
-import { HisHopeAuthCoordinator } from "@his-hope/frontend-foundation";
+import { HisHopeAuthCoordinator, HisHopePermissionService } from "@his-hope/frontend-foundation";
 import {
   LoginRequest,
   LoginResponse,
@@ -31,6 +31,18 @@ import {
   User,
 } from "@core/models/auth.model";
 import { environment } from "@env/environment";
+
+export interface ExternalProvider {
+  provider: string;
+  displayName: string;
+  icon: string;
+  protocol?: 'oauth' | 'saml';
+  loginUrl?: string;
+}
+
+interface ExternalProviderResponse {
+  providers: ExternalProvider[];
+}
 
 @Injectable({ providedIn: "root" })
 export class AuthService {
@@ -41,6 +53,7 @@ export class AuthService {
 
   private http = inject(HttpClient);
   private oidcSecurityService = inject(OidcSecurityService);
+  private permissionService = inject(HisHopePermissionService);
   private router = inject(Router);
   private authCoordinator!: HisHopeAuthCoordinator;
   private static readonly AUTH_CHANNEL = "hishop_auth";
@@ -50,6 +63,18 @@ export class AuthService {
   private readonly sessionStatusUrl = `${environment.apiUrl}/auth/session-status`;
   private lastAuthenticated = false;
   private ssoLoginInProgress = false;
+
+  readonly externalProviders$ = this.http.get<ExternalProviderResponse>(`${this.baseUrl}/external-providers`).pipe(
+    map(response => (response.providers ?? []).map(provider => ({
+      provider: provider.provider,
+      displayName: provider.displayName,
+      icon: provider.icon,
+      ...(provider.protocol ? { protocol: provider.protocol === 'saml' ? ('saml' as const) : ('oauth' as const) } : {}),
+      ...(provider.loginUrl ? { loginUrl: provider.loginUrl } : {}),
+    }))),
+    catchError(() => of([] as ExternalProvider[])),
+    shareReplay({ bufferSize: 1, refCount: true }),
+  );
 
   constructor() {
     this.authCoordinator = new HisHopeAuthCoordinator(
@@ -139,6 +164,7 @@ export class AuthService {
           this.currentUserSubject.next(null);
           this.clearStoredAccessToken();
           this.permissionCache.clear();
+          this.permissionService.clear();
           this.currentUserLoad$ = undefined;
           this.redirectToCentralLogout();
         }),
@@ -148,6 +174,7 @@ export class AuthService {
           this.oidcSecurityService.logoffLocal();
           this.clearStoredAccessToken();
           this.permissionCache.clear();
+          this.permissionService.clear();
           this.currentUserLoad$ = undefined;
           this.redirectToCentralLogout();
           return of(void 0);
@@ -161,12 +188,27 @@ export class AuthService {
     this.authCoordinator.login(returnUrl);
   }
 
+  /** Starts a server-managed external OAuth/OIDC source flow. Secrets and
+   * provider configuration remain in Identity Service; the browser receives
+   * only the redirect. */
+  externalLogin(provider: string, returnUrl?: string, loginUrl?: string): void {
+    const normalizedProvider = provider.trim();
+    if (!/^[A-Za-z0-9._-]{1,64}$/.test(normalizedProvider)) return;
+    const query = returnUrl ? `?returnUrl=${encodeURIComponent(returnUrl)}` : '';
+    if (loginUrl && loginUrl.startsWith('/') && !loginUrl.startsWith('//') && !loginUrl.includes('\\')) {
+      window.location.assign(`${loginUrl}${query}`);
+      return;
+    }
+    window.location.assign(`${this.baseUrl}/external-login/${encodeURIComponent(normalizedProvider)}${query}`);
+  }
+
   oidcLogout(): void {
     this.markSsoLogout();
     this.broadcastLogout();
     this.authCoordinator.logout();
     this.currentUserSubject.next(null);
     this.permissionCache.clear();
+    this.permissionService.clear();
     this.currentUserLoad$ = undefined;
   }
 
@@ -337,7 +379,16 @@ export class AuthService {
     this.currentUserLoad$ = this.http
       .get<User>(`${this.baseUrl}/me`, { withCredentials: true })
       .pipe(
-        tap((user) => this.currentUserSubject.next(user)),
+        tap((user) => {
+          this.currentUserSubject.next(user);
+          if (user.permissions?.length) {
+            this.permissionService.setSnapshot({
+              userId: user.id,
+              roles: user.roles,
+              permissions: user.permissions,
+            });
+          }
+        }),
         shareReplay(1),
         retry(1),
         catchError((err) => {
@@ -370,6 +421,7 @@ export class AuthService {
           this.currentUserSubject.next(null);
           this.oidcSecurityService.logoffLocal();
           this.permissionCache.clear();
+          this.permissionService.clear();
           if (!this.router.url.includes("/auth/login")) {
             this.router.navigate(["/auth/login"]);
           }
@@ -427,6 +479,7 @@ export class AuthService {
     this.currentUserSubject.next(null);
     this.oidcSecurityService.logoffLocal();
     this.permissionCache.clear();
+    this.permissionService.clear();
     this.currentUserLoad$ = undefined;
     this.lastAuthenticated = false;
     if (!this.router.url.includes("/auth/login")) {

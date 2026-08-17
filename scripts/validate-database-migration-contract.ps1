@@ -113,7 +113,12 @@ if (-not (Test-Path -LiteralPath $renderPath -PathType Leaf)) {
         $_ -notmatch 'argocd.argoproj.io/hook:\s*Sync' -or
         $_ -notmatch 'Persistence__RunMigrationsOnStartup\s*\r?\n\s*value:\s*["'']?true' -or
         $_ -notmatch 'Persistence__MigrationOnly\s*\r?\n\s*value:\s*["'']?true' -or
-        $_ -notmatch 'Vault__AuthMethod\s*\r?\n\s*\s*value:\s*spiffe-jwt' -or
+        # Production currently uses the Kubernetes Vault auth role with a
+        # projected Vault-audience service-account JWT.  Keep accepting the
+        # legacy SPIFFE-JWT mode for overlays that still use it, but do not
+        # weaken the remaining checks (static tokens remain forbidden and the
+        # projected token/CA mounts are required below).
+        $_ -notmatch 'Vault__AuthMethod\s*\r?\n\s*\s*value:\s*(?:kubernetes|spiffe-jwt)' -or
         $_ -notmatch 'Vault__AllowStaticToken\s*\r?\n\s*\s*value:\s*["'']?false' -or
         $_ -notmatch 'Redis__ConnectionString' -or
         $_ -notmatch 'Redis__TlsCaFile\s*\r?\n\s*\s*value:\s*/etc/tls/redis/ca.crt' -or

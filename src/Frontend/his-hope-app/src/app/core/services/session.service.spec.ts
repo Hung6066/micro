@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { SessionService, DEFAULT_SESSION_CONFIG } from './session.service';
+import { AuthService } from './auth.service';
 
 describe('SessionService', () => {
   let service: SessionService;
@@ -16,6 +17,7 @@ describe('SessionService', () => {
         provideHttpClient(withInterceptorsFromDi()),
         provideHttpClientTesting(),
         { provide: Router, useValue: routerSpy },
+        { provide: AuthService, useValue: jasmine.createSpyObj('AuthService', ['logout', 'oidcLogout']) },
       ],
     });
     service = TestBed.inject(SessionService);

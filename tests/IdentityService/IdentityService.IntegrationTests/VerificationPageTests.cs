@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using FluentAssertions;
+using His.Hope.Contracts.Identity;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -17,8 +18,8 @@ namespace His.Hope.IdentityService.IntegrationTests;
 [Collection("IdentityServiceIntegration")]
 public sealed class VerificationPageTests
 {
-    private const string Password = "Test@123456";
-    private const string PendingReturnUrl = "/connect/authorize?client_id=verification-page-client&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&response_type=code&scope=openid%20profile&state=verification-state&code_challenge=verification-challenge";
+    private const string Password = IdentityTestCredentials.Password;
+    private const string PendingReturnUrl = IdentityApiRoutes.OidcAuthorize + "?client_id=verification-page-client&redirect_uri=https%3A%2F%2Fapp.example%2Fcallback&response_type=code&scope=openid%20profile&state=verification-state&code_challenge=verification-challenge";
     private readonly IdentityServiceTestFixture _fixture;
 
     public VerificationPageTests(IdentityServiceTestFixture fixture)
@@ -39,7 +40,7 @@ public sealed class VerificationPageTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
 
-        body.Should().Contain("data-mfa-methods-endpoint=\"/api/v1/auth/mfa/methods\"");
+        body.Should().Contain($"data-mfa-methods-endpoint=\"{IdentityApiRoutes.MfaMethods}\"");
         body.Should().Contain("data-preferred-method=\"mobileApproval\"");
         body.Should().Contain("id=\"passkey-mfa\"");
         body.Should().Contain("id=\"native-passkey-mfa\"");
@@ -85,17 +86,17 @@ public sealed class VerificationPageTests
     [Fact]
     public async Task Identity_login_script_uses_pending_session_bound_verification_endpoints()
     {
-        var response = await _fixture.AnonymousClient.GetAsync("/api/v1/auth/identity-login.js");
+        var response = await _fixture.AnonymousClient.GetAsync(IdentityApiRoutes.IdentityLoginScript);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
 
-        body.Should().Contain("/api/v1/auth/mfa/methods");
-        body.Should().Contain("/api/v1/auth/passkeys/mfa/options");
-        body.Should().Contain("/api/v1/auth/passkeys/mfa/complete");
-        body.Should().Contain("/api/v1/auth/passkeys/mfa/native/start");
-        body.Should().Contain("/api/v1/auth/passkeys/mfa/native/poll");
-        body.Should().Contain("/api/v1/auth/mfa/verify");
+        body.Should().Contain(IdentityApiRoutes.MfaMethods);
+        body.Should().Contain(IdentityApiRoutes.PasskeyMfaOptions);
+        body.Should().Contain(IdentityApiRoutes.PasskeyMfaComplete);
+        body.Should().Contain(IdentityApiRoutes.NativeMfaStart);
+        body.Should().Contain(IdentityApiRoutes.NativeMfaPoll);
+        body.Should().Contain(IdentityApiRoutes.MfaVerify);
 
         Regex.IsMatch(
                 body,
@@ -112,13 +113,13 @@ public sealed class VerificationPageTests
     [Fact]
     public async Task Identity_login_script_preserves_click_gesture_for_native_launch_and_has_popup_blocked_fallback()
     {
-        var response = await _fixture.AnonymousClient.GetAsync("/api/v1/auth/identity-login.js");
+        var response = await _fixture.AnonymousClient.GetAsync(IdentityApiRoutes.IdentityLoginScript);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
 
         var launchWindowIndex = body.IndexOf("const launchWindow = openNativeApprovalWindow();", StringComparison.Ordinal);
-        var startFetchIndex = body.IndexOf("const start = await fetch('/api/v1/auth/passkeys/mfa/native/start'", StringComparison.Ordinal);
+        var startFetchIndex = body.IndexOf($"const start = await fetch('{IdentityApiRoutes.NativeMfaStart}'", StringComparison.Ordinal);
 
         launchWindowIndex.Should().BePositive("the native launch window must be opened synchronously on click");
         startFetchIndex.Should().BeGreaterThan(launchWindowIndex, "the popup-preserving window open must happen before the async start fetch");
@@ -129,7 +130,7 @@ public sealed class VerificationPageTests
     [Fact]
     public async Task Identity_login_script_uses_server_ticket_lifetime_for_native_polling_and_handles_terminal_states()
     {
-        var response = await _fixture.AnonymousClient.GetAsync("/api/v1/auth/identity-login.js");
+        var response = await _fixture.AnonymousClient.GetAsync(IdentityApiRoutes.IdentityLoginScript);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadAsStringAsync();
@@ -150,7 +151,7 @@ public sealed class VerificationPageTests
             HasTotp: false,
             IsTrustedDevice: false));
 
-        var startResponse = await setup.Session.PostWithCookiesAsync("/api/v1/auth/passkeys/mfa/native/start");
+        var startResponse = await setup.Session.PostWithCookiesAsync(IdentityApiRoutes.NativeMfaStart);
         startResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var ticket = (await startResponse.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("ticket")
@@ -158,7 +159,7 @@ public sealed class VerificationPageTests
         ticket.Should().NotBeNullOrWhiteSpace();
 
         var pollResponse = await setup.Session.GetWithCookiesAsync(
-            $"/api/v1/auth/passkeys/mfa/native/poll?ticket={Uri.EscapeDataString(ticket!)}");
+            $"{IdentityApiRoutes.NativeMfaPoll}?ticket={Uri.EscapeDataString(ticket!)}");
 
         pollResponse.StatusCode.Should().Be(HttpStatusCode.Accepted);
         var body = await pollResponse.Content.ReadAsStringAsync();
@@ -173,7 +174,7 @@ public sealed class VerificationPageTests
             HasTotp: false,
             IsTrustedDevice: false));
 
-        var startResponse = await setup.Session.PostWithCookiesAsync("/api/v1/auth/passkeys/mfa/native/start");
+        var startResponse = await setup.Session.PostWithCookiesAsync(IdentityApiRoutes.NativeMfaStart);
         startResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var ticket = (await startResponse.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("ticket")
@@ -182,7 +183,7 @@ public sealed class VerificationPageTests
         await RejectNativeTicketAsync(ticket!);
 
         var pollResponse = await setup.Session.GetWithCookiesAsync(
-            $"/api/v1/auth/passkeys/mfa/native/poll?ticket={Uri.EscapeDataString(ticket!)}");
+            $"{IdentityApiRoutes.NativeMfaPoll}?ticket={Uri.EscapeDataString(ticket!)}");
 
         pollResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
         (await pollResponse.Content.ReadAsStringAsync()).Should().Contain("rejected");
@@ -196,7 +197,7 @@ public sealed class VerificationPageTests
             HasTotp: false,
             IsTrustedDevice: false));
 
-        var startResponse = await setup.Session.PostWithCookiesAsync("/api/v1/auth/passkeys/mfa/native/start");
+        var startResponse = await setup.Session.PostWithCookiesAsync(IdentityApiRoutes.NativeMfaStart);
         startResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var ticket = (await startResponse.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("ticket")
@@ -205,7 +206,7 @@ public sealed class VerificationPageTests
         await DeleteRedisKeyAsync(GetNativeTicketKey(ticket!));
 
         var pollResponse = await setup.Session.GetWithCookiesAsync(
-            $"/api/v1/auth/passkeys/mfa/native/poll?ticket={Uri.EscapeDataString(ticket!)}");
+            $"{IdentityApiRoutes.NativeMfaPoll}?ticket={Uri.EscapeDataString(ticket!)}");
 
         pollResponse.StatusCode.Should().Be(HttpStatusCode.Gone);
         (await pollResponse.Content.ReadAsStringAsync()).Should().Contain("expired");
@@ -219,7 +220,7 @@ public sealed class VerificationPageTests
             HasTotp: false,
             IsTrustedDevice: false));
 
-        var startResponse = await setup.Session.PostWithCookiesAsync("/api/v1/auth/passkeys/mfa/native/start");
+        var startResponse = await setup.Session.PostWithCookiesAsync(IdentityApiRoutes.NativeMfaStart);
         startResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var ticket = (await startResponse.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("ticket")
@@ -228,7 +229,7 @@ public sealed class VerificationPageTests
         await ApproveNativeTicketAsync(ticket!);
 
         var pollResponse = await setup.Session.GetWithCookiesAsync(
-            $"/api/v1/auth/passkeys/mfa/native/poll?ticket={Uri.EscapeDataString(ticket!)}");
+            $"{IdentityApiRoutes.NativeMfaPoll}?ticket={Uri.EscapeDataString(ticket!)}");
 
         pollResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await pollResponse.Content.ReadFromJsonAsync<JsonElement>();
@@ -297,6 +298,10 @@ public sealed class VerificationPageTests
         }
 
         var session = _fixture.CreateSessionClient();
+        // Each pending MFA page is an independent client flow. Isolate its
+        // rate-limit bucket so one test's native start/poll calls cannot make
+        // another test observe a false 429.
+        session.RateLimitKey = $"verification-mfa-{userId:N}";
         if (!string.IsNullOrWhiteSpace(trustedDeviceToken))
             session.SetCookieValue("hishop_trusted_device", trustedDeviceToken);
 
@@ -309,6 +314,7 @@ public sealed class VerificationPageTests
                 ["returnUrl"] = PendingReturnUrl
             })
         };
+        loginRequest.Headers.TryAddWithoutValidation("X-RateLimit-Key", session.RateLimitKey);
         if (!string.IsNullOrWhiteSpace(trustedDeviceToken))
             loginRequest.Headers.TryAddWithoutValidation("Cookie", $"hishop_trusted_device={trustedDeviceToken}");
         var loginResponse = await session.InnerClient.SendAsync(loginRequest);

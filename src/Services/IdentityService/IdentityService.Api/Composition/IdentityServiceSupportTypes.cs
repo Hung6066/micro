@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using His.Hope.Infrastructure;
+using His.Hope.Contracts.Identity;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Locking;
@@ -52,7 +53,7 @@ internal static class LegacyEndpointFilter
         {
             ctx.HttpContext.Response.Headers["Deprecation"] = "true";
             ctx.HttpContext.Response.Headers["Sunset"] = "Sat, 01 Jan 2028 00:00:00 GMT";
-            ctx.HttpContext.Response.Headers["Link"] = "</connect/authorize>; rel=\"successor-version\"";
+            ctx.HttpContext.Response.Headers["Link"] = $"<{IdentityApiRoutes.OidcAuthorize}>; rel=\"successor-version\"";
             return await next(ctx);
         });
     }

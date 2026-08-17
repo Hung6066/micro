@@ -1,4 +1,5 @@
 using System.Net;
+using His.Hope.Contracts.Identity;
 using System.Net.Http.Json;
 using Xunit;
 
@@ -21,7 +22,7 @@ public class RateLimitingTests
         HttpResponseMessage? lastResponse = null;
         for (var i = 0; i < 130; i++)
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/auth/login")
+            using var request = new HttpRequestMessage(HttpMethod.Post, IdentityApiRoutes.Login)
             {
                 Content = JsonContent.Create(new { email = $"rl-test-{i}@test.test", password = $"TestPass{i}!" })
             };
@@ -40,7 +41,7 @@ public class RateLimitingTests
         HttpResponseMessage? lastResponse = null;
         for (var i = 0; i < 70; i++)
         {
-            using var request = new HttpRequestMessage(HttpMethod.Post, "/scim/v2/Users")
+            using var request = new HttpRequestMessage(HttpMethod.Post, IdentityApiRoutes.ScimUsers)
             {
                 Content = JsonContent.Create(new { schemas = new[] { "urn:ietf:params:scim:schemas:core:2.0:User" }, userName = $"scim-rl-{i}@test.test" })
             };
@@ -56,14 +57,13 @@ public class RateLimitingTests
     public async Task MfaEndpoint_RateLimitExceeded_Returns429()
     {
         var session = _fixture.CreateSessionClient();
-        var loginResponse = await session.LoginAsync("admin@hishop.com", "Test@123456");
-        if (loginResponse.StatusCode != HttpStatusCode.OK)
-            return;
+        var loginResponse = await session.LoginAsync(IdentityTestCredentials.Email, IdentityTestCredentials.Password);
+        Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
 
         HttpResponseMessage? lastResponse = null;
         for (var i = 0; i < 10; i++)
         {
-            lastResponse = await session.PostWithCookiesAsync("/api/v1/auth/mfa/verify",
+            lastResponse = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaVerify,
                 new { code = $"00000{i}" });
             if ((int)lastResponse.StatusCode == 429) break;
         }

@@ -1,0 +1,7 @@
+services:
+  identityservice:
+    environment:
+      # Local E2E only. Never commit a literal password here; callers must
+      # provide E2E_PASSWORD explicitly and opt into resetting the test admin.
+      Identity__BootstrapAdmin__Password: ${E2E_PASSWORD:?E2E_PASSWORD is required for the local E2E identity override}
+      Identity__BootstrapAdmin__ResetPassword: "true"

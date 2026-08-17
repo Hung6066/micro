@@ -10,5 +10,7 @@ public record SearchInvoicesQuery(
     Guid? PatientId = null,
     string? Status = null,
     DateTime? DateFrom = null,
-    DateTime? DateTo = null)
+    DateTime? DateTo = null,
+    IReadOnlySet<string>? FacilityIds = null,
+    bool CrossFacility = false)
     : IRequest<PagedResult<InvoiceDto>>;

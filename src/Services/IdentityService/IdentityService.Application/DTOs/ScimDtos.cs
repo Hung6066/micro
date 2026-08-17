@@ -235,7 +235,7 @@ public class ScimGroupResponse
     public List<ScimGroupMember>? Members { get; set; }
 
     [JsonPropertyName("meta")]
-    public ScimMeta Meta { get; set; } = new();
+    public ScimMeta Meta { get; set; } = new() { ResourceType = "Group" };
 }
 
 // ─── SCIM Query ───

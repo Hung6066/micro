@@ -92,6 +92,9 @@ public static class AuditLogEndpoints
                     Details = Truncate(serializedDetails, 2000),
                     IpAddress = Truncate(ipAddress, 50),
                     UserAgent = Truncate(userAgent, 500),
+                    CorrelationId = correlationId,
+                    Outcome = "accepted",
+                    Source = "client-audit",
                     Timestamp = serverTimestamp
                 });
             }
@@ -125,7 +128,7 @@ public static class AuditLogEndpoints
                 new GetAuditLogsQuery(page, pageSize, userId, action,
                     resourceType, resourceId, dateFrom, dateTo, sort), ct);
             return Results.Ok(result);
-        }).RequireAuthorization("Permission:admin.audit.read");
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead);
 
         // GET /api/v1/audit-logs/{id} - Audit log detail
         group.MapGet("/audit-logs/{id:guid}", async (
@@ -135,19 +138,51 @@ public static class AuditLogEndpoints
         {
             var log = await mediator.Send(new GetAuditLogByIdQuery(id), ct);
             return log is null ? Results.NotFound() : Results.Ok(log);
-        }).RequireAuthorization("Permission:admin.audit.read");
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead);
 
         return group;
     }
 
     private static string SerializeDetails(ClientAuditEvent auditEvent)
     {
+        var details = auditEvent.Details is { } value ? Redact(value) : (JsonElement?)null;
         return JsonSerializer.Serialize(new
         {
-            auditEvent.Details,
+            Details = details,
             auditEvent.CorrelationId
         });
     }
+
+    private static JsonElement Redact(JsonElement value)
+    {
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(RedactValue(value)));
+        return document.RootElement.Clone();
+    }
+
+    private static object? RedactValue(JsonElement value)
+    {
+        return value.ValueKind switch
+        {
+            JsonValueKind.Object => value.EnumerateObject().ToDictionary(
+                property => property.Name,
+                property => IsSensitive(property.Name) ? (object?)"[REDACTED]" : RedactValue(property.Value),
+                StringComparer.OrdinalIgnoreCase),
+            JsonValueKind.Array => value.EnumerateArray().Select(RedactValue).ToArray(),
+            JsonValueKind.String => value.GetString(),
+            JsonValueKind.Number => value.GetDecimal(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => null
+        };
+    }
+
+    private static bool IsSensitive(string name) =>
+        name.Contains("password", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("secret", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("token", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("authorization", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("privatekey", StringComparison.OrdinalIgnoreCase) ||
+        name.Contains("clientcertificate", StringComparison.OrdinalIgnoreCase);
 
     private static string? ReadDetailString(JsonElement? details, string propertyName)
     {

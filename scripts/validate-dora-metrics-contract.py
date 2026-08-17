@@ -10,7 +10,13 @@ ROOT = Path(__file__).resolve().parents[1]
 collector = (ROOT / "scripts/collect-dora-metrics.py").read_text(encoding="utf-8")
 workflow = (ROOT / ".github/workflows/dora-metrics.yml").read_text(encoding="utf-8")
 dashboard = (ROOT / "k8s/monitoring/dora-metrics-dashboard.yaml").read_text(encoding="utf-8")
-overlay = (ROOT / "k8s/observability/overlays/prod/kustomization.yaml").read_text(encoding="utf-8")
+overlay = "\n".join(
+    (
+        ROOT / "k8s/observability/overlays/prod-shared-storage/kustomization.yaml"
+    ).read_text(encoding="utf-8")
+    .splitlines()
+    + (ROOT / "k8s/observability/overlays/prod/kustomization.yaml").read_text(encoding="utf-8").splitlines()
+)
 
 required_metrics = [
     "pipeline_deployment_frequency_per_day",

@@ -55,4 +55,27 @@ public sealed class LdapConfigTests
 
         config.Validate().Should().BeEmpty();
     }
+
+    [Fact]
+    public void Validate_RejectsOutOfRangePort()
+    {
+        var config = new LdapConfig
+        {
+            Enabled = true,
+            Server = "directory.example.test",
+            BindDn = "cn=service",
+            BindPassword = "secret",
+            SearchBase = "dc=example,dc=test",
+            UseSsl = true,
+            Port = 70000
+        };
+
+        config.Validate().Should().ContainSingle(error => error.Contains("valid TCP port"));
+    }
+
+    [Fact]
+    public void Validate_AllowsDisabledConfigurationWithoutConnectionSettings()
+    {
+        new LdapConfig { Enabled = false, Port = 0 }.Validate().Should().BeEmpty();
+    }
 }

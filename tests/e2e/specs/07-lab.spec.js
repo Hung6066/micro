@@ -1,26 +1,17 @@
 const { test, expect } = require('@playwright/test');
 
 const { clinicalUrl: BASE_URL } = require('../config/urls');
-const VALID_USER = { username: 'admin', password: 'Admin@123' };
+const { signInThroughIdentity } = require('../helpers/sso-login');
 const AUTH_LOGIN_RE = /\/(?:en\/)?auth\/login(?:\?|$)/;
 const ACCESS_DENIED_RE = /\/(?:en\/)?access-denied(?:\?|$)/;
 
 async function login(page) {
-  await page.goto(BASE_URL + '/auth/login');
-  await expect(page.locator('input[formControlName="username"]')).toBeVisible({ timeout: 10000 });
-  await page.locator('input[formControlName="username"]').fill(VALID_USER.username);
-  await page.locator('input[formControlName="password"]').fill(VALID_USER.password);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL(
-    (url) => /\/(?:en\/)?dashboard(?:\?|$)/.test(url.toString()) || ACCESS_DENIED_RE.test(url.toString()),
-    { timeout: 30000 },
-  );
-
+  await signInThroughIdentity(page, BASE_URL);
   return /\/(?:en\/)?dashboard(?:\?|$)/.test(page.url());
 }
 
 async function navigateToSidebar(page, label, expectedPath) {
-  const link = page.locator('mat-nav-list a').filter({ hasText: label });
+  const link = page.locator('mat-nav-list a').filter({ hasText: label === 'Xét nghiệm' ? /Xét nghiệm|Laboratory|Lab/i : label });
   await expect(link.first()).toBeVisible({ timeout: 10000 });
   await link.first().click();
   if (expectedPath) {
@@ -76,6 +67,7 @@ test.describe('Lab (Xét nghiệm) Module', () => {
 
     const createBtn = page.locator(
       'button:has-text("Tạo phiếu xét nghiệm"), ' +
+      'button:has-text("New lab order"), ' +
       'button:has-text("Thêm mới"), ' +
       'a[routerLink*="/lab/new"]'
     ).first();
@@ -90,14 +82,14 @@ test.describe('Lab (Xét nghiệm) Module', () => {
   test('TC-LAB-04: Lab order form renders', async ({ page }) => {
     await navigateToSidebar(page, 'Xét nghiệm', '/lab');
 
-    const createBtn = page.locator('button:has-text("Tạo phiếu xét nghiệm"), a[routerLink*="/lab/new"]').first();
+    const createBtn = page.locator('button:has-text("Tạo phiếu xét nghiệm"), button:has-text("New lab order"), a[routerLink*="/lab/new"]').first();
     if (await createBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await createBtn.click();
       await page.waitForURL(/\/lab\/new/, { timeout: 10000 });
     }
 
     const formSelectors = [
-      'input[formControlName="patientSearch"]',
+      'input[aria-label*="bệnh nhân" i], input[aria-label*="patient" i], input[placeholder*="bệnh nhân" i], input[placeholder*="patient" i]',
       'mat-select[formControlName="priorityCode"]',
       'textarea[formControlName="notes"]',
       'input[formControlName="testCode"]',
@@ -121,7 +113,7 @@ test.describe('Lab (Xét nghiệm) Module', () => {
   test('TC-LAB-05: Submit empty form shows validation', async ({ page }) => {
     await navigateToSidebar(page, 'Xét nghiệm', '/lab');
 
-    const createBtn = page.locator('a[routerLink*="/lab/new"]').first();
+    const createBtn = page.locator('button:has-text("New lab order"), button:has-text("Tạo phiếu xét nghiệm"), a[routerLink*="/lab/new"]').first();
     if (await createBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await createBtn.click();
       await page.waitForURL(/\/lab\/new/, { timeout: 10000 });
@@ -143,7 +135,7 @@ test.describe('Lab (Xét nghiệm) Module', () => {
   test('TC-LAB-06: Fill and create lab order', async ({ page }) => {
     await navigateToSidebar(page, 'Xét nghiệm', '/lab');
 
-    const createBtn = page.locator('a[routerLink*="/lab/new"]').first();
+    const createBtn = page.locator('button:has-text("New lab order"), button:has-text("Tạo phiếu xét nghiệm"), a[routerLink*="/lab/new"]').first();
     if (await createBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await createBtn.click();
       await page.waitForURL(/\/lab\/new/, { timeout: 10000 });

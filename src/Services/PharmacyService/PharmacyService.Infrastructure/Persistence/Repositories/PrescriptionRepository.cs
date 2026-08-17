@@ -20,19 +20,47 @@ public class PrescriptionRepository : IPrescriptionRepository
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
     public async Task<IReadOnlyList<Prescription>> GetByPatientIdAsync(Guid patientId, CancellationToken cancellationToken = default) =>
-        await _context.Prescriptions
+        await GetByPatientIdAsync(patientId, new HashSet<string>(StringComparer.OrdinalIgnoreCase), true, cancellationToken);
+
+    public async Task<IReadOnlyList<Prescription>> GetByPatientIdAsync(
+        Guid patientId, IReadOnlySet<string> facilityIds, bool crossFacility,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.Prescriptions
             .AsNoTracking()
-            .Where(p => p.PatientId == patientId)
+            .Where(p => p.PatientId == patientId);
+        if (!crossFacility)
+        {
+            if (facilityIds.Count == 0) return Array.Empty<Prescription>();
+            query = query.Where(prescription => prescription.FacilityId != null && facilityIds.Contains(prescription.FacilityId));
+        }
+
+        return await query
             .OrderByDescending(p => p.PrescribedDate)
             .ThenBy(p => p.Id)
             .ToListAsync(cancellationToken);
+    }
 
     public async Task<(IReadOnlyList<Prescription> Items, int TotalCount)> SearchAsync(
         string searchTerm, int page, int pageSize,
         Guid? patientId = null, string? status = null,
         CancellationToken cancellationToken = default)
+        => await SearchAsync(searchTerm, page, pageSize, patientId, status,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase), true, cancellationToken);
+
+    public async Task<(IReadOnlyList<Prescription> Items, int TotalCount)> SearchAsync(
+        string searchTerm, int page, int pageSize,
+        Guid? patientId, string? status,
+        IReadOnlySet<string> facilityIds, bool crossFacility,
+        CancellationToken cancellationToken = default)
     {
         var query = _context.Prescriptions.AsNoTracking().AsQueryable();
+
+        if (!crossFacility)
+        {
+            if (facilityIds.Count == 0) return (Array.Empty<Prescription>(), 0);
+            query = query.Where(prescription => prescription.FacilityId != null && facilityIds.Contains(prescription.FacilityId));
+        }
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {

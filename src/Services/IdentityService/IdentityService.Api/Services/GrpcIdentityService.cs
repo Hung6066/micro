@@ -2,9 +2,11 @@ using Grpc.Core;
 using His.Hope.Identity.Grpc;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.SharedKernel.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
+using System.Text.Json;
 
 namespace His.Hope.IdentityService.Api.Services;
 
@@ -158,7 +160,7 @@ public class GrpcIdentityService : global::His.Hope.Identity.Grpc.IdentityServic
 
     private async Task<List<string>> GetUserPermissionsAsync(Guid userId)
     {
-        return await _db.RolePermissions
+        var permissions = await _db.RolePermissions
             .Where(rp => _db.UserRoles
                 .Where(ur => ur.UserId == userId)
                 .Select(ur => ur.RoleId)
@@ -166,6 +168,62 @@ public class GrpcIdentityService : global::His.Hope.Identity.Grpc.IdentityServic
             .Select(rp => rp.PermissionCode)
             .Distinct()
             .ToListAsync();
+
+        var now = DateTime.UtcNow;
+        var groupIds = await _db.IamGroupMemberships
+            .Where(membership => membership.UserId == userId)
+            .Select(membership => membership.GroupId)
+            .ToListAsync();
+        var assignedSetJson = await _db.IamPermissionSetAssignments
+            .Where(assignment => assignment.Status == "active" &&
+                (assignment.ExpiresAt == null || assignment.ExpiresAt > now) &&
+                ((assignment.PrincipalType == "human" && assignment.PrincipalId == userId) ||
+                 (assignment.PrincipalType == "group" && groupIds.Contains(assignment.PrincipalId))))
+            .Join(_db.IamPermissionSets.Where(set => set.LifecycleStatus == "published"),
+                assignment => assignment.PermissionSetId,
+                set => set.Id,
+                (_, set) => set.PermissionsJson)
+            .ToListAsync();
+        foreach (var permissionsJson in assignedSetJson)
+        {
+            try
+            {
+                var assigned = JsonSerializer.Deserialize<string[]>(permissionsJson) ?? [];
+                permissions.AddRange(assigned.Where(HisHopePermissions.IsValid));
+            }
+            catch (JsonException)
+            {
+                _logger.LogWarning("Ignoring malformed IAM permission set JSON for user {UserId}.", userId);
+            }
+        }
+
+        permissions.AddRange(await _db.BreakGlassRequests
+            .Where(request => request.SubjectUserId == userId && request.Status == "approved" && request.RevokedAt == null && request.ExpiresAt > now)
+            .Select(request => request.PermissionCode)
+            .ToListAsync());
+
+        var boundaries = await _db.IamPermissionBoundaries
+            .Where(boundary => boundary.IsActive && boundary.PrincipalType == "human" && boundary.PrincipalId == userId)
+            .Select(boundary => boundary.AllowedPermissionsJson)
+            .ToListAsync();
+        foreach (var allowedJson in boundaries)
+        {
+            try
+            {
+                var allowed = (JsonSerializer.Deserialize<string[]>(allowedJson) ?? [])
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                permissions = permissions
+                    .Where(allowed.Contains)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+            catch (JsonException)
+            {
+                _logger.LogError("Denying permissions because boundary JSON is malformed for user {UserId}.", userId);
+                permissions = [];
+            }
+        }
+        return permissions.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     private static Dictionary<string, string> DecodeJwtClaims(string jwt)

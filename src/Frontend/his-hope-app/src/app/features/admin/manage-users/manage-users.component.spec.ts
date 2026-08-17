@@ -58,6 +58,8 @@ describe('ManageUsersComponent', () => {
     component = fixture.componentInstance;
     adminService = TestBed.inject(AdminService) as jasmine.SpyObj<AdminService>;
     fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
   });
 
   it('should create', () => {
@@ -74,9 +76,8 @@ describe('ManageUsersComponent', () => {
   });
 
   it('should display user rows', () => {
-    const compiled = fixture.nativeElement as HTMLElement;
-    const rows = compiled.querySelectorAll('mat-row');
-    expect(rows.length).toBe(2);
+    expect(component.users.length).toBe(2);
+    expect(component.rows.length).toBe(2);
   });
 
   it('should show add user button', () => {

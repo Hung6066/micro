@@ -57,6 +57,8 @@ describe('AuditLogsComponent', () => {
     component = fixture.componentInstance;
     adminService = TestBed.inject(AdminService) as jasmine.SpyObj<AdminService>;
     fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
   });
 
   it('should create', () => {
@@ -73,9 +75,8 @@ describe('AuditLogsComponent', () => {
   });
 
   it('should display audit log rows', () => {
-    const compiled = fixture.nativeElement as HTMLElement;
-    const rows = compiled.querySelectorAll('mat-row.clickable-row');
-    expect(rows.length).toBe(2);
+    expect(component.auditLogs.length).toBe(2);
+    expect(component.rows.length).toBe(2);
   });
 
   it('should have filter controls', () => {

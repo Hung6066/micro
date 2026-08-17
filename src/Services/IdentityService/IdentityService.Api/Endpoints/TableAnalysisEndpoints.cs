@@ -17,7 +17,7 @@ public static class TableAnalysisEndpoints
     {
         group.MapGet("/tables/analysis/formulas", () => Results.Ok(FormulaCatalog.Select(item => new { id = item.Key, description = item.Value, version = 1 })));
         group.MapPost("/tables/{resource}/analysis", Analyze)
-            .RequireAuthorization("Permission:admin.users.read");
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         return group;
     }
 

@@ -19,7 +19,10 @@ public class GetInvoicesByPatientQueryHandler : IRequestHandler<GetInvoicesByPat
     public async Task<IReadOnlyList<InvoiceDto>> Handle(GetInvoicesByPatientQuery request,
         CancellationToken cancellationToken)
     {
-        var invoices = await _invoiceRepository.GetByPatientAsync(request.PatientId, cancellationToken);
+        var invoices = request.FacilityIds is null
+            ? await _invoiceRepository.GetByPatientAsync(request.PatientId, cancellationToken)
+            : await _invoiceRepository.GetByPatientAsync(request.PatientId,
+                request.FacilityIds, request.CrossFacility, cancellationToken);
         return _mapper.Map<List<InvoiceDto>>(invoices);
     }
 }

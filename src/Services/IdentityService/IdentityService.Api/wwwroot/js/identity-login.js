@@ -152,7 +152,9 @@
   if (!verificationRoot) return;
 
   const methodsEndpoint = verificationRoot.getAttribute('data-mfa-methods-endpoint') || '/api/v1/auth/mfa/methods';
-  const mfaReturnUrl = new URLSearchParams(window.location.search).get('returnUrl') || '/';
+  // Preserve an explicit authorization return URL, but let the server's
+  // approved callback redirect win when this page was opened without one.
+  const mfaReturnUrl = new URLSearchParams(window.location.search).get('returnUrl');
   const initialPreferredMethod = verificationRoot.getAttribute('data-preferred-method') || '';
   const initialAvailableMethods = (verificationRoot.getAttribute('data-available-methods') || '')
     .split(',')

@@ -1,6 +1,7 @@
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
+using His.Hope.IdentityService.Application.Authorization;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,7 +12,8 @@ public record UpdateRoleCommand(
     string Name,
     string? Description,
     string[]? Permissions,
-    string? ConcurrencyToken)
+    string? ConcurrencyToken,
+    string? Owner)
     : IRequest<RoleDto>;
 
 public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleDto>
@@ -34,30 +36,43 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
             !string.Equals(request.ConcurrencyToken, role.ConcurrencyStamp, StringComparison.Ordinal))
             throw new InvalidOperationException("CONCURRENCY_CONFLICT: The role was changed by another request.");
 
+        if (role.IsSystem)
+            throw new InvalidOperationException("System roles are immutable.");
+
         // Update role properties
         role.Name = request.Name;
         role.NormalizedName = request.Name.ToUpperInvariant();
         role.Description = request.Description;
+        if (!string.IsNullOrWhiteSpace(request.Owner))
+            role.Owner = request.Owner.Trim();
+        role.AuthorizationVersion++;
+        role.PublishedAt = DateTime.UtcNow;
+        role.PublishedBy = "identity-control-plane";
         role.ConcurrencyStamp = Guid.NewGuid().ToString("N");
 
-        // Update permissions: replace all existing with new set
+        // Permission references are strict and replacement is atomic.
+        var permissionCodes = RoleGovernanceRules.NormalizePermissionCodes(request.Permissions);
+        var knownPermissions = await _context.Permissions
+            .Where(permission => permissionCodes.Contains(permission.Code))
+            .Select(permission => permission.Code)
+            .ToListAsync(cancellationToken);
+        var unknownPermission = permissionCodes.FirstOrDefault(code =>
+            !knownPermissions.Contains(code, StringComparer.OrdinalIgnoreCase));
+        if (unknownPermission is not null)
+            throw new InvalidOperationException($"Unknown permission '{unknownPermission}'.");
+
         _context.RolePermissions.RemoveRange(role.RolePermissions);
 
-        if (request.Permissions is { Length: > 0 })
+        if (permissionCodes.Length > 0)
         {
-            foreach (var permissionCode in request.Permissions)
+            foreach (var permissionCode in permissionCodes)
             {
-                var permission = await _context.Permissions
-                    .FirstOrDefaultAsync(p => p.Code == permissionCode, cancellationToken);
-
-                if (permission is not null)
+                _context.RolePermissions.Add(new RolePermission
                 {
-                    _context.RolePermissions.Add(new RolePermission
-                    {
-                        RoleId = role.Id,
-                        PermissionCode = permissionCode
-                    });
-                }
+                    RoleId = role.Id,
+                    PermissionCode = knownPermissions.First(code =>
+                        string.Equals(code, permissionCode, StringComparison.OrdinalIgnoreCase))
+                });
             }
         }
 
@@ -82,7 +97,14 @@ public class UpdateRoleCommandHandler : IRequestHandler<UpdateRoleCommand, RoleD
                 rp.Permission.Description,
                 rp.Permission.IsSystem
             )).ToList(),
-            updated.ConcurrencyStamp
+            updated.ConcurrencyStamp,
+            updated.Owner,
+            updated.AuthorizationVersion,
+            updated.RiskTier,
+            updated.ReviewCadenceDays,
+            updated.LifecycleStatus,
+            updated.PublishedAt,
+            updated.PublishedBy
         );
     }
 }

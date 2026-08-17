@@ -315,7 +315,7 @@ function Assert-ScalarSettingDefinition {
     }
 
     if (Test-HashtableKey -Table $Setting -Key 'type') {
-        Assert-StringEnum -Errors $Errors -Path "$Path.type" -Value ([string]$Setting['type']) -AllowedValues @('integer', 'boolean')
+        Assert-StringEnum -Errors $Errors -Path "$Path.type" -Value ([string]$Setting['type']) -AllowedValues @('integer', 'boolean', 'string', 'csv')
     }
 }
 
@@ -377,6 +377,10 @@ function Assert-RuntimeContractShape {
         }
 
         Assert-ScalarSettingDefinition -Errors $Errors -Path 'observability[]' -Setting $entry
+    }
+
+    foreach ($item in @($ContractDefinition['runtimeSettings'])) {
+        Assert-ScalarSettingDefinition -Errors $Errors -Path 'runtimeSettings[]' -Setting $item
     }
 }
 
@@ -507,6 +511,31 @@ foreach ($setting in $contract.observability | Where-Object { $_.PSObject.Proper
     }
     catch {
         Add-ValidationError -Errors $errors -Message $_.Exception.Message
+    }
+}
+
+foreach ($setting in @($contract.runtimeSettings)) {
+    $key = [string]$setting.key
+    $value = [string]$environmentValues[$key]
+    if ($setting.type -eq 'integer') {
+        try {
+            $number = [int]$value
+            if ($setting.minimum -ne $null -and $number -lt [int]$setting.minimum) { throw "[$key] is below minimum $($setting.minimum)." }
+            if ($setting.maximum -ne $null -and $number -gt [int]$setting.maximum) { throw "[$key] is above maximum $($setting.maximum)." }
+        }
+        catch { Add-ValidationError -Errors $errors -Message $_.Exception.Message }
+    }
+    elseif ($setting.type -eq 'boolean') {
+        if ($value -notin @('true', 'false')) { Add-ValidationError -Errors $errors -Message "[$key] must be true or false." }
+    }
+    elseif ($setting.type -eq 'csv') {
+        $items = @($value.Split(',', [System.StringSplitOptions]::RemoveEmptyEntries) | ForEach-Object { $_.Trim() })
+        foreach ($entry in $items) {
+            if ($setting.PSObject.Properties.Name -contains 'allowedValues' -and $entry -notin @($setting.allowedValues)) { Add-ValidationError -Errors $errors -Message "[$key] contains unsupported value [$entry]." }
+        }
+    }
+    if ($setting.PSObject.Properties.Name -contains 'allowedValues' -and $setting.type -eq 'string' -and $value -notin @($setting.allowedValues)) {
+        Add-ValidationError -Errors $errors -Message "[$key] must be one of: $($setting.allowedValues -join ', ')."
     }
 }
 

@@ -1,4 +1,4 @@
-import { RuntimeConfigService } from '../../../shared/frontend-foundation/src/lib/runtime/runtime-config.service';
+import { RuntimeConfigService } from '@his-hope/frontend-foundation';
 const runtime = new RuntimeConfigService(typeof window === 'undefined' ? { apiOrigin: 'http://localhost:5000', oidcAuthority: 'http://localhost:5000' } : window.__HISHOPE_CONFIG__ ?? { apiOrigin: 'http://localhost:5000', oidcAuthority: 'http://localhost:5000' }).require();
 export const environment = {
   production: false,

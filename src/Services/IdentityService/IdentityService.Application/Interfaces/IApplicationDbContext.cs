@@ -25,6 +25,19 @@ public interface IApplicationDbContext
     DbSet<InAppNotification> InAppNotifications { get; }
     DbSet<PushDeliveryAttempt> PushDeliveryAttempts { get; }
     DbSet<UserFacility> UserFacilities { get; }
+    DbSet<BreakGlassRequest> BreakGlassRequests { get; }
+    DbSet<AccessRequest> AccessRequests { get; }
+    DbSet<AccessReview> AccessReviews { get; }
+    DbSet<RoleTemplateVersion> RoleTemplateVersions { get; }
+    DbSet<AuthorizationPolicyDefinition> AuthorizationPolicies { get; }
+    DbSet<IamScope> IamScopes { get; }
+    DbSet<IamServiceDefinition> IamServiceDefinitions { get; }
+    DbSet<IamPermissionSet> IamPermissionSets { get; }
+    DbSet<IamPermissionSetAssignment> IamPermissionSetAssignments { get; }
+    DbSet<IamWorkloadRole> IamWorkloadRoles { get; }
+    DbSet<IamPermissionBoundary> IamPermissionBoundaries { get; }
+    DbSet<IamGroupMembership> IamGroupMemberships { get; }
+    DbSet<IamResourcePolicy> IamResourcePolicies { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

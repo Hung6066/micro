@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using His.Hope.Contracts.Identity;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Application.Services;
 using His.Hope.IdentityService.Domain.Entities;
@@ -19,8 +20,8 @@ namespace His.Hope.IdentityService.IntegrationTests;
 [Collection("IdentityServiceIntegration")]
 public sealed class AdaptiveMfaEndpointTests
 {
-    private const string Password = "Test@123456";
-    private const string PendingReturnUrl = "/connect/authorize?client_id=adaptive-client&state=state-123&code_challenge=challenge-123";
+    private const string Password = IdentityTestCredentials.Password;
+    private const string PendingReturnUrl = IdentityApiRoutes.OidcAuthorize + "?client_id=adaptive-client&state=state-123&code_challenge=challenge-123";
     private readonly IdentityServiceTestFixture _fixture;
 
     public AdaptiveMfaEndpointTests(IdentityServiceTestFixture fixture)
@@ -36,7 +37,7 @@ public sealed class AdaptiveMfaEndpointTests
             HasTotp: true,
             ReturnUrl: PendingReturnUrl));
 
-        var response = await setup.Session.GetWithCookiesAsync("/api/v1/auth/mfa/methods");
+        var response = await setup.Session.GetWithCookiesAsync(IdentityApiRoutes.MfaMethods);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -44,7 +45,7 @@ public sealed class AdaptiveMfaEndpointTests
         body.GetProperty("availableMethods").EnumerateArray().Select(item => item.GetString())
             .Should().BeEquivalentTo(["passkey", "mobileApproval", "totp"]);
         body.GetProperty("isUnfamiliarDevice").GetBoolean().Should().BeTrue();
-        body.GetProperty("redirectHandle").GetString().Should().Be("/connect/authorize");
+        body.GetProperty("redirectHandle").GetString().Should().Be(IdentityApiRoutes.OidcAuthorize);
         body.TryGetProperty("userId", out _).Should().BeFalse();
         body.TryGetProperty("returnUrl", out _).Should().BeFalse();
     }
@@ -57,7 +58,7 @@ public sealed class AdaptiveMfaEndpointTests
             HasTotp: false,
             ReturnUrl: PendingReturnUrl));
 
-        var response = await setup.Session.GetWithCookiesAsync($"/api/v1/auth/mfa/methods?userId={Guid.NewGuid():D}");
+        var response = await setup.Session.GetWithCookiesAsync($"{IdentityApiRoutes.MfaMethods}?userId={Guid.NewGuid():D}");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -75,7 +76,7 @@ public sealed class AdaptiveMfaEndpointTests
             ReturnUrl: PendingReturnUrl));
         setup.Session.SetCookieValue("hishop_sid", "mismatched-session");
 
-        var response = await setup.Session.GetWithCookiesAsync("/api/v1/auth/mfa/methods");
+        var response = await setup.Session.GetWithCookiesAsync(IdentityApiRoutes.MfaMethods);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -104,6 +105,32 @@ public sealed class AdaptiveMfaEndpointTests
     }
 
     [Fact]
+    public async Task Pending_totp_completion_rejects_invalid_code_without_completing_session()
+    {
+        var setup = await CreatePendingMfaSessionAsync(new PendingMfaUserOptions(
+            HasPasskey: false,
+            HasTotp: true,
+            ReturnUrl: PendingReturnUrl));
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/Account/Mfa")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["code"] = "000000"
+            })
+        };
+        request.Headers.TryAddWithoutValidation(
+            "Cookie",
+            $"hishop_oidc_mfa={setup.Session.GetCookieValue("hishop_oidc_mfa")}; hishop_sid={setup.Session.GetCookieValue("hishop_sid")}");
+
+        var response = await setup.Session.InnerClient.SendAsync(request);
+
+        response.StatusCode.Should().BeOneOf(HttpStatusCode.Redirect, HttpStatusCode.TooManyRequests);
+        if (response.StatusCode == HttpStatusCode.Redirect)
+            response.Headers.Location?.ToString().Should().Be("/Account/Mfa?error=invalid_code");
+    }
+
+    [Fact]
     public async Task Native_mfa_options_returns_401_when_pending_session_expires_before_mobile_completion()
     {
         var setup = await CreatePendingMfaSessionAsync(new PendingMfaUserOptions(
@@ -111,7 +138,7 @@ public sealed class AdaptiveMfaEndpointTests
             HasTotp: false,
             ReturnUrl: PendingReturnUrl));
 
-        var startResponse = await setup.Session.PostWithCookiesAsync("/api/v1/auth/passkeys/mfa/native/start");
+        var startResponse = await setup.Session.PostWithCookiesAsync(IdentityApiRoutes.NativeMfaStart);
         startResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var ticket = (await startResponse.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("ticket")
@@ -121,10 +148,42 @@ public sealed class AdaptiveMfaEndpointTests
         await DeleteRedisKeyAsync($"session:{setup.Session.GetCookieValue("hishop_sid")}");
 
         var response = await _fixture.AnonymousClient.PostAsJsonAsync(
-            "/api/v1/auth/passkeys/mfa/native/options",
+            IdentityApiRoutes.NativeMfaOptions,
             new { ticket });
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Passkey_mfa_options_returns_422_when_pending_user_has_no_passkey()
+    {
+        var setup = await CreatePendingMfaSessionAsync(new PendingMfaUserOptions(
+            HasPasskey: false,
+            HasTotp: true,
+            ReturnUrl: PendingReturnUrl));
+
+        var response = await setup.Session.PostWithCookiesAsync(IdentityApiRoutes.PasskeyMfaOptions);
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await response.Content.ReadAsStringAsync()).ToLowerInvariant().Should().Contain("not enrolled");
+    }
+
+    [Fact]
+    public async Task Native_mfa_options_returns_422_when_pending_user_has_no_passkey()
+    {
+        var setup = await CreatePendingMfaSessionAsync(new PendingMfaUserOptions(
+            HasPasskey: false,
+            HasTotp: true,
+            ReturnUrl: PendingReturnUrl));
+        var start = await setup.Session.PostWithCookiesAsync(IdentityApiRoutes.NativeMfaStart);
+        start.StatusCode.Should().Be(HttpStatusCode.OK);
+        var ticket = (await start.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("ticket").GetString();
+        ticket.Should().NotBeNullOrWhiteSpace();
+
+        var response = await setup.Session.PostWithCookiesAsync(IdentityApiRoutes.NativeMfaOptions, new { ticket });
+
+        response.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await response.Content.ReadAsStringAsync()).ToLowerInvariant().Should().Contain("not enrolled");
     }
 
     [Fact]
@@ -141,7 +200,7 @@ public sealed class AdaptiveMfaEndpointTests
             HasTotp: false,
             ReturnUrl: PendingReturnUrl));
 
-        var startResponse = await first.Session.PostWithCookiesAsync("/api/v1/auth/passkeys/mfa/native/start");
+        var startResponse = await first.Session.PostWithCookiesAsync(IdentityApiRoutes.NativeMfaStart);
         startResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var ticket = (await startResponse.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("ticket")
@@ -150,7 +209,7 @@ public sealed class AdaptiveMfaEndpointTests
         await ApproveNativeTicketAsync(ticket!);
 
         var response = await second.Session.GetWithCookiesAsync(
-            $"/api/v1/auth/passkeys/mfa/native/poll?ticket={Uri.EscapeDataString(ticket!)}");
+            $"{IdentityApiRoutes.NativeMfaPoll}?ticket={Uri.EscapeDataString(ticket!)}");
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -164,7 +223,7 @@ public sealed class AdaptiveMfaEndpointTests
             ReturnUrl: PendingReturnUrl));
 
         var response = await setup.Session.PostWithCookiesAsync(
-            "/api/v1/auth/passkeys/mfa/complete",
+            IdentityApiRoutes.PasskeyMfaComplete,
             CreatePasskeyAssertionRequest(Guid.NewGuid().ToString()));
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -184,8 +243,8 @@ public sealed class AdaptiveMfaEndpointTests
             HasTotp: false,
             ReturnUrl: PendingReturnUrl));
 
-        var firstOptions = await first.Session.PostWithCookiesAsync("/api/v1/auth/passkeys/mfa/options");
-        var secondOptions = await second.Session.PostWithCookiesAsync("/api/v1/auth/passkeys/mfa/options");
+        var firstOptions = await first.Session.PostWithCookiesAsync(IdentityApiRoutes.PasskeyMfaOptions);
+        var secondOptions = await second.Session.PostWithCookiesAsync(IdentityApiRoutes.PasskeyMfaOptions);
 
         firstOptions.StatusCode.Should().Be(HttpStatusCode.OK);
         secondOptions.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -208,11 +267,11 @@ public sealed class AdaptiveMfaEndpointTests
             HasTotp: false,
             ReturnUrl: PendingReturnUrl));
 
-        var secondOptions = await second.Session.PostWithCookiesAsync("/api/v1/auth/passkeys/mfa/options");
+        var secondOptions = await second.Session.PostWithCookiesAsync(IdentityApiRoutes.PasskeyMfaOptions);
         secondOptions.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var response = await first.Session.PostWithCookiesAsync(
-            "/api/v1/auth/passkeys/mfa/complete",
+            IdentityApiRoutes.PasskeyMfaComplete,
             CreatePasskeyAssertionRequest(first.UserId.ToString()));
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
@@ -304,6 +363,7 @@ public sealed class AdaptiveMfaEndpointTests
         }
 
         var session = _fixture.CreateSessionClient();
+        session.RateLimitKey = $"adaptive-mfa-{userId:N}";
         var loginResponse = await session.InnerClient.PostAsync(
             "/Account/Login",
             new FormUrlEncodedContent(new Dictionary<string, string>

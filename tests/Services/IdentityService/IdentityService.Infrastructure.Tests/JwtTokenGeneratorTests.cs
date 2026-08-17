@@ -80,7 +80,9 @@ public sealed class JwtTokenGeneratorTests
         using var headerJson = JsonDocument.Parse(Convert.FromBase64String(header));
         Assert.Equal(SecurityAlgorithms.RsaOAEP, headerJson.RootElement.GetProperty("alg").GetString());
         Assert.Equal(SecurityAlgorithms.Aes256CbcHmacSha512, headerJson.RootElement.GetProperty("enc").GetString());
-        Assert.NotNull(new JwtTokenGenerator(configuration).GetPrincipalFromExpiredToken(token));
+        var principal = new JwtTokenGenerator(configuration).GetPrincipalFromExpiredToken(token);
+        Assert.NotNull(principal);
+        Assert.Equal("human", principal!.FindFirst("principal_type")?.Value);
     }
 
     [Fact]

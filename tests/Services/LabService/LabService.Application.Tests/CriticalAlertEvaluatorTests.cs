@@ -52,7 +52,7 @@ public class CriticalAlertEvaluatorTests
 
         _ruleRepository.Setup(r => r.ListActiveByTestCodeAsync("CBC", It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<CriticalAlertRule>());
-        _alertRepository.Setup(r => r.GetCurrentAsync(order.Id.Value, test.Id.Value, It.IsAny<CancellationToken>()))
+        _alertRepository.Setup(r => r.GetCurrentForUpdateAsync(order.Id.Value, test.Id.Value, It.IsAny<CancellationToken>()))
             .ReturnsAsync((CriticalAlert?)null);
         var dto = await _evaluator.EvaluateAsync(order, test, result);
 
@@ -71,7 +71,7 @@ public class CriticalAlertEvaluatorTests
 
         _ruleRepository.Setup(r => r.ListActiveByTestCodeAsync("CBC", It.IsAny<CancellationToken>()))
             .ReturnsAsync(new[] { rule });
-        _alertRepository.Setup(r => r.GetCurrentAsync(order.Id.Value, test.Id.Value, It.IsAny<CancellationToken>()))
+        _alertRepository.Setup(r => r.GetCurrentForUpdateAsync(order.Id.Value, test.Id.Value, It.IsAny<CancellationToken>()))
             .ReturnsAsync((CriticalAlert?)null);
         var dto = await _evaluator.EvaluateAsync(order, test, result);
 
@@ -101,7 +101,7 @@ public class CriticalAlertEvaluatorTests
 
         _ruleRepository.Setup(r => r.ListActiveByTestCodeAsync("CBC", It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<CriticalAlertRule>());
-        _alertRepository.Setup(r => r.GetCurrentAsync(order.Id.Value, test.Id.Value, It.IsAny<CancellationToken>()))
+        _alertRepository.Setup(r => r.GetCurrentForUpdateAsync(order.Id.Value, test.Id.Value, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingAlert);
 
         var dto = await _evaluator.EvaluateAsync(order, test, result);
@@ -141,7 +141,7 @@ public class CriticalAlertEvaluatorTests
 
         _ruleRepository.Setup(r => r.ListActiveByTestCodeAsync("CBC", It.IsAny<CancellationToken>()))
             .ReturnsAsync(Array.Empty<CriticalAlertRule>());
-        _alertRepository.Setup(r => r.GetCurrentAsync(order.Id.Value, test.Id.Value, It.IsAny<CancellationToken>()))
+        _alertRepository.Setup(r => r.GetCurrentForUpdateAsync(order.Id.Value, test.Id.Value, It.IsAny<CancellationToken>()))
             .ReturnsAsync(existingAlert);
 
         var dto = await _evaluator.EvaluateAsync(order, test, result);
@@ -158,7 +158,7 @@ public class CriticalAlertEvaluatorTests
     {
         var (order, test, result) = CreateCriticalResult();
 
-        _alertRepository.Setup(r => r.GetCurrentAsync(order.Id.Value, test.Id.Value, It.IsAny<CancellationToken>()))
+        _alertRepository.Setup(r => r.GetCurrentForUpdateAsync(order.Id.Value, test.Id.Value, It.IsAny<CancellationToken>()))
             .ReturnsAsync((CriticalAlert?)null);
 
         var dto = await _evaluator.ResolveAsync(order, test, result);

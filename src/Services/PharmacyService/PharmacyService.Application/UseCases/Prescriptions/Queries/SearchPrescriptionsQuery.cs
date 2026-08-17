@@ -8,5 +8,7 @@ public record SearchPrescriptionsQuery(
     int Page = 1,
     int PageSize = 20,
     Guid? PatientId = null,
-    string? Status = null)
+    string? Status = null,
+    IReadOnlySet<string>? FacilityIds = null,
+    bool CrossFacility = false)
     : IRequest<PagedResult<PrescriptionDto>>;

@@ -53,6 +53,12 @@ public class AuditLog
     /// </summary>
     public string? UserAgent { get; set; }
 
+    public string? CorrelationId { get; set; }
+    public string? Outcome { get; set; }
+    public string? BeforeJson { get; set; }
+    public string? AfterJson { get; set; }
+    public string? Source { get; set; }
+
     /// <summary>
     /// UTC timestamp when the access occurred.
     /// </summary>

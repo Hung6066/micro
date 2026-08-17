@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schemaVersion": "identity-workbench-12-parts.v1",
+  "canonicalBaseRoute": "/api/v1/admin/iam",
+  "parts": [
+    { "id": "naming-contract", "name": "Canonical naming", "backend": "IdentityApiRoutes.IdentityWorkbench", "frontend": "identity-workbench.naming.ts", "evidence": "scripts/config/validate-identity-workbench-naming.ps1", "status": "implemented" },
+    { "id": "identities", "name": "Identities", "backend": "users/groups/external-identities/service-principals", "frontend": "identities menu", "evidence": "scripts/config/validate-admin-identity-capabilities.ps1", "status": "implemented" },
+    { "id": "applications", "name": "Applications", "backend": "clients/api-audiences/trusted-issuers", "frontend": "applications menu", "evidence": "tests/IdentityService/IdentityService.IntegrationTests", "status": "implemented" },
+    { "id": "authorization", "name": "Authorization", "backend": "services/permission-sets/policies/boundaries/resource-policies/assignments", "frontend": "authorization menu", "evidence": "scripts/verify-authorization-contract.ps1", "status": "implemented" },
+    { "id": "governance", "name": "Access governance", "backend": "access-requests/access-reviews/jit/break-glass", "frontend": "access-governance menu", "evidence": "tests/IdentityService/IdentityService.IntegrationTests/AccessGovernanceEndpointTests.cs", "status": "pilot" },
+    { "id": "sessions-credentials", "name": "Sessions and credentials", "backend": "sessions/revocation/mfa/passkeys/workload-sessions", "frontend": "sessions menu", "evidence": "tests/IdentityService/IdentityService.IntegrationTests/AdminIncidentEndpointTests.cs", "status": "implemented" },
+    { "id": "analyzer", "name": "Analyzer", "backend": "effective-access/policy-simulate/new-access-diff/unused", "frontend": "analyzer menu", "evidence": "tests/Shared/Authorization.Tests", "status": "implemented" },
+    { "id": "audit-integrations", "name": "Audit and integrations", "backend": "audit/security-signals/provisioning/exports", "frontend": "audit-integrations menu", "evidence": "scripts/config/validate-identity-live-prerequisites.ps1", "status": "implemented" },
+    { "id": "directory-provisioning", "name": "Google, Entra and SCIM provisioning", "backend": "AdminProvisioning + outbox adapters", "frontend": "identity-capabilities/identity-operations", "evidence": "scripts/config/validate-identity-live-prerequisites.ps1", "status": "live-gate" },
+    { "id": "federation-strong-auth", "name": "External federation, SSF, mTLS and RADIUS", "backend": "federation/security-signals/mtls/radius", "frontend": "security-providers/identity-capabilities", "evidence": "scripts/config/validate-identity-live-prerequisites.ps1", "status": "live-gate" },
+    { "id": "device-trust", "name": "Chrome Device Trust and Windows local login", "backend": "device-posture pilot endpoints", "frontend": "identity-capabilities P2 tab", "evidence": "scripts/config/validate-identity-live-prerequisites.ps1", "status": "pilot" },
+    { "id": "production-evidence", "name": "SIEM/WORM, HA/DR and FAPI conformance", "backend": "audit/runtime evidence contracts", "frontend": "runtime readiness", "evidence": "scripts/config/validate-identity-live-prerequisites.ps1", "status": "live-gate" }
+  ],
+  "statusSemantics": ["implemented", "pilot", "live-gate", "skipped", "environment-blocked"],
+  "rules": [
+    "implemented requires repository contract and local validation evidence",
+    "pilot must remain observe-first and must not block clinical traffic",
+    "live-gate is not pass until external evidence is supplied",
+    "admin UI never replaces server-side authorization"
+  ]
+}

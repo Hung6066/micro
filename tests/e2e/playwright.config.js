@@ -1,6 +1,7 @@
 // @ts-check
 const { defineConfig, devices } = require('@playwright/test');
 const { clinicalUrl } = require('./config/urls');
+const retainFailureArtifacts = process.env.E2E_RETAIN_ARTIFACTS !== 'false';
 
 module.exports = defineConfig({
   testDir: './specs',
@@ -22,9 +23,9 @@ module.exports = defineConfig({
     baseURL: clinicalUrl,
     headless: true,
     viewport: { width: 1280, height: 720 },
-    screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
-    trace: 'retain-on-failure',
+    screenshot: retainFailureArtifacts ? 'only-on-failure' : 'off',
+    video: retainFailureArtifacts ? 'retain-on-failure' : 'off',
+    trace: retainFailureArtifacts ? 'retain-on-failure' : 'off',
     actionTimeout: 15000,
     navigationTimeout: 20000,
   },
@@ -34,7 +35,7 @@ module.exports = defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         launchOptions: {
-          args: ['--no-sandbox', '--disable-setuid-sandbox'],
+          args: ['--no-sandbox', '--disable-setuid-sandbox', '--proxy-server=direct://', '--proxy-bypass-list=*'],
         },
       },
     },
@@ -43,7 +44,7 @@ module.exports = defineConfig({
       use: {
         ...devices['iPhone 12'],
         browserName: 'chromium',
-        launchOptions: { args: ['--no-sandbox', '--disable-setuid-sandbox'] },
+        launchOptions: { args: ['--no-sandbox', '--disable-setuid-sandbox', '--proxy-server=direct://', '--proxy-bypass-list=*'] },
       },
     },
     {
@@ -51,7 +52,7 @@ module.exports = defineConfig({
       use: {
         ...devices['iPad Mini'],
         browserName: 'chromium',
-        launchOptions: { args: ['--no-sandbox', '--disable-setuid-sandbox'] },
+        launchOptions: { args: ['--no-sandbox', '--disable-setuid-sandbox', '--proxy-server=direct://', '--proxy-bypass-list=*'] },
       },
     },
   ],

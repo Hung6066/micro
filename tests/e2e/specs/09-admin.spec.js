@@ -2,27 +2,19 @@
 const { test, expect } = require('@playwright/test');
 
 const { clinicalUrl: BASE } = require('../config/urls');
-const TEST_USER = 'admin';
-const TEST_PASS = 'Admin@123';
+const { signInThroughIdentity } = require('../helpers/sso-login');
 const AUTH_LOGIN_RE = /\/(?:en\/)?auth\/login(?:\?|$)/;
 const ACCESS_DENIED_RE = /\/(?:en\/)?access-denied(?:\?|$)/;
 
 async function login(page) {
-  await page.goto(BASE + '/auth/login');
-  await expect(page.locator('input[formControlName="username"]')).toBeVisible({ timeout: 10000 });
-  await page.locator('input[formControlName="username"]').fill(TEST_USER);
-  await page.locator('input[formControlName="password"]').fill(TEST_PASS);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL(
-    (url) => /\/(?:en\/)?dashboard(?:\?|$)/.test(url.toString()) || ACCESS_DENIED_RE.test(url.toString()),
-    { timeout: 30000 },
-  );
-
+  await signInThroughIdentity(page, BASE);
   return /\/(?:en\/)?dashboard(?:\?|$)/.test(page.url());
 }
 
 async function navigateToSidebar(page, label, expectedPath) {
-  const link = page.locator('mat-nav-list a').filter({ hasText: label });
+  const link = label === 'Quản trị'
+    ? page.locator('a[routerLink="/admin"], a[href$="/admin"]').first()
+    : page.locator('mat-nav-list a').filter({ hasText: label });
   await expect(link.first()).toBeVisible({ timeout: 10000 });
   await link.first().click();
   if (expectedPath) {

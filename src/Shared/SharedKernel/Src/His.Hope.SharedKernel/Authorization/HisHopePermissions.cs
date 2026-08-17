@@ -66,6 +66,8 @@ public static class HisHopePermissions
         public const string Approve = "lab.approve";
         public const string Cancel = "lab.cancel";
         public const string Manage = "lab.manage";
+        public const string AlertAcknowledge = "lab.alert.acknowledge";
+        public const string AlertResolve = "lab.alert.resolve";
     }
 
     // ──────────────────────────────────────────────
@@ -110,6 +112,14 @@ public static class HisHopePermissions
         public const string AuditRead = "admin.audit.read";
         public const string ClientsRead = "admin.clients.read";
         public const string ClientsWrite = "admin.clients.write";
+        public const string BreakGlassRead = "admin.breakglass.read";
+        public const string BreakGlassWrite = "admin.breakglass.write";
+        public const string PolicySimulate = "admin.policy.simulate";
+        public const string SessionsRead = "admin.sessions.read";
+        public const string SessionsRevoke = "admin.sessions.revoke";
+        public const string CredentialReset = "admin.credentials.reset";
+        public const string ProvisioningManage = "admin.provisioning.manage";
+        public const string SecuritySignalsManage = "admin.security-signals.manage";
     }
 
     // ──────────────────────────────────────────────
@@ -120,6 +130,15 @@ public static class HisHopePermissions
         public const string View = "reports.view";
         public const string Export = "reports.export";
         public const string Manage = "reports.manage";
+    }
+
+    // ──────────────────────────────────────────────
+    // Platform dashboard module
+    // ──────────────────────────────────────────────
+    public static class Dashboard
+    {
+        public const string View = "dashboard.view";
+        public const string Manage = "dashboard.manage";
     }
 
     // ──────────────────────────────────────────────
@@ -148,6 +167,7 @@ public static class HisHopePermissions
         // Lab Orders
         LabOrders.View, LabOrders.Create, LabOrders.Update, LabOrders.Result,
         LabOrders.Approve, LabOrders.Cancel, LabOrders.Manage,
+        LabOrders.AlertAcknowledge, LabOrders.AlertResolve,
 
         // Billing
         Billing.View, Billing.Create, Billing.Update, Billing.Void,
@@ -162,9 +182,15 @@ public static class HisHopePermissions
         Admin.PermissionsRead, Admin.PermissionsWrite,
         Admin.SettingsRead, Admin.SettingsWrite, Admin.AuditRead,
         Admin.ClientsRead, Admin.ClientsWrite,
+        Admin.BreakGlassRead, Admin.BreakGlassWrite, Admin.PolicySimulate,
+        Admin.SessionsRead, Admin.SessionsRevoke, Admin.CredentialReset,
+        Admin.ProvisioningManage, Admin.SecuritySignalsManage,
 
         // Reports
         Reports.View, Reports.Export, Reports.Manage,
+
+        // Dashboard
+        Dashboard.View, Dashboard.Manage,
     }.ToFrozenSet();
 
     /// <summary>
@@ -206,6 +232,8 @@ public static class HisHopePermissions
         new(LabOrders.Approve, "Phê duyệt kết quả", "Xét nghiệm", "Phê duyệt kết quả xét nghiệm"),
         new(LabOrders.Cancel, "Hủy xét nghiệm", "Xét nghiệm", "Hủy phiếu xét nghiệm"),
         new(LabOrders.Manage, "Quản lý xét nghiệm", "Xét nghiệm", "Toàn quyền quản lý xét nghiệm"),
+        new(LabOrders.AlertAcknowledge, "Xác nhận cảnh báo", "Xét nghiệm", "Xác nhận đã tiếp nhận cảnh báo nghiêm trọng"),
+        new(LabOrders.AlertResolve, "Đóng cảnh báo", "Xét nghiệm", "Đóng cảnh báo nghiêm trọng sau khi xử lý"),
 
         // Billing
         new(Billing.View, "Xem hóa đơn", "Thanh toán", "Xem hóa đơn thanh toán"),
@@ -235,17 +263,33 @@ public static class HisHopePermissions
         new(Admin.AuditRead, "Xem nhật ký", "Quản trị", "Xem nhật ký kiểm toán"),
         new(Admin.ClientsRead, "Xem OIDC clients", "Quản trị", "Xem ứng dụng đã đăng ký"),
         new(Admin.ClientsWrite, "Quản lý OIDC clients", "Quản trị", "Tạo, sửa, xóa và xoay secret ứng dụng"),
+        new(Admin.BreakGlassRead, "Xem break-glass", "Quản trị", "Xem các yêu cầu truy cập khẩn cấp"),
+        new(Admin.BreakGlassWrite, "Quản lý break-glass", "Quản trị", "Tạo, phê duyệt và thu hồi truy cập khẩn cấp"),
+        new(Admin.PolicySimulate, "Mô phỏng policy", "Quản trị", "Mô phỏng quyết định permission/facility ở Identity Service"),
+        new(Admin.SessionsRead, "Xem session", "Quản trị", "Xem các session đang hoạt động của người dùng"),
+        new(Admin.SessionsRevoke, "Thu hồi session", "Quản trị", "Thu hồi session và token của người dùng"),
+        new(Admin.CredentialReset, "Reset credential", "Quản trị", "Reset MFA hoặc passkey của người dùng"),
+        new(Admin.ProvisioningManage, "Vận hành provisioning", "Quản trị", "Reconcile và điều phối provisioning jobs"),
+        new(Admin.SecuritySignalsManage, "Vận hành security signals", "Quản trị", "Retry SSF/CAEP delivery outbox"),
 
         // Reports
         new(Reports.View, "Xem báo cáo", "Báo cáo", "Xem báo cáo thống kê"),
         new(Reports.Export, "Xuất báo cáo", "Báo cáo", "Xuất báo cáo ra file"),
         new(Reports.Manage, "Quản lý báo cáo", "Báo cáo", "Toàn quyền quản lý báo cáo"),
+
+        // Dashboard
+        new(Dashboard.View, "Xem dashboard vận hành", "Dashboard", "Xem log, metric, trace và trạng thái dịch vụ"),
+        new(Dashboard.Manage, "Quản lý dashboard vận hành", "Dashboard", "Khởi động, dừng hoặc khởi động lại dịch vụ"),
     }.ToFrozenSet();
 
     /// <summary>
     /// Returns true if the given permission code is registered in the system.
     /// </summary>
     public static bool IsValid(string permissionCode) => All.Contains(permissionCode);
+
+    public static PermissionDescriptor? FindDescriptor(string permissionCode) =>
+        AllDescriptors.FirstOrDefault(permission =>
+            string.Equals(permission.Code, permissionCode, StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>
@@ -256,4 +300,31 @@ public sealed record PermissionDescriptor(
     string Code,
     string Name,
     string Group,
-    string? Description = null);
+    string? Description = null)
+{
+    public string Owner => Code.StartsWith("admin.", StringComparison.OrdinalIgnoreCase)
+        ? "identity-service"
+        : $"{Code.Split('.', 2)[0]}-service";
+
+    public int Version => 1;
+
+    public string RiskTier => Code.Contains("credential", StringComparison.OrdinalIgnoreCase)
+        || Code.Contains("break", StringComparison.OrdinalIgnoreCase)
+        || Code.EndsWith(".delete", StringComparison.OrdinalIgnoreCase)
+        || Code.EndsWith(".revoke", StringComparison.OrdinalIgnoreCase)
+        ? "high"
+        : "standard";
+
+    public string RequiredAssurance => RiskTier == "high" ? "mfa" : "standard";
+
+    public string AuditClass => RiskTier == "high"
+        ? "security"
+        : Code.Contains("export", StringComparison.OrdinalIgnoreCase)
+            || Code.Contains("audit", StringComparison.OrdinalIgnoreCase)
+            ? "compliance"
+            : "authorization";
+
+    public bool IsDeprecated => false;
+
+    public string? ReplacedBy => null;
+}

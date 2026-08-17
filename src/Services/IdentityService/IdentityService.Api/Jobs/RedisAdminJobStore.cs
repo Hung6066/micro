@@ -14,6 +14,8 @@ public sealed class AdminJobState
     public string[] RowKeys { get; set; } = [];
     public string PayloadJson { get; set; } = "{}";
     public string ActorSubject { get; set; } = "system";
+    public bool IsCrossFacility { get; set; }
+    public string[] AuthorizedFacilities { get; set; } = [];
     public string? CorrelationId { get; set; }
     public BulkJobStatus Status { get; set; } = BulkJobStatus.Queued;
     public int Processed { get; set; }

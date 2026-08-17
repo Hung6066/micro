@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.WebUtilities;
 using StackExchange.Redis;
+using His.Hope.SharedKernel.Authorization;
 
 namespace His.Hope.IdentityService.Api.Services;
 
@@ -267,14 +268,34 @@ public sealed class OidcLoginCompletionService(
         }
     }
 
-    private Task SignInAsync(User user, IReadOnlyCollection<string> authenticationMethods) =>
-        signInManager.SignInWithClaimsAsync(
-            user,
-            isPersistent: false,
-            additionalClaims: authenticationMethods
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select(value => new Claim("amr", value)));
+    private async Task SignInAsync(User user, IReadOnlyCollection<string> authenticationMethods)
+    {
+        var roles = await userManager.GetRolesAsync(user);
+        var permissions = await db.RolePermissions
+            .Where(mapping => roles.Contains(mapping.Role.Name!))
+            .Select(mapping => mapping.PermissionCode)
+            .Distinct()
+            .ToListAsync();
+
+        var claims = authenticationMethods
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(value => new Claim("amr", value))
+            // Interactive browser sessions are human principals. This
+            // discriminator is required by the HumanAdmin policy when
+            // the shared Identity cookie (rather than a bearer token) is
+            // presented by admin-app.
+            .Append(new Claim(
+                AuthorizationConstants.Claims.PrincipalType,
+                AuthorizationConstants.PrincipalTypes.Human))
+            // Keep cookie authorization equivalent to the issued JWT. This
+            // prevents granular admin endpoints from falling back to a stale
+            // role-only principal after a successful form login.
+            .Concat(permissions.Select(permission => new Claim("permissions", permission)))
+            .ToArray();
+
+        await signInManager.SignInWithClaimsAsync(user, isPersistent: false, additionalClaims: claims);
+    }
 
     private async Task<string> CompletePendingMfaAsync(
         HttpContext context,

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using FluentAssertions;
 using His.Hope.AspNetCore.Authentication;
+using Xunit;
 
 namespace His.Hope.AspNetCore.Tests;
 

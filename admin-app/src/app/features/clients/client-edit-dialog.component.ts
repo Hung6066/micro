@@ -12,7 +12,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { AdminApiService, OidcClient } from '../../core/services/admin-api.service';
 import { catchError, map } from 'rxjs/operators';
 import { of } from 'rxjs';
-import { HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent, HisHopeFormSectionComponent } from '@his-hope/frontend-foundation';
+import { HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeTranslatePipe, HisHopeI18nService } from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-client-edit-dialog',
@@ -21,78 +21,78 @@ import { HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent, HisHopeF
     CommonModule, FormsModule, MatDialogModule, MatFormFieldModule,
     MatInputModule, MatSelectModule, MatButtonModule, MatChipsModule,
     MatIconModule, MatSnackBarModule,
-    HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent, HisHopeFormSectionComponent,
+    HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeTranslatePipe,
   ],
   template: `
     <form #clientForm="ngForm" (ngSubmit)="save()" novalidate>
-      <hh-create-dialog-shell [title]="(isEdit ? 'Edit' : 'Create') + ' OIDC Client'" subtitle="Register an application and define how it can authenticate with His.Hope.">
+      <hh-create-dialog-shell [title]="(isEdit ? 'admin.editClient' : 'admin.createClient') | hhTranslate" [subtitle]="'admin.clientDialogSubtitle' | hhTranslate">
         <div hhCreateDialogContent>
           <hh-form-layout>
-            <hh-form-section title="Basic information" description="Identify the application and its authentication profile." [span]="2">
+            <hh-form-section [title]="'admin.basicInformation' | hhTranslate" [description]="'admin.clientProfileDescription' | hhTranslate" [span]="2">
               <div class="form-grid">
                 <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Client ID</mat-label>
+                  <mat-label>{{ 'admin.clientId' | hhTranslate }}</mat-label>
                   <input matInput name="clientId" [(ngModel)]="form.clientId" required [disabled]="isEdit">
-                  <mat-error>Client ID is required.</mat-error>
+                  <mat-error>{{ 'admin.clientIdRequired' | hhTranslate:'Client ID is required.' }}</mat-error>
                 </mat-form-field>
                 <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Display Name</mat-label>
+                  <mat-label>{{ 'admin.displayName' | hhTranslate }}</mat-label>
                   <input matInput name="displayName" [(ngModel)]="form.displayName" required>
-                  <mat-error>Display name is required.</mat-error>
+                  <mat-error>{{ 'admin.displayNameRequired' | hhTranslate:'Display name is required.' }}</mat-error>
                 </mat-form-field>
                 <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Client Type</mat-label>
+                  <mat-label>{{ 'admin.clientType' | hhTranslate:'Client type' }}</mat-label>
                   <mat-select name="clientType" [(ngModel)]="form.clientType">
-                    <mat-option value="Public">Public</mat-option>
-                    <mat-option value="Confidential">Confidential</mat-option>
+                    <mat-option value="Public">{{ 'admin.public' | hhTranslate }}</mat-option>
+                    <mat-option value="Confidential">{{ 'admin.confidential' | hhTranslate }}</mat-option>
                   </mat-select>
                 </mat-form-field>
               </div>
             </hh-form-section>
-            <hh-form-section title="Redirect URIs" description="Allow-list exact callback addresses for this client." [span]="2">
+            <hh-form-section [title]="'admin.redirectUrisSection' | hhTranslate" [description]="'admin.redirectUrisHint' | hhTranslate" [span]="2">
               <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Redirect URIs (one per line)</mat-label>
+                <mat-label>{{ 'admin.redirectUrisOnePerLine' | hhTranslate }}</mat-label>
                 <textarea matInput name="redirectUris" [(ngModel)]="redirectUrisText" rows="2" placeholder="https://app.example.com/auth/callback"></textarea>
-                <mat-hint>Use exact HTTPS callback URLs in production.</mat-hint>
+                <mat-hint>{{ 'admin.redirectUrisProductionHint' | hhTranslate:'Use exact HTTPS callback URLs in production.' }}</mat-hint>
               </mat-form-field>
               <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Post-Logout Redirect URIs (one per line)</mat-label>
+                <mat-label>{{ 'admin.postLogoutUris' | hhTranslate }}</mat-label>
                 <textarea matInput name="postLogoutUris" [(ngModel)]="postLogoutUrisText" rows="2" placeholder="https://app.example.com/auth/login"></textarea>
               </mat-form-field>
             </hh-form-section>
-            <hh-form-section title="Access" description="Choose the scopes and grant types this client may request." [span]="2">
+            <hh-form-section [title]="'admin.access' | hhTranslate" [description]="'admin.accessDescription' | hhTranslate" [span]="2">
               <div class="form-grid">
                 <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Scopes</mat-label>
+                  <mat-label>{{ 'admin.scopes' | hhTranslate }}</mat-label>
                   <mat-select name="scopes" [(ngModel)]="form.scopes" multiple>
                     <mat-option value="openid">openid</mat-option><mat-option value="profile">profile</mat-option><mat-option value="email">email</mat-option><mat-option value="roles">roles</mat-option><mat-option value="hishop:permissions">hishop:permissions</mat-option><mat-option value="hishop:admin">hishop:admin</mat-option><mat-option value="offline_access">offline_access</mat-option>
                   </mat-select>
                 </mat-form-field>
                 <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Grant Types</mat-label>
+                  <mat-label>{{ 'admin.grantTypes' | hhTranslate }}</mat-label>
                   <mat-select name="grantTypes" [(ngModel)]="form.grantTypes" multiple>
-                    <mat-option value="authorization_code">Authorization Code</mat-option><mat-option value="refresh_token">Refresh Token</mat-option><mat-option value="client_credentials">Client Credentials</mat-option>
+                    <mat-option value="authorization_code">{{ 'admin.authorizationCode' | hhTranslate }}</mat-option><mat-option value="refresh_token">{{ 'admin.refreshToken' | hhTranslate }}</mat-option><mat-option value="client_credentials">{{ 'admin.clientCredentials' | hhTranslate }}</mat-option>
                   </mat-select>
                 </mat-form-field>
               </div>
             </hh-form-section>
-            <hh-form-section title="Advanced security" description="Optional public keys for private_key_jwt clients." [span]="2">
+            <hh-form-section [title]="'admin.advancedSecurity' | hhTranslate" [description]="'admin.advancedSecurityDescription' | hhTranslate" [span]="2">
               <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Public JWKS</mat-label>
+                <mat-label>{{ 'admin.publicJwks' | hhTranslate }}</mat-label>
                 <textarea matInput name="jwks" [(ngModel)]="form.jwks" rows="2" placeholder='{"keys":[...]}'></textarea>
-                <mat-hint>Upload public keys only. Never paste private key material.</mat-hint>
+                <mat-hint>{{ 'admin.publicKeysHint' | hhTranslate }}</mat-hint>
               </mat-form-field>
             </hh-form-section>
           </hh-form-layout>
           <div *ngIf="createdSecret" class="secret-panel" role="alert">
-            <strong>Copy this client secret now</strong><code>{{ createdSecret }}</code>
-            <button mat-stroked-button type="button" (click)="copySecret()">Copy secret</button>
+            <strong>{{ 'admin.copySecretNow' | hhTranslate }}</strong><code>{{ createdSecret }}</code>
+            <button mat-stroked-button type="button" (click)="copySecret()">{{ 'admin.copySecret' | hhTranslate }}</button>
           </div>
         </div>
         <div hhCreateDialogFooter>
-          <button mat-button type="button" (click)="cancel()">Cancel</button>
-          <button *ngIf="createdSecret" mat-raised-button color="primary" type="button" (click)="finishCreate()">Done</button>
-          <button mat-raised-button color="primary" type="submit" [disabled]="clientForm.invalid || saving">{{ saving ? 'Saving...' : 'Save' }}</button>
+          <button mat-button type="button" (click)="cancel()">{{ 'admin.cancel' | hhTranslate }}</button>
+          <button *ngIf="createdSecret" mat-raised-button color="primary" type="button" (click)="finishCreate()">{{ 'admin.done' | hhTranslate }}</button>
+          <button mat-raised-button color="primary" type="submit" [disabled]="clientForm.invalid || saving">{{ saving ? ('admin.saving' | hhTranslate) : ('admin.save' | hhTranslate) }}</button>
         </div>
       </hh-create-dialog-shell>
     </form>
@@ -102,8 +102,8 @@ import { HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent, HisHopeF
     hh-form-layout { display: block; }
     .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--form-field-gap); }
     .full-width { width: 100%; }
-    .secret-panel { display: grid; gap: 10px; margin: 8px 0 16px; padding: 14px; border: 1px solid #d6e8dc; border-radius: 10px; background: #f3faf5; }
-    .secret-panel code { overflow-wrap: anywhere; padding: 10px; background: #fff; border: 1px solid #d6e8dc; }
+    .secret-panel { display: grid; gap: var(--space-2); margin: var(--space-2) 0 var(--space-4); padding: var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-card); background: var(--surface-success); }
+    .secret-panel code { overflow-wrap: anywhere; padding: var(--space-2); background: var(--surface-white); border: 1px solid var(--border-default); color: var(--text-primary); }
     @media (max-width: 720px) { .form-grid { grid-template-columns: minmax(0, 1fr); } }
   `],
 })
@@ -111,6 +111,7 @@ export class ClientEditDialogComponent {
   private readonly api = inject(AdminApiService);
   private readonly dialogRef = inject(MatDialogRef<ClientEditDialogComponent>);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly i18n = inject(HisHopeI18nService);
 
   isEdit: boolean;
   saving = false;
@@ -147,7 +148,7 @@ export class ClientEditDialogComponent {
 
     request.pipe(
       catchError(err => {
-        this.snackBar.open('Failed to save client', 'Close', { duration: 3000 });
+        this.snackBar.open(this.i18n.t('admin.saveClientFailed', 'Failed to save client'), this.i18n.t('admin.close', 'Close'), { duration: 3000 });
         this.saving = false;
         return of(null);
       }),
@@ -155,10 +156,10 @@ export class ClientEditDialogComponent {
       if (result) {
         if (!this.isEdit && result && 'clientSecret' in result && result.clientSecret) {
           this.createdSecret = result.clientSecret;
-          this.snackBar.open('Client created. Copy the secret now; it will not be shown again.', 'Close', { duration: 5000 });
+          this.snackBar.open(this.i18n.t('admin.clientCreated', 'Client created. Copy the secret now; it will not be shown again.'), this.i18n.t('admin.close', 'Close'), { duration: 5000 });
           return;
         }
-        this.snackBar.open('Client saved successfully', 'Close', { duration: 2000 });
+        this.snackBar.open(this.i18n.t('admin.clientSaved', 'Client saved successfully'), this.i18n.t('admin.close', 'Close'), { duration: 2000 });
         this.dialogRef.close(true);
       }
     });

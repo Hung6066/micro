@@ -1,5 +1,7 @@
 using FluentAssertions;
 using His.Hope.LabService.Application.Common.Exceptions;
+using His.Hope.LabService.Application.Common.Abstractions;
+using His.Hope.LabService.Application.Services;
 using His.Hope.LabService.Application.UseCases.LabOrders.Commands;
 using His.Hope.LabService.Domain.Aggregates;
 using His.Hope.LabService.Domain.Entities;
@@ -14,16 +16,36 @@ public class RecordLabResultCommandHandlerTests
 {
     private readonly Mock<ILabOrderRepository> _mockRepository;
     private readonly Mock<IUnitOfWork> _mockUnitOfWork;
+    private readonly Mock<ICriticalAlertRuleRepository> _mockRuleRepository;
+    private readonly Mock<ICriticalAlertRepository> _mockAlertRepository;
+    private readonly Mock<ICurrentUserContext> _mockCurrentUser;
+    private readonly Mock<ICriticalAlertRealtimePublisher> _mockRealtimePublisher;
     private readonly RecordLabResultCommandHandler _handler;
 
     public RecordLabResultCommandHandlerTests()
     {
         _mockRepository = new Mock<ILabOrderRepository>();
         _mockUnitOfWork = new Mock<IUnitOfWork>();
+        _mockRuleRepository = new Mock<ICriticalAlertRuleRepository>();
+        _mockAlertRepository = new Mock<ICriticalAlertRepository>();
+        _mockCurrentUser = new Mock<ICurrentUserContext>();
+        _mockRealtimePublisher = new Mock<ICriticalAlertRealtimePublisher>();
 
         _mockRepository.Setup(r => r.UnitOfWork).Returns(_mockUnitOfWork.Object);
 
-        _handler = new RecordLabResultCommandHandler(_mockRepository.Object);
+        _mockCurrentUser.SetupGet(user => user.IsAuthenticated).Returns(false);
+        _mockRuleRepository
+            .Setup(repository => repository.ListActiveByTestCodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _mockAlertRepository
+            .Setup(repository => repository.GetCurrentForUpdateAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((CriticalAlert?)null);
+        var evaluator = new CriticalAlertEvaluator(
+            _mockRuleRepository.Object,
+            _mockAlertRepository.Object,
+            _mockCurrentUser.Object);
+        var publisher = _mockRealtimePublisher.Object;
+        _handler = new RecordLabResultCommandHandler(_mockRepository.Object, evaluator, publisher);
     }
 
     private (LabOrder order, LabTest test) CreateOrderWithCollectedTest()

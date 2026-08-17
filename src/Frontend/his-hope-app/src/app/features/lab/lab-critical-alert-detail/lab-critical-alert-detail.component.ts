@@ -8,7 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { CriticalAlert } from '@core/models/critical-alert.model';
 import { LabCriticalAlertService } from '@core/services/lab-critical-alert.service';
-import { HisHopeI18nService } from '@his-hope/frontend-foundation';
+import { HisHopeI18nService, HisHopePermissionService } from '@his-hope/frontend-foundation';
 
 @Component({
   selector: 'app-lab-critical-alert-detail',
@@ -27,8 +27,12 @@ import { HisHopeI18nService } from '@his-hope/frontend-foundation';
         <p><strong>Phiếu:</strong> {{ alert.labOrderId | slice:0:8 }}...</p>
       </mat-card-content>
       <mat-card-actions>
-        <button mat-stroked-button color="primary" (click)="acknowledge()" [disabled]="alert.status !== 'OPEN'">Ghi nhận</button>
-        <button mat-button (click)="resolve()" [disabled]="alert.status === 'RESOLVED'">Đánh dấu đã xử lý</button>
+        @if (canAcknowledge()) {
+          <button mat-stroked-button color="primary" (click)="acknowledge()" [disabled]="alert.status !== 'OPEN'">Ghi nhận</button>
+        }
+        @if (canResolve()) {
+          <button mat-button (click)="resolve()" [disabled]="alert.status === 'RESOLVED'">Đánh dấu đã xử lý</button>
+        }
       </mat-card-actions>
     </mat-card>
     }
@@ -38,8 +42,12 @@ import { HisHopeI18nService } from '@his-hope/frontend-foundation';
 export class LabCriticalAlertDetailComponent implements OnInit, OnDestroy {
   private readonly destroy$ = new Subject<void>();
   private readonly i18n = inject(HisHopeI18nService);
+  private readonly permissions = inject(HisHopePermissionService);
   alert?: CriticalAlert;
   private alertId = '';
+
+  canAcknowledge(): boolean { return this.permissions.has('lab.alert.acknowledge'); }
+  canResolve(): boolean { return this.permissions.has('lab.alert.resolve'); }
 
   constructor(
     private readonly route: ActivatedRoute,

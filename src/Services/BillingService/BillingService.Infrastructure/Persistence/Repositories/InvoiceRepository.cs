@@ -42,14 +42,28 @@ public class InvoiceRepository : IInvoiceRepository
     }
 
     public async Task<IReadOnlyList<Invoice>> GetByPatientAsync(Guid patientId, CancellationToken cancellationToken = default) =>
-        await _context.Invoices
+        await GetByPatientAsync(patientId, new HashSet<string>(StringComparer.OrdinalIgnoreCase), true, cancellationToken);
+
+    public async Task<IReadOnlyList<Invoice>> GetByPatientAsync(
+        Guid patientId, IReadOnlySet<string> facilityIds, bool crossFacility,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.Invoices
             .Include(i => i.LineItems)
             .Include(i => i.Payments)
             .AsNoTracking()
             .AsSplitQuery()
-            .Where(i => i.PatientId == patientId)
+            .Where(i => i.PatientId == patientId);
+        if (!crossFacility)
+        {
+            if (facilityIds.Count == 0) return Array.Empty<Invoice>();
+            query = query.Where(invoice => invoice.FacilityId != null && facilityIds.Contains(invoice.FacilityId));
+        }
+
+        return await query
             .OrderByDescending(i => i.InvoiceDate)
             .ToListAsync(cancellationToken);
+    }
 
     public async Task<Invoice?> GetByInvoiceNumberAsync(string invoiceNumber, CancellationToken cancellationToken = default) =>
         await _context.Invoices
@@ -64,6 +78,14 @@ public class InvoiceRepository : IInvoiceRepository
         Guid? patientId = null, string? status = null,
         DateTime? dateFrom = null, DateTime? dateTo = null,
         CancellationToken cancellationToken = default)
+        => await SearchAsync(term, page, pageSize, patientId, status, dateFrom, dateTo,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase), true, cancellationToken);
+
+    public async Task<PagedInvoiceResult> SearchAsync(
+        string term, int page, int pageSize,
+        Guid? patientId, string? status, DateTime? dateFrom, DateTime? dateTo,
+        IReadOnlySet<string> facilityIds, bool crossFacility,
+        CancellationToken cancellationToken = default)
     {
         var query = _context.Invoices
             .AsNoTracking()
@@ -71,6 +93,12 @@ public class InvoiceRepository : IInvoiceRepository
             .Include(i => i.Payments)
             .AsSplitQuery()
             .AsQueryable();
+
+        if (!crossFacility)
+        {
+            if (facilityIds.Count == 0) return new PagedInvoiceResult(Array.Empty<Invoice>(), 0);
+            query = query.Where(invoice => invoice.FacilityId != null && facilityIds.Contains(invoice.FacilityId));
+        }
 
         if (!string.IsNullOrWhiteSpace(term))
         {

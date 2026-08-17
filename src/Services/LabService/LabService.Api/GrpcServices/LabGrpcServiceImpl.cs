@@ -4,28 +4,38 @@ using Grpc.Core;
 using His.Hope.LabGrpc;
 using His.Hope.LabService.Domain.Repositories;
 using His.Hope.LabService.Domain.Entities;
+using His.Hope.LabService.Infrastructure.Persistence;
+using His.Hope.Authorization;
+using His.Hope.SharedKernel.Authorization;
 using Microsoft.AspNetCore.Authorization;
 
 namespace His.Hope.LabService.Api.GrpcServices;
 
-[Authorize]
+[Authorize(Policy = AuthorizationPolicyNames.Permissions.LabView)]
 public class LabGrpcServiceImpl : LabGrpcService.LabGrpcServiceBase
 {
     private readonly ILabOrderRepository _labOrderRepository;
     private readonly IMapper _mapper;
+    private readonly LabDbContext _db;
+    private readonly IResourceAuthorizationEvaluator _authorization;
 
     public LabGrpcServiceImpl(
         ILabOrderRepository labOrderRepository,
-        IMapper mapper)
+        IMapper mapper,
+        LabDbContext db,
+        IResourceAuthorizationEvaluator authorization)
     {
         _labOrderRepository = labOrderRepository;
         _mapper = mapper;
+        _db = db;
+        _authorization = authorization;
     }
 
     public override async Task<LabOrderResponse> GetLabOrder(LabOrderRequest request,
         ServerCallContext context)
     {
         var labOrderId = LabOrderId.From(ParseGuidOrThrow(request.Id, "Lab order id"));
+        await EnsureResourceAccessAsync(labOrderId, context);
         var labOrder = await _labOrderRepository.GetByIdAsync(labOrderId);
 
         if (labOrder is null)
@@ -40,8 +50,10 @@ public class LabGrpcServiceImpl : LabGrpcService.LabGrpcServiceBase
         var patientId = ParseGuidOrThrow(request.PatientId, "Patient id");
         var page = request.Page > 0 ? request.Page : 1;
         var pageSize = request.PageSize > 0 ? request.PageSize : 20;
+        var accessScope = FacilityAccessScope.FromPrincipal(context.GetHttpContext().User);
 
-        var allLabOrders = await _labOrderRepository.GetByPatientAsync(patientId);
+        var allLabOrders = await _labOrderRepository.GetByPatientAsync(patientId,
+            accessScope.FacilityIds, accessScope.IsCrossFacility, context.CancellationToken);
         var totalCount = allLabOrders.Count;
         var paged = allLabOrders
             .Skip((page - 1) * pageSize)
@@ -60,8 +72,24 @@ public class LabGrpcServiceImpl : LabGrpcService.LabGrpcServiceBase
         LabOrderExistsRequest request, ServerCallContext context)
     {
         var labOrderId = LabOrderId.From(ParseGuidOrThrow(request.Id, "Lab order id"));
+        await EnsureResourceAccessAsync(labOrderId, context);
         var labOrder = await _labOrderRepository.GetByIdAsync(labOrderId);
         return new LabOrderExistsResponse { Exists = labOrder is not null };
+    }
+
+    private async Task EnsureResourceAccessAsync(LabOrderId labOrderId, ServerCallContext context)
+    {
+        var decision = await _authorization.EvaluateResourceAsync(
+            _db.LabOrders,
+            order => order.Id == labOrderId,
+            order => order.FacilityId,
+            context.GetHttpContext().User,
+            HisHopePermissions.LabOrders.View,
+            "lab-order",
+            labOrderId.Value.ToString("D"),
+            context.CancellationToken);
+        if (!decision.Allowed)
+            throw new RpcException(new Status(StatusCode.NotFound, "Lab order not found"));
     }
 
     public override async Task<LabOrderListResponse> SearchLabOrders(
@@ -69,8 +97,10 @@ public class LabGrpcServiceImpl : LabGrpcService.LabGrpcServiceBase
     {
         var page = request.Page > 0 ? request.Page : 1;
         var pageSize = request.PageSize > 0 ? request.PageSize : 20;
+        var accessScope = FacilityAccessScope.FromPrincipal(context.GetHttpContext().User);
         var (items, totalCount) = await _labOrderRepository.SearchAsync(
-            request.SearchTerm, page, pageSize);
+            request.SearchTerm, page, pageSize, null, null, null, null,
+            accessScope.FacilityIds, accessScope.IsCrossFacility, context.CancellationToken);
 
         var response = new LabOrderListResponse();
         response.LabOrders.AddRange(items.Select(MapToResponse));

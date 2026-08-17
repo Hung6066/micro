@@ -127,11 +127,11 @@ public static class JwtAuthenticationExtensions
         var parameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            // TODO: Re-enable audience validation after aligning IdentityService
-            // audience with client resource requests. OpenIddict sets the audience
-            // based on the resource parameter, which may differ from the configured
-            // Jwt__Audience value.
-            ValidateAudience = false,
+            // Validate both the configured service audience and the OpenIddict
+            // resource used by service-to-service access tokens. Accepting an
+            // arbitrary audience would let a token minted for another resource
+            // cross the service boundary.
+            ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             ValidIssuer = settings.ValidIssuers is { Length: > 0 }
@@ -140,7 +140,15 @@ public static class JwtAuthenticationExtensions
             ValidIssuers = settings.ValidIssuers is { Length: > 0 }
                 ? settings.ValidIssuers
                 : null,
-            ValidAudience = settings.Audience ?? "His.Hope",
+            ValidAudiences =
+            [
+                settings.Audience ?? "His.Hope",
+                "his-hope-services",
+                // IdentityService issues human session/access tokens with
+                // the canonical product audience even when a local Compose
+                // host audience is configured for browser routing.
+                "His.Hope"
+            ],
             // The session token is a nested JWT: RSA-SHA256 signs the inner JWS,
             // while RSA-OAEP/RSA-OAEP-256 wraps the JWE content-encryption key.
             // Include both key-wrapping variants and the content algorithm so

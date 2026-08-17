@@ -9,28 +9,36 @@ namespace His.Hope.IntegrationTestBase;
 /// </summary>
 public class DatabaseFixture : IAsyncLifetime, IAsyncDisposable
 {
-    private readonly PostgreSqlContainer _container;
+    private readonly PostgreSqlContainer? _container;
+    private readonly string? _configuredConnectionString;
     private bool _disposed;
 
-    public string ConnectionString => _container.GetConnectionString();
-    public string Host => _container.Hostname;
-    public int Port => _container.GetMappedPublicPort(5432);
+    public string ConnectionString => _configuredConnectionString ?? _container!.GetConnectionString();
+    public string Host => new NpgsqlConnectionStringBuilder(ConnectionString).Host;
+    public int Port => new NpgsqlConnectionStringBuilder(ConnectionString).Port;
 
     public DatabaseFixture()
     {
-        _container = new PostgreSqlBuilder()
-            .WithImage("postgres:16-alpine")
-            .WithDatabase("hishopetest")
-            .WithUsername("testuser")
-            .WithPassword("testpass123!")
-            .WithCleanUp(true)
-            .Build();
+        _configuredConnectionString = Environment.GetEnvironmentVariable("INTEGRATION_TEST_POSTGRES_CONNECTION");
+        if (string.IsNullOrWhiteSpace(_configuredConnectionString))
+        {
+            _container = new PostgreSqlBuilder()
+                .WithImage("postgres:16-alpine")
+                .WithDatabase("hishopetest")
+                .WithUsername("testuser")
+                .WithPassword("testpass123!")
+                .WithCleanUp(true)
+                .Build();
+        }
     }
 
     public async Task InitializeAsync()
     {
-        await _container.StartAsync();
-        await WaitForHostPortAsync(_container.GetConnectionString());
+        if (_container is not null)
+        {
+            await _container.StartAsync();
+        }
+        await WaitForHostPortAsync(ConnectionString);
     }
 
     private static async Task WaitForHostPortAsync(string connectionString)
@@ -68,7 +76,8 @@ public class DatabaseFixture : IAsyncLifetime, IAsyncDisposable
         if (!_disposed)
         {
             _disposed = true;
-            await _container.DisposeAsync();
+            if (_container is not null)
+                await _container.DisposeAsync();
         }
     }
 

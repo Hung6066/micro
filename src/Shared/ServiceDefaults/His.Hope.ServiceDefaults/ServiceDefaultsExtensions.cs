@@ -86,6 +86,11 @@ public static class ServiceDefaultsExtensions
 
     public static IEndpointRouteBuilder MapHisHopeHealthEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+        {
+            Predicate = check => check.Tags.Contains("live")
+        }).AllowAnonymous();
+
         endpoints.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
         {
             Predicate = check => check.Tags.Contains("live")

@@ -1,0 +1,124 @@
+name: Longhorn Storage Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Protected target environment
+        required: true
+        type: choice
+        options: [staging, production]
+      apply:
+        description: Install Longhorn and create VolumeSnapshotClass (false is dry-run)
+        required: true
+        default: false
+        type: boolean
+      version:
+        description: Reviewed Longhorn chart version
+        required: true
+        default: 1.12.0
+        type: string
+      drill_image:
+        description: Approved shell-capable image digest used only for the isolated restore drill
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: longhorn-storage-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: azure/setup-kubectl@3e0aec4d80787158d308d7b364cb1b702e7feb7f # v4.0.0
+        with:
+          version: 'v1.35.5'
+      - uses: azure/setup-helm@29960d0f5f19214b88e1d9ba750a9914ab0f1a2f # v4.0.0
+        with:
+          version: 'v3.17.3'
+
+      - name: Materialize target kubeconfig
+        id: kubeconfig
+        shell: pwsh
+        env:
+          KUBECONFIG_STAGING_B64: ${{ secrets.KUBECONFIG_STAGING_B64 }}
+          KUBECONFIG_PRODUCTION_B64: ${{ secrets.KUBECONFIG_PRODUCTION_B64 }}
+        run: |
+          $environment = '${{ inputs.environment }}'
+          $encoded = if ($environment -eq 'production') { $env:KUBECONFIG_PRODUCTION_B64 } else { $env:KUBECONFIG_STAGING_B64 }
+          if ([string]::IsNullOrWhiteSpace($encoded)) { throw "Kubeconfig secret is missing for $environment." }
+          $path = Join-Path $env:RUNNER_TEMP "kubeconfig-$environment.yaml"
+          [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($encoded))
+          "path=$path" >> $env:GITHUB_OUTPUT
+
+      - name: Validate and prepare production storage nodes
+        if: ${{ inputs.environment == 'production' }}
+        id: storage-audit
+        shell: pwsh
+        env:
+          ANSIBLE_SSH_PRIVATE_KEY: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:ANSIBLE_SSH_PRIVATE_KEY)) {
+            throw 'ANSIBLE_SSH_PRIVATE_KEY is required for the read-only Longhorn host audit.'
+          }
+          python -m pip install --disable-pip-version-check --no-input ansible-core==2.18.6
+          $key = Join-Path $env:RUNNER_TEMP 'longhorn-storage-audit.key'
+          [IO.File]::WriteAllText($key, $env:ANSIBLE_SSH_PRIVATE_KEY, [Text.UTF8Encoding]::new($false))
+          & chmod 600 $key
+          $env:ANSIBLE_HOST_KEY_CHECKING = 'False'
+          "key=$key" >> $env:GITHUB_OUTPUT
+          $args = @('-File', './scripts/prepare-longhorn-nodes.ps1',
+            '-Environment', '${{ inputs.environment }}',
+            '-Kubeconfig', '${{ steps.kubeconfig.outputs.path }}',
+            '-Inventory', 'ansible/enterprise-k3s/inventory/production.yml',
+            '-SshKeyPath', $key)
+          if ('${{ inputs.apply }}' -eq 'true') { $args += @('-Apply', '-AllowProduction') } else { $args += '-WhatIf' }
+          & pwsh @args
+
+      - name: Verify and optionally bootstrap Longhorn
+        shell: pwsh
+        run: |
+          $args = @('-File', './scripts/bootstrap-longhorn-storage.ps1',
+            '-Environment', '${{ inputs.environment }}',
+            '-Kubeconfig', '${{ steps.kubeconfig.outputs.path }}',
+            '-Version', '${{ inputs.version }}')
+          if ('${{ inputs.environment }}' -eq 'production') { $args += '-AllowProduction' }
+          if ('${{ inputs.apply }}' -eq 'true') { $args += '-Apply' } else { $args += '-WhatIf' }
+          & pwsh @args
+
+      - name: Verify storage runtime after apply
+        if: ${{ inputs.apply == true }}
+        shell: pwsh
+        env:
+          KUBECONFIG: ${{ steps.kubeconfig.outputs.path }}
+        run: |
+          kubectl get storageclass longhorn
+          kubectl get volumesnapshotclass longhorn
+
+      - name: Run isolated CSI snapshot/restore drill
+        if: ${{ inputs.apply == true }}
+        shell: pwsh
+        run: ./scripts/test-longhorn-snapshot-restore.ps1 -Environment '${{ inputs.environment }}' -Kubeconfig '${{ steps.kubeconfig.outputs.path }}' -DrillImage '${{ inputs.drill_image }}' -OutputPath artifacts/evidence/longhorn-snapshot-restore.json
+
+      - name: Upload restore drill evidence
+        if: always() && inputs.apply == true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: longhorn-restore-drill-${{ github.run_id }}
+          path: artifacts/evidence/longhorn-snapshot-restore.json
+          if-no-files-found: error
+
+      - name: Remove kubeconfig
+        if: always()
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath '${{ steps.kubeconfig.outputs.path }}' -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath '${{ steps.storage-audit.outputs.key }}' -Force -ErrorAction SilentlyContinue

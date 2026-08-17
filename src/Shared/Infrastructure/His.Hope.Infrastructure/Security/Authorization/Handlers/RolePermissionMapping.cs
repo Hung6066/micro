@@ -22,7 +22,7 @@ public static class RolePermissionMapping
             "appointments.view", "appointments.create", "appointments.update", "appointments.cancel",
             "clinical.view", "clinical.create", "clinical.update", "clinical.sign",
             "lab.view", "lab.create",
-            "pharmacy.view", "pharmacy.create", "pharmacy.dispense",
+            "pharmacy.view", "pharmacy.create", "pharmacy.dispense", "dashboard.view",
         }.ToFrozenSet(),
 
         ["Nurse"] = new HashSet<string>
@@ -30,32 +30,33 @@ public static class RolePermissionMapping
             "patients.view", "patients.update",
             "appointments.view", "appointments.check-in",
             "clinical.view", "clinical.create", "clinical.update",
-            "lab.view",
+            "lab.view", "dashboard.view",
         }.ToFrozenSet(),
 
         ["Receptionist"] = new HashSet<string>
         {
             "patients.view", "patients.create",
             "appointments.view", "appointments.create", "appointments.check-in",
-            "billing.view", "billing.create",
+            "billing.view", "billing.create", "dashboard.view",
         }.ToFrozenSet(),
 
         ["LabTechnician"] = new HashSet<string>
         {
             "lab.view", "lab.create", "lab.update", "lab.result",
-            "patients.view",
+            "lab.alert.acknowledge", "lab.alert.resolve",
+            "patients.view", "dashboard.view",
         }.ToFrozenSet(),
 
         ["Pharmacist"] = new HashSet<string>
         {
             "pharmacy.view", "pharmacy.update", "pharmacy.dispense",
-            "patients.view",
+            "patients.view", "dashboard.view",
         }.ToFrozenSet(),
 
         ["BillingClerk"] = new HashSet<string>
         {
             "billing.view", "billing.create", "billing.update", "billing.void",
-            "patients.view",
+            "patients.view", "dashboard.view",
         }.ToFrozenSet(),
     }.ToFrozenDictionary();
 

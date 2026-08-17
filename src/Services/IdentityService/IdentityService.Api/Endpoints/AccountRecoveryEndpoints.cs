@@ -7,6 +7,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
 using StackExchange.Redis;
+using His.Hope.Contracts.Identity;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -14,7 +15,7 @@ public static class AccountRecoveryEndpoints
 {
     public static RouteGroupBuilder MapAccountRecoveryEndpoints(this RouteGroupBuilder group)
     {
-        group.MapPost("/forgot-password", async (
+        group.MapPost(IdentityApiRoutes.ForgotPasswordSegment, async (
             ForgotPasswordRequest request,
             IIdentityService identityService,
             IEmailSender emailSender,
@@ -42,7 +43,7 @@ public static class AccountRecoveryEndpoints
         .AllowAnonymous()
         .WithOpenApi();
 
-        group.MapPost("/reset-password", async (
+        group.MapPost(IdentityApiRoutes.ResetPasswordSegment, async (
             ResetPasswordRequest request,
             IIdentityService identityService,
             ILogger<Program> logger,

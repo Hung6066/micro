@@ -15,7 +15,7 @@ import {
   HIS_HOPE_LOCALIZATION_API_URL,
   hisHopeCookieSessionInterceptor,
 } from "@his-hope/frontend-foundation";
-import { RuntimeConfigService } from "../../../shared/frontend-foundation/src/lib/runtime/runtime-config.service";
+import { RuntimeConfigService } from "@his-hope/frontend-foundation";
 import { routes } from "./app.routes";
 import { authInterceptor } from "./core/services/auth-interceptor.service";
 import { environment } from "../environments/environment";

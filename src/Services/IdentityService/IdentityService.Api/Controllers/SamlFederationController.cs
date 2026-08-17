@@ -63,14 +63,18 @@ public sealed class SamlFederationController(
             response.ClaimsIdentity,
             settings.EmailClaim,
             ClaimTypes.Email,
-            "email",
-            ClaimTypes.NameIdentifier,
-            "nameidentifier",
-            "NameID");
+            "email") ?? FindClaim(response.ClaimsIdentity, ClaimTypes.NameIdentifier, "nameidentifier", "NameID");
         if (string.IsNullOrWhiteSpace(email) || !new System.ComponentModel.DataAnnotations.EmailAddressAttribute().IsValid(email))
             return Unauthorized("SAML assertion must contain a valid email claim");
 
-        var user = await userManager.FindByEmailAsync(email);
+        var subject = FindClaim(response.ClaimsIdentity, ClaimTypes.NameIdentifier, "nameidentifier", "NameID");
+        if (string.IsNullOrWhiteSpace(subject))
+            return Unauthorized("SAML assertion must contain an immutable subject");
+
+        var user = await userManager.FindByLoginAsync("Saml", subject);
+        var emailUser = user is null ? await userManager.FindByEmailAsync(email) : null;
+        if (user is null && emailUser is not null)
+            return Unauthorized("SAML account linking requires explicit enrollment");
         if (user is null)
         {
             user = new User
@@ -86,6 +90,9 @@ public sealed class SamlFederationController(
             var createResult = await userManager.CreateAsync(user);
             if (!createResult.Succeeded)
                 return Problem("Unable to provision the federated user", statusCode: StatusCodes.Status500InternalServerError);
+            var linkResult = await userManager.AddLoginAsync(user, new UserLoginInfo("Saml", subject, "SAML"));
+            if (!linkResult.Succeeded)
+                return Problem("Unable to bind the SAML identity", statusCode: StatusCodes.Status500InternalServerError);
         }
 
         if (!user.IsActive)

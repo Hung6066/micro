@@ -1,4 +1,5 @@
 using System.Text;
+using Grpc.Core;
 using Hl7.Fhir.Model;
 using Hl7.Fhir.Serialization;
 using Microsoft.AspNetCore.Authorization;
@@ -22,6 +23,13 @@ public class FhirController : ControllerBase
         AppendNewLine = false
     });
 
+    private readonly IFhirBackendClient _backend;
+
+    public FhirController(IFhirBackendClient backend)
+    {
+        _backend = backend;
+    }
+
     /// <summary>
     ///     GET /fhir/r4/metadata
     /// Returns the FHIR CapabilityStatement for this server.
@@ -40,25 +48,23 @@ public class FhirController : ControllerBase
     /// Retrieves a Patient resource by His.Hope internal identifier.
     /// </summary>
     [HttpGet("Patient/{id}")]
-    [Authorize]
+    [Authorize(Policy = "Fhir.Patient.Read")]
     public async Task<IActionResult> GetPatientById(string id)
     {
-        // STUB: Will call PatientService via gRPC in a future iteration.
-        // For now, return a sample Patient resource to demonstrate the adapter.
-
-        var patient = PatientFhirAdapter.ToFhir(
-            id: id,
-            firstName: "Hương",
-            lastName: "Nguyễn",
-            middleName: "Thị",
-            dateOfBirth: new DateTimeOffset(1985, 3, 15, 0, 0, 0, TimeSpan.Zero),
-            genderCode: "F",
-            phone: "0987654321",
-            email: "huong.nguyen@example.com",
-            isActive: true);
-
-        var json = await Serializer.SerializeToStringAsync(patient);
-        return Content(json, "application/fhir+json", Encoding.UTF8);
+        try
+        {
+            var response = await _backend.GetPatientAsync(id, ForwardCallerHeaders(), HttpContext.RequestAborted);
+            var patient = PatientFhirAdapter.ToFhir(
+                response.Id, response.FirstName, response.LastName, response.MiddleName,
+                response.DateOfBirth.ToDateTimeOffset(), response.GenderCode,
+                response.Phone, response.Email, response.IsActive);
+            var json = await Serializer.SerializeToStringAsync(patient);
+            return Content(json, "application/fhir+json", Encoding.UTF8);
+        }
+        catch (RpcException ex)
+        {
+            return MapGrpcFailure(ex);
+        }
     }
 
     /// <summary>
@@ -67,47 +73,53 @@ public class FhirController : ControllerBase
     /// Supported parameters: name (partial match), identifier, birthdate (exact).
     /// </summary>
     [HttpGet("Patient")]
-    [Authorize]
+    [Authorize(Policy = "Fhir.Patient.Read")]
     public async Task<IActionResult> SearchPatients(
         [FromQuery] string? name = null,
         [FromQuery] string? identifier = null,
         [FromQuery] string? birthdate = null)
     {
-        // STUB: Will call PatientService gRPC SearchPatients in a future iteration.
-        // For now, return a sample Bundle with one Patient entry.
-
-        var patient = PatientFhirAdapter.ToFhir(
-            id: "550e8400-e29b-41d4-a716-446655440000",
-            firstName: "Hương",
-            lastName: "Nguyễn",
-            middleName: "Thị",
-            dateOfBirth: new DateTimeOffset(1985, 3, 15, 0, 0, 0, TimeSpan.Zero),
-            genderCode: "F",
-            phone: "0987654321",
-            email: "huong.nguyen@example.com",
-            isActive: true);
-
-        var bundle = new Bundle
+        try
         {
-            Type = Bundle.BundleType.Searchset,
-            Id = Guid.NewGuid().ToString(),
-            Total = 1,
-            Entry = new List<Bundle.EntryComponent>
-            {
-                new()
+            var response = await _backend.SearchPatientsAsync(
+                new His.Hope.PatientGrpc.PatientSearchRequest
                 {
-                    FullUrl = $"{Request.Scheme}://{Request.Host}/fhir/r4/Patient/{patient.Id}",
-                    Resource = patient,
-                    Search = new Bundle.SearchComponent
-                    {
-                        Mode = Bundle.SearchEntryMode.Match
-                    }
-                }
-            }
-        };
+                    SearchTerm = name ?? identifier ?? string.Empty,
+                    Page = 1,
+                    PageSize = 100,
+                    Filters = { ["birthdate"] = birthdate ?? string.Empty }
+                },
+                headers: ForwardCallerHeaders(),
+                cancellationToken: HttpContext.RequestAborted);
 
-        var json = await Serializer.SerializeToStringAsync(bundle);
-        return Content(json, "application/fhir+json", Encoding.UTF8);
+            var entries = response.Patients.Select(item =>
+            {
+                var resource = PatientFhirAdapter.ToFhir(
+                    item.Id, item.FirstName, item.LastName, item.MiddleName,
+                    item.DateOfBirth.ToDateTimeOffset(), item.GenderCode,
+                    item.Phone, item.Email, item.IsActive);
+                return new Bundle.EntryComponent
+                {
+                    FullUrl = $"{Request.Scheme}://{Request.Host}/fhir/r4/Patient/{resource.Id}",
+                    Resource = resource,
+                    Search = new Bundle.SearchComponent { Mode = Bundle.SearchEntryMode.Match }
+                };
+            }).ToList();
+
+            var bundle = new Bundle
+            {
+                Type = Bundle.BundleType.Searchset,
+                Id = Guid.NewGuid().ToString(),
+                Total = response.TotalCount,
+                Entry = entries
+            };
+            var json = await Serializer.SerializeToStringAsync(bundle);
+            return Content(json, "application/fhir+json", Encoding.UTF8);
+        }
+        catch (RpcException ex)
+        {
+            return MapGrpcFailure(ex);
+        }
     }
 
     /// <summary>
@@ -115,22 +127,23 @@ public class FhirController : ControllerBase
     /// Retrieves an Encounter resource by His.Hope internal identifier.
     /// </summary>
     [HttpGet("Encounter/{id}")]
-    [Authorize]
+    [Authorize(Policy = "Fhir.Encounter.Read")]
     public async Task<IActionResult> GetEncounterById(string id)
     {
-        // STUB: Will call AppointmentService/ClinicalService via gRPC in a future iteration.
-
-        var encounter = EncounterFhirAdapter.ToFhir(
-            id: id,
-            patientId: "550e8400-e29b-41d4-a716-446655440000",
-            statusCode: "IN_PROGRESS",
-            classCode: "AMB",
-            className: "khám ngoại trú",
-            periodStart: new DateTimeOffset(2026, 7, 16, 8, 30, 0, TimeSpan.FromHours(7)),
-            periodEnd: null);
-
-        var json = await Serializer.SerializeToStringAsync(encounter);
-        return Content(json, "application/fhir+json", Encoding.UTF8);
+        try
+        {
+            var response = await _backend.GetEncounterAsync(id, ForwardCallerHeaders(), HttpContext.RequestAborted);
+            var encounter = EncounterFhirAdapter.ToFhir(
+                response.Id, response.PatientId, response.StatusCode,
+                response.EncounterTypeCode, response.EncounterTypeName,
+                response.EncounterDate.ToDateTimeOffset(), null);
+            var json = await Serializer.SerializeToStringAsync(encounter);
+            return Content(json, "application/fhir+json", Encoding.UTF8);
+        }
+        catch (RpcException ex)
+        {
+            return MapGrpcFailure(ex);
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -216,4 +229,32 @@ public class FhirController : ControllerBase
             }
         };
     }
+
+    private Metadata ForwardCallerHeaders()
+    {
+        var headers = new Metadata();
+        if (Request.Headers.Authorization.Count > 0)
+            headers.Add("authorization", Request.Headers.Authorization.ToString());
+        if (Request.Headers.TryGetValue("dpop", out var dpop))
+            headers.Add("dpop", dpop.ToString());
+        if (Request.Headers.TryGetValue("x-correlation-id", out var correlation))
+            headers.Add("x-correlation-id", correlation.ToString());
+        return headers;
+    }
+
+    private IActionResult MapGrpcFailure(RpcException exception) => exception.StatusCode switch
+    {
+        Grpc.Core.StatusCode.NotFound or Grpc.Core.StatusCode.PermissionDenied or Grpc.Core.StatusCode.Unauthenticated => NotFound(),
+        Grpc.Core.StatusCode.InvalidArgument => BadRequest(new OperationOutcome
+        {
+            Issue = [new OperationOutcome.IssueComponent
+            {
+                Severity = OperationOutcome.IssueSeverity.Error,
+                Code = OperationOutcome.IssueType.Invalid,
+                Diagnostics = exception.Status.Detail
+            }]
+        }),
+        Grpc.Core.StatusCode.Unavailable or Grpc.Core.StatusCode.DeadlineExceeded => base.StatusCode(503),
+        _ => base.StatusCode(502)
+    };
 }

@@ -9,7 +9,7 @@ namespace SystemDashboard.Bff.Hubs;
 /// SignalR hub for real-time alert push.
 /// Server pushes new/updated alerts via "AlertUpdate" and "AlertCleared" events.
 /// </summary>
-[Authorize(Roles = DashboardRoles.ReadOnly)]
+[Authorize(Policy = "Permission:dashboard.view")]
 public sealed class AlertHub : Hub
 {
     private readonly ILogger<AlertHub> _logger;

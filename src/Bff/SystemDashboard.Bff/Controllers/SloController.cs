@@ -8,7 +8,7 @@ namespace SystemDashboard.Bff.Controllers;
 
 [ApiController]
 [Route("api/slo")]
-[Authorize(Roles = DashboardRoles.ReadOnly)]
+[Authorize(Policy = "Permission:dashboard.view")]
 public sealed class SloController : ControllerBase
 {
     private static readonly Dictionary<string, string> ServiceDisplayNames = new(StringComparer.OrdinalIgnoreCase)

@@ -7,6 +7,7 @@ import {
   HisHopeI18nService,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
+  HisHopePermissionService,
   HisHopeStateComponent,
   HisHopeTranslatePipe,
 } from '@his-hope/frontend-foundation';
@@ -96,10 +97,10 @@ import { AdminApiService, DatabaseContinuityAuditEntry, DatabaseContinuityJob, D
               </ul>
             }
             <div class="continuity-actions">
-              <button mat-stroked-button type="button" [disabled]="actionLoading || !continuity.ready" (click)="requestBackup()">
+              <button *ngIf="canMutate" mat-stroked-button type="button" [disabled]="actionLoading || !continuity.ready" (click)="requestBackup()">
                 <mat-icon>backup</mat-icon>{{ 'admin.requestBackup' | hhTranslate:'Request backup' }}
               </button>
-              <button mat-stroked-button type="button" [disabled]="actionLoading || !continuity.ready" (click)="requestRestoreDrill()">
+              <button *ngIf="canMutate" mat-stroked-button type="button" [disabled]="actionLoading || !continuity.ready" (click)="requestRestoreDrill()">
                 <mat-icon>restore</mat-icon>{{ 'admin.restoreDrill' | hhTranslate:'Run restore drill' }}
               </button>
             </div>
@@ -175,55 +176,57 @@ import { AdminApiService, DatabaseContinuityAuditEntry, DatabaseContinuityJob, D
   `,
   styles: [`
     .platform-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-bottom:24px; }
-    .summary-card,.resource-card { border:1px solid var(--hh-border, #d4e1da); border-radius:14px; background:var(--hh-surface, #fff); padding:20px; }
+    .summary-card,.resource-card { border:1px solid var(--border-default); border-radius:var(--radius-card); background:var(--surface-white); padding:var(--space-5); }
     .summary-card { display:flex; flex-direction:column; gap:8px; }
-    .summary-label { color:var(--hh-muted, #61736b); font-size:.85rem; }
+    .summary-label { color:var(--text-muted); font-size:var(--font-size-caption); }
     .summary-card strong { font-size:1.7rem; }
     .resource-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
-    .continuity-panel { border:1px solid var(--hh-border, #d4e1da); border-radius:14px; background:var(--hh-surface, #fff); padding:20px; margin-bottom:24px; }
+    .continuity-panel { border:1px solid var(--border-default); border-radius:var(--radius-card); background:var(--surface-white); padding:var(--space-5); margin-bottom:var(--space-6); }
     .continuity-heading { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
     .continuity-heading h2 { margin:0; }
     .continuity-heading p { margin:4px 0 0; }
     .continuity-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-top:18px; }
-    .continuity-grid div { display:flex; flex-direction:column; gap:6px; padding:12px; border-radius:10px; background:var(--hh-surface-muted, #f4f8f5); }
-    .continuity-grid span { color:var(--hh-muted, #61736b); font-size:.82rem; }
-    .continuity-alerts { display:flex; align-items:flex-start; gap:10px; margin-top:16px; padding:12px 14px; border:1px solid #e8b4ad; border-radius:10px; background:#fff4f2; color:#8d2e27; }
-    .continuity-alerts mat-icon { color:#b43b31; }
+    .continuity-grid div { display:flex; flex-direction:column; gap:var(--space-2); padding:var(--space-3); border-radius:var(--radius-input); background:var(--surface-muted); }
+    .continuity-grid span { color:var(--text-muted); font-size:var(--font-size-caption); }
+    .continuity-alerts { display:flex; align-items:flex-start; gap:var(--space-2); margin-top:var(--space-4); padding:var(--space-3) var(--space-4); border:1px solid var(--color-danger); border-radius:var(--radius-input); background:var(--surface-danger); color:var(--color-danger); }
+    .continuity-alerts mat-icon { color:var(--color-danger); }
     .continuity-alerts div { display:flex; flex-direction:column; gap:3px; }
-    .configuration-errors { color:#a33a31; margin:16px 0 0; }
+    .configuration-errors { color:var(--color-danger); margin:var(--space-4) 0 0; }
     .continuity-actions { display:flex; flex-wrap:wrap; gap:12px; margin-top:18px; }
-    .job-status { margin:16px 0 0; color:var(--hh-muted, #61736b); }
-    .job-status span { margin-left:8px; font-weight:600; color:var(--hh-primary, #19734f); }
-    .job-status .job-error, .action-error { color:#a33a31; }
+    .job-status { margin:var(--space-4) 0 0; color:var(--text-muted); }
+    .job-status span { margin-left:var(--space-2); font-weight:var(--font-weight-semibold); color:var(--color-primary); }
+    .job-status .job-error, .action-error { color:var(--color-danger); }
     .action-error { margin:12px 0 0; }
-    .audit-table { margin-top:20px; border-top:1px solid var(--hh-border, #d4e1da); padding-top:18px; }
+    .audit-table { margin-top:var(--space-5); border-top:1px solid var(--border-default); padding-top:var(--space-4); }
     .audit-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
     .audit-heading h3 { margin:0; font-size:1rem; }
     .audit-heading p { margin:4px 0 0; }
-    .audit-row { display:grid; grid-template-columns:1.1fr 1fr 1fr 1.3fr 1.5fr; gap:12px; align-items:center; padding:11px 0; border-bottom:1px solid var(--hh-border, #d4e1da); font-size:.86rem; }
-    .audit-row-header { color:var(--hh-muted, #61736b); font-size:.75rem; font-weight:600; text-transform:uppercase; }
-    .audit-row small { color:var(--hh-muted, #61736b); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .audit-complete { color:#176b46; font-weight:600; }
-    .audit-failed, .audit-row em { color:#a33a31; font-style:normal; font-weight:600; }
+    .audit-row { display:grid; grid-template-columns:1.1fr 1fr 1fr 1.3fr 1.5fr; gap:var(--space-3); align-items:center; padding:var(--space-3) 0; border-bottom:1px solid var(--border-default); font-size:var(--font-size-caption); }
+    .audit-row-header { color:var(--text-muted); font-size:var(--font-size-caption); font-weight:var(--font-weight-semibold); text-transform:uppercase; }
+    .audit-row small { color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .audit-complete { color:var(--color-success); font-weight:var(--font-weight-semibold); }
+    .audit-failed, .audit-row em { color:var(--color-danger); font-style:normal; font-weight:var(--font-weight-semibold); }
     .audit-empty { padding:16px 0 0; }
     .resource-heading { display:flex; align-items:flex-start; gap:12px; }
-    .resource-heading mat-icon { color:var(--hh-primary, #19734f); }
+    .resource-heading mat-icon { color:var(--color-primary); }
     h2 { margin:0; font-size:1.05rem; }
-    p { margin:4px 0 0; color:var(--hh-muted, #61736b); }
-    .status { margin-left:auto; border-radius:999px; padding:4px 9px; font-size:.75rem; background:#fff1f0; color:#a33a31; }
-    .status-healthy { background:#e5f6ec; color:#176b46; }
+    p { margin:var(--space-1) 0 0; color:var(--text-muted); }
+    .status { margin-left:auto; border-radius:var(--radius-pill); padding:var(--space-1) var(--space-2); font-size:var(--font-size-caption); background:var(--surface-danger); color:var(--color-danger); }
+    .status-healthy { background:var(--surface-success); color:var(--color-success); }
     dl { margin:20px 0 0; display:grid; gap:8px; }
     dl div { display:flex; justify-content:space-between; gap:16px; }
-    dt { color:var(--hh-muted, #61736b); } dd { margin:0; font-weight:600; }
-    .checks { list-style:none; padding:12px 0 0; margin:12px 0 0; border-top:1px solid var(--hh-border, #d4e1da); display:grid; gap:8px; }
+    dt { color:var(--text-muted); } dd { margin:0; font-weight:var(--font-weight-semibold); }
+    .checks { list-style:none; padding:var(--space-3) 0 0; margin:var(--space-3) 0 0; border-top:1px solid var(--border-default); display:grid; gap:var(--space-2); }
     .checks li { display:flex; align-items:center; gap:8px; font-size:.85rem; }
-    .checks mat-icon { color:#a33a31; font-size:18px; height:18px; width:18px; }
-    .checks mat-icon.check-ok { color:#176b46; }
+    .checks mat-icon { color:var(--color-danger); font-size:18px; height:18px; width:18px; }
+    .checks mat-icon.check-ok { color:var(--color-success); }
     @media (max-width: 700px) { .platform-summary,.continuity-grid { grid-template-columns:1fr; } }
   `],
 })
 export class DatabasePlatformPageComponent implements OnInit {
   private readonly api = inject(AdminApiService);
+  private readonly permissions = inject(HisHopePermissionService);
+  get canMutate(): boolean { return this.permissions.has('admin.settings.write'); }
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
   databases: PlatformResource[] = [];
@@ -269,6 +272,7 @@ export class DatabasePlatformPageComponent implements OnInit {
   }
 
   requestBackup(): void {
+    if (!this.canMutate) return;
     this.actionLoading = true;
     this.actionError = null;
     this.api.requestDatabaseBackup().subscribe({
@@ -278,6 +282,7 @@ export class DatabasePlatformPageComponent implements OnInit {
   }
 
   requestRestoreDrill(): void {
+    if (!this.canMutate) return;
     if (!window.confirm(this.i18n.t('admin.restoreDrillConfirm', 'Run a restore drill in the isolated staging environment?'))) return;
     this.actionLoading = true;
     this.actionError = null;

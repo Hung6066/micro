@@ -67,6 +67,7 @@ jobs:
             '-Environment', '${{ inputs.environment }}',
             '-Kubeconfig', '${{ steps.kubeconfig.outputs.path }}',
             '-Version', 'v3.4.1',
+            '-HighAvailability',
             '-ManifestSha256', '${{ inputs.manifest_sha256 }}',
           )
           if ('${{ inputs.environment }}' -eq 'production') { $args += '-AllowProduction' }

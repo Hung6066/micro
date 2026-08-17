@@ -13,7 +13,7 @@ export type HisHopeTableStateKind = 'loading' | 'empty' | 'error';
              [attr.role]="kind() === 'error' ? 'alert' : 'status'"
              [attr.aria-live]="kind() === 'error' ? 'assertive' : 'polite'">
       @if (kind() === 'loading') {
-        <span class="hh-spinner" [attr.aria-label]="'common.loading' | hhTranslate"></span>
+        <span class="hh-spinner" aria-hidden="true"></span>
       } @else {
         <span class="material-icons hh-table-state__icon" aria-hidden="true">{{ icon() }}</span>
       }

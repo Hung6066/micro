@@ -23,7 +23,7 @@ public sealed class ResourcesController : ControllerBase
         _logger = logger;
     }
 
-    [Authorize(Roles = DashboardRoles.ReadOnly)]
+    [Authorize(Policy = "Permission:dashboard.view")]
     [HttpGet]
     public async Task<IActionResult> GetAllResources(CancellationToken ct)
     {
@@ -31,7 +31,7 @@ public sealed class ResourcesController : ControllerBase
         return Ok(resources);
     }
 
-    [Authorize(Roles = DashboardRoles.ReadOnly)]
+    [Authorize(Policy = "Permission:dashboard.view")]
     [HttpGet("{name}")]
     public async Task<IActionResult> GetResourceByName(string name, CancellationToken ct)
     {
@@ -41,7 +41,7 @@ public sealed class ResourcesController : ControllerBase
         return Ok(resource);
     }
 
-    [Authorize(Roles = DashboardRoles.Manage)]
+    [Authorize(Policy = "Permission:dashboard.manage")]
     [HttpPost("{name}/start")]
     public async Task<IActionResult> StartService(string name, CancellationToken ct)
     {
@@ -52,7 +52,7 @@ public sealed class ResourcesController : ControllerBase
         return Ok(new { message = $"Service '{name}' started" });
     }
 
-    [Authorize(Roles = DashboardRoles.Manage)]
+    [Authorize(Policy = "Permission:dashboard.manage")]
     [HttpPost("{name}/stop")]
     public async Task<IActionResult> StopService(string name, CancellationToken ct)
     {
@@ -63,7 +63,7 @@ public sealed class ResourcesController : ControllerBase
         return Ok(new { message = $"Service '{name}' stopped" });
     }
 
-    [Authorize(Roles = DashboardRoles.Manage)]
+    [Authorize(Policy = "Permission:dashboard.manage")]
     [HttpPost("{name}/restart")]
     public async Task<IActionResult> RestartService(string name, CancellationToken ct)
     {

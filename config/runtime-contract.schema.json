@@ -12,6 +12,7 @@
     "dataEndpoints",
     "resilience",
     "observability",
+    "runtimeSettings",
     "secretProvider",
     "secretReferences"
   ],
@@ -69,6 +70,22 @@
             "$ref": "#/$defs/scalarSetting"
           }
         ]
+      }
+    },
+    "runtimeSettings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "type"],
+        "properties": {
+          "key": { "type": "string", "pattern": "^[A-Z0-9_]+$" },
+          "type": { "type": "string", "enum": ["string", "csv", "integer", "boolean"] },
+          "minimum": { "type": "integer" },
+          "maximum": { "type": "integer" },
+          "allowedValues": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+        }
       }
     },
     "secretProvider": {

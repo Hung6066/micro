@@ -6,6 +6,10 @@ using His.Hope.LabGrpc;
 using His.Hope.LabService.Api.GrpcServices;
 using His.Hope.LabService.Domain.Aggregates;
 using His.Hope.LabService.Domain.Entities;
+using His.Hope.LabService.Infrastructure.Persistence;
+using His.Hope.Authorization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 using His.Hope.LabService.Domain.Repositories;
 using His.Hope.LabService.Domain.ValueObjects;
 using Moq;
@@ -16,13 +20,19 @@ public class LabGrpcContractTests
 {
     private readonly Mock<ILabOrderRepository> _mockRepo;
     private readonly Mock<IMapper> _mockMapper;
+    private readonly Mock<IResourceAuthorizationEvaluator> _authorization;
     private readonly LabGrpcServiceImpl _service;
 
     public LabGrpcContractTests()
     {
         _mockRepo = new Mock<ILabOrderRepository>();
         _mockMapper = new Mock<IMapper>();
-        _service = new LabGrpcServiceImpl(_mockRepo.Object, _mockMapper.Object);
+        var db = new LabDbContext(new DbContextOptionsBuilder<LabDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString("N")).Options);
+        _authorization = new Mock<IResourceAuthorizationEvaluator>();
+        _authorization.Setup(a => a.EvaluateAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AuthorizationDecision.Allow("lab-orders.view"));
+        _service = new LabGrpcServiceImpl(_mockRepo.Object, _mockMapper.Object, db, _authorization.Object);
     }
 
     [Fact]
@@ -69,6 +79,20 @@ public class LabGrpcContractTests
     }
 
     [Fact]
+    public async Task GetLabOrder_WhenResourceDenied_ShouldReturnNotFoundWithoutRepositoryAccess()
+    {
+        _authorization.Setup(a => a.EvaluateAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AuthorizationDecision.Deny("lab-orders.view", "facility_scope_denied"));
+
+        var act = async () => await _service.GetLabOrder(
+            new LabOrderRequest { Id = Guid.NewGuid().ToString() }, new TestServerCallContext());
+
+        var exception = await act.Should().ThrowAsync<RpcException>();
+        exception.And.StatusCode.Should().Be(StatusCode.NotFound);
+        _mockRepo.Verify(r => r.GetByIdAsync(It.IsAny<LabOrderId>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task GetLabOrder_WithEmptyId_ShouldThrowRpcException()
     {
         var request = new LabOrderRequest { Id = string.Empty };
@@ -89,7 +113,11 @@ public class LabGrpcContractTests
         };
 
         _mockRepo
-            .Setup(r => r.GetByPatientAsync(patientId, It.IsAny<CancellationToken>()))
+            .Setup(r => r.GetByPatientAsync(
+                patientId,
+                It.IsAny<IReadOnlySet<string>>(),
+                It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
             .ReturnsAsync(orders);
 
         var request = new PatientLabOrdersRequest { PatientId = patientId.ToString() };
@@ -98,6 +126,32 @@ public class LabGrpcContractTests
 
         response.LabOrders.Should().HaveCount(2);
         response.TotalCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task GetPatientLabOrders_WithoutFacilityMembership_PassesEmptyScopeFailClosed()
+    {
+        IReadOnlySet<string>? capturedFacilityIds = null;
+        var capturedCrossFacility = true;
+        _mockRepo
+            .Setup(r => r.GetByPatientAsync(
+                It.IsAny<Guid>(), It.IsAny<IReadOnlySet<string>>(), It.IsAny<bool>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<Guid, IReadOnlySet<string>, bool, CancellationToken>((_, ids, crossFacility, _) =>
+            {
+                capturedFacilityIds = ids;
+                capturedCrossFacility = crossFacility;
+            })
+            .ReturnsAsync(Array.Empty<LabOrder>());
+
+        var response = await _service.GetPatientLabOrders(
+            new PatientLabOrdersRequest { PatientId = Guid.NewGuid().ToString() },
+            new TestServerCallContext());
+
+        response.LabOrders.Should().BeEmpty();
+        capturedFacilityIds.Should().NotBeNull();
+        capturedFacilityIds.Should().BeEmpty();
+        capturedCrossFacility.Should().BeFalse();
     }
 
     [Fact]
@@ -142,6 +196,7 @@ public class LabGrpcContractTests
         _mockRepo
             .Setup(r => r.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(),
                 It.IsAny<Guid?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<DateTime?>(),
+                It.IsAny<IReadOnlySet<string>>(), It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync((orders, 2));
 
@@ -161,6 +216,7 @@ public class LabGrpcContractTests
         _mockRepo
             .Setup(r => r.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(),
                 It.IsAny<Guid?>(), It.IsAny<string?>(), It.IsAny<DateTime?>(), It.IsAny<DateTime?>(),
+                It.IsAny<IReadOnlySet<string>>(), It.IsAny<bool>(),
                 It.IsAny<CancellationToken>()))
             .ReturnsAsync((new List<LabOrder>(), 0));
 
@@ -291,6 +347,7 @@ public class TestServerCallContext : ServerCallContext
         _responseTrailers = new Metadata();
         _authContext = new AuthContext(string.Empty, new Dictionary<string, List<AuthProperty>>());
         _userState = new Dictionary<object, object>();
+        _userState["__HttpContext"] = new DefaultHttpContext();
     }
 
     protected override string MethodCore => "/his.hope.lab.LabGrpcService/TestMethod";

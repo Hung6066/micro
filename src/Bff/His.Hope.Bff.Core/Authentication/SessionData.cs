@@ -6,6 +6,8 @@ public sealed record SessionData
     public required string Jwt { get; init; }
     public string? RefreshToken { get; init; }
     public required string[] Permissions { get; init; }
+    /// <summary>Principal classification embedded in the BFF JWT.</summary>
+    public string? PrincipalType { get; init; }
     public required string CsrfToken { get; init; }
     public required string UserAgentHash { get; init; }
     public required DateTimeOffset IssuedAt { get; init; }

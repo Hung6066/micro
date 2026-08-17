@@ -28,7 +28,7 @@ public class DatabaseAuditService : IAuditService
         if (!_writer.TryWrite(entry))
         {
             _logger.LogWarning(
-                "Audit channel full — dropping oldest audit event for {ResourceType}/{ResourceId}",
+                "Audit channel is closed; audit event could not be queued for {ResourceType}/{ResourceId}",
                 entry.ResourceType, entry.ResourceId);
         }
     }

@@ -5,7 +5,9 @@ using MediatR;
 
 namespace His.Hope.LabService.Application.UseCases.LabOrders.Queries;
 
-public record GetLabOrdersByPatientQuery(Guid PatientId) : IRequest<IReadOnlyList<LabOrderDto>>;
+public record GetLabOrdersByPatientQuery(
+    Guid PatientId, IReadOnlySet<string>? FacilityIds = null, bool CrossFacility = false)
+    : IRequest<IReadOnlyList<LabOrderDto>>;
 
 public class GetLabOrdersByPatientQueryHandler : IRequestHandler<GetLabOrdersByPatientQuery, IReadOnlyList<LabOrderDto>>
 {
@@ -21,7 +23,10 @@ public class GetLabOrdersByPatientQueryHandler : IRequestHandler<GetLabOrdersByP
     public async Task<IReadOnlyList<LabOrderDto>> Handle(GetLabOrdersByPatientQuery request,
         CancellationToken cancellationToken)
     {
-        var labOrders = await _labOrderRepository.GetByPatientAsync(request.PatientId, cancellationToken);
+        var labOrders = request.FacilityIds is null
+            ? await _labOrderRepository.GetByPatientAsync(request.PatientId, cancellationToken)
+            : await _labOrderRepository.GetByPatientAsync(request.PatientId,
+                request.FacilityIds, request.CrossFacility, cancellationToken);
         return _mapper.Map<List<LabOrderDto>>(labOrders);
     }
 }

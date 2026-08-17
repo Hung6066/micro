@@ -12,6 +12,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using StackExchange.Redis;
 using His.Hope.IdentityService.Api.Services;
+using His.Hope.Contracts.Identity;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -21,9 +22,9 @@ public static class PasskeyEndpoints
 
     public static void MapPasskeyEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/v1/auth/passkeys").RequireAuthorization();
+        var group = app.MapGroup(IdentityApiRoutes.Passkeys).RequireAuthorization();
 
-        group.MapGet("/status", async (HttpContext context, IdentityDbContext db, CancellationToken ct) =>
+        group.MapGet(IdentityApiRoutes.PasskeyStatusSegment, async (HttpContext context, IdentityDbContext db, CancellationToken ct) =>
         {
             var userId = GetUserId(context);
             if (string.IsNullOrWhiteSpace(userId)) return Results.Unauthorized();
@@ -42,7 +43,7 @@ public static class PasskeyEndpoints
             });
         });
 
-        group.MapPost("/register/options", async (HttpContext context, Fido2 fido2, IConnectionMultiplexer redis) =>
+        group.MapPost(IdentityApiRoutes.PasskeyRegisterOptionsSegment, async (HttpContext context, Fido2 fido2, IConnectionMultiplexer redis) =>
         {
             var userId = GetUserId(context);
             if (string.IsNullOrWhiteSpace(userId)) return Results.Unauthorized();
@@ -60,40 +61,47 @@ public static class PasskeyEndpoints
             return Results.Ok(options);
         });
 
-        group.MapPost("/register/complete", async (HttpContext context, AuthenticatorAttestationRawResponse response, Fido2 fido2, IConnectionMultiplexer redis, IdentityDbContext db) =>
+        group.MapPost(IdentityApiRoutes.PasskeyRegisterCompleteSegment, async (HttpContext context, AuthenticatorAttestationRawResponse response, Fido2 fido2, IConnectionMultiplexer redis, IdentityDbContext db) =>
         {
             var userId = GetUserId(context);
             if (string.IsNullOrWhiteSpace(userId)) return Results.Unauthorized();
             var redisDb = redis.GetDatabase();
             var rawOptions = await redisDb.StringGetDeleteAsync(OptionsKey(userId));
             if (!rawOptions.HasValue) return Results.BadRequest(new ProblemDetails { Title = "Passkey challenge expired", Status = 400 });
-            var options = CredentialCreateOptions.FromJson(rawOptions!);
-            var result = await fido2.MakeNewCredentialAsync(new MakeNewCredentialParams
+            try
             {
-                AttestationResponse = response,
-                OriginalOptions = options,
-                IsCredentialIdUniqueToUserCallback = async (args, cancellationToken) =>
-                    !await db.PasskeyCredentials.AnyAsync(
-                        credential => credential.CredentialId == Convert.ToBase64String(args.CredentialId),
-                        cancellationToken)
-            });
-            var credentialId = Convert.ToBase64String(result.Id);
-            db.PasskeyCredentials.Add(new PasskeyCredential
+                var options = CredentialCreateOptions.FromJson(rawOptions!);
+                var result = await fido2.MakeNewCredentialAsync(new MakeNewCredentialParams
+                {
+                    AttestationResponse = response,
+                    OriginalOptions = options,
+                    IsCredentialIdUniqueToUserCallback = async (args, cancellationToken) =>
+                        !await db.PasskeyCredentials.AnyAsync(
+                            credential => credential.CredentialId == Convert.ToBase64String(args.CredentialId),
+                            cancellationToken)
+                });
+                var credentialId = Convert.ToBase64String(result.Id);
+                db.PasskeyCredentials.Add(new PasskeyCredential
+                {
+                    UserId = userId,
+                    CredentialId = credentialId,
+                    PublicKey = Convert.ToBase64String(result.PublicKey),
+                    SignatureCounter = result.SignCount
+                });
+                await db.SaveChangesAsync();
+                await redis.GetDatabase().StringSetAsync(CredentialPointerKey(userId), credentialId, flags: CommandFlags.DemandMaster);
+                return Results.Ok(new { registered = true });
+            }
+            catch (Exception)
             {
-                UserId = userId,
-                CredentialId = credentialId,
-                PublicKey = Convert.ToBase64String(result.PublicKey),
-                SignatureCounter = result.SignCount
-            });
-            await db.SaveChangesAsync();
-            await redis.GetDatabase().StringSetAsync(CredentialPointerKey(userId), credentialId, flags: CommandFlags.DemandMaster);
-            return Results.Ok(new { registered = true });
+                return Results.BadRequest(new ProblemDetails { Title = "Invalid passkey attestation", Status = 400 });
+            }
         });
 
-        var login = app.MapGroup("/api/v1/auth/passkeys")
+        var login = app.MapGroup(IdentityApiRoutes.Passkeys)
             .AllowAnonymous()
             .RequireRateLimiting("auth");
-        login.MapPost("/authenticate/options", async (PasskeyUserRequest request, Fido2 fido2, IConnectionMultiplexer redis, IdentityDbContext db, UserManager<User> users) =>
+        login.MapPost(IdentityApiRoutes.PasskeyAuthenticateOptionsSegment, async (PasskeyUserRequest request, Fido2 fido2, IConnectionMultiplexer redis, IdentityDbContext db, UserManager<User> users) =>
         {
             var requestedUserId = request.UserId;
             if (string.IsNullOrWhiteSpace(requestedUserId) && !string.IsNullOrWhiteSpace(request.UserName))
@@ -117,7 +125,7 @@ public static class PasskeyEndpoints
             return Results.Ok(new { userId = requestedUserId, options });
         });
 
-        login.MapPost("/authenticate/complete", async (PasskeyAssertionRequest request, HttpContext context, Fido2 fido2, IConnectionMultiplexer redis,
+        login.MapPost(IdentityApiRoutes.PasskeyAuthenticateCompleteSegment, async (PasskeyAssertionRequest request, HttpContext context, Fido2 fido2, IConnectionMultiplexer redis,
             UserManager<User> users, OidcLoginCompletionService completion, IdentityDbContext db) =>
         {
             var redisDb = redis.GetDatabase();
@@ -151,7 +159,7 @@ public static class PasskeyEndpoints
             });
         });
 
-        login.MapPost("/mfa/options", async (
+        login.MapPost(IdentityApiRoutes.PasskeyMfaOptionsSegment, async (
             HttpContext context,
             OidcLoginCompletionService completion,
             Fido2 fido2,
@@ -182,7 +190,7 @@ public static class PasskeyEndpoints
             return Results.Ok(new { userId, options });
         });
 
-        login.MapPost("/mfa/complete", async (
+        login.MapPost(IdentityApiRoutes.PasskeyMfaCompleteSegment, async (
             PasskeyAssertionRequest request,
             HttpContext context,
             Fido2 fido2,
@@ -202,8 +210,11 @@ public static class PasskeyEndpoints
 
             var userId = pending.UserId;
             var redisDb = redis.GetDatabase();
-            var rawOptions = await redisDb.StringGetDeleteAsync(MfaAssertionKey(pending));
-            var credentialId = await redisDb.StringGetDeleteAsync(MfaCredentialPointerKey(pending));
+            // Use a small atomic Lua GET+DEL instead of Redis GETDEL so the
+            // flow works with the minimum Redis version supported by local
+            // test/dev installations as well as Redis 6.2+.
+            var rawOptions = await GetAndDeleteAsync(redisDb, MfaAssertionKey(pending));
+            var credentialId = await GetAndDeleteAsync(redisDb, MfaCredentialPointerKey(pending));
             if (!rawOptions.HasValue || !credentialId.HasValue)
                 return Results.Unauthorized();
 
@@ -232,7 +243,7 @@ public static class PasskeyEndpoints
                 : Results.Ok(new { redirectUrl });
         });
 
-        login.MapPost("/mfa/native/start", async (
+        login.MapPost(IdentityApiRoutes.NativeMfaStartSegment, async (
             HttpContext context,
             OidcLoginCompletionService completion,
             IConnectionMultiplexer redis) =>
@@ -257,7 +268,7 @@ public static class PasskeyEndpoints
             });
         });
 
-        login.MapGet("/mfa/native/poll", async (
+        login.MapGet(IdentityApiRoutes.NativeMfaPollSegment, async (
             string ticket,
             HttpContext context,
             OidcLoginCompletionService completion,
@@ -300,7 +311,7 @@ public static class PasskeyEndpoints
                 : Results.Ok(new { status = "approved", redirectUrl });
         });
 
-        login.MapPost("/mfa/native/options", async (
+        login.MapPost(IdentityApiRoutes.NativeMfaOptionsSegment, async (
             NativeMfaTicketRequest request,
             Fido2 fido2,
             IConnectionMultiplexer redis,
@@ -335,7 +346,7 @@ public static class PasskeyEndpoints
             return Results.Ok(new { options });
         });
 
-        login.MapPost("/mfa/native/reject", async (
+        login.MapPost(IdentityApiRoutes.NativeMfaRejectSegment, async (
             NativeMfaTicketRequest request,
             IConnectionMultiplexer redis,
             OidcLoginCompletionService completion) =>
@@ -406,6 +417,14 @@ public static class PasskeyEndpoints
                 GetRemainingNativeMfaLifetime(state.CreatedAt));
             return Results.Ok(new { approved = true });
         });
+    }
+
+    private static async Task<RedisValue> GetAndDeleteAsync(IDatabase redis, RedisKey key)
+    {
+        var result = await redis.ScriptEvaluateAsync(
+            "local value = redis.call('GET', KEYS[1]); if value then redis.call('DEL', KEYS[1]); end; return value;",
+            new[] { (RedisKey)key });
+        return result.IsNull ? RedisValue.Null : (RedisValue)result;
     }
 
     private static string OptionsKey(string userId) => $"hishop:passkey:registration:{userId}";

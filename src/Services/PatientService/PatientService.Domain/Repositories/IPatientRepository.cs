@@ -10,6 +10,13 @@ public interface IPatientRepository : IRepository<Patient>
     Task<Patient?> GetByPhoneAsync(string phone, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Patient>> GetActivePatientsAsync(CancellationToken cancellationToken = default);
     Task<(IReadOnlyList<Patient> Items, int TotalCount)> SearchAsync(string searchTerm, int page, int pageSize, CancellationToken cancellationToken = default);
+    Task<(IReadOnlyList<Patient> Items, int TotalCount)> SearchAsync(
+        string searchTerm,
+        int page,
+        int pageSize,
+        IReadOnlySet<string> facilityIds,
+        bool crossFacility,
+        CancellationToken cancellationToken = default);
     Task<Patient> AddAsync(Patient patient, CancellationToken cancellationToken = default);
     Task UpdateAsync(Patient patient, CancellationToken cancellationToken = default);
     Task<bool> ExistsAsync(PatientId id, CancellationToken cancellationToken = default);

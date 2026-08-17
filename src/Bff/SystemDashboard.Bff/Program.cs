@@ -6,6 +6,7 @@ using StackExchange.Redis;
 using His.Hope.Infrastructure;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Security;
+using His.Hope.Infrastructure.Security.Authorization;
 using His.Hope.AspNetCore;
 using His.Hope.Bff.Core.Authentication;
 using His.Hope.Observability;
@@ -61,6 +62,10 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 // Shared JWT/OIDC validation and authorization defaults.
 His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(builder.Services, builder.Configuration);
+// Register the same permission catalog used by the domain services. Without
+// this, policy-decorated BFF endpoints fail at runtime with a missing-policy
+// exception instead of returning a fail-closed 401/403.
+builder.Services.AddHisHopeAuthorization();
 
 // CORS
 builder.Services.AddCors(options =>
@@ -269,9 +274,9 @@ app.UseMiddleware<DashboardAuditMiddleware>();
 
 app.MapHealthChecks("/health");
 app.MapControllers();
-app.MapHub<LogStreamHub>("/ws/logshub").RequireAuthorization();
-app.MapHub<AlertHub>("/ws/alerthub").RequireAuthorization();
-app.MapHub<MetricsHub>("/ws/metricshub").RequireAuthorization();
+app.MapHub<LogStreamHub>("/ws/logshub").RequireAuthorization("Permission:dashboard.view");
+app.MapHub<AlertHub>("/ws/alerthub").RequireAuthorization("Permission:dashboard.view");
+app.MapHub<MetricsHub>("/ws/metricshub").RequireAuthorization("Permission:dashboard.view");
 
 app.Run();
 

@@ -2,8 +2,13 @@ using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.UseCases.Users.Commands;
 using His.Hope.IdentityService.Application.UseCases.Users.Queries;
 using MediatR;
-using His.Hope.Infrastructure.Audit;
 using His.Hope.Contracts.Query;
+using His.Hope.Infrastructure.Security;
+using His.Hope.IdentityService.Application.Interfaces;
+using His.Hope.Infrastructure.Audit;
+using System.Text.Json;
+using His.Hope.IdentityService.Api.Authorization;
+using His.Hope.Contracts.Identity;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -16,7 +21,7 @@ public static class UserEndpoints
     public static RouteGroupBuilder MapUserEndpoints(this RouteGroupBuilder group)
     {
         // GET /api/v1/auth/users - Paginated user list
-        group.MapGet("/users", async (
+        group.MapGet(IdentityApiRoutes.UsersSegment, async (
             int page = 1,
             int pageSize = 20,
             string? search = null,
@@ -56,20 +61,20 @@ public static class UserEndpoints
                     isActive,
                     normalized.Sort), ct);
             return Results.Ok(result);
-        }).RequireAuthorization("Permission:admin.users.read");
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
 
         // GET /api/v1/auth/users/{id} - User detail
-        group.MapGet("/users/{id:guid}", async (
+        group.MapGet(IdentityApiRoutes.UsersSegment + "/{id:guid}", async (
             Guid id,
             IMediator mediator = null!,
             CancellationToken ct = default) =>
         {
             var user = await mediator.Send(new GetUserByIdQuery(id), ct);
             return user is null ? Results.NotFound() : Results.Ok(user);
-        }).RequireAuthorization("Permission:admin.users.read");
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
 
         // POST /api/v1/auth/users - Create user
-        group.MapPost("/users", async (
+        group.MapPost(IdentityApiRoutes.UsersSegment, async (
             CreateUserRequest request,
             IMediator mediator = null!,
             IAuditService audit = null!,
@@ -92,15 +97,16 @@ public static class UserEndpoints
             {
                 return Results.Problem(ex.Message, statusCode: 400);
             }
-        }).RequireAuthorization("Permission:admin.users.write");
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
 
         // PUT /api/v1/auth/users/{id} - Update user
-        group.MapPut("/users/{id:guid}", async (
+        group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}", async (
             Guid id,
             UpdateUserRequest request,
             IMediator mediator = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
+            ITokenBlacklistService tokenBlacklist = null!,
             CancellationToken ct = default) =>
         {
             try
@@ -110,6 +116,7 @@ public static class UserEndpoints
                     request.PhoneNumber, request.Role, request.IsActive, request.ConcurrencyToken);
 
                 var user = await mediator.Send(command, ct);
+                await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
                 await AdminAudit.LogAsync(audit, http, "UPDATE", "User", id.ToString(), ct);
                 return Results.Ok(user);
             }
@@ -121,12 +128,13 @@ public static class UserEndpoints
             {
                 return Results.Problem(ex.Message, statusCode: ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? 409 : 400);
             }
-        }).RequireAuthorization("Permission:admin.users.write");
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
 
         // PUT /api/v1/auth/users/{id}/deactivate - Soft-delete user
-        group.MapPut("/users/{id:guid}/deactivate", async (
+        group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/deactivate", async (
             Guid id,
             IMediator mediator = null!,
+            ITokenBlacklistService tokenBlacklist = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
             CancellationToken ct = default) =>
@@ -134,6 +142,7 @@ public static class UserEndpoints
             try
             {
                 await mediator.Send(new DeactivateUserCommand(id), ct);
+                await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
                 await AdminAudit.LogAsync(audit, http, "DEACTIVATE", "User", id.ToString(), ct);
                 return Results.NoContent();
             }
@@ -141,12 +150,13 @@ public static class UserEndpoints
             {
                 return Results.NotFound();
             }
-        }).RequireAuthorization("Permission:admin.users.write");
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
 
         // PUT /api/v1/auth/users/{id}/activate - Reactivate user
-        group.MapPut("/users/{id:guid}/activate", async (
+        group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/activate", async (
             Guid id,
             IMediator mediator = null!,
+            ITokenBlacklistService tokenBlacklist = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
             CancellationToken ct = default) =>
@@ -154,6 +164,7 @@ public static class UserEndpoints
             try
             {
                 await mediator.Send(new ActivateUserCommand(id), ct);
+                await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
                 await AdminAudit.LogAsync(audit, http, "ACTIVATE", "User", id.ToString(), ct);
                 return Results.NoContent();
             }
@@ -161,19 +172,33 @@ public static class UserEndpoints
             {
                 return Results.NotFound();
             }
-        }).RequireAuthorization("Permission:admin.users.write");
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
 
         // PUT /api/v1/auth/users/{id}/roles - Assign roles
-        group.MapPut("/users/{id:guid}/roles", async (
+        group.MapPut(IdentityApiRoutes.UsersSegment + "/{id:guid}/roles", async (
             Guid id,
             AssignRolesRequest request,
             IMediator mediator = null!,
+            ITokenBlacklistService tokenBlacklist = null!,
+            IApplicationDbContext db = null!,
+            IAuditService audit = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
             try
             {
+                var governanceError = await RoleGovernanceEvaluator.ValidateRoleAssignmentAsync(
+                    db, http.User, id, request.RoleIds, ct);
+                if (governanceError is not null)
+                    return Results.Problem(governanceError, statusCode: governanceError.StartsWith("FACILITY_SCOPE_DENIED", StringComparison.Ordinal) ? 403 : 400);
                 var user = await mediator.Send(
                     new AssignRolesCommand(id, request.RoleIds), ct);
+                await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
+                await AdminAudit.LogAuthorizationChangeAsync(
+                    db, http, "ROLE_ASSIGNMENT", "User", id.ToString(),
+                    "Role assignment changed through admin control plane.",
+                    null, JsonSerializer.Serialize(new { roleIds = request.RoleIds }), ct);
+                await AdminAudit.LogAsync(audit, http, "ASSIGN_ROLES", "User", id.ToString(), ct);
                 return Results.Ok(user);
             }
             catch (KeyNotFoundException)
@@ -184,7 +209,7 @@ public static class UserEndpoints
             {
                 return Results.Problem(ex.Message, statusCode: 400);
             }
-        }).RequireAuthorization("Permission:admin.roles.write");
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
 
         return group;
     }

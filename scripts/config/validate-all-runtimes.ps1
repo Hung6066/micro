@@ -8,6 +8,11 @@ function Invoke-AdapterScript([string]$Path, [string[]]$Arguments) {
     if ($LASTEXITCODE -ne 0) { throw "Adapter failed: $Path (exit $LASTEXITCODE)" }
 }
 
+Invoke-AdapterScript (Join-Path $root 'scripts\config\validate-admin-identity-capabilities.ps1') @()
+Invoke-AdapterScript (Join-Path $root 'scripts\config\validate-identity-workbench-12-parts.ps1') @()
+Invoke-AdapterScript (Join-Path $root 'scripts\config\validate-identity-workbench-naming.ps1') @()
+Invoke-AdapterScript (Join-Path $root 'scripts\config\validate-identity-live-prerequisites.ps1') @()
+
 Invoke-AdapterScript (Join-Path $root 'scripts\config\validate-runtime-contract.ps1') @('-EnvironmentFile', (Join-Path $root 'config\environments\development.env.example'), '-Runtime', 'docker', '-Strict')
 Invoke-AdapterScript (Join-Path $root 'scripts\config\validate-vm-runtime.ps1') @('-EnvironmentFile', (Join-Path $root 'deploy\vm\runtime.env.example'))
 

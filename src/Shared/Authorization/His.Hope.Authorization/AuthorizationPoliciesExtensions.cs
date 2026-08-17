@@ -10,11 +10,32 @@ public static class AuthorizationPoliciesExtensions
 {
     public static IServiceCollection AddHisHopeAuthorization(this IServiceCollection services)
     {
+        services.AddHttpContextAccessor();
+        services.AddHttpClient<OpenFgaClient>((serviceProvider, client) =>
+        {
+            var url = serviceProvider.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>()["AUTHZ_OPENFGA_URL"];
+            if (Uri.TryCreate(url, UriKind.Absolute, out var baseAddress)) client.BaseAddress = new Uri(baseAddress.ToString().TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromMilliseconds(500);
+        });
+        services.AddSingleton<IOpenFgaClient>(serviceProvider => serviceProvider.GetRequiredService<OpenFgaClient>());
+        services.AddSingleton<IAuthorizationDecisionSink, LoggingAuthorizationDecisionSink>();
+        services.AddSingleton<IAuthorizationShadowProbe, LoggingAuthorizationShadowProbe>();
+        services.AddScoped<IResourceAuthorizationEvaluator, AuthorizationEvaluator>();
+
         services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
+        services.AddSingleton<IAuthorizationHandler, ScopeHandler>();
+        services.AddSingleton<IAuthorizationHandler, PrincipalTypeHandler>();
         var builder = services.AddAuthorizationBuilder();
         builder.AddFallbackPolicy("default", new AuthorizationPolicyBuilder()
             .RequireAuthenticatedUser()
             .Build());
+
+        // Administrative APIs are human-operated surfaces.  Workload tokens
+        // must use purpose-built integration policies (for example SCIM or
+        // Continuity) rather than inheriting interactive admin permissions.
+        builder.AddPolicy(AuthorizationConstants.Policies.HumanAdmin, policy => policy
+            .RequireAuthenticatedUser()
+            .AddRequirements(new PrincipalTypeRequirement(AuthorizationConstants.PrincipalTypes.Human)));
 
         foreach (var permissionCode in HisHopePermissions.All)
         {

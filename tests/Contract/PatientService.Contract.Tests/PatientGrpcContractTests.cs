@@ -7,9 +7,13 @@ using His.Hope.PatientService.Api.GrpcServices;
 using His.Hope.PatientService.Domain.Aggregates;
 using His.Hope.PatientService.Domain.Entities;
 using His.Hope.PatientService.Domain.Repositories;
+using His.Hope.PatientService.Infrastructure.Persistence;
+using His.Hope.Authorization;
 using His.Hope.SharedKernel.Domain.Common;
 using His.Hope.SharedKernel.Domain.ValueObjects;
 using Moq;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 
 namespace His.Hope.PatientService.Contract.Tests;
 
@@ -17,13 +21,19 @@ public class PatientGrpcContractTests
 {
     private readonly Mock<IPatientRepository> _mockRepo;
     private readonly Mock<IMapper> _mockMapper;
+    private readonly Mock<IResourceAuthorizationEvaluator> _authorization;
     private readonly PatientGrpcServiceImpl _service;
 
     public PatientGrpcContractTests()
     {
         _mockRepo = new Mock<IPatientRepository>();
         _mockMapper = new Mock<IMapper>();
-        _service = new PatientGrpcServiceImpl(_mockRepo.Object, _mockMapper.Object);
+        var db = new PatientDbContext(new DbContextOptionsBuilder<PatientDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString("N")).Options);
+        _authorization = new Mock<IResourceAuthorizationEvaluator>();
+        _authorization.Setup(a => a.EvaluateAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AuthorizationDecision.Allow("patients.view"));
+        _service = new PatientGrpcServiceImpl(_mockRepo.Object, _mockMapper.Object, db, _authorization.Object);
     }
 
     [Fact]
@@ -74,6 +84,20 @@ public class PatientGrpcContractTests
     }
 
     [Fact]
+    public async Task GetPatient_WhenResourceDenied_ShouldReturnNotFoundWithoutRepositoryAccess()
+    {
+        _authorization.Setup(a => a.EvaluateAsync(It.IsAny<AuthorizationContext>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(AuthorizationDecision.Deny("patients.view", "facility_scope_denied"));
+
+        var act = async () => await _service.GetPatient(
+            new PatientRequest { Id = Guid.NewGuid().ToString() }, new TestServerCallContext());
+
+        var exception = await act.Should().ThrowAsync<RpcException>();
+        exception.And.StatusCode.Should().Be(StatusCode.NotFound);
+        _mockRepo.Verify(r => r.GetByIdAsync(It.IsAny<PatientId>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task GetPatient_WithEmptyId_ShouldThrowRpcException()
     {
         var request = new PatientRequest { Id = string.Empty };
@@ -93,7 +117,7 @@ public class PatientGrpcContractTests
         };
 
         _mockRepo
-            .Setup(r => r.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<IReadOnlySet<string>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((patients, 2));
 
         var request = new PatientSearchRequest
@@ -124,7 +148,7 @@ public class PatientGrpcContractTests
     public async Task SearchPatients_WithNoResults_ShouldReturnEmptyList()
     {
         _mockRepo
-            .Setup(r => r.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<IReadOnlySet<string>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((new List<Patient>(), 0));
 
         var request = new PatientSearchRequest { SearchTerm = "nonexistent" };
@@ -133,6 +157,27 @@ public class PatientGrpcContractTests
 
         response.Patients.Should().BeEmpty();
         response.TotalCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task SearchPatients_without_facility_membership_passes_empty_scope_fail_closed()
+    {
+        IReadOnlySet<string>? facilityIds = null;
+        var crossFacility = true;
+        _mockRepo
+            .Setup(r => r.SearchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<IReadOnlySet<string>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .Callback<string, int, int, IReadOnlySet<string>, bool, CancellationToken>((_, _, _, ids, cross, _) =>
+            {
+                facilityIds = ids;
+                crossFacility = cross;
+            })
+            .ReturnsAsync((Array.Empty<Patient>(), 0));
+
+        await _service.SearchPatients(new PatientSearchRequest { SearchTerm = "John" }, new TestServerCallContext());
+
+        facilityIds.Should().NotBeNull();
+        facilityIds.Should().BeEmpty();
+        crossFacility.Should().BeFalse();
     }
 
     [Fact]
@@ -289,6 +334,7 @@ public class TestServerCallContext : ServerCallContext
         _responseTrailers = new Metadata();
         _authContext = new AuthContext(string.Empty, new Dictionary<string, List<AuthProperty>>());
         _userState = new Dictionary<object, object>();
+        _userState["__HttpContext"] = new DefaultHttpContext();
     }
 
     protected override string MethodCore => "/his.hope.patient.PatientGrpcService/TestMethod";

@@ -19,10 +19,12 @@ public class SearchInvoicesQueryHandler : IRequestHandler<SearchInvoicesQuery, P
     public async Task<PagedResult<InvoiceDto>> Handle(SearchInvoicesQuery request,
         CancellationToken cancellationToken)
     {
-        var result = await _invoiceRepository.SearchAsync(
-            request.Term, request.Page, request.PageSize,
-            request.PatientId, request.Status, request.DateFrom, request.DateTo,
-            cancellationToken);
+        var result = request.FacilityIds is null
+            ? await _invoiceRepository.SearchAsync(request.Term, request.Page, request.PageSize,
+                request.PatientId, request.Status, request.DateFrom, request.DateTo, cancellationToken)
+            : await _invoiceRepository.SearchAsync(request.Term, request.Page, request.PageSize,
+                request.PatientId, request.Status, request.DateFrom, request.DateTo,
+                request.FacilityIds, request.CrossFacility, cancellationToken);
 
         var dtos = _mapper.Map<List<InvoiceDto>>(result.Items);
 

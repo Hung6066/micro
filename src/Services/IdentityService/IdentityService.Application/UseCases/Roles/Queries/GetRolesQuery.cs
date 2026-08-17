@@ -67,7 +67,14 @@ public class GetRolesQueryHandler : IRequestHandler<GetRolesQuery, PagedResult<R
                 rp.Permission.Description,
                 rp.Permission.IsSystem
             )).ToList(),
-            r.ConcurrencyStamp
+            r.ConcurrencyStamp,
+            r.Owner,
+            r.AuthorizationVersion,
+            r.RiskTier,
+            r.ReviewCadenceDays,
+            r.LifecycleStatus,
+            r.PublishedAt,
+            r.PublishedBy
         )).ToList();
         return new PagedResult<RoleDto>(items, totalCount, request.Page, request.PageSize);
     }

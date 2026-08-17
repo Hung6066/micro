@@ -1,6 +1,7 @@
 {
   "version": "v1",
   "requiredKeys": [
+    "AUTHZ_PDP_MODE",
     "HIS_HOPE_ENVIRONMENT",
     "HIS_HOPE_RUNTIME_CONTRACT_VERSION",
     "HIS_HOPE_PUBLIC_API_ORIGIN",
@@ -18,6 +19,7 @@
     "SERVICE_LAB_URL",
     "SERVICE_BILLING_URL",
     "SERVICE_PHARMACY_URL",
+    "SERVICE_FHIR_GATEWAY_URL",
     "SERVICE_DASHBOARD_BFF_URL",
     "SERVICE_DATABASE_CONTINUITY_URL",
     "DATABASE_POSTGRES_URL",
@@ -41,7 +43,23 @@
     "SECRET_REDIS_PASSWORD",
     "SECRET_REDIS_PASSWORD_REF",
     "SECRET_OIDC_CLIENT_SECRET",
-    "SECRET_OIDC_CLIENT_SECRET_REF"
+    "SECRET_OIDC_CLIENT_SECRET_REF",
+    "DEVICE_POSTURE_MODE",
+    "DEVICE_POSTURE_PROVIDERS",
+    "DEVICE_POSTURE_TTL_SECONDS",
+    "DEVICE_POSTURE_ENFORCE_CLINICAL",
+    "PASSWORD_HISTORY_ENABLED",
+    "PASSWORD_HISTORY_COUNT",
+    "AUDIT_APPEND_ONLY",
+    "AUDIT_REDACTION_ENABLED",
+    "EXTERNAL_FEDERATION_ENABLED",
+    "SCIM_M2M_ENABLED",
+    "PROVISIONING_MODE",
+    "PROVISIONING_TARGETS",
+    "SSF_ENABLED",
+    "MTLS_ENABLED",
+    "RADIUS_EAP_TLS_ENABLED",
+    "CSV_EXPORT_ENABLED"
   ],
   "publicOrigins": [
     {
@@ -207,7 +225,7 @@
       "runtimes": {
         "docker": {
           "host": "identityservice",
-          "port": 5001
+          "port": 5003
         },
         "vm": {
           "host": "identity.internal.staging.his-hope.example",
@@ -364,9 +382,9 @@
       }
     },
     {
-      "key": "SERVICE_DASHBOARD_BFF_URL",
+      "key": "SERVICE_FHIR_GATEWAY_URL",
       "kind": "service-url",
-      "logicalName": "systemdashboard-bff",
+      "logicalName": "fhir-gateway",
       "uriSchemes": [
         "http"
       ],
@@ -374,8 +392,32 @@
       "allowLocalhostInProduction": false,
       "runtimes": {
         "docker": {
-          "host": "systemdashboard-bff",
-          "port": 5700
+          "host": "fhir-gateway",
+          "port": 5040
+        },
+        "vm": {
+          "host": "fhir.internal.staging.his-hope.example",
+          "port": 5040
+        },
+        "kubernetes": {
+          "host": "fhir-gateway.his-hope.svc.cluster.local",
+          "port": 5040
+        }
+      }
+    },
+    {
+      "key": "SERVICE_DASHBOARD_BFF_URL",
+      "kind": "service-url",
+      "logicalName": "dashboard-bff",
+      "uriSchemes": [
+        "http"
+      ],
+      "strictRuntimeMatch": true,
+      "allowLocalhostInProduction": false,
+      "runtimes": {
+        "docker": {
+          "host": "dashboard-bff",
+          "port": 5600
         },
         "vm": {
           "host": "dashboard.internal.staging.his-hope.example",
@@ -639,6 +681,25 @@
         "kubernetes": { "host": "alertmanager.monitoring.svc.cluster.local", "port": 9093 }
       }
     }
+  ],
+  "runtimeSettings": [
+    { "key": "AUTHZ_PDP_MODE", "type": "string", "allowedValues": ["disabled", "shadow", "canary"] },
+    { "key": "DEVICE_POSTURE_MODE", "type": "string", "allowedValues": ["observe", "stepup", "deny"] },
+    { "key": "DEVICE_POSTURE_PROVIDERS", "type": "csv", "allowedValues": ["chrome-enterprise", "advanced-compliance", "windows-local-login"] },
+    { "key": "DEVICE_POSTURE_TTL_SECONDS", "type": "integer", "minimum": 60, "maximum": 3600 },
+    { "key": "DEVICE_POSTURE_ENFORCE_CLINICAL", "type": "boolean", "allowedValues": ["false"] },
+    { "key": "PASSWORD_HISTORY_ENABLED", "type": "boolean", "allowedValues": ["true"] },
+    { "key": "PASSWORD_HISTORY_COUNT", "type": "integer", "minimum": 1, "maximum": 20 },
+    { "key": "AUDIT_APPEND_ONLY", "type": "boolean", "allowedValues": ["true"] },
+    { "key": "AUDIT_REDACTION_ENABLED", "type": "boolean", "allowedValues": ["true"] },
+    { "key": "EXTERNAL_FEDERATION_ENABLED", "type": "boolean" },
+    { "key": "SCIM_M2M_ENABLED", "type": "boolean", "allowedValues": ["true"] },
+    { "key": "PROVISIONING_MODE", "type": "string", "allowedValues": ["disabled", "dry-run", "enabled"] },
+    { "key": "PROVISIONING_TARGETS", "type": "csv", "allowedValues": ["scim", "entra", "google-workspace"] },
+    { "key": "SSF_ENABLED", "type": "boolean" },
+    { "key": "MTLS_ENABLED", "type": "boolean" },
+    { "key": "RADIUS_EAP_TLS_ENABLED", "type": "boolean" },
+    { "key": "CSV_EXPORT_ENABLED", "type": "boolean", "allowedValues": ["true"] }
   ],
   "secretProvider": {
     "providerKey": "HIS_HOPE_SECRET_PROVIDER",

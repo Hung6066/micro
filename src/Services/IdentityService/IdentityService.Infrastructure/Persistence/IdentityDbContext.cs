@@ -16,6 +16,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<UserMfa> UserMfas => Set<UserMfa>();
     public DbSet<SecurityEvent> SecurityEvents => Set<SecurityEvent>();
+    public DbSet<SecuritySignalOutbox> SecuritySignalOutbox => Set<SecuritySignalOutbox>();
     public DbSet<ClientConsent> ClientConsents => Set<ClientConsent>();
     public DbSet<TableView> TableViews => Set<TableView>();
     public DbSet<MobileDeviceRegistration> MobileDeviceRegistrations => Set<MobileDeviceRegistration>();
@@ -25,8 +26,28 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<InAppNotification> InAppNotifications => Set<InAppNotification>();
     public DbSet<PushDeliveryAttempt> PushDeliveryAttempts => Set<PushDeliveryAttempt>();
     public DbSet<UserFacility> UserFacilities => Set<UserFacility>();
+    public DbSet<BreakGlassRequest> BreakGlassRequests => Set<BreakGlassRequest>();
+    public DbSet<AccessRequest> AccessRequests => Set<AccessRequest>();
+    public DbSet<AccessReview> AccessReviews => Set<AccessReview>();
+    public DbSet<RoleTemplateVersion> RoleTemplateVersions => Set<RoleTemplateVersion>();
+    public DbSet<AuthorizationPolicyDefinition> AuthorizationPolicies => Set<AuthorizationPolicyDefinition>();
+    public DbSet<UserPasswordHistory> UserPasswordHistories => Set<UserPasswordHistory>();
+    public DbSet<UserClientCertificate> UserClientCertificates => Set<UserClientCertificate>();
+    public DbSet<DirectoryProvisioningOutbox> DirectoryProvisioningOutbox => Set<DirectoryProvisioningOutbox>();
+    public DbSet<DirectoryProvisioningBinding> DirectoryProvisioningBindings => Set<DirectoryProvisioningBinding>();
     public DbSet<LocalizationResource> LocalizationResources => Set<LocalizationResource>();
     public DbSet<LocalizationTranslation> LocalizationTranslations => Set<LocalizationTranslation>();
+    public DbSet<DevicePostureAssessment> DevicePostureAssessments => Set<DevicePostureAssessment>();
+    public DbSet<DevicePosturePolicy> DevicePosturePolicies => Set<DevicePosturePolicy>();
+    public DbSet<IamScope> IamScopes => Set<IamScope>();
+    public DbSet<IamServiceDefinition> IamServiceDefinitions => Set<IamServiceDefinition>();
+    public DbSet<IamPermissionSet> IamPermissionSets => Set<IamPermissionSet>();
+    public DbSet<IamPermissionSetAssignment> IamPermissionSetAssignments => Set<IamPermissionSetAssignment>();
+    public DbSet<IamWorkloadRole> IamWorkloadRoles => Set<IamWorkloadRole>();
+    public DbSet<IamPermissionBoundary> IamPermissionBoundaries => Set<IamPermissionBoundary>();
+    public DbSet<IamResourcePolicy> IamResourcePolicies => Set<IamResourcePolicy>();
+    public DbSet<IamGroup> IamGroups => Set<IamGroup>();
+    public DbSet<IamGroupMembership> IamGroupMemberships => Set<IamGroupMembership>();
 
     // OpenIddict entity sets — need BOTH non-generic (store uses these) and generic <Guid> (EF model)
     // Non-generic sets are for OpenIddict 5.7.0 EF Core store access
@@ -37,9 +58,112 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
 
     public IdentityDbContext(DbContextOptions<IdentityDbContext> options) : base(options) { }
 
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        RejectAuditMutation();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        RejectAuditMutation();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void RejectAuditMutation()
+    {
+        var mutation = ChangeTracker.Entries<AuditLog>()
+            .FirstOrDefault(entry => entry.State is EntityState.Modified or EntityState.Deleted);
+        if (mutation is not null)
+            throw new InvalidOperationException("Audit logs are append-only and cannot be modified or deleted.");
+    }
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        builder.Entity<IamScope>(entity =>
+        {
+            entity.ToTable(IdentityWorkbenchTableNames.Scopes); entity.HasKey(x => x.Id);
+            entity.Property(x => x.Key).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Kind).HasMaxLength(32).IsRequired();
+            entity.HasIndex(x => new { x.Kind, x.Key }).IsUnique();
+            entity.HasIndex(x => x.ParentId);
+        });
+        builder.Entity<IamServiceDefinition>(entity =>
+        {
+            entity.ToTable(IdentityWorkbenchTableNames.Services); entity.HasKey(x => x.Id);
+            entity.Property(x => x.Key).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.PermissionPrefix).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.Owner).HasMaxLength(128).IsRequired();
+            entity.HasIndex(x => x.Key).IsUnique();
+        });
+        builder.Entity<IamPermissionSet>(entity =>
+        {
+            entity.ToTable(IdentityWorkbenchTableNames.PermissionSets); entity.HasKey(x => x.Id);
+            entity.Property(x => x.Key).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.PermissionsJson).HasMaxLength(16000).IsRequired();
+            entity.Property(x => x.LifecycleStatus).HasMaxLength(32).IsRequired();
+            entity.HasIndex(x => new { x.ScopeId, x.Key }).IsUnique();
+            entity.HasOne<IamScope>().WithMany().HasForeignKey(x => x.ScopeId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<IamPermissionSetAssignment>(entity =>
+        {
+            entity.ToTable(IdentityWorkbenchTableNames.Assignments); entity.HasKey(x => x.Id);
+            entity.Property(x => x.PrincipalType).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(32).IsRequired();
+            entity.HasIndex(x => new { x.PrincipalId, x.ScopeId, x.Status });
+            entity.HasIndex(x => new { x.PermissionSetId, x.PrincipalId, x.ScopeId }).IsUnique();
+            entity.HasOne<IamPermissionSet>().WithMany().HasForeignKey(x => x.PermissionSetId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<IamScope>().WithMany().HasForeignKey(x => x.ScopeId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<IamWorkloadRole>(entity =>
+        {
+            entity.ToTable(IdentityWorkbenchTableNames.WorkloadRoles); entity.HasKey(x => x.Id);
+            entity.Property(x => x.Key).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Audience).HasMaxLength(256).IsRequired();
+            entity.Property(x => x.TrustPolicyJson).HasMaxLength(16000).IsRequired();
+            entity.Property(x => x.PermissionsJson).HasMaxLength(16000).IsRequired();
+            entity.HasIndex(x => new { x.ScopeId, x.Key }).IsUnique();
+            entity.HasOne<IamScope>().WithMany().HasForeignKey(x => x.ScopeId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<IamPermissionBoundary>(entity =>
+        {
+            entity.ToTable(IdentityWorkbenchTableNames.Boundaries); entity.HasKey(x => x.Id);
+            entity.Property(x => x.PrincipalType).HasMaxLength(32).IsRequired();
+            entity.Property(x => x.AllowedPermissionsJson).HasMaxLength(16000).IsRequired();
+            entity.Property(x => x.ResourceConstraintsJson).HasMaxLength(16000).IsRequired();
+            entity.HasIndex(x => new { x.PrincipalId, x.PrincipalType, x.ScopeId }).IsUnique();
+            entity.HasOne<IamScope>().WithMany().HasForeignKey(x => x.ScopeId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<IamResourcePolicy>(entity =>
+        {
+            entity.ToTable(IdentityWorkbenchTableNames.ResourcePolicies); entity.HasKey(x => x.Id);
+            entity.Property(x => x.ServiceKey).HasMaxLength(128).IsRequired();
+            entity.Property(x => x.ResourcePattern).HasMaxLength(512).IsRequired();
+            entity.Property(x => x.StatementsJson).HasMaxLength(32000).IsRequired();
+            entity.Property(x => x.LifecycleStatus).HasMaxLength(32).IsRequired();
+            entity.HasIndex(x => new { x.ScopeId, x.ServiceKey, x.ResourcePattern }).IsUnique();
+            entity.HasOne<IamScope>().WithMany().HasForeignKey(x => x.ScopeId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<IamGroup>(entity =>
+        {
+            entity.ToTable(IdentityWorkbenchTableNames.Groups); entity.HasKey(x => x.Id);
+            entity.Property(x => x.Key).HasMaxLength(128).IsRequired(); entity.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
+            entity.HasIndex(x => new { x.ScopeId, x.Key }).IsUnique();
+            entity.HasOne<IamScope>().WithMany().HasForeignKey(x => x.ScopeId).OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<IamGroupMembership>(entity =>
+        {
+            entity.ToTable(IdentityWorkbenchTableNames.GroupMemberships); entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.GroupId, x.UserId }).IsUnique();
+            entity.HasOne<IamGroup>().WithMany().HasForeignKey(x => x.GroupId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
 
         // ──────────────────────────────────────────────
         // ASP.NET Identity table names (snake_case)
@@ -89,8 +213,94 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
                 .WithOne(membership => membership.User)
                 .HasForeignKey(membership => membership.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
-            // TODO: Enable after running migration to add previous_password_hashes column
-            // entity.Property(u => u.PreviousPasswordHashes);
+        });
+
+        builder.Entity<UserPasswordHistory>(entity =>
+        {
+            entity.ToTable("user_password_history");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.PasswordHash).HasMaxLength(512).IsRequired();
+            entity.Property(item => item.ChangedAt).IsRequired();
+            entity.HasIndex(item => new { item.UserId, item.ChangedAt });
+            entity.HasOne(item => item.User)
+                .WithMany(user => user.PasswordHistory)
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<SecuritySignalOutbox>(entity =>
+        {
+            entity.ToTable("security_signal_outbox");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.EventType).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.Subject).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.PayloadJson).HasMaxLength(16000).IsRequired();
+            entity.Property(item => item.LastError).HasMaxLength(2000);
+            entity.HasIndex(item => new { item.DispatchedAt, item.AvailableAt });
+        });
+
+        builder.Entity<UserClientCertificate>(entity =>
+        {
+            entity.ToTable("user_client_certificates");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Thumbprint).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.Subject).HasMaxLength(500);
+            entity.HasIndex(item => new { item.Thumbprint, item.RevokedAt });
+            entity.HasOne(item => item.User).WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<DirectoryProvisioningOutbox>(entity =>
+        {
+            entity.ToTable("directory_provisioning_outbox");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Target).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.Operation).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.ResourceType).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.ResourceId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.PayloadJson).HasMaxLength(16000).IsRequired();
+            entity.Property(item => item.ExternalId).HasMaxLength(512);
+            entity.Property(item => item.LastError).HasMaxLength(2000);
+            entity.HasIndex(item => new { item.Target, item.CompletedAt, item.AvailableAt });
+            entity.HasIndex(item => new { item.Target, item.Operation, item.ResourceType, item.ResourceId, item.CreatedAt });
+        });
+        builder.Entity<DirectoryProvisioningBinding>(entity =>
+        {
+            entity.ToTable("directory_provisioning_bindings");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Target).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.ResourceType).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.ResourceId).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.ExternalId).HasMaxLength(512).IsRequired();
+            entity.HasIndex(item => new { item.Target, item.ResourceType, item.ResourceId }).IsUnique();
+            entity.HasIndex(item => new { item.Target, item.ResourceType, item.ExternalId }).IsUnique();
+        });
+
+        builder.Entity<DevicePostureAssessment>(entity =>
+        {
+            entity.ToTable("device_posture_assessments");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.DeviceId).HasMaxLength(256).IsRequired();
+            entity.Property(item => item.Provider).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.EvidenceHash).HasMaxLength(64).IsRequired();
+            entity.Property(item => item.SignalsJson).HasMaxLength(4000).IsRequired();
+            entity.Property(item => item.PolicyVersion).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.Decision).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.CorrelationId).HasMaxLength(128);
+            entity.HasIndex(item => new { item.UserId, item.DeviceId, item.ExpiresAt });
+            entity.HasIndex(item => new { item.Provider, item.EvidenceHash }).IsUnique();
+            entity.HasOne<User>().WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<DevicePosturePolicy>(entity =>
+        {
+            entity.ToTable("device_posture_policies");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).HasMaxLength(32);
+            entity.Property(item => item.Mode).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.ProvidersJson).HasMaxLength(2000).IsRequired();
+            entity.Property(item => item.RequiredSignalsJson).HasMaxLength(2000).IsRequired();
+            entity.Property(item => item.Version).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.UpdatedBy).HasMaxLength(256);
         });
 
         builder.Entity<UserFacility>(entity =>
@@ -118,12 +328,52 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(r => r.ConcurrencyStamp);
             entity.Property(r => r.Description).HasMaxLength(500);
             entity.Property(r => r.IsSystem).IsRequired().HasDefaultValue(false);
+            entity.Property(r => r.Owner).HasMaxLength(128).IsRequired().HasDefaultValue("identity-service");
+            entity.Property(r => r.AuthorizationVersion).IsRequired().HasDefaultValue(1);
+            entity.Property(r => r.RiskTier).HasMaxLength(16).IsRequired().HasDefaultValue("standard");
+            entity.Property(r => r.ReviewCadenceDays).IsRequired().HasDefaultValue(180);
+            entity.Property(r => r.LifecycleStatus).HasMaxLength(16).IsRequired().HasDefaultValue("active");
+            entity.Property(r => r.PublishedBy).HasMaxLength(256);
             entity.Property(r => r.CreatedAt).IsRequired();
 
             entity.HasMany(r => r.RolePermissions)
                   .WithOne(rp => rp.Role)
                   .HasForeignKey(rp => rp.RoleId)
                   .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(r => r.TemplateVersions)
+                  .WithOne(v => v.Role)
+                  .HasForeignKey(v => v.RoleId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<RoleTemplateVersion>(entity =>
+        {
+            entity.ToTable("role_template_versions");
+            entity.HasKey(v => v.Id);
+            entity.Property(v => v.Name).HasMaxLength(256).IsRequired();
+            entity.Property(v => v.Description).HasMaxLength(500);
+            entity.Property(v => v.Owner).HasMaxLength(128).IsRequired();
+            entity.Property(v => v.RiskTier).HasMaxLength(16).IsRequired();
+            entity.Property(v => v.LifecycleStatus).HasMaxLength(16).IsRequired();
+            entity.Property(v => v.PermissionsJson).HasMaxLength(10000).IsRequired();
+            entity.Property(v => v.CreatedBy).HasMaxLength(256);
+            entity.Property(v => v.PublishedBy).HasMaxLength(256);
+            entity.HasIndex(v => new { v.RoleId, v.Version }).IsUnique();
+        });
+
+        builder.Entity<AuthorizationPolicyDefinition>(entity =>
+        {
+            entity.ToTable("authorization_policy_definitions");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Key).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.Description).HasMaxLength(1000).IsRequired();
+            entity.Property(item => item.Owner).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.LifecycleStatus).HasMaxLength(16).IsRequired();
+            entity.Property(item => item.RulesJson).HasMaxLength(12000).IsRequired();
+            entity.Property(item => item.CreatedBy).HasMaxLength(256);
+            entity.Property(item => item.PublishedBy).HasMaxLength(256);
+            entity.HasIndex(item => new { item.Key, item.Version }).IsUnique();
         });
 
         // ──────────────────────────────────────────────
@@ -198,12 +448,18 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(al => al.Details).HasMaxLength(2000);
             entity.Property(al => al.IpAddress).HasMaxLength(50);
             entity.Property(al => al.UserAgent).HasMaxLength(500);
+            entity.Property(al => al.CorrelationId).HasMaxLength(128);
+            entity.Property(al => al.Outcome).HasMaxLength(32);
+            entity.Property(al => al.BeforeJson).HasMaxLength(8000);
+            entity.Property(al => al.AfterJson).HasMaxLength(8000);
+            entity.Property(al => al.Source).HasMaxLength(64);
             entity.Property(al => al.Timestamp).IsRequired();
 
             entity.HasIndex(al => al.UserId);
             entity.HasIndex(al => al.ResourceType);
             entity.HasIndex(al => al.Action);
             entity.HasIndex(al => al.Timestamp);
+            entity.HasIndex(al => al.CorrelationId);
         });
 
         // ──────────────────────────────────────────────
@@ -343,6 +599,45 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(item => item.LastError).HasMaxLength(2000);
             entity.HasIndex(item => new { item.ProcessedAt, item.AvailableAt });
             entity.HasIndex(item => item.UserId);
+        });
+
+        builder.Entity<BreakGlassRequest>(entity =>
+        {
+            entity.ToTable("break_glass_requests");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.PermissionCode).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.ResourceType).HasMaxLength(128);
+            entity.Property(item => item.ResourceId).HasMaxLength(256);
+            entity.Property(item => item.FacilityId).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(2000).IsRequired();
+            entity.Property(item => item.Status).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.RequestedBy).HasMaxLength(256).IsRequired();
+            entity.Property(item => item.ApprovedBy).HasMaxLength(256);
+            entity.HasIndex(item => new { item.SubjectUserId, item.Status, item.ExpiresAt });
+            entity.HasIndex(item => new { item.FacilityId, item.Status, item.ExpiresAt });
+        });
+
+        builder.Entity<AccessRequest>(entity =>
+        {
+            entity.ToTable("access_requests");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.RequestedBy).HasMaxLength(256).IsRequired();
+            entity.Property(item => item.RoleIdsJson).HasMaxLength(4000).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(2000).IsRequired();
+            entity.Property(item => item.Status).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.ApprovedBy).HasMaxLength(256);
+            entity.HasIndex(item => new { item.SubjectUserId, item.Status, item.ExpiresAt });
+        });
+
+        builder.Entity<AccessReview>(entity =>
+        {
+            entity.ToTable("access_reviews");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Reviewer).HasMaxLength(256).IsRequired();
+            entity.Property(item => item.RoleIdsJson).HasMaxLength(4000).IsRequired();
+            entity.Property(item => item.Status).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.DecisionReason).HasMaxLength(2000);
+            entity.HasIndex(item => new { item.SubjectUserId, item.Status, item.DueAt });
         });
 
         builder.Entity<InAppNotification>(entity =>

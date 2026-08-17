@@ -23,10 +23,23 @@ public class MedicationRepository : IMedicationRepository
         string searchTerm, int page, int pageSize,
         string? category = null,
         CancellationToken cancellationToken = default)
+        => await SearchAsync(searchTerm, page, pageSize, category,
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase), true, cancellationToken);
+
+    public async Task<(IReadOnlyList<Medication> Items, int TotalCount)> SearchAsync(
+        string searchTerm, int page, int pageSize, string? category,
+        IReadOnlySet<string> facilityIds, bool crossFacility,
+        CancellationToken cancellationToken = default)
     {
         var query = _context.Medications
             .AsNoTracking()
             .Where(m => m.IsActive);
+
+        if (!crossFacility)
+        {
+            if (facilityIds.Count == 0) return (Array.Empty<Medication>(), 0);
+            query = query.Where(medication => medication.FacilityId != null && facilityIds.Contains(medication.FacilityId));
+        }
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {

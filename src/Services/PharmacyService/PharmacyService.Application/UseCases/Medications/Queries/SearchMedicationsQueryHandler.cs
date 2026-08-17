@@ -19,8 +19,13 @@ public class SearchMedicationsQueryHandler : IRequestHandler<SearchMedicationsQu
     public async Task<PagedResult<MedicationDto>> Handle(SearchMedicationsQuery request,
         CancellationToken cancellationToken)
     {
-        var (items, totalCount) = await _medicationRepository.SearchAsync(
-            request.SearchTerm, request.Page, request.PageSize, request.Category, cancellationToken);
+        var result = request.FacilityIds is null
+            ? await _medicationRepository.SearchAsync(
+                request.SearchTerm, request.Page, request.PageSize, request.Category, cancellationToken)
+            : await _medicationRepository.SearchAsync(
+                request.SearchTerm, request.Page, request.PageSize, request.Category,
+                request.FacilityIds, request.CrossFacility, cancellationToken);
+        var (items, totalCount) = result;
 
         var dtos = _mapper.Map<List<MedicationDto>>(items);
 

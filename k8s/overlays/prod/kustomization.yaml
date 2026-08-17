@@ -34,6 +34,12 @@ resources:
   - ../../policies/namespace-security-exceptions.yaml
 
 patches:
+  - path: migration-resource-fit.json
+    target:
+      group: batch
+      version: v1
+      kind: Job
+      labelSelector: "his-hope.io/operation=database-migration"
   - path: release-metadata-env-patch.yaml
     target:
       group: apps
@@ -421,6 +427,21 @@ patches:
       version: v1
       kind: Deployment
       name: identity-service
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: identity-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: identity-service-secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: identity-service-secrets
 
 patchesStrategicMerge:
   - runtime-data-plane-patch.yaml
@@ -446,6 +467,7 @@ patchesStrategicMerge:
   - api-gateway-health-probe-patch.yaml
   - redis-tls-runtime-patch.yaml
   - workload-spiffe-patches.yaml
+  - workload-readonly-root-patches.yaml
   - database-continuity-storage-patch.yaml
   - k3s-local-capacity-patch.yaml
 

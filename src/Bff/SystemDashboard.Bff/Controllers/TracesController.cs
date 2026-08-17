@@ -8,7 +8,7 @@ namespace SystemDashboard.Bff.Controllers;
 
 [ApiController]
 [Route("api/traces")]
-[Authorize(Roles = DashboardRoles.ReadOnly)]
+[Authorize(Policy = "Permission:dashboard.view")]
 public sealed class TracesController : ControllerBase
 {
     private readonly ITracesAggregator _tracesAggregator;
