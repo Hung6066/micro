@@ -17,15 +17,15 @@ import { BehaviorSubject, Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { TracesService } from '../../core/services/traces.service';
 import { TraceDetail, TraceSpan } from '../../core/models/trace.model';
+import { HisHopeResourceState } from '@his-hope/frontend-foundation/query';
 import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopePageSectionComponent,
   HisHopeStateComponent,
-  HisHopeResourceState,
   HisHopeStatusBadgeComponent,
-  HisHopeTranslatePipe,
-} from '@his-hope/frontend-foundation';
+} from '@his-hope/frontend-foundation/ui';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
 
 interface ExpandedSpan {
   [spanId: string]: boolean;

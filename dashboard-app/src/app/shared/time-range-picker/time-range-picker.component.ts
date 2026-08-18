@@ -1,4 +1,9 @@
-import { Component, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
+import {
+  Component,
+  Output,
+  EventEmitter,
+  ChangeDetectionStrategy,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -7,7 +12,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatIconModule } from '@angular/material/icon';
 import { provideNativeDateAdapter } from '@angular/material/core';
-import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
 
 export interface TimeRange {
   from: Date;
@@ -101,7 +106,8 @@ const PRESETS: PresetOption[] = [
             size="small"
             class="preset-btn"
             [class.active]="activePreset === preset.value"
-            (click)="selectPreset(preset)">
+            (click)="selectPreset(preset)"
+          >
             {{ preset.label }}
           </button>
         }
@@ -110,26 +116,36 @@ const PRESETS: PresetOption[] = [
       @if (showCustom) {
         <div class="custom-range">
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>{{ 'dashboard.timeRange.from' | hhTranslate:'From' }}</mat-label>
+            <mat-label>{{
+              'dashboard.timeRange.from' | hhTranslate: 'From'
+            }}</mat-label>
             <input
               matInput
               [matDatepicker]="fromPicker"
               [(ngModel)]="customFrom"
               (ngModelChange)="onCustomChange()"
             />
-            <mat-datepicker-toggle matSuffix [for]="fromPicker"></mat-datepicker-toggle>
+            <mat-datepicker-toggle
+              matSuffix
+              [for]="fromPicker"
+            ></mat-datepicker-toggle>
             <mat-datepicker #fromPicker></mat-datepicker>
           </mat-form-field>
 
           <mat-form-field appearance="outline" subscriptSizing="dynamic">
-            <mat-label>{{ 'dashboard.timeRange.to' | hhTranslate:'To' }}</mat-label>
+            <mat-label>{{
+              'dashboard.timeRange.to' | hhTranslate: 'To'
+            }}</mat-label>
             <input
               matInput
               [matDatepicker]="toPicker"
               [(ngModel)]="customTo"
               (ngModelChange)="onCustomChange()"
             />
-            <mat-datepicker-toggle matSuffix [for]="toPicker"></mat-datepicker-toggle>
+            <mat-datepicker-toggle
+              matSuffix
+              [for]="toPicker"
+            ></mat-datepicker-toggle>
             <mat-datepicker #toPicker></mat-datepicker>
           </mat-form-field>
 
@@ -138,48 +154,51 @@ const PRESETS: PresetOption[] = [
             color="primary"
             size="small"
             (click)="applyCustom()"
-            [disabled]="!customFrom || !customTo">
+            [disabled]="!customFrom || !customTo"
+          >
             <mat-icon>check</mat-icon>
-            {{ 'dashboard.timeRange.apply' | hhTranslate:'Apply' }}
+            {{ 'dashboard.timeRange.apply' | hhTranslate: 'Apply' }}
           </button>
         </div>
       }
     </div>
   `,
-  styles: [`
-    .time-range-picker {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .preset-group {
-      display: flex;
-      gap: 4px;
-      flex-wrap: wrap;
-    }
-    .preset-btn {
-      min-width: 44px;
-      font-size: 12px;
-      padding: 0 10px;
-      line-height: 30px;
-      transition: all 150ms ease;
-    }
-    .preset-btn.active {
-      background: var(--color-primary, #2F6B4A);
-      color: #fff;
-      border-color: var(--color-primary, #2F6B4A);
-    }
-    .custom-range {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    .custom-range mat-form-field {
-      width: 140px;
-    }
-  `],
+  styles: [
+    `
+      .time-range-picker {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .preset-group {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+      }
+      .preset-btn {
+        min-width: 44px;
+        font-size: 12px;
+        padding: 0 10px;
+        line-height: 30px;
+        transition: all 150ms ease;
+      }
+      .preset-btn.active {
+        background: var(--color-primary, #2f6b4a);
+        color: #fff;
+        border-color: var(--color-primary, #2f6b4a);
+      }
+      .custom-range {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .custom-range mat-form-field {
+        width: 140px;
+      }
+    `,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TimeRangePickerComponent {

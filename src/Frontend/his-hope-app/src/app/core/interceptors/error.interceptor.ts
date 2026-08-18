@@ -1,17 +1,27 @@
-import { inject, Injectable, NgZone, Injector } from '@angular/core';
-import { HttpInterceptor, HttpRequest, HttpHandler, HttpEvent, HttpErrorResponse } from '@angular/common/http';
-import { Observable, throwError, of } from 'rxjs';
-import { catchError, retry, take } from 'rxjs/operators';
-import { Router } from '@angular/router';
-import { MatSnackBar } from '@angular/material/snack-bar';
-import { AuthService } from '@core/services/auth.service';
-import { AuditService } from '@core/services/audit.service';
-import { HisHopeI18nService, HisHopePermissionService } from '@his-hope/frontend-foundation';
+import { inject, Injectable, NgZone, Injector } from "@angular/core";
+import {
+  HttpInterceptor,
+  HttpRequest,
+  HttpHandler,
+  HttpEvent,
+  HttpErrorResponse,
+} from "@angular/common/http";
+import { Observable, throwError, of } from "rxjs";
+import { catchError, retry, take } from "rxjs/operators";
+import { Router } from "@angular/router";
+import { MatSnackBar } from "@angular/material/snack-bar";
+import { AuthService } from "@core/services/auth.service";
+import { AuditService } from "@core/services/audit.service";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 
 @Injectable()
 export class ErrorInterceptor implements HttpInterceptor {
   private readonly SKIP_NOTIFICATION_URLS = [
-    '/auth/verify', '/auth/me', '/api/v1/errors', '/api/v1/audit/events',
+    "/auth/verify",
+    "/auth/me",
+    "/api/v1/errors",
+    "/api/v1/audit/events",
   ];
   private readonly TRANSIENT_STATUSES = [503, 504];
   private readonly MAX_RETRIES = 1;
@@ -24,7 +34,10 @@ export class ErrorInterceptor implements HttpInterceptor {
   private i18n = inject(HisHopeI18nService);
   private permissionService = inject(HisHopePermissionService);
 
-  intercept(req: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
+  intercept(
+    req: HttpRequest<unknown>,
+    next: HttpHandler,
+  ): Observable<HttpEvent<unknown>> {
     return next.handle(req).pipe(
       retry({
         count: this.MAX_RETRIES,
@@ -38,11 +51,11 @@ export class ErrorInterceptor implements HttpInterceptor {
       catchError((error: HttpErrorResponse) => {
         if (!this.isSkippableUrl(req.url)) {
           // Audit log (full context gß╗¡i backend an to├án)
-          this.auditService.log('error.server', {
+          this.auditService.log("error.server", {
             status: error.status,
             url: req.url,
             method: req.method,
-            correlationId: error.headers?.get('X-Correlation-ID') || undefined,
+            correlationId: error.headers?.get("X-Correlation-ID") || undefined,
           });
         }
 
@@ -51,14 +64,17 @@ export class ErrorInterceptor implements HttpInterceptor {
         if (error.status === 401 || error.status === 403) {
           this.permissionService.recordAuthorizationFailure(
             error.status,
-            req.headers.get('X-Authorization-Action') || undefined,
+            req.headers.get("X-Authorization-Action") || undefined,
           );
         }
 
         if (error.status === 0) {
           this.showNotification(
-            this.i18n.t('errors.networkError', 'Network error: Unable to connect to the server. Please check your connection.'),
-            'error-snackbar-critical',
+            this.i18n.t(
+              "errors.networkError",
+              "Network error: Unable to connect to the server. Please check your connection.",
+            ),
+            "error-snackbar-critical",
             false,
           );
           return throwError(() => error);
@@ -68,23 +84,35 @@ export class ErrorInterceptor implements HttpInterceptor {
 
         switch (error.status) {
           case 401: {
-            if (!req.url.includes('/auth/') && !req.url.includes('/dashboard/') && !req.url.includes('/patients/search')) {
+            if (
+              !req.url.includes("/auth/") &&
+              !req.url.includes("/dashboard/") &&
+              !req.url.includes("/patients/search")
+            ) {
               authService.clearStoredAccessToken();
-              authService.isAuthenticated().pipe(take(1)).subscribe(isAuth => {
-                if (isAuth) {
-                  this.router.navigate(['/auth/login'], { queryParams: { reason: 'session_expired' } });
-                } else {
-                  this.router.navigate(['/auth/login']);
-                }
-              });
+              authService
+                .isAuthenticated()
+                .pipe(take(1))
+                .subscribe((isAuth) => {
+                  if (isAuth) {
+                    this.router.navigate(["/auth/login"], {
+                      queryParams: { reason: "session_expired" },
+                    });
+                  } else {
+                    this.router.navigate(["/auth/login"]);
+                  }
+                });
             }
             break;
           }
           case 403: {
             if (shouldNotify) {
               this.showNotification(
-                this.i18n.t('errors.accessDenied', 'Access denied. You do not have permission to perform this action.'),
-                'error-snackbar',
+                this.i18n.t(
+                  "errors.accessDenied",
+                  "Access denied. You do not have permission to perform this action.",
+                ),
+                "error-snackbar",
                 true,
               );
             }
@@ -93,15 +121,25 @@ export class ErrorInterceptor implements HttpInterceptor {
           case 422: {
             // Sanitize: kh├┤ng lß╗Ö raw error.message tß╗½ server
             if (shouldNotify) {
-              this.showNotification(this.i18n.t('errors.validationFailed', 'Validation failed. Please check your input.'), 'error-snackbar', true);
+              this.showNotification(
+                this.i18n.t(
+                  "errors.validationFailed",
+                  "Validation failed. Please check your input.",
+                ),
+                "error-snackbar",
+                true,
+              );
             }
             break;
           }
           case 429: {
             if (shouldNotify) {
               this.showNotification(
-                this.i18n.t('errors.tooManyRequests', 'Too many requests. Please wait before trying again.'),
-                'error-snackbar',
+                this.i18n.t(
+                  "errors.tooManyRequests",
+                  "Too many requests. Please wait before trying again.",
+                ),
+                "error-snackbar",
                 true,
               );
             }
@@ -111,13 +149,23 @@ export class ErrorInterceptor implements HttpInterceptor {
             if (error.status >= 500) {
               if (shouldNotify) {
                 this.showNotification(
-                  this.i18n.t('errors.serverError', 'A server error occurred. Please try again later.'),
-                  'error-snackbar-critical',
+                  this.i18n.t(
+                    "errors.serverError",
+                    "A server error occurred. Please try again later.",
+                  ),
+                  "error-snackbar-critical",
                   false,
                 );
               }
             } else if (shouldNotify && error.status && error.status >= 400) {
-              this.showNotification(this.i18n.t('errors.unexpectedError', 'An unexpected error occurred.'), 'error-snackbar', true);
+              this.showNotification(
+                this.i18n.t(
+                  "errors.unexpectedError",
+                  "An unexpected error occurred.",
+                ),
+                "error-snackbar",
+                true,
+              );
             }
             break;
           }
@@ -132,9 +180,13 @@ export class ErrorInterceptor implements HttpInterceptor {
     return this.SKIP_NOTIFICATION_URLS.some((skip) => url.includes(skip));
   }
 
-  private showNotification(message: string, panelClass: string, autoDismiss: boolean): void {
+  private showNotification(
+    message: string,
+    panelClass: string,
+    autoDismiss: boolean,
+  ): void {
     this.ngZone.run(() => {
-      this.snackBar.open(message, this.i18n.t('common.close', 'Close'), {
+      this.snackBar.open(message, this.i18n.t("common.close", "Close"), {
         duration: autoDismiss ? 5000 : undefined,
         panelClass: [panelClass],
       });

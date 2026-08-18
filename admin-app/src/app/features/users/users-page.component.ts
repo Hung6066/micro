@@ -14,19 +14,23 @@ import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
 import {
   HisHopeBulkAction,
   HisHopeBulkActionRequest,
+  HisHopeTableExportRequest,
+} from "@his-hope/frontend-foundation";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import { HisHopeResourceStore } from "@his-hope/frontend-foundation/query";
+import {
   HisHopeDataTableCellDirective,
   HisHopeDataTableComponent,
   HisHopeDataTableColumn,
   HisHopeDataTableDetailDirective,
-  HisHopeI18nService,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
-  HisHopePermissionService,
-  HisHopeResourceStore,
-  HisHopeTableExportRequest,
   HisHopeToolbarComponent,
+} from "@his-hope/frontend-foundation/ui";
+import {
+  HisHopeI18nService,
   HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation";
+} from "@his-hope/frontend-foundation/i18n";
 import {
   AdminPageQuery,
   AdminPageResult,
@@ -251,7 +255,9 @@ export class UsersPageComponent implements OnInit {
   get error(): string | null {
     return (
       this.actionError ||
-      (this.resource.error() ? this.i18n.t("admin.loadUsersFailed", "Failed to load users.") : null)
+      (this.resource.error()
+        ? this.i18n.t("admin.loadUsersFailed", "Failed to load users.")
+        : null)
     );
   }
   totalItems = 0;

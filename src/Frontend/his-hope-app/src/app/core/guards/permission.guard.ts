@@ -1,15 +1,15 @@
-import { inject } from '@angular/core';
+import { inject } from "@angular/core";
 import {
   CanActivateFn,
   ActivatedRouteSnapshot,
   RouterStateSnapshot,
   Router,
   UrlTree,
-} from '@angular/router';
-import { Observable, of } from 'rxjs';
-import { switchMap } from 'rxjs/operators';
-import { AuthService } from '@core/services/auth.service';
-import { HisHopePermissionService } from '@his-hope/frontend-foundation';
+} from "@angular/router";
+import { Observable, of } from "rxjs";
+import { switchMap } from "rxjs/operators";
+import { AuthService } from "@core/services/auth.service";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 
 /**
  * Permission-based guard that checks if the authenticated user has ALL
@@ -30,13 +30,13 @@ export const permissionGuard: CanActivateFn = (
   const authService = inject(AuthService);
   const permissionService = inject(HisHopePermissionService);
   const router = inject(Router);
-  const requiredPermissions: string[] = route.data?.['permissions'];
+  const requiredPermissions: string[] = route.data?.["permissions"];
 
   return authService.ensureCurrentUser().pipe(
     switchMap((user) => {
       if (!user) {
         return of(
-          router.createUrlTree(['/auth/login'], {
+          router.createUrlTree(["/auth/login"], {
             queryParams: { returnUrl: state.url },
           }),
         );
@@ -59,7 +59,7 @@ export const permissionGuard: CanActivateFn = (
       // The backend enforces permissions on actual API calls.
       const allowed = permissionService.hasAll(requiredPermissions);
       if (!allowed) {
-        return of(router.createUrlTree(['/access-denied']));
+        return of(router.createUrlTree(["/access-denied"]));
       }
       return of(true);
     }),

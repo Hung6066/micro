@@ -6,18 +6,18 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
   HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
   HisHopeDataTableComponent,
-  HisHopeI18nService,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
-  HisHopePermissionService,
-  HisHopeResourceState,
   HisHopeToolbarComponent,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation";
+} from "@his-hope/frontend-foundation/ui";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import { catchError, forkJoin, of, tap } from "rxjs";
 import { IamApiService } from "../../core/services/iam-api.service";
 import {
@@ -199,7 +199,10 @@ export class IamAuditIntegrationsPageComponent implements OnInit {
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
-  readonly resource = new HisHopeResourceState<{ integration: IamAuditIntegrations | null; outbox: SecuritySignalOutboxEntry[] }>(this.destroyRef);
+  readonly resource = new HisHopeResourceState<{
+    integration: IamAuditIntegrations | null;
+    outbox: SecuritySignalOutboxEntry[];
+  }>(this.destroyRef);
   get canWrite() {
     return this.permissions.has("admin.settings.write");
   }

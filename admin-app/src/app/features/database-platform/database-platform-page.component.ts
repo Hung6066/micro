@@ -10,15 +10,15 @@ import { CommonModule } from "@angular/common";
 import { MatButtonModule } from "@angular/material/button";
 import { MatIconModule } from "@angular/material/icon";
 import { catchError, of, tap } from "rxjs";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
-  HisHopeI18nService,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
-  HisHopePermissionService,
-  HisHopeResourceState,
   HisHopeStateComponent,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation";
+} from "@his-hope/frontend-foundation/ui";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import {
   DatabaseContinuityAuditEntry,
   DatabaseContinuityJob,

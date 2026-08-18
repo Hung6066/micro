@@ -4,5 +4,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>His.Hope.Core</RootNamespace>
+    <PackageId>His.Hope.Core</PackageId>
+    <Description>Transport-neutral primitives and abstractions for His.Hope services.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
 </Project>

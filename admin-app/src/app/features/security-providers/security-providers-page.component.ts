@@ -19,14 +19,14 @@ import { MatInputModule } from "@angular/material/input";
 import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
 import { MatSelectModule } from "@angular/material/select";
 import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
-  HisHopeI18nService,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
-  HisHopePermissionService,
-  HisHopeResourceState,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation";
+} from "@his-hope/frontend-foundation/ui";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import QRCode from "qrcode";
 import { catchError, firstValueFrom, of, tap } from "rxjs";
 import { IdentitySetting } from "../../core/contracts/admin.contracts";

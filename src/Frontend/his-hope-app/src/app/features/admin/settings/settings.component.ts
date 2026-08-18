@@ -1,26 +1,40 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
-import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
-import { Subject, takeUntil } from 'rxjs';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { MatExpansionModule } from '@angular/material/expansion';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { CommonModule } from '@angular/common';
-import { AdminService } from '@core/services/admin.service';
-import { Setting } from '@core/models/admin.model';
+import {
+  Component,
+  OnInit,
+  OnDestroy,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  inject,
+} from "@angular/core";
+import {
+  FormBuilder,
+  FormGroup,
+  Validators,
+  ReactiveFormsModule,
+} from "@angular/forms";
+import { Subject, takeUntil } from "rxjs";
+import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
+import { MatButtonModule } from "@angular/material/button";
+import { MatIconModule } from "@angular/material/icon";
+import { MatFormFieldModule } from "@angular/material/form-field";
+import { MatInputModule } from "@angular/material/input";
+import { MatSelectModule } from "@angular/material/select";
+import { MatSlideToggleModule } from "@angular/material/slide-toggle";
+import { MatExpansionModule } from "@angular/material/expansion";
+import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
+import { MatProgressBarModule } from "@angular/material/progress-bar";
+import { CommonModule } from "@angular/common";
+import { AdminService } from "@core/services/admin.service";
+import { Setting } from "@core/models/admin.model";
+import {
+  HisHopeTranslatePipe,
+  HisHopeI18nService,
+} from "@his-hope/frontend-foundation/i18n";
 import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeStateComponent,
-  HisHopeTranslatePipe,
-  HisHopeI18nService,
-} from '@his-hope/frontend-foundation';
+} from "@his-hope/frontend-foundation/ui";
 
 interface CategoryConfig {
   key: string;
@@ -29,18 +43,29 @@ interface CategoryConfig {
 }
 
 @Component({
-  selector: 'app-admin-settings',
+  selector: "app-admin-settings",
   standalone: true,
   imports: [
-    CommonModule, ReactiveFormsModule,
-    MatSnackBarModule, MatButtonModule, MatIconModule, MatFormFieldModule,
-    MatInputModule, MatSelectModule, MatSlideToggleModule, MatExpansionModule,
-    MatProgressSpinnerModule, MatProgressBarModule,
-    HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTranslatePipe,
+    CommonModule,
+    ReactiveFormsModule,
+    MatSnackBarModule,
+    MatButtonModule,
+    MatIconModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatSelectModule,
+    MatSlideToggleModule,
+    MatExpansionModule,
+    MatProgressSpinnerModule,
+    MatProgressBarModule,
+    HisHopePageHeaderComponent,
+    HisHopePageLayoutComponent,
+    HisHopeStateComponent,
+    HisHopeTranslatePipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: './settings.component.html',
-  styleUrls: ['./settings.component.scss'],
+  templateUrl: "./settings.component.html",
+  styleUrls: ["./settings.component.scss"],
 })
 export class SettingsComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
@@ -55,13 +80,47 @@ export class SettingsComponent implements OnInit, OnDestroy {
   error: string | null = null;
 
   readonly categories: CategoryConfig[] = [
-    { key: 'hospital', label: this.i18n.t('adminPage.settingsCategories.hospital', 'Thông tin bệnh viện'), icon: 'local_hospital' },
-    { key: 'system', label: this.i18n.t('adminPage.settingsCategories.system', 'Hệ thống'), icon: 'settings_applications' },
-    { key: 'clinical', label: this.i18n.t('adminPage.settingsCategories.clinical', 'Lâm sàng'), icon: 'medical_services' },
-    { key: 'billing', label: this.i18n.t('adminPage.settingsCategories.billing', 'Thanh toán'), icon: 'receipt' },
-    { key: 'appointment', label: this.i18n.t('adminPage.settingsCategories.appointment', 'Lịch hẹn'), icon: 'calendar_today' },
-    { key: 'lab', label: this.i18n.t('adminPage.settingsCategories.lab', 'Xét nghiệm'), icon: 'biotech' },
-    { key: 'pharmacy', label: this.i18n.t('adminPage.settingsCategories.pharmacy', 'Dược'), icon: 'medication' },
+    {
+      key: "hospital",
+      label: this.i18n.t(
+        "adminPage.settingsCategories.hospital",
+        "Thông tin bệnh viện",
+      ),
+      icon: "local_hospital",
+    },
+    {
+      key: "system",
+      label: this.i18n.t("adminPage.settingsCategories.system", "Hệ thống"),
+      icon: "settings_applications",
+    },
+    {
+      key: "clinical",
+      label: this.i18n.t("adminPage.settingsCategories.clinical", "Lâm sàng"),
+      icon: "medical_services",
+    },
+    {
+      key: "billing",
+      label: this.i18n.t("adminPage.settingsCategories.billing", "Thanh toán"),
+      icon: "receipt",
+    },
+    {
+      key: "appointment",
+      label: this.i18n.t(
+        "adminPage.settingsCategories.appointment",
+        "Lịch hẹn",
+      ),
+      icon: "calendar_today",
+    },
+    {
+      key: "lab",
+      label: this.i18n.t("adminPage.settingsCategories.lab", "Xét nghiệm"),
+      icon: "biotech",
+    },
+    {
+      key: "pharmacy",
+      label: this.i18n.t("adminPage.settingsCategories.pharmacy", "Dược"),
+      icon: "medication",
+    },
   ];
 
   constructor(
@@ -84,7 +143,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.error = null;
     this.cdr.markForCheck();
 
-    this.adminService.getSettings()
+    this.adminService
+      .getSettings()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (settings) => {
@@ -101,8 +161,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.loading = false;
-          this.error = this.i18n.t('settings.loadFailed', 'Không thể tải cài đặt hệ thống');
-          this.snackBar.open(this.error, this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
+          this.error = this.i18n.t(
+            "settings.loadFailed",
+            "Không thể tải cài đặt hệ thống",
+          );
+          this.snackBar.open(this.error, this.i18n.t("common.close", "Đóng"), {
+            duration: 5000,
+          });
           this.cdr.markForCheck();
         },
       });
@@ -114,7 +179,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   onSettingChange(key: string, event: Event, type: string): void {
     const input = event.target as HTMLInputElement;
-    this.settingValues[key] = type === 'number' ? Number(input.value) : input.value;
+    this.settingValues[key] =
+      type === "number" ? Number(input.value) : input.value;
     this.detectChanges();
   }
 
@@ -129,7 +195,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   private detectChanges(): void {
-    this.hasChanges = this.settings.some((s) => this.settingValues[s.key] !== this.originalValues[s.key]);
+    this.hasChanges = this.settings.some(
+      (s) => this.settingValues[s.key] !== this.originalValues[s.key],
+    );
     this.cdr.markForCheck();
   }
 
@@ -142,19 +210,28 @@ export class SettingsComponent implements OnInit, OnDestroy {
       .filter((s) => this.settingValues[s.key] !== this.originalValues[s.key])
       .map((s) => ({ key: s.key, value: this.settingValues[s.key] }));
 
-    this.adminService.bulkUpdateSettings(changedSettings)
+    this.adminService
+      .bulkUpdateSettings(changedSettings)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
           this.originalValues = { ...this.settingValues };
           this.hasChanges = false;
           this.saving = false;
-          this.snackBar.open(this.i18n.t('settings.saved', 'Đã lưu cài đặt thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
+          this.snackBar.open(
+            this.i18n.t("settings.saved", "Đã lưu cài đặt thành công"),
+            this.i18n.t("common.close", "Đóng"),
+            { duration: 3000 },
+          );
           this.cdr.markForCheck();
         },
         error: () => {
           this.saving = false;
-          this.snackBar.open(this.i18n.t('settings.saveFailed', 'Không thể lưu cài đặt'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
+          this.snackBar.open(
+            this.i18n.t("settings.saveFailed", "Không thể lưu cài đặt"),
+            this.i18n.t("common.close", "Đóng"),
+            { duration: 5000 },
+          );
           this.cdr.markForCheck();
         },
       });

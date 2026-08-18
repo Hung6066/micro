@@ -12,7 +12,18 @@ import { BehaviorSubject, Observable } from 'rxjs';
 import { AuthService } from './core/services/auth.service';
 import { AlertPanelComponent } from './shared/alert-panel/alert-panel.component';
 import { AlertToastService } from './shared/alert-toast/alert-toast.service';
-import { HisHopeBrandComponent, HisHopeCommandPaletteComponent, HisHopeI18nService, HisHopeLanguageSwitcherComponent, HisHopeOfflineBannerComponent, HisHopeThemeService, HisHopeToastComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
+import { HisHopeThemeService } from '@his-hope/frontend-foundation';
+import {
+  HisHopeBrandComponent,
+  HisHopeCommandPaletteComponent,
+  HisHopeOfflineBannerComponent,
+  HisHopeToastComponent,
+} from '@his-hope/frontend-foundation/ui';
+import {
+  HisHopeI18nService,
+  HisHopeLanguageSwitcherComponent,
+  HisHopeTranslatePipe,
+} from '@his-hope/frontend-foundation/i18n';
 
 @Component({
   selector: 'app-root',
@@ -44,7 +55,9 @@ export class AppComponent {
   readonly isMobile$: Observable<boolean>;
   readonly sidenavOpened$ = new BehaviorSubject<boolean>(true);
 
-  private readonly isMobileSubject = new BehaviorSubject<boolean>(window.innerWidth <= 768);
+  private readonly isMobileSubject = new BehaviorSubject<boolean>(
+    window.innerWidth <= 768,
+  );
 
   private readonly alertToast = inject(AlertToastService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -52,11 +65,26 @@ export class AppComponent {
   private readonly router = inject(Router);
   paletteOpen = false;
 
-  get commands() { this.i18n.locale(); return [
-    { id: 'resources', label: this.i18n.t('app.dashboard.openResources'), keywords: ['services', 'health'] },
-    { id: 'logs', label: this.i18n.t('app.dashboard.openLogs'), keywords: ['audit'] },
-    { id: 'traces', label: this.i18n.t('app.dashboard.openTraces'), keywords: ['telemetry'] },
-  ]; }
+  get commands() {
+    this.i18n.locale();
+    return [
+      {
+        id: 'resources',
+        label: this.i18n.t('app.dashboard.openResources'),
+        keywords: ['services', 'health'],
+      },
+      {
+        id: 'logs',
+        label: this.i18n.t('app.dashboard.openLogs'),
+        keywords: ['audit'],
+      },
+      {
+        id: 'traces',
+        label: this.i18n.t('app.dashboard.openTraces'),
+        keywords: ['telemetry'],
+      },
+    ];
+  }
 
   constructor(private readonly authService: AuthService) {
     this.isAuthenticated$ = this.authService.isAuthenticated$;
@@ -69,11 +97,17 @@ export class AppComponent {
       this.sidenavOpened$.next(!mobile);
     };
     handleChange(mediaQuery);
-    mediaQuery.addEventListener('change', handleChange as (e: MediaQueryListEvent) => void);
-
+    mediaQuery.addEventListener(
+      'change',
+      handleChange as (e: MediaQueryListEvent) => void,
+    );
   }
 
-  toggleTheme(): void { this.themeService.setTheme(this.themeService.resolvedTheme() === 'dark' ? 'light' : 'dark'); }
+  toggleTheme(): void {
+    this.themeService.setTheme(
+      this.themeService.resolvedTheme() === 'dark' ? 'light' : 'dark',
+    );
+  }
 
   toggleSidenav(): void {
     this.sidenavOpened$.next(!this.sidenavOpened$.value);
@@ -87,5 +121,7 @@ export class AppComponent {
     this.authService.login();
   }
 
-  onCommand(id: string): void { this.router.navigate(['/', id]); }
+  onCommand(id: string): void {
+    this.router.navigate(['/', id]);
+  }
 }

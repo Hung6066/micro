@@ -1,6 +1,14 @@
-import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, signal, computed } from '@angular/core';
+import {
+  Component,
+  Input,
+  Output,
+  EventEmitter,
+  ChangeDetectionStrategy,
+  signal,
+  computed,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
 import { Resource } from '../../core/models/resource.model';
 
 interface GraphNode {
@@ -28,14 +36,24 @@ interface NodeLayout {
 }
 
 const SERVICE_NAMES_LOWER = [
-  'api-gateway', 'gateway', 'apigateway',
-  'identity', 'identity-service', 'auth',
-  'patient', 'patient-service',
-  'appointment', 'appointment-service',
-  'clinical', 'clinical-service',
-  'lab', 'lab-service',
-  'pharmacy', 'pharmacy-service',
-  'billing', 'billing-service',
+  'api-gateway',
+  'gateway',
+  'apigateway',
+  'identity',
+  'identity-service',
+  'auth',
+  'patient',
+  'patient-service',
+  'appointment',
+  'appointment-service',
+  'clinical',
+  'clinical-service',
+  'lab',
+  'lab-service',
+  'pharmacy',
+  'pharmacy-service',
+  'billing',
+  'billing-service',
 ];
 
 const SVG_VIEWBOX = { width: 1000, height: 700 };
@@ -51,35 +69,92 @@ const LAYER_PADDING = 80;
     <div class="graph-container">
       <!-- Toolbar -->
       <div class="graph-toolbar">
-        <span class="graph-title">{{ 'dashboard.resources.dependencyGraph' | hhTranslate:'Service Dependency Graph' }}</span>
+        <span class="graph-title">{{
+          'dashboard.resources.dependencyGraph'
+            | hhTranslate: 'Service Dependency Graph'
+        }}</span>
         <div class="zoom-controls">
-          <button class="zoom-btn" (click)="zoomOut()" title="Zoom out" aria-label="Zoom out">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="5" y1="12" x2="19" y2="12"/>
+          <button
+            class="zoom-btn"
+            (click)="zoomOut()"
+            title="Zoom out"
+            aria-label="Zoom out"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </button>
           <span class="zoom-level">{{ zoomLevel() }}%</span>
-          <button class="zoom-btn" (click)="zoomIn()" title="Zoom in" aria-label="Zoom in">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="12" y1="5" x2="12" y2="19"/>
-              <line x1="5" y1="12" x2="19" y2="12"/>
+          <button
+            class="zoom-btn"
+            (click)="zoomIn()"
+            title="Zoom in"
+            aria-label="Zoom in"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </button>
-          <button class="zoom-btn zoom-reset" (click)="zoomReset()" title="Reset zoom" aria-label="Reset zoom">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-              <path d="M3 3v5h5"/>
+          <button
+            class="zoom-btn zoom-reset"
+            (click)="zoomReset()"
+            title="Reset zoom"
+            aria-label="Reset zoom"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
             </svg>
           </button>
         </div>
         <div class="graph-legend">
-          <span class="legend-item"><span class="legend-dot" style="background:#2F6B4A"></span>{{ 'dashboard.resources.healthy' | hhTranslate:'Healthy' }}</span>
-          <span class="legend-item"><span class="legend-dot" style="background:#B6581C"></span>{{ 'dashboard.resources.degraded' | hhTranslate:'Degraded' }}</span>
-          <span class="legend-item"><span class="legend-dot" style="background:#C25450"></span>Stopped</span>
-          <span class="legend-item"><span class="legend-dot" style="background:#A1A09B"></span>Unknown</span>
+          <span class="legend-item"
+            ><span class="legend-dot" style="background:#2F6B4A"></span
+            >{{ 'dashboard.resources.healthy' | hhTranslate: 'Healthy' }}</span
+          >
+          <span class="legend-item"
+            ><span class="legend-dot" style="background:#B6581C"></span
+            >{{
+              'dashboard.resources.degraded' | hhTranslate: 'Degraded'
+            }}</span
+          >
+          <span class="legend-item"
+            ><span class="legend-dot" style="background:#C25450"></span
+            >Stopped</span
+          >
+          <span class="legend-item"
+            ><span class="legend-dot" style="background:#A1A09B"></span
+            >Unknown</span
+          >
           <span class="legend-divider"></span>
-          <span class="legend-item"><span class="legend-line dashed"></span>HTTP</span>
-          <span class="legend-item"><span class="legend-line solid"></span>gRPC</span>
+          <span class="legend-item"
+            ><span class="legend-line dashed"></span>HTTP</span
+          >
+          <span class="legend-item"
+            ><span class="legend-line solid"></span>gRPC</span
+          >
         </div>
       </div>
 
@@ -92,27 +167,54 @@ const LAYER_PADDING = 80;
         >
           <defs>
             <!-- Arrow markers -->
-            <marker id="arrow-http" viewBox="0 0 10 10" refX="22" refY="5"
-                    markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#A1A09B"/>
+            <marker
+              id="arrow-http"
+              viewBox="0 0 10 10"
+              refX="22"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#A1A09B" />
             </marker>
-            <marker id="arrow-grpc" viewBox="0 0 10 10" refX="22" refY="5"
-                    markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#2F6B4A"/>
+            <marker
+              id="arrow-grpc"
+              viewBox="0 0 10 10"
+              refX="22"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#2F6B4A" />
             </marker>
-            <marker id="arrow-dep" viewBox="0 0 10 10" refX="22" refY="5"
-                    markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="#787774"/>
+            <marker
+              id="arrow-dep"
+              viewBox="0 0 10 10"
+              refX="22"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#787774" />
             </marker>
 
             <!-- Node glow on hover -->
             <filter id="node-glow">
-              <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#2F6B4A" flood-opacity="0.3"/>
+              <feDropShadow
+                dx="0"
+                dy="0"
+                stdDeviation="4"
+                flood-color="#2F6B4A"
+                flood-opacity="0.3"
+              />
             </filter>
           </defs>
 
           <!-- Background -->
-          <rect width="100%" height="100%" fill="#FAFAF8" rx="8"/>
+          <rect width="100%" height="100%" fill="#FAFAF8" rx="8" />
 
           <!-- Edges -->
           @for (edge of edges(); track $index) {
@@ -133,8 +235,15 @@ const LAYER_PADDING = 80;
             @for (node of allNodes(); track node.id) {
               <g
                 class="node-group"
-                [class.node-highlighted]="hoveredNode() === node.id || isConnected(hoveredNode(), node.id)"
-                [class.node-dimmed]="hoveredNode() !== null && hoveredNode() !== node.id && !isConnected(hoveredNode(), node.id)"
+                [class.node-highlighted]="
+                  hoveredNode() === node.id ||
+                  isConnected(hoveredNode(), node.id)
+                "
+                [class.node-dimmed]="
+                  hoveredNode() !== null &&
+                  hoveredNode() !== node.id &&
+                  !isConnected(hoveredNode(), node.id)
+                "
                 (mouseenter)="hoveredNode.set(node.id)"
                 (click)="onNodeClick(node.resource)"
                 style="cursor: pointer;"
@@ -147,25 +256,78 @@ const LAYER_PADDING = 80;
                   [attr.fill]="nodeColor(node)"
                   [attr.stroke]="nodeStroke(node)"
                   stroke-width="2"
-                  [attr.filter]="hoveredNode() === node.id ? 'url(#node-glow)' : null"
+                  [attr.filter]="
+                    hoveredNode() === node.id ? 'url(#node-glow)' : null
+                  "
                 />
                 <!-- Node icon (simple shape based on type) -->
-                <g [attr.transform]="'translate(' + (node.x - 8) + ',' + (node.y - 8) + ')'">
+                <g
+                  [attr.transform]="
+                    'translate(' + (node.x - 8) + ',' + (node.y - 8) + ')'
+                  "
+                >
                   @if (node.type === 'service') {
                     <!-- Service: cube -->
-                    <rect x="2" y="2" width="12" height="12" rx="2" fill="white" opacity="0.85"/>
-                    <rect x="4" y="4" width="4" height="4" rx="1" fill="none" stroke="#1A1A1A" stroke-width="0.8" opacity="0.5"/>
+                    <rect
+                      x="2"
+                      y="2"
+                      width="12"
+                      height="12"
+                      rx="2"
+                      fill="white"
+                      opacity="0.85"
+                    />
+                    <rect
+                      x="4"
+                      y="4"
+                      width="4"
+                      height="4"
+                      rx="1"
+                      fill="none"
+                      stroke="#1A1A1A"
+                      stroke-width="0.8"
+                      opacity="0.5"
+                    />
                   }
                   @if (node.type === 'database') {
                     <!-- Database: cylinder -->
-                    <ellipse cx="8" cy="4" rx="6" ry="2.5" fill="white" opacity="0.85"/>
-                    <rect x="2" y="4" width="12" height="6" fill="white" opacity="0.85"/>
-                    <ellipse cx="8" cy="10" rx="6" ry="2.5" fill="white" opacity="0.85"/>
+                    <ellipse
+                      cx="8"
+                      cy="4"
+                      rx="6"
+                      ry="2.5"
+                      fill="white"
+                      opacity="0.85"
+                    />
+                    <rect
+                      x="2"
+                      y="4"
+                      width="12"
+                      height="6"
+                      fill="white"
+                      opacity="0.85"
+                    />
+                    <ellipse
+                      cx="8"
+                      cy="10"
+                      rx="6"
+                      ry="2.5"
+                      fill="white"
+                      opacity="0.85"
+                    />
                   }
                   @if (node.type === 'infrastructure') {
                     <!-- Infrastructure: diamond -->
-                    <rect x="3" y="3" width="10" height="10" rx="1" fill="white" opacity="0.85"
-                          transform="rotate(45, 8, 8)"/>
+                    <rect
+                      x="3"
+                      y="3"
+                      width="10"
+                      height="10"
+                      rx="1"
+                      fill="white"
+                      opacity="0.85"
+                      transform="rotate(45, 8, 8)"
+                    />
                   }
                 </g>
                 <!-- Node label -->
@@ -174,7 +336,9 @@ const LAYER_PADDING = 80;
                   [attr.y]="node.y + node.radius + 16"
                   text-anchor="middle"
                   class="node-label"
-                >{{ node.label }}</text>
+                >
+                  {{ node.label }}
+                </text>
               </g>
             }
           </g>
@@ -182,161 +346,171 @@ const LAYER_PADDING = 80;
       </div>
     </div>
   `,
-  styles: [`
-    .graph-container {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .graph-toolbar {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
-      padding: 4px 0;
-    }
-    .graph-title {
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-secondary, #787774);
-      margin-right: auto;
-    }
-    .zoom-controls {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      background: var(--surface-white, #FFFFFF);
-      border: 1px solid var(--border-default, #EAEAEA);
-      border-radius: 6px;
-      padding: 2px;
-    }
-    .zoom-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 28px;
-      height: 28px;
-      border: none;
-      background: transparent;
-      border-radius: 4px;
-      cursor: pointer;
-      color: var(--text-secondary, #787774);
-      transition: background 150ms ease, color 150ms ease;
-    }
-    .zoom-btn:hover {
-      background: var(--bg-warm, #F7F6F3);
-      color: var(--text-primary, #1A1A1A);
-    }
-    .zoom-btn:active {
-      transform: scale(0.95);
-    }
-    .zoom-reset {
-      margin-left: 2px;
-    }
-    .zoom-level {
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-secondary, #787774);
-      min-width: 36px;
-      text-align: center;
-      font-variant-numeric: tabular-nums;
-    }
-    .graph-legend {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 11px;
-      color: var(--text-muted, #A1A09B);
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .legend-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      display: inline-block;
-    }
-    .legend-divider {
-      width: 1px;
-      height: 14px;
-      background: var(--border-default, #EAEAEA);
-    }
-    .legend-line {
-      display: inline-block;
-      width: 16px;
-      height: 2px;
-      flex-shrink: 0;
-    }
-    .legend-line.dashed {
-      border-top: 2px dashed #A1A09B;
-      height: 0;
-    }
-    .legend-line.solid {
-      background: #2F6B4A;
-    }
-    .graph-canvas {
-      background: var(--surface-white, #FFFFFF);
-      border: 1px solid var(--border-default, #EAEAEA);
-      border-radius: 8px;
-      overflow: hidden;
-      min-height: 400px;
-    }
-    .graph-svg {
-      display: block;
-      width: 100%;
-      height: auto;
-      min-height: 500px;
-    }
+  styles: [
+    `
+      .graph-container {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .graph-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        padding: 4px 0;
+      }
+      .graph-title {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-secondary, #787774);
+        margin-right: auto;
+      }
+      .zoom-controls {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        background: var(--surface-white, #ffffff);
+        border: 1px solid var(--border-default, #eaeaea);
+        border-radius: 6px;
+        padding: 2px;
+      }
+      .zoom-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border: none;
+        background: transparent;
+        border-radius: 4px;
+        cursor: pointer;
+        color: var(--text-secondary, #787774);
+        transition:
+          background 150ms ease,
+          color 150ms ease;
+      }
+      .zoom-btn:hover {
+        background: var(--bg-warm, #f7f6f3);
+        color: var(--text-primary, #1a1a1a);
+      }
+      .zoom-btn:active {
+        transform: scale(0.95);
+      }
+      .zoom-reset {
+        margin-left: 2px;
+      }
+      .zoom-level {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-secondary, #787774);
+        min-width: 36px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+      .graph-legend {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 11px;
+        color: var(--text-muted, #a1a09b);
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .legend-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+      .legend-divider {
+        width: 1px;
+        height: 14px;
+        background: var(--border-default, #eaeaea);
+      }
+      .legend-line {
+        display: inline-block;
+        width: 16px;
+        height: 2px;
+        flex-shrink: 0;
+      }
+      .legend-line.dashed {
+        border-top: 2px dashed #a1a09b;
+        height: 0;
+      }
+      .legend-line.solid {
+        background: #2f6b4a;
+      }
+      .graph-canvas {
+        background: var(--surface-white, #ffffff);
+        border: 1px solid var(--border-default, #eaeaea);
+        border-radius: 8px;
+        overflow: hidden;
+        min-height: 400px;
+      }
+      .graph-svg {
+        display: block;
+        width: 100%;
+        height: auto;
+        min-height: 500px;
+      }
 
-    /* Edge styles */
-    :host ::ng-deep .edge-http {
-      fill: none;
-      stroke: #A1A09B;
-      stroke-width: 1.5;
-      stroke-dasharray: 5 3;
-      transition: stroke 150ms ease, stroke-width 150ms ease;
-    }
-    :host ::ng-deep .edge-grpc {
-      fill: none;
-      stroke: #2F6B4A;
-      stroke-width: 2;
-      transition: stroke 150ms ease, stroke-width 150ms ease;
-    }
-    :host ::ng-deep .edge-dep {
-      fill: none;
-      stroke: #787774;
-      stroke-width: 1.5;
-      transition: stroke 150ms ease, stroke-width 150ms ease;
-    }
-    :host ::ng-deep .edge-highlighted {
-      stroke-opacity: 1 !important;
-      stroke-width: 2.5 !important;
-    }
+      /* Edge styles */
+      :host ::ng-deep .edge-http {
+        fill: none;
+        stroke: #a1a09b;
+        stroke-width: 1.5;
+        stroke-dasharray: 5 3;
+        transition:
+          stroke 150ms ease,
+          stroke-width 150ms ease;
+      }
+      :host ::ng-deep .edge-grpc {
+        fill: none;
+        stroke: #2f6b4a;
+        stroke-width: 2;
+        transition:
+          stroke 150ms ease,
+          stroke-width 150ms ease;
+      }
+      :host ::ng-deep .edge-dep {
+        fill: none;
+        stroke: #787774;
+        stroke-width: 1.5;
+        transition:
+          stroke 150ms ease,
+          stroke-width 150ms ease;
+      }
+      :host ::ng-deep .edge-highlighted {
+        stroke-opacity: 1 !important;
+        stroke-width: 2.5 !important;
+      }
 
-    /* Node styles */
-    :host ::ng-deep .node-group {
-      transition: opacity 150ms ease;
-    }
-    :host ::ng-deep .node-group text.node-label {
-      font-family: var(--font-sans);
-      font-size: 10px;
-      fill: var(--text-primary, #1A1A1A);
-      font-weight: 500;
-      pointer-events: none;
-    }
-    :host ::ng-deep .node-highlighted {
-      opacity: 1;
-    }
-    :host ::ng-deep .node-dimmed {
-      opacity: 0.3;
-    }
-    :host ::ng-deep .node-group circle {
-      transition: filter 150ms ease;
-    }
-  `],
+      /* Node styles */
+      :host ::ng-deep .node-group {
+        transition: opacity 150ms ease;
+      }
+      :host ::ng-deep .node-group text.node-label {
+        font-family: var(--font-sans);
+        font-size: 10px;
+        fill: var(--text-primary, #1a1a1a);
+        font-weight: 500;
+        pointer-events: none;
+      }
+      :host ::ng-deep .node-highlighted {
+        opacity: 1;
+      }
+      :host ::ng-deep .node-dimmed {
+        opacity: 0.3;
+      }
+      :host ::ng-deep .node-group circle {
+        transition: filter 150ms ease;
+      }
+    `,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DependencyGraphComponent {
@@ -358,15 +532,21 @@ export class DependencyGraphComponent {
       const node: GraphNode = {
         id: r.name,
         label: r.displayName || r.name,
-        type: type === 'service' || type === 'services' ? 'service'
-            : type === 'database' || type === 'databases' ? 'database'
-            : 'infrastructure',
+        type:
+          type === 'service' || type === 'services'
+            ? 'service'
+            : type === 'database' || type === 'databases'
+              ? 'database'
+              : 'infrastructure',
         status: r.status ?? 'Unknown',
         healthStatus: r.healthStatus ?? 'Unknown',
         x: 0,
         y: 0,
-        radius: type === 'service' || type === 'services' ? NODE_RADIUS.service
-              : type === 'database' || type === 'databases' ? NODE_RADIUS.database
+        radius:
+          type === 'service' || type === 'services'
+            ? NODE_RADIUS.service
+            : type === 'database' || type === 'databases'
+              ? NODE_RADIUS.database
               : NODE_RADIUS.infrastructure,
         resource: r,
       };
@@ -388,11 +568,12 @@ export class DependencyGraphComponent {
     const gh = SVG_VIEWBOX.height;
 
     // Layer 0: API Gateway at top center
-    const gatewayLayer = services.filter(s =>
-      ['api-gateway', 'gateway', 'apigateway'].includes(s.id.toLowerCase())
+    const gatewayLayer = services.filter((s) =>
+      ['api-gateway', 'gateway', 'apigateway'].includes(s.id.toLowerCase()),
     );
-    const otherServices = services.filter(s =>
-      !['api-gateway', 'gateway', 'apigateway'].includes(s.id.toLowerCase())
+    const otherServices = services.filter(
+      (s) =>
+        !['api-gateway', 'gateway', 'apigateway'].includes(s.id.toLowerCase()),
     );
 
     // Position gateway
@@ -402,7 +583,8 @@ export class DependencyGraphComponent {
     }
 
     // Layer 1: Other services
-    const serviceY = LAYER_PADDING + 20 + (gatewayLayer.length > 0 ? LAYER_SPACING : 0) + 30;
+    const serviceY =
+      LAYER_PADDING + 20 + (gatewayLayer.length > 0 ? LAYER_SPACING : 0) + 30;
     const serviceCount = otherServices.length;
     if (serviceCount > 0) {
       const spacing = Math.min(140, (gw - 80) / serviceCount);
@@ -440,7 +622,11 @@ export class DependencyGraphComponent {
       });
     }
 
-    return { services: [...gatewayLayer, ...otherServices], databases, infrastructure };
+    return {
+      services: [...gatewayLayer, ...otherServices],
+      databases,
+      infrastructure,
+    };
   });
 
   readonly allNodes = computed<GraphNode[]>(() => {
@@ -469,8 +655,8 @@ export class DependencyGraphComponent {
     }
 
     // 2. API Gateway → all services
-    const gateway = allSvc.find(s =>
-      ['api-gateway', 'gateway', 'apigateway'].includes(s.id.toLowerCase())
+    const gateway = allSvc.find((s) =>
+      ['api-gateway', 'gateway', 'apigateway'].includes(s.id.toLowerCase()),
     );
     if (gateway) {
       for (const svc of allSvc) {
@@ -481,16 +667,30 @@ export class DependencyGraphComponent {
     }
 
     // 3. All services → RabbitMQ, Redis (infra)
-    const infraRabbit = allInfra.find(i => i.id.toLowerCase().includes('rabbit'));
-    const infraRedis = allInfra.find(i => i.id.toLowerCase().includes('redis'));
+    const infraRabbit = allInfra.find((i) =>
+      i.id.toLowerCase().includes('rabbit'),
+    );
+    const infraRedis = allInfra.find((i) =>
+      i.id.toLowerCase().includes('redis'),
+    );
     for (const svc of allSvc) {
-      if (infraRabbit) edges.push({ source: svc.id, target: infraRabbit.id, type: 'dependency' });
-      if (infraRedis) edges.push({ source: svc.id, target: infraRedis.id, type: 'dependency' });
+      if (infraRabbit)
+        edges.push({
+          source: svc.id,
+          target: infraRabbit.id,
+          type: 'dependency',
+        });
+      if (infraRedis)
+        edges.push({
+          source: svc.id,
+          target: infraRedis.id,
+          type: 'dependency',
+        });
     }
 
     // 4. Identity service → all services
-    const identity = allSvc.find(s =>
-      ['identity', 'identity-service', 'auth'].includes(s.id.toLowerCase())
+    const identity = allSvc.find((s) =>
+      ['identity', 'identity-service', 'auth'].includes(s.id.toLowerCase()),
     );
     if (identity) {
       for (const svc of allSvc) {
@@ -521,8 +721,8 @@ export class DependencyGraphComponent {
 
   edgePath(edge: GraphEdge): string {
     const nodes = this.allNodes();
-    const src = nodes.find(n => n.id === edge.source);
-    const tgt = nodes.find(n => n.id === edge.target);
+    const src = nodes.find((n) => n.id === edge.source);
+    const tgt = nodes.find((n) => n.id === edge.target);
     if (!src || !tgt) return '';
 
     const dx = tgt.x - src.x;
@@ -541,9 +741,9 @@ export class DependencyGraphComponent {
 
   edgeMarker(edge: GraphEdge): string {
     const map: Record<string, string> = {
-      'http': 'url(#arrow-http)',
-      'grpc': 'url(#arrow-grpc)',
-      'dependency': 'url(#arrow-dep)',
+      http: 'url(#arrow-http)',
+      grpc: 'url(#arrow-grpc)',
+      dependency: 'url(#arrow-dep)',
     };
     return map[edge.type] ?? 'url(#arrow-dep)';
   }
@@ -556,9 +756,10 @@ export class DependencyGraphComponent {
 
   isConnected(hovered: string | null, nodeId: string): boolean {
     if (!hovered || hovered === nodeId) return true;
-    return this.edges().some(e =>
-      (e.source === hovered && e.target === nodeId) ||
-      (e.target === hovered && e.source === nodeId)
+    return this.edges().some(
+      (e) =>
+        (e.source === hovered && e.target === nodeId) ||
+        (e.target === hovered && e.source === nodeId),
     );
   }
 
@@ -567,11 +768,11 @@ export class DependencyGraphComponent {
   }
 
   zoomIn(): void {
-    this.zoomLevel.update(z => Math.min(200, z + 25));
+    this.zoomLevel.update((z) => Math.min(200, z + 25));
   }
 
   zoomOut(): void {
-    this.zoomLevel.update(z => Math.max(50, z - 25));
+    this.zoomLevel.update((z) => Math.max(50, z - 25));
   }
 
   zoomReset(): void {

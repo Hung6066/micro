@@ -8,6 +8,7 @@
     <Version>1.0.0</Version>
     <Description>Versioned REST, gRPC and integration-event contracts for His.Hope.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <IsPackable>true</IsPackable>
   </PropertyGroup>
   <ItemGroup>
     <None Include="README.md" Pack="true" PackagePath="\" />

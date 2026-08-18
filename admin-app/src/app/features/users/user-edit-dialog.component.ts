@@ -1,23 +1,24 @@
 import { Component, Inject, inject } from "@angular/core";
 import { FormGroup } from "@angular/forms";
-import {
-  MAT_DIALOG_DATA,
-  MatDialogRef,
-} from "@angular/material/dialog";
+import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
 import { MatSnackBar } from "@angular/material/snack-bar";
 import { User } from "../../core/contracts/admin.contracts";
 import { UsersApiService } from "../../core/services/users-api.service";
 import {
-  HisHopeCreateDialogShellComponent,
   HisHopeFormFieldSchema,
-  HisHopeFormLayoutComponent,
   HisHopeFormRendererComponent,
-  HisHopeFormSectionComponent,
   HisHopeFormSchema,
-  HisHopeI18nService,
-  HisHopeTranslatePipe,
   createHisHopeFormGroup,
 } from "@his-hope/frontend-foundation";
+import {
+  HisHopeCreateDialogShellComponent,
+  HisHopeFormLayoutComponent,
+  HisHopeFormSectionComponent,
+} from "@his-hope/frontend-foundation/ui";
+import {
+  HisHopeI18nService,
+  HisHopeTranslatePipe,
+} from "@his-hope/frontend-foundation/i18n";
 import { catchError, of } from "rxjs";
 
 @Component({
@@ -153,7 +154,12 @@ export class UserEditDialogComponent {
           initialValue: "",
           type: "password",
           required: !this.isEdit,
-          messages: { minlength: this.i18n.t("admin.passwordMinLength", "Use at least 12 characters.") },
+          messages: {
+            minlength: this.i18n.t(
+              "admin.passwordMinLength",
+              "Use at least 12 characters.",
+            ),
+          },
         },
         role: {
           key: "role",

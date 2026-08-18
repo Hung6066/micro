@@ -22,7 +22,10 @@ import {
   take,
 } from "rxjs/operators";
 import { OidcSecurityService } from "angular-auth-oidc-client";
-import { HisHopeAuthCoordinator, HisHopePermissionService } from "@his-hope/frontend-foundation";
+import {
+  HisHopeAuthCoordinator,
+  HisHopePermissionService,
+} from "@his-hope/frontend-foundation/auth";
 import {
   LoginRequest,
   LoginResponse,
@@ -36,7 +39,7 @@ export interface ExternalProvider {
   provider: string;
   displayName: string;
   icon: string;
-  protocol?: 'oauth' | 'saml';
+  protocol?: "oauth" | "saml";
   loginUrl?: string;
 }
 
@@ -57,24 +60,36 @@ export class AuthService {
   private router = inject(Router);
   private authCoordinator!: HisHopeAuthCoordinator;
   private static readonly AUTH_CHANNEL = "hishop_auth";
-  private static readonly SSO_LOGIN_IN_PROGRESS_KEY = "hishop_sso_login_in_progress_until";
+  private static readonly SSO_LOGIN_IN_PROGRESS_KEY =
+    "hishop_sso_login_in_progress_until";
   private currentUserLoad$?: Observable<User | null>;
   private readonly checkAuthInit$ = new ReplaySubject<void>(1);
   private readonly sessionStatusUrl = `${environment.apiUrl}/auth/session-status`;
   private lastAuthenticated = false;
   private ssoLoginInProgress = false;
 
-  readonly externalProviders$ = this.http.get<ExternalProviderResponse>(`${this.baseUrl}/external-providers`).pipe(
-    map(response => (response.providers ?? []).map(provider => ({
-      provider: provider.provider,
-      displayName: provider.displayName,
-      icon: provider.icon,
-      ...(provider.protocol ? { protocol: provider.protocol === 'saml' ? ('saml' as const) : ('oauth' as const) } : {}),
-      ...(provider.loginUrl ? { loginUrl: provider.loginUrl } : {}),
-    }))),
-    catchError(() => of([] as ExternalProvider[])),
-    shareReplay({ bufferSize: 1, refCount: true }),
-  );
+  readonly externalProviders$ = this.http
+    .get<ExternalProviderResponse>(`${this.baseUrl}/external-providers`)
+    .pipe(
+      map((response) =>
+        (response.providers ?? []).map((provider) => ({
+          provider: provider.provider,
+          displayName: provider.displayName,
+          icon: provider.icon,
+          ...(provider.protocol
+            ? {
+                protocol:
+                  provider.protocol === "saml"
+                    ? ("saml" as const)
+                    : ("oauth" as const),
+              }
+            : {}),
+          ...(provider.loginUrl ? { loginUrl: provider.loginUrl } : {}),
+        })),
+      ),
+      catchError(() => of([] as ExternalProvider[])),
+      shareReplay({ bufferSize: 1, refCount: true }),
+    );
 
   constructor() {
     this.authCoordinator = new HisHopeAuthCoordinator(
@@ -92,12 +107,18 @@ export class AuthService {
 
     this.authCoordinator.isAuthenticated$.subscribe((isAuthenticated) => {
       this.lastAuthenticated = isAuthenticated;
-      if (isAuthenticated) this.loadUserFromOidc().pipe(take(1)).subscribe({ error: () => {} });
+      if (isAuthenticated)
+        this.loadUserFromOidc()
+          .pipe(take(1))
+          .subscribe({ error: () => {} });
     });
-    this.authCoordinator.checkAuth().pipe(take(1)).subscribe(() => {
-      this.checkAuthInit$.next();
-      this.checkAuthInit$.complete();
-    });
+    this.authCoordinator
+      .checkAuth()
+      .pipe(take(1))
+      .subscribe(() => {
+        this.checkAuthInit$.next();
+        this.checkAuthInit$.complete();
+      });
 
     this.initBroadcastChannel();
     this.startSsoSessionMonitor();
@@ -111,10 +132,14 @@ export class AuthService {
   /** @deprecated Use oidcLogin() for OIDC-based authentication */
   login(request: LoginRequest): Observable<User> {
     return this.http
-      .post<LoginResponse>(`${this.baseUrl}/login`, request, { withCredentials: true })
+      .post<LoginResponse>(`${this.baseUrl}/login`, request, {
+        withCredentials: true,
+      })
       .pipe(
         switchMap(() => {
-          return this.http.get<User>(`${this.baseUrl}/me`, { withCredentials: true });
+          return this.http.get<User>(`${this.baseUrl}/me`, {
+            withCredentials: true,
+          });
         }),
         tap((user) => {
           this.currentUserSubject.next(user);
@@ -194,12 +219,21 @@ export class AuthService {
   externalLogin(provider: string, returnUrl?: string, loginUrl?: string): void {
     const normalizedProvider = provider.trim();
     if (!/^[A-Za-z0-9._-]{1,64}$/.test(normalizedProvider)) return;
-    const query = returnUrl ? `?returnUrl=${encodeURIComponent(returnUrl)}` : '';
-    if (loginUrl && loginUrl.startsWith('/') && !loginUrl.startsWith('//') && !loginUrl.includes('\\')) {
+    const query = returnUrl
+      ? `?returnUrl=${encodeURIComponent(returnUrl)}`
+      : "";
+    if (
+      loginUrl &&
+      loginUrl.startsWith("/") &&
+      !loginUrl.startsWith("//") &&
+      !loginUrl.includes("\\")
+    ) {
       window.location.assign(`${loginUrl}${query}`);
       return;
     }
-    window.location.assign(`${this.baseUrl}/external-login/${encodeURIComponent(normalizedProvider)}${query}`);
+    window.location.assign(
+      `${this.baseUrl}/external-login/${encodeURIComponent(normalizedProvider)}${query}`,
+    );
   }
 
   oidcLogout(): void {
@@ -218,9 +252,14 @@ export class AuthService {
 
   handleCallback(): Observable<boolean> {
     return this.authCoordinator.handleCallback().pipe(
-      switchMap((isAuthenticated) => isAuthenticated
-        ? this.loadUserFromOidc().pipe(map(() => true), catchError(() => of(true)))
-        : of(false)),
+      switchMap((isAuthenticated) =>
+        isAuthenticated
+          ? this.loadUserFromOidc().pipe(
+              map(() => true),
+              catchError(() => of(true)),
+            )
+          : of(false),
+      ),
     );
   }
 
@@ -358,7 +397,11 @@ export class AuthService {
     return this.http
       .post<{
         granted: boolean;
-      }>(`${this.baseUrl}/check-permission`, { permission }, { withCredentials: true })
+      }>(
+        `${this.baseUrl}/check-permission`,
+        { permission },
+        { withCredentials: true },
+      )
       .pipe(
         map((res) => res.granted),
         tap((granted) => {
@@ -444,7 +487,11 @@ export class AuthService {
 
   private ensureBffSession(): Observable<void> {
     return this.http
-      .post<void>(`${this.baseUrl}/session/exchange`, {}, { withCredentials: true })
+      .post<void>(
+        `${this.baseUrl}/session/exchange`,
+        {},
+        { withCredentials: true },
+      )
       .pipe(
         map(() => void 0),
         catchError(() => of(void 0)),
@@ -452,21 +499,26 @@ export class AuthService {
   }
 
   private startSsoSessionMonitor(): void {
-    timer(2000, 2000).pipe(
-      exhaustMap(() => {
-        if (!this.lastAuthenticated) {
-          return EMPTY;
+    timer(2000, 2000)
+      .pipe(
+        exhaustMap(() => {
+          if (!this.lastAuthenticated) {
+            return EMPTY;
+          }
+          return this.getIdentitySessionStatus().pipe(catchError(() => EMPTY));
+        }),
+      )
+      .subscribe((status) => {
+        if (!status.authenticated) {
+          this.forceLocalLogout();
         }
-        return this.getIdentitySessionStatus().pipe(catchError(() => EMPTY));
-      }),
-    ).subscribe((status) => {
-      if (!status.authenticated) {
-        this.forceLocalLogout();
-      }
-    });
+      });
   }
 
-  private getIdentitySessionStatus(): Observable<{ authenticated: boolean; userName?: string }> {
+  private getIdentitySessionStatus(): Observable<{
+    authenticated: boolean;
+    userName?: string;
+  }> {
     return this.http.get<{ authenticated: boolean; userName?: string }>(
       this.sessionStatusUrl,
       { withCredentials: true },
@@ -488,21 +540,31 @@ export class AuthService {
   }
 
   private markSsoLogout(): void {
-    sessionStorage.setItem("hishop_sso_suppressed_until", String(Date.now() + 10000));
+    sessionStorage.setItem(
+      "hishop_sso_suppressed_until",
+      String(Date.now() + 10000),
+    );
   }
 
   private isSsoSuppressed(): boolean {
-    const until = Number(sessionStorage.getItem("hishop_sso_suppressed_until") ?? 0);
+    const until = Number(
+      sessionStorage.getItem("hishop_sso_suppressed_until") ?? 0,
+    );
     return Date.now() < until;
   }
 
   private markSsoLoginInProgress(): void {
     this.ssoLoginInProgress = true;
-    sessionStorage.setItem(AuthService.SSO_LOGIN_IN_PROGRESS_KEY, String(Date.now() + 120000));
+    sessionStorage.setItem(
+      AuthService.SSO_LOGIN_IN_PROGRESS_KEY,
+      String(Date.now() + 120000),
+    );
   }
 
   private isSsoLoginInProgress(): boolean {
-    const until = Number(sessionStorage.getItem(AuthService.SSO_LOGIN_IN_PROGRESS_KEY) ?? 0);
+    const until = Number(
+      sessionStorage.getItem(AuthService.SSO_LOGIN_IN_PROGRESS_KEY) ?? 0,
+    );
     return this.ssoLoginInProgress || Date.now() < until;
   }
 

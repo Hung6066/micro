@@ -18,14 +18,16 @@ import { MatSelectModule } from "@angular/material/select";
 import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
 import { MatTabsModule } from "@angular/material/tabs";
 import { catchError, firstValueFrom, of, tap } from "rxjs";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
-  HisHopeTranslatePipe,
+} from "@his-hope/frontend-foundation/ui";
+import {
   HisHopeI18nService,
-  HisHopePermissionService,
-  HisHopeResourceState,
-} from "@his-hope/frontend-foundation";
+  HisHopeTranslatePipe,
+} from "@his-hope/frontend-foundation/i18n";
 import {
   AuditLogRow,
   DeliveryHealth,
@@ -166,11 +168,17 @@ import { ApiErrorMessageService } from "../../core/services/api-error-message.se
                     "admin.target" | hhTranslate: "Target"
                   }}</mat-label
                   ><mat-select [(ngModel)]="provisioning.target"
-                    ><mat-option value="scim">{{ "admin.provisioningScim" | hhTranslate: "SCIM" }}</mat-option
-                    ><mat-option value="entra">{{ "admin.provisioningEntra" | hhTranslate: "Microsoft Entra ID" }}</mat-option
-                    ><mat-option value="google-workspace"
-                      >{{ "admin.provisioningGoogleWorkspace" | hhTranslate: "Google Workspace" }}</mat-option
-                    ></mat-select
+                    ><mat-option value="scim">{{
+                      "admin.provisioningScim" | hhTranslate: "SCIM"
+                    }}</mat-option
+                    ><mat-option value="entra">{{
+                      "admin.provisioningEntra"
+                        | hhTranslate: "Microsoft Entra ID"
+                    }}</mat-option
+                    ><mat-option value="google-workspace">{{
+                      "admin.provisioningGoogleWorkspace"
+                        | hhTranslate: "Google Workspace"
+                    }}</mat-option></mat-select
                   ></mat-form-field
                 >
                 <mat-form-field appearance="outline"
@@ -920,7 +928,9 @@ export class IdentityCapabilitiesPageComponent {
   private readonly permissions = inject(HisHopePermissionService);
   private readonly errorMessages = inject(ApiErrorMessageService);
   private readonly destroyRef = inject(DestroyRef);
-  readonly resource = new HisHopeResourceState<IdentityCapabilityState | null>(this.destroyRef);
+  readonly resource = new HisHopeResourceState<IdentityCapabilityState | null>(
+    this.destroyRef,
+  );
   get loading(): boolean {
     return this.resource.loading();
   }

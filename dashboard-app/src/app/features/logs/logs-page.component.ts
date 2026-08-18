@@ -19,6 +19,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 
+import { HisHopePageQuery } from '@his-hope/frontend-foundation';
+import { HisHopeResourceState } from '@his-hope/frontend-foundation/query';
 import {
   HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
@@ -27,12 +29,10 @@ import {
   HisHopeFilterToolbarComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
-  HisHopePageQuery,
-  HisHopeResourceState,
   HisHopeStatusBadgeComponent,
   HisHopeStatusTone,
-  HisHopeTranslatePipe,
-} from '@his-hope/frontend-foundation';
+} from '@his-hope/frontend-foundation/ui';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
 import { BehaviorSubject, interval, merge } from 'rxjs';
 import { debounceTime, map } from 'rxjs/operators';
 import { LogsService } from '../../core/services/logs.service';

@@ -1,10 +1,17 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, inject, ChangeDetectorRef } from '@angular/core';
+import {
+  Component,
+  OnInit,
+  OnDestroy,
+  ChangeDetectionStrategy,
+  inject,
+  ChangeDetectorRef,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 import { interval, Subscription } from 'rxjs';
 import { startWith, switchMap } from 'rxjs/operators';
-import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
 import { ResourceService } from '../../core/services/resource.service';
 import { Resource } from '../../core/models/resource.model';
 
@@ -51,13 +58,13 @@ interface TickMark {
 
 // ── Helpers ──
 const STATUS_COLORS: Record<string, string> = {
-Healthy: '#2F6B4A',
-Unhealthy: '#C25450',
-Degraded: '#B6581C',
+  Healthy: '#2F6B4A',
+  Unhealthy: '#C25450',
+  Degraded: '#B6581C',
 };
 
 function statusColor(s: string): string {
-return STATUS_COLORS[s] ?? '#A1A09B';
+  return STATUS_COLORS[s] ?? '#A1A09B';
 }
 
 function fmtDuration(ms: number): string {
@@ -80,18 +87,29 @@ function fmtTime(ts: number): string {
     <section class="ht-section">
       <!-- Header -->
       <div class="ht-header">
-        <h3 class="ht-title">{{ 'dashboard.resources.healthTimeline' | hhTranslate:'Health Timeline (24h)' }}</h3>
+        <h3 class="ht-title">
+          {{
+            'dashboard.resources.healthTimeline'
+              | hhTranslate: 'Health Timeline (24h)'
+          }}
+        </h3>
         @if (incidentCount > 0) {
           <mat-chip
             class="incident-chip"
             color="warn"
             highlighted
-            disableRipple>
-            {{ 'dashboard.resources.incidents' | hhTranslate:'{count} incident(s)':{ count: incidentCount } }}
+            disableRipple
+          >
+            {{
+              'dashboard.resources.incidents'
+                | hhTranslate: '{count} incident(s)' : { count: incidentCount }
+            }}
           </mat-chip>
         }
         @if (incidentCount === 0 && serviceOrder.length > 0) {
-          <span class="ht-subtitle">{{ 'dashboard.resources.allHealthy' | hhTranslate:'All healthy' }}</span>
+          <span class="ht-subtitle">{{
+            'dashboard.resources.allHealthy' | hhTranslate: 'All healthy'
+          }}</span>
         }
       </div>
 
@@ -101,7 +119,12 @@ function fmtTime(ts: number): string {
         @if (serviceOrder.length === 0) {
           <div class="ht-empty">
             <mat-icon>timeline</mat-icon>
-            <p>{{ 'dashboard.resources.waitingHealthData' | hhTranslate:'Waiting for health data…' }}</p>
+            <p>
+              {{
+                'dashboard.resources.waitingHealthData'
+                  | hhTranslate: 'Waiting for health data…'
+              }}
+            </p>
           </div>
         }
 
@@ -111,14 +134,17 @@ function fmtTime(ts: number): string {
             class="ht-svg"
             [attr.viewBox]="'0 0 ' + SVG_VIEWBOX_W + ' ' + svgHeight"
             preserveAspectRatio="xMidYMid meet"
-            (mouseleave)="hideTooltip()">
-
+            (mouseleave)="hideTooltip()"
+          >
             <!-- Grid lines -->
             @for (t of ticks; track $index) {
               <line
-                [attr.x1]="t.x" [attr.x2]="t.x"
-                y1="0" [attr.y2]="svgHeight - BOTTOM_PAD"
-                class="ht-gridline" />
+                [attr.x1]="t.x"
+                [attr.x2]="t.x"
+                y1="0"
+                [attr.y2]="svgHeight - BOTTOM_PAD"
+                class="ht-gridline"
+              />
             }
 
             <!-- Per-service rows -->
@@ -129,7 +155,10 @@ function fmtTime(ts: number): string {
                   [attr.x]="LABEL_W - 8"
                   [attr.y]="ROW_H / 2 + 5"
                   text-anchor="end"
-                  class="ht-label">{{ displayNameOf(name) }}</text>
+                  class="ht-label"
+                >
+                  {{ displayNameOf(name) }}
+                </text>
 
                 <!-- Bar background -->
                 <rect
@@ -137,7 +166,8 @@ function fmtTime(ts: number): string {
                   y="2"
                   [attr.width]="BAR_W"
                   [attr.height]="ROW_H - 4"
-                  class="ht-bar-bg" />
+                  class="ht-bar-bg"
+                />
 
                 <!-- Segments -->
                 @for (seg of segmentsFor(name); track $index) {
@@ -152,20 +182,28 @@ function fmtTime(ts: number): string {
                       class="ht-seg"
                       (mouseenter)="showTooltip($event, seg)"
                       (mouseleave)="hideTooltip()"
-                      (click)="onSegClick(seg)" />
+                      (click)="onSegClick(seg)"
+                    />
                   }
                 }
               </g>
             }
 
             <!-- Time axis -->
-            <g [attr.transform]="'translate(0,' + (svgHeight - BOTTOM_PAD + 8) + ')'">
+            <g
+              [attr.transform]="
+                'translate(0,' + (svgHeight - BOTTOM_PAD + 8) + ')'
+              "
+            >
               @for (t of ticks; track $index) {
                 <text
                   [attr.x]="t.x"
                   y="12"
                   text-anchor="middle"
-                  class="ht-axis">{{ t.label }}</text>
+                  class="ht-axis"
+                >
+                  {{ t.label }}
+                </text>
               }
             </g>
           </svg>
@@ -176,9 +214,12 @@ function fmtTime(ts: number): string {
           <div
             class="ht-tooltip"
             [style.left.px]="tooltip.x"
-            [style.top.px]="tooltip.y">
+            [style.top.px]="tooltip.y"
+          >
             <div class="ht-tooltip-name">{{ tooltip.displayName }}</div>
-            <div class="ht-tooltip-status" [style.color]="tooltip.color">{{ tooltip.status }}</div>
+            <div class="ht-tooltip-status" [style.color]="tooltip.color">
+              {{ tooltip.status }}
+            </div>
             <div class="ht-tooltip-time">{{ tooltip.timeRange }}</div>
           </div>
         }
@@ -187,10 +228,24 @@ function fmtTime(ts: number): string {
       <!-- Legend -->
       @if (serviceOrder.length > 0) {
         <div class="ht-legend">
-          <span class="ht-legend-item"><span class="ht-dot" style="background:#2F6B4A"></span>{{ 'dashboard.resources.healthy' | hhTranslate:'Healthy' }}</span>
-          <span class="ht-legend-item"><span class="ht-dot" style="background:#B6581C"></span>{{ 'dashboard.resources.degraded' | hhTranslate:'Degraded' }}</span>
-          <span class="ht-legend-item"><span class="ht-dot" style="background:#C25450"></span>{{ 'dashboard.resources.down' | hhTranslate:'Down' }}</span>
-          <span class="ht-legend-item"><span class="ht-dot" style="background:#A1A09B"></span>{{ 'dashboard.resources.unknown' | hhTranslate:'Unknown' }}</span>
+          <span class="ht-legend-item"
+            ><span class="ht-dot" style="background:#2F6B4A"></span
+            >{{ 'dashboard.resources.healthy' | hhTranslate: 'Healthy' }}</span
+          >
+          <span class="ht-legend-item"
+            ><span class="ht-dot" style="background:#B6581C"></span
+            >{{
+              'dashboard.resources.degraded' | hhTranslate: 'Degraded'
+            }}</span
+          >
+          <span class="ht-legend-item"
+            ><span class="ht-dot" style="background:#C25450"></span
+            >{{ 'dashboard.resources.down' | hhTranslate: 'Down' }}</span
+          >
+          <span class="ht-legend-item"
+            ><span class="ht-dot" style="background:#A1A09B"></span
+            >{{ 'dashboard.resources.unknown' | hhTranslate: 'Unknown' }}</span
+          >
         </div>
       }
 
@@ -199,16 +254,26 @@ function fmtTime(ts: number): string {
         <div class="ht-incident">
           <div class="ht-incident-header">
             <mat-icon>warning</mat-icon>
-            <span class="ht-incident-title">{{ 'dashboard.resources.incidentLabel' | hhTranslate:'Incident' }}: {{ selectedIncident.displayName }}</span>
-            <button class="ht-incident-close" (click)="selectedIncident = null">&times;</button>
+            <span class="ht-incident-title"
+              >{{
+                'dashboard.resources.incidentLabel' | hhTranslate: 'Incident'
+              }}: {{ selectedIncident.displayName }}</span
+            >
+            <button class="ht-incident-close" (click)="selectedIncident = null">
+              &times;
+            </button>
           </div>
           <div class="ht-incident-body">
             <div class="ht-incident-row">
-              <span class="ht-incident-label">{{ 'dashboard.resources.started' | hhTranslate:'Started' }}</span>
+              <span class="ht-incident-label">{{
+                'dashboard.resources.started' | hhTranslate: 'Started'
+              }}</span>
               <span>{{ selectedIncident.startedAt }}</span>
             </div>
             <div class="ht-incident-row">
-              <span class="ht-incident-label">{{ 'dashboard.resources.duration' | hhTranslate:'Duration' }}</span>
+              <span class="ht-incident-label">{{
+                'dashboard.resources.duration' | hhTranslate: 'Duration'
+              }}</span>
               <span>{{ selectedIncident.duration }}</span>
             </div>
           </div>
@@ -216,198 +281,200 @@ function fmtTime(ts: number): string {
       }
     </section>
   `,
-  styles: [`
-    .ht-section {
-      margin-top: 32px;
-    }
-    .ht-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-    .ht-title {
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--text-primary, #1A1A1A);
-      margin: 0;
-    }
-    .ht-subtitle {
-      font-size: 13px;
-      color: var(--text-secondary, #787774);
-    }
-    .incident-chip {
-      --mdc-chip-elevated-container-color: #FDEBEC;
-      --mdc-chip-label-text-color: #C25450;
-      font-size: 12px;
-      font-weight: 500;
-    }
-    .ht-chart-wrap {
-      position: relative;
-      background: var(--surface-white, #FFFFFF);
-      border: 1px solid var(--border-default, #EAEAEA);
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    .ht-svg {
-      display: block;
-      width: 100%;
-      height: auto;
-    }
-    .ht-empty {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 48px 24px;
-      color: var(--text-muted, #A1A09B);
-      text-align: center;
-      gap: 8px;
-    }
-    .ht-empty mat-icon {
-      font-size: 40px;
-      width: 40px;
-      height: 40px;
-      opacity: 0.4;
-    }
-    .ht-empty p {
-      font-size: 14px;
-    }
+  styles: [
+    `
+      .ht-section {
+        margin-top: 32px;
+      }
+      .ht-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .ht-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary, #1a1a1a);
+        margin: 0;
+      }
+      .ht-subtitle {
+        font-size: 13px;
+        color: var(--text-secondary, #787774);
+      }
+      .incident-chip {
+        --mdc-chip-elevated-container-color: #fdebec;
+        --mdc-chip-label-text-color: #c25450;
+        font-size: 12px;
+        font-weight: 500;
+      }
+      .ht-chart-wrap {
+        position: relative;
+        background: var(--surface-white, #ffffff);
+        border: 1px solid var(--border-default, #eaeaea);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .ht-svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .ht-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 48px 24px;
+        color: var(--text-muted, #a1a09b);
+        text-align: center;
+        gap: 8px;
+      }
+      .ht-empty mat-icon {
+        font-size: 40px;
+        width: 40px;
+        height: 40px;
+        opacity: 0.4;
+      }
+      .ht-empty p {
+        font-size: 14px;
+      }
 
-    /* Grid lines */
-    .ht-gridline {
-      stroke: var(--border-light, #F0F0EE);
-      stroke-width: 1;
-    }
+      /* Grid lines */
+      .ht-gridline {
+        stroke: var(--border-light, #f0f0ee);
+        stroke-width: 1;
+      }
 
-    /* Bar background */
-    .ht-bar-bg {
-      fill: #F7F6F3;
-      rx: 3;
-    }
+      /* Bar background */
+      .ht-bar-bg {
+        fill: #f7f6f3;
+        rx: 3;
+      }
 
-    /* Segment */
-    .ht-seg {
-      cursor: pointer;
-      transition: opacity 150ms ease;
-    }
-    .ht-seg:hover {
-      opacity: 0.8;
-    }
-    .ht-seg:active {
-      opacity: 0.6;
-    }
+      /* Segment */
+      .ht-seg {
+        cursor: pointer;
+        transition: opacity 150ms ease;
+      }
+      .ht-seg:hover {
+        opacity: 0.8;
+      }
+      .ht-seg:active {
+        opacity: 0.6;
+      }
 
-    /* Labels */
-    .ht-label {
-      font-size: 12px;
-      font-weight: 500;
-      fill: var(--text-primary, #1A1A1A);
-      font-family: var(--font-sans);
-    }
-    .ht-axis {
-      font-size: 10px;
-      fill: var(--text-muted, #A1A09B);
-      font-family: var(--font-sans);
-    }
+      /* Labels */
+      .ht-label {
+        font-size: 12px;
+        font-weight: 500;
+        fill: var(--text-primary, #1a1a1a);
+        font-family: var(--font-sans);
+      }
+      .ht-axis {
+        font-size: 10px;
+        fill: var(--text-muted, #a1a09b);
+        font-family: var(--font-sans);
+      }
 
-    /* Tooltip */
-    .ht-tooltip {
-      position: absolute;
-      background: #1A1A1A;
-      color: #FFFFFF;
-      font-size: 12px;
-      border-radius: 6px;
-      padding: 8px 12px;
-      pointer-events: none;
-      z-index: 100;
-      line-height: 1.5;
-      white-space: nowrap;
-      transform: translate(-50%, -120%);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    }
-    .ht-tooltip-name {
-      font-weight: 600;
-    }
-    .ht-tooltip-status {
-      font-weight: 500;
-    }
-    .ht-tooltip-time {
-      color: #A1A09B;
-      font-size: 11px;
-    }
+      /* Tooltip */
+      .ht-tooltip {
+        position: absolute;
+        background: #1a1a1a;
+        color: #ffffff;
+        font-size: 12px;
+        border-radius: 6px;
+        padding: 8px 12px;
+        pointer-events: none;
+        z-index: 100;
+        line-height: 1.5;
+        white-space: nowrap;
+        transform: translate(-50%, -120%);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      }
+      .ht-tooltip-name {
+        font-weight: 600;
+      }
+      .ht-tooltip-status {
+        font-weight: 500;
+      }
+      .ht-tooltip-time {
+        color: #a1a09b;
+        font-size: 11px;
+      }
 
-    /* Legend */
-    .ht-legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
-      padding: 12px 0 0;
-      font-size: 12px;
-      color: var(--text-secondary, #787774);
-    }
-    .ht-legend-item {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .ht-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
+      /* Legend */
+      .ht-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        padding: 12px 0 0;
+        font-size: 12px;
+        color: var(--text-secondary, #787774);
+      }
+      .ht-legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .ht-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
 
-    /* Incident detail */
-    .ht-incident {
-      margin-top: 12px;
-      background: #FDEBEC;
-      border: 1px solid #F5C6C4;
-      border-radius: 8px;
-      overflow: hidden;
-      font-size: 13px;
-    }
-    .ht-incident-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 10px 16px;
-      background: rgba(194,84,80,0.08);
-      font-weight: 600;
-      color: #C25450;
-    }
-    .ht-incident-header mat-icon {
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-    }
-    .ht-incident-title {
-      flex: 1;
-    }
-    .ht-incident-close {
-      background: none;
-      border: none;
-      font-size: 20px;
-      cursor: pointer;
-      color: #C25450;
-      line-height: 1;
-      padding: 0 4px;
-    }
-    .ht-incident-body {
-      padding: 12px 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .ht-incident-row {
-      display: flex;
-      gap: 12px;
-    }
-    .ht-incident-label {
-      color: var(--text-muted, #A1A09B);
-      min-width: 72px;
-      font-weight: 500;
-    }
-  `],
+      /* Incident detail */
+      .ht-incident {
+        margin-top: 12px;
+        background: #fdebec;
+        border: 1px solid #f5c6c4;
+        border-radius: 8px;
+        overflow: hidden;
+        font-size: 13px;
+      }
+      .ht-incident-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        background: rgba(194, 84, 80, 0.08);
+        font-weight: 600;
+        color: #c25450;
+      }
+      .ht-incident-header mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+      }
+      .ht-incident-title {
+        flex: 1;
+      }
+      .ht-incident-close {
+        background: none;
+        border: none;
+        font-size: 20px;
+        cursor: pointer;
+        color: #c25450;
+        line-height: 1;
+        padding: 0 4px;
+      }
+      .ht-incident-body {
+        padding: 12px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .ht-incident-row {
+        display: flex;
+        gap: 12px;
+      }
+      .ht-incident-label {
+        color: var(--text-muted, #a1a09b);
+        min-width: 72px;
+        font-weight: 500;
+      }
+    `,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HealthTimelineComponent implements OnInit, OnDestroy {
@@ -433,9 +500,21 @@ export class HealthTimelineComponent implements OnInit, OnDestroy {
   incidentCount = 0;
   svgHeight = 120;
 
-  tooltip = { visible: false, x: 0, y: 0, displayName: '', status: '', color: '', timeRange: '' };
+  tooltip = {
+    visible: false,
+    x: 0,
+    y: 0,
+    displayName: '',
+    status: '',
+    color: '',
+    timeRange: '',
+  };
 
-  selectedIncident: { displayName: string; startedAt: string; duration: string } | null = null;
+  selectedIncident: {
+    displayName: string;
+    startedAt: string;
+    duration: string;
+  } | null = null;
 
   // ── Ticks ──
   get ticks(): TickMark[] {
@@ -449,13 +528,17 @@ export class HealthTimelineComponent implements OnInit, OnDestroy {
 
   // ── Lifecycle ──
   ngOnInit(): void {
-    this.pollSub = interval(POLL_INTERVAL_MS).pipe(
-      startWith(0),
-      switchMap(() => this.resourceService.getAll()),
-    ).subscribe({
-      next: resources => this.processPoll(resources),
-      error: () => { /* poll errors silently — keep last known state */ },
-    });
+    this.pollSub = interval(POLL_INTERVAL_MS)
+      .pipe(
+        startWith(0),
+        switchMap(() => this.resourceService.getAll()),
+      )
+      .subscribe({
+        next: (resources) => this.processPoll(resources),
+        error: () => {
+          /* poll errors silently — keep last known state */
+        },
+      });
   }
 
   ngOnDestroy(): void {
@@ -472,7 +555,7 @@ export class HealthTimelineComponent implements OnInit, OnDestroy {
   }
 
   segmentsFor(name: string): TimelineSegment[] {
-    return this.segments.filter(s => s.serviceName === name);
+    return this.segments.filter((s) => s.serviceName === name);
   }
 
   getStatusColor(s: string): string {
@@ -516,11 +599,17 @@ export class HealthTimelineComponent implements OnInit, OnDestroy {
         continue;
       }
       // Prune transitions older than cutoff, but keep at least the first
-      while (entry.transitions.length > 2 && entry.transitions[1].timestamp < cutoff) {
+      while (
+        entry.transitions.length > 2 &&
+        entry.transitions[1].timestamp < cutoff
+      ) {
         entry.transitions.shift();
       }
       // Clamp first transition to cutoff
-      if (entry.transitions.length > 0 && entry.transitions[0].timestamp < cutoff) {
+      if (
+        entry.transitions.length > 0 &&
+        entry.transitions[0].timestamp < cutoff
+      ) {
         entry.transitions[0].timestamp = cutoff;
       }
     }
@@ -564,14 +653,13 @@ export class HealthTimelineComponent implements OnInit, OnDestroy {
 
     // Count current incidents (unhealthy segments within last 60s)
     this.incidentCount = segs.filter(
-      s => s.status === 'Unhealthy' && s.endMs > now - 60_000,
+      (s) => s.status === 'Unhealthy' && s.endMs > now - 60_000,
     ).length;
 
     // SVG height
     const rows = this.serviceOrder.length;
-    this.svgHeight = rows > 0
-      ? TOP_PAD + rows * (ROW_H + ROW_GAP) + BOTTOM_PAD
-      : 120;
+    this.svgHeight =
+      rows > 0 ? TOP_PAD + rows * (ROW_H + ROW_GAP) + BOTTOM_PAD : 120;
 
     this.cdr.markForCheck();
   }

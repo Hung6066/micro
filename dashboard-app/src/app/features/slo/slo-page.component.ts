@@ -14,13 +14,13 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Subject } from 'rxjs';
+import { HisHopeResourceState } from '@his-hope/frontend-foundation/query';
 import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeStateComponent,
-  HisHopeResourceState,
-  HisHopeTranslatePipe,
-} from '@his-hope/frontend-foundation';
+} from '@his-hope/frontend-foundation/ui';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
 import { SloService } from '../../core/services/slo.service';
 import { SloRecord, SloResponse } from '../../core/models/slo.model';
 import { MetricDataPoint } from '../../core/models/metric-snapshot.model';

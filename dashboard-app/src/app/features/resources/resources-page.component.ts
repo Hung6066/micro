@@ -27,13 +27,13 @@ import { ResourceCardComponent } from '../../shared/resource-card/resource-card.
 import { ResourceDetailComponent } from './resource-detail.component';
 import { HealthTimelineComponent } from './health-timeline.component';
 import { DependencyGraphComponent } from './dependency-graph.component';
+import { HisHopeResourceState } from '@his-hope/frontend-foundation/query';
 import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
-  HisHopeResourceState,
   HisHopeStateComponent,
-  HisHopeTranslatePipe,
-} from '@his-hope/frontend-foundation';
+} from '@his-hope/frontend-foundation/ui';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
 
 interface GroupedResources {
   services: Resource[];

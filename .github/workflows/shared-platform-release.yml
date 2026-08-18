@@ -23,7 +23,10 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: "8.0.x"
+      - name: Validate shared package governance
+        shell: pwsh
+        run: ./scripts/validate-shared-package-governance.ps1
       - name: Restore with dependency gates
         run: dotnet restore His.Hope.sln -warnAsError:NU1605 -warnAsError:NU1901 -warnAsError:NU1902 -warnAsError:NU1903 -warnAsError:NU1904
       - name: Build and test

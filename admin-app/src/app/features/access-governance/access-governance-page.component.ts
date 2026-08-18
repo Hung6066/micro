@@ -25,14 +25,16 @@ import {
   Role,
   User,
 } from "../../core/services/access-governance-api.service";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
-  HisHopeI18nService,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
-  HisHopePermissionService,
-  HisHopeResourceState,
+} from "@his-hope/frontend-foundation/ui";
+import {
+  HisHopeI18nService,
   HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation";
+} from "@his-hope/frontend-foundation/i18n";
 import { AccessGovernanceWorkflowsComponent } from "./access-governance-workflows.component";
 
 @Component({

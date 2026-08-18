@@ -1,10 +1,21 @@
-import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Subject, takeUntil } from 'rxjs';
-import { CommonModule } from '@angular/common';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import {
+  Component,
+  OnInit,
+  OnDestroy,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  inject,
+} from "@angular/core";
+import { HttpClient } from "@angular/common/http";
+import { Subject, takeUntil } from "rxjs";
+import { CommonModule } from "@angular/common";
+import { MatButtonModule } from "@angular/material/button";
+import { MatIconModule } from "@angular/material/icon";
+import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
+import {
+  HisHopeTranslatePipe,
+  HisHopeI18nService,
+} from "@his-hope/frontend-foundation/i18n";
 import {
   HisHopeDataTableColumn,
   HisHopeDataTableComponent,
@@ -13,9 +24,7 @@ import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeStatusBadgeComponent,
-  HisHopeTranslatePipe,
-  HisHopeI18nService,
-} from '@his-hope/frontend-foundation';
+} from "@his-hope/frontend-foundation/ui";
 
 interface AgentRun {
   id: string;
@@ -39,19 +48,23 @@ interface PipelineRun {
 }
 
 @Component({
-  selector: 'app-harness-dashboard',
+  selector: "app-harness-dashboard",
   standalone: true,
   imports: [
     CommonModule,
     MatButtonModule,
     MatIconModule,
     MatSnackBarModule,
-    HisHopeDataTableComponent, HisHopeDataTableCellDirective, HisHopeDataTableDetailDirective,
+    HisHopeDataTableComponent,
+    HisHopeDataTableCellDirective,
+    HisHopeDataTableDetailDirective,
     HisHopeStatusBadgeComponent,
-    HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeTranslatePipe,
+    HisHopePageHeaderComponent,
+    HisHopePageLayoutComponent,
+    HisHopeTranslatePipe,
   ],
-  templateUrl: './harness-dashboard.component.html',
-  styleUrls: ['./harness-dashboard.component.scss'],
+  templateUrl: "./harness-dashboard.component.html",
+  styleUrls: ["./harness-dashboard.component.scss"],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HarnessDashboardComponent implements OnInit, OnDestroy {
@@ -61,7 +74,7 @@ export class HarnessDashboardComponent implements OnInit, OnDestroy {
   private snackBar = inject(MatSnackBar);
   private i18n = inject(HisHopeI18nService);
 
-  private readonly harnessApiUrl = 'http://localhost:5200/mcp';
+  private readonly harnessApiUrl = "http://localhost:5200/mcp";
 
   loading = true;
   error: string | null = null;
@@ -69,11 +82,26 @@ export class HarnessDashboardComponent implements OnInit, OnDestroy {
   expandedRowKeys: string[] = [];
 
   readonly columns: HisHopeDataTableColumn[] = [
-    { key: 'workflowId', label: this.i18n.t('adminPage.harness.columnWorkflow', 'Workflow') },
-    { key: 'status', label: this.i18n.t('adminPage.harness.columnStatus', 'Trạng thái') },
-    { key: 'startedAt', label: this.i18n.t('adminPage.harness.columnStartedAt', 'Bắt đầu') },
-    { key: 'duration', label: this.i18n.t('adminPage.harness.columnDuration', 'Thời gian') },
-    { key: 'agentCount', label: this.i18n.t('adminPage.harness.columnAgentCount', 'Số Agent') },
+    {
+      key: "workflowId",
+      label: this.i18n.t("adminPage.harness.columnWorkflow", "Workflow"),
+    },
+    {
+      key: "status",
+      label: this.i18n.t("adminPage.harness.columnStatus", "Trạng thái"),
+    },
+    {
+      key: "startedAt",
+      label: this.i18n.t("adminPage.harness.columnStartedAt", "Bắt đầu"),
+    },
+    {
+      key: "duration",
+      label: this.i18n.t("adminPage.harness.columnDuration", "Thời gian"),
+    },
+    {
+      key: "agentCount",
+      label: this.i18n.t("adminPage.harness.columnAgentCount", "Số Agent"),
+    },
   ];
   pipelineRows: Record<string, unknown>[] = [];
 
@@ -95,7 +123,8 @@ export class HarnessDashboardComponent implements OnInit, OnDestroy {
     this.error = null;
     this.cdr.markForCheck();
 
-    this.http.post<PipelineRun>(`${this.harnessApiUrl}/get-pipeline-status`, {})
+    this.http
+      .post<PipelineRun>(`${this.harnessApiUrl}/get-pipeline-status`, {})
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (status) => {
@@ -104,7 +133,11 @@ export class HarnessDashboardComponent implements OnInit, OnDestroy {
         },
         error: () => {
           this.snackBar.open(
-            this.i18n.t('adminPage.harness.apiConnectionFailed', 'Không thể kết nối tới Agent Harness API — hiển thị dữ liệu từ database'), this.i18n.t('common.close', 'Đóng'),
+            this.i18n.t(
+              "adminPage.harness.apiConnectionFailed",
+              "Không thể kết nối tới Agent Harness API — hiển thị dữ liệu từ database",
+            ),
+            this.i18n.t("common.close", "Đóng"),
             { duration: 6000 },
           );
           this.loadFromDatabase();
@@ -115,43 +148,43 @@ export class HarnessDashboardComponent implements OnInit, OnDestroy {
   private loadFromDatabase(): void {
     this.pipelines = [
       {
-        id: 'cb42e4e3-525a-4c9e-8e80-83f715e45a3b',
-        workflowId: 'guard-test',
-        status: 'Running',
-        startedAt: '2026-07-18T09:09:17.094Z',
+        id: "cb42e4e3-525a-4c9e-8e80-83f715e45a3b",
+        workflowId: "guard-test",
+        status: "Running",
+        startedAt: "2026-07-18T09:09:17.094Z",
         completedAt: null,
         agentCount: 2,
       },
       {
-        id: '358cdb07-7141-4822-a961-549e44dff033',
-        workflowId: 'memory-test',
-        status: 'Completed',
-        startedAt: '2026-07-18T09:02:04.598Z',
-        completedAt: '2026-07-18T09:02:09.877Z',
+        id: "358cdb07-7141-4822-a961-549e44dff033",
+        workflowId: "memory-test",
+        status: "Completed",
+        startedAt: "2026-07-18T09:02:04.598Z",
+        completedAt: "2026-07-18T09:02:09.877Z",
         agentCount: 3,
       },
       {
-        id: '271f9887-cac5-4709-b4a7-3b1541543f04',
-        workflowId: 'crash-resume-v3',
-        status: 'Completed',
-        startedAt: '2026-07-18T08:55:34.828Z',
-        completedAt: '2026-07-18T08:56:06.785Z',
+        id: "271f9887-cac5-4709-b4a7-3b1541543f04",
+        workflowId: "crash-resume-v3",
+        status: "Completed",
+        startedAt: "2026-07-18T08:55:34.828Z",
+        completedAt: "2026-07-18T08:56:06.785Z",
         agentCount: 5,
       },
       {
-        id: '4657e304-0351-475e-a7bd-d6596c89c01a',
-        workflowId: 'crash-resume-v2',
-        status: 'Completed',
-        startedAt: '2026-07-18T08:51:53.812Z',
-        completedAt: '2026-07-18T08:55:34.800Z',
+        id: "4657e304-0351-475e-a7bd-d6596c89c01a",
+        workflowId: "crash-resume-v2",
+        status: "Completed",
+        startedAt: "2026-07-18T08:51:53.812Z",
+        completedAt: "2026-07-18T08:55:34.800Z",
         agentCount: 4,
       },
       {
-        id: '2ced02a5-5605-4f8a-b73d-e8459ef8b58b',
-        workflowId: 'crash-resume',
-        status: 'Failed',
-        startedAt: '2026-07-18T08:48:07.195Z',
-        completedAt: '2026-07-18T08:51:53.611Z',
+        id: "2ced02a5-5605-4f8a-b73d-e8459ef8b58b",
+        workflowId: "crash-resume",
+        status: "Failed",
+        startedAt: "2026-07-18T08:48:07.195Z",
+        completedAt: "2026-07-18T08:51:53.611Z",
         agentCount: 4,
       },
     ];
@@ -186,9 +219,13 @@ export class HarnessDashboardComponent implements OnInit, OnDestroy {
   }
 
   private loadAgentsFor(pipeline: PipelineRun): void {
-    this.http.post<{ agents: AgentRun[] }>(`${this.harnessApiUrl}/get-pipeline-status`, {
-      pipeline_run_id: pipeline.id,
-    })
+    this.http
+      .post<{ agents: AgentRun[] }>(
+        `${this.harnessApiUrl}/get-pipeline-status`,
+        {
+          pipeline_run_id: pipeline.id,
+        },
+      )
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (resp) => {
@@ -206,52 +243,97 @@ export class HarnessDashboardComponent implements OnInit, OnDestroy {
 
   private getMockAgents(pipelineId: string): AgentRun[] {
     const agents: Record<string, AgentRun[]> = {
-      'cb42e4e3-525a-4c9e-8e80-83f715e45a3b': [
-        { id: 'a1', agentName: 'dotnet', taskDescription: 'Migrate DB schema', status: 'Running', attemptedAt: '2026-07-18T09:09:18Z' },
-        { id: 'a2', agentName: 'angular', taskDescription: 'Update UI components', status: 'Pending', attemptedAt: undefined },
+      "cb42e4e3-525a-4c9e-8e80-83f715e45a3b": [
+        {
+          id: "a1",
+          agentName: "dotnet",
+          taskDescription: "Migrate DB schema",
+          status: "Running",
+          attemptedAt: "2026-07-18T09:09:18Z",
+        },
+        {
+          id: "a2",
+          agentName: "angular",
+          taskDescription: "Update UI components",
+          status: "Pending",
+          attemptedAt: undefined,
+        },
       ],
-      '358cdb07-7141-4822-a961-549e44dff033': [
-        { id: 'a3', agentName: 'explore', taskDescription: 'Analyze memory usage patterns', status: 'Completed', completedAt: '2026-07-18T09:02:06Z', confidenceScore: 0.95 },
-        { id: 'a4', agentName: 'dotnet', taskDescription: 'Implement memory cache', status: 'Completed', completedAt: '2026-07-18T09:02:08Z', confidenceScore: 0.90 },
-        { id: 'a5', agentName: 'qa', taskDescription: 'Run memory tests', status: 'Completed', completedAt: '2026-07-18T09:02:09Z', confidenceScore: 0.88 },
+      "358cdb07-7141-4822-a961-549e44dff033": [
+        {
+          id: "a3",
+          agentName: "explore",
+          taskDescription: "Analyze memory usage patterns",
+          status: "Completed",
+          completedAt: "2026-07-18T09:02:06Z",
+          confidenceScore: 0.95,
+        },
+        {
+          id: "a4",
+          agentName: "dotnet",
+          taskDescription: "Implement memory cache",
+          status: "Completed",
+          completedAt: "2026-07-18T09:02:08Z",
+          confidenceScore: 0.9,
+        },
+        {
+          id: "a5",
+          agentName: "qa",
+          taskDescription: "Run memory tests",
+          status: "Completed",
+          completedAt: "2026-07-18T09:02:09Z",
+          confidenceScore: 0.88,
+        },
       ],
     };
     return agents[pipelineId] ?? [];
   }
 
-  statusTone(status: string): 'success' | 'info' | 'warning' | 'danger' | 'neutral' {
+  statusTone(
+    status: string,
+  ): "success" | "info" | "warning" | "danger" | "neutral" {
     switch (status) {
-      case 'Completed': return 'success';
-      case 'Running': return 'info';
-      case 'Failed': return 'danger';
-      case 'Cancelled': return 'neutral';
-      default: return 'warning';
+      case "Completed":
+        return "success";
+      case "Running":
+        return "info";
+      case "Failed":
+        return "danger";
+      case "Cancelled":
+        return "neutral";
+      default:
+        return "warning";
     }
   }
 
   statusLabel(status: string): string {
     const labels: Record<string, string> = {
-      Completed: this.i18n.t('adminPage.harness.statusCompleted', 'Hoàn thành'),
-      Running: this.i18n.t('adminPage.harness.statusRunning', 'Đang chạy'),
-      Failed: this.i18n.t('adminPage.harness.statusFailed', 'Thất bại'),
-      Cancelled: this.i18n.t('adminPage.harness.statusCancelled', 'Đã hủy'),
-      Pending: this.i18n.t('adminPage.harness.statusPending', 'Chờ xử lý'),
+      Completed: this.i18n.t("adminPage.harness.statusCompleted", "Hoàn thành"),
+      Running: this.i18n.t("adminPage.harness.statusRunning", "Đang chạy"),
+      Failed: this.i18n.t("adminPage.harness.statusFailed", "Thất bại"),
+      Cancelled: this.i18n.t("adminPage.harness.statusCancelled", "Đã hủy"),
+      Pending: this.i18n.t("adminPage.harness.statusPending", "Chờ xử lý"),
     };
     return labels[status] ?? status;
   }
 
   agentStatusChipClass(status: string): string {
     switch (status) {
-      case 'Completed': return 'agent-completed';
-      case 'Running': return 'agent-running';
-      case 'Failed': return 'agent-failed';
-      case 'Pending': return 'agent-pending';
-      default: return 'agent-pending';
+      case "Completed":
+        return "agent-completed";
+      case "Running":
+        return "agent-running";
+      case "Failed":
+        return "agent-failed";
+      case "Pending":
+        return "agent-pending";
+      default:
+        return "agent-pending";
     }
   }
 
   duration(startedAt: string | null, completedAt: string | null): string {
-    if (!startedAt) return '—';
+    if (!startedAt) return "—";
     const start = new Date(startedAt).getTime();
     const end = completedAt ? new Date(completedAt).getTime() : Date.now();
     const ms = end - start;

@@ -1,0 +1,119 @@
+{
+  "$schema": "./shared-package-catalog.schema.json",
+  "packages": [
+    {
+      "id": "@his-hope/frontend-foundation",
+      "ecosystem": "npm",
+      "manifest": "shared/frontend-foundation/package.json",
+      "changelog": "shared/frontend-foundation/CHANGELOG.md",
+      "owner": "frontend-platform",
+      "channel": "stable"
+    },
+    {
+      "id": "@his-hope/mobile-foundation",
+      "ecosystem": "npm",
+      "manifest": "shared/mobile-foundation/package.json",
+      "changelog": "shared/mobile-foundation/CHANGELOG.md",
+      "owner": "mobile-platform",
+      "channel": "stable"
+    },
+    {
+      "id": "His.Hope.Core",
+      "ecosystem": "nuget",
+      "manifest": "src/Shared/Core/His.Hope.Core/His.Hope.Core.csproj",
+      "owner": "backend-platform",
+      "channel": "stable"
+    },
+    {
+      "id": "His.Hope.Contracts",
+      "ecosystem": "nuget",
+      "manifest": "src/Shared/Contracts/His.Hope.Contracts/His.Hope.Contracts.csproj",
+      "owner": "backend-platform",
+      "channel": "stable"
+    },
+    {
+      "id": "His.Hope.ServiceDefaults",
+      "ecosystem": "nuget",
+      "manifest": "src/Shared/ServiceDefaults/His.Hope.ServiceDefaults/His.Hope.ServiceDefaults.csproj",
+      "owner": "backend-platform",
+      "channel": "stable"
+    },
+    {
+      "id": "His.Hope.AspNetCore",
+      "ecosystem": "nuget",
+      "manifest": "src/Shared/AspNetCore/His.Hope.AspNetCore/His.Hope.AspNetCore.csproj",
+      "owner": "backend-platform",
+      "channel": "stable"
+    },
+    {
+      "id": "His.Hope.Validation",
+      "ecosystem": "nuget",
+      "manifest": "src/Shared/Validation/His.Hope.Validation/His.Hope.Validation.csproj",
+      "owner": "backend-platform",
+      "channel": "stable"
+    },
+    {
+      "id": "His.Hope.Messaging.Abstractions",
+      "ecosystem": "nuget",
+      "manifest": "src/Shared/Messaging/His.Hope.Messaging.Abstractions/His.Hope.Messaging.Abstractions.csproj",
+      "owner": "backend-platform",
+      "channel": "stable"
+    },
+    {
+      "id": "His.Hope.Observability",
+      "ecosystem": "nuget",
+      "manifest": "src/Shared/Observability/His.Hope.Observability/His.Hope.Observability.csproj",
+      "owner": "backend-platform",
+      "channel": "stable"
+    },
+    {
+      "id": "His.Hope.Authorization",
+      "ecosystem": "nuget",
+      "manifest": "src/Shared/Authorization/His.Hope.Authorization/His.Hope.Authorization.csproj",
+      "owner": "backend-platform",
+      "channel": "stable"
+    },
+    {
+      "id": "His.Hope.Resilience",
+      "ecosystem": "nuget",
+      "manifest": "src/Shared/Resilience/His.Hope.Resilience/His.Hope.Resilience.csproj",
+      "owner": "backend-platform",
+      "channel": "stable"
+    },
+    {
+      "id": "His.Hope.Observability.OpenTelemetry",
+      "ecosystem": "nuget",
+      "manifest": "src/Shared/Observability/His.Hope.Observability.OpenTelemetry/His.Hope.Observability.OpenTelemetry.csproj",
+      "owner": "backend-platform",
+      "channel": "stable"
+    },
+    {
+      "id": "His.Hope.Persistence",
+      "ecosystem": "nuget",
+      "manifest": "src/Shared/Persistence/His.Hope.Persistence/His.Hope.Persistence.csproj",
+      "owner": "backend-platform",
+      "channel": "stable"
+    },
+    {
+      "id": "His.Hope.Messaging.RabbitMq",
+      "ecosystem": "nuget",
+      "manifest": "src/Shared/Messaging/His.Hope.Messaging.RabbitMq/His.Hope.Messaging.RabbitMq.csproj",
+      "owner": "backend-platform",
+      "channel": "stable"
+    },
+    {
+      "id": "His.Hope.Messaging.Redis",
+      "ecosystem": "nuget",
+      "manifest": "src/Shared/Messaging/His.Hope.Messaging.Redis/His.Hope.Messaging.Redis.csproj",
+      "owner": "backend-platform",
+      "channel": "stable"
+    },
+    {
+      "id": "His.Hope.Messaging.Sql",
+      "ecosystem": "nuget",
+      "manifest": "src/Shared/Messaging/His.Hope.Messaging.Sql/His.Hope.Messaging.Sql.csproj",
+      "owner": "backend-platform",
+      "channel": "stable"
+    }
+  ]
+}

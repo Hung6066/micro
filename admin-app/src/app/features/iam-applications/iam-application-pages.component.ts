@@ -7,16 +7,16 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation";
+import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
   HisHopeDataTableComponent,
   HisHopeDataTableColumn,
-  HisHopeI18nService,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
-  HisHopeResourceState,
   HisHopeToolbarComponent,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation";
+} from "@his-hope/frontend-foundation/ui";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import { IamApiService } from "../../core/services/iam-api.service";
 import {
   IamApiAudiencesResponse,
@@ -65,7 +65,9 @@ export class IamApiAudiencesPageComponent implements OnInit {
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
-  readonly resource = new HisHopeResourceState<IamApiAudiencesResponse>(this.destroyRef);
+  readonly resource = new HisHopeResourceState<IamApiAudiencesResponse>(
+    this.destroyRef,
+  );
   rows: Record<string, unknown>[] = [];
   private actionError = "";
   get loading() {
@@ -151,7 +153,9 @@ export class IamTrustedIssuersPageComponent implements OnInit {
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
-  readonly resource = new HisHopeResourceState<IamTrustedIssuersResponse>(this.destroyRef);
+  readonly resource = new HisHopeResourceState<IamTrustedIssuersResponse>(
+    this.destroyRef,
+  );
   rows: Record<string, unknown>[] = [];
   private actionError = "";
   get loading() {
@@ -236,7 +240,15 @@ export class IamExternalIdentitiesPageComponent implements OnInit {
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
-  readonly resource = new HisHopeResourceState<{ providers: Array<{ provider: string; displayName: string; icon?: string; protocol?: string; loginUrl?: string }> }>(this.destroyRef);
+  readonly resource = new HisHopeResourceState<{
+    providers: Array<{
+      provider: string;
+      displayName: string;
+      icon?: string;
+      protocol?: string;
+      loginUrl?: string;
+    }>;
+  }>(this.destroyRef);
   rows: Record<string, unknown>[] = [];
   private actionError = "";
   get loading() {

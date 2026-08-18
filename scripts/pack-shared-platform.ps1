@@ -11,6 +11,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $dotnet = Join-Path $env:ProgramFiles 'dotnet\dotnet.exe'
 if (-not (Test-Path -LiteralPath $dotnet)) { $dotnet = 'dotnet.exe' }
 $projects = @(
+    'src/Shared/Core/His.Hope.Core/His.Hope.Core.csproj',
     'src/Shared/Contracts/His.Hope.Contracts/His.Hope.Contracts.csproj',
     'src/Shared/AspNetCore/His.Hope.AspNetCore/His.Hope.AspNetCore.csproj',
     'src/Shared/Validation/His.Hope.Validation/His.Hope.Validation.csproj',

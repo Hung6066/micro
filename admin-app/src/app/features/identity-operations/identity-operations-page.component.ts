@@ -16,14 +16,16 @@ import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
 import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
-  HisHopeI18nService,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
-  HisHopePermissionService,
-  HisHopeResourceState,
+} from "@his-hope/frontend-foundation/ui";
+import {
+  HisHopeI18nService,
   HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation";
+} from "@his-hope/frontend-foundation/i18n";
 import {
   AdminSession,
   BulkImportPreview,
@@ -249,11 +251,16 @@ import { catchError, of, tap } from "rxjs";
                 "admin.provisioningTarget" | hhTranslate: "Provisioning target"
               }}</mat-label
               ><mat-select [(ngModel)]="provisioningTarget"
-                ><mat-option value="scim">{{ "admin.provisioningScim" | hhTranslate: "SCIM" }}</mat-option
-                ><mat-option value="entra">{{ "admin.provisioningEntra" | hhTranslate: "Microsoft Entra ID" }}</mat-option
-                ><mat-option value="google-workspace"
-                  >{{ "admin.provisioningGoogleWorkspace" | hhTranslate: "Google Workspace" }}</mat-option
-                ></mat-select
+                ><mat-option value="scim">{{
+                  "admin.provisioningScim" | hhTranslate: "SCIM"
+                }}</mat-option
+                ><mat-option value="entra">{{
+                  "admin.provisioningEntra" | hhTranslate: "Microsoft Entra ID"
+                }}</mat-option
+                ><mat-option value="google-workspace">{{
+                  "admin.provisioningGoogleWorkspace"
+                    | hhTranslate: "Google Workspace"
+                }}</mat-option></mat-select
               ></mat-form-field
             ><button
               mat-stroked-button

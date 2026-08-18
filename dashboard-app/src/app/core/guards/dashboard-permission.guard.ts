@@ -2,7 +2,7 @@ import { inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router, UrlTree } from '@angular/router';
 import { Observable, catchError, map, of, switchMap } from 'rxjs';
-import { HisHopePermissionService } from '@his-hope/frontend-foundation';
+import { HisHopePermissionService } from '@his-hope/frontend-foundation/auth';
 import { environment } from '../../../environments/environment';
 
 interface PermissionSnapshotResponse {
@@ -24,13 +24,17 @@ export const dashboardPermissionGuard = (): Observable<boolean | UrlTree> => {
 
   if (permissions.has('dashboard.view')) return of(true);
 
-  return http.get<PermissionSnapshotResponse>(`${environment.apiUrl}/v1/admin/me/permissions`).pipe(
-    map(snapshot => {
-      permissions.setSnapshot(snapshot);
-      return permissions.has('dashboard.view')
-        ? true
-        : router.parseUrl('/access-denied');
-    }),
-    catchError(() => of(router.parseUrl('/access-denied'))),
-  );
+  return http
+    .get<PermissionSnapshotResponse>(
+      `${environment.apiUrl}/v1/admin/me/permissions`,
+    )
+    .pipe(
+      map((snapshot) => {
+        permissions.setSnapshot(snapshot);
+        return permissions.has('dashboard.view')
+          ? true
+          : router.parseUrl('/access-denied');
+      }),
+      catchError(() => of(router.parseUrl('/access-denied'))),
+    );
 };

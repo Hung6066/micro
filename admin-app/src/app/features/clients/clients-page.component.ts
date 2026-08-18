@@ -26,20 +26,25 @@ import {
   HisHopeAuditFeedbackService,
   HisHopeBulkAction,
   HisHopeBulkActionRequest,
+  HisHopeI18nService,
+  HisHopeTableExportRequest,
+} from "@his-hope/frontend-foundation";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
+import {
   HisHopeConfirmDialogComponent,
   HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
   HisHopeDataTableComponent,
   HisHopeDataTableDetailDirective,
-  HisHopeI18nService,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
-  HisHopePermissionService,
-  HisHopeResourceState,
-  HisHopeTableExportRequest,
   HisHopeToolbarComponent,
+} from "@his-hope/frontend-foundation/ui";
+import {
+  HisHopeI18nService,
   HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation";
+} from "@his-hope/frontend-foundation/i18n";
 import { ClientEditDialogComponent } from "./client-edit-dialog.component";
 import { catchError, finalize } from "rxjs/operators";
 import { of } from "rxjs";

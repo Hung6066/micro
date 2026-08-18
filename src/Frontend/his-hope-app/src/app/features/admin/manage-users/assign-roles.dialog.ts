@@ -1,46 +1,65 @@
-import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
-import { FormBuilder, FormGroup, FormArray, ReactiveFormsModule } from '@angular/forms';
-import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
-import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { CommonModule } from '@angular/common';
-import { Subject, takeUntil } from 'rxjs';
-import { AdminService } from '@core/services/admin.service';
-import { AdminUser, Role } from '@core/models/admin.model';
 import {
-  HisHopeCreateDialogShellComponent, HisHopeTranslatePipe, HisHopeI18nService,
-} from '@his-hope/frontend-foundation';
+  Component,
+  Inject,
+  OnDestroy,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  inject,
+} from "@angular/core";
+import {
+  FormBuilder,
+  FormGroup,
+  FormArray,
+  ReactiveFormsModule,
+} from "@angular/forms";
+import {
+  MatDialogRef,
+  MAT_DIALOG_DATA,
+  MatDialogModule,
+} from "@angular/material/dialog";
+import { MatButtonModule } from "@angular/material/button";
+import { MatCheckboxModule } from "@angular/material/checkbox";
+import { MatIconModule } from "@angular/material/icon";
+import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
+import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
+import { CommonModule } from "@angular/common";
+import { Subject, takeUntil } from "rxjs";
+import { AdminService } from "@core/services/admin.service";
+import { AdminUser, Role } from "@core/models/admin.model";
+import {
+  HisHopeTranslatePipe,
+  HisHopeI18nService,
+} from "@his-hope/frontend-foundation/i18n";
+import { HisHopeCreateDialogShellComponent } from "@his-hope/frontend-foundation/ui";
 
 export interface AssignRolesData {
   user: AdminUser;
 }
 
 @Component({
-    selector: 'app-assign-roles-dialog',
-    imports: [
-        CommonModule,
-        ReactiveFormsModule,
-        MatDialogModule,
-        MatButtonModule,
-        MatCheckboxModule,
-        MatIconModule,
-        MatProgressSpinnerModule,
-        MatSnackBarModule,
-        HisHopeCreateDialogShellComponent, HisHopeTranslatePipe,
-    ],
-    changeDetection: ChangeDetectionStrategy.OnPush,
-    templateUrl: './assign-roles.dialog.html',
-    styleUrls: ['./assign-roles.dialog.scss']
+  selector: "app-assign-roles-dialog",
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    MatDialogModule,
+    MatButtonModule,
+    MatCheckboxModule,
+    MatIconModule,
+    MatProgressSpinnerModule,
+    MatSnackBarModule,
+    HisHopeCreateDialogShellComponent,
+    HisHopeTranslatePipe,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: "./assign-roles.dialog.html",
+  styleUrls: ["./assign-roles.dialog.scss"],
 })
 export class AssignRolesDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();
   private readonly i18n = inject(HisHopeI18nService);
 
   roles: Role[] = [];
-  roleCheckboxes: import('@angular/forms').FormControl[];
+  roleCheckboxes: import("@angular/forms").FormControl[];
   saving = false;
 
   constructor(
@@ -61,13 +80,14 @@ export class AssignRolesDialogComponent implements OnDestroy {
   }
 
   private loadRoles(): void {
-    this.adminService.getRoles()
+    this.adminService
+      .getRoles()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (roles) => {
           this.roles = roles;
-          this.roleCheckboxes = roles.map(
-            (r) => this.fb.control(this.data.user.roles.includes(r.name)),
+          this.roleCheckboxes = roles.map((r) =>
+            this.fb.control(this.data.user.roles.includes(r.name)),
           );
           this.cdr.markForCheck();
         },
@@ -83,16 +103,28 @@ export class AssignRolesDialogComponent implements OnDestroy {
       .filter((_, i) => this.roleCheckboxes[i].value)
       .map((r) => r.name);
 
-    this.adminService.assignRoles(this.data.user.id, selectedRoleIds)
+    this.adminService
+      .assignRoles(this.data.user.id, selectedRoleIds)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
-          this.snackBar.open(this.i18n.t('assignRoles.saveSuccess', 'Đã cập nhật vai trò thành công'), this.i18n.t('common.close', 'Đóng'), { duration: 3000 });
+          this.snackBar.open(
+            this.i18n.t(
+              "assignRoles.saveSuccess",
+              "Đã cập nhật vai trò thành công",
+            ),
+            this.i18n.t("common.close", "Đóng"),
+            { duration: 3000 },
+          );
           this.dialogRef.close(true);
         },
         error: () => {
           this.saving = false;
-          this.snackBar.open(this.i18n.t('assignRoles.saveFailed', 'Không thể cập nhật vai trò'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
+          this.snackBar.open(
+            this.i18n.t("assignRoles.saveFailed", "Không thể cập nhật vai trò"),
+            this.i18n.t("common.close", "Đóng"),
+            { duration: 5000 },
+          );
           this.cdr.markForCheck();
         },
       });

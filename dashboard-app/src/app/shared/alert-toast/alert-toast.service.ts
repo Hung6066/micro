@@ -1,9 +1,13 @@
 import { Injectable, OnDestroy } from '@angular/core';
-import { MatSnackBar, MatSnackBarRef, SimpleSnackBar } from '@angular/material/snack-bar';
+import {
+  MatSnackBar,
+  MatSnackBarRef,
+  SimpleSnackBar,
+} from '@angular/material/snack-bar';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { AlertService } from '../../core/services/alert.service';
-import { HisHopeI18nService } from '@his-hope/frontend-foundation';
+import { HisHopeI18nService } from '@his-hope/frontend-foundation/i18n';
 
 @Injectable({ providedIn: 'root' })
 export class AlertToastService implements OnDestroy {
@@ -17,10 +21,14 @@ export class AlertToastService implements OnDestroy {
   ) {
     this.alertService.newCriticalAlert$
       .pipe(takeUntil(this.destroy$))
-      .subscribe(alert => this.showAlertToast(alert));
+      .subscribe((alert) => this.showAlertToast(alert));
   }
 
-  private showAlertToast(alert: { severity: string; summary: string; service: string }): void {
+  private showAlertToast(alert: {
+    severity: string;
+    summary: string;
+    service: string;
+  }): void {
     // Dismiss previous toast if still visible
     this.activeToastRef?.dismiss();
 
@@ -42,10 +50,13 @@ export class AlertToastService implements OnDestroy {
     );
 
     // When "View" is clicked, we could navigate to alert panel
-    this.activeToastRef.onAction().pipe(takeUntil(this.destroy$)).subscribe(() => {
-      // The alert panel opens via toolbar button — no navigation needed
-      this.activeToastRef = null;
-    });
+    this.activeToastRef
+      .onAction()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        // The alert panel opens via toolbar button — no navigation needed
+        this.activeToastRef = null;
+      });
   }
 
   ngOnDestroy(): void {

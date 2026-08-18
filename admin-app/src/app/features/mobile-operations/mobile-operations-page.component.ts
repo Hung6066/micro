@@ -14,14 +14,14 @@ import {
   MobileDeviceRegistration,
 } from "../../core/contracts/admin.contracts";
 import { MobileOperationsApiService } from "../../core/services/mobile-operations-api.service";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
-  HisHopePermissionService,
-  HisHopeResourceState,
   HisHopeStateComponent,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation";
+} from "@his-hope/frontend-foundation/ui";
 import { catchError, forkJoin, of, tap } from "rxjs";
 
 @Component({
@@ -221,7 +221,12 @@ export class MobileOperationsPageComponent implements OnInit {
   private readonly permissions = inject(HisHopePermissionService);
   private readonly destroyRef = inject(DestroyRef);
   readonly resource = new HisHopeResourceState<{
-    devices: { items: MobileDeviceRegistration[]; page: number; pageSize: number; total: number };
+    devices: {
+      items: MobileDeviceRegistration[];
+      page: number;
+      pageSize: number;
+      total: number;
+    };
     summary: MobileDeliverySummary;
   } | null>(this.destroyRef);
   get canWrite(): boolean {

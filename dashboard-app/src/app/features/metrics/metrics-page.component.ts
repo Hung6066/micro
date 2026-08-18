@@ -29,15 +29,15 @@ import { LiveMetricUpdate } from '../../core/models/live-metric-update.model';
 import { Resource } from '../../core/models/resource.model';
 import { MetricsOverviewComponent } from './metrics-overview.component';
 import { themeColor } from '../../shared/theme-color';
+import { HisHopeResourceState } from '@his-hope/frontend-foundation/query';
 import {
   HisHopeFilterToolbarComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopePageSectionComponent,
   HisHopeStateComponent,
-  HisHopeResourceState,
-  HisHopeTranslatePipe,
-} from '@his-hope/frontend-foundation';
+} from '@his-hope/frontend-foundation/ui';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
 import {
   Chart,
   LineController,

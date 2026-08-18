@@ -16,6 +16,7 @@
     "test:visual": "npm --prefix tests/e2e run test:shared-foundation",
     "test:a11y": "npm --prefix tests/e2e run test:shared-foundation",
     "validate:foundation": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-shared-foundation.ps1",
+    "validate:shared-packages": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-shared-package-governance.ps1",
     "lint:design-tokens": "node scripts/validate-design-tokens.mjs",
     "validate:i18n": "node scripts/validate-i18n-boundary.mjs",
     "policy:gate": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-his-hope-policy.ps1 -Ci",

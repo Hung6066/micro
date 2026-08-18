@@ -1,48 +1,72 @@
-import { Component, Inject, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
-import { FormBuilder, FormGroup, Validators, FormArray, ReactiveFormsModule } from '@angular/forms';
-import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatExpansionModule } from '@angular/material/expansion';
-import { MatIconModule } from '@angular/material/icon';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { CommonModule } from '@angular/common';
-import { Subject, takeUntil } from 'rxjs';
-import { AdminService } from '@core/services/admin.service';
-import { Role, PermissionGroup, Permission } from '@core/models/admin.model';
 import {
-  HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
-  HisHopeFormSectionComponent, HisHopeTranslatePipe, HisHopeI18nService,
-} from '@his-hope/frontend-foundation';
+  Component,
+  Inject,
+  OnDestroy,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  inject,
+} from "@angular/core";
+import {
+  FormBuilder,
+  FormGroup,
+  Validators,
+  FormArray,
+  ReactiveFormsModule,
+} from "@angular/forms";
+import {
+  MatDialogRef,
+  MAT_DIALOG_DATA,
+  MatDialogModule,
+} from "@angular/material/dialog";
+import { MatButtonModule } from "@angular/material/button";
+import { MatFormFieldModule } from "@angular/material/form-field";
+import { MatInputModule } from "@angular/material/input";
+import { MatCheckboxModule } from "@angular/material/checkbox";
+import { MatExpansionModule } from "@angular/material/expansion";
+import { MatIconModule } from "@angular/material/icon";
+import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
+import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
+import { CommonModule } from "@angular/common";
+import { Subject, takeUntil } from "rxjs";
+import { AdminService } from "@core/services/admin.service";
+import { Role, PermissionGroup, Permission } from "@core/models/admin.model";
+import {
+  HisHopeTranslatePipe,
+  HisHopeI18nService,
+} from "@his-hope/frontend-foundation/i18n";
+import {
+  HisHopeCreateDialogShellComponent,
+  HisHopeFormLayoutComponent,
+  HisHopeFormSectionComponent,
+} from "@his-hope/frontend-foundation/ui";
 
 export interface RoleFormData {
   role?: Role;
-  mode: 'create' | 'edit';
+  mode: "create" | "edit";
 }
 
 @Component({
-    selector: 'app-role-form-dialog',
-    imports: [
-        CommonModule,
-        ReactiveFormsModule,
-        MatDialogModule,
-        MatButtonModule,
-        MatFormFieldModule,
-        MatInputModule,
-        MatCheckboxModule,
-        MatExpansionModule,
-        MatIconModule,
-        MatProgressSpinnerModule,
-        MatSnackBarModule,
-        HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent,
-        HisHopeFormSectionComponent, HisHopeTranslatePipe,
-    ],
-    changeDetection: ChangeDetectionStrategy.OnPush,
-    templateUrl: './role-form.dialog.html',
-    styleUrls: ['./role-form.dialog.scss']
+  selector: "app-role-form-dialog",
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    MatDialogModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatCheckboxModule,
+    MatExpansionModule,
+    MatIconModule,
+    MatProgressSpinnerModule,
+    MatSnackBarModule,
+    HisHopeCreateDialogShellComponent,
+    HisHopeFormLayoutComponent,
+    HisHopeFormSectionComponent,
+    HisHopeTranslatePipe,
+  ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: "./role-form.dialog.html",
+  styleUrls: ["./role-form.dialog.scss"],
 })
 export class RoleFormDialogComponent implements OnDestroy {
   private destroy$ = new Subject<void>();
@@ -62,8 +86,8 @@ export class RoleFormDialogComponent implements OnDestroy {
     @Inject(MAT_DIALOG_DATA) public data: RoleFormData,
   ) {
     this.form = this.fb.group({
-      name: [data.role?.name || '', Validators.required],
-      description: [data.role?.description || '', Validators.required],
+      name: [data.role?.name || "", Validators.required],
+      description: [data.role?.description || "", Validators.required],
     });
 
     if (data.role?.permissions) {
@@ -79,7 +103,8 @@ export class RoleFormDialogComponent implements OnDestroy {
   }
 
   private loadPermissions(): void {
-    this.adminService.getPermissions()
+    this.adminService
+      .getPermissions()
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (groups) => {
@@ -98,7 +123,9 @@ export class RoleFormDialogComponent implements OnDestroy {
   }
 
   isGroupPartiallySelected(group: PermissionGroup): boolean {
-    const selected = group.permissions.filter((p) => this.selectedPermissions.has(p.code));
+    const selected = group.permissions.filter((p) =>
+      this.selectedPermissions.has(p.code),
+    );
     return selected.length > 0 && selected.length < group.permissions.length;
   }
 
@@ -133,24 +160,36 @@ export class RoleFormDialogComponent implements OnDestroy {
       permissions: Array.from(this.selectedPermissions),
     };
 
-    const obs$ = this.data.mode === 'create'
-      ? this.adminService.createRole(payload)
-      : this.adminService.updateRole(this.data.role!.id, payload);
+    const obs$ =
+      this.data.mode === "create"
+        ? this.adminService.createRole(payload)
+        : this.adminService.updateRole(this.data.role!.id, payload);
 
-    obs$.pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: () => {
-          this.snackBar.open(
-            this.i18n.t(this.data.mode === 'create' ? 'roleForm.createSuccess' : 'roleForm.updateSuccess', this.data.mode === 'create' ? 'Đã thêm vai trò thành công' : 'Đã cập nhật vai trò thành công'),
-            this.i18n.t('common.close', 'Đóng'), { duration: 3000 },
-          );
-          this.dialogRef.close(true);
-        },
-        error: () => {
-          this.saving = false;
-          this.snackBar.open(this.i18n.t('roleForm.saveFailed', 'Không thể lưu vai trò'), this.i18n.t('common.close', 'Đóng'), { duration: 5000 });
-          this.cdr.markForCheck();
-        },
-      });
+    obs$.pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.snackBar.open(
+          this.i18n.t(
+            this.data.mode === "create"
+              ? "roleForm.createSuccess"
+              : "roleForm.updateSuccess",
+            this.data.mode === "create"
+              ? "Đã thêm vai trò thành công"
+              : "Đã cập nhật vai trò thành công",
+          ),
+          this.i18n.t("common.close", "Đóng"),
+          { duration: 3000 },
+        );
+        this.dialogRef.close(true);
+      },
+      error: () => {
+        this.saving = false;
+        this.snackBar.open(
+          this.i18n.t("roleForm.saveFailed", "Không thể lưu vai trò"),
+          this.i18n.t("common.close", "Đóng"),
+          { duration: 5000 },
+        );
+        this.cdr.markForCheck();
+      },
+    });
   }
 }

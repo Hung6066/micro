@@ -11,19 +11,24 @@ import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import {
   HisHopeBulkAction,
   HisHopeBulkActionRequest,
+  HisHopeI18nService,
+  HisHopeTableExportRequest,
+  HisHopePageQuery,
+} from "@his-hope/frontend-foundation";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
+import {
   HisHopeDataTableComponent,
   HisHopeDataTableColumn,
   HisHopeDataTableDetailDirective,
-  HisHopeI18nService,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
-  HisHopePermissionService,
-  HisHopeResourceState,
-  HisHopeTableExportRequest,
   HisHopeToolbarComponent,
-  HisHopePageQuery,
+} from "@his-hope/frontend-foundation/ui";
+import {
+  HisHopeI18nService,
   HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation";
+} from "@his-hope/frontend-foundation/i18n";
 import {
   AdminPageQuery,
   AdminPageResult,
