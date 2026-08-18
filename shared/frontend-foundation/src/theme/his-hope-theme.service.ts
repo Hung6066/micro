@@ -1,38 +1,48 @@
-import { DOCUMENT, isPlatformBrowser } from '@angular/common';
-import { Injectable, PLATFORM_ID, inject, signal } from '@angular/core';
+import { DOCUMENT, isPlatformBrowser } from "@angular/common";
+import { Injectable, PLATFORM_ID, inject, signal } from "@angular/core";
 import {
   DEFAULT_HIS_HOPE_DESIGN_PRESET,
   getHisHopeDesignPreset,
   HisHopeDesignPreset,
   HisHopeDesignPresetId,
-} from '../presets/design-presets';
+} from "../presets/design-presets";
 
-export type HisHopeTheme = 'light' | 'dark' | 'system';
-export type HisHopeResolvedTheme = 'light' | 'dark';
+export type HisHopeTheme = "light" | "dark" | "system";
+export type HisHopeResolvedTheme = "light" | "dark";
 
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class HisHopeThemeService {
   private readonly document = inject(DOCUMENT);
   private readonly platformId = inject(PLATFORM_ID);
-  readonly theme = signal<HisHopeTheme>('system');
-  readonly resolvedTheme = signal<HisHopeResolvedTheme>('light');
+  readonly theme = signal<HisHopeTheme>("system");
+  readonly resolvedTheme = signal<HisHopeResolvedTheme>("light");
   readonly highContrast = signal(false);
-  readonly preset = signal<HisHopeDesignPresetId>(DEFAULT_HIS_HOPE_DESIGN_PRESET);
+  readonly preset = signal<HisHopeDesignPresetId>(
+    DEFAULT_HIS_HOPE_DESIGN_PRESET,
+  );
   private systemMediaQuery?: MediaQueryList;
   private syncChannel?: BroadcastChannel;
 
   constructor() {
     if (isPlatformBrowser(this.platformId)) {
-      this.systemMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      this.systemMediaQuery.addEventListener('change', () => {
-        if (this.theme() === 'system') this.applyThemeAttribute('system');
+      this.systemMediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      this.systemMediaQuery.addEventListener("change", () => {
+        if (this.theme() === "system") this.applyThemeAttribute("system");
       });
-      if ('BroadcastChannel' in window) {
-        this.syncChannel = new BroadcastChannel('his-hope-preferences');
+      if ("BroadcastChannel" in window) {
+        this.syncChannel = new BroadcastChannel("his-hope-preferences");
         this.syncChannel.onmessage = ({ data }) => {
-          if (data?.type === 'theme' && (data.theme === 'light' || data.theme === 'dark' || data.theme === 'system')) this.setTheme(data.theme, false);
-          if (data?.type === 'contrast' && typeof data.enabled === 'boolean') this.setHighContrast(data.enabled, false);
-          if (data?.type === 'preset' && typeof data.preset === 'string') this.setPreset(data.preset as HisHopeDesignPresetId, false);
+          if (
+            data?.type === "theme" &&
+            (data.theme === "light" ||
+              data.theme === "dark" ||
+              data.theme === "system")
+          )
+            this.setTheme(data.theme, false);
+          if (data?.type === "contrast" && typeof data.enabled === "boolean")
+            this.setHighContrast(data.enabled, false);
+          if (data?.type === "preset" && typeof data.preset === "string")
+            this.setPreset(data.preset as HisHopeDesignPresetId, false);
         };
       }
     }
@@ -43,16 +53,16 @@ export class HisHopeThemeService {
     this.theme.set(theme);
     if (!isPlatformBrowser(this.platformId)) return;
     this.applyThemeAttribute(theme);
-    localStorage.setItem('hh-theme', theme);
-    if (broadcast) this.syncChannel?.postMessage({ type: 'theme', theme });
+    localStorage.setItem("hh-theme", theme);
+    if (broadcast) this.syncChannel?.postMessage({ type: "theme", theme });
   }
 
   setHighContrast(enabled: boolean, broadcast = true): void {
     this.highContrast.set(enabled);
     if (!isPlatformBrowser(this.platformId)) return;
     this.applyContrastAttribute(enabled);
-    localStorage.setItem('hh-contrast', String(enabled));
-    if (broadcast) this.syncChannel?.postMessage({ type: 'contrast', enabled });
+    localStorage.setItem("hh-contrast", String(enabled));
+    if (broadcast) this.syncChannel?.postMessage({ type: "contrast", enabled });
   }
 
   setPreset(preset: HisHopeDesignPresetId, broadcast = true): void {
@@ -61,17 +71,25 @@ export class HisHopeThemeService {
     if (!isPlatformBrowser(this.platformId)) return;
     this.applyPreset(selected);
     this.applyThemeAttribute(this.theme());
-    localStorage.setItem('hh-ui-preset', selected.id);
-    if (broadcast) this.syncChannel?.postMessage({ type: 'preset', preset: selected.id });
+    localStorage.setItem("hh-ui-preset", selected.id);
+    if (broadcast)
+      this.syncChannel?.postMessage({ type: "preset", preset: selected.id });
   }
 
   restore(): void {
     if (!isPlatformBrowser(this.platformId)) return;
-    const storedTheme = localStorage.getItem('hh-theme') as HisHopeTheme | null;
-    const storedContrast = localStorage.getItem('hh-contrast');
-    const storedPreset = localStorage.getItem('hh-ui-preset');
-    this.theme.set(storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'system' ? storedTheme : 'system');
-    this.highContrast.set(storedContrast === 'true');
+    const storedTheme = localStorage.getItem("hh-theme") as HisHopeTheme | null;
+    const storedContrast = localStorage.getItem("hh-contrast");
+    const queryPreset = new URLSearchParams(window.location.search).get("ui");
+    const storedPreset = queryPreset ?? localStorage.getItem("hh-ui-preset");
+    this.theme.set(
+      storedTheme === "light" ||
+        storedTheme === "dark" ||
+        storedTheme === "system"
+        ? storedTheme
+        : "system",
+    );
+    this.highContrast.set(storedContrast === "true");
     const selected = getHisHopeDesignPreset(storedPreset);
     this.preset.set(selected.id);
     this.applyThemeAttribute(this.theme());
@@ -81,82 +99,92 @@ export class HisHopeThemeService {
 
   private applyThemeAttribute(theme: HisHopeTheme): void {
     const root = this.document.documentElement;
-    const resolvedTheme: HisHopeResolvedTheme = theme === 'system'
-      ? (this.systemMediaQuery?.matches ? 'dark' : 'light')
-      : theme;
+    const resolvedTheme: HisHopeResolvedTheme =
+      theme === "system"
+        ? this.systemMediaQuery?.matches
+          ? "dark"
+          : "light"
+        : theme;
     this.resolvedTheme.set(resolvedTheme);
-    root.dataset['theme'] = resolvedTheme;
-    root.dataset['themeMode'] = theme;
+    root.dataset["theme"] = resolvedTheme;
+    root.dataset["themeMode"] = theme;
     if (isPlatformBrowser(this.platformId)) {
       const selected = getHisHopeDesignPreset(this.preset());
-      if (resolvedTheme === 'dark') this.applyDarkVariables(selected);
+      if (resolvedTheme === "dark") this.applyDarkVariables(selected);
       else this.applyPresetVariables(selected);
     }
     // Keep body compatibility for feature styles that predate the root theme contract.
     if (this.document.body) {
-      this.document.body.dataset['theme'] = resolvedTheme;
-      this.document.body.dataset['themeMode'] = theme;
+      this.document.body.dataset["theme"] = resolvedTheme;
+      this.document.body.dataset["themeMode"] = theme;
     }
   }
 
   private applyContrastAttribute(enabled: boolean): void {
-    if (enabled) this.document.documentElement.dataset['contrast'] = 'high';
-    else this.document.documentElement.removeAttribute('data-contrast');
+    if (enabled) this.document.documentElement.dataset["contrast"] = "high";
+    else this.document.documentElement.removeAttribute("data-contrast");
   }
 
   private applyPreset(preset: HisHopeDesignPreset): void {
     const root = this.document.documentElement;
-    root.dataset['uiPreset'] = preset.id;
+    root.dataset["uiPreset"] = preset.id;
+    root.dataset["uiButtonStyle"] = preset.components.button;
+    root.dataset["uiTableStyle"] = preset.components.table;
+    root.dataset["uiNavStyle"] = preset.components.navigation;
     this.applyPresetVariables(preset);
   }
 
   private applyPresetVariables(preset: HisHopeDesignPreset): void {
     const root = this.document.documentElement;
     const cssVars: Record<string, string> = {
-      '--bg-warm': preset.tokens.canvas,
-      '--surface-white': preset.tokens.surface,
-      '--surface-muted': preset.tokens.surfaceMuted,
-      '--text-primary': preset.tokens.ink,
-      '--text-secondary': preset.tokens.inkMuted,
-      '--border-default': preset.tokens.border,
-      '--color-primary': preset.tokens.primary,
-      '--color-primary-hover': preset.tokens.primaryHover,
-      '--color-primary-soft': preset.tokens.primarySoft,
-      '--color-focus': preset.tokens.focus,
-      '--shell-header-bg': preset.tokens.header,
-      '--font-sans': preset.typography.body,
-      '--font-body': preset.typography.body,
-      '--font-display': preset.typography.display,
-      '--font-mono': preset.typography.mono,
-      '--font-size-body': preset.typography.bodySize,
-      '--font-size-title': preset.typography.titleSize,
-      '--font-weight-regular': preset.typography.weight,
-      '--leading-body': preset.typography.lineHeight,
-      '--shell-sidebar-width': preset.layout.sidebarWidth,
-      '--max-width-container': preset.layout.contentMaxWidth,
-      '--control-height': preset.layout.controlHeight,
-      '--radius-card': preset.layout.cardRadius,
-      '--radius-button': preset.layout.buttonRadius,
-      '--radius-input': preset.layout.inputRadius,
+      "--bg-warm": preset.tokens.canvas,
+      "--surface-white": preset.tokens.surface,
+      "--surface-muted": preset.tokens.surfaceMuted,
+      "--text-primary": preset.tokens.ink,
+      "--text-secondary": preset.tokens.inkMuted,
+      "--border-default": preset.tokens.border,
+      "--color-primary": preset.tokens.primary,
+      "--color-primary-hover": preset.tokens.primaryHover,
+      "--color-primary-soft": preset.tokens.primarySoft,
+      "--color-focus": preset.tokens.focus,
+      "--shell-header-bg": preset.tokens.header,
+      "--font-sans": preset.typography.body,
+      "--font-body": preset.typography.body,
+      "--font-display": preset.typography.display,
+      "--font-mono": preset.typography.mono,
+      "--font-size-body": preset.typography.bodySize,
+      "--font-size-title": preset.typography.titleSize,
+      "--font-weight-regular": preset.typography.weight,
+      "--leading-body": preset.typography.lineHeight,
+      "--shell-sidebar-width": preset.layout.sidebarWidth,
+      "--max-width-container": preset.layout.contentMaxWidth,
+      "--control-height": preset.layout.controlHeight,
+      "--radius-card": preset.layout.cardRadius,
+      "--radius-button": preset.layout.buttonRadius,
+      "--radius-input": preset.layout.inputRadius,
     };
-    Object.entries(cssVars).forEach(([name, value]) => root.style.setProperty(name, value));
+    Object.entries(cssVars).forEach(([name, value]) =>
+      root.style.setProperty(name, value),
+    );
   }
 
   private applyDarkVariables(preset: HisHopeDesignPreset): void {
     const root = this.document.documentElement;
     const cssVars: Record<string, string> = {
-      '--bg-warm': '#111815',
-      '--surface-white': '#18211C',
-      '--surface-muted': '#223029',
-      '--text-primary': '#F1F7F2',
-      '--text-secondary': '#B8C8BE',
-      '--border-default': '#405249',
-      '--color-primary': preset.tokens.primary,
-      '--color-primary-hover': preset.tokens.primaryHover,
-      '--color-primary-soft': '#1E4D37',
-      '--color-focus': preset.tokens.focus,
-      '--shell-header-bg': '#0D2C1F',
+      "--bg-warm": "#111815",
+      "--surface-white": "#18211C",
+      "--surface-muted": "#223029",
+      "--text-primary": "#F1F7F2",
+      "--text-secondary": "#B8C8BE",
+      "--border-default": "#405249",
+      "--color-primary": preset.tokens.primary,
+      "--color-primary-hover": preset.tokens.primaryHover,
+      "--color-primary-soft": "#1E4D37",
+      "--color-focus": preset.tokens.focus,
+      "--shell-header-bg": "#0D2C1F",
     };
-    Object.entries(cssVars).forEach(([name, value]) => root.style.setProperty(name, value));
+    Object.entries(cssVars).forEach(([name, value]) =>
+      root.style.setProperty(name, value),
+    );
   }
 }

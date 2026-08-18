@@ -6,6 +6,7 @@
 - Added centralized `HisHopePermissionService` for permission-aware controls.
 - Added vendor-neutral `HisHopePerformanceTelemetryService` for frontend performance metrics.
 - Added design-token lint enforcement to the foundation CI gates.
+- Wired preset `components.button/table/navigation` variants to `data-ui-*` attributes and generic `_presets.scss` rules, so every registry preset drives a full button/table/navigation look, not just color tokens. Added `<hh-preset-switcher />` to swap the active design system at runtime.
 
 ## 1.1.0 - 2026-07-25
 

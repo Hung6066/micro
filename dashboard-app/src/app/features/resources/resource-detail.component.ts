@@ -298,7 +298,7 @@ import { Resource, HealthCheckResult } from '../../core/models/resource.model';
         background: var(--bg-warm, #f7f6f3);
         padding: 2px 8px;
         border-radius: 4px;
-        font-family: var(--font-mono, monospace);
+        font-family: var(--font-mono);
         font-size: 12px;
       }
       .health-list {
@@ -353,13 +353,13 @@ import { Resource, HealthCheckResult } from '../../core/models/resource.model';
         padding: 4px 0;
       }
       .env-key {
-        font-family: var(--font-mono, monospace);
+        font-family: var(--font-mono);
         color: var(--text-primary, #1a1a1a);
         font-weight: 500;
         min-width: 140px;
       }
       .env-value {
-        font-family: var(--font-mono, monospace);
+        font-family: var(--font-mono);
         color: var(--text-secondary, #787774);
         word-break: break-all;
       }

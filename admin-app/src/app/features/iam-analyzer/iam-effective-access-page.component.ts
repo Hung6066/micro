@@ -78,7 +78,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       icon="refresh"
       [label]="'admin.evaluate' | hhTranslate: 'Evaluate'"
     />
-    ><hh-table-state
+    <hh-table-state
       *ngIf="loadingUsers"
       kind="loading"
       message="admin.loading"

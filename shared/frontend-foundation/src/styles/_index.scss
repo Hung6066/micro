@@ -1,5 +1,6 @@
-@forward 'fonts';
-@forward 'tokens';
-@forward 'foundation';
-@forward 'presets';
-@forward 'material-theme';
+@use "presets";
+@forward "fonts";
+@forward "tokens";
+@forward "foundation";
+@forward "presets";
+@forward "material-theme";

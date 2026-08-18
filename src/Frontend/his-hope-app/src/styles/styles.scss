@@ -5,12 +5,8 @@
 // base) are owned by @his-hope/frontend-foundation and applied via ./theme.
 // This file keeps ONLY the app-unique utilities the foundation does not own.
 
-@use './theme';
-@import 'material-icons/iconfont/material-icons.css';
-@import '@fontsource/inter/400.css';
-@import '@fontsource/inter/500.css';
-@import '@fontsource/inter/600.css';
-@import '@fontsource/inter/700.css';
+@use "./theme";
+@import "material-icons/iconfont/material-icons.css";
 
 // ═══════════════════════════════════════════
 // App Container — max-width constrained
@@ -66,12 +62,24 @@
 }
 
 // Staggered delays for grid children
-.fade-enter:nth-child(1) { animation-delay: 0ms; }
-.fade-enter:nth-child(2) { animation-delay: 60ms; }
-.fade-enter:nth-child(3) { animation-delay: 120ms; }
-.fade-enter:nth-child(4) { animation-delay: 180ms; }
-.fade-enter:nth-child(5) { animation-delay: 240ms; }
-.fade-enter:nth-child(6) { animation-delay: 300ms; }
+.fade-enter:nth-child(1) {
+  animation-delay: 0ms;
+}
+.fade-enter:nth-child(2) {
+  animation-delay: 60ms;
+}
+.fade-enter:nth-child(3) {
+  animation-delay: 120ms;
+}
+.fade-enter:nth-child(4) {
+  animation-delay: 180ms;
+}
+.fade-enter:nth-child(5) {
+  animation-delay: 240ms;
+}
+.fade-enter:nth-child(6) {
+  animation-delay: 300ms;
+}
 
 // ═══════════════════════════════════════════
 // Skip-to-content link (WCAG 2.1 AA)
@@ -82,11 +90,11 @@
   left: 8px;
   z-index: 10000;
   padding: 8px 16px;
-  background: var(--surface-white, #FFFFFF);
-  color: var(--text-primary, #1A1A1A);
+  background: var(--surface-white, #ffffff);
+  color: var(--text-primary, #1a1a1a);
   font-weight: 600;
   text-decoration: none;
-  border: 1px solid var(--border-default, #EAEAEA);
+  border: 1px solid var(--border-default, #eaeaea);
   border-radius: 0 0 var(--radius-input, 4px) var(--radius-input, 4px);
 
   &:focus {
@@ -131,15 +139,21 @@
 // Responsive helpers
 // ═══════════════════════════════════════════
 @media (max-width: 599px) {
-  .hide-mobile { display: none !important; }
+  .hide-mobile {
+    display: none !important;
+  }
 }
 
 @media (min-width: 600px) and (max-width: 959px) {
-  .hide-tablet { display: none !important; }
+  .hide-tablet {
+    display: none !important;
+  }
 }
 
 @media (min-width: 960px) {
-  .hide-desktop { display: none !important; }
+  .hide-desktop {
+    display: none !important;
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -184,8 +198,8 @@
 .status-badge.rx-status-expired,
 .status-badge.inv-status-voided,
 .status-badge.status-voided {
-  background: var(--pastel-purple, #F0ECFA);
-  color: var(--pastel-purple-text, #6B4FA0);
+  background: var(--pastel-purple, #f0ecfa);
+  color: var(--pastel-purple-text, #6b4fa0);
 }
 
 .status-badge.status-cancelled,
@@ -238,8 +252,8 @@
 
   &.priority-high,
   &.priority-urgent {
-    background: var(--pastel-orange, #FEF0E0);
-    color: var(--pastel-orange-text, #B6581C);
+    background: var(--pastel-orange, #fef0e0);
+    color: var(--pastel-orange-text, #b6581c);
   }
 
   &.priority-routine {

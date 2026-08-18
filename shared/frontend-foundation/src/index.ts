@@ -7,6 +7,7 @@ export * from "./http/his-hope-cookie-session.interceptor";
 export * from "./errors/his-hope-global-error-handler";
 export * from "./contracts/his-hope-ui-contracts";
 export * from "./theme/his-hope-theme.service";
+export * from "./theme/his-hope-preset-switcher.component";
 export * from "./audit/his-hope-audit-feedback.service";
 export * from "./presets/design-presets";
 export * from "./performance/his-hope-performance-telemetry.service";

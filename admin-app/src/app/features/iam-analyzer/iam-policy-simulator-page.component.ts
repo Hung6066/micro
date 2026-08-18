@@ -95,7 +95,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       icon="refresh"
       [label]="'admin.simulate' | hhTranslate: 'Simulate'"
     />
-    ><hh-table-state
+    <hh-table-state
       *ngIf="loadingUsers"
       kind="loading"
       message="admin.loading"

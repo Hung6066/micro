@@ -192,7 +192,7 @@ import { LogEntry } from '../../core/models/log-entry.model';
         overflow-y: auto;
         padding: 4px 0;
         background: #fafaf8;
-        font-family: var(--font-mono, 'Cascadia Mono', Consolas, monospace);
+        font-family: var(--font-mono);
         font-size: 12px;
       }
       .stream-entry {
