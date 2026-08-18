@@ -79,6 +79,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
           *ngIf="canWrite"
           (pressed)="revoke(row)"
           kind="danger"
+          mode="icon-only"
           icon="link_off"
           [label]="'admin.revoke' | hhTranslate" /></ng-template></hh-data-table
   ></hh-page-layout>`,

@@ -76,20 +76,20 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         hhPageHeader
         [title]="'admin.oidcApplications' | hhTranslate"
         [subtitle]="'admin.clientsSubtitle' | hhTranslate"
-      >
-        <hh-action-button
-          *ngIf="canWrite"
-          kind="primary"
-          icon="add"
-          [label]="'admin.newClient' | hhTranslate"
-          (pressed)="openCreateDialog()"
-        />
-      </hh-page-header>
+      />
 
       <hh-toolbar hhPageToolbar [label]="'admin.manageClients' | hhTranslate">
         <span hhToolbarTitle
           >{{ totalItems }} {{ "admin.clients" | hhTranslate }}</span
         >
+        <hh-action-button
+          *ngIf="canWrite"
+          hh-toolbar-actions
+          kind="primary"
+          icon="add"
+          [label]="'admin.newClient' | hhTranslate"
+          (pressed)="openCreateDialog()"
+        />
         <hh-action-button
           hh-toolbar-actions
           kind="secondary"

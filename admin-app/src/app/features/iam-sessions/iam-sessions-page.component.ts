@@ -46,15 +46,19 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       [subtitle]="
         'admin.activeSessionsSubtitle'
           | hhTranslate: 'Review and revoke human sessions from the server.'
-      "
-    /><hh-toolbar
+      " /><hh-toolbar
       hhPageToolbar
       [label]="'admin.activeSessions' | hhTranslate: 'Active sessions'"
       ><span hhToolbarTitle
         >{{ rows.length }}
         {{ "admin.sessions" | hhTranslate: "Sessions" }}</span
-      ><hh-action-button (pressed)="load()" hh-toolbar-actions kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate" /></hh-toolbar
-    >
+      ><hh-action-button
+        (pressed)="load()"
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+    /></hh-toolbar>
     <div *ngIf="error" class="hh-state hh-state--error" role="alert">
       {{ error }}
     </div>
@@ -65,10 +69,14 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       [loading]="loading"
       [empty]="!loading && !error && !rows.length"
       ><ng-template hhDataTableCell="actions" let-row
-        ><hh-action-button *ngIf="canWrite" (pressed)="revoke(row)" kind="danger" icon="link_off" [label]="'admin.revoke' | hhTranslate" /></ng-template
-      ></hh-data-table
-    ></hh-page-layout
-  >`,
+        ><hh-action-button
+          *ngIf="canWrite"
+          (pressed)="revoke(row)"
+          kind="danger"
+          mode="icon-only"
+          icon="link_off"
+          [label]="'admin.revoke' | hhTranslate" /></ng-template></hh-data-table
+  ></hh-page-layout>`,
 })
 export class IamSessionsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);

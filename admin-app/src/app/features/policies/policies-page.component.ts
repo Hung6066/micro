@@ -85,20 +85,20 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
           [label]="'admin.edit' | hhTranslate"
           (pressed)="edit(row)" /><hh-action-button
           *ngIf="canWrite"
-          kind="row"
-          mode="icon-only"
+          kind="secondary"
+          mode="label"
           icon="rule"
           [label]="'admin.lint' | hhTranslate: 'Lint'"
           (pressed)="lint(row)" /><hh-action-button
           *ngIf="canWrite && row['lifecycleStatus'] !== 'published'"
-          kind="row"
-          mode="icon-only"
+          kind="secondary"
+          mode="label"
           icon="publish"
           [label]="'admin.publish' | hhTranslate"
           (pressed)="publish(row)" /><hh-action-button
           *ngIf="canWrite && row['lifecycleStatus'] === 'published'"
           kind="danger"
-          mode="icon-only"
+          mode="label"
           icon="undo"
           [label]="'admin.rollback' | hhTranslate"
           (pressed)="rollback(row)" /></ng-template></hh-data-table
@@ -146,6 +146,8 @@ export class PoliciesPageComponent implements OnInit {
       {
         key: "actions",
         label: this.i18n.t("admin.actions", "Actions"),
+        width: "360px",
+        pinned: "right",
         sortable: false,
         hideable: false,
       },

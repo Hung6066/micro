@@ -123,18 +123,18 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
           <hh-action-button
             *ngIf="canWrite"
             (pressed)="openEditDialog(row)"
-            kind="secondary"
+            kind="row"
             mode="icon-only"
             icon="edit"
-            label="Action"
+            [label]="'admin.edit' | hhTranslate: 'Edit'"
           />
           <hh-action-button
             *ngIf="canWrite"
             (pressed)="toggleUser(row)"
-            kind="secondary"
+            kind="danger"
             mode="icon-only"
             icon="play_arrow"
-            label="Action"
+            [label]="'admin.toggle' | hhTranslate: 'Toggle status'"
           />
         </ng-template>
         <ng-template hhDataTableDetail let-row>

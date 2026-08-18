@@ -40,6 +40,7 @@ import {
 } from "@his-hope/frontend-foundation/contracts";
 import { HisHopeTableEditorComponent } from "./his-hope-table-editor.component";
 import { HisHopeStatusBadgeComponent } from "./his-hope-status-badge.component";
+import { HisHopeActionButtonComponent } from "./his-hope-action-button.component";
 import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import {
   clampColumnWidth as clampColumnWidthPure,
@@ -186,6 +187,7 @@ export class HisHopeDataTableCellDirective {
   standalone: true,
   imports: [
     CommonModule,
+    HisHopeActionButtonComponent,
     HisHopeTableEditorComponent,
     HisHopeStatusBadgeComponent,
     HisHopeTranslatePipe,
@@ -996,13 +998,14 @@ export class HisHopeDataTableCellDirective {
                               </button>
                             }
                           } @else {
-                            <button
-                              type="button"
-                              class="hh-button hh-button--secondary hh-button--small"
-                              (click)="startEdit(row); $event.stopPropagation()"
-                            >
-                              {{ "common.edit" | hhTranslate }}
-                            </button>
+                            <hh-action-button
+                              kind="row"
+                              mode="icon-only"
+                              icon="edit"
+                              [label]="'common.edit' | hhTranslate"
+                              (pressed)="startEdit(row)"
+                              (click)="$event.stopPropagation()"
+                            />
                           }
                         </div>
                       </td>
@@ -1086,13 +1089,14 @@ export class HisHopeDataTableCellDirective {
                         {{ "common.cancel" | hhTranslate }}
                       </button>
                     } @else {
-                      <button
-                        type="button"
-                        class="hh-button hh-button--secondary hh-button--small"
-                        (click)="startEdit(row); $event.stopPropagation()"
-                      >
-                        {{ "common.edit" | hhTranslate }}
-                      </button>
+                      <hh-action-button
+                        kind="row"
+                        mode="icon-only"
+                        icon="edit"
+                        [label]="'common.edit' | hhTranslate"
+                        (pressed)="startEdit(row)"
+                        (click)="$event.stopPropagation()"
+                      />
                     }
                   }
                 </header>
@@ -1420,12 +1424,22 @@ export class HisHopeDataTableCellDirective {
        second lifecycle action never drops to a new line or changes row height. */
       .hh-data-table th.hh-data-table__actions-column,
       .hh-data-table td.hh-data-table__actions-column {
-        width: 128px !important;
-        min-width: 128px;
+        position: sticky;
+        right: 0;
+        z-index: 3;
+        width: 208px;
+        min-width: 208px;
         padding-inline: 8px;
         white-space: nowrap;
         overflow-wrap: normal;
         vertical-align: middle;
+      }
+      .hh-data-table th.hh-data-table__actions-column {
+        background: var(--surface-white);
+      }
+      .hh-data-table td.hh-data-table__actions-column {
+        background: var(--surface-white);
+        box-shadow: -1px 0 0 var(--border-light);
       }
       .hh-data-table td.hh-data-table__actions-column > .hh-icon-button {
         display: inline-grid;
@@ -1441,6 +1455,10 @@ export class HisHopeDataTableCellDirective {
         gap: 8px;
         white-space: nowrap;
         vertical-align: middle;
+      }
+      .hh-data-table__actions-content > hh-action-button {
+        display: inline-flex;
+        flex: 0 0 auto;
       }
       .hh-data-table th {
         position: relative;
@@ -1962,10 +1980,9 @@ export class HisHopeDataTableCellDirective {
       }
       .hh-data-table__skeleton-item {
         display: grid;
-        grid-template-columns: minmax(120px, 1.1fr) minmax(150px, 1.4fr) minmax(
-            110px,
-            1fr
-          ) minmax(90px, 0.8fr) minmax(64px, 0.45fr);
+        grid-template-columns:
+          minmax(120px, 1.1fr) minmax(150px, 1.4fr) minmax(110px, 1fr)
+          minmax(90px, 0.8fr) minmax(64px, 0.45fr);
         gap: 16px;
         align-items: center;
         min-height: 58px;
@@ -2057,10 +2074,9 @@ export class HisHopeDataTableCellDirective {
           min-width: 0;
         }
         .hh-data-table__skeleton-item {
-          grid-template-columns: minmax(100px, 1.2fr) minmax(
-              120px,
-              1.5fr
-            ) minmax(80px, 1fr);
+          grid-template-columns:
+            minmax(100px, 1.2fr) minmax(120px, 1.5fr)
+            minmax(80px, 1fr);
           gap: 10px;
           padding: 0 12px;
         }

@@ -96,10 +96,10 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
           <hh-action-button
             *ngIf="canWrite"
             (pressed)="edit(row)"
-            kind="secondary"
+            kind="row"
             mode="icon-only"
             icon="edit"
-            label="Action"
+            [label]="'admin.edit' | hhTranslate: 'Edit'"
           />
           <hh-action-button
             *ngIf="canWrite && row['isActive']"

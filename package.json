@@ -18,6 +18,7 @@
     "validate:foundation": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-shared-foundation.ps1",
     "validate:shared-packages": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-shared-package-governance.ps1",
     "audit:admin-ui": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/audit-admin-ui-actions.ps1",
+    "audit:i18n-keys": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/audit-i18n-keys.ps1 -FailOnMissing",
     "lint:design-tokens": "node scripts/validate-design-tokens.mjs",
     "validate:i18n": "node scripts/validate-i18n-boundary.mjs",
     "policy:gate": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-his-hope-policy.ps1 -Ci",

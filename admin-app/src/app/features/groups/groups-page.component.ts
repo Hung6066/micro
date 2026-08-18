@@ -163,8 +163,8 @@ export class GroupsPageComponent implements OnInit {
         label: this.i18n.t("admin.actions", "Actions"),
         sortable: false,
         hideable: false,
-        width: "112px",
-        minWidth: 112,
+        width: "128px",
+        minWidth: 128,
         align: "center" as const,
       },
     ];
