@@ -247,6 +247,7 @@ import { ApiErrorMessageService } from "../../core/services/api-error-message.se
                 <thead>
                   <tr>
                     <th>{{ "admin.timestamp" | hhTranslate: "Time" }}</th>
+                    <th>{{ "admin.user" | hhTranslate: "User" }}</th>
                     <th>{{ "admin.action" | hhTranslate: "Action" }}</th>
                     <th>{{ "admin.resource" | hhTranslate: "Resource" }}</th>
                     <th>{{ "admin.outcome" | hhTranslate: "Outcome" }}</th>
@@ -258,6 +259,7 @@ import { ApiErrorMessageService } from "../../core/services/api-error-message.se
                 <tbody>
                   <tr *ngFor="let row of auditRows">
                     <td>{{ row.timestamp | date: "short" }}</td>
+                    <td>{{ row.userName || row.userId }}</td>
                     <td>{{ row.action }}</td>
                     <td>{{ row.resourceType }} {{ row.resourceId }}</td>
                     <td>{{ row.outcome || "—" }}</td>
@@ -393,7 +395,7 @@ import { ApiErrorMessageService } from "../../core/services/api-error-message.se
               ><table>
                 <thead>
                   <tr>
-                    <th>{{ "admin.userId" | hhTranslate: "User ID" }}</th>
+                    <th>{{ "admin.subject" | hhTranslate: "Subject" }}</th>
                     <th>
                       {{ "admin.thumbprint" | hhTranslate: "Thumbprint" }}
                     </th>
@@ -405,7 +407,7 @@ import { ApiErrorMessageService } from "../../core/services/api-error-message.se
                 </thead>
                 <tbody>
                   <tr *ngFor="let binding of mtlsBindings">
-                    <td class="mono">{{ binding.userId }}</td>
+                    <td>{{ binding.subject || binding.userId }}</td>
                     <td class="mono">{{ binding.thumbprint }}</td>
                     <td>{{ binding.subject || "—" }}</td>
                     <td>{{ binding.notAfter | date: "short" }}</td>

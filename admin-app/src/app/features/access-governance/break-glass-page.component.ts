@@ -100,7 +100,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
               ><mat-option
                 *ngFor="let permission of permissions"
                 [value]="permission.code"
-                >{{ permission.code }}</mat-option
+                >{{ permission.name }} · {{ permission.code }}</mat-option
               ></mat-select
             ></mat-form-field
           ><mat-form-field appearance="outline"

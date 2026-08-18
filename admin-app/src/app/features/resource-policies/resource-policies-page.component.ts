@@ -82,7 +82,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
           }}<select name="scopeId" [(ngModel)]="draft.scopeId" required>
             <option value="">{{ "admin.select" | hhTranslate }}</option>
             <option *ngFor="let scope of scopes" [value]="scope.id">
-              {{ scope.key }}
+              {{ scope.displayName }} · {{ scope.key }}
             </option>
           </select></label
         ><label

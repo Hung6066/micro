@@ -113,7 +113,10 @@ export class IamSessionsPageComponent implements OnInit {
     effect(() => {
       const data = this.state.resource.data();
       if (data) {
-        this.rows = data.sessions.map((item) => ({ ...item }));
+        this.rows = data.sessions.map((item) => ({
+          ...item,
+          displaySubject: item.email || item.userId || "—",
+        }));
         this.cdr.markForCheck();
       }
     });
@@ -121,7 +124,7 @@ export class IamSessionsPageComponent implements OnInit {
   get columns(): HisHopeDataTableColumn[] {
     this.i18n.locale();
     return [
-      { key: "userId", label: this.i18n.t("admin.subject", "Subject") },
+      { key: "displaySubject", label: this.i18n.t("admin.subject", "Subject") },
       { key: "id", label: this.i18n.t("admin.sessionId", "Session ID") },
       { key: "createdAt", label: this.i18n.t("admin.createdAt", "Created") },
       { key: "expiresAt", label: this.i18n.t("admin.expiresAt", "Expires") },

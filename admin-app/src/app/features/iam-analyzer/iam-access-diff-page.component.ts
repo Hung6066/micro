@@ -63,7 +63,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
           [disabled]="loadingSets || !sets.length"
         >
           <option *ngFor="let set of sets" [value]="set.id">
-            {{ set.key }}
+            {{ set.displayName }} · {{ set.key }}
           </option>
         </select></label
       ><label
@@ -73,7 +73,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
           [disabled]="loadingSets || !sets.length"
         >
           <option *ngFor="let set of sets" [value]="set.id">
-            {{ set.key }}
+            {{ set.displayName }} · {{ set.key }}
           </option>
         </select></label
       >
