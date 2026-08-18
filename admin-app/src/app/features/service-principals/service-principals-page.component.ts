@@ -28,6 +28,7 @@ import {
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { iamScopeLabel } from "../../core/utils/iam-display.util";
 
 @Component({
   selector: "app-service-principals-page",
@@ -104,7 +105,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
                 {{ "admin.select" | hhTranslate: "Select" }}
               </option>
               <option *ngFor="let scope of scopes" [value]="scope.id">
-                {{ scope.key }} · {{ scope.displayName }}
+                {{ scope.displayName }} · {{ scope.key }}
               </option>
             </select></label
           >
@@ -256,6 +257,7 @@ export class ServicePrincipalsPageComponent implements OnInit {
         this.scopes = x.scopes;
         this.rows = x.roles.map((item) => ({
           ...item,
+          scopeId: iamScopeLabel(item.scopeId, x.scopes),
           isActive:
             (item as IamWorkloadRole & { isActive?: boolean }).isActive !==
             false,

@@ -29,6 +29,7 @@ import {
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { iamScopeLabel } from "../../core/utils/iam-display.util";
 
 @Component({
   selector: "app-permission-sets-page",
@@ -89,7 +90,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
           }}<select name="scopeId" [(ngModel)]="draft.scopeId" required>
             <option value="">{{ "admin.select" | hhTranslate }}</option>
             <option *ngFor="let scope of scopes" [value]="scope.id">
-              {{ scope.key }} · {{ scope.displayName }}
+              {{ scope.displayName }} · {{ scope.key }}
             </option>
           </select></label
         ><label
@@ -223,7 +224,10 @@ export class PermissionSetsPageComponent implements OnInit {
         this.permissionsCatalog = x.permissions.filter(
           (item) => !item.isDeprecated,
         );
-        this.rows = x.sets.map((item) => ({ ...item }));
+        this.rows = x.sets.map((item) => ({
+          ...item,
+          scopeId: iamScopeLabel(item.scopeId, x.scopes),
+        }));
         this.cdr.markForCheck();
       }
     });

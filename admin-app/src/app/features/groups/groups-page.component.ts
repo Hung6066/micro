@@ -24,6 +24,7 @@ import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { IamGroup, IamScope } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { iamScopeLabel } from "../../core/utils/iam-display.util";
 import { finalize, forkJoin, take } from "rxjs";
 
 @Component({
@@ -105,7 +106,7 @@ import { finalize, forkJoin, take } from "rxjs";
                 {{ "admin.select" | hhTranslate: "Select" }}
               </option>
               <option *ngFor="let scope of scopes" [value]="scope.id">
-                {{ scope.key }} · {{ scope.displayName }}
+                {{ scope.displayName }} · {{ scope.key }}
               </option>
             </select></label
           >
@@ -234,7 +235,10 @@ export class GroupsPageComponent implements OnInit {
       if (data) {
         this.groups = data.groups;
         this.scopes = data.scopes;
-        this.rows = data.groups.map((item) => ({ ...item }));
+        this.rows = data.groups.map((item) => ({
+          ...item,
+          scopeId: iamScopeLabel(item.scopeId, data.scopes),
+        }));
         this.cdr.markForCheck();
       }
     });

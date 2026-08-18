@@ -12,7 +12,7 @@
       "@his-hope/frontend-foundation/ui": ["ui/src/public-api.ts"]
     },
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": ".",
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true

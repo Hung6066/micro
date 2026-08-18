@@ -24,6 +24,7 @@ import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { IamScope } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { iamScopeLabel } from "../../core/utils/iam-display.util";
 
 @Component({
   selector: "app-iam-scopes-page",
@@ -101,7 +102,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
           }}<select name="parentId" [(ngModel)]="draft.parentId">
             <option value="">{{ "admin.select" | hhTranslate }}</option>
             <option *ngFor="let parent of parentOptions" [value]="parent.id">
-              {{ parent.key }} · {{ parent.kind }}
+              {{ parent.displayName }} · {{ parent.key }} · {{ parent.kind }}
             </option>
           </select></label
         >
@@ -222,7 +223,10 @@ export class IamScopesPageComponent implements OnInit {
       const scopes = this.state.resource.data();
       if (scopes) {
         this.scopes = scopes;
-        this.rows = scopes.map((item) => ({ ...item }));
+        this.rows = scopes.map((item) => ({
+          ...item,
+          parentId: iamScopeLabel(item.parentId, scopes, true),
+        }));
         this.cdr.markForCheck();
       }
     });

@@ -20,7 +20,12 @@ import {
 } from "@his-hope/frontend-foundation/i18n";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
-import { IamApiAudiencesResponse } from "../../core/contracts/admin.contracts";
+import {
+  IamApiAudiencesResponse,
+  IamScope,
+} from "../../core/contracts/admin.contracts";
+import { iamScopeLabel } from "../../core/utils/iam-display.util";
+import { forkJoin, map } from "rxjs";
 
 @Component({
   selector: "app-iam-api-audiences-page",
@@ -64,7 +69,10 @@ export class IamApiAudiencesPageComponent implements OnInit {
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
-  readonly state = new AdminResourceStateController<IamApiAudiencesResponse>({
+  readonly state = new AdminResourceStateController<{
+    audiences: IamApiAudiencesResponse["audiences"];
+    scopes: IamScope[];
+  }>({
     destroyRef: this.destroyRef,
     i18n: this.i18n,
     loadErrorMessageKey: "admin.iamLoadFailed",
@@ -93,8 +101,9 @@ export class IamApiAudiencesPageComponent implements OnInit {
     effect(() => {
       const x = this.state.resource.data();
       if (x) {
-        this.rows = x.audiences.map((item: unknown) => ({
-          ...(item as object),
+        this.rows = x.audiences.map((item) => ({
+          ...item,
+          scopeId: iamScopeLabel(item.scopeId, x.scopes),
         }));
         this.cdr.markForCheck();
       }
@@ -104,6 +113,13 @@ export class IamApiAudiencesPageComponent implements OnInit {
     this.load();
   }
   load() {
-    this.state.load(this.api.getIamApiAudiences());
+    this.state.load(
+      forkJoin({
+        audiences: this.api
+          .getIamApiAudiences()
+          .pipe(map((response) => response.audiences)),
+        scopes: this.api.getIamScopes(),
+      }),
+    );
   }
 }
