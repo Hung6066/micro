@@ -1,4 +1,10 @@
-import { Component, Inject, OnInit, inject } from "@angular/core";
+import {
+  ChangeDetectorRef,
+  Component,
+  Inject,
+  OnInit,
+  inject,
+} from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { FormGroup } from "@angular/forms";
@@ -248,6 +254,7 @@ export class RoleEditDialogComponent implements OnInit {
   private readonly api = inject(RolesApiService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(HisHopeI18nService);
+  private readonly cdr = inject(ChangeDetectorRef);
   readonly isEdit: boolean;
   readonly formGroup: FormGroup;
   readonly fields: readonly HisHopeFormFieldSchema<unknown>[];
@@ -309,10 +316,12 @@ export class RoleEditDialogComponent implements OnInit {
           this.permissionCodes(this.form.permissions),
         );
         this.loadingPermissions = false;
+        this.cdr.markForCheck();
       },
       error: () => {
         this.loadingPermissions = false;
         this.permissionLoadError = true;
+        this.cdr.markForCheck();
       },
     });
     this.api.getRoleOwners().subscribe({
@@ -321,10 +330,12 @@ export class RoleEditDialogComponent implements OnInit {
         if (!this.form.owner && owners.length > 0)
           this.form.owner = owners[0].key;
         this.loadingOwners = false;
+        this.cdr.markForCheck();
       },
       error: () => {
         this.loadingOwners = false;
         this.ownerLoadError = true;
+        this.cdr.markForCheck();
       },
     });
   }

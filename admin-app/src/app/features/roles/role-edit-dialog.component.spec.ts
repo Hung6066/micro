@@ -73,6 +73,11 @@ describe("RoleEditDialogComponent", () => {
     fixture.detectChanges();
 
     const component = fixture.componentInstance;
+    expect(component.loadingPermissions).toBeFalse();
+    expect(fixture.nativeElement.textContent).toContain("Read clinical");
+    expect(
+      fixture.nativeElement.querySelectorAll("mat-expansion-panel").length,
+    ).toBe(2);
     expect(component.permissionGroups.map((group) => group.name)).toEqual([
       "Billing",
       "Clinical",
