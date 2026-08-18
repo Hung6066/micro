@@ -7,7 +7,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import {
   HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
@@ -25,13 +25,16 @@ import { IamScope } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { iamScopeLabel } from "../../core/utils/iam-display.util";
+import { IamScopeEditDialogComponent } from "./iam-scope-edit-dialog.component";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-scopes-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
+    MatDialogModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -49,72 +52,26 @@ import { iamScopeLabel } from "../../core/utils/iam-display.util";
         'admin.scopesSubtitle'
           | hhTranslate
             : 'Manage organization, tenant, account and environment boundaries.'
-      "
-    /><hh-toolbar
+      " /><hh-toolbar
       hhPageToolbar
       [label]="
         'admin.organizationsTenants' | hhTranslate: 'Organizations & tenants'
       "
       ><span hhToolbarTitle
         >{{ scopes.length }} {{ "admin.scopes" | hhTranslate: "Scopes" }}</span
-      ><button
+      ><hh-action-button
         *ngIf="canWrite"
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--primary"
-        (click)="toggleForm()"
-      >
-        {{ (formOpen ? "admin.cancel" : "admin.create") | hhTranslate }}</button
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
-    >
-    <form *ngIf="canWrite && formOpen" class="hh-form-card" (ngSubmit)="save()">
-      <div class="hh-form-grid">
-        <label
-          >{{ "admin.key" | hhTranslate
-          }}<input name="key" [(ngModel)]="draft.key" required /></label
-        ><label
-          >{{ "admin.displayName" | hhTranslate: "Display name"
-          }}<input
-            name="displayName"
-            [(ngModel)]="draft.displayName"
-            required /></label
-        ><label
-          >{{ "admin.kind" | hhTranslate
-          }}<select name="kind" [(ngModel)]="draft.kind" required>
-            <option value="organization">
-              {{ "admin.organization" | hhTranslate }}
-            </option>
-            <option value="tenant">{{ "admin.tenant" | hhTranslate }}</option>
-            <option value="account">{{ "admin.account" | hhTranslate }}</option>
-            <option value="environment">
-              {{ "admin.environment" | hhTranslate }}
-            </option>
-          </select></label
-        ><label *ngIf="draft.kind !== 'organization'"
-          >{{ "admin.parentScope" | hhTranslate
-          }}<select name="parentId" [(ngModel)]="draft.parentId">
-            <option value="">{{ "admin.select" | hhTranslate }}</option>
-            <option *ngFor="let parent of parentOptions" [value]="parent.id">
-              {{ parent.displayName }} · {{ parent.key }} · {{ parent.kind }}
-            </option>
-          </select></label
-        >
-      </div>
-      <button
-        class="hh-button hh-button--primary"
-        type="submit"
-        [disabled]="saving"
-      >
-        {{ (editingId ? "admin.update" : "admin.save") | hhTranslate }}
-      </button>
-    </form>
+        hh-toolbar-actions
+        kind="primary"
+        icon="add"
+        [label]="'admin.create' | hhTranslate"
+        (pressed)="openCreate()" /><hh-action-button
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+        (pressed)="load()"
+    /></hh-toolbar>
     <div *ngIf="error" class="hh-state hh-state--error" role="alert">
       {{ error }}
     </div>
@@ -125,42 +82,30 @@ import { iamScopeLabel } from "../../core/utils/iam-display.util";
       [loading]="loading"
       [empty]="!loading && !error && !rows.length"
       ><ng-template hhDataTableCell="actions" let-row
-        ><button
+        ><hh-action-button
           *ngIf="canWrite"
-          type="button"
-          class="hh-icon-button hh-icon-button--small"
-          (click)="edit(row)"
-          [attr.aria-label]="'admin.edit' | hhTranslate"
-          [attr.title]="'admin.edit' | hhTranslate"
-        >
-          <span class="material-icons" aria-hidden="true">edit</span></button
-        ><button
+          kind="row"
+          mode="icon-only"
+          icon="edit"
+          [label]="'admin.edit' | hhTranslate"
+          (pressed)="edit(row)" /><hh-action-button
           *ngIf="canWrite && row['isActive']"
-          type="button"
-          class="hh-icon-button hh-icon-button--small hh-icon-button--danger"
-          (click)="toggle(row)"
-          [attr.aria-label]="'admin.deactivate' | hhTranslate"
-          [attr.title]="'admin.deactivate' | hhTranslate"
-        >
-          <span class="material-icons" aria-hidden="true"
-            >toggle_off</span
-          ></button
-        ><button
+          kind="danger"
+          mode="icon-only"
+          icon="toggle_off"
+          [label]="'admin.deactivate' | hhTranslate"
+          (pressed)="toggle(row)" /><hh-action-button
           *ngIf="canWrite && !row['isActive']"
-          type="button"
-          class="hh-icon-button hh-icon-button--small"
-          (click)="toggle(row)"
-          [attr.aria-label]="'admin.activate' | hhTranslate"
-          [attr.title]="'admin.activate' | hhTranslate"
-        >
-          <span class="material-icons" aria-hidden="true">toggle_on</span>
-        </button></ng-template
-      ></hh-data-table
-    ></hh-page-layout
-  >`,
+          kind="row"
+          mode="icon-only"
+          icon="toggle_on"
+          [label]="'admin.activate' | hhTranslate"
+          (pressed)="toggle(row)" /></ng-template></hh-data-table
+  ></hh-page-layout>`,
 })
 export class IamScopesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly dialog = inject(MatDialog);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -177,8 +122,6 @@ export class IamScopesPageComponent implements OnInit {
   scopes: IamScope[] = [];
   rows: Record<string, unknown>[] = [];
   saving = false;
-  formOpen = false;
-  editingId = "";
   get loading(): boolean {
     return this.state.loading;
   }
@@ -188,10 +131,8 @@ export class IamScopesPageComponent implements OnInit {
   set error(value: string) {
     this.state.setActionError(value);
   }
-  draft: { key: string; displayName: string; kind: string; parentId: string } =
-    { key: "", displayName: "", kind: "organization", parentId: "" };
   get parentOptions(): IamScope[] {
-    return this.scopes.filter((x) => x.isActive && x.id !== this.editingId);
+    return this.scopes.filter((x) => x.isActive);
   }
   get columns(): HisHopeDataTableColumn[] {
     this.i18n.locale();
@@ -234,62 +175,31 @@ export class IamScopesPageComponent implements OnInit {
   load(): void {
     this.state.load(this.api.getIamScopes());
   }
-  toggleForm(): void {
+  openCreate(): void {
     if (!this.canWrite) return;
-    this.formOpen = !this.formOpen;
-    this.editingId = "";
-    this.draft = {
-      key: "",
-      displayName: "",
-      kind: "organization",
-      parentId: "",
-    };
+    this.dialog
+      .open(IamScopeEditDialogComponent, {
+        width: "560px",
+        data: { scope: null, scopes: this.scopes },
+      })
+      .afterClosed()
+      .subscribe((saved) => {
+        if (saved) this.load();
+      });
   }
   edit(row: Record<string, unknown>): void {
     if (!this.canWrite) return;
     const item = this.scopes.find((x) => x.id === String(row["id"]));
     if (!item) return;
-    this.editingId = item.id;
-    this.formOpen = true;
-    this.draft = {
-      key: item.key,
-      displayName: item.displayName,
-      kind: item.kind,
-      parentId: item.parentId ?? "",
-    };
-  }
-  save(): void {
-    if (
-      !this.canWrite ||
-      !this.draft.key.trim() ||
-      !this.draft.displayName.trim()
-    )
-      return;
-    this.saving = true;
-    const request = {
-      key: this.draft.key,
-      displayName: this.draft.displayName,
-      kind: this.draft.kind,
-      parentId: this.draft.parentId || null,
-    };
-    const call = this.editingId
-      ? this.api.updateIamScope(this.editingId, request)
-      : this.api.createIamScope(request);
-    call.subscribe({
-      next: () => {
-        this.formOpen = false;
-        this.editingId = "";
-        this.load();
-      },
-      error: () => {
-        this.error = this.i18n.t(
-          "admin.iamSaveFailed",
-          "Unable to save scope.",
-        );
-        this.saving = false;
-      },
-      complete: () => (this.saving = false),
-    });
+    this.dialog
+      .open(IamScopeEditDialogComponent, {
+        width: "560px",
+        data: { scope: item, scopes: this.scopes },
+      })
+      .afterClosed()
+      .subscribe((saved) => {
+        if (saved) this.load();
+      });
   }
   toggle(row: Record<string, unknown>): void {
     if (!this.canWrite) return;

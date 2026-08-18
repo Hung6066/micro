@@ -22,10 +22,12 @@ import {
   User,
 } from "../../core/services/access-governance-api.service";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-access-governance-workflows",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     FormsModule,
     MatButtonModule,
@@ -84,21 +86,13 @@ import {
                 max="72"
                 [(ngModel)]="request.expiryHours"
             /></mat-form-field>
-            <button
-              mat-flat-button
-              color="primary"
-              type="button"
-              (click)="requestCreated.emit()"
-              [disabled]="
+            <hh-action-button [disabled]="
                 busy ||
                 !canWrite ||
                 !request.subjectUserId ||
                 !request.roleIds.length ||
                 request.reason.trim().length < 10
-              "
-            >
-              {{ "admin.createAccessRequest" | hhTranslate: "Create request" }}
-            </button>
+              " (pressed)="requestCreated.emit()" kind="primary" icon="add" [label]="'admin.createAccessRequest' | hhTranslate: 'Create request'" />
           </mat-card-content></mat-card
         >
         <mat-card
@@ -138,20 +132,12 @@ import {
                 max="90"
                 [(ngModel)]="review.dueDays"
             /></mat-form-field>
-            <button
-              mat-flat-button
-              color="primary"
-              type="button"
-              (click)="reviewCreated.emit()"
-              [disabled]="
+            <hh-action-button [disabled]="
                 busy ||
                 !canWrite ||
                 !review.subjectUserId ||
                 !review.roleIds.length
-              "
-            >
-              {{ "admin.createAccessReview" | hhTranslate: "Create review" }}
-            </button>
+              " (pressed)="reviewCreated.emit()" kind="primary" icon="add" [label]="'admin.createAccessReview' | hhTranslate: 'Create review'" />
           </mat-card-content></mat-card
         >
       </section>
@@ -310,24 +296,14 @@ import {
                 [(ngModel)]="breakGlass.reason"
               ></textarea>
             </mat-form-field>
-            <button
-              mat-flat-button
-              color="warn"
-              type="button"
-              (click)="breakGlassCreated.emit()"
-              [disabled]="
+            <hh-action-button [disabled]="
                 busy ||
                 !canWrite ||
                 !breakGlass.subjectUserId ||
                 !breakGlass.permissionCode ||
                 !breakGlass.facilityId ||
                 breakGlass.reason.trim().length < 10
-              "
-            >
-              {{
-                "admin.requestBreakGlass" | hhTranslate: "Request break-glass"
-              }}
-            </button>
+              " (pressed)="breakGlassCreated.emit()" kind="danger" icon="link_off" [label]="'admin.requestBreakGlass' | hhTranslate: 'Request break-glass'" />
           </mat-card-content></mat-card
         >
         <mat-card

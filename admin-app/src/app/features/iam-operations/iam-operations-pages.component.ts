@@ -6,7 +6,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { HisHopeI18nService } from "@his-hope/frontend-foundation";
+
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
@@ -17,7 +17,10 @@ import {
   HisHopePageLayoutComponent,
   HisHopeToolbarComponent,
 } from "@his-hope/frontend-foundation/ui";
-import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
+import {
+  HisHopeI18nService,
+  HisHopeTranslatePipe,
+} from "@his-hope/frontend-foundation/i18n";
 import { catchError, forkJoin, of, tap } from "rxjs";
 import { IamApiService } from "../../core/services/iam-api.service";
 import {
@@ -25,10 +28,12 @@ import {
   SecuritySignalOutboxEntry,
 } from "../../core/contracts/admin.contracts";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-workload-sessions-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
@@ -40,17 +45,16 @@ import {
   template: `<hh-page-layout
     ><hh-page-header
       hhPageHeader
-      [title]="'admin.workloadSessions' | hhTranslate: 'Workload sessions'"
-    /><hh-toolbar hhPageToolbar
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
-    >
+      [title]="
+        'admin.workloadSessions' | hhTranslate: 'Workload sessions'
+      " /><hh-toolbar hhPageToolbar
+      ><hh-action-button
+        (pressed)="load()"
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+    /></hh-toolbar>
     <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
     <hh-data-table
       [columns]="columns"
@@ -58,17 +62,13 @@ import {
       [loading]="loading"
       [empty]="!loading && !rows.length"
       ><ng-template hhDataTableCell="actions" let-row
-        ><button
+        ><hh-action-button
           *ngIf="canWrite"
-          type="button"
-          class="hh-button hh-button--danger hh-button--small"
-          (click)="revoke(row)"
-        >
-          {{ "admin.revoke" | hhTranslate }}
-        </button></ng-template
-      ></hh-data-table
-    ></hh-page-layout
-  >`,
+          (pressed)="revoke(row)"
+          kind="danger"
+          icon="link_off"
+          [label]="'admin.revoke' | hhTranslate" /></ng-template></hh-data-table
+  ></hh-page-layout>`,
 })
 export class IamWorkloadSessionsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
@@ -143,6 +143,7 @@ export class IamWorkloadSessionsPageComponent implements OnInit {
   selector: "app-iam-audit-integrations-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
@@ -154,17 +155,16 @@ export class IamWorkloadSessionsPageComponent implements OnInit {
   template: `<hh-page-layout
     ><hh-page-header
       hhPageHeader
-      [title]="'admin.auditIntegrations' | hhTranslate: 'Audit & integrations'"
-    /><hh-toolbar hhPageToolbar
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
-    >
+      [title]="
+        'admin.auditIntegrations' | hhTranslate: 'Audit & integrations'
+      " /><hh-toolbar hhPageToolbar
+      ><hh-action-button
+        (pressed)="load()"
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+    /></hh-toolbar>
     <section *ngIf="integration" class="hh-form-card">
       <p>
         Audit append-only: <strong>{{ integration.audit.appendOnly }}</strong>
@@ -181,17 +181,13 @@ export class IamWorkloadSessionsPageComponent implements OnInit {
       [loading]="loading"
       [empty]="!loading && !rows.length"
       ><ng-template hhDataTableCell="actions" let-row
-        ><button
+        ><hh-action-button
           *ngIf="canWrite"
-          type="button"
-          class="hh-button hh-button--secondary hh-button--small"
-          (click)="retry(row)"
-        >
-          {{ "admin.retry" | hhTranslate }}
-        </button></ng-template
-      ></hh-data-table
-    ></hh-page-layout
-  >`,
+          (pressed)="retry(row)"
+          kind="secondary"
+          icon="refresh"
+          [label]="'admin.retry' | hhTranslate" /></ng-template></hh-data-table
+  ></hh-page-layout>`,
 })
 export class IamAuditIntegrationsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);

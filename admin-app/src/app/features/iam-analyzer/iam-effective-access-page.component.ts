@@ -24,10 +24,12 @@ import { User } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-effective-access-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     FormsModule,
     HisHopePageHeaderComponent,
@@ -47,14 +49,12 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
             : 'Resolve a principal’s effective permissions from assignments and boundaries.'
       "
     /><hh-toolbar hhPageToolbar [label]="'admin.effectiveAccess' | hhTranslate"
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
+      ><hh-action-button
+        (pressed)="load()"
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate" /></hh-toolbar
     ><label class="hh-field"
       >{{ "admin.subject" | hhTranslate
       }}<select
@@ -71,13 +71,13 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
           {{ user.email || user.userName }}
         </option>
       </select></label
-    ><button
-      type="button"
-      class="hh-button hh-button--primary"
-      (click)="evaluate()"
+    ><hh-action-button
       [disabled]="loadingUsers || !selectedUserId"
-    >
-      {{ "admin.evaluate" | hhTranslate: "Evaluate" }}</button
+      (pressed)="evaluate()"
+      kind="primary"
+      icon="refresh"
+      [label]="'admin.evaluate' | hhTranslate: 'Evaluate'"
+    />
     ><hh-table-state
       *ngIf="loadingUsers"
       kind="loading"
@@ -90,14 +90,12 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
       *ngIf="error"
       kind="error"
       message="admin.iamAnalyzerFailed"
-      ><button
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.retry" | hhTranslate: "Retry" }}
-      </button></hh-table-state
-    >
+      ><hh-action-button
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.retry' | hhTranslate: 'Retry'"
+        (pressed)="load()"
+    /></hh-table-state>
     <pre *ngIf="result">{{ result | json }}</pre>
   </hh-page-layout>`,
 })

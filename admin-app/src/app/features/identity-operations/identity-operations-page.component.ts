@@ -34,10 +34,12 @@ import {
 import { IdentityOperationsApiService } from "../../core/services/identity-operations-api.service";
 import { catchError, of, tap } from "rxjs";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-identity-operations-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     FormsModule,
     MatButtonModule,
@@ -92,28 +94,23 @@ import { catchError, of, tap } from "rxjs";
               ><textarea matInput rows="2" [(ngModel)]="reason"></textarea>
             </mat-form-field>
             <div class="actions">
-              <button
-                mat-stroked-button
-                type="button"
-                (click)="loadSessions()"
+              <hh-action-button
                 [disabled]="busy || !userId || !can('admin.sessions.read')"
-              >
-                {{
-                  "admin.loadSessions" | hhTranslate: "Load sessions"
-                }}</button
-              ><button
-                mat-flat-button
-                color="warn"
-                type="button"
-                (click)="revokeAllSessions()"
+                (pressed)="loadSessions()"
+                kind="secondary"
+                icon="refresh"
+                [label]="'admin.loadSessions' | hhTranslate: 'Load sessions'"
+              /><hh-action-button
                 [disabled]="
                   busy || !userId || !reason || !can('admin.sessions.revoke')
                 "
-              >
-                {{
-                  "admin.revokeAllSessions" | hhTranslate: "Revoke all sessions"
-                }}
-              </button>
+                (pressed)="revokeAllSessions()"
+                kind="danger"
+                icon="block"
+                [label]="
+                  'admin.revokeAllSessions' | hhTranslate: 'Revoke all sessions'
+                "
+              />
             </div>
             <div class="table-wrap" *ngIf="sessions.length">
               <table>
@@ -171,11 +168,7 @@ import { catchError, of, tap } from "rxjs";
             ><mat-checkbox [(ngModel)]="revokePasskeys">{{
               "admin.revokePasskeys" | hhTranslate: "Revoke passkeys"
             }}</mat-checkbox
-            ><button
-              mat-flat-button
-              color="warn"
-              type="button"
-              (click)="resetCredentials()"
+            ><hh-action-button
               [disabled]="
                 busy ||
                 !userId ||
@@ -183,14 +176,15 @@ import { catchError, of, tap } from "rxjs";
                 (!resetMfa && !revokePasskeys) ||
                 !can('admin.credentials.reset')
               "
-            >
-              {{
-                "admin.resetCredentials"
-                  | hhTranslate: "Reset selected credentials"
-              }}
-            </button>
-          </mat-card-content></mat-card
-        >
+              (pressed)="resetCredentials()"
+              kind="danger"
+              icon="lock_reset"
+              [label]="
+                'admin.resetCredentials'
+                  | hhTranslate: 'Reset selected credentials'
+              "
+            /> </mat-card-content
+        ></mat-card>
         <mat-card
           ><mat-card-header
             ><mat-card-title>{{
@@ -209,22 +203,19 @@ import { catchError, of, tap } from "rxjs";
               }}
             </p>
             <div class="actions">
-              <button
-                mat-stroked-button
-                type="button"
-                (click)="previewImport()"
+              <hh-action-button
                 [disabled]="busy || !file || !can('admin.users.read')"
-              >
-                {{ "admin.previewImport" | hhTranslate: "Preview" }}</button
-              ><button
-                mat-flat-button
-                color="primary"
-                type="button"
-                (click)="executeImport()"
+                (pressed)="previewImport()"
+                kind="secondary"
+                icon="preview"
+                [label]="'admin.previewImport' | hhTranslate: 'Preview'"
+              /><hh-action-button
                 [disabled]="busy || !file || !can('admin.users.write')"
-              >
-                {{ "admin.executeImport" | hhTranslate: "Execute import" }}
-              </button>
+                (pressed)="executeImport()"
+                kind="primary"
+                icon="play_arrow"
+                [label]="'admin.executeImport' | hhTranslate: 'Execute import'"
+              />
             </div>
             <p *ngIf="preview">
               {{ preview.valid }}/{{ preview.total }}
@@ -262,32 +253,27 @@ import { catchError, of, tap } from "rxjs";
                     | hhTranslate: "Google Workspace"
                 }}</mat-option></mat-select
               ></mat-form-field
-            ><button
-              mat-stroked-button
-              type="button"
-              (click)="reconcile()"
+            ><hh-action-button
               [disabled]="busy || !can('admin.provisioning.manage')"
-            >
-              {{
-                "admin.reconcile" | hhTranslate: "Queue full reconcile"
-              }}</button
-            ><mat-form-field appearance="outline"
+              (pressed)="reconcile()"
+              kind="secondary"
+              icon="sync"
+              [label]="'admin.reconcile' | hhTranslate: 'Queue full reconcile'"
+            /><mat-form-field appearance="outline"
               ><mat-label>{{
                 "admin.ssfOutboxId" | hhTranslate: "SSF outbox ID"
               }}</mat-label
               ><input matInput [(ngModel)]="ssfId" /></mat-form-field
-            ><button
-              mat-stroked-button
-              type="button"
-              (click)="retrySsf()"
+            ><hh-action-button
               [disabled]="
                 busy || !ssfId || !can('admin.security-signals.manage')
               "
-            >
-              {{ "admin.retrySsf" | hhTranslate: "Retry SSF delivery" }}
-            </button>
-          </mat-card-content></mat-card
-        >
+              (pressed)="retrySsf()"
+              kind="secondary"
+              icon="replay"
+              [label]="'admin.retrySsf' | hhTranslate: 'Retry SSF delivery'"
+            /> </mat-card-content
+        ></mat-card>
       </section>
       <p class="error" *ngIf="error">{{ error }}</p>
     </hh-page-layout>

@@ -25,10 +25,12 @@ import { AdminSessionCenterResponse } from "../../core/contracts/admin.contracts
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-sessions-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
@@ -51,14 +53,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
       ><span hhToolbarTitle
         >{{ rows.length }}
         {{ "admin.sessions" | hhTranslate: "Sessions" }}</span
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
+      ><hh-action-button (pressed)="load()" hh-toolbar-actions kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate" /></hh-toolbar
     >
     <div *ngIf="error" class="hh-state hh-state--error" role="alert">
       {{ error }}
@@ -70,14 +65,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
       [loading]="loading"
       [empty]="!loading && !error && !rows.length"
       ><ng-template hhDataTableCell="actions" let-row
-        ><button
-          *ngIf="canWrite"
-          type="button"
-          class="hh-button hh-button--danger hh-button--small"
-          (click)="revoke(row)"
-        >
-          {{ "admin.revoke" | hhTranslate }}
-        </button></ng-template
+        ><hh-action-button *ngIf="canWrite" (pressed)="revoke(row)" kind="danger" icon="link_off" [label]="'admin.revoke' | hhTranslate" /></ng-template
       ></hh-data-table
     ></hh-page-layout
   >`,

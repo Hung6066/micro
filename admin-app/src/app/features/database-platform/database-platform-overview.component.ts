@@ -16,10 +16,17 @@ import {
   PlatformResource,
 } from "../../core/services/database-platform-api.service";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-database-platform-overview",
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatIconModule, HisHopeTranslatePipe],
+  imports: [
+    HisHopeActionButtonComponent,
+    CommonModule,
+    MatButtonModule,
+    MatIconModule,
+    HisHopeTranslatePipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section
@@ -186,26 +193,22 @@ import {
           </ul>
         }
         <div class="continuity-actions">
-          <button
+          <hh-action-button
             *ngIf="canMutate"
-            mat-stroked-button
-            type="button"
             [disabled]="actionLoading || !continuity.ready"
-            (click)="backupRequested.emit()"
-          >
-            <mat-icon>backup</mat-icon
-            >{{ "admin.requestBackup" | hhTranslate: "Request backup" }}
-          </button>
-          <button
+            (pressed)="backupRequested.emit()"
+            kind="secondary"
+            icon="backup"
+            [label]="'admin.requestBackup' | hhTranslate: 'Request backup'"
+          />
+          <hh-action-button
             *ngIf="canMutate"
-            mat-stroked-button
-            type="button"
             [disabled]="actionLoading || !continuity.ready"
-            (click)="restoreDrillRequested.emit()"
-          >
-            <mat-icon>restore</mat-icon
-            >{{ "admin.restoreDrill" | hhTranslate: "Run restore drill" }}
-          </button>
+            (pressed)="restoreDrillRequested.emit()"
+            kind="secondary"
+            icon="restore"
+            [label]="'admin.restoreDrill' | hhTranslate: 'Run restore drill'"
+          />
         </div>
         @if (continuity.latestJob || lastJob) {
           <p class="job-status">
@@ -244,15 +247,13 @@ import {
                 }}
               </p>
             </div>
-            <button
-              mat-stroked-button
-              type="button"
-              (click)="auditRefreshRequested.emit()"
+            <hh-action-button
               [disabled]="auditLoading"
-            >
-              <mat-icon>refresh</mat-icon
-              >{{ "common.refresh" | hhTranslate: "Refresh" }}
-            </button>
+              (pressed)="auditRefreshRequested.emit()"
+              kind="secondary"
+              icon="refresh"
+              [label]="'common.refresh' | hhTranslate: 'Refresh'"
+            />
           </div>
           @if (auditLoading) {
             <p class="audit-empty">

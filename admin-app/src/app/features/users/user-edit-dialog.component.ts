@@ -21,10 +21,12 @@ import {
 } from "@his-hope/frontend-foundation/i18n";
 import { catchError, of } from "rxjs";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-user-edit-dialog",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     HisHopeCreateDialogShellComponent,
     HisHopeFormLayoutComponent,
     HisHopeFormRendererComponent,
@@ -33,7 +35,10 @@ import { catchError, of } from "rxjs";
   ],
   template: `
     <hh-create-dialog-shell
-      [title]="(isEdit ? 'admin.editUser' : 'admin.createUser') | hhTranslate"
+      [title]="
+        (isEdit ? 'admin.editUser' : 'admin.createUser')
+          | hhTranslate: (isEdit ? 'Edit user' : 'Create user')
+      "
     >
       <div hhCreateDialogContent>
         <hh-form-layout>
@@ -45,30 +50,28 @@ import { catchError, of } from "rxjs";
               [fields]="fields"
               [form]="formGroup"
               (submitted)="save($event)"
-            >
-              <div hhCreateDialogFooter>
-                <button
-                  class="hh-button hh-button--secondary"
-                  type="button"
-                  (click)="dialogRef.close()"
-                >
-                  {{ "admin.cancel" | hhTranslate }}
-                </button>
-                <button
-                  class="hh-button hh-button--primary"
-                  type="submit"
-                  [disabled]="saving"
-                >
-                  {{
-                    saving
-                      ? ("admin.saving" | hhTranslate)
-                      : ("admin.save" | hhTranslate)
-                  }}
-                </button>
-              </div>
-            </hh-form-renderer>
+            />
           </hh-form-section>
         </hh-form-layout>
+      </div>
+      <div hhCreateDialogFooter>
+        <hh-action-button
+          (pressed)="dialogRef.close()"
+          kind="secondary"
+          icon="close"
+          [label]="'admin.cancel' | hhTranslate"
+        />
+        <hh-action-button
+          [disabled]="saving || formGroup.invalid"
+          (pressed)="submitForm()"
+          kind="primary"
+          icon="save"
+          [label]="
+            saving
+              ? ('admin.saving' | hhTranslate)
+              : ('admin.save' | hhTranslate)
+          "
+        />
       </div>
     </hh-create-dialog-shell>
   `,
@@ -119,14 +122,14 @@ export class UserEditDialogComponent {
       fields: {
         username: {
           key: "username",
-          label: this.i18n.t("admin.username"),
+          label: this.i18n.t("admin.username", "Username"),
           initialValue: data?.userName ?? "",
           disabled: this.isEdit,
           required: true,
         },
         email: {
           key: "email",
-          label: this.i18n.t("admin.email"),
+          label: this.i18n.t("admin.email", "Email"),
           initialValue: data?.email ?? "",
           type: "email",
           required: true,
@@ -150,7 +153,7 @@ export class UserEditDialogComponent {
         },
         password: {
           key: "password",
-          label: this.i18n.t("admin.password"),
+          label: this.i18n.t("admin.password", "Password"),
           initialValue: "",
           type: "password",
           required: !this.isEdit,
@@ -175,6 +178,11 @@ export class UserEditDialogComponent {
       return value.length > 0 && value.length < 12 ? { minlength: true } : null;
     });
     this.formGroup.get("password")?.updateValueAndValidity();
+  }
+
+  submitForm(): void {
+    this.formGroup.markAllAsTouched();
+    if (this.formGroup.valid) this.save(this.formGroup.getRawValue());
   }
 
   save(values: Record<string, unknown>): void {

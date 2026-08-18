@@ -22,10 +22,12 @@ import {
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-unused-permissions-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -43,14 +45,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
       " /><hh-toolbar
       hhPageToolbar
       [label]="'admin.unusedPermissions' | hhTranslate"
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
+      ><hh-action-button (pressed)="load()" hh-toolbar-actions kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate" /></hh-toolbar
     >
     <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
     <hh-data-table

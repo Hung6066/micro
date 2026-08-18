@@ -7,7 +7,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { catchError, forkJoin, of } from "rxjs";
 import {
   HisHopeDataTableCellDirective,
@@ -31,13 +31,16 @@ import {
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { BoundaryEditDialogComponent } from "./boundary-edit-dialog.component";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-boundaries-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
+    MatDialogModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -53,99 +56,24 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
         'admin.boundariesSubtitle'
           | hhTranslate
             : 'Limit the maximum permissions a principal can receive.'
-      "
-    /><hh-toolbar
+      " /><hh-toolbar
       hhPageToolbar
       [label]="'admin.boundaries' | hhTranslate: 'Permission boundaries'"
       ><span hhToolbarTitle
         >{{ boundaries.length }} {{ "admin.boundaries" | hhTranslate }}</span
-      ><button
+      ><hh-action-button
         *ngIf="canWrite"
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--primary"
-        (click)="toggleForm()"
-      >
-        {{ (formOpen ? "admin.cancel" : "admin.create") | hhTranslate }}</button
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
-    >
-    <form *ngIf="canWrite && formOpen" class="hh-form-card" (ngSubmit)="save()">
-      <div class="hh-form-grid">
-        <label
-          >{{ "admin.principalType" | hhTranslate
-          }}<select name="principalType" [(ngModel)]="draft.principalType">
-            <option value="human">
-              {{ "admin.principalHuman" | hhTranslate }}
-            </option>
-            <option value="workload">
-              {{ "admin.principalWorkload" | hhTranslate }}
-            </option>
-          </select></label
-        ><label
-          >{{ "admin.principalId" | hhTranslate
-          }}<select name="principalId" [(ngModel)]="draft.principalId" required>
-            <option value="">{{ "admin.select" | hhTranslate }}</option>
-            <ng-container [ngSwitch]="draft.principalType"
-              ><ng-container *ngSwitchCase="'human'"
-                ><option *ngFor="let user of users" [value]="user.id">
-                  {{ user.email || user.userName }}
-                </option></ng-container
-              ><ng-container *ngSwitchCase="'workload'"
-                ><option *ngFor="let role of workloadRoles" [value]="role.id">
-                  {{ role.displayName }} · {{ role.key }}
-                </option></ng-container
-              ></ng-container
-            >
-          </select></label
-        ><label
-          >{{ "admin.scopeId" | hhTranslate
-          }}<select name="scopeId" [(ngModel)]="draft.scopeId" required>
-            <option value="">{{ "admin.select" | hhTranslate }}</option>
-            <option *ngFor="let scope of scopes" [value]="scope.id">
-              {{ scope.displayName }} · {{ scope.key }}
-            </option>
-          </select></label
-        ><label
-          >{{ "admin.permissions" | hhTranslate
-          }}<select
-            name="allowedPermissions"
-            [(ngModel)]="draft.allowedPermissions"
-            multiple
-            size="6"
-            required
-          >
-            <option
-              *ngFor="let permission of permissionsCatalog"
-              [value]="permission.code"
-            >
-              {{ permission.code }} · {{ permission.name }}
-            </option>
-          </select></label
-        ><label
-          >{{ "admin.resourceConstraints" | hhTranslate
-          }}<textarea
-            name="resourceConstraintsJson"
-            rows="3"
-            [(ngModel)]="draft.resourceConstraintsJson"
-            required
-          ></textarea>
-        </label>
-      </div>
-      <button
-        class="hh-button hh-button--primary"
-        type="submit"
-        [disabled]="saving"
-      >
-        {{ "admin.save" | hhTranslate }}
-      </button>
-    </form>
+        hh-toolbar-actions
+        kind="primary"
+        icon="add"
+        [label]="'admin.create' | hhTranslate"
+        (pressed)="openCreate()" /><hh-action-button
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+        (pressed)="load()"
+    /></hh-toolbar>
     <div *ngIf="error" class="hh-state hh-state--error" role="alert">
       {{ error }}
     </div>
@@ -156,33 +84,20 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
       [loading]="loading"
       [empty]="!loading && !error && !rows.length"
       ><ng-template hhDataTableCell="actions" let-row
-        ><button
+        ><hh-action-button
           *ngIf="canWrite && row['isActive']"
-          type="button"
-          class="hh-icon-button hh-icon-button--small hh-icon-button--danger"
-          (click)="toggle(row)"
-          [attr.aria-label]="'admin.deactivate' | hhTranslate"
-          [attr.title]="'admin.deactivate' | hhTranslate"
-        >
-          <span class="material-icons" aria-hidden="true"
-            >toggle_off</span
-          ></button
-        ><button
-          *ngIf="canWrite && !row['isActive']"
-          type="button"
-          class="hh-icon-button hh-icon-button--small"
-          (click)="toggle(row)"
-          [attr.aria-label]="'admin.activate' | hhTranslate"
-          [attr.title]="'admin.activate' | hhTranslate"
-        >
-          <span class="material-icons" aria-hidden="true">toggle_on</span>
-        </button></ng-template
-      ></hh-data-table
-    ></hh-page-layout
-  >`,
+          (pressed)="toggle(row)"
+          kind="danger"
+          mode="icon-only"
+          icon="toggle_off"
+          [label]="
+            'admin.deactivate' | hhTranslate
+          " /></ng-template></hh-data-table
+  ></hh-page-layout>`,
 })
 export class BoundariesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly dialog = inject(MatDialog);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -211,21 +126,12 @@ export class BoundariesPageComponent implements OnInit {
   get loading(): boolean {
     return this.state.loading;
   }
-  saving = false;
   get error(): string {
     return this.state.error;
   }
   set error(value: string) {
     this.state.setActionError(value);
   }
-  formOpen = false;
-  draft = {
-    principalType: "human",
-    principalId: "",
-    scopeId: "",
-    allowedPermissions: [] as string[],
-    resourceConstraintsJson: "{}",
-  };
   constructor() {
     effect(() => {
       const data = this.state.resource.data();
@@ -266,9 +172,22 @@ export class BoundariesPageComponent implements OnInit {
   ngOnInit(): void {
     this.load();
   }
-  toggleForm(): void {
-    if (!this.canWrite) return;
-    this.formOpen = !this.formOpen;
+  openCreate(): void {
+    if (this.canWrite)
+      this.dialog
+        .open(BoundaryEditDialogComponent, {
+          width: "680px",
+          data: {
+            scopes: this.scopes,
+            users: this.users,
+            workloadRoles: this.workloadRoles,
+            permissions: this.permissionsCatalog,
+          },
+        })
+        .afterClosed()
+        .subscribe((saved) => {
+          if (saved) this.load();
+        });
   }
   load(): void {
     this.state.load(
@@ -296,26 +215,6 @@ export class BoundariesPageComponent implements OnInit {
     );
   }
 
-  save(): void {
-    if (!this.canWrite || !this.draft.principalId || !this.draft.scopeId)
-      return;
-    this.saving = true;
-    const call = this.api.createIamBoundary(this.draft);
-    call.subscribe({
-      next: () => {
-        this.formOpen = false;
-        this.load();
-      },
-      error: () => {
-        this.error = this.i18n.t(
-          "admin.iamSaveFailed",
-          "Unable to create boundary.",
-        );
-        this.saving = false;
-      },
-      complete: () => (this.saving = false),
-    });
-  }
   toggle(row: Record<string, unknown>): void {
     if (!this.canWrite) return;
     const id = String(row["id"] ?? "");

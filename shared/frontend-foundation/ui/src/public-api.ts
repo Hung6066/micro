@@ -17,6 +17,7 @@ export * from "./his-hope-data-table.component";
 export * from "./his-hope-table-editor.component";
 export * from "./his-hope-form-field.component";
 export * from "./his-hope-button.component";
+export * from "./his-hope-action-button.component";
 export * from "./his-hope-icon-button.component";
 export * from "./his-hope-alert.component";
 export * from "./his-hope-description-list.component";

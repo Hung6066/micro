@@ -26,7 +26,6 @@ import {
   HisHopeAuditFeedbackService,
   HisHopeBulkAction,
   HisHopeBulkActionRequest,
-  HisHopeI18nService,
   HisHopeTableExportRequest,
 } from "@his-hope/frontend-foundation";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
@@ -49,6 +48,7 @@ import { ClientEditDialogComponent } from "./client-edit-dialog.component";
 import { catchError, finalize } from "rxjs/operators";
 import { of } from "rxjs";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-clients-page",
   standalone: true,
@@ -56,13 +56,13 @@ import { of } from "rxjs";
     CommonModule,
     MatTableModule,
     MatButtonModule,
-    MatIconModule,
     HisHopeTranslatePipe,
     MatDialogModule,
     MatSnackBarModule,
     MatCardModule,
     MatProgressSpinnerModule,
     HisHopeConfirmDialogComponent,
+    HisHopeActionButtonComponent,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopeDataTableDetailDirective,
@@ -77,31 +77,26 @@ import { of } from "rxjs";
         [title]="'admin.oidcApplications' | hhTranslate"
         [subtitle]="'admin.clientsSubtitle' | hhTranslate"
       >
-        <button
+        <hh-action-button
           *ngIf="canWrite"
-          mat-raised-button
-          color="primary"
-          type="button"
-          (click)="openCreateDialog()"
-        >
-          <mat-icon>add</mat-icon> {{ "admin.newClient" | hhTranslate }}
-        </button>
+          kind="primary"
+          icon="add"
+          [label]="'admin.newClient' | hhTranslate"
+          (pressed)="openCreateDialog()"
+        />
       </hh-page-header>
 
       <hh-toolbar hhPageToolbar [label]="'admin.manageClients' | hhTranslate">
         <span hhToolbarTitle
           >{{ totalItems }} {{ "admin.clients" | hhTranslate }}</span
         >
-        <button
+        <hh-action-button
           hh-toolbar-actions
-          type="button"
-          class="hh-icon-button"
-          (click)="loadClients()"
-          [attr.aria-label]="'admin.refresh' | hhTranslate"
-          [attr.title]="'admin.refresh' | hhTranslate"
-        >
-          <span class="material-icons" aria-hidden="true">refresh</span>
-        </button>
+          kind="secondary"
+          icon="refresh"
+          [label]="'admin.refresh' | hhTranslate"
+          (pressed)="loadClients()"
+        />
       </hh-toolbar>
 
       <hh-data-table
@@ -137,25 +132,22 @@ import { of } from "rxjs";
         (retry)="loadClients()"
       >
         <ng-template hhDataTableCell="actions" let-row>
-          <button
+          <hh-action-button
             *ngIf="canWrite"
-            mat-icon-button
-            type="button"
-            (click)="rotateSecret(clientFromRow(row))"
-            [attr.aria-label]="'admin.rotateClientSecret' | hhTranslate"
-          >
-            <mat-icon>vpn_key</mat-icon>
-          </button>
-          <button
+            kind="row"
+            mode="icon-only"
+            icon="vpn_key"
+            [label]="'admin.rotateClientSecret' | hhTranslate"
+            (pressed)="rotateSecret(clientFromRow(row))"
+          />
+          <hh-action-button
             *ngIf="canWrite"
-            mat-icon-button
-            color="warn"
-            type="button"
-            (click)="deleteClient(clientFromRow(row))"
-            [attr.aria-label]="'admin.delete' | hhTranslate"
-          >
-            <mat-icon>delete</mat-icon>
-          </button>
+            kind="danger"
+            mode="icon-only"
+            icon="delete"
+            [label]="'admin.delete' | hhTranslate"
+            (pressed)="deleteClient(clientFromRow(row))"
+          />
         </ng-template>
         <ng-template hhDataTableDetail let-row>
           <div class="hh-data-table-detail">

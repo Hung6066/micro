@@ -14,7 +14,7 @@ import {
   MobileDeviceRegistration,
 } from "../../core/contracts/admin.contracts";
 import { MobileOperationsApiService } from "../../core/services/mobile-operations-api.service";
-import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation";
+
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
@@ -22,12 +22,15 @@ import {
   HisHopePageLayoutComponent,
   HisHopeStateComponent,
 } from "@his-hope/frontend-foundation/ui";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import { catchError, forkJoin, of, tap } from "rxjs";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-mobile-operations-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     MatButtonModule,
     HisHopePageHeaderComponent,
@@ -50,10 +53,12 @@ import { catchError, forkJoin, of, tap } from "rxjs";
         />
       } @else if (error) {
         <hh-state kind="error" icon="error" [message]="error | hhTranslate"
-          ><button mat-stroked-button type="button" (click)="load()">
-            {{ "common.retry" | hhTranslate }}
-          </button></hh-state
-        >
+          ><hh-action-button
+            (pressed)="load()"
+            kind="secondary"
+            icon="refresh"
+            [label]="'common.retry' | hhTranslate"
+        /></hh-state>
       } @else {
         <section
           class="summary-grid"
@@ -82,9 +87,12 @@ import { catchError, forkJoin, of, tap } from "rxjs";
         <section class="panel">
           <div class="panel__header">
             <h2>{{ "admin.mobileDevices" | hhTranslate }}</h2>
-            <button mat-stroked-button type="button" (click)="load()">
-              {{ "common.refresh" | hhTranslate }}
-            </button>
+            <hh-action-button
+              (pressed)="load()"
+              kind="secondary"
+              icon="refresh"
+              [label]="'common.refresh' | hhTranslate"
+            />
           </div>
           @if (!devices.length) {
             <hh-state

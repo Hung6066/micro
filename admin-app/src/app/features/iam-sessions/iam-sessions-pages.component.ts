@@ -7,7 +7,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { catchError, of } from "rxjs";
 import {
   HisHopeDataTableCellDirective,
@@ -29,11 +29,14 @@ import {
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { IamRevocationEditDialogComponent } from "./iam-revocation-edit-dialog.component";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-sessions-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
@@ -49,22 +52,19 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
       [subtitle]="
         'admin.activeSessionsSubtitle'
           | hhTranslate: 'Review and revoke human sessions from the server.'
-      "
-    /><hh-toolbar
+      " /><hh-toolbar
       hhPageToolbar
       [label]="'admin.activeSessions' | hhTranslate: 'Active sessions'"
       ><span hhToolbarTitle
         >{{ rows.length }}
         {{ "admin.sessions" | hhTranslate: "Sessions" }}</span
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
-    >
+      ><hh-action-button
+        (pressed)="load()"
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+    /></hh-toolbar>
     <div *ngIf="error" class="hh-state hh-state--error" role="alert">
       {{ error }}
     </div>
@@ -75,17 +75,13 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
       [loading]="loading"
       [empty]="!loading && !error && !rows.length"
       ><ng-template hhDataTableCell="actions" let-row
-        ><button
+        ><hh-action-button
           *ngIf="canWrite"
-          type="button"
-          class="hh-button hh-button--danger hh-button--small"
-          (click)="revoke(row)"
-        >
-          {{ "admin.revoke" | hhTranslate }}
-        </button></ng-template
-      ></hh-data-table
-    ></hh-page-layout
-  >`,
+          (pressed)="revoke(row)"
+          kind="danger"
+          icon="link_off"
+          [label]="'admin.revoke' | hhTranslate" /></ng-template></hh-data-table
+  ></hh-page-layout>`,
 })
 export class IamSessionsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
@@ -177,8 +173,9 @@ export class IamSessionsPageComponent implements OnInit {
   selector: "app-iam-revocations-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
+    MatDialogModule,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
@@ -197,54 +194,19 @@ export class IamSessionsPageComponent implements OnInit {
       [label]="'admin.revocations' | hhTranslate: 'Revocations'"
       ><span hhToolbarTitle
         >{{ rows.length }} {{ "admin.revocations" | hhTranslate }}</span
-      ><button
+      ><hh-action-button
         *ngIf="canWrite"
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--primary"
-        (click)="formOpen = !formOpen"
-      >
-        {{ (formOpen ? "admin.cancel" : "admin.create") | hhTranslate }}</button
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
-    >
-    <form
-      *ngIf="canWrite && formOpen"
-      class="hh-form-card"
-      (ngSubmit)="create()"
-    >
-      <div class="hh-form-grid">
-        <label
-          >{{ "admin.principalId" | hhTranslate
-          }}<input
-            name="principalId"
-            [(ngModel)]="draft.principalId"
-            required /></label
-        ><label
-          >{{ "admin.principalType" | hhTranslate
-          }}<select name="principalType" [(ngModel)]="draft.principalType">
-            <option value="human">
-              {{ "admin.principalHuman" | hhTranslate: "Human" }}
-            </option>
-            <option value="workload">
-              {{ "admin.principalWorkload" | hhTranslate: "Workload" }}
-            </option>
-          </select></label
-        ><label
-          >{{ "admin.reason" | hhTranslate
-          }}<input name="reason" [(ngModel)]="draft.reason" required
-        /></label>
-      </div>
-      <button class="hh-button hh-button--primary" type="submit">
-        {{ "admin.revoke" | hhTranslate }}
-      </button>
-    </form>
+        hh-toolbar-actions
+        kind="primary"
+        icon="add"
+        [label]="'admin.create' | hhTranslate"
+        (pressed)="openCreate()" /><hh-action-button
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+        (pressed)="load()"
+    /></hh-toolbar>
     <div *ngIf="error" class="hh-state hh-state--error" role="alert">
       {{ error }}
     </div>
@@ -259,6 +221,7 @@ export class IamSessionsPageComponent implements OnInit {
 })
 export class IamRevocationsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly dialog = inject(MatDialog);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -284,8 +247,6 @@ export class IamRevocationsPageComponent implements OnInit {
   set error(value: string) {
     this.state.setActionError(value);
   }
-  formOpen = false;
-  draft = { principalId: "", principalType: "human", reason: "" };
   constructor() {
     effect(() => {
       const data = this.state.resource.data();
@@ -326,20 +287,14 @@ export class IamRevocationsPageComponent implements OnInit {
       ),
     );
   }
-  create(): void {
-    if (!this.canWrite || !this.draft.principalId || !this.draft.reason) return;
-    this.api.createIamRevocation(this.draft).subscribe({
-      next: () => {
-        this.formOpen = false;
-        this.draft = { principalId: "", principalType: "human", reason: "" };
-        this.load();
-      },
-      error: () =>
-        (this.error = this.i18n.t(
-          "admin.iamSaveFailed",
-          "Unable to create revocation.",
-        )),
-    });
+  openCreate(): void {
+    if (!this.canWrite) return;
+    this.dialog
+      .open(IamRevocationEditDialogComponent, { width: "560px" })
+      .afterClosed()
+      .subscribe((saved) => {
+        if (saved) this.load();
+      });
   }
 }
 
@@ -347,6 +302,7 @@ export class IamRevocationsPageComponent implements OnInit {
   selector: "app-iam-unused-permissions-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -364,15 +320,13 @@ export class IamRevocationsPageComponent implements OnInit {
       " /><hh-toolbar
       hhPageToolbar
       [label]="'admin.unusedPermissions' | hhTranslate"
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
-    >
+      ><hh-action-button
+        (pressed)="load()"
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+    /></hh-toolbar>
     <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
     <hh-data-table
       [label]="'admin.unusedPermissions' | hhTranslate"

@@ -19,14 +19,17 @@ import { MatInputModule } from "@angular/material/input";
 import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
 import { MatSelectModule } from "@angular/material/select";
 import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
-import { HisHopeI18nService } from "@his-hope/frontend-foundation";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
+  HisHopeActionButtonComponent,
 } from "@his-hope/frontend-foundation/ui";
-import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
+import {
+  HisHopeI18nService,
+  HisHopeTranslatePipe,
+} from "@his-hope/frontend-foundation/i18n";
 import QRCode from "qrcode";
 import { catchError, firstValueFrom, of, tap } from "rxjs";
 import { IdentitySetting } from "../../core/contracts/admin.contracts";
@@ -61,6 +64,7 @@ interface ProviderSettings {
   selector: "app-security-providers-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     FormsModule,
     HisHopePageHeaderComponent,
@@ -89,16 +93,14 @@ interface ProviderSettings {
               : 'Create a passkey and configure LDAP/AD or SAML for the His.Hope identity service.'
         "
       >
-        <button
+        <hh-action-button
           *ngIf="canWrite"
-          mat-raised-button
-          color="primary"
-          (click)="save()"
           [disabled]="loading || saving"
-        >
-          <mat-icon>save</mat-icon
-          >{{ "admin.saveSettings" | hhTranslate: "Save settings" }}
-        </button>
+          (pressed)="save()"
+          kind="primary"
+          icon="save"
+          [label]="'admin.saveSettings' | hhTranslate: 'Save settings'"
+        />
       </hh-page-header>
       <mat-form-field appearance="outline" *ngIf="facilityIds.length > 1"
         ><mat-label>{{ "admin.facility" | hhTranslate: "Facility" }}</mat-label
@@ -178,16 +180,15 @@ interface ProviderSettings {
                   autocomplete="one-time-code"
                   [(ngModel)]="mfa.verificationCode"
               /></mat-form-field>
-              <button
-                mat-flat-button
-                color="primary"
-                (click)="verifyMfa()"
+              <hh-action-button
                 [disabled]="mfaBusy || mfa.verificationCode.length !== 6"
-              >
-                {{
-                  "admin.verifyEnableMfa" | hhTranslate: "Verify and enable MFA"
-                }}
-              </button>
+                (pressed)="verifyMfa()"
+                kind="primary"
+                icon="verified"
+                [label]="
+                  'admin.verifyEnableMfa' | hhTranslate: 'Verify and enable MFA'
+                "
+              />
               <div class="recovery" *ngIf="mfa.recoveryCodes.length">
                 <strong>{{
                   "admin.saveRecoveryCodes"
@@ -198,20 +199,17 @@ interface ProviderSettings {
             </div>
           </mat-card-content>
           <mat-card-actions
-            ><button
-              mat-stroked-button
-              (click)="enrollMfa()"
+            ><hh-action-button
               [disabled]="mfaBusy || mfa.enabled"
-            >
-              <mat-spinner *ngIf="mfaBusy" diameter="18"></mat-spinner
-              ><mat-icon *ngIf="!mfaBusy">security</mat-icon
-              >{{
+              (pressed)="enrollMfa()"
+              kind="secondary"
+              icon="security"
+              [label]="
                 mfa.qrCodeUri
-                  ? ("admin.regenerateSetup" | hhTranslate: "Regenerate setup")
-                  : ("admin.setupMfa" | hhTranslate: "Set up MFA")
-              }}
-            </button></mat-card-actions
-          >
+                  ? ('admin.regenerateSetup' | hhTranslate: 'Regenerate setup')
+                  : ('admin.setupMfa' | hhTranslate: 'Set up MFA')
+              "
+          /></mat-card-actions>
         </mat-card>
         <mat-card class="provider-card">
           <mat-card-header

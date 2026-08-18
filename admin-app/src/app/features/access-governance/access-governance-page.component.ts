@@ -37,10 +37,12 @@ import {
 } from "@his-hope/frontend-foundation/i18n";
 import { AccessGovernanceWorkflowsComponent } from "./access-governance-workflows.component";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-access-governance-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     FormsModule,
     MatButtonModule,
@@ -66,14 +68,7 @@ import { AccessGovernanceWorkflowsComponent } from "./access-governance-workflow
               : 'Time-bound access requests, independent reviews and emergency elevation.'
         "
       >
-        <button
-          mat-stroked-button
-          type="button"
-          (click)="reload()"
-          [disabled]="busy"
-        >
-          {{ "admin.refresh" | hhTranslate: "Refresh" }}
-        </button>
+        <hh-action-button [disabled]="busy" (pressed)="reload()" kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate: 'Refresh'" />
       </hh-page-header>
 
       <p class="notice">

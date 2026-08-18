@@ -27,14 +27,18 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
 import { iamScopeLabel } from "../../core/utils/iam-display.util";
 import { finalize, forkJoin, take } from "rxjs";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
+import { MatDialog, MatDialogModule } from "@angular/material/dialog";
+import { GroupEditDialogComponent } from "./group-edit-dialog.component";
 @Component({
   selector: "app-groups-page",
   standalone: true,
   imports: [
     CommonModule,
-    FormsModule,
+    MatDialogModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
+    HisHopeActionButtonComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeToolbarComponent,
@@ -54,71 +58,24 @@ import { finalize, forkJoin, take } from "rxjs";
         <span hhToolbarTitle
           >{{ groups.length }} {{ "admin.groups" | hhTranslate }}</span
         >
-        <button
+        <hh-action-button
           *ngIf="canWrite"
           hh-toolbar-actions
-          type="button"
-          class="hh-icon-button"
-          (click)="startCreate()"
-          [attr.aria-label]="
-            (editingId ? 'common.cancel' : 'admin.create') | hhTranslate
-          "
-          [attr.title]="
-            (editingId ? 'common.cancel' : 'admin.create') | hhTranslate
-          "
-        >
-          <span class="material-icons" aria-hidden="true">{{
-            editingId ? "close" : "add"
-          }}</span>
-        </button>
-        <button
+          kind="primary"
+          mode="label"
+          icon="add"
+          [label]="'admin.create' | hhTranslate"
+          (pressed)="openCreateDialog()"
+        />
+        <hh-action-button
           hh-toolbar-actions
-          type="button"
-          class="hh-icon-button"
-          (click)="load()"
-          [attr.aria-label]="'common.refresh' | hhTranslate: 'Refresh'"
-          [attr.title]="'common.refresh' | hhTranslate: 'Refresh'"
-        >
-          <span class="material-icons" aria-hidden="true">refresh</span>
-        </button>
+          kind="secondary"
+          mode="label"
+          icon="refresh"
+          [label]="'common.refresh' | hhTranslate: 'Refresh'"
+          (pressed)="load()"
+        />
       </hh-toolbar>
-      <form
-        *ngIf="canWrite && formOpen"
-        class="hh-form-card"
-        (ngSubmit)="save()"
-      >
-        <div class="hh-form-grid">
-          <label
-            >{{ "admin.key" | hhTranslate
-            }}<input name="key" [(ngModel)]="draft.key" required
-          /></label>
-          <label
-            >{{ "admin.displayName" | hhTranslate: "Display name"
-            }}<input
-              name="displayName"
-              [(ngModel)]="draft.displayName"
-              required
-          /></label>
-          <label
-            >{{ "admin.scopeId" | hhTranslate
-            }}<select name="scopeId" [(ngModel)]="draft.scopeId" required>
-              <option value="">
-                {{ "admin.select" | hhTranslate: "Select" }}
-              </option>
-              <option *ngFor="let scope of scopes" [value]="scope.id">
-                {{ scope.displayName }} · {{ scope.key }}
-              </option>
-            </select></label
-          >
-        </div>
-        <button
-          class="hh-button hh-button--primary"
-          type="submit"
-          [disabled]="saving"
-        >
-          {{ (editingId ? "admin.update" : "admin.save") | hhTranslate }}
-        </button>
-      </form>
       <div *ngIf="error" class="hh-state hh-state--error" role="alert">
         {{ error }}
       </div>
@@ -130,36 +87,30 @@ import { finalize, forkJoin, take } from "rxjs";
         [empty]="!loading && !error && !rows.length"
       >
         <ng-template hhDataTableCell="actions" let-row>
-          <button
+          <hh-action-button
             *ngIf="canWrite"
-            type="button"
-            class="hh-icon-button hh-icon-button--small"
-            (click)="edit(row)"
-            [attr.aria-label]="'admin.edit' | hhTranslate"
-            [attr.title]="'admin.edit' | hhTranslate"
-          >
-            <span class="material-icons" aria-hidden="true">edit</span>
-          </button>
-          <button
+            kind="row"
+            mode="icon-only"
+            icon="edit"
+            [label]="'admin.edit' | hhTranslate"
+            (pressed)="edit(row)"
+          />
+          <hh-action-button
             *ngIf="canWrite && row['isActive']"
-            type="button"
-            class="hh-icon-button hh-icon-button--small hh-icon-button--danger"
-            (click)="toggle(row)"
-            [attr.aria-label]="'admin.deactivate' | hhTranslate"
-            [attr.title]="'admin.deactivate' | hhTranslate"
-          >
-            <span class="material-icons" aria-hidden="true">toggle_off</span>
-          </button>
-          <button
+            kind="danger"
+            mode="icon-only"
+            icon="toggle_off"
+            [label]="'admin.deactivate' | hhTranslate"
+            (pressed)="toggle(row)"
+          />
+          <hh-action-button
             *ngIf="canWrite && !row['isActive']"
-            type="button"
-            class="hh-icon-button hh-icon-button--small"
-            (click)="toggle(row)"
-            [attr.aria-label]="'admin.activate' | hhTranslate"
-            [attr.title]="'admin.activate' | hhTranslate"
-          >
-            <span class="material-icons" aria-hidden="true">toggle_on</span>
-          </button>
+            kind="row"
+            mode="icon-only"
+            icon="toggle_on"
+            [label]="'admin.activate' | hhTranslate"
+            (pressed)="toggle(row)"
+          />
         </ng-template>
       </hh-data-table>
     </hh-page-layout>
@@ -167,6 +118,7 @@ import { finalize, forkJoin, take } from "rxjs";
 })
 export class GroupsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly dialog = inject(MatDialog);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -186,10 +138,6 @@ export class GroupsPageComponent implements OnInit {
     loadErrorMessageKey: "admin.iamLoadFailed",
     loadErrorFallback: "Unable to load groups.",
   });
-  saving = false;
-  private actionError = "";
-  formOpen = false;
-  editingId = "";
   get loading(): boolean {
     return this.state.loading;
   }
@@ -199,11 +147,6 @@ export class GroupsPageComponent implements OnInit {
   set error(value: string) {
     this.state.setActionError(value);
   }
-  draft: { key: string; displayName: string; scopeId: string } = {
-    key: "",
-    displayName: "",
-    scopeId: "",
-  };
   get columns(): HisHopeDataTableColumn[] {
     this.i18n.locale();
     return [
@@ -251,55 +194,27 @@ export class GroupsPageComponent implements OnInit {
       }),
     );
   }
-  startCreate(): void {
+  openCreateDialog(): void {
     if (!this.canWrite) return;
-    this.formOpen = !this.formOpen;
-    this.editingId = "";
-    this.draft = {
-      key: "",
-      displayName: "",
-      scopeId: this.scopes.find((x) => x.isActive)?.id ?? "",
-    };
+    this.dialog
+      .open(GroupEditDialogComponent, {
+        width: "min(560px, calc(100vw - 32px))",
+        data: { group: null, scopes: this.scopes },
+      })
+      .afterClosed()
+      .subscribe((saved) => saved && this.load());
   }
   edit(row: Record<string, unknown>): void {
     if (!this.canWrite) return;
     const item = this.groups.find((x) => x.id === String(row["id"]));
     if (!item) return;
-    this.editingId = item.id;
-    this.formOpen = true;
-    this.draft = {
-      key: item.key,
-      displayName: item.displayName,
-      scopeId: item.scopeId,
-    };
-  }
-  save(): void {
-    if (
-      !this.canWrite ||
-      !this.draft.key.trim() ||
-      !this.draft.displayName.trim() ||
-      !this.draft.scopeId
-    )
-      return;
-    this.saving = true;
-    const request = this.editingId
-      ? this.api.updateIamGroup(this.editingId, this.draft)
-      : this.api.createIamGroup(this.draft);
-    request.subscribe({
-      next: () => {
-        this.formOpen = false;
-        this.editingId = "";
-        this.load();
-      },
-      error: () => {
-        this.error = this.i18n.t(
-          "admin.iamSaveFailed",
-          "Unable to save group.",
-        );
-        this.saving = false;
-      },
-      complete: () => (this.saving = false),
-    });
+    this.dialog
+      .open(GroupEditDialogComponent, {
+        width: "min(560px, calc(100vw - 32px))",
+        data: { group: item, scopes: this.scopes },
+      })
+      .afterClosed()
+      .subscribe((saved) => saved && this.load());
   }
   toggle(row: Record<string, unknown>): void {
     if (!this.canWrite) return;

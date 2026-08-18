@@ -7,7 +7,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { forkJoin } from "rxjs";
 import {
   HisHopeDataTableCellDirective,
@@ -29,13 +29,16 @@ import {
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { ResourcePolicyEditDialogComponent } from "./resource-policy-edit-dialog.component";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-resource-policies-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
+    MatDialogModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -51,72 +54,25 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
         'admin.resourcePoliciesSubtitle'
           | hhTranslate
             : 'Resource-owned authorization constraints for business services.'
-      "
-    /><hh-toolbar
+      " /><hh-toolbar
       hhPageToolbar
       [label]="'admin.resourcePolicies' | hhTranslate: 'Resource policies'"
       ><span hhToolbarTitle
         >{{ policies.length }}
         {{ "admin.resourcePolicies" | hhTranslate }}</span
-      ><button
+      ><hh-action-button
         *ngIf="canWrite"
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--primary"
-        (click)="toggleForm()"
-      >
-        {{ (formOpen ? "admin.cancel" : "admin.create") | hhTranslate }}</button
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
-    >
-    <form *ngIf="canWrite && formOpen" class="hh-form-card" (ngSubmit)="save()">
-      <div class="hh-form-grid">
-        <label
-          >{{ "admin.scopeId" | hhTranslate
-          }}<select name="scopeId" [(ngModel)]="draft.scopeId" required>
-            <option value="">{{ "admin.select" | hhTranslate }}</option>
-            <option *ngFor="let scope of scopes" [value]="scope.id">
-              {{ scope.displayName }} · {{ scope.key }}
-            </option>
-          </select></label
-        ><label
-          >{{ "admin.serviceKey" | hhTranslate
-          }}<select name="serviceKey" [(ngModel)]="draft.serviceKey" required>
-            <option value="">{{ "admin.select" | hhTranslate }}</option>
-            <option *ngFor="let service of services" [value]="service.key">
-              {{ service.key }}
-            </option>
-          </select></label
-        ><label
-          >{{ "admin.resourcePattern" | hhTranslate
-          }}<input
-            name="resourcePattern"
-            [(ngModel)]="draft.resourcePattern"
-            required /></label
-        ><label
-          >{{ "admin.statementsJson" | hhTranslate
-          }}<textarea
-            name="statementsJson"
-            rows="4"
-            [(ngModel)]="draft.statementsJson"
-            required
-          ></textarea>
-        </label>
-      </div>
-      <button
-        class="hh-button hh-button--primary"
-        type="submit"
-        [disabled]="saving"
-      >
-        {{ (editingId ? "admin.update" : "admin.save") | hhTranslate }}
-      </button>
-    </form>
+        hh-toolbar-actions
+        kind="primary"
+        icon="add"
+        [label]="'admin.create' | hhTranslate"
+        (pressed)="openCreate()" /><hh-action-button
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+        (pressed)="load()"
+    /></hh-toolbar>
     <div *ngIf="error" class="hh-state hh-state--error" role="alert">
       {{ error }}
     </div>
@@ -127,31 +83,18 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
       [loading]="loading"
       [empty]="!loading && !error && !rows.length"
       ><ng-template hhDataTableCell="actions" let-row
-        ><button
+        ><hh-action-button
           *ngIf="canWrite"
-          type="button"
-          class="hh-icon-button hh-icon-button--small"
-          (click)="edit(row)"
-          [attr.aria-label]="'admin.edit' | hhTranslate"
-          [attr.title]="'admin.edit' | hhTranslate"
-        >
-          <span class="material-icons" aria-hidden="true">edit</span></button
-        ><button
-          *ngIf="canWrite && row['lifecycleStatus'] !== 'published'"
-          type="button"
-          class="hh-icon-button hh-icon-button--small"
-          (click)="publish(row)"
-          [attr.aria-label]="'admin.publish' | hhTranslate"
-          [attr.title]="'admin.publish' | hhTranslate"
-        >
-          <span class="material-icons" aria-hidden="true">publish</span>
-        </button></ng-template
-      ></hh-data-table
-    ></hh-page-layout
-  >`,
+          kind="row"
+          mode="icon-only"
+          icon="edit"
+          [label]="'admin.edit' | hhTranslate"
+          (pressed)="edit(row)" /></ng-template></hh-data-table
+  ></hh-page-layout>`,
 })
 export class ResourcePoliciesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly dialog = inject(MatDialog);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -173,9 +116,6 @@ export class ResourcePoliciesPageComponent implements OnInit {
   scopes: IamScope[] = [];
   services: IamServiceDefinition[] = [];
   rows: Record<string, unknown>[] = [];
-  saving = false;
-  formOpen = false;
-  editingId = "";
   get loading(): boolean {
     return this.state.loading;
   }
@@ -185,12 +125,6 @@ export class ResourcePoliciesPageComponent implements OnInit {
   set error(value: string) {
     this.state.setActionError(value);
   }
-  draft = {
-    scopeId: "",
-    serviceKey: "",
-    resourcePattern: "",
-    statementsJson: '{\n  "statements": []\n}',
-  };
   get columns(): HisHopeDataTableColumn[] {
     this.i18n.locale();
     return [
@@ -233,58 +167,31 @@ export class ResourcePoliciesPageComponent implements OnInit {
       }),
     );
   }
-  toggleForm(): void {
-    if (!this.canWrite) return;
-    this.formOpen = !this.formOpen;
-    this.editingId = "";
-    this.draft = {
-      scopeId: this.scopes.find((x) => x.isActive)?.id ?? "",
-      serviceKey: this.services.find((x) => x.isActive)?.key ?? "",
-      resourcePattern: "",
-      statementsJson: '{\n  "statements": []\n}',
-    };
+  openCreate(): void {
+    if (this.canWrite)
+      this.dialog
+        .open(ResourcePolicyEditDialogComponent, {
+          width: "680px",
+          data: { policy: null, scopes: this.scopes, services: this.services },
+        })
+        .afterClosed()
+        .subscribe((saved) => {
+          if (saved) this.load();
+        });
   }
   edit(row: Record<string, unknown>): void {
     if (!this.canWrite) return;
     const item = this.policies.find((x) => x.id === String(row["id"]));
     if (!item) return;
-    this.editingId = item.id;
-    this.formOpen = true;
-    this.draft = {
-      scopeId: item.scopeId,
-      serviceKey: item.serviceKey,
-      resourcePattern: item.resourcePattern,
-      statementsJson: item.statementsJson,
-    };
-  }
-  save(): void {
-    if (
-      !this.canWrite ||
-      !this.draft.scopeId ||
-      !this.draft.serviceKey ||
-      !this.draft.resourcePattern.trim() ||
-      !this.draft.statementsJson.trim()
-    )
-      return;
-    this.saving = true;
-    const call = this.editingId
-      ? this.api.updateIamResourcePolicy(this.editingId, this.draft)
-      : this.api.createIamResourcePolicy(this.draft);
-    call.subscribe({
-      next: () => {
-        this.formOpen = false;
-        this.editingId = "";
-        this.load();
-      },
-      error: () => {
-        this.error = this.i18n.t(
-          "admin.iamSaveFailed",
-          "Unable to save resource policy.",
-        );
-        this.saving = false;
-      },
-      complete: () => (this.saving = false),
-    });
+    this.dialog
+      .open(ResourcePolicyEditDialogComponent, {
+        width: "680px",
+        data: { policy: item, scopes: this.scopes, services: this.services },
+      })
+      .afterClosed()
+      .subscribe((saved) => {
+        if (saved) this.load();
+      });
   }
   publish(row: Record<string, unknown>): void {
     if (!this.canWrite) return;

@@ -23,10 +23,12 @@ import { AdminPageQuery, Consent } from "../../core/contracts/admin.contracts";
 import { ConsentsApiService } from "../../core/services/consents-api.service";
 import { AdminResourceTableController } from "../../core/services/admin-resource-table.controller";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-consents-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
@@ -43,15 +45,7 @@ import { AdminResourceTableController } from "../../core/services/admin-resource
       <span hhToolbarTitle
         >{{ totalItems }} {{ "admin.consents" | hhTranslate }}</span
       >
-      <button
-        hh-toolbar-actions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="loadConsents()"
-      >
-        <span class="material-icons" aria-hidden="true">refresh</span>
-        {{ "admin.refresh" | hhTranslate }}
-      </button>
+      <hh-action-button (pressed)="loadConsents()" hh-toolbar-actions kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate" />
     </hh-toolbar>
     <hh-data-table
       [label]="'admin.pageConsents' | hhTranslate"

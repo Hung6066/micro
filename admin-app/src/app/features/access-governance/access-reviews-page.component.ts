@@ -33,10 +33,12 @@ import {
 } from "@his-hope/frontend-foundation/ui";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-access-reviews-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     FormsModule,
     MatButtonModule,
@@ -60,14 +62,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
             | hhTranslate
               : 'Certify or revoke user access on a governed schedule.'
         "
-        ><button
-          mat-stroked-button
-          type="button"
-          (click)="load()"
-          [disabled]="busy"
-        >
-          {{ "admin.refresh" | hhTranslate: "Refresh" }}
-        </button></hh-page-header
+        ><hh-action-button [disabled]="busy" (pressed)="load()" kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate: 'Refresh'" /></hh-page-header
       >
       <p class="notice">
         {{
@@ -111,17 +106,9 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
               min="1"
               max="90"
               [(ngModel)]="draft.dueDays" /></mat-form-field
-          ><button
-            mat-flat-button
-            color="primary"
-            type="button"
-            (click)="create()"
-            [disabled]="
+          ><hh-action-button [disabled]="
               busy || !canWrite || !draft.subjectUserId || !draft.roleIds.length
-            "
-          >
-            {{ "admin.createAccessReview" | hhTranslate: "Create review" }}
-          </button></mat-card-content
+            " (pressed)="create()" kind="primary" icon="add" [label]="'admin.createAccessReview' | hhTranslate: 'Create review'" /></mat-card-content
         ></mat-card
       >
       <mat-card class="table-card"

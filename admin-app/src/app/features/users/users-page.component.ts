@@ -43,6 +43,7 @@ import { catchError, finalize } from "rxjs/operators";
 import { of } from "rxjs";
 import { UserEditDialogComponent } from "./user-edit-dialog.component";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-users-page",
   standalone: true,
@@ -55,6 +56,7 @@ import { UserEditDialogComponent } from "./user-edit-dialog.component";
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopeDataTableDetailDirective,
+    HisHopeActionButtonComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeToolbarComponent,
@@ -71,26 +73,21 @@ import { UserEditDialogComponent } from "./user-edit-dialog.component";
         <span hhToolbarTitle
           >{{ tableRows.length }} {{ "admin.users" | hhTranslate }}</span
         >
-        <button
+        <hh-action-button
           *ngIf="canWrite"
           hh-toolbar-actions
-          type="button"
-          class="hh-button hh-button--primary"
-          (click)="openCreateDialog()"
-        >
-          <span class="material-icons" aria-hidden="true">person_add</span>
-          {{ "admin.createUser" | hhTranslate: "Create user" }}
-        </button>
-        <button
+          kind="primary"
+          icon="person_add"
+          [label]="'admin.createUser' | hhTranslate: 'Create user'"
+          (pressed)="openCreateDialog()"
+        />
+        <hh-action-button
           hh-toolbar-actions
-          type="button"
-          class="hh-icon-button"
-          (click)="loadUsers()"
-          [attr.aria-label]="'admin.refresh' | hhTranslate"
-          [attr.title]="'admin.refresh' | hhTranslate"
-        >
-          <span class="material-icons" aria-hidden="true">refresh</span>
-        </button>
+          kind="secondary"
+          icon="refresh"
+          [label]="'admin.refresh' | hhTranslate"
+          (pressed)="loadUsers()"
+        />
       </hh-toolbar>
       <hh-data-table
         [label]="'admin.users' | hhTranslate"
@@ -123,31 +120,22 @@ import { UserEditDialogComponent } from "./user-edit-dialog.component";
         (retry)="loadUsers()"
       >
         <ng-template hhDataTableCell="actions" let-row>
-          <button
+          <hh-action-button
             *ngIf="canWrite"
-            mat-icon-button
-            type="button"
-            (click)="openEditDialog(row)"
-            [attr.aria-label]="'admin.edit' | hhTranslate"
-          >
-            <mat-icon>edit</mat-icon>
-          </button>
-          <button
+            (pressed)="openEditDialog(row)"
+            kind="secondary"
+            mode="icon-only"
+            icon="edit"
+            label="Action"
+          />
+          <hh-action-button
             *ngIf="canWrite"
-            mat-icon-button
-            type="button"
-            (click)="toggleUser(row)"
-            [attr.aria-label]="
-              (row['isActive'] === 'Yes'
-                ? 'admin.deactivate'
-                : 'admin.activate'
-              ) | hhTranslate
-            "
-          >
-            <mat-icon>{{
-              row["isActive"] === "Yes" ? "person_off" : "person_add"
-            }}</mat-icon>
-          </button>
+            (pressed)="toggleUser(row)"
+            kind="secondary"
+            mode="icon-only"
+            icon="play_arrow"
+            label="Action"
+          />
         </ng-template>
         <ng-template hhDataTableDetail let-row>
           <div class="hh-data-table-detail">

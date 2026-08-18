@@ -38,10 +38,12 @@ import {
 } from "@his-hope/frontend-foundation/i18n";
 import { catchError, of } from "rxjs";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-role-edit-dialog",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     FormsModule,
     MatDialogModule,
@@ -189,14 +191,13 @@ import { catchError, of } from "rxjs";
         </hh-form-layout>
       </div>
       <div hhCreateDialogFooter>
-        <button mat-button type="button" (click)="dialogRef.close()">
-          {{ "admin.cancel" | hhTranslate }}
-        </button>
-        <button
-          mat-raised-button
-          color="primary"
-          type="button"
-          (click)="save()"
+        <hh-action-button
+          kind="secondary"
+          icon="close"
+          [label]="'admin.cancel' | hhTranslate: 'Cancel'"
+          (pressed)="dialogRef.close()"
+        />
+        <hh-action-button
           [disabled]="
             formGroup.invalid ||
             saving ||
@@ -205,9 +206,11 @@ import { catchError, of } from "rxjs";
             loadingOwners ||
             ownerLoadError
           "
-        >
-          {{ (saving ? "admin.saving" : "admin.saveRole") | hhTranslate }}
-        </button>
+          (pressed)="save()"
+          kind="primary"
+          icon="save"
+          [label]="(saving ? 'admin.saving' : 'admin.saveRole') | hhTranslate"
+        />
       </div>
     </hh-create-dialog-shell>
   `,

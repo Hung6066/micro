@@ -27,10 +27,12 @@ import {
 import { iamScopeLabel } from "../../core/utils/iam-display.util";
 import { forkJoin, map } from "rxjs";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-api-audiences-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -46,14 +48,7 @@ import { forkJoin, map } from "rxjs";
         'admin.apiAudiencesSubtitle'
           | hhTranslate: 'Resource audiences exposed by Identity Service.'
       " /><hh-toolbar hhPageToolbar
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
+      ><hh-action-button (pressed)="load()" hh-toolbar-actions kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate" /></hh-toolbar
     >
     <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
     <hh-data-table

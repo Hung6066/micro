@@ -21,10 +21,12 @@ import { IamOverview } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-overview-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
@@ -41,15 +43,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
           | hhTranslate: 'Identity, authorization and governance posture.'
       "
     /><hh-toolbar hhPageToolbar
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-        [disabled]="state.loading"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
+      ><hh-action-button [disabled]="state.loading" (pressed)="load()" hh-toolbar-actions kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate" /></hh-toolbar
     >
     @if (state.loading) {
       <hh-state kind="loading" message="state.loading" />

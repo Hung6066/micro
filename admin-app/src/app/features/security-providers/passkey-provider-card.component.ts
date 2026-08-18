@@ -14,6 +14,7 @@ import {
   HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 import { firstValueFrom } from "rxjs";
 import { ApiErrorMessageService } from "../../core/services/api-error-message.service";
 import { PasskeyApiService } from "../../core/services/passkey-api.service";
@@ -22,6 +23,7 @@ import { PasskeyApiService } from "../../core/services/passkey-api.service";
   selector: "app-passkey-provider-card",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     HisHopeTranslatePipe,
     MatButtonModule,
@@ -55,16 +57,13 @@ import { PasskeyApiService } from "../../core/services/passkey-api.service";
         <p class="error" *ngIf="error">{{ error }}</p>
       </mat-card-content>
       <mat-card-actions>
-        <button
-          mat-flat-button
-          color="primary"
-          (click)="create()"
+        <hh-action-button
           [disabled]="busy"
-        >
-          <mat-spinner *ngIf="busy" diameter="18"></mat-spinner>
-          <mat-icon *ngIf="!busy">add</mat-icon>
-          {{ "admin.createPasskey" | hhTranslate: "Create passkey" }}
-        </button>
+          (pressed)="create()"
+          kind="primary"
+          icon="add"
+          [label]="'admin.createPasskey' | hhTranslate: 'Create passkey'"
+        />
       </mat-card-actions>
     </mat-card>
   `,

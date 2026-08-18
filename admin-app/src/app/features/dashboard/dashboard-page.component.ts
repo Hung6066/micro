@@ -22,10 +22,12 @@ import {
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-dashboard-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     MatButtonModule,
     HisHopeMetricCardComponent,
@@ -48,13 +50,7 @@ import {
         />
       } @else if (error) {
         <hh-state kind="error" icon="error" [message]="error">
-          <button
-            mat-stroked-button
-            type="button"
-            (click)="loadDashboardStats()"
-          >
-            {{ "common.retry" | hhTranslate }}
-          </button>
+          <hh-action-button (pressed)="loadDashboardStats()" kind="secondary" icon="refresh" [label]="'common.retry' | hhTranslate" />
         </hh-state>
       } @else if (stats) {
         <div class="stats-grid">

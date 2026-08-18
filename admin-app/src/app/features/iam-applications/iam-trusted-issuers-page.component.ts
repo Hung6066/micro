@@ -22,10 +22,12 @@ import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { IamTrustedIssuersResponse } from "../../core/contracts/admin.contracts";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-trusted-issuers-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -41,14 +43,7 @@ import { IamTrustedIssuersResponse } from "../../core/contracts/admin.contracts"
         'admin.trustedIssuersSubtitle'
           | hhTranslate: 'Configured OIDC/SAML issuer metadata.'
       " /><hh-toolbar hhPageToolbar
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
+      ><hh-action-button (pressed)="load()" hh-toolbar-actions kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate" /></hh-toolbar
     >
     <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
     <hh-data-table

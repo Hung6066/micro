@@ -7,7 +7,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { forkJoin } from "rxjs";
 import {
   HisHopeDataTableCellDirective,
@@ -17,6 +17,7 @@ import {
   HisHopePageLayoutComponent,
   HisHopeToolbarComponent,
 } from "@his-hope/frontend-foundation/ui";
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
   HisHopeTranslatePipe,
@@ -29,13 +30,15 @@ import {
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { iamScopeLabel } from "../../core/utils/iam-display.util";
+import { WorkloadRoleEditDialogComponent } from "./workload-role-edit-dialog.component";
 
 @Component({
   selector: "app-workload-roles-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
+    MatDialogModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -59,78 +62,19 @@ import { iamScopeLabel } from "../../core/utils/iam-display.util";
         ><span hhToolbarTitle
           >{{ roles.length }}
           {{ "admin.workloadRoles" | hhTranslate: "Workload roles" }}</span
-        ><button
+        ><hh-action-button
           *ngIf="canWrite"
+          (pressed)="openCreate()"
           hh-toolbar-actions
-          type="button"
-          class="hh-button hh-button--primary"
-          (click)="toggleForm()"
-        >
-          {{
-            (formOpen ? "admin.cancel" : "admin.create") | hhTranslate
-          }}</button
-        ><button
+          kind="primary"
+          icon="add"
+          [label]="'admin.create' | hhTranslate" /><hh-action-button
           hhToolbarActions
-          type="button"
-          class="hh-button hh-button--secondary"
-          (click)="load()"
-        >
-          {{ "admin.refresh" | hhTranslate: "Refresh" }}
-        </button></hh-toolbar
-      >
-      <form
-        *ngIf="canWrite && formOpen"
-        class="hh-form-card"
-        (ngSubmit)="save()"
-      >
-        <div class="hh-form-grid">
-          <label
-            >{{ "admin.key" | hhTranslate
-            }}<input name="key" [(ngModel)]="draft.key" required /></label
-          ><label
-            >{{ "admin.displayName" | hhTranslate: "Display name"
-            }}<input
-              name="displayName"
-              [(ngModel)]="draft.displayName"
-              required /></label
-          ><label
-            >{{ "admin.scopeId" | hhTranslate
-            }}<select name="scopeId" [(ngModel)]="draft.scopeId" required>
-              <option value="">
-                {{ "admin.select" | hhTranslate: "Select" }}
-              </option>
-              <option *ngFor="let scope of scopes" [value]="scope.id">
-                {{ scope.displayName }} · {{ scope.key }}
-              </option>
-            </select></label
-          ><label
-            >{{ "admin.audience" | hhTranslate
-            }}<input
-              name="audience"
-              [(ngModel)]="draft.audience"
-              required /></label
-          ><label
-            >{{ "admin.maxSessionSeconds" | hhTranslate: "Max session seconds"
-            }}<input
-              type="number"
-              min="300"
-              max="86400"
-              name="maxSessionSeconds"
-              [(ngModel)]="draft.maxSessionSeconds"
-              required /></label
-          ><label
-            >{{ "admin.permissionsCsv" | hhTranslate
-            }}<input name="permissions" [(ngModel)]="draft.permissions"
-          /></label>
-        </div>
-        <button
-          class="hh-button hh-button--primary"
-          type="submit"
-          [disabled]="saving"
-        >
-          {{ (editingId ? "admin.update" : "admin.save") | hhTranslate }}
-        </button>
-      </form>
+          kind="secondary"
+          icon="refresh"
+          [label]="'admin.refresh' | hhTranslate: 'Refresh'"
+          (pressed)="load()"
+      /></hh-toolbar>
       <div *ngIf="error" class="hh-state hh-state--error" role="alert">
         {{ error }}
       </div>
@@ -141,43 +85,32 @@ import { iamScopeLabel } from "../../core/utils/iam-display.util";
         [loading]="loading"
         [empty]="!loading && !error && !rows.length"
         ><ng-template hhDataTableCell="actions" let-row
-          ><button
+          ><hh-action-button
             *ngIf="canWrite"
-            type="button"
-            class="hh-icon-button hh-icon-button--small"
-            (click)="edit(row)"
-            [attr.aria-label]="'admin.edit' | hhTranslate"
-            [attr.title]="'admin.edit' | hhTranslate"
-          >
-            <span class="material-icons" aria-hidden="true">edit</span></button
-          ><button
+            kind="row"
+            mode="icon-only"
+            icon="edit"
+            [label]="'admin.edit' | hhTranslate"
+            (pressed)="edit(row)" /><hh-action-button
             *ngIf="canWrite && row['isActive']"
-            type="button"
-            class="hh-icon-button hh-icon-button--small hh-icon-button--danger"
-            (click)="toggle(row)"
-            [attr.aria-label]="'admin.deactivate' | hhTranslate"
-            [attr.title]="'admin.deactivate' | hhTranslate"
-          >
-            <span class="material-icons" aria-hidden="true"
-              >toggle_off</span
-            ></button
-          ><button
+            kind="danger"
+            mode="icon-only"
+            icon="toggle_off"
+            [label]="'admin.deactivate' | hhTranslate"
+            (pressed)="toggle(row)" /><hh-action-button
             *ngIf="canWrite && !row['isActive']"
-            type="button"
-            class="hh-icon-button hh-icon-button--small"
-            (click)="toggle(row)"
-            [attr.aria-label]="'admin.activate' | hhTranslate"
-            [attr.title]="'admin.activate' | hhTranslate"
-          >
-            <span class="material-icons" aria-hidden="true">toggle_on</span>
-          </button></ng-template
-        ></hh-data-table
-      >
+            kind="row"
+            mode="icon-only"
+            icon="toggle_on"
+            [label]="'admin.activate' | hhTranslate"
+            (pressed)="toggle(row)" /></ng-template
+      ></hh-data-table>
     </hh-page-layout>
   `,
 })
 export class WorkloadRolesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly dialog = inject(MatDialog);
   private readonly permissionService = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -195,8 +128,6 @@ export class WorkloadRolesPageComponent implements OnInit {
   scopes: IamScope[] = [];
   rows: Record<string, unknown>[] = [];
   saving = false;
-  formOpen = false;
-  editingId = "";
   get loading(): boolean {
     return this.state.loading;
   }
@@ -206,15 +137,6 @@ export class WorkloadRolesPageComponent implements OnInit {
   set error(value: string) {
     this.state.setActionError(value);
   }
-  draft = {
-    key: "",
-    displayName: "",
-    scopeId: "",
-    audience: "",
-    maxSessionSeconds: 3600,
-    permissions: "",
-    trustPolicyJson: "{}",
-  };
   get canWrite(): boolean {
     return this.permissionService.has("admin.roles.write");
   }
@@ -265,70 +187,31 @@ export class WorkloadRolesPageComponent implements OnInit {
       }),
     );
   }
-  toggleForm(): void {
-    if (!this.canWrite) return;
-    this.formOpen = !this.formOpen;
-    this.editingId = "";
-    this.draft = {
-      ...this.draft,
-      key: "",
-      displayName: "",
-      scopeId: this.scopes.find((x) => x.isActive)?.id ?? "",
-      audience: "",
-      permissions: "",
-    };
+  openCreate(): void {
+    if (this.canWrite) {
+      this.dialog
+        .open(WorkloadRoleEditDialogComponent, {
+          width: "680px",
+          data: { role: null, scopes: this.scopes },
+        })
+        .afterClosed()
+        .subscribe((saved) => {
+          if (saved) this.load();
+        });
+    }
   }
   edit(row: Record<string, unknown>): void {
     const item = this.roles.find((x) => x.id === String(row["id"]));
     if (!item || !this.canWrite) return;
-    let permissions: string[] = [];
-    try {
-      permissions = JSON.parse(item.permissionsJson);
-    } catch {
-      permissions = [];
-    }
-    this.editingId = item.id;
-    this.formOpen = true;
-    this.draft = {
-      key: item.key,
-      displayName: item.displayName,
-      scopeId: item.scopeId,
-      audience: item.audience,
-      maxSessionSeconds: item.maxSessionSeconds,
-      permissions: permissions.join(", "),
-      trustPolicyJson: item.trustPolicyJson,
-    };
-  }
-  save(): void {
-    if (
-      !this.canWrite ||
-      !this.draft.key.trim() ||
-      !this.draft.displayName.trim() ||
-      !this.draft.scopeId ||
-      !this.draft.audience.trim()
-    )
-      return;
-    this.saving = true;
-    const request = {
-      ...this.draft,
-      maxSessionSeconds: Number(this.draft.maxSessionSeconds),
-      permissions: this.draft.permissions
-        .split(",")
-        .map((x) => x.trim())
-        .filter(Boolean),
-    };
-    const call = this.editingId
-      ? this.api.updateIamWorkloadRole(this.editingId, request)
-      : this.api.createIamWorkloadRole(request);
-    call.subscribe({
-      next: () => {
-        this.formOpen = false;
-        this.editingId = "";
-        this.load();
-      },
-      error: () => this.fail(),
-      complete: () => (this.saving = false),
-    });
+    this.dialog
+      .open(WorkloadRoleEditDialogComponent, {
+        width: "680px",
+        data: { role: item, scopes: this.scopes },
+      })
+      .afterClosed()
+      .subscribe((saved) => {
+        if (saved) this.load();
+      });
   }
   toggle(row: Record<string, unknown>): void {
     if (!this.canWrite) return;

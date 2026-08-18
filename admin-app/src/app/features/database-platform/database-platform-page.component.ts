@@ -10,7 +10,7 @@ import { CommonModule } from "@angular/common";
 import { MatButtonModule } from "@angular/material/button";
 import { MatIconModule } from "@angular/material/icon";
 import { catchError, of, tap } from "rxjs";
-import { HisHopeI18nService } from "@his-hope/frontend-foundation";
+
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
@@ -18,7 +18,10 @@ import {
   HisHopePageLayoutComponent,
   HisHopeStateComponent,
 } from "@his-hope/frontend-foundation/ui";
-import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
+import {
+  HisHopeI18nService,
+  HisHopeTranslatePipe,
+} from "@his-hope/frontend-foundation/i18n";
 import {
   DatabaseContinuityAuditEntry,
   DatabaseContinuityJob,
@@ -28,10 +31,12 @@ import {
 } from "../../core/services/database-platform-api.service";
 import { DatabasePlatformOverviewComponent } from "./database-platform-overview.component";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-database-platform-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     MatButtonModule,
     MatIconModule,
@@ -64,10 +69,12 @@ import { DatabasePlatformOverviewComponent } from "./database-platform-overview.
         />
       } @else if (error) {
         <hh-state kind="error" icon="error" [message]="error">
-          <button mat-stroked-button type="button" (click)="load()">
-            <mat-icon>refresh</mat-icon>
-            {{ "common.retry" | hhTranslate: "Retry" }}
-          </button>
+          <hh-action-button
+            (pressed)="load()"
+            kind="secondary"
+            icon="refresh"
+            [label]="'common.retry' | hhTranslate: 'Retry'"
+          />
         </hh-state>
       } @else if (databases.length === 0) {
         <hh-state

@@ -33,10 +33,12 @@ import {
 } from "@his-hope/frontend-foundation/ui";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-access-requests-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     FormsModule,
     MatButtonModule,
@@ -59,14 +61,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
           'admin.accessRequestsSubtitle'
             | hhTranslate: 'Request and approve time-bound access.'
         "
-        ><button
-          mat-stroked-button
-          type="button"
-          (click)="load()"
-          [disabled]="busy"
-        >
-          {{ "admin.refresh" | hhTranslate: "Refresh" }}
-        </button></hh-page-header
+        ><hh-action-button [disabled]="busy" (pressed)="load()" kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate: 'Refresh'" /></hh-page-header
       >
       <p class="notice">
         {{
@@ -115,21 +110,13 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
               max="72"
               [(ngModel)]="draft.expiryHours"
           /></mat-form-field>
-          <button
-            mat-flat-button
-            color="primary"
-            type="button"
-            (click)="create()"
-            [disabled]="
+          <hh-action-button [disabled]="
               busy ||
               !canWrite ||
               !draft.subjectUserId ||
               !draft.roleIds.length ||
               draft.reason.trim().length < 10
-            "
-          >
-            {{ "admin.createAccessRequest" | hhTranslate: "Create request" }}
-          </button>
+            " (pressed)="create()" kind="primary" icon="add" [label]="'admin.createAccessRequest' | hhTranslate: 'Create request'" />
         </mat-card-content></mat-card
       >
       <mat-card class="table-card"

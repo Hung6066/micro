@@ -33,10 +33,12 @@ import {
 } from "@his-hope/frontend-foundation/ui";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-break-glass-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     FormsModule,
     MatButtonModule,
@@ -60,14 +62,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
             | hhTranslate
               : 'Emergency elevation with short expiry and full audit.'
         "
-        ><button
-          mat-stroked-button
-          type="button"
-          (click)="load()"
-          [disabled]="busy"
-        >
-          {{ "admin.refresh" | hhTranslate: "Refresh" }}
-        </button></hh-page-header
+        ><hh-action-button [disabled]="busy" (pressed)="load()" kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate: 'Refresh'" /></hh-page-header
       >
       <p class="warning">
         {{
@@ -115,22 +110,14 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
               rows="2"
               [(ngModel)]="draft.reason"
             ></textarea></mat-form-field
-          ><button
-            mat-flat-button
-            color="warn"
-            type="button"
-            (click)="create()"
-            [disabled]="
+          ><hh-action-button [disabled]="
               busy ||
               !canWrite ||
               !draft.subjectUserId ||
               !draft.permissionCode ||
               !draft.facilityId ||
               draft.reason.trim().length < 10
-            "
-          >
-            {{ "admin.requestBreakGlass" | hhTranslate: "Request break-glass" }}
-          </button></mat-card-content
+            " (pressed)="create()" kind="danger" icon="link_off" [label]="'admin.requestBreakGlass' | hhTranslate: 'Request break-glass'" /></mat-card-content
         ></mat-card
       >
       <mat-card class="table-card"

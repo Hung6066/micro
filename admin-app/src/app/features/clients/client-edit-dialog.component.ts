@@ -34,10 +34,12 @@ import {
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-client-edit-dialog",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     FormsModule,
     MatDialogModule,
@@ -183,37 +185,39 @@ import {
         <div *ngIf="createdSecret" class="secret-panel" role="alert">
           <strong>{{ "admin.copySecretNow" | hhTranslate }}</strong
           ><code>{{ createdSecret }}</code>
-          <button mat-stroked-button type="button" (click)="copySecret()">
-            {{ "admin.copySecret" | hhTranslate }}
-          </button>
+          <hh-action-button
+            (pressed)="copySecret()"
+            kind="secondary"
+            icon="content_copy"
+            [label]="'admin.copySecret' | hhTranslate"
+          />
         </div>
       </div>
       <div hhCreateDialogFooter>
-        <button mat-button type="button" (click)="cancel()">
-          {{ "admin.cancel" | hhTranslate }}
-        </button>
-        <button
+        <hh-action-button
+          kind="secondary"
+          icon="close"
+          [label]="'admin.cancel' | hhTranslate: 'Cancel'"
+          (pressed)="cancel()"
+        />
+        <hh-action-button
           *ngIf="createdSecret"
-          mat-raised-button
-          color="primary"
-          type="button"
-          (click)="finishCreate()"
-        >
-          {{ "admin.done" | hhTranslate }}
-        </button>
-        <button
-          mat-raised-button
-          color="primary"
-          type="button"
-          (click)="save()"
+          (pressed)="finishCreate()"
+          kind="primary"
+          icon="check"
+          [label]="'admin.done' | hhTranslate"
+        />
+        <hh-action-button
           [disabled]="formGroup.invalid || saving"
-        >
-          {{
+          (pressed)="save()"
+          kind="primary"
+          icon="save"
+          [label]="
             saving
-              ? ("admin.saving" | hhTranslate)
-              : ("admin.save" | hhTranslate)
-          }}
-        </button>
+              ? ('admin.saving' | hhTranslate)
+              : ('admin.save' | hhTranslate)
+          "
+        />
       </div>
     </hh-create-dialog-shell>
   `,

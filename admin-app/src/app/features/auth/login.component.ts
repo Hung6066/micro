@@ -14,10 +14,12 @@ import {
 } from "@his-hope/frontend-foundation";
 import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-login",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     MatCardModule,
     MatButtonModule,
@@ -35,23 +37,13 @@ import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
             <p class="subtitle">{{ "admin.signInManageOidc" | hhTranslate }}</p>
           </div>
           <div class="login-buttons">
-            <button
-              mat-raised-button
-              color="primary"
-              class="full-width"
-              (click)="startLogin()"
+            <hh-action-button
               [disabled]="checkingAuth"
-            >
-              @if (checkingAuth) {
-                <mat-spinner diameter="20" class="btn-spinner"></mat-spinner>
-              }
-              @if (!checkingAuth) {
-                <mat-icon>{{ initiatingMethodIcon }}</mat-icon>
-              }
-              @if (!checkingAuth) {
-                {{ "admin.signInHisHope" | hhTranslate }}
-              }
-            </button>
+              (pressed)="startLogin()"
+              kind="primary"
+              icon="login"
+              [label]="'admin.signInHisHope' | hhTranslate"
+            />
           </div>
         </mat-card-content>
       </mat-card>

@@ -11,7 +11,6 @@ import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import {
   HisHopeBulkAction,
   HisHopeBulkActionRequest,
-  HisHopeI18nService,
   HisHopeTableExportRequest,
   HisHopePageQuery,
 } from "@his-hope/frontend-foundation";
@@ -21,6 +20,7 @@ import {
   HisHopeDataTableComponent,
   HisHopeDataTableColumn,
   HisHopeDataTableDetailDirective,
+  HisHopeActionButtonComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeToolbarComponent,
@@ -49,6 +49,7 @@ import { RoleEditDialogComponent } from "./role-edit-dialog.component";
     MatDialogModule,
     HisHopeDataTableComponent,
     HisHopeDataTableDetailDirective,
+    HisHopeActionButtonComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeToolbarComponent,
@@ -65,24 +66,21 @@ import { RoleEditDialogComponent } from "./role-edit-dialog.component";
         <span hhToolbarTitle
           >{{ totalItems }} {{ "admin.roles" | hhTranslate }}</span
         >
-        <button
+        <hh-action-button
           *ngIf="canWrite"
           hh-toolbar-actions
-          type="button"
-          class="hh-button hh-button--primary"
-          (click)="openCreateRole()"
-        >
-          {{ "admin.createRole" | hhTranslate: "Create role" }}
-        </button>
-        <button
+          kind="primary"
+          icon="add"
+          [label]="'admin.createRole' | hhTranslate: 'Create role'"
+          (pressed)="openCreateRole()"
+        />
+        <hh-action-button
           hh-toolbar-actions
-          type="button"
-          class="hh-button hh-button--secondary"
-          (click)="loadRoles()"
-        >
-          <span class="material-icons" aria-hidden="true">refresh</span>
-          {{ "admin.refresh" | hhTranslate }}
-        </button>
+          kind="secondary"
+          icon="refresh"
+          [label]="'admin.refresh' | hhTranslate"
+          (pressed)="loadRoles()"
+        />
       </hh-toolbar>
       <hh-data-table
         [label]="'admin.roles' | hhTranslate"
@@ -119,30 +117,27 @@ import { RoleEditDialogComponent } from "./role-edit-dialog.component";
             <p>
               {{ row["description"] || ("admin.noDescription" | hhTranslate) }}
             </p>
-            <button
+            <hh-action-button
               *ngIf="canWrite"
-              type="button"
-              class="hh-button hh-button--secondary"
-              (click)="openEditRole(row)"
-            >
-              {{ "admin.editRole" | hhTranslate: "Edit role" }}
-            </button>
-            <button
+              (pressed)="openEditRole(row)"
+              kind="secondary"
+              icon="edit"
+              [label]="'admin.editRole' | hhTranslate: 'Edit role'"
+            />
+            <hh-action-button
               *ngIf="canWrite"
-              type="button"
-              class="hh-button hh-button--secondary"
-              (click)="publishRole(row)"
-            >
-              {{ "admin.publishRole" | hhTranslate }}
-            </button>
-            <button
+              (pressed)="publishRole(row)"
+              kind="secondary"
+              icon="publish"
+              [label]="'admin.publishRole' | hhTranslate"
+            />
+            <hh-action-button
               *ngIf="canWrite"
-              type="button"
-              class="hh-button hh-button--secondary"
-              (click)="rollbackRole(row)"
-            >
-              {{ "admin.rollbackRole" | hhTranslate }}
-            </button>
+              (pressed)="rollbackRole(row)"
+              kind="secondary"
+              icon="undo"
+              [label]="'admin.rollbackRole' | hhTranslate"
+            />
           </div>
         </ng-template>
       </hh-data-table>

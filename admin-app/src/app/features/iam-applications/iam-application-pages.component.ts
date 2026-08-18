@@ -7,7 +7,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { HisHopeI18nService } from "@his-hope/frontend-foundation";
+
 import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
   HisHopeDataTableComponent,
@@ -23,10 +23,12 @@ import {
   IamTrustedIssuersResponse,
 } from "../../core/contracts/admin.contracts";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-api-audiences-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -42,15 +44,13 @@ import {
         'admin.apiAudiencesSubtitle'
           | hhTranslate: 'Resource audiences exposed by Identity Service.'
       " /><hh-toolbar hhPageToolbar
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
-    >
+      ><hh-action-button
+        (pressed)="load()"
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+    /></hh-toolbar>
     <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
     <hh-data-table
       [columns]="columns"
@@ -115,6 +115,7 @@ export class IamApiAudiencesPageComponent implements OnInit {
   selector: "app-iam-trusted-issuers-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -130,15 +131,13 @@ export class IamApiAudiencesPageComponent implements OnInit {
         'admin.trustedIssuersSubtitle'
           | hhTranslate: 'Configured OIDC/SAML issuer metadata.'
       " /><hh-toolbar hhPageToolbar
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
-    >
+      ><hh-action-button
+        (pressed)="load()"
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+    /></hh-toolbar>
     <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
     <hh-data-table
       [columns]="columns"
@@ -201,6 +200,7 @@ export class IamTrustedIssuersPageComponent implements OnInit {
   selector: "app-iam-external-identities-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -217,15 +217,13 @@ export class IamTrustedIssuersPageComponent implements OnInit {
           | hhTranslate
             : 'Configured browser federation providers. Secrets stay server-side.'
       " /><hh-toolbar hhPageToolbar
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
-    >
+      ><hh-action-button
+        (pressed)="load()"
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+    /></hh-toolbar>
     <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
     <hh-data-table
       [columns]="columns"

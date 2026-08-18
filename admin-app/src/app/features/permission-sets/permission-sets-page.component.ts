@@ -7,7 +7,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { forkJoin } from "rxjs";
 import {
   HisHopeDataTableCellDirective,
@@ -30,13 +30,16 @@ import {
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { iamScopeLabel } from "../../core/utils/iam-display.util";
+import { PermissionSetEditDialogComponent } from "./permission-set-edit-dialog.component";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-permission-sets-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
+    MatDialogModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -51,74 +54,24 @@ import { iamScopeLabel } from "../../core/utils/iam-display.util";
       [subtitle]="
         'admin.permissionSetsSubtitle'
           | hhTranslate: 'Governed bundles of canonical permissions.'
-      "
-    /><hh-toolbar
+      " /><hh-toolbar
       hhPageToolbar
       [label]="'admin.permissionSets' | hhTranslate: 'Permission sets'"
       ><span hhToolbarTitle
         >{{ sets.length }} {{ "admin.permissionSets" | hhTranslate }}</span
-      ><button
+      ><hh-action-button
         *ngIf="canWrite"
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--primary"
-        (click)="toggleForm()"
-      >
-        {{ (formOpen ? "admin.cancel" : "admin.create") | hhTranslate }}</button
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
-    >
-    <form *ngIf="canWrite && formOpen" class="hh-form-card" (ngSubmit)="save()">
-      <div class="hh-form-grid">
-        <label
-          >{{ "admin.key" | hhTranslate
-          }}<input name="key" [(ngModel)]="draft.key" required /></label
-        ><label
-          >{{ "admin.displayName" | hhTranslate: "Display name"
-          }}<input
-            name="displayName"
-            [(ngModel)]="draft.displayName"
-            required /></label
-        ><label
-          >{{ "admin.scopeId" | hhTranslate
-          }}<select name="scopeId" [(ngModel)]="draft.scopeId" required>
-            <option value="">{{ "admin.select" | hhTranslate }}</option>
-            <option *ngFor="let scope of scopes" [value]="scope.id">
-              {{ scope.displayName }} · {{ scope.key }}
-            </option>
-          </select></label
-        ><label
-          >{{ "admin.permissions" | hhTranslate
-          }}<select
-            name="permissions"
-            [(ngModel)]="draft.permissions"
-            multiple
-            size="6"
-            required
-          >
-            <option
-              *ngFor="let permission of permissionsCatalog"
-              [value]="permission.code"
-            >
-              {{ permission.code }} · {{ permission.name }}
-            </option>
-          </select></label
-        >
-      </div>
-      <button
-        class="hh-button hh-button--primary"
-        type="submit"
-        [disabled]="saving"
-      >
-        {{ (editingId ? "admin.update" : "admin.save") | hhTranslate }}
-      </button>
-    </form>
+        hh-toolbar-actions
+        kind="primary"
+        icon="add"
+        [label]="'admin.create' | hhTranslate"
+        (pressed)="openCreate()" /><hh-action-button
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+        (pressed)="load()"
+    /></hh-toolbar>
     <div *ngIf="error" class="hh-state hh-state--error" role="alert">
       {{ error }}
     </div>
@@ -129,31 +82,24 @@ import { iamScopeLabel } from "../../core/utils/iam-display.util";
       [loading]="loading"
       [empty]="!loading && !error && !rows.length"
       ><ng-template hhDataTableCell="actions" let-row
-        ><button
+        ><hh-action-button
           *ngIf="canWrite"
-          type="button"
-          class="hh-icon-button hh-icon-button--small"
-          (click)="edit(row)"
-          [attr.aria-label]="'admin.edit' | hhTranslate"
-          [attr.title]="'admin.edit' | hhTranslate"
-        >
-          <span class="material-icons" aria-hidden="true">edit</span></button
-        ><button
+          kind="row"
+          mode="icon-only"
+          icon="edit"
+          [label]="'admin.edit' | hhTranslate"
+          (pressed)="edit(row)" /><hh-action-button
           *ngIf="canWrite && row['lifecycleStatus'] !== 'published'"
-          type="button"
-          class="hh-icon-button hh-icon-button--small"
-          (click)="publish(row)"
-          [attr.aria-label]="'admin.publish' | hhTranslate"
-          [attr.title]="'admin.publish' | hhTranslate"
-        >
-          <span class="material-icons" aria-hidden="true">publish</span>
-        </button></ng-template
-      ></hh-data-table
-    ></hh-page-layout
-  >`,
+          kind="row"
+          mode="icon-only"
+          icon="publish"
+          [label]="'admin.publish' | hhTranslate"
+          (pressed)="publish(row)" /></ng-template></hh-data-table
+  ></hh-page-layout>`,
 })
 export class PermissionSetsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly dialog = inject(MatDialog);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -175,9 +121,6 @@ export class PermissionSetsPageComponent implements OnInit {
   scopes: IamScope[] = [];
   permissionsCatalog: PermissionDefinition[] = [];
   rows: Record<string, unknown>[] = [];
-  saving = false;
-  formOpen = false;
-  editingId = "";
   get loading(): boolean {
     return this.state.loading;
   }
@@ -187,12 +130,6 @@ export class PermissionSetsPageComponent implements OnInit {
   set error(value: string) {
     this.state.setActionError(value);
   }
-  draft = {
-    key: "",
-    displayName: "",
-    scopeId: "",
-    permissions: [] as string[],
-  };
   get columns(): HisHopeDataTableColumn[] {
     this.i18n.locale();
     return [
@@ -241,70 +178,39 @@ export class PermissionSetsPageComponent implements OnInit {
       }),
     );
   }
-  toggleForm(): void {
-    if (!this.canWrite) return;
-    this.formOpen = !this.formOpen;
-    this.editingId = "";
-    this.draft = {
-      key: "",
-      displayName: "",
-      scopeId: this.scopes.find((x) => x.isActive)?.id ?? "",
-      permissions: [],
-    };
+  openCreate(): void {
+    if (this.canWrite)
+      this.dialog
+        .open(PermissionSetEditDialogComponent, {
+          width: "680px",
+          data: {
+            set: null,
+            scopes: this.scopes,
+            permissions: this.permissionsCatalog,
+          },
+        })
+        .afterClosed()
+        .subscribe((saved) => {
+          if (saved) this.load();
+        });
   }
   edit(row: Record<string, unknown>): void {
     if (!this.canWrite) return;
     const item = this.sets.find((x) => x.id === String(row["id"]));
     if (!item) return;
-    let permissions: string[] = [];
-    try {
-      permissions = JSON.parse(item.permissionsJson);
-    } catch {
-      /* malformed legacy value is handled as empty */
-    }
-    this.editingId = item.id;
-    this.formOpen = true;
-    this.draft = {
-      key: item.key,
-      displayName: item.displayName,
-      scopeId: item.scopeId,
-      permissions,
-    };
-  }
-  save(): void {
-    if (
-      !this.canWrite ||
-      !this.draft.key.trim() ||
-      !this.draft.displayName.trim() ||
-      !this.draft.scopeId ||
-      !this.draft.permissions.length
-    )
-      return;
-    this.saving = true;
-    const request = {
-      key: this.draft.key,
-      displayName: this.draft.displayName,
-      scopeId: this.draft.scopeId,
-      permissions: this.draft.permissions,
-    };
-    const call = this.editingId
-      ? this.api.updateIamPermissionSet(this.editingId, request)
-      : this.api.createIamPermissionSet(request);
-    call.subscribe({
-      next: () => {
-        this.formOpen = false;
-        this.editingId = "";
-        this.load();
-      },
-      error: () => {
-        this.error = this.i18n.t(
-          "admin.iamSaveFailed",
-          "Unable to save permission set.",
-        );
-        this.saving = false;
-      },
-      complete: () => (this.saving = false),
-    });
+    this.dialog
+      .open(PermissionSetEditDialogComponent, {
+        width: "680px",
+        data: {
+          set: item,
+          scopes: this.scopes,
+          permissions: this.permissionsCatalog,
+        },
+      })
+      .afterClosed()
+      .subscribe((saved) => {
+        if (saved) this.load();
+      });
   }
   publish(row: Record<string, unknown>): void {
     if (!this.canWrite) return;

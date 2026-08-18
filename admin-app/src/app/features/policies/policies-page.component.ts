@@ -7,7 +7,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import {
   HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
@@ -24,13 +24,16 @@ import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { AuthorizationPolicy } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { PolicyEditDialogComponent } from "./policy-edit-dialog.component";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-policies-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
+    MatDialogModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -46,65 +49,24 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
         'admin.policiesSubtitle'
           | hhTranslate
             : 'Versioned authorization policies with lint and publish controls.'
-      "
-    /><hh-toolbar
+      " /><hh-toolbar
       hhPageToolbar
       [label]="'admin.policies' | hhTranslate: 'Policies'"
       ><span hhToolbarTitle
         >{{ policies.length }} {{ "admin.policies" | hhTranslate }}</span
-      ><button
+      ><hh-action-button
         *ngIf="canWrite"
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--primary"
-        (click)="toggleForm()"
-      >
-        {{ (formOpen ? "admin.cancel" : "admin.create") | hhTranslate }}</button
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
-    >
-    <form *ngIf="canWrite && formOpen" class="hh-form-card" (ngSubmit)="save()">
-      <div class="hh-form-grid">
-        <label
-          >{{ "admin.key" | hhTranslate
-          }}<input
-            name="key"
-            [(ngModel)]="draft.key"
-            [disabled]="!!editingId"
-            required /></label
-        ><label
-          >{{ "admin.description" | hhTranslate
-          }}<input
-            name="description"
-            [(ngModel)]="draft.description"
-            required /></label
-        ><label
-          >{{ "admin.owner" | hhTranslate
-          }}<input name="owner" [(ngModel)]="draft.owner" required /></label
-        ><label
-          >{{ "admin.rulesJson" | hhTranslate: "Rules JSON"
-          }}<textarea
-            name="rulesJson"
-            rows="4"
-            [(ngModel)]="draft.rulesJson"
-            required
-          ></textarea>
-        </label>
-      </div>
-      <button
-        class="hh-button hh-button--primary"
-        type="submit"
-        [disabled]="saving"
-      >
-        {{ (editingId ? "admin.update" : "admin.save") | hhTranslate }}
-      </button>
-    </form>
+        hh-toolbar-actions
+        kind="primary"
+        icon="add"
+        [label]="'admin.create' | hhTranslate"
+        (pressed)="openCreate()" /><hh-action-button
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+        (pressed)="load()"
+    /></hh-toolbar>
     <div *ngIf="error" class="hh-state hh-state--error" role="alert">
       {{ error }}
     </div>
@@ -115,49 +77,36 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
       [loading]="loading"
       [empty]="!loading && !error && !rows.length"
       ><ng-template hhDataTableCell="actions" let-row
-        ><button
+        ><hh-action-button
           *ngIf="canWrite"
-          type="button"
-          class="hh-icon-button hh-icon-button--small"
-          (click)="edit(row)"
-          [attr.aria-label]="'admin.edit' | hhTranslate"
-          [attr.title]="'admin.edit' | hhTranslate"
-        >
-          <span class="material-icons" aria-hidden="true">edit</span></button
-        ><button
+          kind="row"
+          mode="icon-only"
+          icon="edit"
+          [label]="'admin.edit' | hhTranslate"
+          (pressed)="edit(row)" /><hh-action-button
           *ngIf="canWrite"
-          type="button"
-          class="hh-icon-button hh-icon-button--small"
-          (click)="lint(row)"
-          [attr.aria-label]="'admin.lint' | hhTranslate: 'Lint'"
-          [attr.title]="'admin.lint' | hhTranslate: 'Lint'"
-        >
-          <span class="material-icons" aria-hidden="true">rule</span></button
-        ><button
+          kind="row"
+          mode="icon-only"
+          icon="rule"
+          [label]="'admin.lint' | hhTranslate: 'Lint'"
+          (pressed)="lint(row)" /><hh-action-button
           *ngIf="canWrite && row['lifecycleStatus'] !== 'published'"
-          type="button"
-          class="hh-icon-button hh-icon-button--small"
-          (click)="publish(row)"
-          [attr.aria-label]="'admin.publish' | hhTranslate"
-          [attr.title]="'admin.publish' | hhTranslate"
-        >
-          <span class="material-icons" aria-hidden="true">publish</span></button
-        ><button
+          kind="row"
+          mode="icon-only"
+          icon="publish"
+          [label]="'admin.publish' | hhTranslate"
+          (pressed)="publish(row)" /><hh-action-button
           *ngIf="canWrite && row['lifecycleStatus'] === 'published'"
-          type="button"
-          class="hh-icon-button hh-icon-button--small hh-icon-button--danger"
-          (click)="rollback(row)"
-          [attr.aria-label]="'admin.rollback' | hhTranslate"
-          [attr.title]="'admin.rollback' | hhTranslate"
-        >
-          <span class="material-icons" aria-hidden="true">undo</span>
-        </button></ng-template
-      ></hh-data-table
-    ></hh-page-layout
-  >`,
+          kind="danger"
+          mode="icon-only"
+          icon="undo"
+          [label]="'admin.rollback' | hhTranslate"
+          (pressed)="rollback(row)" /></ng-template></hh-data-table
+  ></hh-page-layout>`,
 })
 export class PoliciesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly dialog = inject(MatDialog);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -174,8 +123,6 @@ export class PoliciesPageComponent implements OnInit {
   policies: AuthorizationPolicy[] = [];
   rows: Record<string, unknown>[] = [];
   saving = false;
-  formOpen = false;
-  editingId = "";
   get loading(): boolean {
     return this.state.loading;
   }
@@ -185,12 +132,6 @@ export class PoliciesPageComponent implements OnInit {
   set error(value: string) {
     this.state.setActionError(value);
   }
-  draft = {
-    key: "",
-    description: "",
-    owner: "identity-service",
-    rulesJson: '{\n  "statements": []\n}',
-  };
   get columns(): HisHopeDataTableColumn[] {
     this.i18n.locale();
     return [
@@ -226,60 +167,31 @@ export class PoliciesPageComponent implements OnInit {
   load(): void {
     this.state.load(this.api.getAuthorizationPolicies());
   }
-  toggleForm(): void {
-    if (!this.canWrite) return;
-    this.formOpen = !this.formOpen;
-    this.editingId = "";
-    this.draft = {
-      key: "",
-      description: "",
-      owner: "identity-service",
-      rulesJson: '{\n  "statements": []\n}',
-    };
+  openCreate(): void {
+    if (this.canWrite)
+      this.dialog
+        .open(PolicyEditDialogComponent, {
+          width: "640px",
+          data: { policy: null },
+        })
+        .afterClosed()
+        .subscribe((saved) => {
+          if (saved) this.load();
+        });
   }
   edit(row: Record<string, unknown>): void {
     if (!this.canWrite) return;
     const item = this.policies.find((x) => x.id === String(row["id"]));
     if (!item) return;
-    this.editingId = item.id;
-    this.formOpen = true;
-    this.draft = {
-      key: item.key,
-      description: item.description,
-      owner: item.owner,
-      rulesJson: item.rulesJson,
-    };
-  }
-  save(): void {
-    if (
-      !this.canWrite ||
-      !this.draft.description.trim() ||
-      !this.draft.rulesJson.trim()
-    )
-      return;
-    this.saving = true;
-    const call = this.editingId
-      ? this.api.updateAuthorizationPolicy(this.editingId, {
-          description: this.draft.description,
-          owner: this.draft.owner,
-          rulesJson: this.draft.rulesJson,
-        })
-      : this.api.createAuthorizationPolicy(this.draft);
-    call.subscribe({
-      next: () => {
-        this.formOpen = false;
-        this.editingId = "";
-        this.load();
-      },
-      error: () => {
-        this.error = this.i18n.t(
-          "admin.iamSaveFailed",
-          "Unable to save policy.",
-        );
-        this.saving = false;
-      },
-      complete: () => (this.saving = false),
-    });
+    this.dialog
+      .open(PolicyEditDialogComponent, {
+        width: "640px",
+        data: { policy: item },
+      })
+      .afterClosed()
+      .subscribe((saved) => {
+        if (saved) this.load();
+      });
   }
   lint(row: Record<string, unknown>): void {
     if (!this.canWrite) return;

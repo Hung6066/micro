@@ -24,10 +24,12 @@ import { IamPermissionSet } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-access-diff-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     FormsModule,
     HisHopePageHeaderComponent,
@@ -46,15 +48,13 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
           | hhTranslate: 'Compare permission sets before and after a change.'
       "
     /><hh-toolbar hhPageToolbar [label]="'admin.newAccessDiff' | hhTranslate"
-      ><button
-        hhToolbarActions
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.refresh" | hhTranslate }}
-      </button></hh-toolbar
-    >
+      ><hh-action-button
+        (pressed)="load()"
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+    /></hh-toolbar>
     <div class="hh-form-grid">
       <label
         >{{ "admin.before" | hhTranslate
@@ -78,14 +78,13 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
         </select></label
       >
     </div>
-    <button
-      type="button"
-      class="hh-button hh-button--primary"
-      (click)="compare()"
+    <hh-action-button
       [disabled]="loadingSets || !beforeId || !afterId"
-    >
-      {{ "admin.compare" | hhTranslate: "Compare" }}</button
-    ><hh-table-state
+      (pressed)="compare()"
+      kind="primary"
+      icon="compare_arrows"
+      [label]="'admin.compare' | hhTranslate: 'Compare'"
+    /><hh-table-state
       *ngIf="loadingSets"
       kind="loading"
       message="admin.loading"
@@ -97,14 +96,12 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
       *ngIf="error"
       kind="error"
       message="admin.iamAnalyzerFailed"
-      ><button
-        type="button"
-        class="hh-button hh-button--secondary"
-        (click)="load()"
-      >
-        {{ "admin.retry" | hhTranslate: "Retry" }}
-      </button></hh-table-state
-    >
+      ><hh-action-button
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.retry' | hhTranslate: 'Retry'"
+        (pressed)="load()"
+    /></hh-table-state>
     <pre *ngIf="result">{{ result | json }}</pre>
   </hh-page-layout>`,
 })

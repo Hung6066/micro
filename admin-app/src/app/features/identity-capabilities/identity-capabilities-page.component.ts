@@ -49,10 +49,12 @@ import {
 } from "../../core/services/identity-capabilities.service";
 import { ApiErrorMessageService } from "../../core/services/api-error-message.service";
 
+import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-identity-capabilities-page",
   standalone: true,
   imports: [
+    HisHopeActionButtonComponent,
     CommonModule,
     FormsModule,
     MatButtonModule,
@@ -81,15 +83,13 @@ import { ApiErrorMessageService } from "../../core/services/api-error-message.se
               : 'P0/P1 controls and P2 device posture pilot workspace.'
         "
       >
-        <button
-          mat-stroked-button
-          type="button"
-          (click)="reload()"
+        <hh-action-button
           [disabled]="loading"
-        >
-          <mat-icon>refresh</mat-icon
-          >{{ "admin.refresh" | hhTranslate: "Refresh" }}
-        </button>
+          (pressed)="reload()"
+          kind="secondary"
+          icon="refresh"
+          [label]="'admin.refresh' | hhTranslate: 'Refresh'"
+        />
       </hh-page-header>
       <mat-form-field appearance="outline" *ngIf="facilityIds.length > 1"
         ><mat-label>{{ "admin.facility" | hhTranslate: "Facility" }}</mat-label
@@ -190,20 +190,16 @@ import { ApiErrorMessageService } from "../../core/services/api-error-message.se
                     [(ngModel)]="provisioning.resourceId"
                     autocomplete="off"
                 /></mat-form-field>
-                <button
-                  mat-flat-button
-                  color="primary"
-                  type="button"
-                  *ngIf="can('admin.provisioning.manage')"
-                  (click)="queueProvisioning()"
+                <hh-action-button
                   [disabled]="busy || !provisioning.resourceId"
-                >
-                  <mat-icon>queue</mat-icon
-                  >{{
-                    "admin.queueDryRun"
-                      | hhTranslate: "Queue dry-run reconciliation"
-                  }}
-                </button>
+                  (pressed)="queueProvisioning()"
+                  kind="primary"
+                  icon="queue"
+                  [label]="
+                    'admin.queueDryRun'
+                      | hhTranslate: 'Queue dry-run reconciliation'
+                  "
+                />
                 <p class="muted" *ngIf="lastJob">
                   {{ "admin.job" | hhTranslate: "Job" }} {{ lastJob.id }} ·
                   {{ lastJob.target }} · {{ lastJob.operation }}
@@ -328,8 +324,11 @@ import { ApiErrorMessageService } from "../../core/services/api-error-message.se
                         }}
                       </td>
                       <td>
-                        <button
-                          mat-button
+                        <hh-action-button
+                          kind="secondary"
+                          mode="icon-only"
+                          icon="refresh"
+                          [label]="'admin.retry' | hhTranslate: 'Retry'"
                           type="button"
                           *ngIf="
                             can('admin.provisioning.manage') &&
@@ -338,11 +337,9 @@ import { ApiErrorMessageService } from "../../core/services/api-error-message.se
                                 !job.completedAt &&
                                 job.status !== 'dry-run'))
                           "
-                          (click)="retryJob(job)"
+                          (pressed)="retryJob(job)"
                           [disabled]="busy"
-                        >
-                          {{ "admin.retry" | hhTranslate: "Retry" }}
-                        </button>
+                        />
                       </td>
                     </tr>
                   </tbody>
@@ -421,19 +418,20 @@ import { ApiErrorMessageService } from "../../core/services/api-error-message.se
                     <td>{{ binding.notAfter | date: "short" }}</td>
                     <td>{{ binding.status }}</td>
                     <td>
-                      <button
-                        mat-button
+                      <hh-action-button
+                        kind="danger"
+                        mode="icon-only"
+                        icon="delete"
+                        [label]="'admin.revoke' | hhTranslate: 'Revoke'"
                         color="warn"
                         type="button"
-                        (click)="revokeBinding(binding)"
+                        (pressed)="revokeBinding(binding)"
                         [disabled]="
                           binding.status === 'revoked' ||
                           busy ||
                           !can('admin.clients.write')
                         "
-                      >
-                        {{ "admin.revoke" | hhTranslate: "Revoke" }}
-                      </button>
+                      />
                     </td>
                   </tr>
                 </tbody>
@@ -547,22 +545,21 @@ import { ApiErrorMessageService } from "../../core/services/api-error-message.se
                         <td>{{ entry.availableAt | date: "short" }}</td>
                         <td>{{ entry.lastError || "—" }}</td>
                         <td>
-                          <button
-                            mat-button
+                          <hh-action-button
+                            kind="secondary"
+                            mode="icon-only"
+                            icon="refresh"
+                            [label]="'admin.retry' | hhTranslate: 'Retry'"
                             type="button"
                             *ngIf="can('admin.settings.write')"
-                            (click)="retrySsf(entry)"
+                            (pressed)="retrySsf(entry)"
                             [disabled]="busy"
-                          >
-                            {{ "admin.retry" | hhTranslate: "Retry" }}
-                          </button>
+                          />
                         </td>
                       </tr>
                     </tbody>
-                  </table>
-                </div></mat-card-content
-              ></mat-card
-            >
+                  </table></div></mat-card-content
+            ></mat-card>
           </section>
           <mat-card
             ><mat-card-header
@@ -575,19 +572,15 @@ import { ApiErrorMessageService } from "../../core/services/api-error-message.se
                     : "Server-generated, audited, short-lived download"
               }}</mat-card-subtitle></mat-card-header
             ><mat-card-content
-              ><button
-                mat-flat-button
-                color="primary"
-                type="button"
-                *ngIf="can('admin.audit.read')"
-                (click)="downloadAuditCsv()"
+              ><hh-action-button
                 [disabled]="busy"
-              >
-                <mat-icon>download</mat-icon
-                >{{ "admin.exportAuditCsv" | hhTranslate: "Export audit CSV" }}
-              </button></mat-card-content
-            ></mat-card
-          >
+                (pressed)="downloadAuditCsv()"
+                kind="primary"
+                icon="download"
+                [label]="
+                  'admin.exportAuditCsv' | hhTranslate: 'Export audit CSV'
+                " /></mat-card-content
+          ></mat-card>
         </mat-tab>
         <mat-tab
           [label]="
@@ -652,40 +645,33 @@ import { ApiErrorMessageService } from "../../core/services/api-error-message.se
                   >
                 </div>
                 <div class="actions" *ngIf="can('admin.settings.write')">
-                  <button
-                    mat-flat-button
-                    color="primary"
-                    (click)="savePolicy()"
+                  <hh-action-button
                     [disabled]="busy"
-                  >
-                    <mat-icon>save</mat-icon
-                    >{{
-                      "admin.savePolicy" | hhTranslate: "Save policy"
-                    }}</button
-                  ><button
-                    mat-stroked-button
-                    color="warn"
-                    (click)="killSwitch()"
+                    (pressed)="savePolicy()"
+                    kind="primary"
+                    icon="save"
+                    [label]="'admin.savePolicy' | hhTranslate: 'Save policy'"
+                  /><hh-action-button
                     [disabled]="busy"
-                  >
-                    {{
-                      "admin.killSwitch"
-                        | hhTranslate: "Set observe / kill switch"
-                    }}</button
-                  ><button
-                    mat-button
-                    type="button"
-                    (click)="rollbackPolicy()"
+                    (pressed)="killSwitch()"
+                    kind="danger"
+                    icon="warning"
+                    [label]="
+                      'admin.killSwitch'
+                        | hhTranslate: 'Set observe / kill switch'
+                    "
+                  /><hh-action-button
                     [disabled]="busy"
-                  >
-                    {{
-                      "admin.rollbackPolicy"
-                        | hhTranslate: "Rollback previous policy"
-                    }}
-                  </button>
-                </div>
-              </mat-card-content></mat-card
-            >
+                    (pressed)="rollbackPolicy()"
+                    kind="secondary"
+                    icon="restore"
+                    [label]="
+                      'admin.rollbackPolicy'
+                        | hhTranslate: 'Rollback previous policy'
+                    "
+                  />
+                </div> </mat-card-content
+            ></mat-card>
             <mat-card
               ><mat-card-header
                 ><mat-card-title>{{
@@ -731,15 +717,13 @@ import { ApiErrorMessageService } from "../../core/services/api-error-message.se
                     [(ngModel)]="signalsJson"
                   ></textarea>
                 </mat-form-field>
-                <button
-                  mat-flat-button
-                  color="primary"
-                  (click)="runPreview()"
+                <hh-action-button
                   [disabled]="busy"
-                >
-                  <mat-icon>science</mat-icon
-                  >{{ "admin.preview" | hhTranslate: "Preview" }}
-                </button>
+                  (pressed)="runPreview()"
+                  kind="primary"
+                  icon="science"
+                  [label]="'admin.preview' | hhTranslate: 'Preview'"
+                />
                 <div class="result" *ngIf="evaluation">
                   <strong>{{ evaluation.decision }}</strong
                   ><span
