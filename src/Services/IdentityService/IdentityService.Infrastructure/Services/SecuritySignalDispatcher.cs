@@ -21,6 +21,8 @@ public sealed class SecuritySignalDispatcher(
     IConfiguration configuration,
     ILogger<SecuritySignalDispatcher> logger) : BackgroundService
 {
+    private readonly Guid _leaseId = Guid.NewGuid();
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
@@ -44,11 +46,25 @@ public sealed class SecuritySignalDispatcher(
 
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
-        var entries = await db.SecuritySignalOutbox
+        var candidates = await db.SecuritySignalOutbox
             .Where(item => item.DispatchedAt == null && item.AvailableAt <= DateTime.UtcNow)
+            .Where(item => item.LeaseUntil == null || item.LeaseUntil < DateTime.UtcNow)
             .OrderBy(item => item.CreatedAt)
             .Take(50)
             .ToListAsync(ct);
+        var leaseUntil = DateTime.UtcNow.AddMinutes(2);
+        foreach (var candidate in candidates)
+        {
+            await db.SecuritySignalOutbox
+                .Where(item => item.Id == candidate.Id && item.DispatchedAt == null && item.AvailableAt <= DateTime.UtcNow &&
+                    (item.LeaseUntil == null || item.LeaseUntil < DateTime.UtcNow))
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.LeaseId, _leaseId)
+                    .SetProperty(item => item.LeaseUntil, leaseUntil), ct);
+        }
+        var entries = await db.SecuritySignalOutbox
+            .Where(item => item.LeaseId == _leaseId && item.LeaseUntil == leaseUntil)
+            .OrderBy(item => item.CreatedAt).ToListAsync(ct);
         foreach (var entry in entries)
         {
             try
@@ -63,12 +79,16 @@ public sealed class SecuritySignalDispatcher(
                 }
                 entry.DispatchedAt = DateTime.UtcNow;
                 entry.LastError = null;
+                entry.LeaseId = null;
+                entry.LeaseUntil = null;
             }
             catch (Exception ex)
             {
                 entry.Attempts++;
                 entry.LastError = ex.Message[..Math.Min(ex.Message.Length, 2000)];
                 entry.AvailableAt = DateTime.UtcNow.AddMinutes(Math.Min(entry.Attempts, 30));
+                entry.LeaseId = null;
+                entry.LeaseUntil = null;
                 logger.LogWarning(ex, "Security signal {SignalId} delivery failed on attempt {Attempt}", entry.Id, entry.Attempts);
             }
         }

@@ -1,4 +1,5 @@
 import { Injectable, signal } from "@angular/core";
+import type { HisHopeProblemDetails } from "@his-hope/frontend-foundation/contracts";
 
 export type HisHopeErrorSeverity = "fatal" | "error" | "warning";
 
@@ -8,6 +9,10 @@ export interface HisHopeErrorEvent {
   correlationId?: string;
   statusCode?: number;
   url?: string;
+  errorCode?: string;
+  title?: string;
+  detail?: string;
+  errors?: Record<string, string[]>;
   stack?: string;
   context?: Record<string, unknown>;
 }

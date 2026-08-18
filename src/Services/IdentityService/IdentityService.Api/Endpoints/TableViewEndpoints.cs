@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
@@ -21,7 +22,7 @@ public static class TableViewEndpoints
     {
         var userId = Subject(http);
         if (userId is null) return Results.Unauthorized();
-        if (!TryNormalize(resource, out var normalized)) return Results.BadRequest(new { errorCode = "invalid_view_resource" });
+        if (!TryNormalize(resource, out var normalized)) return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidViewResource });
         var views = await db.TableViews.AsNoTracking().Where(view => view.UserId == userId && view.Resource == normalized).OrderBy(view => view.Name).Select(view => new { view.Name, view.PayloadJson, view.UpdatedAt }).ToListAsync(ct);
         return Results.Ok(views);
     }
@@ -30,7 +31,7 @@ public static class TableViewEndpoints
     {
         var userId = Subject(http);
         if (userId is null) return Results.Unauthorized();
-        if (!TryNormalize(resource, out var normalizedResource) || !TryNormalize(name, out var normalizedName)) return Results.BadRequest(new { errorCode = "invalid_view_identifier" });
+        if (!TryNormalize(resource, out var normalizedResource) || !TryNormalize(name, out var normalizedName)) return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidViewIdentifier });
         if (string.IsNullOrWhiteSpace(request.PayloadJson) || request.PayloadJson.Length > 65536) return Results.ValidationProblem(new Dictionary<string, string[]> { ["payloadJson"] = ["View payload must be between 1 and 65536 characters."] });
         try { using var _ = System.Text.Json.JsonDocument.Parse(request.PayloadJson); } catch (System.Text.Json.JsonException) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["payloadJson"] = ["View payload must be valid JSON."] }); }
         var view = await db.TableViews.SingleOrDefaultAsync(item => item.UserId == userId && item.Resource == normalizedResource && item.Name == normalizedName, ct);
@@ -45,7 +46,7 @@ public static class TableViewEndpoints
     {
         var userId = Subject(http);
         if (userId is null) return Results.Unauthorized();
-        if (!TryNormalize(resource, out var normalizedResource) || !TryNormalize(name, out var normalizedName)) return Results.BadRequest(new { errorCode = "invalid_view_identifier" });
+        if (!TryNormalize(resource, out var normalizedResource) || !TryNormalize(name, out var normalizedName)) return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidViewIdentifier });
         var view = await db.TableViews.SingleOrDefaultAsync(item => item.UserId == userId && item.Resource == normalizedResource && item.Name == normalizedName, ct);
         if (view is null) return Results.NotFound();
         db.TableViews.Remove(view); await db.SaveChangesAsync(ct); return Results.NoContent();

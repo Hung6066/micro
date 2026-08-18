@@ -72,7 +72,7 @@ public static class MtlsEndpoints
         admin.MapPost("/bindings", async (MtlsBindingRequest request, IdentityDbContext db, FacilityContext facilityContext, CancellationToken ct) =>
         {
             if (!Guid.TryParse(request.UserId, out var userId) || string.IsNullOrWhiteSpace(request.Thumbprint))
-                return Results.BadRequest();
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.Validation });
             if (!await HasFacilityAccessAsync(db, facilityContext, userId, ct)) return Results.Forbid();
             var thumbprint = Normalize(request.Thumbprint);
             if (await db.UserClientCertificates.AnyAsync(item => item.Thumbprint == thumbprint && item.RevokedAt == null, ct))

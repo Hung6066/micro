@@ -10,6 +10,8 @@ public sealed class SecuritySignalOutbox
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime AvailableAt { get; set; } = DateTime.UtcNow;
     public DateTime? DispatchedAt { get; set; }
+    public Guid? LeaseId { get; set; }
+    public DateTime? LeaseUntil { get; set; }
     public int Attempts { get; set; }
     public string? LastError { get; set; }
 }

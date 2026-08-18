@@ -56,8 +56,14 @@ public sealed class ContractNormalizationTests
     [Fact]
     public void Api_error_codes_are_stable_for_problem_details()
     {
+        ApiErrorCodes.ForStatus(400).Should().Be("validation_error");
+        ApiErrorCodes.ForStatus(404).Should().Be("not_found");
         ApiErrorCodes.ForStatus(422).Should().Be(ApiErrorCodes.UnprocessableEntity);
+        ApiErrorCodes.ForStatus(429).Should().Be("rate_limited");
         ApiErrorCodes.ForStatus(500).Should().Be(ApiErrorCodes.Internal);
+        ApiErrorCodes.FacilityScopeDenied.Should().Be("facility_scope_denied");
+        ApiErrorCodes.InvalidJson.Should().Be("invalid_json");
+        ApiErrorCodes.PasswordResetRejected.Should().Be("password_reset_rejected");
         ApiProblemExtensions.CorrelationId.Should().Be("correlationId");
         ApiProblemExtensions.ErrorCode.Should().Be("errorCode");
     }

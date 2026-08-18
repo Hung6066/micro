@@ -1,7 +1,7 @@
 import { TestBed } from "@angular/core/testing";
 import { HisHopeGlobalErrorHandler } from "./his-hope-global-error-handler";
 import { HisHopeErrorReportingService } from "../http/his-hope-error-reporting.service";
-import { HisHopeToastService } from "../ui/his-hope-toast.service";
+import { HisHopeToastService } from "@his-hope/frontend-foundation/ui";
 
 describe("HisHopeGlobalErrorHandler", () => {
   let handler: HisHopeGlobalErrorHandler;

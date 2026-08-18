@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using His.Hope.Contracts;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using StackExchange.Redis;
@@ -67,7 +68,7 @@ public static class PasskeyEndpoints
             if (string.IsNullOrWhiteSpace(userId)) return Results.Unauthorized();
             var redisDb = redis.GetDatabase();
             var rawOptions = await redisDb.StringGetDeleteAsync(OptionsKey(userId));
-            if (!rawOptions.HasValue) return Results.BadRequest(new ProblemDetails { Title = "Passkey challenge expired", Status = 400 });
+            if (!rawOptions.HasValue) return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.PasskeyChallengeExpired });
             try
             {
                 var options = CredentialCreateOptions.FromJson(rawOptions!);
@@ -94,7 +95,7 @@ public static class PasskeyEndpoints
             }
             catch (Exception)
             {
-                return Results.BadRequest(new ProblemDetails { Title = "Invalid passkey attestation", Status = 400 });
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidPasskeyAttestation });
             }
         });
 
@@ -108,11 +109,11 @@ public static class PasskeyEndpoints
                 requestedUserId = (await users.FindByEmailAsync(request.UserName))?.Id.ToString();
 
             if (string.IsNullOrWhiteSpace(requestedUserId))
-                return Results.UnprocessableEntity(new ProblemDetails { Title = "Passkey account is required", Detail = "Enter the email address associated with your passkey." });
+                return Results.UnprocessableEntity(new { errorCode = "passkey_account_required" });
             var credential = await db.PasskeyCredentials.AsNoTracking()
                 .FirstOrDefaultAsync(item => item.UserId == requestedUserId);
             if (credential is null)
-                return Results.UnprocessableEntity(new ProblemDetails { Title = "Passkey is not enrolled", Detail = "Register a passkey for this account before signing in with it." });
+                return Results.UnprocessableEntity(new { errorCode = "passkey_not_enrolled" });
             var credentialId = credential.CredentialId;
             var redisDb = redis.GetDatabase();
             var options = fido2.GetAssertionOptions(new GetAssertionOptionsParams
@@ -173,11 +174,7 @@ public static class PasskeyEndpoints
             var credential = await db.PasskeyCredentials.AsNoTracking()
                 .FirstOrDefaultAsync(item => item.UserId == userId.ToString());
             if (credential is null)
-                return Results.UnprocessableEntity(new ProblemDetails
-                {
-                    Title = "MFA passkey is not enrolled",
-                    Detail = "Register a passkey before using it as the MFA factor."
-                });
+                return Results.UnprocessableEntity(new { errorCode = "mfa_passkey_not_enrolled" });
 
             var options = fido2.GetAssertionOptions(new GetAssertionOptionsParams
             {
@@ -283,7 +280,10 @@ public static class PasskeyEndpoints
             var state = await ReadNativeMfaState(redis, ticket);
             if (state is null)
             {
-                return Results.Problem("Mobile approval expired. Retry the request from this page.", statusCode: StatusCodes.Status410Gone);
+                return Results.Problem(statusCode: StatusCodes.Status410Gone, extensions: new Dictionary<string, object?>
+                {
+                    [ApiProblemExtensions.ErrorCode] = "mobile_approval_expired"
+                });
             }
 
             if (state.UserId != pending.UserId ||
@@ -296,7 +296,10 @@ public static class PasskeyEndpoints
             if (state.Rejected)
             {
                 await redis.GetDatabase().KeyDeleteAsync(NativeMfaKey(ticket));
-                return Results.Problem("Mobile approval was rejected in the His.Hope mobile app.", statusCode: StatusCodes.Status409Conflict);
+                return Results.Problem(statusCode: StatusCodes.Status409Conflict, extensions: new Dictionary<string, object?>
+                {
+                    [ApiProblemExtensions.ErrorCode] = "mobile_approval_rejected"
+                });
             }
 
             if (!state.Approved)
@@ -329,11 +332,7 @@ public static class PasskeyEndpoints
             var credential = await db.PasskeyCredentials.AsNoTracking()
                 .FirstOrDefaultAsync(item => item.UserId == state.UserId.ToString());
             if (credential is null)
-                return Results.UnprocessableEntity(new ProblemDetails
-                {
-                    Title = "MFA passkey is not enrolled",
-                    Detail = "Register a passkey for this device before using native MFA."
-                });
+                return Results.UnprocessableEntity(new { errorCode = "mfa_passkey_not_enrolled" });
 
             var options = fido2.GetAssertionOptions(new GetAssertionOptionsParams
             {
@@ -364,7 +363,10 @@ public static class PasskeyEndpoints
             if (remainingLifetime <= TimeSpan.Zero)
             {
                 await redis.GetDatabase().KeyDeleteAsync(NativeMfaKey(request.Ticket));
-                return Results.Problem("Mobile approval expired. Retry the request from this page.", statusCode: StatusCodes.Status410Gone);
+                return Results.Problem(statusCode: StatusCodes.Status410Gone, extensions: new Dictionary<string, object?>
+                {
+                    [ApiProblemExtensions.ErrorCode] = "mobile_approval_expired"
+                });
             }
 
             state = state with { Rejected = true };

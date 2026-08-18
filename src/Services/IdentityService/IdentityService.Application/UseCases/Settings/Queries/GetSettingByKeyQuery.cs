@@ -1,11 +1,12 @@
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.Interfaces;
+using His.Hope.IdentityService.Domain.Entities;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
 namespace His.Hope.IdentityService.Application.UseCases.Settings.Queries;
 
-public record GetSettingByKeyQuery(string Key) : IRequest<SystemSettingDto?>;
+public record GetSettingByKeyQuery(string Key, string? ScopeId = null) : IRequest<SystemSettingDto?>;
 
 public class GetSettingByKeyQueryHandler : IRequestHandler<GetSettingByKeyQuery, SystemSettingDto?>
 {
@@ -20,12 +21,14 @@ public class GetSettingByKeyQueryHandler : IRequestHandler<GetSettingByKeyQuery,
         CancellationToken cancellationToken)
     {
         var setting = await _context.SystemSettings
-            .FirstOrDefaultAsync(s => s.Key == request.Key, cancellationToken);
+            .Where(s => s.Key == request.Key && (s.ScopeId == IdentityScope.Global || s.ScopeId == (request.ScopeId ?? IdentityScope.Global)))
+            .OrderByDescending(s => s.ScopeId == request.ScopeId && request.ScopeId != null)
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (setting is null) return null;
 
         return new SystemSettingDto(
             setting.Key, setting.Value, setting.Description,
-            setting.Category, setting.UpdatedAt, setting.UpdatedBy);
+            setting.Category, setting.UpdatedAt, setting.UpdatedBy, setting.ScopeId);
     }
 }

@@ -3,6 +3,7 @@ namespace His.Hope.IdentityService.Domain.Entities;
 /// <summary>Singleton, versioned pilot policy. Observe is the safe default.</summary>
 public sealed class DevicePosturePolicy
 {
+    public string ScopeId { get; set; } = IdentityScope.Global;
     public string Id { get; set; } = "default";
     public string Mode { get; set; } = "observe";
     public string ProvidersJson { get; set; } = "[\"chrome-enterprise\",\"advanced-compliance\",\"windows-local-login\"]";

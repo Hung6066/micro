@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json;
+using His.Hope.Contracts;
 using His.Hope.Bff.Core.Authentication;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.Interfaces;
@@ -23,7 +24,7 @@ public static class AccountRecoveryEndpoints
             CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(request.Email))
-                return Results.Problem("Email is required.", statusCode: 400);
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.Validation });
 
             try
             {
@@ -52,7 +53,7 @@ public static class AccountRecoveryEndpoints
             if (string.IsNullOrWhiteSpace(request.Email) ||
                 string.IsNullOrWhiteSpace(request.Token) ||
                 string.IsNullOrWhiteSpace(request.NewPassword))
-                return Results.Problem("Email, token, and new password are required.", statusCode: 400);
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.PasswordResetFieldsRequired });
 
             try
             {
@@ -62,11 +63,13 @@ public static class AccountRecoveryEndpoints
             }
             catch (KeyNotFoundException)
             {
-                return Results.Problem("Invalid reset request.", statusCode: 400);
+                return Results.Problem(statusCode: 400,
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidPasswordResetRequest });
             }
             catch (InvalidOperationException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 400);
+                return Results.Problem(statusCode: 400, detail: ex.Message,
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.PasswordResetRejected });
             }
         })
         .RequireRateLimiting("auth")
@@ -85,10 +88,10 @@ public static class AccountRecoveryEndpoints
 
             if (string.IsNullOrWhiteSpace(request.CurrentPassword) ||
                 string.IsNullOrWhiteSpace(request.NewPassword))
-                return Results.Problem("Current password and new password are required.", statusCode: 400);
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.PasswordFieldsRequired });
 
             if (request.CurrentPassword == request.NewPassword)
-                return Results.Problem("New password must differ from current password.", statusCode: 400);
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.PasswordMustChange });
 
             try
             {
@@ -102,11 +105,13 @@ public static class AccountRecoveryEndpoints
             }
             catch (UnauthorizedAccessException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 400);
+                return Results.Problem(statusCode: 400, detail: ex.Message,
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.PasswordChangeRejected });
             }
             catch (InvalidOperationException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 400);
+                return Results.Problem(statusCode: 400, detail: ex.Message,
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.PasswordChangeRejected });
             }
         })
         .RequireAuthorization()
@@ -150,7 +155,7 @@ public static class AccountRecoveryEndpoints
             CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Token))
-                return Results.Problem("Email and token are required.", statusCode: 400);
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.EmailVerificationFieldsRequired });
 
             try
             {
@@ -160,11 +165,12 @@ public static class AccountRecoveryEndpoints
             }
             catch (KeyNotFoundException)
             {
-                return Results.Problem("Invalid verification request.", statusCode: 400);
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidEmailVerificationRequest });
             }
             catch (InvalidOperationException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 400);
+                return Results.Problem(statusCode: 400, detail: ex.Message,
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.EmailVerificationRejected });
             }
         })
         .AllowAnonymous()
@@ -228,7 +234,8 @@ public static class AccountRecoveryEndpoints
 
             var currentSessionId = httpContext.Request.Cookies["hishop_sid"];
             if (sessionId == currentSessionId)
-                return Results.Problem("Cannot revoke current session. Use /logout instead.", statusCode: 400);
+                return Results.Problem(statusCode: 400,
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.CurrentSessionCannotBeRevoked });
 
             var db = redis.GetDatabase();
             await db.KeyDeleteAsync($"session:{sessionId}");

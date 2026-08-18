@@ -12,6 +12,8 @@ public sealed class DirectoryProvisioningOutbox
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime AvailableAt { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; set; }
+    public Guid? LeaseId { get; set; }
+    public DateTime? LeaseUntil { get; set; }
     public int Attempts { get; set; }
     public string? ExternalId { get; set; }
     public string? LastError { get; set; }

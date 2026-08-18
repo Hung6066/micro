@@ -1,30 +1,445 @@
-import { Component, OnInit, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { HisHopeDataTableCellDirective, HisHopeDataTableColumn, HisHopeDataTableComponent, HisHopeI18nService, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopePermissionService, HisHopeToolbarComponent, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
-import { AdminApiService, IamRevocation, User } from '../../core/services/admin-api.service';
+import {
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  OnInit,
+  effect,
+  inject,
+} from "@angular/core";
+import { CommonModule } from "@angular/common";
+import { FormsModule } from "@angular/forms";
+import { catchError, of } from "rxjs";
+import {
+  HisHopeDataTableCellDirective,
+  HisHopeDataTableColumn,
+  HisHopeDataTableComponent,
+  HisHopePageHeaderComponent,
+  HisHopePageLayoutComponent,
+  HisHopeToolbarComponent,
+} from "@his-hope/frontend-foundation/ui";
+import {
+  HisHopeI18nService,
+  HisHopeTranslatePipe,
+} from "@his-hope/frontend-foundation/i18n";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import {
+  AdminSessionCenterResponse,
+  IamRevocation,
+  User,
+} from "../../core/contracts/admin.contracts";
+import { IamApiService } from "../../core/services/iam-api.service";
+import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 
-@Component({ selector: 'app-iam-sessions-page', standalone: true, imports: [CommonModule, HisHopeDataTableCellDirective, HisHopeDataTableComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeToolbarComponent, HisHopeTranslatePipe], template: `
-<hh-page-layout><hh-page-header hhPageHeader [title]="'admin.activeSessions' | hhTranslate:'Active sessions'" [subtitle]="'admin.activeSessionsSubtitle' | hhTranslate:'Review and revoke human sessions from the server.'" /><hh-toolbar hhPageToolbar [label]="'admin.activeSessions' | hhTranslate:'Active sessions'"><span hhToolbarTitle>{{ rows.length }} {{ 'admin.sessions' | hhTranslate:'Sessions' }}</span><button hhToolbarActions type="button" class="hh-button hh-button--secondary" (click)="load()">{{ 'admin.refresh' | hhTranslate }}</button></hh-toolbar><div *ngIf="error" class="hh-state hh-state--error" role="alert">{{ error }}</div><hh-data-table [label]="'admin.activeSessions' | hhTranslate" [columns]="columns" [rows]="rows" [loading]="loading" [empty]="!loading && !error && !rows.length"><ng-template hhDataTableCell="actions" let-row><button *ngIf="canWrite" type="button" class="hh-button hh-button--danger hh-button--small" (click)="revoke(row)">{{ 'admin.revoke' | hhTranslate }}</button></ng-template></hh-data-table></hh-page-layout>` })
+@Component({
+  selector: "app-iam-sessions-page",
+  standalone: true,
+  imports: [
+    CommonModule,
+    HisHopeDataTableCellDirective,
+    HisHopeDataTableComponent,
+    HisHopePageHeaderComponent,
+    HisHopePageLayoutComponent,
+    HisHopeToolbarComponent,
+    HisHopeTranslatePipe,
+  ],
+  template: ` <hh-page-layout
+    ><hh-page-header
+      hhPageHeader
+      [title]="'admin.activeSessions' | hhTranslate: 'Active sessions'"
+      [subtitle]="
+        'admin.activeSessionsSubtitle'
+          | hhTranslate: 'Review and revoke human sessions from the server.'
+      "
+    /><hh-toolbar
+      hhPageToolbar
+      [label]="'admin.activeSessions' | hhTranslate: 'Active sessions'"
+      ><span hhToolbarTitle
+        >{{ rows.length }}
+        {{ "admin.sessions" | hhTranslate: "Sessions" }}</span
+      ><button
+        hhToolbarActions
+        type="button"
+        class="hh-button hh-button--secondary"
+        (click)="load()"
+      >
+        {{ "admin.refresh" | hhTranslate }}
+      </button></hh-toolbar
+    >
+    <div *ngIf="error" class="hh-state hh-state--error" role="alert">
+      {{ error }}
+    </div>
+    <hh-data-table
+      [label]="'admin.activeSessions' | hhTranslate"
+      [columns]="columns"
+      [rows]="rows"
+      [loading]="loading"
+      [empty]="!loading && !error && !rows.length"
+      ><ng-template hhDataTableCell="actions" let-row
+        ><button
+          *ngIf="canWrite"
+          type="button"
+          class="hh-button hh-button--danger hh-button--small"
+          (click)="revoke(row)"
+        >
+          {{ "admin.revoke" | hhTranslate }}
+        </button></ng-template
+      ></hh-data-table
+    ></hh-page-layout
+  >`,
+})
 export class IamSessionsPageComponent implements OnInit {
-  private readonly api = inject(AdminApiService); private readonly permissions = inject(HisHopePermissionService); private readonly i18n = inject(HisHopeI18nService); get canWrite(): boolean { return this.permissions.has('admin.sessions.write'); }
-  rows: Record<string, unknown>[] = []; loading = false; error = '';
-  get columns(): HisHopeDataTableColumn[] { this.i18n.locale(); return [{ key: 'userId', label: this.i18n.t('admin.subject', 'Subject') }, { key: 'id', label: this.i18n.t('admin.sessionId', 'Session ID') }, { key: 'createdAt', label: this.i18n.t('admin.createdAt', 'Created') }, { key: 'expiresAt', label: this.i18n.t('admin.expiresAt', 'Expires') }, { key: 'actions', label: this.i18n.t('admin.actions', 'Actions'), sortable: false, hideable: false }]; }
-  ngOnInit(): void { this.load(); }
-  load(): void { this.loading = true; this.error = ''; this.api.getAdminSessionCenter().subscribe({ next: x => this.rows = x.sessions.map(item => ({ ...item })), error: () => { this.error = this.i18n.t('admin.iamLoadFailed', 'Unable to load sessions.'); this.loading = false; }, complete: () => this.loading = false }); }
-  revoke(row: Record<string, unknown>): void { if (!this.canWrite) return; const userId = String(row['userId'] ?? ''); const id = String(row['id'] ?? ''); if (!userId || !id) return; this.api.revokeAdminSession(userId, id, 'Revoked from IAM sessions').subscribe({ next: () => this.load(), error: () => this.error = this.i18n.t('admin.iamSaveFailed', 'Unable to revoke session.') }); }
+  private readonly api = inject(IamApiService);
+  private readonly permissions = inject(HisHopePermissionService);
+  private readonly i18n = inject(HisHopeI18nService);
+  private readonly cdr = inject(ChangeDetectorRef);
+  get canWrite(): boolean {
+    return this.permissions.has("admin.sessions.revoke");
+  }
+  rows: Record<string, unknown>[] = [];
+  private readonly destroyRef = inject(DestroyRef);
+  readonly state = new AdminResourceStateController<AdminSessionCenterResponse>(
+    {
+      destroyRef: this.destroyRef,
+      i18n: this.i18n,
+      loadErrorMessageKey: "admin.iamLoadFailed",
+      loadErrorFallback: "Unable to load sessions.",
+    },
+  );
+  get loading(): boolean {
+    return this.state.loading;
+  }
+  get error(): string {
+    return this.state.error;
+  }
+  set error(value: string) {
+    this.state.setActionError(value);
+  }
+  constructor() {
+    effect(() => {
+      const data = this.state.resource.data();
+      if (data) {
+        this.rows = data.sessions.map((item) => ({ ...item }));
+        this.cdr.markForCheck();
+      }
+    });
+  }
+  get columns(): HisHopeDataTableColumn[] {
+    this.i18n.locale();
+    return [
+      { key: "userId", label: this.i18n.t("admin.subject", "Subject") },
+      { key: "id", label: this.i18n.t("admin.sessionId", "Session ID") },
+      { key: "createdAt", label: this.i18n.t("admin.createdAt", "Created") },
+      { key: "expiresAt", label: this.i18n.t("admin.expiresAt", "Expires") },
+      {
+        key: "actions",
+        label: this.i18n.t("admin.actions", "Actions"),
+        sortable: false,
+        hideable: false,
+      },
+    ];
+  }
+  ngOnInit(): void {
+    this.load();
+  }
+  load(): void {
+    this.error = "";
+    this.state.load(
+      this.api.getAdminSessionCenter().pipe(
+        catchError(() => {
+          this.error = this.i18n.t(
+            "admin.iamLoadFailed",
+            "Unable to load sessions.",
+          );
+          return of({ schemaVersion: "", evaluatedAt: "", sessions: [] });
+        }),
+      ),
+    );
+  }
+  revoke(row: Record<string, unknown>): void {
+    if (!this.canWrite) return;
+    const userId = String(row["userId"] ?? "");
+    const id = String(row["id"] ?? "");
+    if (!userId || !id) return;
+    this.api
+      .revokeAdminSession(userId, id, "Revoked from IAM sessions")
+      .subscribe({
+        next: () => this.load(),
+        error: () =>
+          (this.error = this.i18n.t(
+            "admin.iamSaveFailed",
+            "Unable to revoke session.",
+          )),
+      });
+  }
 }
 
-@Component({ selector: 'app-iam-revocations-page', standalone: true, imports: [CommonModule, FormsModule, HisHopeDataTableComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeToolbarComponent, HisHopeTranslatePipe], template: `
-<hh-page-layout><hh-page-header hhPageHeader [title]="'admin.revocations' | hhTranslate:'Revocations'" [subtitle]="'admin.revocationsSubtitle' | hhTranslate:'Record and inspect explicit principal revocations.'" /><hh-toolbar hhPageToolbar [label]="'admin.revocations' | hhTranslate:'Revocations'"><span hhToolbarTitle>{{ rows.length }} {{ 'admin.revocations' | hhTranslate }}</span><button *ngIf="canWrite" hhToolbarActions type="button" class="hh-button hh-button--primary" (click)="formOpen=!formOpen">{{ (formOpen ? 'admin.cancel' : 'admin.create') | hhTranslate }}</button><button hhToolbarActions type="button" class="hh-button hh-button--secondary" (click)="load()">{{ 'admin.refresh' | hhTranslate }}</button></hh-toolbar><form *ngIf="canWrite && formOpen" class="hh-form-card" (ngSubmit)="create()"><div class="hh-form-grid"><label>{{ 'admin.principalId' | hhTranslate }}<input name="principalId" [(ngModel)]="draft.principalId" required /></label><label>{{ 'admin.principalType' | hhTranslate }}<select name="principalType" [(ngModel)]="draft.principalType"><option value="human">Human</option><option value="workload">Workload</option></select></label><label>{{ 'admin.reason' | hhTranslate }}<input name="reason" [(ngModel)]="draft.reason" required /></label></div><button class="hh-button hh-button--primary" type="submit">{{ 'admin.revoke' | hhTranslate }}</button></form><div *ngIf="error" class="hh-state hh-state--error" role="alert">{{ error }}</div><hh-data-table [label]="'admin.revocations' | hhTranslate" [columns]="columns" [rows]="rows" [loading]="loading" [empty]="!loading && !error && !rows.length"></hh-data-table></hh-page-layout>` })
+@Component({
+  selector: "app-iam-revocations-page",
+  standalone: true,
+  imports: [
+    CommonModule,
+    FormsModule,
+    HisHopeDataTableComponent,
+    HisHopePageHeaderComponent,
+    HisHopePageLayoutComponent,
+    HisHopeToolbarComponent,
+    HisHopeTranslatePipe,
+  ],
+  template: ` <hh-page-layout
+    ><hh-page-header
+      hhPageHeader
+      [title]="'admin.revocations' | hhTranslate: 'Revocations'"
+      [subtitle]="
+        'admin.revocationsSubtitle'
+          | hhTranslate: 'Record and inspect explicit principal revocations.'
+      " /><hh-toolbar
+      hhPageToolbar
+      [label]="'admin.revocations' | hhTranslate: 'Revocations'"
+      ><span hhToolbarTitle
+        >{{ rows.length }} {{ "admin.revocations" | hhTranslate }}</span
+      ><button
+        *ngIf="canWrite"
+        hhToolbarActions
+        type="button"
+        class="hh-button hh-button--primary"
+        (click)="formOpen = !formOpen"
+      >
+        {{ (formOpen ? "admin.cancel" : "admin.create") | hhTranslate }}</button
+      ><button
+        hhToolbarActions
+        type="button"
+        class="hh-button hh-button--secondary"
+        (click)="load()"
+      >
+        {{ "admin.refresh" | hhTranslate }}
+      </button></hh-toolbar
+    >
+    <form
+      *ngIf="canWrite && formOpen"
+      class="hh-form-card"
+      (ngSubmit)="create()"
+    >
+      <div class="hh-form-grid">
+        <label
+          >{{ "admin.principalId" | hhTranslate
+          }}<input
+            name="principalId"
+            [(ngModel)]="draft.principalId"
+            required /></label
+        ><label
+          >{{ "admin.principalType" | hhTranslate
+          }}<select name="principalType" [(ngModel)]="draft.principalType">
+            <option value="human">
+              {{ "admin.principalHuman" | hhTranslate: "Human" }}
+            </option>
+            <option value="workload">
+              {{ "admin.principalWorkload" | hhTranslate: "Workload" }}
+            </option>
+          </select></label
+        ><label
+          >{{ "admin.reason" | hhTranslate
+          }}<input name="reason" [(ngModel)]="draft.reason" required
+        /></label>
+      </div>
+      <button class="hh-button hh-button--primary" type="submit">
+        {{ "admin.revoke" | hhTranslate }}
+      </button>
+    </form>
+    <div *ngIf="error" class="hh-state hh-state--error" role="alert">
+      {{ error }}
+    </div>
+    <hh-data-table
+      [label]="'admin.revocations' | hhTranslate"
+      [columns]="columns"
+      [rows]="rows"
+      [loading]="loading"
+      [empty]="!loading && !error && !rows.length"
+    ></hh-data-table
+  ></hh-page-layout>`,
+})
 export class IamRevocationsPageComponent implements OnInit {
-  private readonly api = inject(AdminApiService); private readonly permissions = inject(HisHopePermissionService); private readonly i18n = inject(HisHopeI18nService); get canWrite(): boolean { return this.permissions.has('admin.sessions.write'); }
-  rows: Record<string, unknown>[] = []; loading = false; error = ''; formOpen = false; draft = { principalId: '', principalType: 'human', reason: '' };
-  get columns(): HisHopeDataTableColumn[] { this.i18n.locale(); return [{ key: 'principalId', label: this.i18n.t('admin.principalId', 'Principal') }, { key: 'principalType', label: this.i18n.t('admin.principalType', 'Type') }, { key: 'reason', label: this.i18n.t('admin.reason', 'Reason') }, { key: 'occurredAt', label: this.i18n.t('admin.createdAt', 'Occurred') }]; }
-  ngOnInit(): void { this.load(); }
-  load(): void { this.loading = true; this.api.getIamRevocations().subscribe({ next: x => this.rows = x.revocations.map(item => ({ ...item })), error: () => { this.error = this.i18n.t('admin.iamLoadFailed', 'Unable to load revocations.'); this.loading = false; }, complete: () => this.loading = false }); }
-  create(): void { if (!this.canWrite || !this.draft.principalId || !this.draft.reason) return; this.api.createIamRevocation(this.draft).subscribe({ next: () => { this.formOpen = false; this.draft = { principalId: '', principalType: 'human', reason: '' }; this.load(); }, error: () => this.error = this.i18n.t('admin.iamSaveFailed', 'Unable to create revocation.') }); }
+  private readonly api = inject(IamApiService);
+  private readonly permissions = inject(HisHopePermissionService);
+  private readonly i18n = inject(HisHopeI18nService);
+  private readonly cdr = inject(ChangeDetectorRef);
+  get canWrite(): boolean {
+    return this.permissions.has("admin.sessions.revoke");
+  }
+  rows: Record<string, unknown>[] = [];
+  private readonly destroyRef = inject(DestroyRef);
+  readonly state = new AdminResourceStateController<{
+    revocations: IamRevocation[];
+  }>({
+    destroyRef: this.destroyRef,
+    i18n: this.i18n,
+    loadErrorMessageKey: "admin.iamLoadFailed",
+    loadErrorFallback: "Unable to load revocations.",
+  });
+  get loading(): boolean {
+    return this.state.loading;
+  }
+  get error(): string {
+    return this.state.error;
+  }
+  set error(value: string) {
+    this.state.setActionError(value);
+  }
+  formOpen = false;
+  draft = { principalId: "", principalType: "human", reason: "" };
+  constructor() {
+    effect(() => {
+      const data = this.state.resource.data();
+      if (data) {
+        this.rows = data.revocations.map((item) => ({ ...item }));
+        this.cdr.markForCheck();
+      }
+    });
+  }
+  get columns(): HisHopeDataTableColumn[] {
+    this.i18n.locale();
+    return [
+      {
+        key: "principalId",
+        label: this.i18n.t("admin.principalId", "Principal"),
+      },
+      {
+        key: "principalType",
+        label: this.i18n.t("admin.principalType", "Type"),
+      },
+      { key: "reason", label: this.i18n.t("admin.reason", "Reason") },
+      { key: "occurredAt", label: this.i18n.t("admin.createdAt", "Occurred") },
+    ];
+  }
+  ngOnInit(): void {
+    this.load();
+  }
+  load(): void {
+    this.state.load(
+      this.api.getIamRevocations().pipe(
+        catchError(() => {
+          this.error = this.i18n.t(
+            "admin.iamLoadFailed",
+            "Unable to load revocations.",
+          );
+          return of({ schemaVersion: "", evaluatedAt: "", revocations: [] });
+        }),
+      ),
+    );
+  }
+  create(): void {
+    if (!this.canWrite || !this.draft.principalId || !this.draft.reason) return;
+    this.api.createIamRevocation(this.draft).subscribe({
+      next: () => {
+        this.formOpen = false;
+        this.draft = { principalId: "", principalType: "human", reason: "" };
+        this.load();
+      },
+      error: () =>
+        (this.error = this.i18n.t(
+          "admin.iamSaveFailed",
+          "Unable to create revocation.",
+        )),
+    });
+  }
 }
 
-@Component({ selector: 'app-iam-unused-permissions-page', standalone: true, imports: [CommonModule, HisHopeDataTableComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeToolbarComponent, HisHopeTranslatePipe], template: `<hh-page-layout><hh-page-header hhPageHeader [title]="'admin.unusedPermissions' | hhTranslate:'Unused permissions'" [subtitle]="'admin.unusedPermissionsSubtitle' | hhTranslate:'Analyze permissions with no observed usage.'" /><hh-toolbar hhPageToolbar [label]="'admin.unusedPermissions' | hhTranslate"><button hhToolbarActions type="button" class="hh-button hh-button--secondary" (click)="load()">{{ 'admin.refresh' | hhTranslate }}</button></hh-toolbar><div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div><hh-data-table [label]="'admin.unusedPermissions' | hhTranslate" [columns]="columns" [rows]="rows" [loading]="loading" [empty]="!loading && !rows.length"></hh-data-table></hh-page-layout>` })
-export class IamUnusedPermissionsPageComponent implements OnInit { private readonly api = inject(AdminApiService); private readonly i18n = inject(HisHopeI18nService); rows: Record<string, unknown>[] = []; loading = false; error = ''; get columns(): HisHopeDataTableColumn[] { return [{ key: 'permission', label: this.i18n.t('admin.permission', 'Permission') }]; } ngOnInit(): void { this.load(); } load(): void { this.loading = true; this.api.analyzeIamUnusedPermissions().subscribe({ next: x => this.rows = x.unusedPermissions.map(permission => ({ permission })), error: () => { this.error = this.i18n.t('admin.iamAnalyzerFailed', 'Analyzer failed.'); this.loading = false; }, complete: () => this.loading = false }); } }
+@Component({
+  selector: "app-iam-unused-permissions-page",
+  standalone: true,
+  imports: [
+    CommonModule,
+    HisHopeDataTableComponent,
+    HisHopePageHeaderComponent,
+    HisHopePageLayoutComponent,
+    HisHopeToolbarComponent,
+    HisHopeTranslatePipe,
+  ],
+  template: `<hh-page-layout
+    ><hh-page-header
+      hhPageHeader
+      [title]="'admin.unusedPermissions' | hhTranslate: 'Unused permissions'"
+      [subtitle]="
+        'admin.unusedPermissionsSubtitle'
+          | hhTranslate: 'Analyze permissions with no observed usage.'
+      " /><hh-toolbar
+      hhPageToolbar
+      [label]="'admin.unusedPermissions' | hhTranslate"
+      ><button
+        hhToolbarActions
+        type="button"
+        class="hh-button hh-button--secondary"
+        (click)="load()"
+      >
+        {{ "admin.refresh" | hhTranslate }}
+      </button></hh-toolbar
+    >
+    <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
+    <hh-data-table
+      [label]="'admin.unusedPermissions' | hhTranslate"
+      [columns]="columns"
+      [rows]="rows"
+      [loading]="loading"
+      [empty]="!loading && !rows.length"
+    ></hh-data-table
+  ></hh-page-layout>`,
+})
+export class IamUnusedPermissionsPageComponent implements OnInit {
+  private readonly api = inject(IamApiService);
+  private readonly i18n = inject(HisHopeI18nService);
+  private readonly cdr = inject(ChangeDetectorRef);
+  rows: Record<string, unknown>[] = [];
+  private readonly destroyRef = inject(DestroyRef);
+  readonly state = new AdminResourceStateController<{
+    unusedPermissions: string[];
+  }>({
+    destroyRef: this.destroyRef,
+    i18n: this.i18n,
+    loadErrorMessageKey: "admin.iamAnalyzerFailed",
+    loadErrorFallback: "Analyzer failed.",
+  });
+  get loading(): boolean {
+    return this.state.loading;
+  }
+  get error(): string {
+    return this.state.error;
+  }
+  set error(value: string) {
+    this.state.setActionError(value);
+  }
+  constructor() {
+    effect(() => {
+      const data = this.state.resource.data();
+      if (data) {
+        this.rows = data.unusedPermissions.map((permission) => ({
+          permission,
+        }));
+        this.cdr.markForCheck();
+      }
+    });
+  }
+  get columns(): HisHopeDataTableColumn[] {
+    return [
+      {
+        key: "permission",
+        label: this.i18n.t("admin.permission", "Permission"),
+      },
+    ];
+  }
+  ngOnInit(): void {
+    this.load();
+  }
+  load(): void {
+    this.error = "";
+    this.state.load(
+      this.api.analyzeIamUnusedPermissions().pipe(
+        catchError(() => {
+          this.error = this.i18n.t(
+            "admin.iamAnalyzerFailed",
+            "Analyzer failed.",
+          );
+          return of({ unusedPermissions: [] });
+        }),
+      ),
+    );
+  }
+}

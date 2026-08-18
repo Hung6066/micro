@@ -3,6 +3,7 @@ import tseslint from 'typescript-eslint';
 import angular from 'angular-eslint';
 
 export default tseslint.config(
+  { ignores: ['dist/**', 'storybook-static/**', 'out-tsc/**'] },
   {
     files: ['**/*.ts'],
     extends: [

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using His.Hope.Contracts;
 using His.Hope.Contracts.Identity;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
@@ -140,7 +141,7 @@ public static class DirectoryProvisioningEndpoints
             await db.SaveChangesAsync(ct);
             return Results.Accepted(IdentityApiRoutes.AdminProvisioningJob(id), new { entry.Id, status = "queued" });
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
-        group.MapPost("/reconcile/{target}", async (string target, UserManager<User> users, IdentityDbContext db, FacilityContext facilityContext, CancellationToken ct) =>
+        group.MapPost("/reconcile/{target}", async (string target, UserManager<User> users, IdentityDbContext db, FacilityContext facilityContext, HttpContext httpContext, ILoggerFactory loggerFactory, CancellationToken ct) =>
         {
             target = target.Trim().ToLowerInvariant();
             if (target is not ("scim" or "entra" or "google-workspace"))
@@ -154,7 +155,25 @@ public static class DirectoryProvisioningEndpoints
             }
             var sourceUsers = await sourceQuery.ToListAsync(ct);
             if (sourceUsers.Count > 10_000)
-                return Results.Problem("Reconciliation exceeds the single-run safety limit; use a paged job.", statusCode: StatusCodes.Status413PayloadTooLarge);
+            {
+                const string message = "Reconciliation exceeds the single-run safety limit; use a paged job.";
+                var correlationId = httpContext.Request.Headers["X-Correlation-Id"].FirstOrDefault()
+                    ?? httpContext.TraceIdentifier;
+                var error = new ApiErrorLogEntry(
+                    ApiErrorCodes.ReconciliationLimitExceeded,
+                    StatusCodes.Status413PayloadTooLarge,
+                    message,
+                    httpContext.Request.Method,
+                    httpContext.Request.Path,
+                    correlationId,
+                    httpContext.TraceIdentifier,
+                    $"SourceCount={sourceUsers.Count}; SafetyLimit=10000; Target={target}");
+                loggerFactory.CreateLogger("His.Hope.IdentityService.DirectoryProvisioning").LogWarning(
+                    "HTTP error {@Error}", error);
+                return Results.Problem(statusCode: StatusCodes.Status413PayloadTooLarge,
+                    title: "The reconciliation request is too large.",
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ReconciliationLimitExceeded });
+            }
             var existing = (await db.DirectoryProvisioningOutbox
                 .Where(item => item.Target == target && item.CompletedAt == null)
                 .Select(item => item.ResourceId).ToListAsync(ct)).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -200,8 +219,15 @@ public static class DirectoryProvisioningEndpoints
 
     private static object ToResponse(DirectoryProvisioningOutbox entry) => new
     {
-        entry.Id, entry.Target, entry.Operation, entry.ResourceType, entry.ResourceId,
-        entry.ExternalId, entry.CompletedAt, entry.Attempts, entry.LastError,
+        entry.Id,
+        entry.Target,
+        entry.Operation,
+        entry.ResourceType,
+        entry.ResourceId,
+        entry.ExternalId,
+        entry.CompletedAt,
+        entry.Attempts,
+        entry.LastError,
         status = entry.LastError == "dry_run_no_external_call" ? "dry-run" :
             entry.CompletedAt is not null ? "completed" :
             entry.LastError is not null ? "failed" : "queued"

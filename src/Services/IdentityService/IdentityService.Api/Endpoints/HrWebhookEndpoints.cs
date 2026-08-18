@@ -10,6 +10,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Primitives;
 using StackExchange.Redis;
+using His.Hope.Contracts;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -52,7 +53,8 @@ public static class HrWebhookEndpoints
             ct);
 
         if (!authResult.Succeeded)
-            return TypedResults.Problem(authResult.Detail, statusCode: authResult.StatusCode);
+            return TypedResults.Problem(statusCode: authResult.StatusCode,
+                extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ForStatus(authResult.StatusCode) });
 
         HrWebhookEvent? hrEvent;
         try
@@ -63,19 +65,19 @@ public static class HrWebhookEndpoints
         }
         catch (JsonException)
         {
-            return TypedResults.Problem("Invalid HR webhook JSON payload.", statusCode: 400);
+            return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidHrWebhookPayload });
         }
 
         if (hrEvent is null)
-            return TypedResults.Problem("Invalid HR webhook JSON payload.", statusCode: 400);
+            return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidHrWebhookPayload });
 
         if (string.IsNullOrWhiteSpace(hrEvent.EventType) || hrEvent.Employee is null)
-            return TypedResults.Problem("Invalid HR webhook event payload.", statusCode: 400);
+            return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidHrWebhookEvent });
 
         if (!string.IsNullOrWhiteSpace(hrEvent.EventId) &&
             !string.Equals(hrEvent.EventId, authResult.EventId, StringComparison.Ordinal))
         {
-            return TypedResults.Problem("HR webhook event id mismatch.", statusCode: 400);
+            return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.HrWebhookEventMismatch });
         }
 
         switch (hrEvent.EventType.ToLowerInvariant())
@@ -111,7 +113,7 @@ public static class HrWebhookEndpoints
                     hrEvent.Employee.EmployeeId ?? "", "User deactivation handled via SCIM PATCH"));
 
             default:
-                return TypedResults.Problem($"Unsupported event type: {hrEvent.EventType}", statusCode: 400);
+                return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedHrEventType });
         }
     }
 

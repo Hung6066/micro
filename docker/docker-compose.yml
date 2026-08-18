@@ -449,8 +449,12 @@ services:
       # configured. Identity derives the secret from this seed and never uses
       # it outside ASPNETCORE_ENVIRONMENT=Development.
       Vault__DevelopmentSecretSeed: ${IDENTITY_DEV_CLIENT_SECRET_SEED:-his-hope-local-only-m2m-seed}
-      PushProviders__FirebaseCredentialsFile: /run/secrets/firebase-account.json
-      PushProviders__FirebaseCredentialsJson: ""
+      # Firebase is optional in local compose. Do not bind-mount a missing host
+      # file: Docker creates it as a directory and the Identity container then
+      # fails before startup. Production can provide the JSON through a secret
+      # or set PushProviders__FirebaseCredentialsFile explicitly.
+      PushProviders__FirebaseCredentialsFile: ${FIREBASE_CREDENTIALS_FILE:-}
+      PushProviders__FirebaseCredentialsJson: ${FIREBASE_ACCOUNT_JSON:-}
       PushProviders__ApnsEndpoint: ${APNS_ENDPOINT:-https://api.push.apple.com}
       OpenIddict__Signing__PrivateKeyPath: ${OPENIDDICT_SIGNING_PRIVATE_KEY_PATH:-/etc/hishop/certs/jwt-private-key.pem}
       # Nested legacy JWTs used by session exchange must remain JWE encrypted.
@@ -538,7 +542,6 @@ services:
       Authentication__ExternalSources__0__ClientSecret: ${EXTERNAL_SOURCE_0_CLIENT_SECRET:-}
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
-      - ${FIREBASE_ACCOUNT_FILE:-../src/Services/IdentityService/IdentityService.Api/account.json}:/run/secrets/firebase-account.json:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -624,7 +627,6 @@ services:
       Vault__TransitMount: transit
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
-      - ${FIREBASE_ACCOUNT_FILE:-../src/Services/IdentityService/IdentityService.Api/account.json}:/run/secrets/firebase-account.json:ro
       - database_continuity_backups:/var/lib/his-hope/backups
       - postgres_wal_archive:/var/lib/his-hope/wal-archive:ro
     depends_on:

@@ -1,24 +1,53 @@
-import { DOCUMENT } from '@angular/common';
-import { ChangeDetectionStrategy, Component, EventEmitter, HostListener, Output, effect, inject, input } from '@angular/core';
-import { HisHopeTranslatePipe } from '../i18n/his-hope-translate.pipe';
+import { DOCUMENT } from "@angular/common";
+import {
+  ChangeDetectionStrategy,
+  Component,
+  EventEmitter,
+  HostListener,
+  Output,
+  effect,
+  inject,
+  input,
+} from "@angular/core";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
 @Component({
-  selector: 'hh-confirm-dialog',
+  selector: "hh-confirm-dialog",
   standalone: true,
   imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (open()) {
       <div class="hh-dialog-backdrop" role="presentation" (click)="cancel()">
-        <section [id]="dialogId" class="hh-dialog" role="alertdialog" aria-modal="true"
-                 [attr.aria-labelledby]="titleId" [attr.aria-describedby]="messageId"
-                 (click)="$event.stopPropagation()">
-          <div class="hh-dialog__icon material-icons" aria-hidden="true">warning_amber</div>
+        <section
+          [id]="dialogId"
+          class="hh-dialog"
+          role="alertdialog"
+          aria-modal="true"
+          [attr.aria-labelledby]="titleId"
+          [attr.aria-describedby]="messageId"
+          (click)="$event.stopPropagation()"
+        >
+          <div class="hh-dialog__icon material-icons" aria-hidden="true">
+            warning_amber
+          </div>
           <h2 [id]="titleId">{{ title() | hhTranslate }}</h2>
           <p [id]="messageId">{{ message() | hhTranslate }}</p>
           <div class="hh-dialog__actions">
-            <button type="button" class="hh-button hh-button--secondary" (click)="cancel()">{{ cancelLabel() | hhTranslate }}</button>
-            <button type="button" class="hh-button hh-button--danger" (click)="confirm()">{{ confirmLabel() | hhTranslate }}</button>
+            <button
+              type="button"
+              class="hh-button hh-button--secondary"
+              (click)="cancel()"
+            >
+              {{ cancelLabel() | hhTranslate }}
+            </button>
+            <button
+              type="button"
+              class="hh-button hh-button--danger"
+              (click)="confirm()"
+            >
+              {{ confirmLabel() | hhTranslate }}
+            </button>
           </div>
         </section>
       </div>
@@ -27,10 +56,10 @@ import { HisHopeTranslatePipe } from '../i18n/his-hope-translate.pipe';
 })
 export class HisHopeConfirmDialogComponent {
   readonly open = input(false);
-  readonly title = input('common.confirmAction');
-  readonly message = input('common.confirmContinue');
-  readonly confirmLabel = input('common.yes');
-  readonly cancelLabel = input('common.cancel');
+  readonly title = input("common.confirmAction");
+  readonly message = input("common.confirmContinue");
+  readonly confirmLabel = input("common.yes");
+  readonly cancelLabel = input("common.cancel");
   readonly titleId = `hh-dialog-title-${Math.random().toString(36).slice(2)}`;
   readonly messageId = `hh-dialog-message-${Math.random().toString(36).slice(2)}`;
   readonly dialogId = `hh-dialog-${Math.random().toString(36).slice(2)}`;
@@ -41,7 +70,8 @@ export class HisHopeConfirmDialogComponent {
   constructor() {
     effect(() => {
       if (this.open()) {
-        this.previouslyFocused = this.document.activeElement as HTMLElement | null;
+        this.previouslyFocused = this.document
+          .activeElement as HTMLElement | null;
         queueMicrotask(() => this.focusFirst());
       }
     });
@@ -60,16 +90,22 @@ export class HisHopeConfirmDialogComponent {
     this.restoreFocus();
   }
 
-  @HostListener('document:keydown.escape')
+  @HostListener("document:keydown.escape")
   onEscape(): void {
     if (this.open()) this.cancel();
   }
 
-  @HostListener('document:keydown', ['$event'])
+  @HostListener("document:keydown", ["$event"])
   onKeydown(event: KeyboardEvent): void {
-    if (!this.open() || event.key !== 'Tab') return;
+    if (!this.open() || event.key !== "Tab") return;
     const dialog = this.document.getElementById(this.dialogId);
-    const focusable = dialog ? Array.from(dialog.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')) : [];
+    const focusable = dialog
+      ? Array.from(
+          dialog.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          ),
+        )
+      : [];
     if (!focusable.length) return;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
@@ -83,7 +119,12 @@ export class HisHopeConfirmDialogComponent {
   }
 
   private focusFirst(): void {
-    this.document.getElementById(this.dialogId)?.querySelector<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus();
+    this.document
+      .getElementById(this.dialogId)
+      ?.querySelector<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      )
+      ?.focus();
   }
 
   private restoreFocus(): void {

@@ -1,6 +1,16 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@his-hope/frontend-foundation/auth": ["auth/src/public-api.ts"],
+      "@his-hope/frontend-foundation/contracts": ["src/contracts/public-api.ts"],
+      "@his-hope/frontend-foundation/domain": ["domain/src/index.ts"],
+      "@his-hope/frontend-foundation/forms": ["forms/src/index.ts"],
+      "@his-hope/frontend-foundation/i18n": ["i18n/src/public-api.ts"],
+      "@his-hope/frontend-foundation/query": ["query/src/public-api.ts"],
+      "@his-hope/frontend-foundation/ui": ["ui/src/public-api.ts"]
+    },
     "outDir": "./dist",
     "rootDir": "./src",
     "declaration": true,

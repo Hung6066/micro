@@ -1,4 +1,17 @@
-import { Component, OnInit, ChangeDetectionStrategy, inject, OnDestroy, ViewChild, ElementRef, AfterViewInit, ChangeDetectorRef } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  OnDestroy,
+  OnInit,
+  effect,
+  inject,
+  signal,
+  ViewChild,
+  ElementRef,
+  AfterViewInit,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
@@ -7,7 +20,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { BehaviorSubject, Subject, of, combineLatest } from 'rxjs';
-import { catchError, finalize, debounceTime, takeUntil } from 'rxjs/operators';
+import { catchError, debounceTime, takeUntil } from 'rxjs/operators';
 import { MetricsService } from '../../core/services/metrics.service';
 import { MetricsStreamService } from '../../core/services/metrics-stream.service';
 import { ResourceService } from '../../core/services/resource.service';
@@ -22,11 +35,33 @@ import {
   HisHopePageLayoutComponent,
   HisHopePageSectionComponent,
   HisHopeStateComponent,
+  HisHopeResourceState,
   HisHopeTranslatePipe,
 } from '@his-hope/frontend-foundation';
-import { Chart, LineController, LineElement, PointElement, LinearScale, TimeScale, CategoryScale, Tooltip, Legend, Filler } from 'chart.js';
+import {
+  Chart,
+  LineController,
+  LineElement,
+  PointElement,
+  LinearScale,
+  TimeScale,
+  CategoryScale,
+  Tooltip,
+  Legend,
+  Filler,
+} from 'chart.js';
 
-Chart.register(LineController, LineElement, PointElement, LinearScale, TimeScale, CategoryScale, Tooltip, Legend, Filler);
+Chart.register(
+  LineController,
+  LineElement,
+  PointElement,
+  LinearScale,
+  TimeScale,
+  CategoryScale,
+  Tooltip,
+  Legend,
+  Filler,
+);
 
 type MetricType = 'cpu' | 'memory' | 'requests' | 'errors';
 
@@ -41,8 +76,18 @@ interface MetricConfig {
 const METRIC_TYPES: MetricConfig[] = [
   { key: 'cpu', label: 'CPU', unit: '%', token: '--color-primary' },
   { key: 'memory', label: 'Memory', unit: 'MB', token: '--color-info' },
-  { key: 'requests', label: 'Requests', unit: 'req/s', token: '--color-warning' },
-  { key: 'errors', label: 'Errors', unit: 'errors/min', token: '--color-danger' },
+  {
+    key: 'requests',
+    label: 'Requests',
+    unit: 'req/s',
+    token: '--color-warning',
+  },
+  {
+    key: 'errors',
+    label: 'Errors',
+    unit: 'errors/min',
+    token: '--color-danger',
+  },
 ];
 
 const TIME_RANGES = [
@@ -54,7 +99,11 @@ const TIME_RANGES = [
 ];
 
 const SERVICE_TOKENS = [
-  '--color-primary', '--color-success', '--color-info', '--color-warning', '--color-danger',
+  '--color-primary',
+  '--color-success',
+  '--color-info',
+  '--color-warning',
+  '--color-danger',
 ];
 
 interface ChartDataset {
@@ -87,14 +136,26 @@ interface ChartDataset {
   ],
   template: `
     <hh-page-layout>
-      <hh-page-header hhPageHeader [title]="'dashboard.metrics.pageTitle' | hhTranslate:'System Metrics'"
-                      [subtitle]="'dashboard.metrics.pageSubtitle' | hhTranslate:'Real-time resource metrics across all services'">
+      <hh-page-header
+        hhPageHeader
+        [title]="'dashboard.metrics.pageTitle' | hhTranslate: 'System Metrics'"
+        [subtitle]="
+          'dashboard.metrics.pageSubtitle'
+            | hhTranslate: 'Real-time resource metrics across all services'
+        "
+      >
         @if (liveConnected) {
-          <span class="live-badge">● {{ 'dashboard.metrics.live' | hhTranslate:'LIVE' }}</span>
+          <span class="live-badge"
+            >● {{ 'dashboard.metrics.live' | hhTranslate: 'LIVE' }}</span
+          >
         }
-        <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
+        <button
+          mat-stroked-button
+          (click)="refresh()"
+          [disabled]="resource.loading()"
+        >
           <mat-icon>refresh</mat-icon>
-          {{ 'dashboard.metrics.refresh' | hhTranslate:'Refresh' }}
+          {{ 'dashboard.metrics.refresh' | hhTranslate: 'Refresh' }}
         </button>
       </hh-page-header>
 
@@ -104,9 +165,19 @@ interface ChartDataset {
       <!-- Controls -->
       <hh-filter-toolbar label="Metric filters">
         <!-- Service multi-select -->
-        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="services-field">
-          <mat-label>{{ 'dashboard.metrics.service' | hhTranslate:'Service' }}</mat-label>
-          <mat-select [(ngModel)]="selectedServices" multiple (selectionChange)="onServicesChange()">
+        <mat-form-field
+          appearance="outline"
+          subscriptSizing="dynamic"
+          class="services-field"
+        >
+          <mat-label>{{
+            'dashboard.metrics.service' | hhTranslate: 'Service'
+          }}</mat-label>
+          <mat-select
+            [(ngModel)]="selectedServices"
+            multiple
+            (selectionChange)="onServicesChange()"
+          >
             @for (svc of availableServices; track svc.name) {
               <mat-option [value]="svc.name">
                 {{ svc.displayName || svc.name }}
@@ -117,8 +188,13 @@ interface ChartDataset {
 
         <!-- Metric type selector -->
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>{{ 'dashboard.metrics.metricType' | hhTranslate:'Metric Type' }}</mat-label>
-          <mat-select [(ngModel)]="selectedMetricType" (selectionChange)="onMetricTypeChange()">
+          <mat-label>{{
+            'dashboard.metrics.metricType' | hhTranslate: 'Metric Type'
+          }}</mat-label>
+          <mat-select
+            [(ngModel)]="selectedMetricType"
+            (selectionChange)="onMetricTypeChange()"
+          >
             @for (mt of metricTypes; track mt.key) {
               <mat-option [value]="mt.key">
                 {{ mt.label }}
@@ -129,8 +205,13 @@ interface ChartDataset {
 
         <!-- Time range selector -->
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>{{ 'dashboard.metrics.timeRange' | hhTranslate:'Time Range' }}</mat-label>
-          <mat-select [(ngModel)]="selectedTimeRange" (selectionChange)="onTimeRangeChange()">
+          <mat-label>{{
+            'dashboard.metrics.timeRange' | hhTranslate: 'Time Range'
+          }}</mat-label>
+          <mat-select
+            [(ngModel)]="selectedTimeRange"
+            (selectionChange)="onTimeRangeChange()"
+          >
             @for (tr of timeRanges; track tr.value) {
               <mat-option [value]="tr.value">
                 {{ tr.label }}
@@ -141,7 +222,7 @@ interface ChartDataset {
 
         <button mat-raised-button color="primary" (click)="applyFilters()">
           <mat-icon>refresh</mat-icon>
-          {{ 'dashboard.metrics.apply' | hhTranslate:'Apply' }}
+          {{ 'dashboard.metrics.apply' | hhTranslate: 'Apply' }}
         </button>
       </hh-filter-toolbar>
 
@@ -149,37 +230,64 @@ interface ChartDataset {
       @if (selectedServices.length > 0) {
         <div class="service-chips">
           @for (svc of selectedServices; track svc) {
-            <span class="chip" [style.color]="serviceColor(svc)" [style.background]="serviceChipBg(svc)">
+            <span
+              class="chip"
+              [style.color]="serviceColor(svc)"
+              [style.background]="serviceChipBg(svc)"
+            >
               {{ svc }}
-              <mat-icon class="chip-remove" (click)="removeService(svc)">close</mat-icon>
+              <mat-icon class="chip-remove" (click)="removeService(svc)"
+                >close</mat-icon
+              >
             </span>
           }
         </div>
       } @else {
         <div class="service-chips empty-chips">
-          <span class="chip-hint">{{ 'dashboard.metrics.selectServiceHint' | hhTranslate:'Select at least one service to view metrics' }}</span>
+          <span class="chip-hint">{{
+            'dashboard.metrics.selectServiceHint'
+              | hhTranslate: 'Select at least one service to view metrics'
+          }}</span>
         </div>
       }
 
       <!-- Loading -->
-      @let loading = (loading$ | async) ?? false;
-      @let error = (error$ | async) ?? '';
+      @let loading = resource.loading();
+      @let error = resource.error() ? resource.errorMessage() : '';
 
       @if (loading) {
-        <hh-state kind="loading" [message]="'dashboard.metrics.loading' | hhTranslate:'Loading metrics...'" />
+        <hh-state
+          kind="loading"
+          [message]="
+            'dashboard.metrics.loading' | hhTranslate: 'Loading metrics...'
+          "
+        />
       }
 
       <!-- Error -->
       @if (error; as err) {
         <hh-state kind="error" icon="error_outline" [message]="err">
-          <button mat-raised-button color="primary" (click)="refresh()">{{ 'dashboard.metrics.retry' | hhTranslate:'Retry' }}</button>
+          <button mat-raised-button color="primary" (click)="refresh()">
+            {{ 'dashboard.metrics.retry' | hhTranslate: 'Retry' }}
+          </button>
         </hh-state>
       }
 
       <!-- Chart -->
       @if (hasData && !loading) {
-        <hh-page-section [title]="currentMetric.label"
-                         [subtitle]="('dashboard.metrics.timeRangeLabel' | hhTranslate:'Time range') + ': ' + getTimeRangeLabel() + ' — ' + selectedServices.length + ' ' + ('dashboard.metrics.servicesSelected' | hhTranslate:'services selected')">
+        <hh-page-section
+          [title]="currentMetric.label"
+          [subtitle]="
+            ('dashboard.metrics.timeRangeLabel' | hhTranslate: 'Time range') +
+            ': ' +
+            getTimeRangeLabel() +
+            ' — ' +
+            selectedServices.length +
+            ' ' +
+            ('dashboard.metrics.servicesSelected'
+              | hhTranslate: 'services selected')
+          "
+        >
           <div class="chart-wrapper">
             <canvas #chartCanvas></canvas>
           </div>
@@ -188,76 +296,90 @@ interface ChartDataset {
 
       <!-- Empty state -->
       @if (!hasData && !loading && !error) {
-        <hh-state kind="empty" icon="monitoring" [message]="'dashboard.metrics.emptyState' | hhTranslate:'Select services and metric to view chart'" />
+        <hh-state
+          kind="empty"
+          icon="monitoring"
+          [message]="
+            'dashboard.metrics.emptyState'
+              | hhTranslate: 'Select services and metric to view chart'
+          "
+        />
       }
     </hh-page-layout>
   `,
-  styles: [`
-    .live-badge {
-      font-size: 11px;
-      font-weight: var(--font-weight-semibold);
-      color: var(--color-success);
-      background: var(--surface-success);
-      padding: 2px 8px;
-      border-radius: var(--radius-badge);
-      letter-spacing: 0.04em;
-      animation: live-pulse 2s ease-in-out infinite;
-    }
-    @keyframes live-pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.6; }
-    }
+  styles: [
+    `
+      .live-badge {
+        font-size: 11px;
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-success);
+        background: var(--surface-success);
+        padding: 2px 8px;
+        border-radius: var(--radius-badge);
+        letter-spacing: 0.04em;
+        animation: live-pulse 2s ease-in-out infinite;
+      }
+      @keyframes live-pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.6;
+        }
+      }
 
-    .services-field {
-      min-width: 220px;
-      flex: 1.5;
-    }
+      .services-field {
+        min-width: 220px;
+        flex: 1.5;
+      }
 
-    .service-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 2px 8px 2px 10px;
-      border-radius: var(--radius-badge);
-      font-size: 12px;
-      font-weight: var(--font-weight-medium);
-    }
-    .chip-remove {
-      font-size: 14px;
-      width: 14px;
-      height: 14px;
-      cursor: pointer;
-      opacity: 0.6;
-    }
-    .chip-remove:hover {
-      opacity: 1;
-    }
-    .empty-chips {
-      margin-top: 4px;
-    }
-    .chip-hint {
-      font-size: 12px;
-      color: var(--text-muted);
-      font-style: italic;
-    }
+      .service-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px 2px 10px;
+        border-radius: var(--radius-badge);
+        font-size: 12px;
+        font-weight: var(--font-weight-medium);
+      }
+      .chip-remove {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+        cursor: pointer;
+        opacity: 0.6;
+      }
+      .chip-remove:hover {
+        opacity: 1;
+      }
+      .empty-chips {
+        margin-top: 4px;
+      }
+      .chip-hint {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-style: italic;
+      }
 
-    .chart-wrapper {
-      position: relative;
-      width: 100%;
-      min-height: 350px;
-      margin-top: 8px;
-    }
-    .chart-wrapper canvas {
-      width: 100% !important;
-      height: 100% !important;
-      max-height: 400px;
-    }
-  `],
+      .chart-wrapper {
+        position: relative;
+        width: 100%;
+        min-height: 350px;
+        margin-top: 8px;
+      }
+      .chart-wrapper canvas {
+        width: 100% !important;
+        height: 100% !important;
+        max-height: 400px;
+      }
+    `,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
@@ -276,8 +398,11 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
 
   private readonly refreshTrigger = new BehaviorSubject<void>(undefined);
 
-  readonly loading$ = new BehaviorSubject<boolean>(false);
-  readonly error$ = new BehaviorSubject<string | null>(null);
+  private readonly destroyRef = inject(DestroyRef);
+
+  readonly resource = new HisHopeResourceState<MetricSnapshot[][]>(
+    this.destroyRef,
+  );
 
   selectedServices: string[] = [];
   // Request metrics are emitted by every instrumented service in the
@@ -291,23 +416,31 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
   timeRanges = TIME_RANGES;
   hasData = false;
 
-  currentMetric = METRIC_TYPES.find(m => m.key === 'requests') ?? METRIC_TYPES[0];
+  currentMetric =
+    METRIC_TYPES.find((m) => m.key === 'requests') ?? METRIC_TYPES[0];
 
   private chart: Chart | null = null;
 
-  private readonly query$ = this.refreshTrigger.pipe(
-    debounceTime(100),
-  );
+  constructor() {
+    effect(() => {
+      const results = this.resource.data();
+      if (results) this.renderChart(results);
+    });
+  }
+
+  private readonly query$ = this.refreshTrigger.pipe(debounceTime(100));
 
   ngOnInit(): void {
-    this.currentMetric = METRIC_TYPES.find(m => m.key === this.selectedMetricType) ?? METRIC_TYPES[0];
+    this.currentMetric =
+      METRIC_TYPES.find((m) => m.key === this.selectedMetricType) ??
+      METRIC_TYPES[0];
 
     // Connect to real-time metrics stream
     this.metricsStream.connect().then(() => {
       this.liveConnected = true;
       this.cdr.markForCheck();
       // Subscribe to all available services
-      const svcNames = this.availableServices.map(s => s.name);
+      const svcNames = this.availableServices.map((s) => s.name);
       if (svcNames.length > 0) {
         this.metricsStream.subscribeMany(svcNames);
       }
@@ -322,21 +455,24 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
       });
 
     // Load services from ResourceService
-    this.resourceService.getAll().pipe(
-      catchError(() => of([] as Resource[])),
-      takeUntil(this.destroy$),
-    ).subscribe(resources => {
-      this.availableServices = resources.filter(
-        r => r.type?.toLowerCase() === 'service'
-      );
-      // Pre-select service from query param (Resource card quick-link)
-      const svc = this.route.snapshot.queryParamMap.get('service');
-      if (svc && !this.selectedServices.includes(svc)) {
-        this.selectedServices = [svc];
-        this.applyFilters();
-      }
-      this.cdr.markForCheck();
-    });
+    this.resourceService
+      .getAll()
+      .pipe(
+        catchError(() => of([] as Resource[])),
+        takeUntil(this.destroy$),
+      )
+      .subscribe((resources) => {
+        this.availableServices = resources.filter(
+          (r) => r.type?.toLowerCase() === 'service',
+        );
+        // Pre-select service from query param (Resource card quick-link)
+        const svc = this.route.snapshot.queryParamMap.get('service');
+        if (svc && !this.selectedServices.includes(svc)) {
+          this.selectedServices = [svc];
+          this.applyFilters();
+        }
+        this.cdr.markForCheck();
+      });
   }
 
   ngAfterViewInit(): void {
@@ -355,7 +491,7 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
   private serviceToken(service: string): string {
     let hash = 0;
     for (let i = 0; i < service.length; i++) {
-      hash = ((hash << 5) - hash) + service.charCodeAt(i);
+      hash = (hash << 5) - hash + service.charCodeAt(i);
       hash |= 0;
     }
     return SERVICE_TOKENS[Math.abs(hash) % SERVICE_TOKENS.length];
@@ -371,7 +507,10 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   getTimeRangeLabel(): string {
-    return TIME_RANGES.find(r => r.value === this.selectedTimeRange)?.label ?? this.selectedTimeRange;
+    return (
+      TIME_RANGES.find((r) => r.value === this.selectedTimeRange)?.label ??
+      this.selectedTimeRange
+    );
   }
 
   onServicesChange(): void {
@@ -381,7 +520,9 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   onMetricTypeChange(): void {
-    this.currentMetric = METRIC_TYPES.find(m => m.key === this.selectedMetricType) ?? METRIC_TYPES[0];
+    this.currentMetric =
+      METRIC_TYPES.find((m) => m.key === this.selectedMetricType) ??
+      METRIC_TYPES[0];
     if (this.selectedServices.length > 0) {
       this.applyFilters();
     }
@@ -394,7 +535,7 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   removeService(service: string): void {
-    this.selectedServices = this.selectedServices.filter(s => s !== service);
+    this.selectedServices = this.selectedServices.filter((s) => s !== service);
     if (this.selectedServices.length > 0) {
       this.applyFilters();
     } else {
@@ -409,7 +550,6 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   refresh(): void {
-    this.error$.next(null);
     if (this.selectedServices.length > 0) {
       this.refreshTrigger.next();
     }
@@ -418,23 +558,15 @@ export class MetricsPageComponent implements OnInit, OnDestroy, AfterViewInit {
   private loadChartData(): void {
     if (this.selectedServices.length === 0) return;
 
-    this.loading$.next(true);
-    this.error$.next(null);
-
     const metricKey = this.selectedMetricType;
-    const requests = this.selectedServices.map(service =>
-      this.metricsService.getServiceMetrics(service, [metricKey], this.selectedTimeRange).pipe(
-        catchError(() => of([] as MetricSnapshot[])),
-      )
+    const requests = this.selectedServices.map((service) =>
+      this.metricsService
+        .getServiceMetrics(service, [metricKey], this.selectedTimeRange)
+        .pipe(catchError(() => of([] as MetricSnapshot[]))),
     );
 
     // Use combineLatest to load all services in parallel
-    combineLatest(requests).pipe(
-      finalize(() => this.loading$.next(false)),
-      takeUntil(this.destroy$),
-    ).subscribe(results => {
-      this.renderChart(results);
-    });
+    this.resource.load(combineLatest(requests).pipe(takeUntil(this.destroy$)));
   }
 
   private renderChart(allMetrics: MetricSnapshot[][]): void {

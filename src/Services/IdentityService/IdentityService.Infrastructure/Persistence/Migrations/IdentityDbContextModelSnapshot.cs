@@ -501,6 +501,14 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("provider");
 
+                    b.Property<string>("ScopeId")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("global")
+                        .HasColumnName("scope_id");
+
                     b.Property<string>("SignalsJson")
                         .IsRequired()
                         .HasMaxLength(4000)
@@ -514,9 +522,9 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.HasKey("Id")
                         .HasName("pk_device_posture_assessments");
 
-                    b.HasIndex("Provider", "EvidenceHash")
+                    b.HasIndex("ScopeId", "Provider", "EvidenceHash")
                         .IsUnique()
-                        .HasDatabaseName("ix_device_posture_assessments_provider_evidence_hash");
+                        .HasDatabaseName("ix_device_posture_assessments_scope_id_provider_evidence_hash");
 
                     b.HasIndex("UserId", "DeviceId", "ExpiresAt")
                         .HasDatabaseName("ix_device_posture_assessments_user_id_device_id_expires_at");
@@ -552,6 +560,14 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("required_signals_json");
+
+                    b.Property<string>("ScopeId")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("global")
+                        .HasColumnName("scope_id");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -660,6 +676,14 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("last_error");
 
+                    b.Property<Guid?>("LeaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_id");
+
+                    b.Property<DateTime?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until");
+
                     b.Property<string>("Operation")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -692,6 +716,9 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_directory_provisioning_outbox");
+
+                    b.HasIndex("CompletedAt", "LeaseUntil", "AvailableAt")
+                        .HasDatabaseName("ix_directory_provisioning_outbox_completed_at_lease_until_avai");
 
                     b.HasIndex("Target", "CompletedAt", "AvailableAt")
                         .HasDatabaseName("ix_directory_provisioning_outbox_target_completed_at_available");
@@ -1233,6 +1260,13 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.LocalizationResource", b =>
                 {
+                    b.Property<string>("ScopeId")
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("global")
+                        .HasColumnName("scope_id");
+
                     b.Property<string>("Key")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
@@ -1243,7 +1277,7 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(500)")
                         .HasColumnName("description");
 
-                    b.HasKey("Key")
+                    b.HasKey("ScopeId", "Key")
                         .HasName("pk_localization_resources");
 
                     b.ToTable("localization_resources", (string)null);
@@ -1251,871 +1285,1045 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.HasData(
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.nav.home",
                             Description = "Mobile admin navigation: home"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.nav.clients",
                             Description = "Mobile admin navigation: clients"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.nav.users",
                             Description = "Mobile admin navigation: users"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.nav.roles",
                             Description = "Mobile admin navigation: roles"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.nav.consents",
                             Description = "Mobile admin navigation: consents"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.nav.settings",
                             Description = "Mobile admin navigation: settings"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.brand.identityAdministration",
                             Description = "Mobile admin identity service label"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.auth.signIn",
                             Description = "Mobile admin sign in action"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.auth.signOut",
                             Description = "Mobile admin sign out action"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.common.search",
                             Description = "Common search action"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.common.refresh",
                             Description = "Common refresh action"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.common.retry",
                             Description = "Common retry action"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.common.save",
                             Description = "Common save action"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.common.cancel",
                             Description = "Common cancel action"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.common.delete",
                             Description = "Common delete action"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.common.loading",
                             Description = "Common loading state"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.common.empty",
                             Description = "Common empty state"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.common.error",
                             Description = "Common error state"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.common.noPermission",
                             Description = "Common access denied state"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.mfa.title",
                             Description = "MFA security screen title"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.mfa.createPasskey",
                             Description = "Passkey registration action"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.mfa.verify",
                             Description = "MFA verification action"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.mfa.passkeyRegistrationFailed",
                             Description = "Passkey registration error"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.mfa.setupFailed",
                             Description = "MFA setup error"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.mfa.alreadyEnabled",
                             Description = "MFA enabled status"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.providers.ldap",
                             Description = "LDAP directory provider"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "mobile.providers.saml",
                             Description = "SAML identity provider"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.title",
                             Description = "Dashboard shell: app title"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.toggleNav",
                             Description = "Dashboard shell: toggle navigation"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.openPalette",
                             Description = "Dashboard shell: open command palette"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.toggleTheme",
                             Description = "Dashboard shell: toggle dark mode"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.userMenu",
                             Description = "Dashboard shell: user menu"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.logout",
                             Description = "Dashboard shell: logout"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.login",
                             Description = "Dashboard shell: login"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.workspace",
                             Description = "Dashboard shell: workspace caption"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.resources",
                             Description = "Dashboard shell: resources nav"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.logs",
                             Description = "Dashboard shell: logs nav"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.traces",
                             Description = "Dashboard shell: traces nav"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.slo",
                             Description = "Dashboard shell: SLO nav"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.metrics",
                             Description = "Dashboard shell: metrics nav"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.openResources",
                             Description = "Dashboard shell: cmd palette resources"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.openLogs",
                             Description = "Dashboard shell: cmd palette logs"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.dashboard.openTraces",
                             Description = "Dashboard shell: cmd palette traces"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.title",
                             Description = "Dashboard: system resources title"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.loading",
                             Description = "Dashboard: loading resources"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.retry",
                             Description = "Dashboard: retry"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.refreshing",
                             Description = "Dashboard: refreshing"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.noResources",
                             Description = "Dashboard: no resources found"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.cards",
                             Description = "Dashboard: cards view"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.graph",
                             Description = "Dashboard: graph view"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.refresh",
                             Description = "Dashboard: refresh"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.basicInfo",
                             Description = "Dashboard: basic info"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.name",
                             Description = "Dashboard: name"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.version",
                             Description = "Dashboard: version"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.status",
                             Description = "Dashboard: status"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.health",
                             Description = "Dashboard: health"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.healthChecks",
                             Description = "Dashboard: health checks"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.envVars",
                             Description = "Dashboard: environment variables"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.operations",
                             Description = "Dashboard: operations info"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.replicas",
                             Description = "Dashboard: replicas"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.close",
                             Description = "Dashboard: close"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.resources.endpoints",
                             Description = "Dashboard: endpoints"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.dependencyGraph.title",
                             Description = "Dashboard: dependency graph"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.dependencyGraph.healthy",
                             Description = "Dashboard: healthy"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.dependencyGraph.degraded",
                             Description = "Dashboard: degraded"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.healthTimeline.title",
                             Description = "Dashboard: health timeline"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.healthTimeline.incidents",
                             Description = "Dashboard: incident count"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.healthTimeline.allHealthy",
                             Description = "Dashboard: all healthy"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.healthTimeline.waiting",
                             Description = "Dashboard: waiting for data"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.healthTimeline.healthy",
                             Description = "Dashboard: healthy"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.healthTimeline.degraded",
                             Description = "Dashboard: degraded"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.healthTimeline.down",
                             Description = "Dashboard: down"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.healthTimeline.unknown",
                             Description = "Dashboard: unknown"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.healthTimeline.incident",
                             Description = "Dashboard: incident"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.healthTimeline.started",
                             Description = "Dashboard: started"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.healthTimeline.duration",
                             Description = "Dashboard: duration"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.pageTitle",
                             Description = "Dashboard logs: page title"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.refresh",
                             Description = "Dashboard logs: refresh"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.clearFilters",
                             Description = "Dashboard logs: clear filters"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.tabSearch",
                             Description = "Dashboard logs: search tab"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.tabStream",
                             Description = "Dashboard logs: stream tab"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.timeRange",
                             Description = "Dashboard logs: time range"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.service",
                             Description = "Dashboard logs: service"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.allServices",
                             Description = "Dashboard logs: all services"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.fullTextSearch",
                             Description = "Dashboard logs: full text search"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.searchPlaceholder",
                             Description = "Dashboard logs: search placeholder"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.level",
                             Description = "Dashboard logs: level"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.searchBtn",
                             Description = "Dashboard logs: search button"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.loading",
                             Description = "Dashboard logs: loading"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.noLogs",
                             Description = "Dashboard logs: no logs"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.loadMore",
                             Description = "Dashboard logs: load more"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.retry",
                             Description = "Dashboard logs: retry"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.time",
                             Description = "Dashboard logs: time column"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.message",
                             Description = "Dashboard logs: message"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.traceId",
                             Description = "Dashboard logs: trace ID"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.spanId",
                             Description = "Dashboard logs: span ID"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.exception",
                             Description = "Dashboard logs: exception"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.properties",
                             Description = "Dashboard logs: properties"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logs.results",
                             Description = "Dashboard logs: results"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logStream.following",
                             Description = "Dashboard stream: following"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logStream.realTime",
                             Description = "Dashboard stream: real-time"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logStream.newRecords",
                             Description = "Dashboard stream: new records"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logStream.streaming",
                             Description = "Dashboard stream: streaming"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logStream.disconnected",
                             Description = "Dashboard stream: disconnected"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logStream.entries",
                             Description = "Dashboard stream: entries"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logStream.pause",
                             Description = "Dashboard stream: pause"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logStream.start",
                             Description = "Dashboard stream: start"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logStream.clear",
                             Description = "Dashboard stream: clear"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logStream.autoScrollOn",
                             Description = "Dashboard stream: auto scroll on"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logStream.scrollToBottom",
                             Description = "Dashboard stream: scroll to bottom"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.logStream.clickStartToBegin",
                             Description = "Dashboard stream: click start"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metrics.pageTitle",
                             Description = "Dashboard metrics: page title"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metrics.live",
                             Description = "Dashboard metrics: live"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metrics.refresh",
                             Description = "Dashboard metrics: refresh"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metrics.service",
                             Description = "Dashboard metrics: service"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metrics.metricType",
                             Description = "Dashboard metrics: metric type"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metrics.timeRange",
                             Description = "Dashboard metrics: time range"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metrics.apply",
                             Description = "Dashboard metrics: apply"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metrics.selectServiceHint",
                             Description = "Dashboard metrics: select service"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metrics.loading",
                             Description = "Dashboard metrics: loading"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metrics.retry",
                             Description = "Dashboard metrics: retry"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metrics.timeRangeLabel",
                             Description = "Dashboard metrics: time range"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metrics.servicesSelected",
                             Description = "Dashboard metrics: services selected"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metrics.emptyState",
                             Description = "Dashboard metrics: empty state"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metricsOverview.running",
                             Description = "Dashboard metrics: running"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metricsOverview.stopped",
                             Description = "Dashboard metrics: stopped"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metricsOverview.degraded",
                             Description = "Dashboard metrics: degraded"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.metricsOverview.totalServices",
                             Description = "Dashboard metrics: total services"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.slo.pageTitle",
                             Description = "Dashboard SLO: page title"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.slo.refresh",
                             Description = "Dashboard SLO: refresh"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.slo.loading",
                             Description = "Dashboard SLO: loading"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.slo.retry",
                             Description = "Dashboard SLO: retry"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.slo.availability",
                             Description = "Dashboard SLO: availability"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.slo.errorBudget",
                             Description = "Dashboard SLO: error budget"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.slo.burn1h",
                             Description = "Dashboard SLO: burn rate 1h"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.slo.burn6h",
                             Description = "Dashboard SLO: burn rate 6h"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.slo.p99Latency",
                             Description = "Dashboard SLO: p99 latency"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.slo.latencyTrend",
                             Description = "Dashboard SLO: latency trend"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.slo.last24h",
                             Description = "Dashboard SLO: last 24h"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.slo.emptyState",
                             Description = "Dashboard SLO: empty state"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.title",
                             Description = "Dashboard traces: page title"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.refresh",
                             Description = "Dashboard traces: refresh"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.loading",
                             Description = "Dashboard traces: loading"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.retry",
                             Description = "Dashboard traces: retry"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.emptyState",
                             Description = "Dashboard traces: empty state"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.traceId",
                             Description = "Dashboard traces: trace ID"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.service",
                             Description = "Dashboard traces: service"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.operation",
                             Description = "Dashboard traces: operation"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.duration",
                             Description = "Dashboard traces: duration"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.spans",
                             Description = "Dashboard traces: spans"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.startTime",
                             Description = "Dashboard traces: start time"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.viewDetail",
                             Description = "Dashboard traces: view detail"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.detailTitle",
                             Description = "Dashboard traces: detail title"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.spanId",
                             Description = "Dashboard traces: span ID"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.parentSpanId",
                             Description = "Dashboard traces: parent"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.tags",
                             Description = "Dashboard traces: tags"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.logs",
                             Description = "Dashboard traces: logs"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.traces.back",
                             Description = "Dashboard traces: back"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.alerts.critical",
                             Description = "Dashboard alerts: critical"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.alerts.warning",
                             Description = "Dashboard alerts: warning"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.alerts.info",
                             Description = "Dashboard alerts: info"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.alerts.systemAlerts",
                             Description = "Dashboard alerts: system alerts"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.alerts.noAlerts",
                             Description = "Dashboard alerts: no alerts"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.alerts.criticalAlert",
                             Description = "Dashboard alerts: critical alert"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.alerts.view",
                             Description = "Dashboard alerts: view"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.time.minutesAgo",
                             Description = "Dashboard time: minutes ago"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.time.hoursAgo",
                             Description = "Dashboard time: hours ago"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.time.daysAgo",
                             Description = "Dashboard time: days ago"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.time.ago",
                             Description = "Dashboard time: ago"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "dashboard.auth.completingSignIn",
                             Description = "Dashboard auth: completing sign in"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.hishope.title",
                             Description = "His-Hope shell: app title"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.navigation.openMenu",
                             Description = "His-Hope shell: open menu"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.navigation.changed",
                             Description = "His-Hope shell: navigation changed"
                         },
                         new
                         {
+                            ScopeId = "global",
                             Key = "app.theme.toggle",
                             Description = "His-Hope shell: toggle theme"
                         });
@@ -2123,6 +2331,13 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.LocalizationTranslation", b =>
                 {
+                    b.Property<string>("ScopeId")
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("global")
+                        .HasColumnName("scope_id");
+
                     b.Property<string>("ResourceKey")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
@@ -2139,7 +2354,7 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(4000)")
                         .HasColumnName("value");
 
-                    b.HasKey("ResourceKey", "Locale")
+                    b.HasKey("ScopeId", "ResourceKey", "Locale")
                         .HasName("pk_localization_translations");
 
                     b.HasIndex("Locale")
@@ -2150,324 +2365,378 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.HasData(
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.nav.home",
                             Locale = "vi-VN",
                             Value = "Trang chủ"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.nav.home",
                             Locale = "en-US",
                             Value = "Home"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.nav.clients",
                             Locale = "vi-VN",
                             Value = "Ứng dụng"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.nav.clients",
                             Locale = "en-US",
                             Value = "Clients"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.nav.users",
                             Locale = "vi-VN",
                             Value = "Người dùng"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.nav.users",
                             Locale = "en-US",
                             Value = "Users"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.nav.roles",
                             Locale = "vi-VN",
                             Value = "Vai trò"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.nav.roles",
                             Locale = "en-US",
                             Value = "Roles"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.nav.consents",
                             Locale = "vi-VN",
                             Value = "Chấp thuận"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.nav.consents",
                             Locale = "en-US",
                             Value = "Consents"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.nav.settings",
                             Locale = "vi-VN",
                             Value = "Cài đặt"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.nav.settings",
                             Locale = "en-US",
                             Value = "Settings"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.brand.identityAdministration",
                             Locale = "vi-VN",
                             Value = "QUẢN TRỊ DANH TÍNH"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.brand.identityAdministration",
                             Locale = "en-US",
                             Value = "IDENTITY ADMINISTRATION"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.auth.signIn",
                             Locale = "vi-VN",
                             Value = "Đăng nhập"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.auth.signIn",
                             Locale = "en-US",
                             Value = "Sign in"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.auth.signOut",
                             Locale = "vi-VN",
                             Value = "Đăng xuất"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.auth.signOut",
                             Locale = "en-US",
                             Value = "Sign out"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.search",
                             Locale = "vi-VN",
                             Value = "Tìm kiếm"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.search",
                             Locale = "en-US",
                             Value = "Search"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.refresh",
                             Locale = "vi-VN",
                             Value = "Làm mới"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.refresh",
                             Locale = "en-US",
                             Value = "Refresh"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.retry",
                             Locale = "vi-VN",
                             Value = "Thử lại"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.retry",
                             Locale = "en-US",
                             Value = "Retry"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.save",
                             Locale = "vi-VN",
                             Value = "Lưu"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.save",
                             Locale = "en-US",
                             Value = "Save"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.cancel",
                             Locale = "vi-VN",
                             Value = "Hủy"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.cancel",
                             Locale = "en-US",
                             Value = "Cancel"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.delete",
                             Locale = "vi-VN",
                             Value = "Xóa"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.delete",
                             Locale = "en-US",
                             Value = "Delete"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.loading",
                             Locale = "vi-VN",
                             Value = "Đang tải..."
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.loading",
                             Locale = "en-US",
                             Value = "Loading..."
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.empty",
                             Locale = "vi-VN",
                             Value = "Chưa có dữ liệu"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.empty",
                             Locale = "en-US",
                             Value = "No data available"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.error",
                             Locale = "vi-VN",
                             Value = "Đã xảy ra lỗi"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.error",
                             Locale = "en-US",
                             Value = "Something went wrong"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.noPermission",
                             Locale = "vi-VN",
                             Value = "Không có quyền truy cập"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.common.noPermission",
                             Locale = "en-US",
                             Value = "Access denied"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.mfa.title",
                             Locale = "vi-VN",
                             Value = "Bảo mật MFA"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.mfa.title",
                             Locale = "en-US",
                             Value = "MFA security"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.mfa.createPasskey",
                             Locale = "vi-VN",
                             Value = "Tạo passkey"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.mfa.createPasskey",
                             Locale = "en-US",
                             Value = "Create passkey"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.mfa.verify",
                             Locale = "vi-VN",
                             Value = "Xác minh"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.mfa.verify",
                             Locale = "en-US",
                             Value = "Verify"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.mfa.passkeyRegistrationFailed",
                             Locale = "vi-VN",
                             Value = "Đăng ký passkey thất bại"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.mfa.passkeyRegistrationFailed",
                             Locale = "en-US",
                             Value = "Passkey registration failed"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.mfa.setupFailed",
                             Locale = "vi-VN",
                             Value = "Không thể bắt đầu thiết lập MFA"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.mfa.setupFailed",
                             Locale = "en-US",
                             Value = "Unable to start MFA setup"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.mfa.alreadyEnabled",
                             Locale = "vi-VN",
                             Value = "MFA đã được bật"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.mfa.alreadyEnabled",
                             Locale = "en-US",
                             Value = "MFA is already enabled"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.providers.ldap",
                             Locale = "vi-VN",
                             Value = "LDAP/AD"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.providers.ldap",
                             Locale = "en-US",
                             Value = "LDAP/AD"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.providers.saml",
                             Locale = "vi-VN",
                             Value = "Đăng nhập SSO SAML"
                         },
                         new
                         {
+                            ScopeId = "global",
                             ResourceKey = "mobile.providers.saml",
                             Locale = "en-US",
                             Value = "SAML SSO"
@@ -3119,6 +3388,14 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("last_error");
 
+                    b.Property<Guid?>("LeaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_id");
+
+                    b.Property<DateTime?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until");
+
                     b.Property<string>("PayloadJson")
                         .IsRequired()
                         .HasMaxLength(16000)
@@ -3137,11 +3414,21 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                     b.HasIndex("DispatchedAt", "AvailableAt")
                         .HasDatabaseName("ix_security_signal_outbox_dispatched_at_available_at");
 
+                    b.HasIndex("DispatchedAt", "LeaseUntil", "AvailableAt")
+                        .HasDatabaseName("ix_security_signal_outbox_dispatched_at_lease_until_available_");
+
                     b.ToTable("security_signal_outbox", (string)null);
                 });
 
             modelBuilder.Entity("His.Hope.IdentityService.Domain.Entities.SystemSetting", b =>
                 {
+                    b.Property<string>("ScopeId")
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasDefaultValue("global")
+                        .HasColumnName("scope_id");
+
                     b.Property<string>("Key")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
@@ -3172,7 +3459,7 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                         .HasColumnType("character varying(2000)")
                         .HasColumnName("value");
 
-                    b.HasKey("Key")
+                    b.HasKey("ScopeId", "Key")
                         .HasName("pk_system_settings");
 
                     b.HasIndex("Category")
@@ -3990,10 +4277,10 @@ namespace His.Hope.IdentityService.Infrastructure.Migrations
                 {
                     b.HasOne("His.Hope.IdentityService.Domain.Entities.LocalizationResource", "Resource")
                         .WithMany("Translations")
-                        .HasForeignKey("ResourceKey")
+                        .HasForeignKey("ScopeId", "ResourceKey")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("fk_localization_translations_localization_resources_resource_k");
+                        .HasConstraintName("fk_localization_translations_localization_resources_scope_id_r");
 
                     b.Navigation("Resource");
                 });

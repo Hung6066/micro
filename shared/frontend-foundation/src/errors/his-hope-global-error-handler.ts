@@ -1,6 +1,6 @@
 import { ErrorHandler, Injectable, inject } from "@angular/core";
 import { HisHopeErrorReportingService } from "../http/his-hope-error-reporting.service";
-import { HisHopeToastService } from "../ui/his-hope-toast.service";
+import { HisHopeToastService } from "@his-hope/frontend-foundation/ui";
 
 /** Catches otherwise-uncaught errors (template/render errors, rejected
  *  promises Angular surfaces, RxJS subscriptions without an error handler)

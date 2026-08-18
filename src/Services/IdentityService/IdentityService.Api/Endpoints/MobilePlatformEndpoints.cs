@@ -12,6 +12,7 @@ using His.Hope.IdentityService.Infrastructure.Persistence;
 using StackExchange.Redis;
 using His.Hope.IdentityService.Api.Services;
 using His.Hope.Contracts.Identity;
+using His.Hope.Contracts;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -40,9 +41,9 @@ public static class MobilePlatformEndpoints
             CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(request.Token) || request.Token.Length > 4096)
-                return Results.BadRequest(new ProblemDetails { Title = "Invalid push token", Status = 400 });
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidPushToken });
             if (request.Platform is not ("android" or "ios"))
-                return Results.BadRequest(new ProblemDetails { Title = "Unsupported platform", Status = 400 });
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedMobilePlatform });
 
             var userId = GetUserId(context);
             if (string.IsNullOrWhiteSpace(userId)) return Results.Unauthorized();
@@ -140,7 +141,7 @@ public static class MobilePlatformEndpoints
         mobile.MapPost("/crash-reports", async (MobileCrashReport report, HttpContext context, IdentityDbContext db, ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(report.Message) || report.Message.Length > 2000)
-                return Results.BadRequest(new ProblemDetails { Title = "Invalid crash report", Status = 400 });
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidCrashReport });
             Activity.Current?.SetTag("mobile.telemetry.type", "crash");
             Activity.Current?.SetTag("mobile.app.version", report.AppVersion[..Math.Min(report.AppVersion.Length, 50)]);
             Activity.Current?.SetTag("mobile.platform", report.Platform[..Math.Min(report.Platform.Length, 20)]);
@@ -166,7 +167,7 @@ public static class MobilePlatformEndpoints
         mobile.MapPost("/rum", async (MobileRumEvent rum, HttpContext context, IdentityDbContext db, ILoggerFactory loggerFactory, CancellationToken cancellationToken) =>
         {
             if (string.IsNullOrWhiteSpace(rum.Name) || rum.Name.Length > 120)
-                return Results.BadRequest(new ProblemDetails { Title = "Invalid RUM event", Status = 400 });
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidRumEvent });
             Activity.Current?.SetTag("mobile.telemetry.type", "rum");
             Activity.Current?.SetTag("mobile.rum.name", rum.Name);
             Activity.Current?.SetTag("mobile.rum.duration_ms", rum.DurationMs);
@@ -201,16 +202,16 @@ public static class MobilePlatformEndpoints
             if (string.IsNullOrWhiteSpace(envelope.IdempotencyKey) || envelope.IdempotencyKey.Length > 128 ||
                 string.IsNullOrWhiteSpace(envelope.Operation) || envelope.Operation.Length > 120 ||
                 envelope.Payload.Count > 100 || JsonSerializer.Serialize(envelope.Payload).Length > 100_000)
-                return Results.BadRequest(new ProblemDetails { Title = "Invalid sync envelope", Status = 400 });
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidSyncEnvelope });
             if (envelope.SchemaVersion is not (null or 1) ||
                 envelope.ConflictPolicy is not (null or "reject_on_stale" or "last_write_wins"))
-                return Results.BadRequest(new ProblemDetails { Title = "Unsupported sync contract", Status = 400 });
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedSyncContract });
             if (envelope.EntityType?.StartsWith("patient", StringComparison.OrdinalIgnoreCase) == true &&
                 !string.Equals(envelope.ConflictPolicy, "reject_on_stale", StringComparison.Ordinal))
-                return Results.Conflict(new ProblemDetails { Title = "Patient offline writes require reject_on_stale", Status = 409 });
+                return Results.Conflict(new { errorCode = "patient_sync_requires_reject_on_stale" });
             if (envelope.EntityType?.StartsWith("patient", StringComparison.OrdinalIgnoreCase) == true &&
                 !configuration.GetValue("Mobile:Offline:PatientDataEnabled", false))
-                return Results.Conflict(new ProblemDetails { Title = "Offline patient data is disabled by policy", Status = 409 });
+                return Results.Conflict(new { errorCode = "offline_patient_data_disabled" });
 
             var key = $"mobile:sync:{userId}:{envelope.IdempotencyKey}";
             var accepted = await redis.GetDatabase().StringSetAsync(key, "accepted", TimeSpan.FromDays(7), When.NotExists);
@@ -299,7 +300,7 @@ public static class MobilePlatformEndpoints
             if (string.IsNullOrWhiteSpace(request.UserId) || request.UserId.Length > 200 ||
                 string.IsNullOrWhiteSpace(request.Title) || request.Title.Length > 200 ||
                 string.IsNullOrWhiteSpace(request.Body) || request.Body.Length > 4000)
-                return Results.BadRequest(new ProblemDetails { Title = "Invalid push notification", Status = 400 });
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidPushNotification });
 
             var id = await delivery.EnqueueAsync(request.UserId, request.Title, request.Body, request.DataJson, cancellationToken);
             return Results.Accepted($"{IdentityApiRoutes.AdminPushNotifications}/{id}", new { id });

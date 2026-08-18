@@ -9,6 +9,7 @@ using His.Hope.Authorization.Requirements;
 using His.Hope.SharedKernel.Authorization;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Infrastructure.Caching;
+using His.Hope.Contracts;
 using Amazon;
 using Amazon.S3;
 using Microsoft.Extensions.Options;
@@ -288,7 +289,10 @@ admin.MapPost("/backups", async (HttpContext http, ContinuityJobStore store, Vau
 {
     var value = config.Value;
     if (!IsReady(value, await vault.GetStatusAsync(ct)))
-        return Results.Problem("Database continuity executor is not configured.", statusCode: 503);
+        return Results.Problem(statusCode: 503, extensions: new Dictionary<string, object?>
+        {
+            [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.Internal
+        });
     var job = new ContinuityJob
     {
         Operation = "backup",
@@ -303,7 +307,10 @@ admin.MapPost("/restore-drills", async (HttpContext http, ContinuityJobStore sto
 {
     var value = config.Value;
     if (!IsReady(value, await vault.GetStatusAsync(ct)))
-        return Results.Problem("Database continuity executor is not configured.", statusCode: 503);
+        return Results.Problem(statusCode: 503, extensions: new Dictionary<string, object?>
+        {
+            [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.Internal
+        });
     var job = new ContinuityJob
     {
         Operation = "restore-drill",

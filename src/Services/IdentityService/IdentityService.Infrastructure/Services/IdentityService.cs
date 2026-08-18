@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using His.Hope.IdentityService.Application.DTOs;
+using His.Hope.IdentityService.Application.Authorization;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
@@ -90,13 +91,16 @@ public class IdentityService : IIdentityService
                     set => set.Id,
                     (_, set) => set.PermissionsJson)
                 .ToListAsync(ct);
+            var registeredPrefixes = await _context.IamServiceDefinitions
+                .Select(service => service.PermissionPrefix)
+                .ToArrayAsync(ct);
             foreach (var permissionsJson in assignedSetJson)
             {
                 try
                 {
                     var assignedPermissions = JsonSerializer.Deserialize<string[]>(permissionsJson) ?? [];
                     permissions.AddRange(assignedPermissions.Where(permission =>
-                        HisHopePermissions.IsValid(permission) &&
+                        PermissionCatalogRules.IsValid(permission, registeredPrefixes) &&
                         !permissions.Contains(permission, StringComparer.OrdinalIgnoreCase)));
                 }
                 catch (JsonException)
@@ -452,37 +456,37 @@ public class IdentityService : IIdentityService
 
         await _context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
-        var hasher = new PasswordHasher<User>();
-        var priorHash = user.PasswordHash;
-        var recentHashes = await _context.UserPasswordHistories
-            .Where(item => item.UserId == user.Id)
-            .OrderByDescending(item => item.ChangedAt)
-            .Take(5)
-            .ToListAsync();
-        foreach (var oldHash in recentHashes)
-        {
-            var result = hasher.VerifyHashedPassword(user, oldHash.PasswordHash, newPassword);
-            if (result is PasswordVerificationResult.Success or PasswordVerificationResult.SuccessRehashNeeded)
-                throw new InvalidOperationException("Cannot reuse a recent password.");
-        }
+            var hasher = new PasswordHasher<User>();
+            var priorHash = user.PasswordHash;
+            var recentHashes = await _context.UserPasswordHistories
+                .Where(item => item.UserId == user.Id)
+                .OrderByDescending(item => item.ChangedAt)
+                .Take(5)
+                .ToListAsync();
+            foreach (var oldHash in recentHashes)
+            {
+                var result = hasher.VerifyHashedPassword(user, oldHash.PasswordHash, newPassword);
+                if (result is PasswordVerificationResult.Success or PasswordVerificationResult.SuccessRehashNeeded)
+                    throw new InvalidOperationException("Cannot reuse a recent password.");
+            }
 
-        var resetResult = await _userManager.ResetPasswordAsync(user, token, newPassword);
-        if (!resetResult.Succeeded)
-        {
-            var errors = string.Join(", ", resetResult.Errors.Select(e => e.Description));
-            throw new InvalidOperationException($"Password reset failed: {errors}");
-        }
+            var resetResult = await _userManager.ResetPasswordAsync(user, token, newPassword);
+            if (!resetResult.Succeeded)
+            {
+                var errors = string.Join(", ", resetResult.Errors.Select(e => e.Description));
+                throw new InvalidOperationException($"Password reset failed: {errors}");
+            }
 
-        user.LastPasswordChangedAt = DateTime.UtcNow;
-        if (!string.IsNullOrWhiteSpace(priorHash))
-            await RecordPasswordHistoryAsync(user.Id, priorHash);
-        var updateResult = await _userManager.UpdateAsync(user);
-        if (!updateResult.Succeeded)
-            throw new InvalidOperationException("Unable to persist password policy metadata.");
-        await transaction.CommitAsync();
-        _logger.LogInformation("Password reset completed for UserId={UserId}", user.Id);
+            user.LastPasswordChangedAt = DateTime.UtcNow;
+            if (!string.IsNullOrWhiteSpace(priorHash))
+                await RecordPasswordHistoryAsync(user.Id, priorHash);
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+                throw new InvalidOperationException("Unable to persist password policy metadata.");
+            await transaction.CommitAsync();
+            _logger.LogInformation("Password reset completed for UserId={UserId}", user.Id);
         });
     }
 
@@ -497,37 +501,37 @@ public class IdentityService : IIdentityService
 
         await _context.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
 
-        var hasher = new PasswordHasher<User>();
-        var priorHash = user.PasswordHash;
-        var recentHashes = await _context.UserPasswordHistories
-            .Where(item => item.UserId == user.Id)
-            .OrderByDescending(item => item.ChangedAt)
-            .Take(5)
-            .ToListAsync();
-        foreach (var oldHash in recentHashes)
-        {
-            var result = hasher.VerifyHashedPassword(user, oldHash.PasswordHash, newPassword);
-            if (result is PasswordVerificationResult.Success or PasswordVerificationResult.SuccessRehashNeeded)
-                throw new InvalidOperationException("Cannot reuse a recent password.");
-        }
+            var hasher = new PasswordHasher<User>();
+            var priorHash = user.PasswordHash;
+            var recentHashes = await _context.UserPasswordHistories
+                .Where(item => item.UserId == user.Id)
+                .OrderByDescending(item => item.ChangedAt)
+                .Take(5)
+                .ToListAsync();
+            foreach (var oldHash in recentHashes)
+            {
+                var result = hasher.VerifyHashedPassword(user, oldHash.PasswordHash, newPassword);
+                if (result is PasswordVerificationResult.Success or PasswordVerificationResult.SuccessRehashNeeded)
+                    throw new InvalidOperationException("Cannot reuse a recent password.");
+            }
 
-        var changeResult = await _userManager.ChangePasswordAsync(user, currentPassword, newPassword);
-        if (!changeResult.Succeeded)
-        {
-            var errors = string.Join(", ", changeResult.Errors.Select(e => e.Description));
-            throw new InvalidOperationException($"Password change failed: {errors}");
-        }
+            var changeResult = await _userManager.ChangePasswordAsync(user, currentPassword, newPassword);
+            if (!changeResult.Succeeded)
+            {
+                var errors = string.Join(", ", changeResult.Errors.Select(e => e.Description));
+                throw new InvalidOperationException($"Password change failed: {errors}");
+            }
 
-        user.LastPasswordChangedAt = DateTime.UtcNow;
-        if (!string.IsNullOrWhiteSpace(priorHash))
-            await RecordPasswordHistoryAsync(user.Id, priorHash);
-        var updateResult = await _userManager.UpdateAsync(user);
-        if (!updateResult.Succeeded)
-            throw new InvalidOperationException("Unable to persist password policy metadata.");
-        await transaction.CommitAsync();
-        _logger.LogInformation("Password changed for UserId={UserId}", user.Id);
+            user.LastPasswordChangedAt = DateTime.UtcNow;
+            if (!string.IsNullOrWhiteSpace(priorHash))
+                await RecordPasswordHistoryAsync(user.Id, priorHash);
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+                throw new InvalidOperationException("Unable to persist password policy metadata.");
+            await transaction.CommitAsync();
+            _logger.LogInformation("Password changed for UserId={UserId}", user.Id);
         });
     }
 

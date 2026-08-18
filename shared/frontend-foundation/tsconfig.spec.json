@@ -2,8 +2,9 @@
   "extends": "./tsconfig.lib.json",
   "compilerOptions": {
     "outDir": "./out-tsc/spec",
+    "rootDir": ".",
     "types": ["jasmine"]
   },
   "exclude": [],
-  "include": ["src/**/*.spec.ts", "src/**/*.d.ts"]
+  "include": ["src/**/*.spec.ts", "src/**/*.d.ts", "auth/src/**/*.spec.ts", "forms/src/**/*.spec.ts", "query/src/**/*.spec.ts", "domain/src/**/*.spec.ts", "i18n/src/**/*.spec.ts", "ui/src/**/*.spec.ts"]
 }

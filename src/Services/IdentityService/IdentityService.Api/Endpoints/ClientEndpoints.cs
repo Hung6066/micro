@@ -1,4 +1,5 @@
 using His.Hope.IdentityService.Application.DTOs;
+using His.Hope.Contracts;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.Contracts.Identity;
@@ -119,11 +120,11 @@ public static class ClientEndpoints
         CancellationToken ct)
     {
         if (await appManager.FindByClientIdAsync(request.ClientId, ct) is not null)
-            return TypedResults.Problem("Client ID already exists", statusCode: 409);
+            return TypedResults.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.Conflict });
 
         var normalizedType = request.Type.Trim().ToLowerInvariant();
         if (normalizedType is not ("public" or "confidential"))
-            return TypedResults.Problem("Client type must be public or confidential.", statusCode: 400);
+            return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.Validation });
 
         var isConfidential = normalizedType == "confidential";
         var descriptor = new OpenIddictApplicationDescriptor
@@ -180,7 +181,7 @@ public static class ClientEndpoints
             ?? httpRequest.Headers.IfMatch.FirstOrDefault()?.Trim('"');
         if (!string.IsNullOrWhiteSpace(expectedToken) &&
             !string.Equals(expectedToken, client.ConcurrencyToken, StringComparison.Ordinal))
-            return TypedResults.Problem("The client was changed by another request. Reload and try again.", statusCode: 409);
+            return TypedResults.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ConcurrencyConflict });
 
         if (request.DisplayName is not null)
             client.DisplayName = request.DisplayName;
@@ -263,7 +264,7 @@ public static class ClientEndpoints
             client.ClientType == OpenIddictConstants.ClientTypes.Confidential ? "client_secret_basic" : "none"));
     }
 
-    private static async Task<Results<Created<DynamicClientRegistrationResponse>, BadRequest<string>, UnauthorizedHttpResult, Conflict<string>>> RegisterDynamicClient(
+    private static async Task<Results<Created<DynamicClientRegistrationResponse>, ProblemHttpResult, UnauthorizedHttpResult, Conflict<string>>> RegisterDynamicClient(
         DynamicClientRegistrationRequest request,
         HttpContext httpContext,
         IConfiguration configuration,
@@ -283,15 +284,15 @@ public static class ClientEndpoints
             return TypedResults.Unauthorized();
 
         if (string.IsNullOrWhiteSpace(request.ClientName) || request.RedirectUris is not { Length: > 0 })
-            return TypedResults.BadRequest("client_name and at least one redirect_uris entry are required.");
+            return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { ["errorCode"] = ApiErrorCodes.ClientRegistrationFieldsRequired });
         if (request.RedirectUris.Any(uri => !IsAllowedRedirectUri(uri, hostEnvironment.IsDevelopment())))
-            return TypedResults.BadRequest("redirect_uris must be absolute HTTPS URIs (HTTP is allowed only for local development).");
+            return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { ["errorCode"] = ApiErrorCodes.InvalidRedirectUris });
 
         var clientId = $"partner_{Guid.NewGuid():N}";
         var authMethod = request.TokenEndpointAuthMethod?.Trim().ToLowerInvariant() ?? "client_secret_basic";
         var confidential = authMethod is "client_secret_basic" or "client_secret_post" or "private_key_jwt";
         if (authMethod is not ("none" or "client_secret_basic" or "client_secret_post" or "private_key_jwt"))
-            return TypedResults.BadRequest("Unsupported token_endpoint_auth_method.");
+            return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { ["errorCode"] = ApiErrorCodes.UnsupportedTokenEndpointAuthMethod });
 
         var descriptor = new OpenIddictApplicationDescriptor
         {

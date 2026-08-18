@@ -1,0 +1,689 @@
+<hh-page-layout>
+  <hh-page-header
+    hhPageHeader
+    [title]="
+      'admin.identityCapabilities' | hhTranslate: 'Identity capabilities'
+    "
+    [subtitle]="
+      'admin.identityCapabilitiesSubtitle'
+        | hhTranslate: 'P0/P1 controls and P2 device posture pilot workspace.'
+    "
+  >
+    <button
+      mat-stroked-button
+      type="button"
+      (click)="reload()"
+      [disabled]="loading"
+    >
+      <mat-icon>refresh</mat-icon>{{ "admin.refresh" | hhTranslate: "Refresh" }}
+    </button>
+  </hh-page-header>
+  <mat-form-field appearance="outline" *ngIf="facilityIds.length > 1">
+    <mat-label>{{ "admin.facility" | hhTranslate: "Facility" }}</mat-label>
+    <mat-select [(ngModel)]="selectedFacilityId" (selectionChange)="reload()"
+      ><mat-option
+        *ngFor="let facilityId of facilityIds"
+        [value]="facilityId"
+        >{{ facilityId }}</mat-option
+      ></mat-select
+    >
+  </mat-form-field>
+  <p class="muted" *ngIf="loading">
+    {{
+      "admin.loadingCapabilities" | hhTranslate: "Loading capability status…"
+    }}
+  </p>
+  <div class="notice">
+    <mat-icon>shield</mat-icon
+    ><span>{{
+      "admin.identityCapabilitiesNotice"
+        | hhTranslate
+          : "Secrets, certificates and vendor credentials remain server-side. P2 is observe-first."
+    }}</span>
+  </div>
+  <mat-tab-group>
+    <mat-tab [label]="'admin.p0P1Readiness' | hhTranslate: 'P0/P1 readiness'">
+      <section class="grid two-col">
+        <mat-card
+          ><mat-card-header
+            ><mat-card-title>{{
+              "admin.securityControls" | hhTranslate: "Security controls"
+            }}</mat-card-title
+            ><mat-card-subtitle>{{
+              "admin.runtimeContractState"
+                | hhTranslate: "Read-only runtime contract state"
+            }}</mat-card-subtitle></mat-card-header
+          ><mat-card-content
+            ><div class="status-row" *ngFor="let item of p0Settings">
+              <span>{{ item.key }}</span
+              ><strong [class.good]="isEnabled(item.value)">{{
+                item.value
+              }}</strong>
+            </div></mat-card-content
+          ></mat-card
+        >
+        <mat-card
+          ><mat-card-header
+            ><mat-card-title>{{
+              "admin.provisioning" | hhTranslate: "Provisioning"
+            }}</mat-card-title
+            ><mat-card-subtitle>{{
+              "admin.dryRunByDefault" | hhTranslate: "Dry-run by default"
+            }}</mat-card-subtitle></mat-card-header
+          ><mat-card-content>
+            <div class="status-row">
+              <span>{{ "admin.mode" | hhTranslate: "Mode" }}</span
+              ><strong>{{ provisioningMode }}</strong>
+            </div>
+            <div
+              class="status-row"
+              *ngFor="let target of provisioningReadiness?.targets"
+            >
+              <span>{{ target.target }}</span
+              ><strong [class.good]="target.status === 'ready_for_dry_run'">{{
+                target.status
+              }}</strong>
+            </div>
+            <mat-form-field appearance="outline"
+              ><mat-label>{{
+                "admin.target" | hhTranslate: "Target"
+              }}</mat-label
+              ><mat-select [(ngModel)]="provisioning.target"
+                ><mat-option value="scim">{{
+                  "admin.provisioningScim" | hhTranslate: "SCIM"
+                }}</mat-option
+                ><mat-option value="entra">{{
+                  "admin.provisioningEntra" | hhTranslate: "Microsoft Entra ID"
+                }}</mat-option
+                ><mat-option value="google-workspace">{{
+                  "admin.provisioningGoogleWorkspace"
+                    | hhTranslate: "Google Workspace"
+                }}</mat-option></mat-select
+              ></mat-form-field
+            >
+            <mat-form-field appearance="outline"
+              ><mat-label>{{
+                "admin.resourceId" | hhTranslate: "Resource ID"
+              }}</mat-label
+              ><input
+                matInput
+                [(ngModel)]="provisioning.resourceId"
+                autocomplete="off"
+            /></mat-form-field>
+            <button
+              mat-flat-button
+              color="primary"
+              type="button"
+              *ngIf="can('admin.provisioning.manage')"
+              (click)="queueProvisioning()"
+              [disabled]="busy || !provisioning.resourceId"
+            >
+              <mat-icon>queue</mat-icon
+              >{{
+                "admin.queueDryRun"
+                  | hhTranslate: "Queue dry-run reconciliation"
+              }}
+            </button>
+            <p class="muted" *ngIf="lastJob">
+              {{ "admin.job" | hhTranslate: "Job" }} {{ lastJob.id }} ·
+              {{ lastJob.target }} · {{ lastJob.operation }}
+            </p>
+          </mat-card-content></mat-card
+        >
+        <mat-card
+          ><mat-card-header
+            ><mat-card-title>{{
+              "admin.deliveryHealth"
+                | hhTranslate: "Integration delivery health"
+            }}</mat-card-title
+            ><mat-card-subtitle>{{
+              "admin.deliveryHealthSubtitle"
+                | hhTranslate: "Normalized outbox and reconciliation evidence"
+            }}</mat-card-subtitle></mat-card-header
+          ><mat-card-content>
+            <div
+              class="status-row"
+              *ngFor="let delivery of deliveryHealth?.deliveries"
+            >
+              <span>{{ delivery.channel }} · {{ delivery.target }}</span
+              ><strong
+                [class.good]="delivery.status === 'healthy'"
+                [class.warn]="delivery.status === 'pending'"
+                [class.bad]="delivery.status === 'failed'"
+                >{{ delivery.status }} ({{ delivery.pending }}/{{
+                  delivery.failed
+                }})</strong
+              >
+            </div>
+            <p class="muted" *ngIf="!deliveryHealth">
+              {{
+                "admin.deliveryHealthUnavailable"
+                  | hhTranslate: "Delivery health unavailable."
+              }}
+            </p>
+          </mat-card-content></mat-card
+        >
+      </section>
+      <mat-card
+        ><mat-card-header
+          ><mat-card-title>{{
+            "admin.recentAuditEvents" | hhTranslate: "Recent audit events"
+          }}</mat-card-title></mat-card-header
+        ><mat-card-content class="table-wrap"
+          ><table>
+            <thead>
+              <tr>
+                <th>{{ "admin.timestamp" | hhTranslate: "Time" }}</th>
+                <th>{{ "admin.action" | hhTranslate: "Action" }}</th>
+                <th>{{ "admin.resource" | hhTranslate: "Resource" }}</th>
+                <th>{{ "admin.outcome" | hhTranslate: "Outcome" }}</th>
+                <th>{{ "admin.correlation" | hhTranslate: "Correlation" }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of auditRows">
+                <td>{{ row.timestamp | date: "short" }}</td>
+                <td>{{ row.action }}</td>
+                <td>{{ row.resourceType }} {{ row.resourceId }}</td>
+                <td>{{ row.outcome || "—" }}</td>
+                <td class="mono">{{ row.correlationId || "—" }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="muted" *ngIf="!auditRows.length">
+            {{
+              "admin.noAuditEvents" | hhTranslate: "No audit events returned."
+            }}
+          </p></mat-card-content
+        ></mat-card
+      >
+    </mat-tab>
+    <mat-tab
+      [label]="'admin.interoperability' | hhTranslate: 'Interoperability'"
+      ><section class="grid two-col">
+        <mat-card
+          ><mat-card-header
+            ><mat-card-title>{{
+              "admin.provisioningJobs" | hhTranslate: "Provisioning jobs"
+            }}</mat-card-title
+            ><mat-card-subtitle>{{
+              "admin.serverManagedOnly"
+                | hhTranslate: "Server-managed state; payloads are not rendered"
+            }}</mat-card-subtitle></mat-card-header
+          ><mat-card-content class="table-wrap"
+            ><table>
+              <thead>
+                <tr>
+                  <th>{{ "admin.target" | hhTranslate: "Target" }}</th>
+                  <th>{{ "admin.operation" | hhTranslate: "Operation" }}</th>
+                  <th>{{ "admin.resource" | hhTranslate: "Resource" }}</th>
+                  <th>{{ "admin.attempts" | hhTranslate: "Attempts" }}</th>
+                  <th>{{ "admin.status" | hhTranslate: "Status" }}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let job of provisioningJobs">
+                  <td>{{ job.target }}</td>
+                  <td>{{ job.operation }}</td>
+                  <td>{{ job.resourceType }} {{ job.resourceId }}</td>
+                  <td>{{ job.attempts }}</td>
+                  <td>
+                    {{
+                      job.status ||
+                        (job.completedAt
+                          ? ("admin.completed" | hhTranslate: "completed")
+                          : job.lastError ||
+                            ("admin.queued" | hhTranslate: "queued"))
+                    }}
+                  </td>
+                  <td>
+                    <button
+                      mat-button
+                      type="button"
+                      *ngIf="
+                        can('admin.provisioning.manage') &&
+                        (job.status === 'failed' ||
+                          (job.lastError &&
+                            !job.completedAt &&
+                            job.status !== 'dry-run'))
+                      "
+                      (click)="retryJob(job)"
+                      [disabled]="busy"
+                    >
+                      {{ "admin.retry" | hhTranslate: "Retry" }}
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p class="muted" *ngIf="!provisioningJobs.length">
+              {{
+                "admin.noProvisioningJobs"
+                  | hhTranslate: "No provisioning jobs returned."
+              }}
+            </p></mat-card-content
+          ></mat-card
+        >
+        <mat-card
+          ><mat-card-header
+            ><mat-card-title>{{
+              "admin.radiusEapTls" | hhTranslate: "RADIUS EAP-TLS"
+            }}</mat-card-title
+            ><mat-card-subtitle>{{
+              "admin.outpostOwnsSecret"
+                | hhTranslate: "The RADIUS outpost owns the shared secret."
+            }}</mat-card-subtitle></mat-card-header
+          ><mat-card-content *ngIf="radiusStatus" class="form-grid"
+            ><div class="status-row">
+              <span>{{ "admin.enabled" | hhTranslate: "Enabled" }}</span
+              ><strong [class.good]="radiusStatus.enabled">{{
+                radiusStatus.enabled
+                  ? ("admin.yes" | hhTranslate: "yes")
+                  : ("admin.no" | hhTranslate: "no")
+              }}</strong>
+            </div>
+            <div class="status-row">
+              <span>{{ "admin.trustedCa" | hhTranslate: "Trusted CA" }}</span
+              ><strong>{{
+                radiusStatus.trustedCaReachable
+                  ? ("admin.reachable" | hhTranslate: "reachable")
+                  : radiusStatus.trustedCaConfigured
+                    ? ("admin.unreachable" | hhTranslate: "unreachable")
+                    : ("admin.notConfigured" | hhTranslate: "not configured")
+              }}</strong>
+            </div></mat-card-content
+          ></mat-card
+        >
+      </section>
+      <mat-card
+        ><mat-card-header
+          ><mat-card-title>{{
+            "admin.mtlsBindings" | hhTranslate: "mTLS certificate bindings"
+          }}</mat-card-title
+          ><mat-card-subtitle>{{
+            "admin.thumbprintsOnly"
+              | hhTranslate
+                : "Normalized thumbprints and certificate metadata only"
+          }}</mat-card-subtitle></mat-card-header
+        ><mat-card-content class="table-wrap"
+          ><table>
+            <thead>
+              <tr>
+                <th>{{ "admin.userId" | hhTranslate: "User ID" }}</th>
+                <th>{{ "admin.thumbprint" | hhTranslate: "Thumbprint" }}</th>
+                <th>{{ "admin.subject" | hhTranslate: "Subject" }}</th>
+                <th>{{ "admin.expires" | hhTranslate: "Expires" }}</th>
+                <th>{{ "admin.status" | hhTranslate: "Status" }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let binding of mtlsBindings">
+                <td class="mono">{{ binding.userId }}</td>
+                <td class="mono">{{ binding.thumbprint }}</td>
+                <td>{{ binding.subject || "—" }}</td>
+                <td>{{ binding.notAfter | date: "short" }}</td>
+                <td>{{ binding.status }}</td>
+                <td>
+                  <button
+                    mat-button
+                    color="warn"
+                    type="button"
+                    (click)="revokeBinding(binding)"
+                    [disabled]="
+                      binding.status === 'revoked' ||
+                      busy ||
+                      !can('admin.clients.write')
+                    "
+                  >
+                    {{ "admin.revoke" | hhTranslate: "Revoke" }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="muted" *ngIf="!mtlsBindings.length">
+            {{
+              "admin.noMtlsBindings"
+                | hhTranslate: "No certificate bindings returned."
+            }}
+          </p></mat-card-content
+        ></mat-card
+      ></mat-tab
+    >
+    <mat-tab
+      [label]="
+        'admin.federationCompliance' | hhTranslate: 'Federation & compliance'
+      "
+      ><section class="grid two-col">
+        <mat-card
+          ><mat-card-header
+            ><mat-card-title>{{
+              "admin.externalFederation" | hhTranslate: "External federation"
+            }}</mat-card-title
+            ><mat-card-subtitle>{{
+              "admin.federationServerManaged"
+                | hhTranslate
+                  : "Issuer and account-link state are server managed."
+            }}</mat-card-subtitle></mat-card-header
+          ><mat-card-content
+            ><div class="status-row" *ngFor="let item of federationSettings">
+              <span>{{ item.key }}</span
+              ><strong [class.good]="isEnabled(item.value)">{{
+                item.value
+              }}</strong>
+            </div>
+            <p class="muted">
+              {{
+                "admin.federationNoSecrets"
+                  | hhTranslate
+                    : "No provider tokens or assertions are rendered in this workspace."
+              }}
+            </p></mat-card-content
+          ></mat-card
+        ><mat-card
+          ><mat-card-header
+            ><mat-card-title>{{
+              "admin.scimSsf" | hhTranslate: "SCIM & SSF"
+            }}</mat-card-title
+            ><mat-card-subtitle>{{
+              "admin.adapterHealthOnly"
+                | hhTranslate
+                  : "Adapter status only; credentials and signing keys remain server-side."
+            }}</mat-card-subtitle></mat-card-header
+          ><mat-card-content
+            ><div class="status-row" *ngFor="let item of scimSsfSettings">
+              <span>{{ item.key }}</span
+              ><strong [class.good]="isEnabled(item.value)">{{
+                item.value
+              }}</strong>
+            </div>
+            <div *ngIf="ssfStatus" class="form-grid">
+              <div class="status-row">
+                <span>{{
+                  "admin.ssfSubscriptions" | hhTranslate: "SSF subscriptions"
+                }}</span
+                ><strong>{{ ssfStatus.subscriptionCount }}</strong>
+              </div>
+              <div class="status-row">
+                <span>{{
+                  "admin.ssfOutbox" | hhTranslate: "Outbox pending/failed"
+                }}</span
+                ><strong>{{ ssfStatus.pending }}/{{ ssfStatus.failed }}</strong>
+              </div>
+            </div>
+            <p class="muted">
+              {{
+                "admin.ssfOutboxAudit"
+                  | hhTranslate
+                    : "SSF delivery is outbox-backed and audited; live receiver health requires an external receiver."
+              }}
+            </p>
+            <div class="table-wrap" *ngIf="ssfOutbox.length">
+              <table>
+                <thead>
+                  <tr>
+                    <th>{{ "admin.eventType" | hhTranslate: "Event" }}</th>
+                    <th>{{ "admin.attempts" | hhTranslate: "Attempts" }}</th>
+                    <th>
+                      {{ "admin.availableAt" | hhTranslate: "Available" }}
+                    </th>
+                    <th>{{ "admin.error" | hhTranslate: "Error" }}</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let entry of ssfOutbox">
+                    <td>{{ entry.eventType }}</td>
+                    <td>{{ entry.attempts }}</td>
+                    <td>{{ entry.availableAt | date: "short" }}</td>
+                    <td>{{ entry.lastError || "—" }}</td>
+                    <td>
+                      <button
+                        mat-button
+                        type="button"
+                        *ngIf="can('admin.settings.write')"
+                        (click)="retrySsf(entry)"
+                        [disabled]="busy"
+                      >
+                        {{ "admin.retry" | hhTranslate: "Retry" }}
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div></mat-card-content
+          ></mat-card
+        >
+      </section>
+      <mat-card
+        ><mat-card-header
+          ><mat-card-title>{{
+            "admin.complianceReports" | hhTranslate: "Compliance reports"
+          }}</mat-card-title
+          ><mat-card-subtitle>{{
+            "admin.shortLivedExport"
+              | hhTranslate: "Server-generated, audited, short-lived download"
+          }}</mat-card-subtitle></mat-card-header
+        ><mat-card-content
+          ><button
+            mat-flat-button
+            color="primary"
+            type="button"
+            *ngIf="can('admin.audit.read')"
+            (click)="downloadAuditCsv()"
+            [disabled]="busy"
+          >
+            <mat-icon>download</mat-icon
+            >{{ "admin.exportAuditCsv" | hhTranslate: "Export audit CSV" }}
+          </button></mat-card-content
+        ></mat-card
+      ></mat-tab
+    >
+    <mat-tab
+      [label]="
+        'admin.p2DevicePosturePilot' | hhTranslate: 'P2 device posture pilot'
+      "
+      ><section class="grid two-col" *ngIf="policy">
+        <mat-card
+          ><mat-card-header
+            ><mat-card-title>{{
+              "admin.policy" | hhTranslate: "Policy"
+            }}</mat-card-title
+            ><mat-card-subtitle
+              >{{ "admin.version" | hhTranslate: "Version" }}
+              {{ policy.version }} ·
+              {{ "admin.updated" | hhTranslate: "updated" }}
+              {{ policy.updatedAt | date: "short" }}</mat-card-subtitle
+            ></mat-card-header
+          ><mat-card-content class="form-grid"
+            ><mat-form-field appearance="outline"
+              ><mat-label>{{ "admin.mode" | hhTranslate: "Mode" }}</mat-label
+              ><mat-select [(ngModel)]="policy.mode"
+                ><mat-option value="observe">{{
+                  "admin.safeDefault" | hhTranslate: "Observe (safe default)"
+                }}</mat-option
+                ><mat-option value="stepup">{{
+                  "admin.stepUpPreview" | hhTranslate: "Step-up preview"
+                }}</mat-option
+                ><mat-option value="deny">{{
+                  "admin.denyPreview" | hhTranslate: "Deny preview"
+                }}</mat-option></mat-select
+              ></mat-form-field
+            ><mat-form-field appearance="outline"
+              ><mat-label>{{
+                "admin.evidenceTtlSeconds" | hhTranslate: "Evidence TTL seconds"
+              }}</mat-label
+              ><input
+                matInput
+                type="number"
+                min="60"
+                max="3600"
+                [(ngModel)]="policy.evidenceTtlSeconds" /></mat-form-field
+            ><mat-form-field appearance="outline"
+              ><mat-label>{{
+                "admin.requiredSignals"
+                  | hhTranslate: "Required signals (comma-separated)"
+              }}</mat-label
+              ><input matInput [(ngModel)]="requiredSignalsText"
+            /></mat-form-field>
+            <div class="provider-list">
+              <span *ngFor="let provider of policy.providers" class="pill">{{
+                provider
+              }}</span>
+            </div>
+            <div class="actions" *ngIf="can('admin.settings.write')">
+              <button
+                mat-flat-button
+                color="primary"
+                (click)="savePolicy()"
+                [disabled]="busy"
+              >
+                <mat-icon>save</mat-icon
+                >{{ "admin.savePolicy" | hhTranslate: "Save policy" }}</button
+              ><button
+                mat-stroked-button
+                color="warn"
+                (click)="killSwitch()"
+                [disabled]="busy"
+              >
+                {{
+                  "admin.killSwitch" | hhTranslate: "Set observe / kill switch"
+                }}</button
+              ><button
+                mat-button
+                type="button"
+                (click)="rollbackPolicy()"
+                [disabled]="busy"
+              >
+                {{
+                  "admin.rollbackPolicy"
+                    | hhTranslate: "Rollback previous policy"
+                }}
+              </button>
+            </div></mat-card-content
+          ></mat-card
+        >
+        <mat-card
+          ><mat-card-header
+            ><mat-card-title>{{
+              "admin.decisionPreview" | hhTranslate: "Decision preview"
+            }}</mat-card-title
+            ><mat-card-subtitle>{{
+              "admin.normalizedEvidenceOnly"
+                | hhTranslate
+                  : "Normalized evidence only; raw attestation is not accepted."
+            }}</mat-card-subtitle></mat-card-header
+          ><mat-card-content class="form-grid"
+            ><mat-form-field appearance="outline"
+              ><mat-label>{{
+                "admin.userId" | hhTranslate: "User ID"
+              }}</mat-label
+              ><input matInput [(ngModel)]="preview.userId" /></mat-form-field
+            ><mat-form-field appearance="outline"
+              ><mat-label>{{
+                "admin.deviceId" | hhTranslate: "Device ID"
+              }}</mat-label
+              ><input matInput [(ngModel)]="preview.deviceId" /></mat-form-field
+            ><mat-form-field appearance="outline"
+              ><mat-label>{{
+                "admin.provider" | hhTranslate: "Provider"
+              }}</mat-label
+              ><mat-select [(ngModel)]="preview.provider"
+                ><mat-option
+                  *ngFor="let provider of policy.providers"
+                  [value]="provider"
+                  >{{ provider }}</mat-option
+                ></mat-select
+              ></mat-form-field
+            ><mat-form-field appearance="outline"
+              ><mat-label>{{
+                "admin.signalsJson" | hhTranslate: "Signals JSON"
+              }}</mat-label
+              ><textarea
+                matInput
+                rows="3"
+                [(ngModel)]="signalsJson"
+              ></textarea></mat-form-field
+            ><button
+              mat-flat-button
+              color="primary"
+              (click)="runPreview()"
+              [disabled]="busy"
+            >
+              <mat-icon>science</mat-icon
+              >{{ "admin.preview" | hhTranslate: "Preview" }}
+            </button>
+            <div class="result" *ngIf="evaluation">
+              <strong>{{ evaluation.decision }}</strong
+              ><span
+                >{{ "admin.fresh" | hhTranslate: "Fresh" }}:
+                {{
+                  evaluation.fresh
+                    ? ("admin.yes" | hhTranslate: "yes")
+                    : ("admin.no" | hhTranslate: "no")
+                }}
+                · {{ "admin.expires" | hhTranslate: "expires" }}
+                {{ evaluation.expiresAt | date: "short" }}</span
+              ><span class="mono"
+                >{{ "admin.hash" | hhTranslate: "hash" }}
+                {{ evaluation.evidenceHash.slice(0, 12) }}…</span
+              >
+            </div></mat-card-content
+          ></mat-card
+        >
+      </section>
+      <mat-card
+        ><mat-card-header
+          ><mat-card-title>{{
+            "admin.postureAssessments" | hhTranslate: "Posture assessments"
+          }}</mat-card-title
+          ><mat-card-subtitle>{{
+            "admin.normalizedEvidenceOnly"
+              | hhTranslate
+                : "Normalized evidence only; raw attestation is not accepted."
+          }}</mat-card-subtitle></mat-card-header
+        ><mat-card-content class="table-wrap"
+          ><table>
+            <thead>
+              <tr>
+                <th>{{ "admin.provider" | hhTranslate: "Provider" }}</th>
+                <th>{{ "admin.deviceId" | hhTranslate: "Device ID" }}</th>
+                <th>{{ "admin.decision" | hhTranslate: "Decision" }}</th>
+                <th>{{ "admin.fresh" | hhTranslate: "Fresh" }}</th>
+                <th>{{ "admin.expires" | hhTranslate: "Expires" }}</th>
+                <th>{{ "admin.hash" | hhTranslate: "Evidence hash" }}</th>
+                <th>{{ "admin.correlation" | hhTranslate: "Correlation" }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let assessment of assessments">
+                <td>{{ assessment.provider }}</td>
+                <td class="mono">{{ assessment.deviceId }}</td>
+                <td>{{ assessment.decision }}</td>
+                <td>
+                  {{
+                    assessment.fresh
+                      ? ("admin.yes" | hhTranslate: "yes")
+                      : ("admin.no" | hhTranslate: "no")
+                  }}
+                </td>
+                <td>{{ assessment.expiresAt | date: "short" }}</td>
+                <td class="mono">{{ assessment.evidenceHashPrefix }}</td>
+                <td class="mono">{{ assessment.correlationId || "—" }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="muted" *ngIf="!assessments.length">
+            {{
+              "admin.noPostureAssessments"
+                | hhTranslate: "No posture assessments returned."
+            }}
+          </p></mat-card-content
+        ></mat-card
+      ></mat-tab
+    >
+  </mat-tab-group>
+  <p class="error" *ngIf="error">{{ error }}</p>
+</hh-page-layout>

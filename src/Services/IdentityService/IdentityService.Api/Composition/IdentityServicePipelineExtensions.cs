@@ -32,6 +32,7 @@ using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Caching;
 using His.Hope.Infrastructure.Contracts;
 using His.Hope.Infrastructure.Middleware;
+using His.Hope.IdentityService.Api.Middleware;
 using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Locking;
 using His.Hope.Infrastructure.Security;
@@ -45,6 +46,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using His.Hope.AspNetCore.ProblemDetails;
 using Serilog;
 using StackExchange.Redis;
 using OpenIddict.Abstractions;
@@ -57,12 +59,12 @@ public static class IdentityServicePipelineExtensions
 {
     public static void UseIdentityServicePipeline(this WebApplication app)
     {
-        
+
         if (app.Environment.IsProduction())
             app.Services.RequireDurableAuditSink();
-        
+
         // Keep unexpected API failures in the same RFC 7807 shape consumed by Angular.
-        app.UseExceptionHandler();
+        app.UseHisHopeExceptionHandler();
         app.UseStatusCodePages(async statusContext =>
         {
             var http = statusContext.HttpContext;
@@ -76,7 +78,7 @@ public static class IdentityServicePipelineExtensions
             if (http.Response.HasStarted || http.Response.ContentLength is not null ||
                 status is not (400 or 401 or 403 or 404 or 409 or 429))
                 return;
-        
+
             var correlationId = http.Request.Headers["X-Correlation-Id"].FirstOrDefault()
                 ?? http.TraceIdentifier;
             var problem = new ProblemDetails
@@ -99,21 +101,21 @@ public static class IdentityServicePipelineExtensions
             http.Response.ContentType = "application/problem+json";
             await http.Response.WriteAsJsonAsync(problem);
         });
-        
+
         app.UseHisHopeServiceDefaults();
         app.UseStaticFiles();
         app.UseGlobalExceptionHandler();
-        
+
         // SECURITY: Seed identity database with permissions, roles, and admin user
         His.Hope.IdentityService.Infrastructure.Persistence.IdentityDbInitializer.Initialize(
             app.Services);
-        
+
         if (app.Environment.IsDevelopment())
         {
             app.UseSwagger();
             app.UseSwaggerUI();
         }
-        
+
         app.UseSecurityHeaders();
         app.UseRateLimiting();
         app.UseMiddleware<His.Hope.IdentityService.Api.Metrics.SloMiddleware>();
@@ -244,14 +246,15 @@ public static class IdentityServicePipelineExtensions
 
         app.UseAuthentication();
         app.UseDpopAccessTokenValidation();
-        
+        app.UseMiddleware<SecurityVersionMiddleware>();
+
         // Facility resolution: extracts facility_id from JWT, sets FacilityContext (before authorization)
         app.UseFacilityResolution();
-        
+
         app.UseAuthorization();
         app.MapControllers();
         app.UsePhiAudit();
-        
+
         // Auth endpoints
     }
 }

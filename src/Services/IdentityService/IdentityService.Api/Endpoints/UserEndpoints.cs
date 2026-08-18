@@ -1,4 +1,5 @@
 using His.Hope.IdentityService.Application.DTOs;
+using His.Hope.Contracts;
 using His.Hope.IdentityService.Application.UseCases.Users.Commands;
 using His.Hope.IdentityService.Application.UseCases.Users.Queries;
 using MediatR;
@@ -95,7 +96,8 @@ public static class UserEndpoints
             }
             catch (InvalidOperationException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 400);
+                return Results.Problem(statusCode: 400, detail: ex.Message,
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UserRequestRejected });
             }
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
 
@@ -126,7 +128,9 @@ public static class UserEndpoints
             }
             catch (InvalidOperationException ex)
             {
-                return Results.Problem(ex.Message, statusCode: ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? 409 : 400);
+                return Results.Problem(statusCode: ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? 409 : 400,
+                    detail: ex.Message,
+                    extensions: new Dictionary<string, object?> { ["errorCode"] = ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? ApiErrorCodes.ConcurrencyConflict : ApiErrorCodes.UserRequestRejected });
             }
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
 
@@ -190,7 +194,8 @@ public static class UserEndpoints
                 var governanceError = await RoleGovernanceEvaluator.ValidateRoleAssignmentAsync(
                     db, http.User, id, request.RoleIds, ct);
                 if (governanceError is not null)
-                    return Results.Problem(governanceError, statusCode: governanceError.StartsWith("FACILITY_SCOPE_DENIED", StringComparison.Ordinal) ? 403 : 400);
+                    return Results.Problem(statusCode: governanceError.StartsWith("FACILITY_SCOPE_DENIED", StringComparison.Ordinal) ? 403 : 400,
+                        extensions: new Dictionary<string, object?> { ["errorCode"] = governanceError.StartsWith("FACILITY_SCOPE_DENIED", StringComparison.Ordinal) ? ApiErrorCodes.FacilityScopeDenied : ApiErrorCodes.UserRequestRejected });
                 var user = await mediator.Send(
                     new AssignRolesCommand(id, request.RoleIds), ct);
                 await tokenBlacklist.RevokeAllUserTokensAsync(id.ToString(), ct);
@@ -207,7 +212,8 @@ public static class UserEndpoints
             }
             catch (InvalidOperationException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 400);
+                return Results.Problem(statusCode: 400, detail: ex.Message,
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UserRequestRejected });
             }
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
 

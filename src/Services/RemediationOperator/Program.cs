@@ -10,6 +10,7 @@ using k8s.Models;
 using Prometheus;
 using Serilog;
 using Serilog.Events;
+using His.Hope.Contracts;
 
 // ============================================================================
 // His.Hope Auto-Remediation Operator
@@ -162,7 +163,7 @@ try
             if (string.IsNullOrWhiteSpace(body))
             {
                 Log.Warning("Received empty alert webhook payload");
-                return Results.BadRequest(new { error = "Empty payload" });
+                return Results.BadRequest(new { errorCode = ApiErrorCodes.EmptyPayload });
             }
 
             var payload = JsonSerializer.Deserialize<AlertmanagerWebhookPayload>(body);
@@ -187,12 +188,15 @@ try
         catch (JsonException ex)
         {
             Log.Error(ex, "Failed to deserialize Alertmanager webhook payload");
-            return Results.BadRequest(new { error = "Invalid JSON payload" });
+            return Results.BadRequest(new { errorCode = ApiErrorCodes.InvalidJson });
         }
         catch (OperationCanceledException)
         {
             Log.Warning("Alert webhook processing timed out");
-            return Results.StatusCode(504);
+            return Results.Problem(statusCode: 504, extensions: new Dictionary<string, object?>
+            {
+                ["errorCode"] = ApiErrorCodes.Timeout
+            });
         }
     });
 

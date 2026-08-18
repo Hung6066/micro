@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Xml.Linq;
 using His.Hope.IdentityService.Application.DTOs;
+using His.Hope.Contracts;
 using His.Hope.IdentityService.Infrastructure.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -25,9 +26,9 @@ public static class BulkImportEndpoints
         BulkImportRequest request, BulkUserImportService importService, CancellationToken ct)
     {
         if (request.Users.Count == 0)
-            return TypedResults.Problem("No users provided", statusCode: 400);
+            return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.BulkUsersRequired });
         if (request.Users.Count > 10000)
-            return TypedResults.Problem("Maximum 10000 users per batch", statusCode: 400);
+            return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.BulkUsersLimitExceeded });
 
         var result = await importService.ImportAsync(request, ct);
         return TypedResults.Ok(result);
@@ -41,7 +42,7 @@ public static class BulkImportEndpoints
 
         var users = ParseCsv(csvContent);
         if (users.Count == 0)
-            return TypedResults.Problem("No valid records found in CSV", statusCode: 400);
+            return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.BulkImportNoValidRecords });
 
         var request = new BulkImportRequest(users, SendWelcomeEmail: false, SkipExisting: true);
         var result = await importService.ImportAsync(request, ct);
@@ -53,7 +54,7 @@ public static class BulkImportEndpoints
         try
         {
             var users = await ParseImportAsync(httpRequest, ct);
-            if (users.Count == 0) return Results.Problem("No valid records found in the import file.", statusCode: 400);
+            if (users.Count == 0) return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.BulkImportNoValidRecords });
             if (users.Count > 10000) return Results.ValidationProblem(new Dictionary<string, string[]> { ["file"] = ["Import is limited to 10000 users."] });
             return Results.Ok(await importService.ImportAsync(new BulkImportRequest(users, SendWelcomeEmail: false, SkipExisting: true), ct));
         }

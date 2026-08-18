@@ -9,13 +9,16 @@ public class LdapBackgroundService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<LdapBackgroundService> _logger;
+    private readonly IdentityRedisLock? _distributedLock;
 
     public LdapBackgroundService(
         IServiceScopeFactory scopeFactory,
-        ILogger<LdapBackgroundService> logger)
+        ILogger<LdapBackgroundService> logger,
+        IdentityRedisLock? distributedLock = null)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _distributedLock = distributedLock;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -32,8 +35,18 @@ public class LdapBackgroundService : BackgroundService
                 var ldap = await runtime.GetLdapAsync(stoppingToken);
                 if (ldap.Enabled)
                 {
-                    var syncService = scope.ServiceProvider.GetRequiredService<LdapSyncService>();
-                    await syncService.SyncAsync(stoppingToken);
+                    await using var lease = _distributedLock is null
+                        ? null
+                        : await _distributedLock.TryAcquireAsync("hishop:identity:ldap-sync", TimeSpan.FromMinutes(30));
+                    if (lease is null)
+                    {
+                        _logger.LogDebug("LDAP sync is already running on another replica");
+                    }
+                    else
+                    {
+                        var syncService = scope.ServiceProvider.GetRequiredService<LdapSyncService>();
+                        await syncService.SyncAsync(stoppingToken);
+                    }
                 }
                 else
                 {

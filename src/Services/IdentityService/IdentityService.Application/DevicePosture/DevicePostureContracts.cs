@@ -16,7 +16,8 @@ public sealed record DevicePostureEvidence(
     string Provider,
     IReadOnlyDictionary<string, bool> Signals,
     DateTime ObservedAt,
-    string? ReplayNonce = null);
+    string? ReplayNonce = null,
+    string? FacilityId = null);
 
 public sealed record DevicePostureEvaluation(
     string Decision,
@@ -32,7 +33,8 @@ public sealed record DevicePosturePolicyInput(
     IReadOnlyCollection<string> Providers,
     int EvidenceTtlSeconds,
     IReadOnlyCollection<string> RequiredSignals,
-    string? Version = null);
+    string? Version = null,
+    string? FacilityId = null);
 
 public static class DevicePostureEvidenceNormalizer
 {

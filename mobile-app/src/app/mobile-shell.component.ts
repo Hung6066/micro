@@ -1,13 +1,20 @@
 import { Component, OnDestroy, OnInit, inject } from "@angular/core";
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from "@angular/router";
+import {
+  Router,
+  RouterLink,
+  RouterLinkActive,
+  RouterOutlet,
+} from "@angular/router";
+import { HisHopeThemeService } from "@his-hope/frontend-foundation";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import {
+  HisHopeLanguageSwitcherComponent,
+  HisHopeTranslatePipe,
+} from "@his-hope/frontend-foundation/i18n";
 import {
   HisHopeBrandComponent,
-  HisHopeLanguageSwitcherComponent,
   HisHopeMobileIconComponent,
-  HisHopePermissionService,
-  HisHopeThemeService,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation";
+} from "@his-hope/frontend-foundation/ui";
 import { MobileAuthService } from "./core/auth.service";
 import { NativeCapabilityService } from "./core/native-capability.service";
 import { MobileLockService } from "./core/mobile-lock.service";
@@ -52,7 +59,9 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
                     role="menuitem"
                     (click)="menuOpen = false; unlock()"
                   >
-                    <hh-mobile-icon name="biometric" size="small" />{{ 'mobile.unlockBiometrics' | hhTranslate }}
+                    <hh-mobile-icon name="biometric" size="small" />{{
+                      "mobile.unlockBiometrics" | hhTranslate
+                    }}
                   </button>
                 }
                 <button
@@ -60,7 +69,9 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
                   role="menuitem"
                   (click)="menuOpen = false; toggleTheme()"
                 >
-                  <hh-mobile-icon name="theme" size="small" />{{ 'mobile.switchTheme' | hhTranslate }}
+                  <hh-mobile-icon name="theme" size="small" />{{
+                    "mobile.switchTheme" | hhTranslate
+                  }}
                 </button>
                 <button
                   class="header-menu__danger"
@@ -68,10 +79,18 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
                   role="menuitem"
                   (click)="menuOpen = false; logout()"
                 >
-                    <hh-mobile-icon name="logout" size="small" />{{ 'admin.logout' | hhTranslate }}
-                  </button>
-                <button type="button" role="menuitem" (click)="menuOpen = false; openNotifications()">
-                  <hh-mobile-icon name="notifications" size="small" />{{ 'mobile.notifications' | hhTranslate }}
+                  <hh-mobile-icon name="logout" size="small" />{{
+                    "admin.logout" | hhTranslate
+                  }}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  (click)="menuOpen = false; openNotifications()"
+                >
+                  <hh-mobile-icon name="notifications" size="small" />{{
+                    "mobile.notifications" | hhTranslate
+                  }}
                 </button>
                 @if (native.isNative) {
                   <app-mobile-pin />
@@ -82,38 +101,49 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
         </div>
       </header>
       <section class="mobile-shell__content"><router-outlet /></section>
-      <nav class="mobile-shell__nav" [attr.aria-label]="'mobile.adminNavigation' | hhTranslate">
+      <nav
+        class="mobile-shell__nav"
+        [attr.aria-label]="'mobile.adminNavigation' | hhTranslate"
+      >
         <a
           routerLink="/admin/dashboard"
           routerLinkActive="active"
           ariaCurrentWhenActive="page"
-          ><hh-mobile-icon name="home" size="small" /><span>{{ 'admin.dashboard' | hhTranslate }}</span></a
+          ><hh-mobile-icon name="home" size="small" /><span>{{
+            "admin.dashboard" | hhTranslate
+          }}</span></a
         >
         <a
           routerLink="/admin/clients"
           routerLinkActive="active"
           ariaCurrentWhenActive="page"
-          ><hh-mobile-icon name="clients" size="small" /><span>{{ 'admin.clients' | hhTranslate }}</span></a
+          ><hh-mobile-icon name="clients" size="small" /><span>{{
+            "admin.clients" | hhTranslate
+          }}</span></a
         >
         <a
           routerLink="/admin/users"
           routerLinkActive="active"
           ariaCurrentWhenActive="page"
-          ><hh-mobile-icon name="users" size="small" /><span>{{ 'admin.users' | hhTranslate }}</span></a
+          ><hh-mobile-icon name="users" size="small" /><span>{{
+            "admin.users" | hhTranslate
+          }}</span></a
         >
         <a
           routerLink="/admin/roles"
           routerLinkActive="active"
           ariaCurrentWhenActive="page"
-          ><hh-mobile-icon name="roles" size="small" /><span>{{ 'admin.roles' | hhTranslate }}</span></a
+          ><hh-mobile-icon name="roles" size="small" /><span>{{
+            "admin.roles" | hhTranslate
+          }}</span></a
         >
         <a
           routerLink="/admin/consents"
           routerLinkActive="active"
           ariaCurrentWhenActive="page"
-          ><hh-mobile-icon name="consents" size="small" /><span
-            >{{ 'admin.consents' | hhTranslate }}</span
-          ></a
+          ><hh-mobile-icon name="consents" size="small" /><span>{{
+            "admin.consents" | hhTranslate
+          }}</span></a
         >
       </nav>
       @if (lock.locked()) {
@@ -124,18 +154,18 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
           [attr.aria-label]="'mobile.sessionLocked' | hhTranslate"
         >
           <hh-mobile-icon name="biometric" size="large" />
-          <h2>{{ 'mobile.sessionLocked' | hhTranslate }}</h2>
-          <p>{{ 'mobile.unlockContinue' | hhTranslate }}</p>
+          <h2>{{ "mobile.sessionLocked" | hhTranslate }}</h2>
+          <p>{{ "mobile.unlockContinue" | hhTranslate }}</p>
           <button
             class="hh-button hh-button--primary"
             type="button"
             (click)="attemptUnlock()"
           >
-            {{ 'mobile.unlock' | hhTranslate }}
+            {{ "mobile.unlock" | hhTranslate }}
           </button>
           @if (unlockFailed) {
             <p class="lock-overlay__error">
-              {{ 'mobile.unlockFailed' | hhTranslate }}
+              {{ "mobile.unlockFailed" | hhTranslate }}
             </p>
           }
           <button
@@ -143,7 +173,7 @@ import { MobilePinComponent } from "./features/mobile-pin.component";
             type="button"
             (click)="logout()"
           >
-            {{ 'mobile.signOutInstead' | hhTranslate }}
+            {{ "mobile.signOutInstead" | hhTranslate }}
           </button>
         </div>
       }
@@ -441,12 +471,14 @@ export class MobileShellComponent implements OnInit, OnDestroy {
       // The route guard can render the shell while the OIDC callback is still
       // finishing secure token persistence. Register FCM only after the
       // authenticated stream is true, so the API call has a usable token.
-      this.auth.isAuthenticated$.pipe(
-        filter(isAuthenticated => isAuthenticated),
-        take(1),
-        switchMap(() => from(this.native.registerPush())),
-        catchError(() => of(null)),
-      ).subscribe();
+      this.auth.isAuthenticated$
+        .pipe(
+          filter((isAuthenticated) => isAuthenticated),
+          take(1),
+          switchMap(() => from(this.native.registerPush())),
+          catchError(() => of(null)),
+        )
+        .subscribe();
     }
     this.lock.arm();
   }
@@ -464,9 +496,11 @@ export class MobileShellComponent implements OnInit, OnDestroy {
     this.auth.logout();
   }
   openNotifications(): void {
-    void this.router.navigateByUrl('/admin/notifications');
+    void this.router.navigateByUrl("/admin/notifications");
   }
   toggleTheme(): void {
-    this.theme.setTheme(this.theme.resolvedTheme() === "dark" ? "light" : "dark");
+    this.theme.setTheme(
+      this.theme.resolvedTheme() === "dark" ? "light" : "dark",
+    );
   }
 }

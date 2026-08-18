@@ -7,6 +7,9 @@ namespace His.Hope.IdentityService.Domain.Entities;
 /// </summary>
 public class SystemSetting
 {
+    /// <summary>Facility scope; null means the global fallback.</summary>
+    public string ScopeId { get; set; } = IdentityScope.Global;
+
     /// <summary>
     /// Setting key in dot-notation (e.g., "hospital.name", "system.sessionTimeout").
     /// </summary>

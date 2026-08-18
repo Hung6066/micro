@@ -142,3 +142,6 @@ test-grpc.csx
 /tests/e2e/html-report/
 
 /artifacts/
+docs/design-references/open-design
+
+

@@ -237,6 +237,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(item => item.PayloadJson).HasMaxLength(16000).IsRequired();
             entity.Property(item => item.LastError).HasMaxLength(2000);
             entity.HasIndex(item => new { item.DispatchedAt, item.AvailableAt });
+            entity.HasIndex(item => new { item.DispatchedAt, item.LeaseUntil, item.AvailableAt });
         });
 
         builder.Entity<UserClientCertificate>(entity =>
@@ -261,6 +262,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(item => item.ExternalId).HasMaxLength(512);
             entity.Property(item => item.LastError).HasMaxLength(2000);
             entity.HasIndex(item => new { item.Target, item.CompletedAt, item.AvailableAt });
+            entity.HasIndex(item => new { item.CompletedAt, item.LeaseUntil, item.AvailableAt });
             entity.HasIndex(item => new { item.Target, item.Operation, item.ResourceType, item.ResourceId, item.CreatedAt });
         });
         builder.Entity<DirectoryProvisioningBinding>(entity =>
@@ -280,6 +282,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.ToTable("device_posture_assessments");
             entity.HasKey(item => item.Id);
             entity.Property(item => item.DeviceId).HasMaxLength(256).IsRequired();
+            entity.Property(item => item.ScopeId).HasMaxLength(100).HasDefaultValue(IdentityScope.Global);
             entity.Property(item => item.Provider).HasMaxLength(64).IsRequired();
             entity.Property(item => item.EvidenceHash).HasMaxLength(64).IsRequired();
             entity.Property(item => item.SignalsJson).HasMaxLength(4000).IsRequired();
@@ -287,7 +290,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(item => item.Decision).HasMaxLength(16).IsRequired();
             entity.Property(item => item.CorrelationId).HasMaxLength(128);
             entity.HasIndex(item => new { item.UserId, item.DeviceId, item.ExpiresAt });
-            entity.HasIndex(item => new { item.Provider, item.EvidenceHash }).IsUnique();
+            entity.HasIndex(item => new { item.ScopeId, item.Provider, item.EvidenceHash }).IsUnique();
             entity.HasOne<User>().WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -296,6 +299,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.ToTable("device_posture_policies");
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Id).HasMaxLength(32);
+            entity.Property(item => item.ScopeId).HasMaxLength(100).HasDefaultValue(IdentityScope.Global);
             entity.Property(item => item.Mode).HasMaxLength(16).IsRequired();
             entity.Property(item => item.ProvidersJson).HasMaxLength(2000).IsRequired();
             entity.Property(item => item.RequiredSignalsJson).HasMaxLength(2000).IsRequired();
@@ -422,7 +426,8 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
         // ──────────────────────────────────────────────
         builder.Entity<SystemSetting>(entity =>
         {
-            entity.HasKey(s => s.Key);
+            entity.HasKey(s => new { s.ScopeId, s.Key });
+            entity.Property(s => s.ScopeId).HasMaxLength(100).HasDefaultValue(IdentityScope.Global);
             entity.Property(s => s.Key).HasMaxLength(200).IsRequired();
             entity.Property(s => s.Value).HasMaxLength(2000).IsRequired();
             entity.Property(s => s.Description).HasMaxLength(500);
@@ -539,27 +544,40 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
         builder.Entity<LocalizationResource>(entity =>
         {
             entity.ToTable("localization_resources");
-            entity.HasKey(resource => resource.Key);
+            entity.HasKey(resource => new { resource.ScopeId, resource.Key });
+            entity.Property(resource => resource.ScopeId).HasMaxLength(100).HasDefaultValue(IdentityScope.Global);
             entity.Property(resource => resource.Key).HasMaxLength(200).IsRequired();
             entity.Property(resource => resource.Description).HasMaxLength(500);
             entity.HasMany(resource => resource.Translations)
                 .WithOne(translation => translation.Resource)
-                .HasForeignKey(translation => translation.ResourceKey)
+                .HasForeignKey(translation => new { translation.ScopeId, translation.ResourceKey })
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<LocalizationTranslation>(entity =>
         {
             entity.ToTable("localization_translations");
-            entity.HasKey(translation => new { translation.ResourceKey, translation.Locale });
+            entity.HasKey(translation => new { translation.ScopeId, translation.ResourceKey, translation.Locale });
+            entity.Property(translation => translation.ScopeId).HasMaxLength(100).HasDefaultValue(IdentityScope.Global);
             entity.Property(translation => translation.ResourceKey).HasMaxLength(200).IsRequired();
             entity.Property(translation => translation.Locale).HasMaxLength(35).IsRequired();
             entity.Property(translation => translation.Value).HasMaxLength(4000).IsRequired();
             entity.HasIndex(translation => translation.Locale);
         });
 
-        builder.Entity<LocalizationResource>().HasData(LocalizationSeedData.Resources);
-        builder.Entity<LocalizationTranslation>().HasData(LocalizationSeedData.Translations);
+        builder.Entity<LocalizationResource>().HasData(LocalizationSeedData.Resources.Select(resource => new
+        {
+            ScopeId = IdentityScope.Global,
+            resource.Key,
+            resource.Description
+        }));
+        builder.Entity<LocalizationTranslation>().HasData(LocalizationSeedData.Translations.Select(translation => new
+        {
+            ScopeId = IdentityScope.Global,
+            translation.ResourceKey,
+            translation.Locale,
+            translation.Value
+        }));
 
         builder.Entity<MobileDeviceRegistration>(entity =>
         {

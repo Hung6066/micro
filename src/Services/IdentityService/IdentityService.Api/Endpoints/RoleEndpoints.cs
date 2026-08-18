@@ -1,4 +1,5 @@
 using His.Hope.IdentityService.Application.DTOs;
+using His.Hope.Contracts;
 using His.Hope.IdentityService.Application.UseCases.Roles.Commands;
 using His.Hope.IdentityService.Application.UseCases.Roles.Queries;
 using MediatR;
@@ -76,7 +77,7 @@ public static class RoleEndpoints
                 var governanceError = await RoleGovernanceEvaluator.ValidateRolePermissionsAsync(
                     db, http.User, request.Permissions, ct);
                 if (governanceError is not null)
-                    return Results.Problem(governanceError, statusCode: 403);
+                    return Results.Problem(statusCode: 403, extensions: new Dictionary<string, object?> { ["errorCode"] = ApiErrorCodes.FacilityScopeDenied });
                 var role = await mediator.Send(
                     new CreateRoleCommand(request.Name, request.Description, request.Permissions, request.Owner), ct);
                 await CaptureTemplateVersionAsync(db, role.Id, "published", http.User.FindFirst("sub")?.Value, ct);
@@ -87,7 +88,8 @@ public static class RoleEndpoints
             }
             catch (InvalidOperationException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 400);
+                return Results.Problem(statusCode: 400, detail: ex.Message,
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.RoleRequestRejected });
             }
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
 
@@ -110,7 +112,7 @@ public static class RoleEndpoints
                 var governanceError = await RoleGovernanceEvaluator.ValidateRolePermissionsAsync(
                     db, http.User, request.Permissions, ct);
                 if (governanceError is not null)
-                    return Results.Problem(governanceError, statusCode: 403);
+                    return Results.Problem(statusCode: 403, extensions: new Dictionary<string, object?> { ["errorCode"] = ApiErrorCodes.FacilityScopeDenied });
                 var role = await mediator.Send(
                     new UpdateRoleCommand(id, request.Name, request.Description, request.Permissions, request.ConcurrencyToken, request.Owner), ct);
                 await RevokeRoleUsersAsync(db, tokenBlacklist, id, ct);
@@ -126,7 +128,9 @@ public static class RoleEndpoints
             }
             catch (InvalidOperationException ex)
             {
-                return Results.Problem(ex.Message, statusCode: ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? 409 : 400);
+                return Results.Problem(statusCode: ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? 409 : 400,
+                    detail: ex.Message,
+                    extensions: new Dictionary<string, object?> { ["errorCode"] = ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? ApiErrorCodes.ConcurrencyConflict : ApiErrorCodes.RoleRequestRejected });
             }
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
 
@@ -163,13 +167,13 @@ public static class RoleEndpoints
                 .FirstOrDefaultAsync(item => item.Id == id, ct);
             if (role is null) return Results.NotFound();
             if (role.IsSystem)
-                return Results.Problem("System roles are immutable.", statusCode: 409);
+                return Results.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.SystemRoleImmutable });
             var governanceError = await RoleGovernanceEvaluator.ValidateRolePermissionsAsync(
                 db, http.User, role.RolePermissions.Select(link => link.PermissionCode), ct);
             if (governanceError is not null)
-                return Results.Problem(governanceError, statusCode: 403);
+                return Results.Problem(statusCode: 403, extensions: new Dictionary<string, object?> { ["errorCode"] = ApiErrorCodes.FacilityScopeDenied });
             if (string.Equals(role.LifecycleStatus, "retired", StringComparison.OrdinalIgnoreCase))
-                return Results.Problem("Retired roles cannot be published.", statusCode: 409);
+                return Results.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.RetiredRoleCannotBePublished });
 
             var before = JsonSerializer.Serialize(new { role.LifecycleStatus, role.AuthorizationVersion });
             role.LifecycleStatus = "active";
@@ -198,18 +202,18 @@ public static class RoleEndpoints
                 .FirstOrDefaultAsync(item => item.Id == id, ct);
             if (role is null) return Results.NotFound();
             if (role.IsSystem)
-                return Results.Problem("System roles are immutable.", statusCode: 409);
+                return Results.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.SystemRoleImmutable });
             var target = await db.RoleTemplateVersions.AsNoTracking()
                 .Where(version => version.RoleId == id && version.Version < role.AuthorizationVersion && version.LifecycleStatus == "published")
                 .OrderByDescending(version => version.Version)
                 .FirstOrDefaultAsync(ct);
-            if (target is null) return Results.Problem("No previous published role template is available.", statusCode: 409);
+            if (target is null) return Results.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.PreviousRoleTemplateUnavailable });
 
             var permissions = JsonSerializer.Deserialize<string[]>(target.PermissionsJson) ?? [];
             var governanceError = await RoleGovernanceEvaluator.ValidateRolePermissionsAsync(
                 db, http.User, permissions, ct);
             if (governanceError is not null)
-                return Results.Problem(governanceError, statusCode: 403);
+                return Results.Problem(statusCode: 403, extensions: new Dictionary<string, object?> { ["errorCode"] = ApiErrorCodes.FacilityScopeDenied });
             var validPermissions = await db.Permissions.AsNoTracking()
                 .Where(permission => permissions.Contains(permission.Code))
                 .Select(permission => permission.Code)
@@ -253,7 +257,7 @@ public static class RoleEndpoints
                 var existingRole = await db.Roles.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct);
                 if (existingRole is null) return Results.NotFound();
                 if (existingRole.IsSystem)
-                    return Results.Problem("System roles are immutable.", statusCode: 409);
+                    return Results.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.SystemRoleImmutable });
                 await mediator.Send(new DeleteRoleCommand(id), ct);
                 await AdminAudit.LogAuthorizationChangeAsync(db, http, "ROLE_DELETE", "Role", id.ToString(),
                     "Role deleted through admin control plane.", null, null, ct);
@@ -266,7 +270,8 @@ public static class RoleEndpoints
             }
             catch (InvalidOperationException ex)
             {
-                return Results.Problem(ex.Message, statusCode: 400);
+                return Results.Problem(statusCode: 400, detail: ex.Message,
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.RoleRequestRejected });
             }
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
 

@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using His.Hope.Authorization;
 using His.Hope.Contracts.Identity;
+using His.Hope.Contracts;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -55,7 +56,7 @@ public static class ScimEndpoints
     {
         var scope = ScimScope.Resolve(httpContext, configuration);
         if (!scope.IsValid)
-            return TypedResults.Problem("A facility-scoped SCIM token is required.", statusCode: 403);
+            return TypedResults.Problem(statusCode: 403, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ScimFacilityTokenRequired });
         var query = ParseScimQuery(httpContext);
         var usersQuery = db.Users.AsNoTracking();
         if (scope.IsEnforced && !scope.IsCrossFacility)
@@ -83,9 +84,9 @@ public static class ScimEndpoints
     {
         var scope = ScimScope.Resolve(httpContext, configuration);
         if (!scope.IsValid || !scope.CanWrite(request.HisHopeExtension?.FacilityId))
-            return TypedResults.Problem("The SCIM request is outside the token facility scope.", statusCode: 403);
+            return TypedResults.Problem(statusCode: 403, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ScimFacilityScopeDenied });
         if (await userManager.FindByNameAsync(request.UserName) is not null)
-            return TypedResults.Problem("User already exists", statusCode: 409);
+            return TypedResults.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ScimUserAlreadyExists });
 
         var email = request.Emails?.FirstOrDefault(e => e.Primary)?.Value
                  ?? request.Emails?.FirstOrDefault()?.Value;
@@ -243,7 +244,7 @@ public static class ScimEndpoints
         ScimGroupRequest request, RoleManager<Role> roleManager, CancellationToken ct)
     {
         if (await roleManager.RoleExistsAsync(request.DisplayName))
-            return TypedResults.Problem("Role already exists", statusCode: 409);
+            return TypedResults.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ScimRoleAlreadyExists });
 
         var role = new Role
         {

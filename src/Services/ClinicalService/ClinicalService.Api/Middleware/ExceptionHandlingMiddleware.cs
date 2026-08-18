@@ -69,7 +69,20 @@ public class ExceptionHandlingMiddleware
                 break;
         }
 
-        _logger.LogError(exception, "Request failed with {StatusCode}", statusCode);
+        var statusValue = (int)statusCode;
+        var correlationId = context.Request.Headers["X-Correlation-Id"].FirstOrDefault()
+            ?? context.TraceIdentifier;
+        var error = new ApiErrorLogEntry(
+            ApiErrorCodes.ForStatus(statusValue),
+            statusValue,
+            exception.Message,
+            context.Request.Method,
+            context.Request.Path,
+            correlationId,
+            context.TraceIdentifier,
+            statusValue >= 500 ? null : detail);
+        _logger.Log(statusValue >= 500 ? LogLevel.Error : LogLevel.Warning,
+            exception, "HTTP error {@Error}", error);
         await context.WriteContractProblemAsync((int)statusCode, title, detail,
             ApiErrorCodes.ForStatus((int)statusCode), errors);
     }

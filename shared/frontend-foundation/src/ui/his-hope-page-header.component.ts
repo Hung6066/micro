@@ -1,8 +1,8 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
-import { HisHopeTranslatePipe } from '../i18n/his-hope-translate.pipe';
+import { ChangeDetectionStrategy, Component, input } from "@angular/core";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
 @Component({
-  selector: 'hh-page-header',
+  selector: "hh-page-header",
   standalone: true,
   imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -20,6 +20,5 @@ import { HisHopeTranslatePipe } from '../i18n/his-hope-translate.pipe';
 })
 export class HisHopePageHeaderComponent {
   readonly title = input.required<string>();
-  readonly subtitle = input('');
+  readonly subtitle = input("");
 }
-

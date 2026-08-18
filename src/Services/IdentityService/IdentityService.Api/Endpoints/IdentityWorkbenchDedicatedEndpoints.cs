@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using His.Hope.Contracts.Identity;
+using His.Hope.Contracts;
 using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
@@ -85,7 +86,7 @@ public static class IdentityWorkbenchDedicatedEndpoints
 
         group.MapPost("/analyzer/policy-simulator", async (PolicySimulationRequest request, IdentityDbContext db, CancellationToken ct) =>
         {
-            if (request.UserId == Guid.Empty || string.IsNullOrWhiteSpace(request.PermissionCode)) return Results.BadRequest("userId and permissionCode are required");
+            if (request.UserId == Guid.Empty || string.IsNullOrWhiteSpace(request.PermissionCode)) return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidUserPermissionRequest });
             var effective = await db.IamPermissionSetAssignments.AsNoTracking().Where(x => x.PrincipalId == request.UserId && x.Status == "active" && (x.ExpiresAt == null || x.ExpiresAt > DateTime.UtcNow)).Join(db.IamPermissionSets.Where(x => x.LifecycleStatus == AuthorizationConstants.LifecycleStatuses.Published), x => x.PermissionSetId, x => x.Id, (_, set) => set.PermissionsJson).ToListAsync(ct);
             var allowed = effective.SelectMany(x => JsonSerializer.Deserialize<string[]>(x) ?? []).Contains(request.PermissionCode.Trim().ToLowerInvariant(), StringComparer.Ordinal);
             return Results.Ok(new { schemaVersion = "iam-policy-simulation.v1", request.UserId, permissionCode = request.PermissionCode.Trim().ToLowerInvariant(), allowed, evaluatedAt = DateTime.UtcNow });

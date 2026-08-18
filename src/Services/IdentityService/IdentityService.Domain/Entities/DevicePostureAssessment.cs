@@ -3,6 +3,7 @@ namespace His.Hope.IdentityService.Domain.Entities;
 /// <summary>Normalized, short-lived device posture evidence. Raw vendor proofs are never persisted.</summary>
 public sealed class DevicePostureAssessment
 {
+    public string ScopeId { get; set; } = IdentityScope.Global;
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid UserId { get; set; }
     public string DeviceId { get; set; } = string.Empty;

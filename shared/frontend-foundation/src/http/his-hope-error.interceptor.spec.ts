@@ -11,7 +11,7 @@ import {
 } from "@angular/common/http/testing";
 import { hisHopeErrorInterceptor } from "./his-hope-error.interceptor";
 import { HisHopeErrorReportingService } from "./his-hope-error-reporting.service";
-import { HisHopePermissionService } from "../auth/his-hope-permission.service";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 
 describe("hisHopeErrorInterceptor", () => {
   let httpMock: HttpTestingController;
@@ -78,6 +78,38 @@ describe("hisHopeErrorInterceptor", () => {
     expect(event.severity).toBe("warning");
   });
 
+  it("reports RFC 7807 fields without losing the original error response", () => {
+    let error: HttpErrorResponse | undefined;
+    http
+      .post("/api/v1/patients", {})
+      .subscribe({ error: (err) => (error = err) });
+
+    httpMock.expectOne("/api/v1/patients").flush(
+      {
+        type: "https://errors.his.hope/validation",
+        title: "Validation failed",
+        status: 422,
+        detail: "Patient is already registered.",
+        errorCode: "patient_already_registered",
+        correlationId: "corr-123",
+        errors: { email: ["Email is already registered."] },
+      },
+      { status: 422, statusText: "Unprocessable Entity" },
+    );
+
+    expect(error?.status).toBe(422);
+    expect(errorReporting.events()[0]).toEqual(
+      jasmine.objectContaining({
+        message: "Patient is already registered.",
+        errorCode: "patient_already_registered",
+        title: "Validation failed",
+        detail: "Patient is already registered.",
+        correlationId: "corr-123",
+        errors: { email: ["Email is already registered."] },
+      }),
+    );
+  });
+
   it("gives up after the retry budget and reports exactly one final failure", fakeAsync(() => {
     let error: HttpErrorResponse | undefined;
     http.get("/api/v1/clients").subscribe({ error: (err) => (error = err) });
@@ -114,6 +146,8 @@ describe("hisHopeErrorInterceptor", () => {
 
     expect(error?.status).toBe(403);
     expect(permissionService.has("patients.view")).toBeTrue();
-    expect(permissionService.lastAuthorizationFailure()?.action).toBe("patients.view");
+    expect(permissionService.lastAuthorizationFailure()?.action).toBe(
+      "patients.view",
+    );
   });
 });

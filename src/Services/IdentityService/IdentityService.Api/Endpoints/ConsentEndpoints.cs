@@ -46,7 +46,7 @@ public static class ConsentEndpoints
     {
         var userId = httpContext.User.FindFirst("sub")?.Value;
         if (string.IsNullOrEmpty(userId) || !Guid.TryParse(userId, out var userGuid))
-            return TypedResults.Problem("Not authenticated", statusCode: 401);
+            return TypedResults.Problem(statusCode: 401, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.NotAuthenticated });
 
         var existing = await db.ClientConsents
             .FirstOrDefaultAsync(c => c.UserId == userGuid && c.ClientId == request.ClientId, ct);

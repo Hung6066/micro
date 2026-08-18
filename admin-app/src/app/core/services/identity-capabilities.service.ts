@@ -1,9 +1,8 @@
-import { Injectable, inject } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
-import { Observable, forkJoin, of, throwError } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { Injectable, inject } from "@angular/core";
+import { Observable, forkJoin, of, throwError } from "rxjs";
+import { catchError, map } from "rxjs/operators";
+import { ApiErrorMessageService } from "./api-error-message.service";
 import {
-  AdminApiService,
   AuditLogRow,
   DevicePostureAssessment,
   DevicePosturePolicy,
@@ -13,7 +12,8 @@ import {
   ProvisioningJob,
   RadiusEapTlsStatus,
   SecuritySignalStatus,
-} from './admin-api.service';
+} from "./identity-capabilities-api.service";
+import { IdentityCapabilitiesApiService } from "./identity-capabilities-api.service";
 
 export interface IdentityCapabilityError {
   status: number;
@@ -35,42 +35,71 @@ export interface IdentityCapabilityState {
 
 /** Typed admin facade. Vendor credentials, certificate material and raw posture
  * evidence never cross this boundary into the browser. */
-@Injectable({ providedIn: 'root' })
+@Injectable({ providedIn: "root" })
 export class IdentityCapabilitiesService {
-  private readonly api = inject(AdminApiService);
+  private readonly api = inject(IdentityCapabilitiesApiService);
+  private readonly errorMessages = inject(ApiErrorMessageService);
 
-  loadState(): Observable<IdentityCapabilityState> {
+  loadState(facilityId?: string): Observable<IdentityCapabilityState> {
     return forkJoin({
-      policy: this.api.getDevicePosturePolicy().pipe(catchError(() => of(undefined))),
-      assessments: this.api.getDevicePostureAssessments().pipe(catchError(() => of([]))),
-      settings: this.api.getIdentitySettings().pipe(catchError(() => of([]))),
-      audit: this.api.getAuditLogs({ page: 1, pageSize: 25 }).pipe(catchError(() => of({ items: [], totalCount: 0, page: 1, pageSize: 25 }))),
-      provisioningJobs: this.api.getProvisioningJobs().pipe(catchError(() => of([]))),
+      policy: this.api
+        .getDevicePosturePolicy(facilityId)
+        .pipe(catchError(() => of(undefined))),
+      assessments: this.api
+        .getDevicePostureAssessments(facilityId)
+        .pipe(catchError(() => of([]))),
+      settings: this.api
+        .getIdentitySettings(facilityId)
+        .pipe(catchError(() => of([]))),
+      audit: this.api
+        .getAuditLogs({ page: 1, pageSize: 25 })
+        .pipe(
+          catchError(() =>
+            of({ items: [], totalCount: 0, page: 1, pageSize: 25 }),
+          ),
+        ),
+      provisioningJobs: this.api
+        .getProvisioningJobs()
+        .pipe(catchError(() => of([]))),
       mtlsBindings: this.api.getMtlsBindings().pipe(catchError(() => of([]))),
-      radiusStatus: this.api.getRadiusEapTlsStatus().pipe(catchError(() => of(undefined))),
-      ssfStatus: this.api.getSecuritySignalStatus().pipe(catchError(() => of(undefined))),
-      deliveryHealth: this.api.getDeliveryHealth().pipe(catchError(() => of(undefined))),
-    }).pipe(map(({ policy, assessments, settings, audit, provisioningJobs, mtlsBindings, radiusStatus, ssfStatus, deliveryHealth }) => ({
-      policy,
-      assessments,
-      settings,
-      auditRows: audit.items ?? [],
-      provisioningJobs,
-      mtlsBindings,
-      radiusStatus,
-      ssfStatus,
-      deliveryHealth,
-    })));
+      radiusStatus: this.api
+        .getRadiusEapTlsStatus()
+        .pipe(catchError(() => of(undefined))),
+      ssfStatus: this.api
+        .getSecuritySignalStatus()
+        .pipe(catchError(() => of(undefined))),
+      deliveryHealth: this.api
+        .getDeliveryHealth()
+        .pipe(catchError(() => of(undefined))),
+    }).pipe(
+      map(
+        ({
+          policy,
+          assessments,
+          settings,
+          audit,
+          provisioningJobs,
+          mtlsBindings,
+          radiusStatus,
+          ssfStatus,
+          deliveryHealth,
+        }) => ({
+          policy,
+          assessments,
+          settings,
+          auditRows: audit.items ?? [],
+          provisioningJobs,
+          mtlsBindings,
+          radiusStatus,
+          ssfStatus,
+          deliveryHealth,
+        }),
+      ),
+    );
   }
 
   normalizeError(error: unknown): IdentityCapabilityError {
-    const response = error instanceof HttpErrorResponse ? error : undefined;
-    const headers = response?.headers;
-    return {
-      status: response?.status ?? 0,
-      code: response?.error?.code ?? response?.error?.errorCode ?? `http_${response?.status ?? 'unknown'}`,
-      correlationId: headers?.get('x-correlation-id') ?? headers?.get('trace-id') ?? undefined,
-    };
+    return this.errorMessages.normalize(error);
   }
 
   fail<T>(error: unknown): Observable<T> {

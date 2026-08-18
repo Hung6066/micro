@@ -3,6 +3,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Identity;
+using His.Hope.Contracts;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -48,11 +49,11 @@ public static class AccountLinkingEndpoints
 
         var hasPassword = await userManager.HasPasswordAsync(user);
         if (logins.Count == 1 && !hasPassword)
-            return TypedResults.Problem("Cannot unlink the only login method. Set a password first.", statusCode: 400);
+            return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.CannotUnlinkOnlyLogin });
 
         var result = await userManager.RemoveLoginAsync(user, login.LoginProvider, login.ProviderKey);
         if (!result.Succeeded)
-            return TypedResults.Problem("Failed to unlink account", statusCode: 500);
+            return TypedResults.Problem(statusCode: 500, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.AccountUnlinkFailed });
 
         return TypedResults.NoContent();
     }
@@ -65,7 +66,7 @@ public static class AccountLinkingEndpoints
             .Select(section => section["Name"])
             .Where(name => !string.IsNullOrWhiteSpace(name));
         if (!supportedProviders.Contains(provider, StringComparer.OrdinalIgnoreCase) && !configured.Contains(provider, StringComparer.Ordinal))
-            return TypedResults.Problem($"Unsupported provider: {provider}", statusCode: 400);
+            return TypedResults.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedProvider });
 
         var redirectUrl = $"/api/v1/auth/link-callback/{provider}";
         var properties = new AuthenticationProperties { RedirectUri = redirectUrl };

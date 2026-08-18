@@ -37,9 +37,19 @@ public sealed class SamlFederationController(
                 binding.SetRelayStateQuery(new Dictionary<string, string> { ["returnUrl"] = returnUrl });
             return binding.Bind(request).ToActionResult();
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException)
         {
-            return Problem(ex.Message, statusCode: StatusCodes.Status404NotFound);
+            var problem = new Microsoft.AspNetCore.Mvc.ProblemDetails
+            {
+                Status = StatusCodes.Status404NotFound,
+                Title = "Not Found"
+            };
+            problem.Extensions[ApiProblemExtensions.ErrorCode] = ApiErrorCodes.NotFound;
+            return new ObjectResult(problem)
+            {
+                StatusCode = StatusCodes.Status404NotFound,
+                ContentTypes = { "application/problem+json" }
+            };
         }
     }
 

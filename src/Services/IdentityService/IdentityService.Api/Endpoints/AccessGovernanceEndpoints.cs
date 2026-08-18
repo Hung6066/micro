@@ -159,8 +159,12 @@ public static class AccessGovernanceEndpoints
                 return Results.Conflict(new { errorCode = "policy_key_exists" });
             var policy = new AuthorizationPolicyDefinition
             {
-                Key = key, Description = request.Description.Trim(), Owner = string.IsNullOrWhiteSpace(request.Owner) ? "identity-service" : request.Owner.Trim(),
-                RulesJson = request.RulesJson, LifecycleStatus = "draft", CreatedBy = Actor(http)
+                Key = key,
+                Description = request.Description.Trim(),
+                Owner = string.IsNullOrWhiteSpace(request.Owner) ? "identity-service" : request.Owner.Trim(),
+                RulesJson = request.RulesJson,
+                LifecycleStatus = "draft",
+                CreatedBy = Actor(http)
             };
             db.AuthorizationPolicies.Add(policy);
             await db.SaveChangesAsync(ct);
@@ -229,9 +233,15 @@ public static class AccessGovernanceEndpoints
             foreach (var item in published) item.LifecycleStatus = "retired";
             var rollback = new AuthorizationPolicyDefinition
             {
-                Key = current.Key, Description = previous.Description, Owner = previous.Owner,
-                Version = current.Version + 1, LifecycleStatus = "published", RulesJson = previous.RulesJson,
-                CreatedBy = Actor(http), PublishedBy = Actor(http), PublishedAt = DateTime.UtcNow
+                Key = current.Key,
+                Description = previous.Description,
+                Owner = previous.Owner,
+                Version = current.Version + 1,
+                LifecycleStatus = "published",
+                RulesJson = previous.RulesJson,
+                CreatedBy = Actor(http),
+                PublishedBy = Actor(http),
+                PublishedAt = DateTime.UtcNow
             };
             db.AuthorizationPolicies.Add(rollback);
             await db.SaveChangesAsync(ct);
@@ -500,12 +510,17 @@ public static class AccessGovernanceEndpoints
         {
             if (request.SubjectUserId == Guid.Empty || string.IsNullOrWhiteSpace(request.FacilityId) ||
                 string.IsNullOrWhiteSpace(request.PermissionCode) || request.Reason.Trim().Length < 10)
-                return Results.ValidationProblem(new Dictionary<string, string[]> {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
                     ["request"] = ["subjectUserId, facilityId, permissionCode and a reason of at least 10 characters are required."]
                 });
 
-            if (!HisHopePermissions.IsValid(request.PermissionCode))
-                return Results.ValidationProblem(new Dictionary<string, string[]> {
+            var registeredPrefixes = await db.IamServiceDefinitions.AsNoTracking()
+                .Select(service => service.PermissionPrefix)
+                .ToArrayAsync(ct);
+            if (!PermissionCatalogRules.IsValid(request.PermissionCode, registeredPrefixes))
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
                     ["permissionCode"] = ["Permission is not registered in the canonical permission catalog."]
                 });
 
@@ -515,11 +530,17 @@ public static class AccessGovernanceEndpoints
                 ?? http.User.FindFirstValue("sub") ?? "unknown";
             var item = new BreakGlassRequest
             {
-                Id = Guid.NewGuid(), SubjectUserId = request.SubjectUserId,
-                PermissionCode = request.PermissionCode.Trim(), ResourceType = request.ResourceType?.Trim(),
-                ResourceId = request.ResourceId?.Trim(), FacilityId = request.FacilityId.Trim(),
-                Reason = request.Reason.Trim(), RequestedBy = requestedBy,
-                RequestedAt = now, ExpiresAt = expiresAt, Status = "pending"
+                Id = Guid.NewGuid(),
+                SubjectUserId = request.SubjectUserId,
+                PermissionCode = request.PermissionCode.Trim(),
+                ResourceType = request.ResourceType?.Trim(),
+                ResourceId = request.ResourceId?.Trim(),
+                FacilityId = request.FacilityId.Trim(),
+                Reason = request.Reason.Trim(),
+                RequestedBy = requestedBy,
+                RequestedAt = now,
+                ExpiresAt = expiresAt,
+                Status = "pending"
             };
             db.BreakGlassRequests.Add(item);
             await db.SaveChangesAsync(ct);
@@ -576,7 +597,8 @@ public static class AccessGovernanceEndpoints
             CancellationToken ct) =>
         {
             if (request.UserId == Guid.Empty || string.IsNullOrWhiteSpace(request.PermissionCode))
-                return Results.ValidationProblem(new Dictionary<string, string[]> {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
                     ["request"] = ["userId and permissionCode are required."]
                 });
 

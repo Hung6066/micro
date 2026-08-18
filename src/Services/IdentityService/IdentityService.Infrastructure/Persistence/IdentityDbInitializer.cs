@@ -2,6 +2,7 @@ using System.Text.Json;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.IdentityService.Application.Authorization;
 using His.Hope.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -64,10 +65,15 @@ public static class IdentityDbInitializer
         // Removes any permission codes that don't match the canonical set
         // (e.g., old codes like "Patients".read that were seeded with wrong format)
         // ──────────────────────────────────────────────
-        var canonicalCodes = HisHopePermissions.All;
-        var obsoletePermissions = await context.Permissions
-            .Where(p => !canonicalCodes.Contains(p.Code))
+        var registeredPrefixes = await context.IamServiceDefinitions
+            .Where(item => item.IsActive)
+            .Select(item => item.PermissionPrefix)
             .ToListAsync(ct);
+        var obsoletePermissions = await context.Permissions
+            .ToListAsync(ct);
+        obsoletePermissions = obsoletePermissions
+            .Where(permission => !PermissionCatalogRules.IsValid(permission.Code, registeredPrefixes))
+            .ToList();
 
         if (obsoletePermissions.Count > 0)
         {

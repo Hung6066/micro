@@ -7,7 +7,7 @@
   "components": [
     {
       "selector": "hh-data-table",
-      "source": "src/ui/his-hope-data-table.component.ts",
+      "source": "ui/src/his-hope-data-table.component.ts",
       "purpose": "Client or server paged data table with sorting, selection, inline edit, export and bulk contracts",
       "inputs": ["columns", "rows", "mode", "query", "totalItems", "selectionScope", "selectionState", "inlineEdit", "bulkActions", "exportable"],
       "outputs": ["queryChange", "selectionChange", "selectionStateChange", "bulkActionRequested", "exportRequested", "rowEditSaveRequested", "rowEditUndo"],
@@ -17,7 +17,7 @@
     },
     {
       "selector": "hh-form-field",
-      "source": "src/ui/his-hope-form-field.component.ts",
+      "source": "ui/src/his-hope-form-field.component.ts",
       "purpose": "Persistent label, hint, validation and required field wrapper",
       "inputs": ["controlId", "label", "hint", "error", "required"],
       "outputs": [],
@@ -27,7 +27,7 @@
     },
     {
       "selector": "hh-confirm-dialog",
-      "source": "src/ui/his-hope-confirm-dialog.component.ts",
+      "source": "ui/src/his-hope-confirm-dialog.component.ts",
       "purpose": "Destructive action confirmation",
       "inputs": ["open", "title", "message", "confirmLabel", "cancelLabel"],
       "outputs": ["confirmed", "cancelled"],
@@ -36,7 +36,7 @@
     },
     {
       "selector": "hh-permission-button",
-      "source": "src/ui/his-hope-navigation.component.ts",
+      "source": "ui/src/his-hope-navigation.component.ts",
       "purpose": "Permission-aware action affordance",
       "inputs": ["requiredPermission", "requiredPermissions", "permissionMode", "permissions", "showDenied"],
       "outputs": ["clicked"],
@@ -45,7 +45,7 @@
     },
     {
       "selector": "hh-language-switcher",
-      "source": "src/i18n/his-hope-language-switcher.component.ts",
+      "source": "i18n/src/his-hope-language-switcher.component.ts",
       "purpose": "Locale selection with icon and keyboard navigation",
       "inputs": ["locales"],
       "outputs": ["localeChange"],
@@ -54,7 +54,7 @@
     },
     {
       "selector": "hh-state / hh-skeleton / hh-status-badge",
-      "source": "src/ui",
+      "source": "ui/src",
       "purpose": "Consistent loading, empty, error, unavailable and semantic status feedback",
       "inputs": ["kind", "message", "tone", "label"],
       "outputs": [],

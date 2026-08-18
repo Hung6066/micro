@@ -13,6 +13,7 @@ using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Contracts.Identity;
+using His.Hope.Contracts;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -90,7 +91,7 @@ public static class MfaEndpoints
                 .FirstOrDefaultAsync(m => m.UserId == userId.Value, ct);
 
             if (existing is { IsEnabled: true })
-                return Results.Problem("MFA is already enabled.", statusCode: 400);
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidMfaState });
 
             var secret = totpService.GenerateSecret();
             var encryptedSecret = encryptor.Encrypt(secret);
@@ -145,7 +146,7 @@ public static class MfaEndpoints
                         requiresMfa = false,
                         redirectUrl = result.RedirectUrl
                     }),
-                    PendingMfaCompletionStatus.InvalidCode => Results.Problem("Invalid TOTP code.", statusCode: 400),
+                    PendingMfaCompletionStatus.InvalidCode => Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidTotpCode }),
                     _ => Results.Unauthorized()
                 };
             }
@@ -165,18 +166,18 @@ public static class MfaEndpoints
                 .FirstOrDefaultAsync(m => m.UserId == userId.Value, ct);
 
             if (mfa is null)
-                return Results.Problem("MFA not enrolled. Enroll first.", statusCode: 400);
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidMfaState });
 
             // Reject malformed input before decrypting the secret or invoking
             // the TOTP parser; blank codes must be a client error, never a 500.
             if (string.IsNullOrWhiteSpace(request.Code))
-                return Results.Problem("Invalid TOTP code.", statusCode: 400);
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidTotpCode });
 
             var encryptor = services.GetRequiredService<IMfaSecretEncryptor>();
             var totpService = services.GetRequiredService<TotpService>();
             var decryptedSecret = encryptor.Decrypt(mfa.SecretKey);
             if (!totpService.VerifyCode(decryptedSecret, request.Code))
-                return Results.Problem("Invalid TOTP code.", statusCode: 400);
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidTotpCode });
 
             mfa.IsEnabled = true;
             mfa.EnrolledAt = DateTime.UtcNow;
@@ -266,13 +267,13 @@ public static class MfaEndpoints
                 .FirstOrDefaultAsync(m => m.UserId == userId.Value, ct);
 
             if (mfa is null)
-                return Results.Problem("MFA not enrolled.", statusCode: 400);
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidMfaState });
 
             var codeHash = recoveryCodeService.HashCode(request.RecoveryCode);
             var index = Array.IndexOf(mfa.RecoveryCodes, codeHash);
 
             if (index < 0)
-                return Results.Problem("Invalid recovery code.", statusCode: 400);
+                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidRecoveryCode });
 
             var codes = mfa.RecoveryCodes.ToList();
             codes.RemoveAt(index);

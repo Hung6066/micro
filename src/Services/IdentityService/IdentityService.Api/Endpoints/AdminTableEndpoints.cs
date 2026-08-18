@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using OpenIddictEntityFrameworkCore = OpenIddict.EntityFrameworkCore.Models;
 using His.Hope.Contracts.Bulk;
+using His.Hope.Contracts;
 using His.Hope.IdentityService.Api.Jobs;
 using His.Hope.IdentityService.Infrastructure.Facility;
 using His.Hope.SharedKernel.Authorization;
@@ -50,7 +51,7 @@ public static class AdminTableEndpoints
         if (request.RowKeys.Length is 0 or > 1000)
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["rowKeys"] = ["Select between 1 and 1000 rows."] });
         if (request.ActionId is not ("activate" or "deactivate"))
-            return Results.Problem("Unsupported user bulk action.", statusCode: 400);
+            return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedBulkAction });
         if (request.Async)
             return await EnqueueBulkAsync("users", request, http, http.RequestServices.GetRequiredService<RedisAdminJobStore>(), ct);
 
@@ -98,7 +99,7 @@ public static class AdminTableEndpoints
 
         var format = request.Format?.Trim().ToLowerInvariant();
         if (format is not ("csv" or "json" or "xlsx"))
-            return Results.Problem("Supported export formats are csv, xlsx, and json.", statusCode: 400);
+            return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedExportFormat });
         if (request.RowKeys.Length > 10000)
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["rowKeys"] = ["Export is limited to 10000 rows."] });
         if (request.Async)
@@ -143,17 +144,17 @@ public static class AdminTableEndpoints
         if (request.RowKeys.Length is 0 or > 1000)
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["rowKeys"] = ["Select between 1 and 1000 rows."] });
         if (request.ActionId is not "delete")
-            return Results.Problem("Supported role bulk action is delete.", statusCode: 400);
+            return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedBulkAction });
         if (request.Async)
             return await EnqueueBulkAsync("roles", request, http, http.RequestServices.GetRequiredService<RedisAdminJobStore>(), ct);
 
         var ids = ParseIds(request.RowKeys);
         var roles = await db.Roles.Where(role => ids.Contains(role.Id)).ToListAsync(ct);
         if (roles.Any(role => role.IsSystem))
-            return Results.Conflict(new { errorCode = "system_role_protected", message = "System roles cannot be deleted." });
+            return Results.Conflict(new { errorCode = "system_role_protected" });
         var assigned = await db.UserRoles.AnyAsync(link => ids.Contains(link.RoleId), ct);
         if (assigned)
-            return Results.Conflict(new { errorCode = "role_in_use", message = "A selected role is assigned to a user." });
+            return Results.Conflict(new { errorCode = "role_in_use" });
 
         db.Roles.RemoveRange(roles);
         await db.SaveChangesAsync(ct);
@@ -171,7 +172,7 @@ public static class AdminTableEndpoints
         if (request.RowKeys.Length is 0 or > 1000)
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["rowKeys"] = ["Select between 1 and 1000 rows."] });
         if (request.ActionId is not "delete")
-            return Results.Problem("Supported client bulk action is delete.", statusCode: 400);
+            return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedBulkAction });
         if (request.Async)
             return await EnqueueBulkAsync("clients", request, http, http.RequestServices.GetRequiredService<RedisAdminJobStore>(), ct);
 

@@ -3,8 +3,8 @@ import { HttpClient } from "@angular/common/http";
 import { Router } from "@angular/router";
 import { Observable } from "rxjs";
 import { OidcSecurityService } from "angular-auth-oidc-client";
-import { HisHopeAuthCoordinator } from "@his-hope/frontend-foundation";
-import { environment } from '../../../environments/environment';
+import { HisHopeAuthCoordinator } from "@his-hope/frontend-foundation/auth";
+import { environment } from "../../../environments/environment";
 
 @Injectable({ providedIn: "root" })
 export class AuthService {
@@ -19,7 +19,8 @@ export class AuthService {
     },
   );
 
-  readonly isAuthenticated$: Observable<boolean> = this.coordinator.isAuthenticated$;
+  readonly isAuthenticated$: Observable<boolean> =
+    this.coordinator.isAuthenticated$;
 
   /** Wait for initial OIDC checkAuth to complete (used by guards) */
   checkAuth(): Observable<void> {

@@ -1,5 +1,5 @@
 import { HttpErrorResponse, HttpEvent, HttpHandlerFn, HttpInterceptorFn, HttpRequest } from "@angular/common/http";
-import { Observable, catchError, finalize, of, shareReplay, switchMap, throwError } from "rxjs";
+import { Observable, catchError, finalize, of, shareReplay, switchMap, take, throwError } from "rxjs";
 
 export interface HisHopeBearerTokenOptions {
   /** Only requests matched by this predicate get an Authorization header. Defaults to any URL containing "/api/". */
@@ -41,7 +41,12 @@ export function createHisHopeBearerTokenInterceptor(
   };
 
   const sendWithToken = (request: HttpRequest<unknown>, retrying: boolean, next: HttpHandlerFn): Observable<HttpEvent<unknown>> =>
+    // A token provider may be backed by a long-lived auth stream. Each HTTP
+    // request needs one snapshot only; keeping the stream subscribed can keep
+    // the HttpClient observable open and leave page-level loading flags stuck
+    // after the response body has already arrived.
     getAccessToken().pipe(
+      take(1),
       switchMap((token) => {
         const authenticatedRequest = request.clone({
           withCredentials,

@@ -1,25 +1,210 @@
-import { Component, Inject, inject } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { CommonModule } from '@angular/common';
-import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatButtonModule } from '@angular/material/button';
-import { MatSelectModule } from '@angular/material/select';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { AdminApiService, User } from '../../core/services/admin-api.service';
-import { HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeI18nService, HisHopeTranslatePipe } from '@his-hope/frontend-foundation';
-import { catchError, of } from 'rxjs';
+import { Component, Inject, inject } from "@angular/core";
+import { FormGroup } from "@angular/forms";
+import {
+  MAT_DIALOG_DATA,
+  MatDialogRef,
+} from "@angular/material/dialog";
+import { MatSnackBar } from "@angular/material/snack-bar";
+import { User } from "../../core/contracts/admin.contracts";
+import { UsersApiService } from "../../core/services/users-api.service";
+import {
+  HisHopeCreateDialogShellComponent,
+  HisHopeFormFieldSchema,
+  HisHopeFormLayoutComponent,
+  HisHopeFormRendererComponent,
+  HisHopeFormSectionComponent,
+  HisHopeFormSchema,
+  HisHopeI18nService,
+  HisHopeTranslatePipe,
+  createHisHopeFormGroup,
+} from "@his-hope/frontend-foundation";
+import { catchError, of } from "rxjs";
 
 @Component({
-  selector: 'app-user-edit-dialog', standalone: true,
-  imports: [CommonModule, FormsModule, MatDialogModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatSelectModule, MatSnackBarModule, HisHopeCreateDialogShellComponent, HisHopeFormLayoutComponent, HisHopeFormSectionComponent, HisHopeTranslatePipe],
-  template: `<form #formRef="ngForm" (ngSubmit)="save()"><hh-create-dialog-shell [title]="(isEdit ? 'admin.editUser' : 'admin.createUser') | hhTranslate"><div hhCreateDialogContent><hh-form-layout><hh-form-section [title]="'admin.basicInformation' | hhTranslate" [span]="2"><div class="fields"><mat-form-field appearance="outline"><mat-label>{{ 'admin.username' | hhTranslate }}</mat-label><input matInput name="username" [(ngModel)]="form.username" [disabled]="isEdit" required></mat-form-field><mat-form-field appearance="outline"><mat-label>{{ 'admin.email' | hhTranslate }}</mat-label><input matInput type="email" name="email" [(ngModel)]="form.email" required></mat-form-field><mat-form-field appearance="outline"><mat-label>{{ 'admin.firstName' | hhTranslate:'First name' }}</mat-label><input matInput name="firstName" [(ngModel)]="form.firstName" required></mat-form-field><mat-form-field appearance="outline"><mat-label>{{ 'admin.lastName' | hhTranslate:'Last name' }}</mat-label><input matInput name="lastName" [(ngModel)]="form.lastName" required></mat-form-field><mat-form-field appearance="outline"><mat-label>{{ 'admin.phoneNumber' | hhTranslate:'Phone number' }}</mat-label><input matInput name="phoneNumber" [(ngModel)]="form.phoneNumber"></mat-form-field><mat-form-field appearance="outline" *ngIf="!isEdit"><mat-label>{{ 'admin.password' | hhTranslate }}</mat-label><input matInput type="password" name="password" [(ngModel)]="form.password" required minlength="12"></mat-form-field><mat-form-field appearance="outline"><mat-label>{{ 'admin.role' | hhTranslate }}</mat-label><input matInput name="role" [(ngModel)]="form.role"></mat-form-field></div></hh-form-section></hh-form-layout></div><div hhCreateDialogFooter><button mat-button type="button" (click)="dialogRef.close()">{{ 'admin.cancel' | hhTranslate }}</button><button mat-flat-button color="primary" type="submit" [disabled]="formRef.invalid || saving">{{ saving ? ('admin.saving' | hhTranslate) : ('admin.save' | hhTranslate) }}</button></div></hh-create-dialog-shell></form>`,
-  styles: [`.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--form-field-gap)}mat-form-field{width:100%}@media(max-width:720px){.fields{grid-template-columns:1fr}}`],
+  selector: "app-user-edit-dialog",
+  standalone: true,
+  imports: [
+    HisHopeCreateDialogShellComponent,
+    HisHopeFormLayoutComponent,
+    HisHopeFormRendererComponent,
+    HisHopeFormSectionComponent,
+    HisHopeTranslatePipe,
+  ],
+  template: `
+    <hh-create-dialog-shell
+      [title]="(isEdit ? 'admin.editUser' : 'admin.createUser') | hhTranslate"
+    >
+      <div hhCreateDialogContent>
+        <hh-form-layout>
+          <hh-form-section
+            [title]="'admin.basicInformation' | hhTranslate"
+            [span]="2"
+          >
+            <hh-form-renderer
+              [fields]="fields"
+              [form]="formGroup"
+              (submitted)="save($event)"
+            >
+              <div hhCreateDialogFooter>
+                <button
+                  class="hh-button hh-button--secondary"
+                  type="button"
+                  (click)="dialogRef.close()"
+                >
+                  {{ "admin.cancel" | hhTranslate }}
+                </button>
+                <button
+                  class="hh-button hh-button--primary"
+                  type="submit"
+                  [disabled]="saving"
+                >
+                  {{
+                    saving
+                      ? ("admin.saving" | hhTranslate)
+                      : ("admin.save" | hhTranslate)
+                  }}
+                </button>
+              </div>
+            </hh-form-renderer>
+          </hh-form-section>
+        </hh-form-layout>
+      </div>
+    </hh-create-dialog-shell>
+  `,
+  styles: [
+    `
+      .hh-button {
+        min-height: var(--button-height);
+        padding: 0 16px;
+        border: 1px solid transparent;
+        border-radius: var(--radius-button);
+        font: inherit;
+        font-weight: var(--button-font-weight);
+        cursor: pointer;
+      }
+      .hh-button--primary {
+        color: var(--button-primary-text);
+        background: var(--button-primary-bg);
+      }
+      .hh-button--secondary {
+        color: var(--button-secondary-text);
+        border-color: var(--button-secondary-border);
+        background: var(--button-secondary-bg);
+      }
+      .hh-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.65;
+      }
+    `,
+  ],
 })
 export class UserEditDialogComponent {
-  readonly dialogRef = inject(MatDialogRef<UserEditDialogComponent>); private readonly api = inject(AdminApiService); private readonly snack = inject(MatSnackBar); private readonly i18n = inject(HisHopeI18nService);
-  isEdit = false; saving = false; form: any = { username: '', email: '', password: '', firstName: '', lastName: '', phoneNumber: '', role: '' };
-  constructor(@Inject(MAT_DIALOG_DATA) data: User | null) { this.isEdit = !!data; if (data) this.form = { ...this.form, ...data, username: data.userName }; }
-  save(): void { this.saving = true; const request = this.isEdit ? this.api.updateUser(this.form.id, { firstName: this.form.firstName, lastName: this.form.lastName, email: this.form.email, phoneNumber: this.form.phoneNumber, role: this.form.role, concurrencyToken: this.form.concurrencyToken }) : this.api.createUser(this.form); request.pipe(catchError(() => { this.snack.open(this.i18n.t('admin.saveUserFailed', 'Failed to save user'), this.i18n.t('admin.close', 'Close'), { duration: 3000 }); this.saving = false; return of(null); })).subscribe(result => { if (result) this.dialogRef.close(true); }); }
+  readonly dialogRef = inject(MatDialogRef<UserEditDialogComponent>);
+  private readonly api = inject(UsersApiService);
+  private readonly snack = inject(MatSnackBar);
+  private readonly i18n = inject(HisHopeI18nService);
+  readonly isEdit: boolean;
+  readonly formGroup: FormGroup;
+  readonly fields: readonly HisHopeFormFieldSchema<unknown>[];
+  private readonly userId: string;
+  private readonly concurrencyToken: string;
+  saving = false;
+
+  constructor(@Inject(MAT_DIALOG_DATA) data: User | null) {
+    this.isEdit = !!data;
+    this.userId = data?.id ?? "";
+    this.concurrencyToken = data?.concurrencyToken ?? "";
+    const schema: HisHopeFormSchema<Record<string, unknown>> = {
+      fields: {
+        username: {
+          key: "username",
+          label: this.i18n.t("admin.username"),
+          initialValue: data?.userName ?? "",
+          disabled: this.isEdit,
+          required: true,
+        },
+        email: {
+          key: "email",
+          label: this.i18n.t("admin.email"),
+          initialValue: data?.email ?? "",
+          type: "email",
+          required: true,
+        },
+        firstName: {
+          key: "firstName",
+          label: this.i18n.t("admin.firstName", "First name"),
+          initialValue: data?.firstName ?? "",
+          required: true,
+        },
+        lastName: {
+          key: "lastName",
+          label: this.i18n.t("admin.lastName", "Last name"),
+          initialValue: data?.lastName ?? "",
+          required: true,
+        },
+        phoneNumber: {
+          key: "phoneNumber",
+          label: this.i18n.t("admin.phoneNumber", "Phone number"),
+          initialValue: data?.phoneNumber ?? "",
+        },
+        password: {
+          key: "password",
+          label: this.i18n.t("admin.password"),
+          initialValue: "",
+          type: "password",
+          required: !this.isEdit,
+          messages: { minlength: this.i18n.t("admin.passwordMinLength", "Use at least 12 characters.") },
+        },
+        role: {
+          key: "role",
+          label: this.i18n.t("admin.role"),
+          initialValue: data?.roles?.[0] ?? "",
+        },
+      },
+    };
+    this.fields = Object.values(schema.fields);
+    this.formGroup = createHisHopeFormGroup(schema);
+    this.formGroup.get("password")?.addValidators((control) => {
+      const value = String(control.value ?? "");
+      return value.length > 0 && value.length < 12 ? { minlength: true } : null;
+    });
+    this.formGroup.get("password")?.updateValueAndValidity();
+  }
+
+  save(values: Record<string, unknown>): void {
+    this.saving = true;
+    const request = this.isEdit
+      ? this.api.updateUser(this.userId, {
+          firstName: String(values["firstName"] ?? ""),
+          lastName: String(values["lastName"] ?? ""),
+          email: String(values["email"] ?? ""),
+          phoneNumber: String(values["phoneNumber"] ?? ""),
+          role: String(values["role"] ?? ""),
+          concurrencyToken: this.concurrencyToken,
+        })
+      : this.api.createUser({
+          username: String(values["username"] ?? ""),
+          email: String(values["email"] ?? ""),
+          password: String(values["password"] ?? ""),
+          firstName: String(values["firstName"] ?? ""),
+          lastName: String(values["lastName"] ?? ""),
+          phoneNumber: String(values["phoneNumber"] ?? ""),
+          role: String(values["role"] ?? ""),
+        });
+    request
+      .pipe(
+        catchError(() => {
+          this.snack.open(
+            this.i18n.t("admin.saveUserFailed", "Failed to save user"),
+            this.i18n.t("admin.close", "Close"),
+            { duration: 3000 },
+          );
+          this.saving = false;
+          return of(null);
+        }),
+      )
+      .subscribe((result) => {
+        if (result) this.dialogRef.close(true);
+      });
+  }
 }

@@ -25,6 +25,17 @@ module.exports = tseslint.config(
     },
   },
   {
+    files: ['src/app/features/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['warn', {
+        patterns: [{
+          group: ['@angular/material/*'],
+          message: 'Use @his-hope/frontend-foundation primitives for feature UI; migrate Material usage incrementally.',
+        }],
+      }],
+    },
+  },
+  {
     files: ['**/*.html'],
     extends: [
       ...angular.configs.templateRecommended,

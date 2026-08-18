@@ -1,0 +1,271 @@
+<hh-page-layout>
+  <hh-page-header
+    hhPageHeader
+    [title]="'admin.securityProviders' | hhTranslate: 'Security providers'"
+    [subtitle]="
+      'admin.securityProvidersSubtitle'
+        | hhTranslate
+          : 'Create a passkey and configure LDAP/AD or SAML for the His.Hope identity service.'
+    "
+  >
+    <button
+      *ngIf="canWrite"
+      mat-raised-button
+      color="primary"
+      (click)="save()"
+      [disabled]="loading || saving"
+    >
+      <mat-icon>save</mat-icon
+      >{{ "admin.saveSettings" | hhTranslate: "Save settings" }}
+    </button>
+  </hh-page-header>
+  <mat-form-field appearance="outline" *ngIf="facilityIds.length > 1"
+    ><mat-label>{{ "admin.facility" | hhTranslate: "Facility" }}</mat-label
+    ><mat-select [(ngModel)]="selectedFacilityId" (selectionChange)="load()"
+      ><mat-option
+        *ngFor="let facilityId of facilityIds"
+        [value]="facilityId"
+        >{{ facilityId }}</mat-option
+      ></mat-select
+    ></mat-form-field
+  >
+  <div class="notice">
+    <mat-icon>info</mat-icon
+    ><span>{{
+      "admin.securityProvidersNotice"
+        | hhTranslate
+          : "Bind passwords, signing certificates and private keys stay in Vault/environment secrets. These settings may require an identity-service restart."
+    }}</span>
+  </div>
+  <section class="provider-grid">
+    <app-passkey-provider-card />
+    <mat-card class="provider-card mfa-card">
+      <mat-card-header
+        ><mat-icon mat-card-avatar>verified_user</mat-icon
+        ><mat-card-title>{{
+          "admin.mfaTotp" | hhTranslate: "MFA / TOTP"
+        }}</mat-card-title
+        ><mat-card-subtitle>{{
+          "admin.authenticatorApp" | hhTranslate: "Authenticator app"
+        }}</mat-card-subtitle></mat-card-header
+      >
+      <mat-card-content>
+        <p>
+          {{
+            "admin.mfaDescription"
+              | hhTranslate
+                : "Protect the current admin account with a six-digit authenticator code."
+          }}
+        </p>
+        <p class="status" [class.ready]="mfa.enabled">
+          {{
+            mfa.enabled
+              ? ("admin.mfaEnabled" | hhTranslate: "MFA is enabled.")
+              : ("admin.mfaNotEnabled" | hhTranslate: "MFA is not enabled.")
+          }}
+        </p>
+        <p class="error" *ngIf="mfaError">{{ mfaError }}</p>
+        <div class="mfa-setup" *ngIf="mfa.qrCodeUri">
+          <strong>{{
+            "admin.mfaSetupStep1"
+              | hhTranslate: "Step 1: Add to your authenticator app"
+          }}</strong>
+          <div class="qr-frame" *ngIf="mfa.qrCodeDataUrl">
+            <img
+              [src]="mfa.qrCodeDataUrl"
+              [alt]="'admin.mfaSetupStep1' | hhTranslate: 'MFA setup QR code'"
+            />
+          </div>
+          <label>{{ "admin.secretKey" | hhTranslate: "Secret key" }}</label
+          ><code>{{ mfa.secretKey }}</code>
+          <label>{{ "admin.otpUri" | hhTranslate: "OTP URI" }}</label
+          ><textarea readonly rows="3" [value]="mfa.qrCodeUri"></textarea>
+          <strong>{{
+            "admin.mfaSetupStep2"
+              | hhTranslate: "Step 2: Verify the six-digit code"
+          }}</strong>
+          <mat-form-field appearance="outline"
+            ><mat-label>{{
+              "admin.authenticatorCode" | hhTranslate: "Authenticator code"
+            }}</mat-label
+            ><input
+              matInput
+              inputmode="numeric"
+              maxlength="6"
+              autocomplete="one-time-code"
+              [(ngModel)]="mfa.verificationCode"
+          /></mat-form-field>
+          <button
+            mat-flat-button
+            color="primary"
+            (click)="verifyMfa()"
+            [disabled]="mfaBusy || mfa.verificationCode.length !== 6"
+          >
+            {{ "admin.verifyEnableMfa" | hhTranslate: "Verify and enable MFA" }}
+          </button>
+          <div class="recovery" *ngIf="mfa.recoveryCodes.length">
+            <strong>{{
+              "admin.saveRecoveryCodes" | hhTranslate: "Save recovery codes now"
+            }}</strong
+            ><code>{{ mfa.recoveryCodes.join(" · ") }}</code>
+          </div>
+        </div>
+      </mat-card-content>
+      <mat-card-actions
+        ><button
+          mat-stroked-button
+          (click)="enrollMfa()"
+          [disabled]="mfaBusy || mfa.enabled"
+        >
+          <mat-spinner *ngIf="mfaBusy" diameter="18"></mat-spinner
+          ><mat-icon *ngIf="!mfaBusy">security</mat-icon
+          >{{
+            mfa.qrCodeUri
+              ? ("admin.regenerateSetup" | hhTranslate: "Regenerate setup")
+              : ("admin.setupMfa" | hhTranslate: "Set up MFA")
+          }}
+        </button></mat-card-actions
+      >
+    </mat-card>
+    <mat-card class="provider-card">
+      <mat-card-header
+        ><mat-icon mat-card-avatar>account_tree</mat-icon
+        ><mat-card-title>{{
+          "admin.ldapAd" | hhTranslate: "LDAP / AD"
+        }}</mat-card-title
+        ><mat-card-subtitle>{{
+          "admin.directoryAuthentication"
+            | hhTranslate: "Directory authentication"
+        }}</mat-card-subtitle></mat-card-header
+      >
+      <mat-card-content class="form-grid">
+        <mat-checkbox [(ngModel)]="settings.ldap.enabled">{{
+          "admin.enableLdapLogin" | hhTranslate: "Enable LDAP/AD login"
+        }}</mat-checkbox>
+        <mat-form-field appearance="outline"
+          ><mat-label>{{ "admin.server" | hhTranslate: "Server" }}</mat-label
+          ><input
+            matInput
+            [(ngModel)]="settings.ldap.server"
+            placeholder="dc01.hospital.local"
+        /></mat-form-field>
+        <mat-form-field appearance="outline"
+          ><mat-label>{{ "admin.port" | hhTranslate: "Port" }}</mat-label
+          ><input matInput type="number" [(ngModel)]="settings.ldap.port"
+        /></mat-form-field>
+        <mat-checkbox [(ngModel)]="settings.ldap.useSsl">{{
+          "admin.useLdaps" | hhTranslate: "Use LDAPS/TLS"
+        }}</mat-checkbox>
+        <mat-form-field appearance="outline" class="wide"
+          ><mat-label>{{
+            "admin.searchBase" | hhTranslate: "Search base"
+          }}</mat-label
+          ><input
+            matInput
+            [(ngModel)]="settings.ldap.searchBase"
+            [placeholder]="
+              'admin.searchBasePlaceholder'
+                | hhTranslate: 'DC=hospital,DC=local'
+            "
+        /></mat-form-field>
+        <mat-form-field appearance="outline" class="wide"
+          ><mat-label>{{
+            "admin.searchFilter" | hhTranslate: "Search filter"
+          }}</mat-label
+          ><input matInput [(ngModel)]="settings.ldap.searchFilter"
+        /></mat-form-field>
+        <mat-form-field appearance="outline" class="wide"
+          ><mat-label>{{
+            "admin.groupRoleMapping"
+              | hhTranslate: "Group → role mapping (JSON)"
+          }}</mat-label
+          ><textarea
+            matInput
+            rows="3"
+            [(ngModel)]="settings.ldap.groupRoleMapping"
+            placeholder='{"CN=Doctors":"Provider"}'
+          ></textarea>
+        </mat-form-field>
+      </mat-card-content>
+    </mat-card>
+    <mat-card class="provider-card">
+      <mat-card-header
+        ><mat-icon mat-card-avatar>business</mat-icon
+        ><mat-card-title>{{
+          "admin.samlSso" | hhTranslate: "SAML SSO"
+        }}</mat-card-title
+        ><mat-card-subtitle>{{
+          "admin.enterpriseIdentityProvider"
+            | hhTranslate: "Enterprise identity provider"
+        }}</mat-card-subtitle></mat-card-header
+      >
+      <mat-card-content class="form-grid">
+        <mat-checkbox [(ngModel)]="settings.saml.enabled">{{
+          "admin.enableSamlLogin" | hhTranslate: "Enable SAML login"
+        }}</mat-checkbox>
+        <mat-form-field appearance="outline" class="wide"
+          ><mat-label>{{
+            "admin.serviceProviderIssuer"
+              | hhTranslate: "Service provider issuer"
+          }}</mat-label
+          ><input matInput [(ngModel)]="settings.saml.issuer"
+        /></mat-form-field>
+        <mat-form-field appearance="outline" class="wide"
+          ><mat-label>{{
+            "admin.idpSsoDestination" | hhTranslate: "IdP SSO destination"
+          }}</mat-label
+          ><input
+            matInput
+            [(ngModel)]="settings.saml.singleSignOnDestination"
+            placeholder="https://idp.example.com/sso"
+        /></mat-form-field>
+        <mat-form-field appearance="outline" class="wide"
+          ><mat-label>{{
+            "admin.idpMetadata" | hhTranslate: "IdP metadata"
+          }}</mat-label
+          ><textarea
+            matInput
+            rows="5"
+            [(ngModel)]="settings.saml.idpMetadata"
+            [placeholder]="
+              'admin.idpMetadataPlaceholder' | hhTranslate: 'Paste metadata URL'
+            "
+          ></textarea>
+        </mat-form-field>
+        <mat-form-field appearance="outline"
+          ><mat-label>{{
+            "admin.emailClaim" | hhTranslate: "Email claim"
+          }}</mat-label
+          ><input
+            matInput
+            [(ngModel)]="settings.saml.emailClaim"
+            placeholder="email"
+        /></mat-form-field>
+        <mat-form-field appearance="outline"
+          ><mat-label>{{
+            "admin.groupClaim" | hhTranslate: "Group claim"
+          }}</mat-label
+          ><input
+            matInput
+            [(ngModel)]="settings.saml.groupClaim"
+            placeholder="groups"
+        /></mat-form-field>
+        <mat-form-field appearance="outline" class="wide"
+          ><mat-label>{{
+            "admin.groupRoleMapping"
+              | hhTranslate: "Group → role mapping (JSON)"
+          }}</mat-label
+          ><textarea
+            matInput
+            rows="3"
+            [(ngModel)]="settings.saml.groupRoleMapping"
+            placeholder='{"HisHope-Admins":"Admin"}'
+          ></textarea>
+        </mat-form-field>
+      </mat-card-content>
+    </mat-card>
+  </section>
+  <div class="loading" *ngIf="loading">
+    <mat-spinner diameter="32"></mat-spinner>
+  </div>
+</hh-page-layout>

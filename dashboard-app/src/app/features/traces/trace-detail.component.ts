@@ -1,11 +1,20 @@
-import { Component, OnInit, ChangeDetectionStrategy, inject, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  OnDestroy,
+  OnInit,
+  effect,
+  inject,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDividerModule } from '@angular/material/divider';
 import { BehaviorSubject, Subject } from 'rxjs';
-import { catchError, finalize, takeUntil } from 'rxjs/operators';
+import { takeUntil } from 'rxjs/operators';
 import { TracesService } from '../../core/services/traces.service';
 import { TraceDetail, TraceSpan } from '../../core/models/trace.model';
 import {
@@ -13,6 +22,7 @@ import {
   HisHopePageLayoutComponent,
   HisHopePageSectionComponent,
   HisHopeStateComponent,
+  HisHopeResourceState,
   HisHopeStatusBadgeComponent,
   HisHopeTranslatePipe,
 } from '@his-hope/frontend-foundation';
@@ -48,68 +58,110 @@ const SERVICE_COLORS = [
   ],
   template: `
     <hh-page-layout>
-      <hh-page-header hhPageHeader [title]="'dashboard.traces.detailTitle' | hhTranslate:'Trace Detail'"
-                      [subtitle]="trace ? trace.traceId : ''">
+      <hh-page-header
+        hhPageHeader
+        [title]="'dashboard.traces.detailTitle' | hhTranslate: 'Trace Detail'"
+        [subtitle]="trace ? trace.traceId : ''"
+      >
         <button mat-stroked-button routerLink="/traces" class="back-btn">
           <mat-icon>arrow_back</mat-icon>
-          {{ 'dashboard.common.back' | hhTranslate:'Back' }}
+          {{ 'dashboard.common.back' | hhTranslate: 'Back' }}
         </button>
-        <button mat-stroked-button (click)="refresh()" [disabled]="(loading$ | async) ?? false">
+        <button
+          mat-stroked-button
+          (click)="refresh()"
+          [disabled]="resource.loading()"
+        >
           <mat-icon>refresh</mat-icon>
-          {{ 'dashboard.common.refresh' | hhTranslate:'Refresh' }}
+          {{ 'dashboard.common.refresh' | hhTranslate: 'Refresh' }}
         </button>
       </hh-page-header>
 
-      @let loading = loading$ | async;
-      @let error = error$ | async;
+      @let loading = resource.loading();
+      @let error = resource.error() ? resource.errorMessage() : '';
 
       <!-- Loading -->
       @if (loading && !trace) {
-        <hh-state kind="loading" [message]="'dashboard.traces.loadingTrace' | hhTranslate:'Loading trace...'" />
+        <hh-state
+          kind="loading"
+          [message]="
+            'dashboard.traces.loadingTrace' | hhTranslate: 'Loading trace...'
+          "
+        />
       }
 
       <!-- Error -->
       @if (error) {
         <hh-state kind="error" icon="error_outline" [message]="error">
-          <button mat-raised-button color="primary" (click)="refresh()">{{ 'dashboard.common.retry' | hhTranslate:'Retry' }}</button>
+          <button mat-raised-button color="primary" (click)="refresh()">
+            {{ 'dashboard.common.retry' | hhTranslate: 'Retry' }}
+          </button>
         </hh-state>
       }
 
       <!-- Trace detail -->
       @if (trace) {
-        <hh-page-section [title]="'dashboard.traces.overview' | hhTranslate:'Overview'">
+        <hh-page-section
+          [title]="'dashboard.traces.overview' | hhTranslate: 'Overview'"
+        >
           <div class="header-grid">
             <div class="header-field">
-              <span class="field-label">{{ 'dashboard.traces.traceId' | hhTranslate:'Trace ID' }}</span>
+              <span class="field-label">{{
+                'dashboard.traces.traceId' | hhTranslate: 'Trace ID'
+              }}</span>
               <code class="field-value mono">{{ trace.traceId }}</code>
             </div>
             <div class="header-field">
-              <span class="field-label">{{ 'dashboard.traces.time' | hhTranslate:'Time' }}</span>
-              <span class="field-value">{{ trace.startTime | date:'dd/MM/yyyy HH:mm:ss' }}</span>
+              <span class="field-label">{{
+                'dashboard.traces.time' | hhTranslate: 'Time'
+              }}</span>
+              <span class="field-value">{{
+                trace.startTime | date: 'dd/MM/yyyy HH:mm:ss'
+              }}</span>
             </div>
             <div class="header-field">
-              <span class="field-label">{{ 'dashboard.traces.totalDuration' | hhTranslate:'Total Duration' }}</span>
-              <span class="field-value">{{ trace.durationMs | number }} ms</span>
+              <span class="field-label">{{
+                'dashboard.traces.totalDuration' | hhTranslate: 'Total Duration'
+              }}</span>
+              <span class="field-value"
+                >{{ trace.durationMs | number }} ms</span
+              >
             </div>
             <div class="header-field">
-              <span class="field-label">{{ 'dashboard.traces.services' | hhTranslate:'Services' }}</span>
+              <span class="field-label">{{
+                'dashboard.traces.services' | hhTranslate: 'Services'
+              }}</span>
               <span class="field-value">{{ trace.services.length }}</span>
             </div>
             <div class="header-field">
-              <span class="field-label">{{ 'dashboard.traces.spans' | hhTranslate:'Spans' }}</span>
+              <span class="field-label">{{
+                'dashboard.traces.spans' | hhTranslate: 'Spans'
+              }}</span>
               <span class="field-value">{{ trace.spanCount }}</span>
             </div>
             <div class="header-field">
-              <span class="field-label">{{ 'dashboard.common.status' | hhTranslate:'Status' }}</span>
+              <span class="field-label">{{
+                'dashboard.common.status' | hhTranslate: 'Status'
+              }}</span>
               <span class="field-value">
-                <hh-status-badge [status]="trace.status" [label]="trace.status" [tone]="trace.status === 'Error' ? 'danger' : 'success'" />
+                <hh-status-badge
+                  [status]="trace.status"
+                  [label]="trace.status"
+                  [tone]="trace.status === 'Error' ? 'danger' : 'success'"
+                />
               </span>
             </div>
           </div>
           <div class="service-chips">
-            <span class="service-chip-label">{{ 'dashboard.traces.servicesLabel' | hhTranslate:'Services:' }}</span>
+            <span class="service-chip-label">{{
+              'dashboard.traces.servicesLabel' | hhTranslate: 'Services:'
+            }}</span>
             @for (svc of trace.services; track svc) {
-              <span class="service-chip" [style.color]="getServiceColor(svc)" [style.background]="serviceChipBg(svc)">
+              <span
+                class="service-chip"
+                [style.color]="getServiceColor(svc)"
+                [style.background]="serviceChipBg(svc)"
+              >
                 {{ svc }}
               </span>
             }
@@ -117,23 +169,38 @@ const SERVICE_COLORS = [
         </hh-page-section>
 
         <!-- Waterfall chart -->
-        <hh-page-section [title]="'dashboard.traces.waterfallChart' | hhTranslate:'Waterfall Chart'">
+        <hh-page-section
+          [title]="
+            'dashboard.traces.waterfallChart' | hhTranslate: 'Waterfall Chart'
+          "
+        >
           <div class="waterfall-container">
             <div class="waterfall-labels">
               <div class="waterfall-label-row header-row">
-                <span class="label-service">{{ 'dashboard.traces.service' | hhTranslate:'Service' }}</span>
-                <span class="label-operation">{{ 'dashboard.traces.operation' | hhTranslate:'Operation' }}</span>
-                <span class="label-duration">{{ 'dashboard.traces.duration' | hhTranslate:'Duration' }}</span>
+                <span class="label-service">{{
+                  'dashboard.traces.service' | hhTranslate: 'Service'
+                }}</span>
+                <span class="label-operation">{{
+                  'dashboard.traces.operation' | hhTranslate: 'Operation'
+                }}</span>
+                <span class="label-duration">{{
+                  'dashboard.traces.duration' | hhTranslate: 'Duration'
+                }}</span>
               </div>
               @for (span of trace.spans; track span.spanId) {
-                <div class="waterfall-label-row"
-                     (click)="toggleSpan(span.spanId)"
-                     (keydown.enter)="toggleSpan(span.spanId)"
-                     tabindex="0"
-                     role="button"
-                     [attr.aria-expanded]="expanded[span.spanId]"
-                     [class.expanded]="expanded[span.spanId]">
-                  <span class="label-service" [style.color]="getServiceColor(span.service)">
+                <div
+                  class="waterfall-label-row"
+                  (click)="toggleSpan(span.spanId)"
+                  (keydown.enter)="toggleSpan(span.spanId)"
+                  tabindex="0"
+                  role="button"
+                  [attr.aria-expanded]="expanded[span.spanId]"
+                  [class.expanded]="expanded[span.spanId]"
+                >
+                  <span
+                    class="label-service"
+                    [style.color]="getServiceColor(span.service)"
+                  >
                     {{ span.service }}
                   </span>
                   <span class="label-operation">{{ span.name }}</span>
@@ -151,20 +218,23 @@ const SERVICE_COLORS = [
                 }
               </div>
               @for (span of trace.spans; track span.spanId) {
-                <div class="waterfall-bar-row"
-                     (click)="toggleSpan(span.spanId)"
-                     (keydown.enter)="toggleSpan(span.spanId)"
-                     tabindex="0"
-                     role="button"
-                     [attr.aria-expanded]="expanded[span.spanId]"
-                     [class.expanded]="expanded[span.spanId]">
+                <div
+                  class="waterfall-bar-row"
+                  (click)="toggleSpan(span.spanId)"
+                  (keydown.enter)="toggleSpan(span.spanId)"
+                  tabindex="0"
+                  role="button"
+                  [attr.aria-expanded]="expanded[span.spanId]"
+                  [class.expanded]="expanded[span.spanId]"
+                >
                   <div class="waterfall-bar-track">
-                    <div class="waterfall-bar"
-                         [style.left.%]="getSpanLeft(span)"
-                         [style.width.%]="getSpanWidth(span)"
-                         [style.background]="getServiceColor(span.service)"
-                         [title]="span.name + ' - ' + span.durationMs + 'ms'">
-                    </div>
+                    <div
+                      class="waterfall-bar"
+                      [style.left.%]="getSpanLeft(span)"
+                      [style.width.%]="getSpanWidth(span)"
+                      [style.background]="getServiceColor(span.service)"
+                      [title]="span.name + ' - ' + span.durationMs + 'ms'"
+                    ></div>
                   </div>
                 </div>
               }
@@ -175,23 +245,44 @@ const SERVICE_COLORS = [
         <!-- Expanded span details -->
         @for (span of trace.spans; track span.spanId) {
           @if (expanded[span.spanId]) {
-            <hh-page-section [title]="('dashboard.traces.span' | hhTranslate:'Span:') + ' ' + span.spanId"
-                             [subtitle]="span.service + ' — ' + span.name">
+            <hh-page-section
+              [title]="
+                ('dashboard.traces.span' | hhTranslate: 'Span:') +
+                ' ' +
+                span.spanId
+              "
+              [subtitle]="span.service + ' — ' + span.name"
+            >
               <div class="span-meta-grid">
                 <div class="detail-field">
-                  <span class="field-label">{{ 'dashboard.traces.parentSpanId' | hhTranslate:'Parent Span ID' }}</span>
-                  <code class="field-value mono">{{ span.parentSpanId || '—' }}</code>
+                  <span class="field-label">{{
+                    'dashboard.traces.parentSpanId'
+                      | hhTranslate: 'Parent Span ID'
+                  }}</span>
+                  <code class="field-value mono">{{
+                    span.parentSpanId || '—'
+                  }}</code>
                 </div>
                 <div class="detail-field">
-                  <span class="field-label">{{ 'dashboard.traces.start' | hhTranslate:'Start' }}</span>
-                  <span class="field-value">{{ span.startTime | date:'HH:mm:ss.SSS' }}</span>
+                  <span class="field-label">{{
+                    'dashboard.traces.start' | hhTranslate: 'Start'
+                  }}</span>
+                  <span class="field-value">{{
+                    span.startTime | date: 'HH:mm:ss.SSS'
+                  }}</span>
                 </div>
                 <div class="detail-field">
-                  <span class="field-label">{{ 'dashboard.traces.end' | hhTranslate:'End' }}</span>
-                  <span class="field-value">{{ span.endTime | date:'HH:mm:ss.SSS' }}</span>
+                  <span class="field-label">{{
+                    'dashboard.traces.end' | hhTranslate: 'End'
+                  }}</span>
+                  <span class="field-value">{{
+                    span.endTime | date: 'HH:mm:ss.SSS'
+                  }}</span>
                 </div>
                 <div class="detail-field">
-                  <span class="field-label">{{ 'dashboard.common.status' | hhTranslate:'Status' }}</span>
+                  <span class="field-label">{{
+                    'dashboard.common.status' | hhTranslate: 'Status'
+                  }}</span>
                   <span class="field-value">{{ span.status }}</span>
                 </div>
               </div>
@@ -201,12 +292,16 @@ const SERVICE_COLORS = [
               <!-- Attributes / Tags -->
               @if (span.attributes && objectKeys(span.attributes).length > 0) {
                 <div class="detail-section">
-                  <h4 class="detail-section-title">{{ 'dashboard.traces.tags' | hhTranslate:'Tags' }}</h4>
+                  <h4 class="detail-section-title">
+                    {{ 'dashboard.traces.tags' | hhTranslate: 'Tags' }}
+                  </h4>
                   <div class="tags-grid">
                     @for (key of objectKeys(span.attributes); track key) {
                       <div class="tag-item">
                         <span class="tag-key">{{ key }}</span>
-                        <span class="tag-value">{{ span.attributes[key] }}</span>
+                        <span class="tag-value">{{
+                          span.attributes[key]
+                        }}</span>
                       </div>
                     }
                   </div>
@@ -216,20 +311,35 @@ const SERVICE_COLORS = [
               <!-- Events / Logs -->
               @if (span.events && span.events.length > 0) {
                 <div class="detail-section">
-                  <h4 class="detail-section-title">{{ 'dashboard.traces.eventsLogs' | hhTranslate:'Events & Logs' }}</h4>
+                  <h4 class="detail-section-title">
+                    {{
+                      'dashboard.traces.eventsLogs'
+                        | hhTranslate: 'Events & Logs'
+                    }}
+                  </h4>
                   <div class="events-list">
                     @for (evt of span.events; track evt.timestamp) {
                       <div class="event-item">
                         <div class="event-header">
                           <span class="event-name">{{ evt.name }}</span>
-                          <span class="event-time">{{ evt.timestamp | date:'HH:mm:ss.SSS' }}</span>
+                          <span class="event-time">{{
+                            evt.timestamp | date: 'HH:mm:ss.SSS'
+                          }}</span>
                         </div>
-                        @if (evt.attributes && objectKeys(evt.attributes).length > 0) {
+                        @if (
+                          evt.attributes &&
+                          objectKeys(evt.attributes).length > 0
+                        ) {
                           <div class="event-attributes">
-                            @for (key of objectKeys(evt.attributes); track key) {
+                            @for (
+                              key of objectKeys(evt.attributes);
+                              track key
+                            ) {
                               <div class="tag-item">
                                 <span class="tag-key">{{ key }}</span>
-                                <span class="tag-value">{{ evt.attributes[key] }}</span>
+                                <span class="tag-value">{{
+                                  evt.attributes[key]
+                                }}</span>
                               </div>
                             }
                           </div>
@@ -245,243 +355,245 @@ const SERVICE_COLORS = [
       }
     </hh-page-layout>
   `,
-  styles: [`
-    .back-btn {
-      font-size: 13px;
-    }
-    .back-btn mat-icon {
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-    }
+  styles: [
+    `
+      .back-btn {
+        font-size: 13px;
+      }
+      .back-btn mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+      }
 
-    .header-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 16px;
-      margin-bottom: 16px;
-    }
-    .field-label {
-      display: block;
-      font-size: 11px;
-      font-weight: var(--font-weight-semibold);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--text-muted);
-      margin-bottom: 4px;
-    }
-    .field-value {
-      font-size: 14px;
-      color: var(--text-primary);
-      font-weight: var(--font-weight-medium);
-    }
-    .field-value.mono {
-      font-family: var(--font-mono);
-      font-size: 12px;
-      word-break: break-all;
-    }
-    .service-chips {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-    }
-    .service-chip-label {
-      font-size: 11px;
-      font-weight: var(--font-weight-semibold);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--text-muted);
-      margin-right: 4px;
-    }
-    .service-chip {
-      display: inline-block;
-      padding: 2px 10px;
-      border-radius: var(--radius-badge);
-      font-size: 12px;
-      font-weight: var(--font-weight-medium);
-    }
+      .header-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 16px;
+        margin-bottom: 16px;
+      }
+      .field-label {
+        display: block;
+        font-size: 11px;
+        font-weight: var(--font-weight-semibold);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+      }
+      .field-value {
+        font-size: 14px;
+        color: var(--text-primary);
+        font-weight: var(--font-weight-medium);
+      }
+      .field-value.mono {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        word-break: break-all;
+      }
+      .service-chips {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .service-chip-label {
+        font-size: 11px;
+        font-weight: var(--font-weight-semibold);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-muted);
+        margin-right: 4px;
+      }
+      .service-chip {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: var(--radius-badge);
+        font-size: 12px;
+        font-weight: var(--font-weight-medium);
+      }
 
-    /* Waterfall */
-    .waterfall-container {
-      display: flex;
-      gap: 0;
-      margin-top: 8px;
-    }
-    .waterfall-labels {
-      flex: 0 0 320px;
-      min-width: 0;
-      border-right: 1px solid var(--border-default);
-    }
-    .waterfall-bars {
-      flex: 1;
-      overflow-x: auto;
-      min-width: 0;
-    }
-    .waterfall-time-axis {
-      display: flex;
-      justify-content: space-between;
-      padding: 8px 0;
-      border-bottom: 1px solid var(--border-default);
-      margin-bottom: 0;
-    }
-    .time-tick {
-      font-size: 10px;
-      color: var(--text-muted);
-      font-family: var(--font-mono);
-    }
-    .waterfall-label-row,
-    .waterfall-bar-row {
-      display: flex;
-      align-items: center;
-      padding: 8px 12px;
-      border-bottom: 1px solid var(--border-light);
-      cursor: pointer;
-      transition: background-color 150ms ease;
-      min-height: 36px;
-    }
-    .waterfall-label-row:hover,
-    .waterfall-bar-row:hover {
-      background: var(--surface-hover);
-    }
-    .waterfall-label-row.header-row,
-    .waterfall-bar-row:first-of-type {
-      border-top: none;
-    }
-    .waterfall-label-row.expanded,
-    .waterfall-bar-row.expanded {
-      background: var(--surface-muted);
-    }
-    .waterfall-label-row {
-      gap: 8px;
-      font-size: 12px;
-    }
-    .label-service {
-      flex: 0 0 100px;
-      font-weight: var(--font-weight-semibold);
-      color: var(--text-primary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .label-operation {
-      flex: 1;
-      color: var(--text-secondary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .label-duration {
-      flex: 0 0 60px;
-      text-align: right;
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--text-primary);
-    }
-    .expand-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-      color: var(--text-muted);
-      flex-shrink: 0;
-    }
-    .waterfall-bar-track {
-      width: 100%;
-      height: 16px;
-      position: relative;
-      background: var(--surface-muted);
-      border-radius: 3px;
-      overflow: hidden;
-    }
-    .waterfall-bar {
-      position: absolute;
-      height: 100%;
-      border-radius: 3px;
-      min-width: 2px;
-      transition: opacity 150ms ease;
-    }
-    .waterfall-bar:hover {
-      opacity: 0.85;
-    }
+      /* Waterfall */
+      .waterfall-container {
+        display: flex;
+        gap: 0;
+        margin-top: 8px;
+      }
+      .waterfall-labels {
+        flex: 0 0 320px;
+        min-width: 0;
+        border-right: 1px solid var(--border-default);
+      }
+      .waterfall-bars {
+        flex: 1;
+        overflow-x: auto;
+        min-width: 0;
+      }
+      .waterfall-time-axis {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border-default);
+        margin-bottom: 0;
+      }
+      .time-tick {
+        font-size: 10px;
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+      }
+      .waterfall-label-row,
+      .waterfall-bar-row {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border-light);
+        cursor: pointer;
+        transition: background-color 150ms ease;
+        min-height: 36px;
+      }
+      .waterfall-label-row:hover,
+      .waterfall-bar-row:hover {
+        background: var(--surface-hover);
+      }
+      .waterfall-label-row.header-row,
+      .waterfall-bar-row:first-of-type {
+        border-top: none;
+      }
+      .waterfall-label-row.expanded,
+      .waterfall-bar-row.expanded {
+        background: var(--surface-muted);
+      }
+      .waterfall-label-row {
+        gap: 8px;
+        font-size: 12px;
+      }
+      .label-service {
+        flex: 0 0 100px;
+        font-weight: var(--font-weight-semibold);
+        color: var(--text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .label-operation {
+        flex: 1;
+        color: var(--text-secondary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .label-duration {
+        flex: 0 0 60px;
+        text-align: right;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--text-primary);
+      }
+      .expand-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        color: var(--text-muted);
+        flex-shrink: 0;
+      }
+      .waterfall-bar-track {
+        width: 100%;
+        height: 16px;
+        position: relative;
+        background: var(--surface-muted);
+        border-radius: 3px;
+        overflow: hidden;
+      }
+      .waterfall-bar {
+        position: absolute;
+        height: 100%;
+        border-radius: 3px;
+        min-width: 2px;
+        transition: opacity 150ms ease;
+      }
+      .waterfall-bar:hover {
+        opacity: 0.85;
+      }
 
-    /* Span detail */
-    .span-meta-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 12px;
-      margin-top: 8px;
-    }
-    .detail-divider {
-      margin: 16px 0 !important;
-    }
-    .detail-section {
-      margin-bottom: 16px;
-    }
-    .detail-section:last-child {
-      margin-bottom: 0;
-    }
-    .detail-section-title {
-      font-size: 13px;
-      font-weight: var(--font-weight-semibold);
-      color: var(--text-primary);
-      margin: 0 0 8px 0;
-    }
-    .tags-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-    .tag-item {
-      display: inline-flex;
-      gap: 6px;
-      padding: 3px 10px;
-      background: var(--surface-muted);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-input);
-      font-size: 12px;
-    }
-    .tag-key {
-      font-weight: var(--font-weight-semibold);
-      color: var(--text-secondary);
-    }
-    .tag-value {
-      color: var(--text-primary);
-      font-family: var(--font-mono);
-      font-size: 11px;
-    }
-    .events-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .event-item {
-      padding: 8px 12px;
-      background: var(--surface-muted);
-      border: 1px solid var(--border-default);
-      border-radius: var(--radius-input);
-    }
-    .event-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
-    }
-    .event-name {
-      font-size: 13px;
-      font-weight: var(--font-weight-semibold);
-      color: var(--text-primary);
-    }
-    .event-time {
-      font-size: 11px;
-      color: var(--text-muted);
-      font-family: var(--font-mono);
-    }
-    .event-attributes {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-    }
-  `],
+      /* Span detail */
+      .span-meta-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+        margin-top: 8px;
+      }
+      .detail-divider {
+        margin: 16px 0 !important;
+      }
+      .detail-section {
+        margin-bottom: 16px;
+      }
+      .detail-section:last-child {
+        margin-bottom: 0;
+      }
+      .detail-section-title {
+        font-size: 13px;
+        font-weight: var(--font-weight-semibold);
+        color: var(--text-primary);
+        margin: 0 0 8px 0;
+      }
+      .tags-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .tag-item {
+        display: inline-flex;
+        gap: 6px;
+        padding: 3px 10px;
+        background: var(--surface-muted);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-input);
+        font-size: 12px;
+      }
+      .tag-key {
+        font-weight: var(--font-weight-semibold);
+        color: var(--text-secondary);
+      }
+      .tag-value {
+        color: var(--text-primary);
+        font-family: var(--font-mono);
+        font-size: 11px;
+      }
+      .events-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .event-item {
+        padding: 8px 12px;
+        background: var(--surface-muted);
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-input);
+      }
+      .event-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+      }
+      .event-name {
+        font-size: 13px;
+        font-weight: var(--font-weight-semibold);
+        color: var(--text-primary);
+      }
+      .event-time {
+        font-size: 11px;
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+      }
+      .event-attributes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+    `,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class TraceDetailComponent implements OnInit, OnDestroy {
@@ -493,8 +605,9 @@ export class TraceDetailComponent implements OnInit, OnDestroy {
   private readonly traceId$ = new BehaviorSubject<string>('');
   private readonly refreshTrigger = new BehaviorSubject<void>(undefined);
 
-  readonly loading$ = new BehaviorSubject<boolean>(true);
-  readonly error$ = new BehaviorSubject<string | null>(null);
+  private readonly destroyRef = inject(DestroyRef);
+
+  readonly resource = new HisHopeResourceState<TraceDetail>(this.destroyRef);
 
   trace: TraceDetail | null = null;
   expanded: ExpandedSpan = {};
@@ -502,10 +615,19 @@ export class TraceDetailComponent implements OnInit, OnDestroy {
 
   private maxDuration = 0;
 
+  constructor() {
+    effect(() => {
+      const trace = this.resource.data();
+      if (!trace) return;
+      this.trace = trace;
+      this.expanded = {};
+      this.computeTimeTicks(trace);
+      this.cdr.markForCheck();
+    });
+  }
+
   ngOnInit(): void {
-    this.route.paramMap.pipe(
-      takeUntil(this.destroy$),
-    ).subscribe(params => {
+    this.route.paramMap.pipe(takeUntil(this.destroy$)).subscribe((params) => {
       const id = params.get('traceId') ?? '';
       this.traceId$.next(id);
       this.refresh();
@@ -521,24 +643,9 @@ export class TraceDetailComponent implements OnInit, OnDestroy {
     const traceId = this.traceId$.value;
     if (!traceId) return;
 
-    this.loading$.next(true);
-    this.error$.next(null);
-
-    this.tracesService.getById(traceId).pipe(
-      catchError(err => {
-        const msg = err?.message ?? err?.statusText ?? 'Failed to load trace detail.';
-        this.error$.next(msg);
-        this.loading$.next(false);
-        throw err;
-      }),
-      finalize(() => this.loading$.next(false)),
-      takeUntil(this.destroy$),
-    ).subscribe(trace => {
-      this.trace = trace;
-      this.expanded = {};
-      this.computeTimeTicks(trace);
-      this.cdr.markForCheck();
-    });
+    this.resource.load(
+      this.tracesService.getById(traceId).pipe(takeUntil(this.destroy$)),
+    );
   }
 
   private computeTimeTicks(trace: TraceDetail): void {
@@ -569,7 +676,7 @@ export class TraceDetailComponent implements OnInit, OnDestroy {
   getServiceColor(service: string): string {
     let hash = 0;
     for (let i = 0; i < service.length; i++) {
-      hash = ((hash << 5) - hash) + service.charCodeAt(i);
+      hash = (hash << 5) - hash + service.charCodeAt(i);
       hash |= 0;
     }
     const idx = Math.abs(hash) % SERVICE_COLORS.length;

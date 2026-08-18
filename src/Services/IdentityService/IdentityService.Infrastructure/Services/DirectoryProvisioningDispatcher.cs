@@ -15,6 +15,8 @@ public sealed class DirectoryProvisioningDispatcher(
     IConfiguration configuration,
     ILogger<DirectoryProvisioningDispatcher> logger) : BackgroundService
 {
+    private readonly Guid _leaseId = Guid.NewGuid();
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
@@ -39,9 +41,23 @@ public sealed class DirectoryProvisioningDispatcher(
         var db = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
         var targets = scope.ServiceProvider.GetServices<IProvisioningTarget>();
         var targetMap = targets.ToDictionary(item => item.Name, StringComparer.OrdinalIgnoreCase);
-        var entries = await db.DirectoryProvisioningOutbox
+        var candidates = await db.DirectoryProvisioningOutbox
             .Where(item => item.CompletedAt == null && item.AvailableAt <= DateTime.UtcNow)
+            .Where(item => item.LeaseUntil == null || item.LeaseUntil < DateTime.UtcNow)
             .OrderBy(item => item.CreatedAt).Take(50).ToListAsync(ct);
+        var leaseUntil = DateTime.UtcNow.AddMinutes(2);
+        foreach (var candidate in candidates)
+        {
+            await db.DirectoryProvisioningOutbox
+                .Where(item => item.Id == candidate.Id && item.CompletedAt == null && item.AvailableAt <= DateTime.UtcNow &&
+                    (item.LeaseUntil == null || item.LeaseUntil < DateTime.UtcNow))
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.LeaseId, _leaseId)
+                    .SetProperty(item => item.LeaseUntil, leaseUntil), ct);
+        }
+        var entries = await db.DirectoryProvisioningOutbox
+            .Where(item => item.LeaseId == _leaseId && item.LeaseUntil == leaseUntil)
+            .OrderBy(item => item.CreatedAt).ToListAsync(ct);
         foreach (var entry in entries)
         {
             // Dry-run is an explicit safety mode: acknowledge the durable job
@@ -50,6 +66,8 @@ public sealed class DirectoryProvisioningDispatcher(
             {
                 entry.Attempts++;
                 entry.CompletedAt = DateTime.UtcNow;
+                entry.LeaseId = null;
+                entry.LeaseUntil = null;
                 entry.LastError = "dry_run_no_external_call";
                 continue;
             }
@@ -59,6 +77,8 @@ public sealed class DirectoryProvisioningDispatcher(
                 entry.LastError = $"Unknown provisioning target '{entry.Target}'.";
                 entry.Attempts++;
                 entry.AvailableAt = DateTime.UtcNow.AddMinutes(30);
+                entry.LeaseId = null;
+                entry.LeaseUntil = null;
                 continue;
             }
             try
@@ -100,6 +120,8 @@ public sealed class DirectoryProvisioningDispatcher(
                         if (binding is not null) db.DirectoryProvisioningBindings.Remove(binding);
                     }
                     entry.LastError = null;
+                    entry.LeaseId = null;
+                    entry.LeaseUntil = null;
                 }
                 else
                 {
@@ -112,6 +134,8 @@ public sealed class DirectoryProvisioningDispatcher(
                 entry.Attempts++;
                 entry.LastError = ex.Message[..Math.Min(ex.Message.Length, 2000)];
                 entry.AvailableAt = DateTime.UtcNow.AddMinutes(Math.Min(entry.Attempts, 30));
+                entry.LeaseId = null;
+                entry.LeaseUntil = null;
             }
         }
         await db.SaveChangesAsync(ct);

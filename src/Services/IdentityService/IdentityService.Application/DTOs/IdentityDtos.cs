@@ -108,7 +108,8 @@ public record SystemSettingDto(
     string? Description,
     string? Category,
     DateTime UpdatedAt,
-    string? UpdatedBy);
+    string? UpdatedBy,
+    string? ScopeId = null);
 
 public record UpdateSettingRequest(
     string Value,

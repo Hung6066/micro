@@ -43,6 +43,8 @@ jobs:
       - run: npm run build:shared
       - run: npm --workspace @his-hope/frontend-foundation run test -- --watch=false --browsers=ChromeHeadless
       - run: npm run storybook:build
+      - run: npm --prefix admin-app run test -- --watch=false --browsers=ChromeHeadless
+      - run: npm --prefix admin-app run test:coverage -- --watch=false --browsers=ChromeHeadless
       - run: npm --prefix admin-app run build
       - run: npm --prefix dashboard-app run build
       - run: npm --prefix src/Frontend/his-hope-app run build

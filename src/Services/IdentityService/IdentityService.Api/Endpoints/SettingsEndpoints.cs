@@ -4,6 +4,8 @@ using His.Hope.IdentityService.Application.UseCases.Settings.Queries;
 using MediatR;
 using System.Security.Claims;
 using His.Hope.Contracts.Identity;
+using His.Hope.IdentityService.Infrastructure.Facility;
+using His.Hope.IdentityService.Domain.Entities;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -17,20 +19,25 @@ public static class SettingsEndpoints
     {
         // GET /api/v1/settings - All settings (key-value)
         group.MapGet(IdentityApiRoutes.SettingsSegment, async (
-            IMediator mediator = null!,
-            CancellationToken ct = default) =>
+            IMediator mediator,
+            FacilityContext facilityContext,
+            CancellationToken ct,
+            string? facilityId = null) =>
         {
-            var settings = await mediator.Send(new GetSettingsQuery(), ct);
+            var scopeId = ResolveScope(facilityContext, facilityId);
+            var settings = await mediator.Send(new GetSettingsQuery(scopeId), ct);
             return Results.Ok(settings);
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsRead);
 
         // GET /api/v1/settings/{key} - Get single setting
         group.MapGet(IdentityApiRoutes.SettingsSegment + "/{key}", async (
             string key,
-            IMediator mediator = null!,
-            CancellationToken ct = default) =>
+            IMediator mediator,
+            FacilityContext facilityContext,
+            CancellationToken ct,
+            string? facilityId = null) =>
         {
-            var setting = await mediator.Send(new GetSettingByKeyQuery(key), ct);
+            var setting = await mediator.Send(new GetSettingByKeyQuery(key, ResolveScope(facilityContext, facilityId)), ct);
             return setting is null ? Results.NotFound() : Results.Ok(setting);
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsRead);
 
@@ -39,14 +46,16 @@ public static class SettingsEndpoints
             string key,
             UpdateSettingRequest request,
             HttpContext httpContext,
-            IMediator mediator = null!,
-            CancellationToken ct = default) =>
+            IMediator mediator,
+            FacilityContext facilityContext,
+            CancellationToken ct,
+            string? facilityId = null) =>
         {
             var userId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                 ?? httpContext.User.FindFirst("sub")?.Value;
 
             var setting = await mediator.Send(
-                new UpdateSettingCommand(key, request.Value, request.Description, userId), ct);
+                new UpdateSettingCommand(key, request.Value, request.Description, userId, ResolveScope(facilityContext, facilityId)), ct);
             return Results.Ok(setting);
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsWrite);
 
@@ -54,14 +63,16 @@ public static class SettingsEndpoints
         group.MapPut(IdentityApiRoutes.SettingsSegment, async (
             List<BulkUpdateSettingItem> request,
             HttpContext httpContext,
-            IMediator mediator = null!,
-            CancellationToken ct = default) =>
+            IMediator mediator,
+            FacilityContext facilityContext,
+            CancellationToken ct,
+            string? facilityId = null) =>
         {
             var userId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                 ?? httpContext.User.FindFirst("sub")?.Value;
 
             var settings = await mediator.Send(
-                new BulkUpdateSettingsCommand(request, userId), ct);
+                new BulkUpdateSettingsCommand(request, userId, ResolveScope(facilityContext, facilityId)), ct);
             return Results.Ok(settings);
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsWrite);
 
@@ -69,18 +80,27 @@ public static class SettingsEndpoints
         group.MapPut(IdentityApiRoutes.SettingsSegment + "/bulk", async (
             BulkUpdateSettingsRequest request,
             HttpContext httpContext,
-            IMediator mediator = null!,
-            CancellationToken ct = default) =>
+            IMediator mediator,
+            FacilityContext facilityContext,
+            CancellationToken ct,
+            string? facilityId = null) =>
         {
             var userId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                 ?? httpContext.User.FindFirst("sub")?.Value;
 
             var settings = await mediator.Send(
-                new BulkUpdateSettingsCommand(request.Settings, userId), ct);
+                new BulkUpdateSettingsCommand(request.Settings, userId, ResolveScope(facilityContext, facilityId)), ct);
             return Results.Ok(settings);
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsWrite);
 
         return group;
+    }
+
+    private static string? ResolveScope(FacilityContext context, string? requestedFacility)
+    {
+        if (!context.IsCrossFacility && !string.IsNullOrWhiteSpace(context.FacilityId))
+            return context.FacilityId;
+        return string.IsNullOrWhiteSpace(requestedFacility) ? IdentityScope.Global : requestedFacility.Trim();
     }
 }
 

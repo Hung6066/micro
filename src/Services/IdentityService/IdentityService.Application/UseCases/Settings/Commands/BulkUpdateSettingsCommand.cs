@@ -8,7 +8,8 @@ namespace His.Hope.IdentityService.Application.UseCases.Settings.Commands;
 
 public record BulkUpdateSettingsCommand(
     List<BulkUpdateSettingItem> Settings,
-    string? UpdatedBy)
+    string? UpdatedBy,
+    string? ScopeId = null)
     : IRequest<List<SystemSettingDto>>;
 
 public class BulkUpdateSettingsCommandHandler
@@ -29,13 +30,14 @@ public class BulkUpdateSettingsCommandHandler
         foreach (var item in request.Settings)
         {
             var setting = await _context.SystemSettings
-                .FirstOrDefaultAsync(s => s.Key == item.Key, cancellationToken);
+                .FirstOrDefaultAsync(s => s.Key == item.Key && s.ScopeId == (request.ScopeId ?? IdentityScope.Global), cancellationToken);
 
             if (setting is null)
             {
                 setting = new SystemSetting
                 {
                     Key = item.Key,
+                    ScopeId = request.ScopeId ?? IdentityScope.Global,
                     Value = item.Value,
                     UpdatedAt = DateTime.UtcNow,
                     UpdatedBy = request.UpdatedBy
@@ -51,7 +53,7 @@ public class BulkUpdateSettingsCommandHandler
 
             results.Add(new SystemSettingDto(
                 setting.Key, setting.Value, setting.Description,
-                setting.Category, setting.UpdatedAt, setting.UpdatedBy));
+                setting.Category, setting.UpdatedAt, setting.UpdatedBy, setting.ScopeId));
         }
 
         await _context.SaveChangesAsync(cancellationToken);

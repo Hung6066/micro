@@ -1,4 +1,5 @@
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
@@ -25,7 +26,7 @@ public static class TableAnalysisEndpoints
     {
         var operation = request.Operation.Trim().ToLowerInvariant();
         if (operation is not ("aggregate" or "pivot" or "formula"))
-            return Results.Problem("Unsupported analysis operation.", statusCode: 400);
+            return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.UnsupportedAnalysisOperation });
         if (operation == "formula" && (string.IsNullOrWhiteSpace(request.FormulaId) || !FormulaCatalog.ContainsKey(request.FormulaId)))
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["formulaId"] = ["Select a formula from the approved catalog."] });
 

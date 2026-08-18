@@ -1,5 +1,5 @@
 /** @type {import('@storybook/angular').Preview} */
-module.exports = {
+const preview = {
   parameters: {
     layout: 'padded',
     a11y: { test: 'error' },
@@ -9,3 +9,5 @@ module.exports = {
     theme: { description: 'Shared theme', defaultValue: 'light', toolbar: { title: 'Theme', icon: 'paintbrush', items: ['light', 'dark'] } },
   },
 };
+
+export default preview;

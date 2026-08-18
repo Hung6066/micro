@@ -18,6 +18,7 @@ using His.Hope.EventBus.Abstractions;
 using His.Hope.EventBusRabbitMQ.Abstractions;
 using His.Hope.EventBusRabbitMQ.Implementations;
 using His.Hope.Infrastructure;
+using His.Hope.Contracts;
 using His.Hope.Infrastructure.Outbox;
 using His.Hope.Infrastructure.HealthChecks;
 using His.Hope.Infrastructure.Observability;
@@ -222,7 +223,10 @@ grp.MapPost("/", async (
     var existsResponse = await patientClient.CheckPatientExistsAsync(
         new PatientExistsRequest { Id = request.PatientId.ToString() }, cancellationToken: ct);
     if (!existsResponse.Exists)
-        return Results.Problem("Patient not found", statusCode: 404);
+        return Results.Problem(statusCode: 404, extensions: new Dictionary<string, object?>
+        {
+            [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.NotFound
+        });
 
     var command = new CreateAppointmentCommand(
         request.PatientId, request.ProviderId, request.ScheduledDate,
@@ -342,8 +346,10 @@ app.MapHealthChecks("/health/details", new Microsoft.AspNetCore.Diagnostics.Heal
             duration = report.TotalDuration.TotalMilliseconds,
             checks = report.Entries.Select(e => new
             {
-                name = e.Key, status = e.Value.Status.ToString(),
-                description = e.Value.Description, error = e.Value.Exception?.Message,
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+                error = e.Value.Exception?.Message,
                 duration = e.Value.Duration.TotalMilliseconds
             })
         });

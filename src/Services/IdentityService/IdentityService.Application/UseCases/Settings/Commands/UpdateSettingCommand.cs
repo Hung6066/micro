@@ -10,7 +10,8 @@ public record UpdateSettingCommand(
     string Key,
     string Value,
     string? Description,
-    string? UpdatedBy)
+    string? UpdatedBy,
+    string? ScopeId = null)
     : IRequest<SystemSettingDto>;
 
 public class UpdateSettingCommandHandler : IRequestHandler<UpdateSettingCommand, SystemSettingDto>
@@ -26,7 +27,7 @@ public class UpdateSettingCommandHandler : IRequestHandler<UpdateSettingCommand,
         CancellationToken cancellationToken)
     {
         var setting = await _context.SystemSettings
-            .FirstOrDefaultAsync(s => s.Key == request.Key, cancellationToken);
+            .FirstOrDefaultAsync(s => s.Key == request.Key && s.ScopeId == (request.ScopeId ?? IdentityScope.Global), cancellationToken);
 
         if (setting is null)
         {
@@ -34,6 +35,7 @@ public class UpdateSettingCommandHandler : IRequestHandler<UpdateSettingCommand,
             setting = new SystemSetting
             {
                 Key = request.Key,
+                ScopeId = request.ScopeId ?? IdentityScope.Global,
                 Value = request.Value,
                 Description = request.Description,
                 UpdatedAt = DateTime.UtcNow,
@@ -54,6 +56,6 @@ public class UpdateSettingCommandHandler : IRequestHandler<UpdateSettingCommand,
 
         return new SystemSettingDto(
             setting.Key, setting.Value, setting.Description,
-            setting.Category, setting.UpdatedAt, setting.UpdatedBy);
+            setting.Category, setting.UpdatedAt, setting.UpdatedBy, setting.ScopeId);
     }
 }

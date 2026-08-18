@@ -29,10 +29,18 @@ public static class HisHopeAspNetCoreExtensions
         {
             problemDetails.CustomizeProblemDetails = context =>
             {
+                var status = context.ProblemDetails.Status ?? context.HttpContext.Response.StatusCode;
                 var correlationId = GetCorrelationId(context.HttpContext);
                 context.ProblemDetails.Extensions["correlationId"] = correlationId;
-                context.ProblemDetails.Extensions[ApiProblemExtensions.ErrorCode] =
-                    ApiErrorCodes.ForStatus(context.ProblemDetails.Status ?? context.HttpContext.Response.StatusCode);
+                if (!context.ProblemDetails.Extensions.ContainsKey(ApiProblemExtensions.ErrorCode))
+                    context.ProblemDetails.Extensions[ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ForStatus(status);
+                if (string.IsNullOrWhiteSpace(context.ProblemDetails.Type))
+                    context.ProblemDetails.Type = $"https://his-hope.com/errors/{context.ProblemDetails.Extensions[ApiProblemExtensions.ErrorCode]}";
+                if (status >= 500)
+                {
+                    context.ProblemDetails.Title = "The request could not be completed.";
+                    context.ProblemDetails.Detail = null;
+                }
                 context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier;
             };
         });
@@ -45,6 +53,26 @@ public static class HisHopeAspNetCoreExtensions
     public static IApplicationBuilder UseHisHopeAspNetCore(this IApplicationBuilder app)
     {
         app.UseMiddleware<CorrelationIdMiddleware>();
+        app.UseStatusCodePages(async statusContext =>
+        {
+            var httpContext = statusContext.HttpContext;
+            if (httpContext.Response.HasStarted || httpContext.Response.ContentLength is not null ||
+                httpContext.Response.StatusCode < 400)
+                return;
+
+            var status = httpContext.Response.StatusCode;
+            var problem = new Microsoft.AspNetCore.Mvc.ProblemDetails
+            {
+                Type = $"https://his-hope.com/errors/{ApiErrorCodes.ForStatus(status)}",
+                Title = status >= 500 ? "The request could not be completed." : "The request failed.",
+                Status = status,
+                Instance = httpContext.Request.Path
+            };
+            problem.Extensions[ApiProblemExtensions.CorrelationId] = GetCorrelationId(httpContext);
+            problem.Extensions[ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ForStatus(status);
+            httpContext.Response.ContentType = "application/problem+json";
+            await httpContext.Response.WriteAsJsonAsync(problem);
+        });
         return app;
     }
 

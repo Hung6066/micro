@@ -3,6 +3,7 @@ using His.Hope.Identity.Grpc;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.IdentityService.Application.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
@@ -184,12 +185,15 @@ public class GrpcIdentityService : global::His.Hope.Identity.Grpc.IdentityServic
                 set => set.Id,
                 (_, set) => set.PermissionsJson)
             .ToListAsync();
+        var registeredPrefixes = await _db.IamServiceDefinitions.AsNoTracking()
+            .Where(item => item.IsActive).Select(item => item.PermissionPrefix)
+            .ToListAsync();
         foreach (var permissionsJson in assignedSetJson)
         {
             try
             {
                 var assigned = JsonSerializer.Deserialize<string[]>(permissionsJson) ?? [];
-                permissions.AddRange(assigned.Where(HisHopePermissions.IsValid));
+                permissions.AddRange(assigned.Where(code => PermissionCatalogRules.IsValid(code, registeredPrefixes)));
             }
             catch (JsonException)
             {

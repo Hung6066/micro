@@ -3,11 +3,25 @@ import { inject } from "@angular/core";
 import { Observable, throwError, timer } from "rxjs";
 import { catchError, retry } from "rxjs/operators";
 import { HisHopeErrorReportingService } from "./his-hope-error-reporting.service";
-import { HisHopePermissionService } from "../auth/his-hope-permission.service";
+import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import type { HisHopeProblemDetails } from "@his-hope/frontend-foundation/contracts";
 
 const RETRYABLE_STATUSES = new Set([0, 408, 429, 502, 503, 504]);
 const RETRYABLE_METHODS = new Set(["GET", "HEAD"]);
 const MAX_RETRIES = 2;
+
+function problemDetails(
+  error: HttpErrorResponse,
+): HisHopeProblemDetails | undefined {
+  if (
+    !error.error ||
+    typeof error.error !== "object" ||
+    Array.isArray(error.error)
+  ) {
+    return undefined;
+  }
+  return error.error as HisHopeProblemDetails;
+}
 
 function isRetryable(req: { method: string }, error: unknown): boolean {
   if (!RETRYABLE_METHODS.has(req.method)) return false;
@@ -36,6 +50,7 @@ export const hisHopeErrorInterceptor: HttpInterceptorFn = (req, next) => {
     }),
     catchError((error: unknown): Observable<never> => {
       if (error instanceof HttpErrorResponse) {
+        const problem = problemDetails(error);
         if (error.status === 401 || error.status === 403) {
           permissionService.recordAuthorizationFailure(
             error.status,
@@ -43,12 +58,19 @@ export const hisHopeErrorInterceptor: HttpInterceptorFn = (req, next) => {
           );
         }
         errorReporting.report({
-          message: error.message,
+          message: problem?.detail ?? problem?.title ?? error.message,
           severity:
             error.status >= 500 || error.status === 0 ? "error" : "warning",
-          correlationId: req.headers.get("X-Correlation-Id") ?? undefined,
+          correlationId:
+            problem?.correlationId ??
+            req.headers.get("X-Correlation-Id") ??
+            undefined,
           statusCode: error.status,
           url: req.urlWithParams,
+          errorCode: problem?.errorCode,
+          title: problem?.title,
+          detail: problem?.detail,
+          errors: problem?.errors,
         });
       }
       return throwError(() => error);

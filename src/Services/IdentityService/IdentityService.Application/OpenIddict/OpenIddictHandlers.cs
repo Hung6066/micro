@@ -3,6 +3,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
 using His.Hope.SharedKernel.Authorization;
 using His.Hope.IdentityService.Application.Interfaces;
+using His.Hope.IdentityService.Application.Authorization;
 using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -66,6 +67,9 @@ public sealed class CustomHandleClientCredentialsRequest :
         }
 
         var permissions = JsonSerializer.Deserialize<string[]>(workloadRole.PermissionsJson) ?? [];
+        var registeredPrefixes = await _dbContext.IamServiceDefinitions.AsNoTracking()
+            .Where(item => item.IsActive).Select(item => item.PermissionPrefix)
+            .ToListAsync(context.CancellationToken);
         var assignedPermissionJson = await _dbContext.IamPermissionSetAssignments.AsNoTracking()
             .Where(assignment => assignment.PrincipalId == workloadRole.Id &&
                 assignment.PrincipalType == AuthorizationConstants.PrincipalTypes.Workload &&
@@ -79,7 +83,7 @@ public sealed class CustomHandleClientCredentialsRequest :
             .ToListAsync(context.CancellationToken);
         permissions = permissions
             .Concat(assignedPermissionJson.SelectMany(json => JsonSerializer.Deserialize<string[]>(json) ?? []))
-            .Where(HisHopePermissions.IsValid)
+            .Where(code => PermissionCatalogRules.IsValid(code, registeredPrefixes))
             .Distinct(StringComparer.Ordinal)
             .ToArray();
         var boundary = await _dbContext.IamPermissionBoundaries.AsNoTracking()
@@ -216,6 +220,9 @@ public sealed class CustomHandleTokenExchangeRequest :
         }
 
         var rolePermissions = JsonSerializer.Deserialize<string[]>(role.PermissionsJson) ?? [];
+        var registeredPrefixes = await _dbContext.IamServiceDefinitions.AsNoTracking()
+            .Where(item => item.IsActive).Select(item => item.PermissionPrefix)
+            .ToListAsync(context.CancellationToken);
         var assignedPermissionJson = await _dbContext.IamPermissionSetAssignments.AsNoTracking()
             .Where(assignment => assignment.PrincipalId == role.Id &&
                 assignment.PrincipalType == AuthorizationConstants.PrincipalTypes.Workload &&
@@ -229,7 +236,7 @@ public sealed class CustomHandleTokenExchangeRequest :
             .ToListAsync(context.CancellationToken);
         rolePermissions = rolePermissions
             .Concat(assignedPermissionJson.SelectMany(json => JsonSerializer.Deserialize<string[]>(json) ?? []))
-            .Where(HisHopePermissions.IsValid)
+            .Where(code => PermissionCatalogRules.IsValid(code, registeredPrefixes))
             .Distinct(StringComparer.Ordinal)
             .ToArray();
         var requestedPermissions = (context.Request.GetParameter("requested_permissions")?.ToString() ?? string.Empty)
@@ -497,6 +504,10 @@ public class CustomPopulateTokenClaims :
         principalTypeClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
         identity.AddClaim(principalTypeClaim);
 
+        var securityVersionClaim = new Claim("securityVersion", user.SecurityStamp ?? "1");
+        securityVersionClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+        identity.AddClaim(securityVersionClaim);
+
         identity.AddClaim(new Claim("fullName", user.FullName ?? ""));
         identity.AddClaim(new Claim("licenseNumber", user.LicenseNumber ?? ""));
         identity.AddClaim(new Claim("license_number", user.LicenseNumber ?? ""));
@@ -579,12 +590,15 @@ public class CustomPopulateTokenClaims :
                 set => set.Id,
                 (_, set) => set.PermissionsJson)
             .ToListAsync();
+        var registeredPrefixes = await _dbContext.IamServiceDefinitions.AsNoTracking()
+            .Where(item => item.IsActive).Select(item => item.PermissionPrefix)
+            .ToListAsync(context.CancellationToken);
         foreach (var json in assignedSetJson)
         {
             try
             {
                 permissions.AddRange((JsonSerializer.Deserialize<string[]>(json) ?? [])
-                    .Where(HisHopePermissions.IsValid));
+                    .Where(code => PermissionCatalogRules.IsValid(code, registeredPrefixes)));
             }
             catch (JsonException)
             {
@@ -623,7 +637,7 @@ public class CustomPopulateTokenClaims :
         }
 
         permissions = permissions
-            .Where(HisHopePermissions.IsValid)
+            .Where(code => PermissionCatalogRules.IsValid(code, registeredPrefixes))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         if (permissions.Count > 0)

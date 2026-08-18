@@ -30,7 +30,7 @@
           "options": {
             "polyfills": ["zone.js", "zone.js/testing"],
             "tsConfig": "tsconfig.spec.json",
-            "include": ["src/**/*.spec.ts"]
+            "include": ["src/**/*.spec.ts", "auth/src/**/*.spec.ts", "forms/src/**/*.spec.ts", "query/src/**/*.spec.ts", "domain/src/**/*.spec.ts", "i18n/src/**/*.spec.ts", "ui/src/**/*.spec.ts"]
           }
         },
         "lint": {
@@ -39,5 +39,8 @@
         }
       }
     }
+  },
+  "cli": {
+    "analytics": "fe0ab011-ee42-420f-a7eb-f9a9941d7607"
   }
 }

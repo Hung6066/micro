@@ -1,20 +1,31 @@
-import { ApplicationConfig, ErrorHandler, importProvidersFrom, PLATFORM_ID } from "@angular/core";
+import {
+  ApplicationConfig,
+  ErrorHandler,
+  importProvidersFrom,
+  PLATFORM_ID,
+} from "@angular/core";
 import { DOCUMENT } from "@angular/common";
 import { provideRouter } from "@angular/router";
 import { provideAnimations } from "@angular/platform-browser/animations";
-import { HttpClient, provideHttpClient, withInterceptors } from "@angular/common/http";
+import {
+  HttpClient,
+  provideHttpClient,
+  withInterceptors,
+} from "@angular/common/http";
 import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { provideAuth } from "angular-auth-oidc-client";
 import {
   hisHopeCorrelationIdInterceptor,
   hisHopeErrorInterceptor,
   HisHopeGlobalErrorHandler,
+  hisHopeCookieSessionInterceptor,
+} from "@his-hope/frontend-foundation";
+import {
   hisHopeInternationalizationInterceptor,
   HisHopeI18nService,
   HisHopeLocalizationApiService,
   HIS_HOPE_LOCALIZATION_API_URL,
-  hisHopeCookieSessionInterceptor,
-} from "@his-hope/frontend-foundation";
+} from "@his-hope/frontend-foundation/i18n";
 import { RuntimeConfigService } from "@his-hope/frontend-foundation";
 import { routes } from "./app.routes";
 import { authInterceptor } from "./core/services/auth-interceptor.service";
@@ -39,8 +50,7 @@ export function createAdminRuntimeConfig(source = defaultAdminRuntimeSource()) {
     postLogoutRedirectPath: "/auth/login",
     silentRenewPath: "/auth/silent-refresh",
     responseType: environment.oidc.responseType,
-    maxIdTokenIatOffsetInSeconds:
-      environment.oidc.maxIdTokenIatOffsetInSeconds,
+    maxIdTokenIatOffsetInSeconds: environment.oidc.maxIdTokenIatOffsetInSeconds,
   });
 }
 
@@ -48,9 +58,25 @@ const runtime = createAdminRuntimeConfig();
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    { provide: HisHopeI18nService, useFactory: (document: Document, platformId: object) => new HisHopeI18nService(document, platformId), deps: [DOCUMENT, PLATFORM_ID] },
-    { provide: HisHopeLocalizationApiService, useFactory: (http: HttpClient, i18n: HisHopeI18nService, apiUrl: string) => new HisHopeLocalizationApiService(http, i18n, apiUrl), deps: [HttpClient, HisHopeI18nService, HIS_HOPE_LOCALIZATION_API_URL] },
-    { provide: HIS_HOPE_LOCALIZATION_API_URL, useValue: runtime.localizationApiUrl },
+    {
+      provide: HisHopeI18nService,
+      useFactory: (document: Document, platformId: object) =>
+        new HisHopeI18nService(document, platformId),
+      deps: [DOCUMENT, PLATFORM_ID],
+    },
+    {
+      provide: HisHopeLocalizationApiService,
+      useFactory: (
+        http: HttpClient,
+        i18n: HisHopeI18nService,
+        apiUrl: string,
+      ) => new HisHopeLocalizationApiService(http, i18n, apiUrl),
+      deps: [HttpClient, HisHopeI18nService, HIS_HOPE_LOCALIZATION_API_URL],
+    },
+    {
+      provide: HIS_HOPE_LOCALIZATION_API_URL,
+      useValue: runtime.localizationApiUrl,
+    },
     provideRouter(routes),
     provideAnimations(),
     provideHttpClient(
