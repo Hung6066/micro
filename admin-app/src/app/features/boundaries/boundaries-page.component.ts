@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -7,7 +8,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { MatDialog, MatDialogModule } from "@angular/material/dialog";
+import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { catchError, forkJoin, of } from "rxjs";
 import {
   HisHopeDataTableCellDirective,
@@ -31,16 +32,17 @@ import {
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { iamPrincipalLabel } from "../../core/utils/iam-display.util";
 import { BoundaryEditDialogComponent } from "./boundary-edit-dialog.component";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-boundaries-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    MatDialogModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -97,7 +99,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class BoundariesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
-  private readonly dialog = inject(MatDialog);
+  private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -158,8 +160,20 @@ export class BoundariesPageComponent implements OnInit {
       {
         key: "principalId",
         label: this.i18n.t("admin.principalId", "Principal"),
+        computed: (row) =>
+          iamPrincipalLabel(
+            String(row["principalId"] ?? ""),
+            String(row["principalType"] ?? ""),
+            this.users,
+            [],
+            this.workloadRoles,
+          ),
       },
-      { key: "scopeId", label: this.i18n.t("admin.scopeId", "Scope") },
+      {
+        key: "scopeId",
+        label: this.i18n.t("admin.scopeId", "Scope"),
+        format: { type: "friendlyReference", references: this.scopes },
+      },
       { key: "isActive", label: this.i18n.t("admin.active", "Active") },
       {
         key: "actions",

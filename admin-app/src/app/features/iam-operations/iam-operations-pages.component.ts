@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -32,6 +33,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-workload-sessions-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
@@ -96,7 +98,11 @@ export class IamWorkloadSessionsPageComponent implements OnInit {
         label: this.i18n.t("admin.workloadRole", "Workload role"),
       },
       { key: "audience", label: this.i18n.t("admin.audience", "Audience") },
-      { key: "expiresAt", label: this.i18n.t("admin.expiresAt", "Expires") },
+      {
+        key: "expiresAt",
+        label: this.i18n.t("admin.expiresAt", "Expires"),
+        format: "dateTime",
+      },
       {
         key: "actions",
         label: this.i18n.t("admin.actions", "Actions"),
@@ -143,6 +149,7 @@ export class IamWorkloadSessionsPageComponent implements OnInit {
 @Component({
   selector: "app-iam-audit-integrations-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
@@ -212,7 +219,11 @@ export class IamAuditIntegrationsPageComponent implements OnInit {
   get columns(): HisHopeDataTableColumn[] {
     return [
       { key: "eventType", label: this.i18n.t("admin.eventType", "Event") },
-      { key: "createdAt", label: this.i18n.t("admin.createdAt", "Created") },
+      {
+        key: "createdAt",
+        label: this.i18n.t("admin.createdAt", "Created"),
+        format: "dateTime",
+      },
       { key: "attempts", label: this.i18n.t("admin.attempts", "Attempts") },
       { key: "lastError", label: this.i18n.t("admin.error", "Error") },
       {

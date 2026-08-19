@@ -12,6 +12,7 @@ import {
   effect,
   inject,
   input,
+  isDevMode,
   signal,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
@@ -35,6 +36,7 @@ import {
   HisHopeTableExportFormat,
   HisHopeTableExportRequest,
   HisHopeTableImportRequest,
+  HisHopeDataTableFormat,
   HisHopeTableSelectionScope,
   HisHopeTableSelectionState,
 } from "@his-hope/frontend-foundation/contracts";
@@ -49,6 +51,8 @@ import {
   operatorLabel as operatorLabelPure,
   orderIndexOf,
 } from "./his-hope-data-table.helpers";
+import { friendlyReferenceLabel } from "@his-hope/frontend-foundation/contracts";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 
 export type HisHopeDataTableDensity = "comfortable" | "compact";
 export type HisHopeDataTableSortDirection = "asc" | "desc";
@@ -77,6 +81,7 @@ export interface HisHopeDataTableColumn {
   exportable?: boolean;
   status?: boolean;
   computed?: (row: Record<string, unknown>) => unknown;
+  format?: HisHopeDataTableFormat;
 }
 
 @Directive({ selector: "[hhDataTableDetail]", standalone: true })
@@ -2322,9 +2327,11 @@ export class HisHopeDataTableComponent {
   private readonly router = inject(Router, { optional: true });
   private readonly route = inject(ActivatedRoute, { optional: true });
   private readonly destroyRef = inject(DestroyRef);
+  private readonly i18n = inject(HisHopeI18nService);
   private urlReady = false;
   private searchTimer: ReturnType<typeof setTimeout> | undefined;
   private searchPending = false;
+  private readonly warnedColumnFormats = new Set<string>();
 
   constructor() {
     if (typeof window !== "undefined")
@@ -2429,7 +2436,24 @@ export class HisHopeDataTableComponent {
   }
 
   configuredColumns(): HisHopeDataTableColumn[] {
+    this.warnAboutUnformattedColumns();
     return this.columns();
+  }
+
+  private warnAboutUnformattedColumns(): void {
+    if (!isDevMode()) return;
+    for (const column of this.columns()) {
+      if (column.computed || column.format) continue;
+      const looksLikeDate = /(At|Date|Timestamp)$/.test(column.key);
+      const looksLikeReference = /Id$/.test(column.key) && column.key !== "id";
+      if (!looksLikeDate && !looksLikeReference) continue;
+      if (this.warnedColumnFormats.has(column.key)) continue;
+      this.warnedColumnFormats.add(column.key);
+      console.warn(
+        `[hh-data-table] Column "${column.key}" may need a display formatter. ` +
+          "Use format or computed to avoid raw date/foreign-key values.",
+      );
+    }
   }
   visibleColumns(): HisHopeDataTableColumn[] {
     const hidden = this.localHiddenColumns().length
@@ -2897,18 +2921,51 @@ export class HisHopeDataTableComponent {
   }
   cellValue(row: Record<string, unknown>, key: string): string {
     const column = this.columns().find((item) => item.key === key);
-    if (column?.computed) return String(column.computed(row) ?? "");
-    return String(
-      key
-        .split(".")
-        .reduce<unknown>(
-          (value, part) =>
-            value && typeof value === "object"
-              ? (value as Record<string, unknown>)[part]
-              : undefined,
-          row,
-        ) ?? "",
-    );
+    const value = column?.computed
+      ? column.computed(row)
+      : key
+          .split(".")
+          .reduce<unknown>(
+            (current, part) =>
+              current && typeof current === "object"
+                ? (current as Record<string, unknown>)[part]
+                : undefined,
+            row,
+          );
+    if (value === null || value === undefined || value === "") return "-";
+    return column?.format
+      ? this.formatCellValue(value, column.format)
+      : String(value);
+  }
+
+  private formatCellValue(
+    value: unknown,
+    format: HisHopeDataTableFormat,
+  ): string {
+    if (typeof format === "object" && format.type === "friendlyReference") {
+      return friendlyReferenceLabel(
+        String(value),
+        format.references,
+        format.includeKind,
+      );
+    }
+    if (format === "date" || format === "dateTime") {
+      const date = new Date(String(value));
+      if (Number.isNaN(date.getTime())) return "-";
+      return this.i18n.formatDate(date, {
+        dateStyle: format === "date" ? "medium" : "medium",
+        ...(format === "dateTime" ? { timeStyle: "short" as const } : {}),
+      });
+    }
+    if (format === "number") {
+      const number = Number(value);
+      return Number.isFinite(number) ? this.i18n.formatNumber(number) : "-";
+    }
+    if (format === "currency") {
+      const number = Number(value);
+      return Number.isFinite(number) ? this.i18n.formatCurrency(number) : "-";
+    }
+    return String(value);
   }
   cellTemplate(key: string): HisHopeDataTableCellDirective | undefined {
     return this.cellTemplates?.find((template) => template.key() === key);

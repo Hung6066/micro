@@ -13,7 +13,6 @@ import { MatCardModule } from "@angular/material/card";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
-import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
 import { catchError, forkJoin, of, tap } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 import {
@@ -30,6 +29,7 @@ import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
+  HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -50,7 +50,6 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
-    MatSnackBarModule,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeTranslatePipe,
@@ -116,7 +115,7 @@ export class AccessGovernancePageComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly permissionService = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
-  private readonly snack = inject(MatSnackBar);
+  private readonly toast = inject(HisHopeToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
   readonly resource = new HisHopeResourceState<{
@@ -306,11 +305,7 @@ export class AccessGovernancePageComponent implements OnInit {
     operation().subscribe({
       next: () => {
         after?.();
-        this.snack.open(
-          this.i18n.t(key, fallback),
-          this.i18n.t("admin.close", "Close"),
-          { duration: 3000 },
-        );
+        this.toast.success(this.i18n.t(key, fallback), { duration: 3000 });
         this.reload();
       },
       error: () =>

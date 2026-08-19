@@ -1,19 +1,21 @@
-import { Component, Inject, inject } from "@angular/core";
-import { FormGroup } from "@angular/forms";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
-import { MatSnackBar } from "@angular/material/snack-bar";
+import { Component, inject } from "@angular/core";
+import { FormGroup, ReactiveFormsModule } from "@angular/forms";
+import { MatFormFieldModule } from "@angular/material/form-field";
 import { User } from "../../core/contracts/admin.contracts";
 import { UsersApiService } from "../../core/services/users-api.service";
 import {
   HisHopeFormFieldSchema,
-  HisHopeFormRendererComponent,
   HisHopeFormSchema,
   createHisHopeFormGroup,
-} from "@his-hope/frontend-foundation";
+  HisHopeMaterialFormFieldComponent,
+} from "@his-hope/frontend-foundation/forms";
 import {
+  HIS_HOPE_DIALOG_DATA,
   HisHopeCreateDialogShellComponent,
+  HisHopeDialogRef,
   HisHopeFormLayoutComponent,
   HisHopeFormSectionComponent,
+  HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -29,9 +31,10 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     HisHopeActionButtonComponent,
     HisHopeCreateDialogShellComponent,
     HisHopeFormLayoutComponent,
-    HisHopeFormRendererComponent,
     HisHopeFormSectionComponent,
     HisHopeTranslatePipe,
+    ReactiveFormsModule,
+    HisHopeMaterialFormFieldComponent,
   ],
   template: `
     <hh-create-dialog-shell
@@ -41,18 +44,47 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       "
     >
       <div hhCreateDialogContent>
-        <hh-form-layout>
-          <hh-form-section
-            [title]="'admin.basicInformation' | hhTranslate"
-            [span]="2"
-          >
-            <hh-form-renderer
-              [fields]="fields"
-              [form]="formGroup"
-              (submitted)="save($event)"
-            />
-          </hh-form-section>
-        </hh-form-layout>
+        <form [formGroup]="formGroup" (ngSubmit)="submitForm()">
+          <hh-form-layout>
+            <hh-form-section
+              [title]="'admin.basicInformation' | hhTranslate"
+              [span]="2"
+            >
+              <div class="form-grid">
+                <hh-mat-form-field
+                  [control]="formGroup.controls['username']"
+                  [label]="fields[0].label"
+                />
+                <hh-mat-form-field
+                  [control]="formGroup.controls['email']"
+                  [label]="fields[1].label"
+                  type="email"
+                />
+                <hh-mat-form-field
+                  [control]="formGroup.controls['firstName']"
+                  [label]="fields[2].label"
+                />
+                <hh-mat-form-field
+                  [control]="formGroup.controls['lastName']"
+                  [label]="fields[3].label"
+                />
+                <hh-mat-form-field
+                  [control]="formGroup.controls['phoneNumber']"
+                  [label]="fields[4].label"
+                />
+                <hh-mat-form-field
+                  [control]="formGroup.controls['password']"
+                  [label]="fields[5].label"
+                  type="password"
+                />
+                <hh-mat-form-field
+                  [control]="formGroup.controls['role']"
+                  [label]="fields[6].label"
+                />
+              </div>
+            </hh-form-section>
+          </hh-form-layout>
+        </form>
       </div>
       <div hhCreateDialogFooter>
         <hh-action-button
@@ -62,7 +94,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
           [label]="'admin.cancel' | hhTranslate"
         />
         <hh-action-button
-          [disabled]="saving || formGroup.invalid"
+          [disabled]="saving"
           (pressed)="submitForm()"
           kind="primary"
           icon="save"
@@ -99,13 +131,26 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         cursor: not-allowed;
         opacity: 0.65;
       }
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      mat-form-field {
+        width: 100%;
+      }
+      @media (max-width: 720px) {
+        .form-grid {
+          grid-template-columns: 1fr;
+        }
+      }
     `,
   ],
 })
 export class UserEditDialogComponent {
-  readonly dialogRef = inject(MatDialogRef<UserEditDialogComponent>);
+  readonly dialogRef = inject(HisHopeDialogRef<boolean>);
   private readonly api = inject(UsersApiService);
-  private readonly snack = inject(MatSnackBar);
+  private readonly toast = inject(HisHopeToastService);
   private readonly i18n = inject(HisHopeI18nService);
   readonly isEdit: boolean;
   readonly formGroup: FormGroup;
@@ -114,7 +159,8 @@ export class UserEditDialogComponent {
   private readonly concurrencyToken: string;
   saving = false;
 
-  constructor(@Inject(MAT_DIALOG_DATA) data: User | null) {
+  constructor() {
+    const data = inject(HIS_HOPE_DIALOG_DATA) as User | null;
     this.isEdit = !!data;
     this.userId = data?.id ?? "";
     this.concurrencyToken = data?.concurrencyToken ?? "";
@@ -182,10 +228,12 @@ export class UserEditDialogComponent {
 
   submitForm(): void {
     this.formGroup.markAllAsTouched();
-    if (this.formGroup.valid) this.save(this.formGroup.getRawValue());
+    if (this.formGroup.valid && !this.saving)
+      this.save(this.formGroup.getRawValue());
   }
 
   save(values: Record<string, unknown>): void {
+    if (this.saving || this.formGroup.invalid) return;
     this.saving = true;
     const request = this.isEdit
       ? this.api.updateUser(this.userId, {
@@ -208,10 +256,8 @@ export class UserEditDialogComponent {
     request
       .pipe(
         catchError(() => {
-          this.snack.open(
+          this.toast.error(
             this.i18n.t("admin.saveUserFailed", "Failed to save user"),
-            this.i18n.t("admin.close", "Close"),
-            { duration: 3000 },
           );
           this.saving = false;
           return of(null);

@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -7,7 +8,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { MatDialog, MatDialogModule } from "@angular/material/dialog";
+import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
@@ -24,17 +25,16 @@ import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { IamScope } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
-import { iamScopeLabel } from "../../core/utils/iam-display.util";
 import { IamScopeEditDialogComponent } from "./iam-scope-edit-dialog.component";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-scopes-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    MatDialogModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -105,7 +105,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class IamScopesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
-  private readonly dialog = inject(MatDialog);
+  private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -146,6 +146,11 @@ export class IamScopesPageComponent implements OnInit {
       {
         key: "parentId",
         label: this.i18n.t("admin.parentScope", "Parent scope"),
+        format: {
+          type: "friendlyReference",
+          references: this.scopes,
+          includeKind: true,
+        },
       },
       { key: "isActive", label: this.i18n.t("admin.active", "Active") },
       {
@@ -164,10 +169,7 @@ export class IamScopesPageComponent implements OnInit {
       const scopes = this.state.resource.data();
       if (scopes) {
         this.scopes = scopes;
-        this.rows = scopes.map((item) => ({
-          ...item,
-          parentId: iamScopeLabel(item.parentId, scopes, true),
-        }));
+        this.rows = scopes.map((item) => ({ ...item }));
         this.cdr.markForCheck();
       }
     });

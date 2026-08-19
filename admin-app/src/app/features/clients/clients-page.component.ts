@@ -1,4 +1,5 @@
 import {
+  ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
   DestroyRef,
@@ -10,8 +11,7 @@ import { CommonModule } from "@angular/common";
 import { MatTableModule } from "@angular/material/table";
 import { MatButtonModule } from "@angular/material/button";
 import { MatIconModule } from "@angular/material/icon";
-import { MatDialog, MatDialogModule } from "@angular/material/dialog";
-import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
+import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { MatCardModule } from "@angular/material/card";
 import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
 import {
@@ -38,6 +38,7 @@ import {
   HisHopeDataTableDetailDirective,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
+  HisHopeToastService,
   HisHopeToolbarComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
@@ -57,8 +58,6 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     MatTableModule,
     MatButtonModule,
     HisHopeTranslatePipe,
-    MatDialogModule,
-    MatSnackBarModule,
     MatCardModule,
     MatProgressSpinnerModule,
     HisHopeConfirmDialogComponent,
@@ -178,11 +177,12 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       />
     </hh-page-layout>
   `,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ClientsPageComponent implements OnInit {
   private readonly api = inject(ClientsApiService);
-  private readonly dialog = inject(MatDialog);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(HisHopeDialogService);
+  private readonly toast = inject(HisHopeToastService);
   private readonly auditFeedback = inject(HisHopeAuditFeedbackService);
   readonly i18n = inject(HisHopeI18nService);
   private readonly permissions = inject(HisHopePermissionService);
@@ -195,7 +195,11 @@ export class ClientsPageComponent implements OnInit {
   }
 
   clients: OidcClient[] = [];
-  get columns(): HisHopeDataTableColumn[] {
+  columns: HisHopeDataTableColumn[] = [];
+  bulkActions: HisHopeBulkAction[] = [];
+  tableRows: Record<string, unknown>[] = [];
+
+  private createColumns(): HisHopeDataTableColumn[] {
     return [
       {
         key: "clientId",
@@ -258,35 +262,35 @@ export class ClientsPageComponent implements OnInit {
   expandedRowKeys: string[] = [];
   constructor() {
     effect(() => {
+      this.i18n.locale();
+      this.columns = this.createColumns();
+      this.bulkActions = this.canWrite
+        ? [
+            {
+              id: "delete",
+              label: this.i18n.t("admin.deleteSelected"),
+              tone: "danger",
+            },
+          ]
+        : [];
+      this.cdr.markForCheck();
+    });
+    effect(() => {
       const result = this.resource.data();
       if (result) {
         this.totalItems = result.totalCount;
         this.clients = result.items;
+        this.tableRows = result.items.map((client) => ({
+          id: client.id ?? client.clientId,
+          clientId: client.clientId,
+          displayName: client.displayName,
+          clientType: client.clientType,
+          redirectUris: (client.redirectUris || []).join(", "),
+          entity: client,
+        }));
         this.cdr.markForCheck();
       }
     });
-  }
-  get bulkActions(): HisHopeBulkAction[] {
-    return this.canWrite
-      ? [
-          {
-            id: "delete",
-            label: this.i18n.t("admin.deleteSelected"),
-            tone: "danger",
-          },
-        ]
-      : [];
-  }
-
-  get tableRows(): Record<string, unknown>[] {
-    return this.clients.map((client) => ({
-      id: client.id ?? client.clientId,
-      clientId: client.clientId,
-      displayName: client.displayName,
-      clientType: client.clientType,
-      redirectUris: (client.redirectUris || []).join(", "),
-      entity: client,
-    }));
   }
 
   clientFromRow(row: Record<string, unknown>): OidcClient {
@@ -314,9 +318,8 @@ export class ClientsPageComponent implements OnInit {
               "Failed to update client.",
             ),
           });
-          this.snackBar.open(
+          this.toast.error(
             this.i18n.t("admin.updateClientFailed", "Failed to update client"),
-            this.i18n.t("admin.close", "Close"),
             { duration: 3000 },
           );
           this.loadClients();
@@ -331,9 +334,8 @@ export class ClientsPageComponent implements OnInit {
             outcome: "success",
             message: this.i18n.t("admin.clientUpdated", "Client updated."),
           });
-          this.snackBar.open(
+          this.toast.success(
             this.i18n.t("admin.clientUpdated", "Client updated"),
-            this.i18n.t("admin.close", "Close"),
             { duration: 2000 },
           );
           this.loadClients();
@@ -432,8 +434,6 @@ export class ClientsPageComponent implements OnInit {
     const ref = this.dialog.open(ClientEditDialogComponent, {
       width: "min(720px, calc(100vw - 32px))",
       maxWidth: "calc(100vw - 32px)",
-      autoFocus: "first-tabbable",
-      restoreFocus: true,
     });
     ref.afterClosed().subscribe((result) => {
       if (result) this.loadClients();
@@ -445,8 +445,6 @@ export class ClientsPageComponent implements OnInit {
     const ref = this.dialog.open(ClientEditDialogComponent, {
       width: "min(720px, calc(100vw - 32px))",
       maxWidth: "calc(100vw - 32px)",
-      autoFocus: "first-tabbable",
-      restoreFocus: true,
       data: client,
     });
     ref.afterClosed().subscribe((result) => {
@@ -462,12 +460,11 @@ export class ClientsPageComponent implements OnInit {
   rotateSecret(client: OidcClient): void {
     if (!this.canWrite) return;
     if (!client.id || client.clientType?.toLowerCase() !== "confidential") {
-      this.snackBar.open(
+      this.toast.error(
         this.i18n.t(
           "admin.onlyConfidentialClients",
           "Only confidential clients can rotate a secret.",
         ),
-        this.i18n.t("admin.close", "Close"),
         { duration: 3000 },
       );
       return;
@@ -475,24 +472,22 @@ export class ClientsPageComponent implements OnInit {
     this.api.rotateClientSecret(client.id).subscribe({
       next: (result) => {
         navigator.clipboard?.writeText(result.clientSecret);
-        this.snackBar.open(
+        this.toast.success(
           this.i18n
             .t(
               "admin.newSecretCopied",
               "New secret copied for {{clientId}}. It will not be shown again.",
             )
             .replace("{{clientId}}", result.clientId),
-          this.i18n.t("admin.close", "Close"),
           { duration: 6000 },
         );
       },
       error: () =>
-        this.snackBar.open(
+        this.toast.error(
           this.i18n.t(
             "admin.rotateClientFailed",
             "Failed to rotate client secret.",
           ),
-          this.i18n.t("admin.close", "Close"),
           { duration: 3000 },
         ),
     });
@@ -503,31 +498,26 @@ export class ClientsPageComponent implements OnInit {
     const client = this.clientPendingDelete;
     this.clientPendingDelete = null;
     if (!client?.id) return;
-    this.api
-      .deleteClient(client.id!)
-      .pipe(
-        catchError((err) => {
-          this.auditFeedback.report({
-            action: "Delete",
-            resource: "OIDC client",
-            outcome: "failure",
-            message: "Failed to delete client.",
-          });
-          this.snackBar.open("Failed to delete client", "Close", {
-            duration: 3000,
-          });
-          return of(undefined);
-        }),
-      )
-      .subscribe(() => {
+    this.api.deleteClient(client.id).subscribe({
+      next: () => {
         this.auditFeedback.report({
           action: "Delete",
           resource: "OIDC client",
           outcome: "success",
           message: "Client deleted.",
         });
-        this.snackBar.open("Client deleted", "Close", { duration: 2000 });
+        this.toast.success("Client deleted", { duration: 2000 });
         this.loadClients();
-      });
+      },
+      error: () => {
+        this.auditFeedback.report({
+          action: "Delete",
+          resource: "OIDC client",
+          outcome: "failure",
+          message: "Failed to delete client.",
+        });
+        this.toast.error("Failed to delete client", { duration: 3000 });
+      },
+    });
   }
 }

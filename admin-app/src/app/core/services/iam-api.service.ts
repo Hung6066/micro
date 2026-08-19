@@ -659,7 +659,9 @@ export class IamApiService {
   }
 
   getPermissions(): Observable<PermissionDefinition[]> {
-    return this.http.get<PermissionDefinition[]>(`${this.baseUrl}/permissions`);
+    return this.http.get<PermissionDefinition[]>(
+      `${environment.authApiUrl}/permissions`,
+    );
   }
 
   simulateIamPolicy(request: {

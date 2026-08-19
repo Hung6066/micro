@@ -15,7 +15,6 @@ import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
 import { MatIconModule } from "@angular/material/icon";
 import { MatSelectModule } from "@angular/material/select";
-import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
 import { MatTabsModule } from "@angular/material/tabs";
 import { catchError, firstValueFrom, of, tap } from "rxjs";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
@@ -23,6 +22,7 @@ import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
+  HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -63,7 +63,6 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     MatInputModule,
     MatIconModule,
     MatSelectModule,
-    MatSnackBarModule,
     MatTabsModule,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
@@ -906,7 +905,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 export class IdentityCapabilitiesPageComponent {
   private readonly api = inject(IdentityCapabilitiesApiService);
   private readonly capabilities = inject(IdentityCapabilitiesService);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly toast = inject(HisHopeToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly permissions = inject(HisHopePermissionService);
@@ -1050,9 +1049,8 @@ export class IdentityCapabilitiesPageComponent {
         ),
       );
       this.requiredSignalsText = this.policy.requiredSignals.join(", ");
-      this.snackBar.open(
+      this.toast.success(
         this.i18n.t("admin.policySaved", "Device posture policy saved"),
-        this.i18n.t("admin.close", "Close"),
         { duration: 3000 },
       );
     } catch (error) {
@@ -1091,12 +1089,11 @@ export class IdentityCapabilitiesPageComponent {
         this.api.rollbackDevicePosturePolicy(this.selectedFacilityId),
       );
       this.requiredSignalsText = this.policy.requiredSignals.join(", ");
-      this.snackBar.open(
+      this.toast.success(
         this.i18n.t(
           "admin.policyRolledBack",
           "Device posture policy rolled back",
         ),
-        this.i18n.t("admin.close", "Close"),
         { duration: 3000 },
       );
     } catch (error) {
@@ -1153,9 +1150,8 @@ export class IdentityCapabilitiesPageComponent {
           payload: { dryRun: true },
         }),
       );
-      this.snackBar.open(
+      this.toast.success(
         this.i18n.t("admin.provisioningQueued", "Provisioning job queued"),
-        this.i18n.t("admin.close", "Close"),
         { duration: 3000 },
       );
     } catch {
@@ -1189,9 +1185,8 @@ export class IdentityCapabilitiesPageComponent {
           ? { ...item, status: "revoked", revokedAt: new Date().toISOString() }
           : item,
       );
-      this.snackBar.open(
+      this.toast.success(
         this.i18n.t("admin.bindingRevoked", "Certificate binding revoked"),
-        this.i18n.t("admin.close", "Close"),
         { duration: 3000 },
       );
     } catch {
@@ -1218,9 +1213,8 @@ export class IdentityCapabilitiesPageComponent {
     try {
       await firstValueFrom(this.api.retrySecuritySignal(entry.id));
       this.ssfOutbox = this.ssfOutbox.filter((item) => item.id !== entry.id);
-      this.snackBar.open(
+      this.toast.success(
         this.i18n.t("admin.ssfRetryQueued", "SSF retry queued"),
-        this.i18n.t("admin.close", "Close"),
         { duration: 3000 },
       );
     } catch {
@@ -1254,9 +1248,8 @@ export class IdentityCapabilitiesPageComponent {
           ? { ...item, lastError: undefined, completedAt: undefined }
           : item,
       );
-      this.snackBar.open(
+      this.toast.success(
         this.i18n.t("admin.retryQueued", "Retry queued"),
-        this.i18n.t("admin.close", "Close"),
         { duration: 3000 },
       );
     } catch {
@@ -1282,9 +1275,8 @@ export class IdentityCapabilitiesPageComponent {
       anchor.download = `audit-export-${new Date().toISOString().slice(0, 10)}.csv`;
       anchor.click();
       URL.revokeObjectURL(url);
-      this.snackBar.open(
+      this.toast.success(
         this.i18n.t("admin.exportReady", "Audit CSV export ready"),
-        this.i18n.t("admin.close", "Close"),
         { duration: 3000 },
       );
     } catch {

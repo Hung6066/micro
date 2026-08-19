@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -7,7 +8,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { MatDialog, MatDialogModule } from "@angular/material/dialog";
+import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeBulkAction,
   HisHopeBulkActionRequest,
@@ -44,9 +45,9 @@ import { RoleEditDialogComponent } from "./role-edit-dialog.component";
 @Component({
   selector: "app-roles-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
-    MatDialogModule,
     HisHopeDataTableComponent,
     HisHopeDataTableDetailDirective,
     HisHopeActionButtonComponent,
@@ -147,7 +148,7 @@ import { RoleEditDialogComponent } from "./role-edit-dialog.component";
 export class RolesPageComponent implements OnInit {
   private readonly api = inject(RolesApiService);
   private readonly tableApi = inject(AdminTableApiService);
-  private readonly dialog = inject(MatDialog);
+  private readonly dialog = inject(HisHopeDialogService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -212,9 +213,7 @@ export class RolesPageComponent implements OnInit {
         this.totalItems = result.totalCount;
         this.roles = result.items;
         this.tableRows = result.items.map((role) => ({
-          id: role.id,
-          name: role.name,
-          description: role.description,
+          ...role,
           owner: role.owner || "identity-service",
           riskTier: role.riskTier || "standard",
           version: role.version || 1,

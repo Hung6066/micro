@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -27,6 +28,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-consents-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HisHopeActionButtonComponent,
     HisHopeDataTableComponent,
@@ -45,7 +47,13 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       <span hhToolbarTitle
         >{{ totalItems }} {{ "admin.consents" | hhTranslate }}</span
       >
-      <hh-action-button (pressed)="loadConsents()" hh-toolbar-actions kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate" />
+      <hh-action-button
+        (pressed)="loadConsents()"
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+      />
     </hh-toolbar>
     <hh-data-table
       [label]="'admin.pageConsents' | hhTranslate"
@@ -93,6 +101,7 @@ export class ConsentsPageComponent implements OnInit {
         label: this.i18n.t("admin.created", "Created"),
         sortable: true,
         responsivePriority: 2,
+        format: "dateTime",
       },
     ];
   }

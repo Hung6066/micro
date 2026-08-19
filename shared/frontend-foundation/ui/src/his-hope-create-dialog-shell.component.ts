@@ -35,6 +35,7 @@ import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
     `
       :host {
         display: block;
+        width: 100%;
         min-width: 0;
       }
       .hh-create-dialog-shell {

@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -26,6 +27,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-trusted-issuers-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
@@ -43,8 +45,13 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         'admin.trustedIssuersSubtitle'
           | hhTranslate: 'Configured OIDC/SAML issuer metadata.'
       " /><hh-toolbar hhPageToolbar
-      ><hh-action-button (pressed)="load()" hh-toolbar-actions kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate" /></hh-toolbar
-    >
+      ><hh-action-button
+        (pressed)="load()"
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+    /></hh-toolbar>
     <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
     <hh-data-table
       [columns]="columns"

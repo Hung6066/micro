@@ -6,7 +6,6 @@ import { MatToolbarModule } from "@angular/material/toolbar";
 import { MatListModule } from "@angular/material/list";
 import { MatIconModule } from "@angular/material/icon";
 import { MatButtonModule } from "@angular/material/button";
-import { MatMenuModule } from "@angular/material/menu";
 import { BehaviorSubject, Observable, of } from "rxjs";
 import { catchError, switchMap } from "rxjs/operators";
 import { AuthService } from "./core/services/auth.service";
@@ -52,7 +51,6 @@ interface AdminNavSection {
     MatListModule,
     MatIconModule,
     MatButtonModule,
-    MatMenuModule,
     HisHopeBrandComponent,
     HisHopeCommandPaletteComponent,
     HisHopeOfflineBannerComponent,
@@ -69,6 +67,7 @@ export class AppComponent {
   readonly isMobile$: Observable<boolean>;
   readonly sidenavOpened$ = new BehaviorSubject<boolean>(true);
   paletteOpen = false;
+  userMenuOpen = false;
   readonly navSections: readonly AdminNavSection[] = [
     {
       id: "overview",
@@ -500,11 +499,17 @@ export class AppComponent {
   }
 
   onLogout(): void {
+    this.userMenuOpen = false;
     this.authService.logout();
   }
 
   onLogin(): void {
+    this.userMenuOpen = false;
     this.authService.login();
+  }
+
+  toggleUserMenu(): void {
+    this.userMenuOpen = !this.userMenuOpen;
   }
 
   toggleTheme(): void {

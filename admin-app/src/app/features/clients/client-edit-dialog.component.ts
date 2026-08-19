@@ -1,60 +1,101 @@
 import { Component, Inject, inject } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
-import { FormGroup } from "@angular/forms";
 import {
-  MatDialogModule,
-  MatDialogRef,
-  MAT_DIALOG_DATA,
-} from "@angular/material/dialog";
-import { MatFormFieldModule } from "@angular/material/form-field";
-import { MatInputModule } from "@angular/material/input";
-import { MatSelectModule } from "@angular/material/select";
+  AbstractControl,
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatChipsModule } from "@angular/material/chips";
 import { MatIconModule } from "@angular/material/icon";
-import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
 import { OidcClient } from "../../core/contracts/admin.contracts";
 import { ClientsApiService } from "../../core/services/clients-api.service";
 import { catchError, map } from "rxjs/operators";
 import { of } from "rxjs";
 import {
   HisHopeCreateDialogShellComponent,
+  HIS_HOPE_DIALOG_DATA,
+  HisHopeDialogRef,
   HisHopeFormLayoutComponent,
   HisHopeFormSectionComponent,
+  HisHopePhiMaskDirective,
+  HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
-import {
-  HisHopeFormFieldSchema,
-  HisHopeFormRendererComponent,
-  HisHopeFormSchema,
-  createHisHopeFormGroup,
-} from "@his-hope/frontend-foundation/forms";
 import {
   HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
+import { HisHopeMaterialFormFieldComponent } from "@his-hope/frontend-foundation/forms";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
+
+function httpsUriLinesValidator(
+  control: AbstractControl,
+): ValidationErrors | null {
+  const values = String(control.value ?? "")
+    .split("\n")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const invalid = values.some((value) => {
+    try {
+      return new URL(value).protocol !== "https:";
+    } catch {
+      return true;
+    }
+  });
+  return invalid ? { httpsUri: true } : null;
+}
+
+function clientFormValidator(
+  control: AbstractControl,
+): ValidationErrors | null {
+  const grants = control.get("grantTypes")?.value as string[] | undefined;
+  const redirectControl = control.get("redirectUris");
+  const redirectUris = String(redirectControl?.value ?? "").trim();
+  const required = grants?.includes("authorization_code") && !redirectUris;
+  const errors = { ...(redirectControl?.errors ?? {}) };
+
+  if (required) {
+    errors["redirectUriRequired"] = true;
+  } else {
+    delete errors["redirectUriRequired"];
+  }
+  redirectControl?.setErrors(Object.keys(errors).length ? errors : null, {
+    emitEvent: false,
+  });
+
+  return required ? { redirectUriRequired: true } : null;
+}
+
+function jwksValidator(control: AbstractControl): ValidationErrors | null {
+  const value = String(control.value ?? "").trim();
+  if (!value) return null;
+  try {
+    return typeof JSON.parse(value) === "object" ? null : { invalidJson: true };
+  } catch {
+    return { invalidJson: true };
+  }
+}
+
 @Component({
   selector: "app-client-edit-dialog",
   standalone: true,
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
-    MatDialogModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
+    ReactiveFormsModule,
     MatButtonModule,
     MatChipsModule,
     MatIconModule,
-    MatSnackBarModule,
     HisHopeCreateDialogShellComponent,
-    HisHopeFormRendererComponent,
     HisHopeFormLayoutComponent,
     HisHopeFormSectionComponent,
+    HisHopePhiMaskDirective,
     HisHopeTranslatePipe,
+    HisHopeMaterialFormFieldComponent,
   ],
   template: `
     <hh-create-dialog-shell
@@ -64,127 +105,159 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       [subtitle]="'admin.clientDialogSubtitle' | hhTranslate"
     >
       <div hhCreateDialogContent>
-        <hh-form-layout>
-          <hh-form-section
-            [title]="'admin.basicInformation' | hhTranslate"
-            [description]="'admin.clientProfileDescription' | hhTranslate"
-            [span]="2"
-          >
-            <div class="form-grid">
-              <hh-form-renderer
-                [fields]="fields"
-                [form]="formGroup"
-                (submitted)="save($event)"
+        <form class="dialog-form" [formGroup]="formGroup" (ngSubmit)="save()">
+          <hh-form-layout>
+            <hh-form-section
+              [title]="'admin.basicInformation' | hhTranslate"
+              [description]="'admin.clientProfileDescription' | hhTranslate"
+              [span]="2"
+            >
+              <div class="form-grid">
+                <hh-mat-form-field
+                  [control]="formGroup.controls['clientId']"
+                  [label]="'admin.clientId' | hhTranslate"
+                  [messages]="{
+                    required:
+                      ('admin.clientIdRequired'
+                      | hhTranslate: 'Client ID is required.'),
+                  }"
+                />
+                <hh-mat-form-field
+                  [control]="formGroup.controls['displayName']"
+                  [label]="'admin.displayName' | hhTranslate"
+                  [messages]="{
+                    required:
+                      ('admin.clientDisplayNameRequired'
+                      | hhTranslate: 'Display name is required.'),
+                  }"
+                />
+                <hh-mat-form-field
+                  [control]="formGroup.controls['clientType']"
+                  [label]="'admin.clientType' | hhTranslate: 'Client type'"
+                  kind="select"
+                  [options]="[
+                    {
+                      value: 'Public',
+                      label: ('admin.public' | hhTranslate),
+                    },
+                    {
+                      value: 'Confidential',
+                      label: ('admin.confidential' | hhTranslate),
+                    },
+                  ]"
+                />
+              </div>
+            </hh-form-section>
+            <hh-form-section
+              [title]="'admin.redirectUrisSection' | hhTranslate"
+              [description]="'admin.redirectUrisHint' | hhTranslate"
+              [span]="2"
+            >
+              <hh-mat-form-field
+                [control]="formGroup.controls['redirectUris']"
+                [label]="'admin.redirectUrisOnePerLine' | hhTranslate"
+                [hint]="
+                  'admin.redirectUrisProductionHint'
+                    | hhTranslate
+                      : 'Use exact HTTPS callback URLs in production.'
+                "
+                [multiline]="true"
+                [rows]="2"
+                [placeholder]="'https://app.example.com/auth/callback'"
+                [messages]="{
+                  httpsUri:
+                    ('admin.clientRedirectUrisInvalid'
+                    | hhTranslate
+                      : 'Use HTTPS redirect URIs; authorization code requires one.'),
+                  redirectUriRequired:
+                    ('admin.clientRedirectUrisInvalid'
+                    | hhTranslate
+                      : 'Use HTTPS redirect URIs; authorization code requires one.'),
+                }"
               />
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>{{
-                  "admin.clientType" | hhTranslate: "Client type"
-                }}</mat-label>
-                <mat-select name="clientType" [(ngModel)]="form.clientType">
-                  <mat-option value="Public">{{
-                    "admin.public" | hhTranslate
-                  }}</mat-option>
-                  <mat-option value="Confidential">{{
-                    "admin.confidential" | hhTranslate
-                  }}</mat-option>
-                </mat-select>
-              </mat-form-field>
-            </div>
-          </hh-form-section>
-          <hh-form-section
-            [title]="'admin.redirectUrisSection' | hhTranslate"
-            [description]="'admin.redirectUrisHint' | hhTranslate"
-            [span]="2"
-          >
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{
-                "admin.redirectUrisOnePerLine" | hhTranslate
-              }}</mat-label>
-              <textarea
-                matInput
-                name="redirectUris"
-                [(ngModel)]="redirectUrisText"
-                rows="2"
-                placeholder="https://app.example.com/auth/callback"
-              ></textarea>
-              <mat-hint>{{
-                "admin.redirectUrisProductionHint"
-                  | hhTranslate: "Use exact HTTPS callback URLs in production."
-              }}</mat-hint>
-            </mat-form-field>
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{ "admin.postLogoutUris" | hhTranslate }}</mat-label>
-              <textarea
-                matInput
-                name="postLogoutUris"
-                [(ngModel)]="postLogoutUrisText"
-                rows="2"
-                placeholder="https://app.example.com/auth/login"
-              ></textarea>
-            </mat-form-field>
-          </hh-form-section>
-          <hh-form-section
-            [title]="'admin.access' | hhTranslate"
-            [description]="'admin.accessDescription' | hhTranslate"
-            [span]="2"
-          >
-            <div class="form-grid">
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>{{ "admin.scopes" | hhTranslate }}</mat-label>
-                <mat-select name="scopes" [(ngModel)]="form.scopes" multiple>
-                  <mat-option value="openid">openid</mat-option
-                  ><mat-option value="profile">profile</mat-option
-                  ><mat-option value="email">email</mat-option
-                  ><mat-option value="roles">roles</mat-option
-                  ><mat-option value="hishop:permissions"
-                    >hishop:permissions</mat-option
-                  ><mat-option value="hishop:admin">hishop:admin</mat-option
-                  ><mat-option value="offline_access"
-                    >offline_access</mat-option
-                  >
-                </mat-select>
-              </mat-form-field>
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>{{ "admin.grantTypes" | hhTranslate }}</mat-label>
-                <mat-select
-                  name="grantTypes"
-                  [(ngModel)]="form.grantTypes"
-                  multiple
-                >
-                  <mat-option value="authorization_code">{{
-                    "admin.authorizationCode" | hhTranslate
-                  }}</mat-option
-                  ><mat-option value="refresh_token">{{
-                    "admin.refreshToken" | hhTranslate
-                  }}</mat-option
-                  ><mat-option value="client_credentials">{{
-                    "admin.clientCredentials" | hhTranslate
-                  }}</mat-option>
-                </mat-select>
-              </mat-form-field>
-            </div>
-          </hh-form-section>
-          <hh-form-section
-            [title]="'admin.advancedSecurity' | hhTranslate"
-            [description]="'admin.advancedSecurityDescription' | hhTranslate"
-            [span]="2"
-          >
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{ "admin.publicJwks" | hhTranslate }}</mat-label>
-              <textarea
-                matInput
-                name="jwks"
-                [(ngModel)]="form.jwks"
-                rows="2"
+              <hh-mat-form-field
+                [control]="formGroup.controls['postLogoutRedirectUris']"
+                [label]="'admin.postLogoutUris' | hhTranslate"
+                [messages]="{
+                  httpsUri:
+                    ('admin.clientPostLogoutUrisInvalid'
+                    | hhTranslate: 'Use HTTPS post-logout redirect URIs.'),
+                }"
+                [multiline]="true"
+                [rows]="2"
+                [placeholder]="'https://app.example.com/auth/login'"
+              />
+            </hh-form-section>
+            <hh-form-section
+              [title]="'admin.access' | hhTranslate"
+              [description]="'admin.accessDescription' | hhTranslate"
+              [span]="2"
+            >
+              <div class="form-grid">
+                <hh-mat-form-field
+                  [control]="formGroup.controls['scopes']"
+                  [label]="'admin.scopes' | hhTranslate"
+                  kind="select"
+                  [multiple]="true"
+                  [options]="[
+                    { value: 'openid', label: 'openid' },
+                    { value: 'profile', label: 'profile' },
+                    { value: 'email', label: 'email' },
+                    { value: 'roles', label: 'roles' },
+                    {
+                      value: 'hishop:permissions',
+                      label: 'hishop:permissions',
+                    },
+                    { value: 'hishop:admin', label: 'hishop:admin' },
+                    { value: 'offline_access', label: 'offline_access' },
+                  ]"
+                />
+                <hh-mat-form-field
+                  [control]="formGroup.controls['grantTypes']"
+                  [label]="'admin.grantTypes' | hhTranslate"
+                  kind="select"
+                  [multiple]="true"
+                  [options]="[
+                    {
+                      value: 'authorization_code',
+                      label: ('admin.authorizationCode' | hhTranslate),
+                    },
+                    {
+                      value: 'refresh_token',
+                      label: ('admin.refreshToken' | hhTranslate),
+                    },
+                    {
+                      value: 'client_credentials',
+                      label: ('admin.clientCredentials' | hhTranslate),
+                    },
+                  ]"
+                />
+              </div>
+            </hh-form-section>
+            <hh-form-section
+              [title]="'admin.advancedSecurity' | hhTranslate"
+              [description]="'admin.advancedSecurityDescription' | hhTranslate"
+              [span]="2"
+            >
+              <hh-mat-form-field
+                [control]="formGroup.controls['jwks']"
+                [label]="'admin.publicJwks' | hhTranslate"
+                [hint]="'admin.publicKeysHint' | hhTranslate"
+                [messages]="{
+                  invalidJson:
+                    ('admin.clientJwksInvalid'
+                    | hhTranslate: 'Enter valid JSON for the public JWK set.'),
+                }"
+                [multiline]="true"
+                [rows]="2"
                 placeholder='{"keys":[...]}'
-              ></textarea>
-              <mat-hint>{{ "admin.publicKeysHint" | hhTranslate }}</mat-hint>
-            </mat-form-field>
-          </hh-form-section>
-        </hh-form-layout>
+              />
+            </hh-form-section>
+          </hh-form-layout>
+        </form>
         <div *ngIf="createdSecret" class="secret-panel" role="alert">
           <strong>{{ "admin.copySecretNow" | hhTranslate }}</strong
-          ><code>{{ createdSecret }}</code>
+          ><code [hhPhiMask]="createdSecret || ''"></code>
           <hh-action-button
             (pressed)="copySecret()"
             kind="secondary"
@@ -208,7 +281,8 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
           [label]="'admin.done' | hhTranslate"
         />
         <hh-action-button
-          [disabled]="formGroup.invalid || saving"
+          *ngIf="!createdSecret"
+          [disabled]="saving"
           (pressed)="save()"
           kind="primary"
           icon="save"
@@ -263,71 +337,80 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class ClientEditDialogComponent {
   private readonly api = inject(ClientsApiService);
-  private readonly dialogRef = inject(MatDialogRef<ClientEditDialogComponent>);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly dialogRef = inject(
+    HisHopeDialogRef<ClientEditDialogComponent>,
+  );
+  private readonly toast = inject(HisHopeToastService);
   private readonly i18n = inject(HisHopeI18nService);
 
-  isEdit: boolean;
+  readonly isEdit: boolean;
   readonly formGroup: FormGroup;
-  readonly fields: readonly HisHopeFormFieldSchema<unknown>[];
+  private readonly initialClient: OidcClient | null;
   saving = false;
   createdSecret: string | null = null;
 
-  form: Partial<OidcClient> = {
-    clientId: "",
-    displayName: "",
-    clientType: "Public",
-    scopes: ["openid", "profile", "email", "roles"],
-    grantTypes: ["authorization_code", "refresh_token"],
-  };
-
-  redirectUrisText = "";
-  postLogoutUrisText = "";
-
-  constructor(@Inject(MAT_DIALOG_DATA) data: OidcClient | null) {
+  constructor(@Inject(HIS_HOPE_DIALOG_DATA) data: OidcClient | null) {
     this.isEdit = !!data;
-    if (data) {
-      this.form = { ...data };
-      this.redirectUrisText = (data.redirectUris || []).join("\n");
-      this.postLogoutUrisText = (data.postLogoutRedirectUris || []).join("\n");
-    }
-    const schema: HisHopeFormSchema<Record<string, unknown>> = {
-      fields: {
-        clientId: {
-          key: "clientId",
-          label: this.i18n.t("admin.clientId"),
-          initialValue: this.form.clientId ?? "",
-          disabled: this.isEdit,
-          required: true,
-        },
-        displayName: {
-          key: "displayName",
-          label: this.i18n.t("admin.displayName"),
-          initialValue: this.form.displayName ?? "",
-          required: true,
-        },
+    this.initialClient = data;
+    this.formGroup = new FormGroup(
+      {
+        clientId: new FormControl(
+          { value: data?.clientId ?? "", disabled: this.isEdit },
+          { nonNullable: true, validators: [Validators.required] },
+        ),
+        displayName: new FormControl(data?.displayName ?? "", {
+          nonNullable: true,
+          validators: [Validators.required],
+        }),
+        clientType: new FormControl(data?.clientType ?? "Public", {
+          nonNullable: true,
+          validators: [Validators.required],
+        }),
+        redirectUris: new FormControl((data?.redirectUris ?? []).join("\n"), {
+          nonNullable: true,
+          validators: [httpsUriLinesValidator],
+        }),
+        postLogoutRedirectUris: new FormControl(
+          (data?.postLogoutRedirectUris ?? []).join("\n"),
+          { nonNullable: true, validators: [httpsUriLinesValidator] },
+        ),
+        scopes: new FormControl(
+          data?.scopes ?? ["openid", "profile", "email", "roles"],
+          { nonNullable: true, validators: [Validators.required] },
+        ),
+        grantTypes: new FormControl(
+          data?.grantTypes ?? ["authorization_code", "refresh_token"],
+          { nonNullable: true, validators: [Validators.required] },
+        ),
+        jwks: new FormControl(data?.jwks ?? "", {
+          nonNullable: true,
+          validators: [jwksValidator],
+        }),
       },
-    };
-    this.fields = Object.values(schema.fields);
-    this.formGroup = createHisHopeFormGroup(schema);
+      { validators: [clientFormValidator] },
+    );
   }
 
-  save(values: Record<string, unknown> = this.formGroup.getRawValue()): void {
+  save(): void {
+    this.formGroup.markAllAsTouched();
+    if (this.saving || this.formGroup.invalid) return;
     this.saving = true;
-    this.form.clientId = String(values["clientId"] || this.form.clientId || "");
-    this.form.displayName = String(
-      values["displayName"] || this.form.displayName || "",
-    );
-    this.form.redirectUris = this.redirectUrisText
-      .split("\n")
-      .filter((u) => u.trim());
-    this.form.postLogoutRedirectUris = this.postLogoutUrisText
-      .split("\n")
-      .filter((u) => u.trim());
+    const values = this.formGroup.getRawValue();
+    const clientRequest: Partial<OidcClient> = {
+      ...this.initialClient,
+      clientId: values.clientId.trim(),
+      displayName: values.displayName.trim(),
+      clientType: values.clientType,
+      redirectUris: this.uriLines(values.redirectUris),
+      postLogoutRedirectUris: this.uriLines(values.postLogoutRedirectUris),
+      scopes: values.scopes,
+      grantTypes: values.grantTypes,
+      jwks: values.jwks.trim() || undefined,
+    };
 
-    const request = this.isEdit
+    const saveRequest = this.isEdit
       ? this.api
-          .updateClient(this.form.id!, this.form)
+          .updateClient(this.initialClient!.id!, clientRequest)
           .pipe(
             map(
               (result) =>
@@ -337,7 +420,7 @@ export class ClientEditDialogComponent {
             ),
           )
       : this.api
-          .createClient(this.form)
+          .createClient(clientRequest)
           .pipe(
             map(
               (result) =>
@@ -347,12 +430,11 @@ export class ClientEditDialogComponent {
             ),
           );
 
-    request
+    saveRequest
       .pipe(
         catchError((err) => {
-          this.snackBar.open(
+          this.toast.error(
             this.i18n.t("admin.saveClientFailed", "Failed to save client"),
-            this.i18n.t("admin.close", "Close"),
             { duration: 3000 },
           );
           this.saving = false;
@@ -368,21 +450,22 @@ export class ClientEditDialogComponent {
             result.clientSecret
           ) {
             this.createdSecret = result.clientSecret;
-            this.snackBar.open(
+            this.formGroup.disable();
+            this.saving = false;
+            this.toast.success(
               this.i18n.t(
                 "admin.clientCreated",
                 "Client created. Copy the secret now; it will not be shown again.",
               ),
-              this.i18n.t("admin.close", "Close"),
               { duration: 5000 },
             );
             return;
           }
-          this.snackBar.open(
+          this.toast.success(
             this.i18n.t("admin.clientSaved", "Client saved successfully"),
-            this.i18n.t("admin.close", "Close"),
             { duration: 2000 },
           );
+          this.saving = false;
           this.dialogRef.close(true);
         }
       });
@@ -394,6 +477,13 @@ export class ClientEditDialogComponent {
 
   finishCreate(): void {
     this.dialogRef.close(true);
+  }
+
+  private uriLines(value: string): string[] {
+    return value
+      .split("\n")
+      .map((uri) => uri.trim())
+      .filter(Boolean);
   }
 
   cancel(): void {

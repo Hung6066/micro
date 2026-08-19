@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -8,9 +9,7 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { MatButtonModule } from "@angular/material/button";
-import { MatDialog, MatDialogModule } from "@angular/material/dialog";
 import { MatIconModule } from "@angular/material/icon";
-import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
 import {
   HisHopeBulkAction,
   HisHopeBulkActionRequest,
@@ -23,8 +22,10 @@ import {
   HisHopeDataTableComponent,
   HisHopeDataTableColumn,
   HisHopeDataTableDetailDirective,
+  HisHopeDialogService,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
+  HisHopeToastService,
   HisHopeToolbarComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
@@ -47,12 +48,11 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-users-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     MatButtonModule,
-    MatDialogModule,
     MatIconModule,
-    MatSnackBarModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopeDataTableDetailDirective,
@@ -148,8 +148,8 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class UsersPageComponent implements OnInit {
   private readonly api = inject(UsersApiService);
-  private readonly dialog = inject(MatDialog);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(HisHopeDialogService);
+  private readonly toast = inject(HisHopeToastService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -323,13 +323,15 @@ export class UsersPageComponent implements OnInit {
   openCreateDialog(): void {
     if (!this.canWrite) return;
     this.dialog
-      .open(UserEditDialogComponent, {
-        width: "min(720px, calc(100vw - 32px))",
-        maxWidth: "calc(100vw - 32px)",
-        autoFocus: "first-tabbable",
-        restoreFocus: true,
-        data: null,
-      })
+      .open<UserEditDialogComponent, User | null, boolean>(
+        UserEditDialogComponent,
+        {
+          width: "min(840px, calc(100vw - 32px))",
+          maxWidth: "calc(100vw - 32px)",
+          ariaLabel: this.i18n.t("admin.createUser", "Create user"),
+          data: null,
+        },
+      )
       .afterClosed()
       .subscribe((saved) => {
         if (saved) this.loadUsers(this.query);
@@ -343,22 +345,22 @@ export class UsersPageComponent implements OnInit {
     this.api.getUser(user.id).subscribe({
       next: (detail) =>
         this.dialog
-          .open(UserEditDialogComponent, {
-            width: "min(720px, calc(100vw - 32px))",
-            maxWidth: "calc(100vw - 32px)",
-            autoFocus: "first-tabbable",
-            restoreFocus: true,
-            data: detail,
-          })
+          .open<UserEditDialogComponent, User | null, boolean>(
+            UserEditDialogComponent,
+            {
+              width: "min(840px, calc(100vw - 32px))",
+              maxWidth: "calc(100vw - 32px)",
+              ariaLabel: this.i18n.t("admin.editUser", "Edit user"),
+              data: detail,
+            },
+          )
           .afterClosed()
           .subscribe((saved) => {
             if (saved) this.loadUsers(this.query);
           }),
       error: () =>
-        this.snackBar.open(
+        this.toast.error(
           this.i18n.t("admin.loadUserFailed", "Failed to load user."),
-          this.i18n.t("admin.close", "Close"),
-          { duration: 3000 },
         ),
     });
   }
@@ -373,10 +375,8 @@ export class UsersPageComponent implements OnInit {
     request.subscribe({
       next: () => this.loadUsers(this.query),
       error: () =>
-        this.snackBar.open(
+        this.toast.error(
           this.i18n.t("admin.updateUserFailed", "Failed to update user."),
-          this.i18n.t("admin.close", "Close"),
-          { duration: 3000 },
         ),
     });
   }

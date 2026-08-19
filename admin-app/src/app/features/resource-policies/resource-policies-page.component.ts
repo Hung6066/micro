@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -7,7 +8,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { MatDialog, MatDialogModule } from "@angular/material/dialog";
+import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { forkJoin } from "rxjs";
 import {
   HisHopeDataTableCellDirective,
@@ -35,10 +36,10 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-resource-policies-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    MatDialogModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -94,7 +95,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class ResourcePoliciesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
-  private readonly dialog = inject(MatDialog);
+  private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -133,7 +134,11 @@ export class ResourcePoliciesPageComponent implements OnInit {
         key: "resourcePattern",
         label: this.i18n.t("admin.resourcePattern", "Resource pattern"),
       },
-      { key: "scopeId", label: this.i18n.t("admin.scopeId", "Scope") },
+      {
+        key: "scopeId",
+        label: this.i18n.t("admin.scopeId", "Scope"),
+        format: { type: "friendlyReference", references: this.scopes },
+      },
       { key: "lifecycleStatus", label: this.i18n.t("admin.status", "Status") },
       {
         key: "actions",

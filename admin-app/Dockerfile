@@ -15,7 +15,7 @@ COPY shared/frontend-foundation/ui ./shared/frontend-foundation/ui
 RUN cd shared/frontend-foundation && npm ci --legacy-peer-deps --ignore-scripts && npm run build
 WORKDIR /workspace/admin-app
 COPY admin-app/package.json admin-app/package-lock.json ./
-RUN npm ci --legacy-peer-deps
+RUN npm ci --legacy-peer-deps && rm -rf /workspace/shared/frontend-foundation/node_modules && ln -s /workspace/admin-app/node_modules /workspace/shared/node_modules
 COPY shared /workspace/shared
 COPY admin-app .
 RUN rm -rf .angular/cache && npx ng build --configuration=production

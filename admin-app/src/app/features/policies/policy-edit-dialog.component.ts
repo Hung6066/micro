@@ -1,16 +1,27 @@
 import { Component, Inject, inject } from "@angular/core";
-import { FormsModule } from "@angular/forms";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import {
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  Validators,
+} from "@angular/forms";
+import {
+  HIS_HOPE_DIALOG_DATA,
+  HisHopeDialogRef,
+} from "@his-hope/frontend-foundation/ui";
 import { AuthorizationPolicy } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import {
   HisHopeActionButtonComponent,
   HisHopeCreateDialogShellComponent,
+  HisHopeFormLayoutComponent,
+  HisHopeFormSectionComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
+import { HisHopeMaterialFormFieldComponent } from "@his-hope/frontend-foundation/forms";
 export interface PolicyEditDialogData {
   policy: AuthorizationPolicy | null;
 }
@@ -18,10 +29,13 @@ export interface PolicyEditDialogData {
   selector: "app-policy-edit-dialog",
   standalone: true,
   imports: [
-    FormsModule,
+    ReactiveFormsModule,
     HisHopeActionButtonComponent,
     HisHopeCreateDialogShellComponent,
+    HisHopeFormLayoutComponent,
+    HisHopeFormSectionComponent,
     HisHopeTranslatePipe,
+    HisHopeMaterialFormFieldComponent,
   ],
   template: `<hh-create-dialog-shell
     [title]="
@@ -29,32 +43,38 @@ export interface PolicyEditDialogData {
         | hhTranslate: (data.policy ? 'Edit policy' : 'Create policy')
     "
     ><div hhCreateDialogContent>
-      <form class="dialog-form">
-        <label
-          >{{ "admin.key" | hhTranslate
-          }}<input
-            name="key"
-            [(ngModel)]="draft.key"
-            [disabled]="!!data.policy"
-            required /></label
-        ><label
-          >{{ "admin.description" | hhTranslate
-          }}<input
-            name="description"
-            [(ngModel)]="draft.description"
-            required /></label
-        ><label
-          >{{ "admin.owner" | hhTranslate
-          }}<input name="owner" [(ngModel)]="draft.owner" required /></label
-        ><label
-          >{{ "admin.rulesJson" | hhTranslate
-          }}<textarea
-            name="rulesJson"
-            rows="8"
-            [(ngModel)]="draft.rulesJson"
-            required
-          ></textarea>
-        </label>
+      <form [formGroup]="formGroup" class="dialog-form" (ngSubmit)="save()">
+        @if (formGroup.invalid && formGroup.touched) {
+          <p class="form-error" role="alert">
+            {{
+              "admin.validationRequired"
+                | hhTranslate: "Complete the required fields."
+            }}
+          </p>
+        }
+        <hh-form-layout
+          ><hh-form-section
+            [title]="'admin.policyDetails' | hhTranslate: 'Policy details'"
+            [description]="
+              'admin.policyDetailsDescription'
+                | hhTranslate: 'Set the policy identity, owner, and rules.'
+            "
+            [span]="2"
+            ><hh-mat-form-field
+              [control]="formGroup.controls.key"
+              [label]="'admin.key' | hhTranslate" />
+            <hh-mat-form-field
+              [control]="formGroup.controls.description"
+              [label]="'admin.description' | hhTranslate" />
+            <hh-mat-form-field
+              [control]="formGroup.controls.owner"
+              [label]="'admin.owner' | hhTranslate" />
+            <hh-mat-form-field
+              [control]="formGroup.controls.rulesJson"
+              [label]="'admin.rulesJson' | hhTranslate"
+              [multiline]="true"
+              [rows]="8" /></hh-form-section
+        ></hh-form-layout>
       </form>
     </div>
     <div hhCreateDialogFooter>
@@ -66,8 +86,8 @@ export interface PolicyEditDialogData {
       /><hh-action-button
         kind="primary"
         icon="save"
-        [disabled]="saving"
         [label]="(saving ? 'admin.saving' : 'admin.save') | hhTranslate"
+        [disabled]="saving"
         (pressed)="save()"
       /></div
   ></hh-create-dialog-shell>`,
@@ -77,20 +97,16 @@ export interface PolicyEditDialogData {
         display: grid;
         gap: 16px;
       }
-      label {
-        display: grid;
-        gap: 6px;
-      }
-      input,
-      textarea {
-        min-height: 40px;
-        padding: 8px 12px;
+      .form-error {
+        margin: 0;
+        color: var(--text-danger, #b42318);
+        font-size: 0.875rem;
       }
     `,
   ],
 })
 export class PolicyEditDialogComponent {
-  readonly dialogRef = inject(MatDialogRef<PolicyEditDialogComponent>);
+  readonly dialogRef = inject(HisHopeDialogRef<PolicyEditDialogComponent>);
   private readonly api = inject(IamApiService);
   private readonly i18n = inject(HisHopeI18nService);
   saving = false;
@@ -100,10 +116,35 @@ export class PolicyEditDialogComponent {
     owner: "identity-service",
     rulesJson: '{\n  "statements": []\n}',
   };
-  constructor(@Inject(MAT_DIALOG_DATA) readonly data: PolicyEditDialogData) {
+  readonly formGroup = new FormGroup({
+    key: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    description: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    owner: new FormControl("identity-service", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    rulesJson: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+  });
+  constructor(
+    @Inject(HIS_HOPE_DIALOG_DATA) readonly data: PolicyEditDialogData,
+  ) {
     Object.assign(this.draft, data.policy ?? {});
+    this.formGroup.patchValue(this.draft);
+    if (data.policy) this.formGroup.controls.key.disable();
   }
   save(): void {
+    this.formGroup.markAllAsTouched();
+    if (this.formGroup.invalid || this.saving) return;
+    Object.assign(this.draft, this.formGroup.getRawValue());
     if (
       this.saving ||
       !this.draft.description.trim() ||

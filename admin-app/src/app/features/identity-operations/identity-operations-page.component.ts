@@ -15,12 +15,13 @@ import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
-import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
+  HisHopeFileUploadComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
+  HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -48,7 +49,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
-    MatSnackBarModule,
+    HisHopeFileUploadComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeTranslatePipe,
@@ -191,10 +192,12 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               "admin.bulkImport" | hhTranslate: "Bulk user import"
             }}</mat-card-title></mat-card-header
           ><mat-card-content class="form-grid">
-            <input
-              type="file"
+            <hh-file-upload
               accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              (change)="selectFile($event)"
+              [maxSizeBytes]="10 * 1024 * 1024"
+              [label]="'admin.bulkImport' | hhTranslate: 'Bulk user import'"
+              [hint]="'admin.bulkImportLimit' | hhTranslate: 'CSV/XLSX, maximum 10 MB and 10,000 users.'"
+              (filesChange)="selectFile($event)"
             />
             <p class="muted">
               {{
@@ -345,7 +348,7 @@ export class IdentityOperationsPageComponent {
   private readonly api = inject(IdentityOperationsApiService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
-  private readonly snack = inject(MatSnackBar);
+  private readonly toast = inject(HisHopeToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
   readonly resource = new HisHopeResourceState<{ sessions: AdminSession[] }>(
@@ -417,8 +420,8 @@ export class IdentityOperationsPageComponent {
       () => this.notify("admin.credentialsReset"),
     );
   }
-  selectFile(event: Event): void {
-    this.file = (event.target as HTMLInputElement).files?.[0];
+  selectFile(files: File[]): void {
+    this.file = files[0];
     this.preview = undefined;
     this.importResult = undefined;
   }
@@ -482,10 +485,8 @@ export class IdentityOperationsPageComponent {
     });
   }
   private notify(key: string): void {
-    this.snack.open(
-      this.i18n.t(key, "Operation queued"),
-      this.i18n.t("admin.close", "Close"),
-      { duration: 3000 },
-    );
+    this.toast.success(this.i18n.t(key, "Operation queued"), {
+      duration: 3000,
+    });
   }
 }

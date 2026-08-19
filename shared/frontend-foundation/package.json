@@ -45,9 +45,11 @@
     }
   },
   "peerDependencies": {
+    "@angular/cdk": "^21.0.0",
     "@angular/common": "^21.0.0",
     "@angular/core": "^21.0.0",
     "@angular/forms": "^21.0.0",
+    "@angular/material": "^21.0.0",
     "@angular/router": "^21.0.0",
     "angular-auth-oidc-client": "^19.0.0",
     "rxjs": "^7.8.0"
@@ -78,12 +80,14 @@
     "@angular-devkit/architect": "^0.2102.20",
     "@angular-devkit/build-angular": "^21.2.20",
     "@angular-eslint/builder": "^21.4.0",
+    "@angular/cdk": "^21.2.14",
     "@angular/cli": "^21.2.20",
     "@angular/common": "^21.2.19",
     "@angular/compiler": "^21.2.19",
     "@angular/compiler-cli": "^21.2.19",
     "@angular/core": "^21.2.19",
     "@angular/forms": "^21.2.19",
+    "@angular/material": "^21.2.14",
     "@angular/platform-browser": "^21.2.19",
     "@angular/platform-browser-dynamic": "^21.2.19",
     "@angular/router": "^21.2.19",

@@ -105,6 +105,47 @@ select,
   font-family: var(--font-sans) !important;
 }
 
+form.dialog-form {
+  display: grid;
+  gap: var(--form-field-gap);
+}
+
+form.dialog-form label {
+  display: grid;
+  gap: var(--form-label-gap);
+  color: var(--text-primary);
+  font-size: var(--font-size-label);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--leading-body);
+}
+
+form.dialog-form input,
+form.dialog-form select,
+form.dialog-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--control-height);
+  padding: 8px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  color: var(--text-primary);
+  background: var(--surface-white);
+  font: inherit;
+  font-weight: var(--font-weight-regular);
+}
+
+form.dialog-form textarea {
+  resize: vertical;
+}
+
+form.dialog-form input:focus,
+form.dialog-form select:focus,
+form.dialog-form textarea:focus {
+  border-color: var(--color-focus);
+  outline: 2px solid color-mix(in srgb, var(--color-focus) 28%, transparent);
+  outline-offset: 1px;
+}
+
 /* Shared application shell used by the admin and operations workspaces. */
 .app-toolbar {
   height: 64px !important;

@@ -6,21 +6,11 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
-import { FormGroup } from "@angular/forms";
-import {
-  MAT_DIALOG_DATA,
-  MatDialogModule,
-  MatDialogRef,
-} from "@angular/material/dialog";
+import { FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
-import { MatFormFieldModule } from "@angular/material/form-field";
-import { MatInputModule } from "@angular/material/input";
-import { MatSelectModule } from "@angular/material/select";
 import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatExpansionModule } from "@angular/material/expansion";
 import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
-import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
 import {
   PermissionDefinition,
   Role,
@@ -29,14 +19,17 @@ import {
 import { RolesApiService } from "../../core/services/roles-api.service";
 import {
   HisHopeCreateDialogShellComponent,
+  HIS_HOPE_DIALOG_DATA,
+  HisHopeDialogRef,
   HisHopeFormLayoutComponent,
   HisHopeFormSectionComponent,
+  HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeFormFieldSchema,
-  HisHopeFormRendererComponent,
   HisHopeFormSchema,
   createHisHopeFormGroup,
+  HisHopeMaterialFormFieldComponent,
 } from "@his-hope/frontend-foundation/forms";
 import {
   HisHopeI18nService,
@@ -51,21 +44,16 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
-    MatDialogModule,
+    ReactiveFormsModule,
     MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatSelectModule,
     MatCheckboxModule,
     MatExpansionModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule,
     HisHopeCreateDialogShellComponent,
-    HisHopeFormRendererComponent,
     HisHopeFormLayoutComponent,
     HisHopeFormSectionComponent,
     HisHopeTranslatePipe,
+    HisHopeMaterialFormFieldComponent,
   ],
   template: `
     <hh-create-dialog-shell
@@ -73,128 +61,129 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       [subtitle]="'admin.roleDialogSubtitle' | hhTranslate"
     >
       <div hhCreateDialogContent>
-        <hh-form-layout>
-          <hh-form-section
-            [title]="'admin.roleDetails' | hhTranslate"
-            [description]="'admin.roleDetailsDescription' | hhTranslate"
-            [span]="2"
-          >
-            <hh-form-renderer
-              [fields]="fields"
-              [form]="formGroup"
-              (submitted)="save($event)"
-            />
-            <mat-form-field appearance="outline" class="full-width"
-              ><mat-label>{{ "admin.permissionOwner" | hhTranslate }}</mat-label
-              ><mat-select
-                name="owner"
-                [(ngModel)]="form.owner"
-                required
-                [disabled]="loadingOwners || ownerLoadError"
-                ><mat-option
-                  *ngFor="let owner of roleOwners"
-                  [value]="owner.key"
-                  >{{ owner.name }}</mat-option
-                ></mat-select
-              ></mat-form-field
+        <form [formGroup]="formGroup" (ngSubmit)="submitForm()">
+          <hh-form-layout>
+            <hh-form-section
+              [title]="'admin.roleDetails' | hhTranslate"
+              [description]="'admin.roleDetailsDescription' | hhTranslate"
+              [span]="2"
             >
-          </hh-form-section>
-          <hh-form-section
-            [title]="'admin.rolePermissions' | hhTranslate"
-            [description]="'admin.rolePermissionsDescription' | hhTranslate"
-            [span]="2"
-          >
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>{{
-                "admin.rolePermissionSearch" | hhTranslate
-              }}</mat-label>
-              <input
-                matInput
-                name="permissionSearch"
-                [(ngModel)]="permissionSearch"
+              <hh-mat-form-field
+                [control]="formGroup.controls['name']"
+                [label]="fields[0].label"
+              />
+              <hh-mat-form-field
+                [control]="formGroup.controls['description']"
+                [label]="fields[1].label"
+                [multiline]="true"
+                [rows]="3"
+              />
+              <hh-mat-form-field
+                [control]="formGroup.controls['riskTier']"
+                [label]="fields[2].label"
+                kind="select"
+                [options]="riskTierOptions"
+              />
+              <hh-mat-form-field
+                [control]="formGroup.controls['owner']"
+                [label]="'admin.permissionOwner' | hhTranslate"
+                kind="select"
+                [options]="ownerOptions"
+              />
+            </hh-form-section>
+            <hh-form-section
+              [title]="'admin.rolePermissions' | hhTranslate"
+              [description]="'admin.rolePermissionsDescription' | hhTranslate"
+              [span]="2"
+            >
+              <hh-mat-form-field
+                [control]="formGroup.controls['permissionSearch']"
+                [label]="'admin.rolePermissionSearch' | hhTranslate"
                 [placeholder]="
                   'admin.rolePermissionSearchPlaceholder' | hhTranslate
                 "
               />
-            </mat-form-field>
-            <div class="permission-summary" aria-live="polite">
-              {{
-                "admin.rolePermissionSelected"
-                  | hhTranslate: "" : { count: selectedPermissionCodes.size }
-              }}
-            </div>
-            <mat-spinner
-              *ngIf="loadingPermissions"
-              diameter="28"
-              [attr.aria-label]="'admin.loading' | hhTranslate"
-            ></mat-spinner>
-            <p
-              *ngIf="permissionLoadError"
-              class="permission-error"
-              role="alert"
-            >
-              {{ "admin.rolePermissionsLoadFailed" | hhTranslate }}
-            </p>
-            <p
-              *ngIf="
-                !loadingPermissions &&
-                !permissionLoadError &&
-                permissionGroups.length === 0
-              "
-              class="permission-empty"
-            >
-              {{ "admin.noPermissions" | hhTranslate }}
-            </p>
-            <mat-accordion
-              *ngIf="!loadingPermissions && !permissionLoadError"
-              multi
-            >
-              <mat-expansion-panel
-                *ngFor="let group of filteredGroups"
-                [expanded]="isGroupExpanded(group.name)"
-                (opened)="expandGroup(group.name)"
-                (closed)="collapseGroup(group.name)"
+              <div class="permission-summary" aria-live="polite">
+                {{
+                  "admin.rolePermissionSelected"
+                    | hhTranslate: "" : { count: selectedPermissionCodes.size }
+                }}
+              </div>
+              <mat-spinner
+                *ngIf="loadingPermissions"
+                diameter="28"
+                [attr.aria-label]="'admin.loading' | hhTranslate"
+              ></mat-spinner>
+              <p
+                *ngIf="permissionLoadError"
+                class="permission-error"
+                role="alert"
               >
-                <mat-expansion-panel-header>
-                  <mat-panel-title>{{ group.name }}</mat-panel-title>
-                  <mat-panel-description>
-                    <mat-checkbox
-                      class="group-toggle"
-                      [checked]="isGroupSelected(group)"
-                      [indeterminate]="isGroupPartiallySelected(group)"
-                      (click)="$event.stopPropagation()"
-                      (change)="toggleGroup(group, $event.checked)"
-                    >
-                      {{ group.selectedCount }}/{{ group.options.length }}
-                    </mat-checkbox>
-                  </mat-panel-description>
-                </mat-expansion-panel-header>
-                <mat-checkbox
-                  [checked]="isGroupSelected(group)"
-                  [indeterminate]="isGroupPartiallySelected(group)"
-                  (change)="toggleGroup(group, $event.checked)"
+                {{ "admin.rolePermissionsLoadFailed" | hhTranslate }}
+              </p>
+              <p
+                *ngIf="
+                  !loadingPermissions &&
+                  !permissionLoadError &&
+                  permissionGroups.length === 0
+                "
+                class="permission-empty"
+              >
+                {{ "admin.noPermissions" | hhTranslate }}
+              </p>
+              <mat-accordion
+                *ngIf="!loadingPermissions && !permissionLoadError"
+                multi
+              >
+                <mat-expansion-panel
+                  *ngFor="let group of filteredGroups"
+                  [expanded]="isGroupExpanded(group.name)"
+                  (opened)="expandGroup(group.name)"
+                  (closed)="collapseGroup(group.name)"
                 >
-                  {{ "admin.selectAll" | hhTranslate }}
-                </mat-checkbox>
-                <div class="permission-options">
+                  <mat-expansion-panel-header>
+                    <mat-panel-title>{{ group.name }}</mat-panel-title>
+                    <mat-panel-description>
+                      <mat-checkbox
+                        class="group-toggle"
+                        [checked]="isGroupSelected(group)"
+                        [indeterminate]="isGroupPartiallySelected(group)"
+                        (click)="$event.stopPropagation()"
+                        (change)="toggleGroup(group, $event.checked)"
+                      >
+                        {{ group.selectedCount }}/{{ group.options.length }}
+                      </mat-checkbox>
+                    </mat-panel-description>
+                  </mat-expansion-panel-header>
                   <mat-checkbox
-                    *ngFor="let permission of group.options"
-                    [checked]="selectedPermissionCodes.has(permission.code)"
-                    (change)="togglePermission(permission.code, $event.checked)"
+                    [checked]="isGroupSelected(group)"
+                    [indeterminate]="isGroupPartiallySelected(group)"
+                    (change)="toggleGroup(group, $event.checked)"
                   >
-                    <span>{{ permission.name }}</span>
-                    <small
-                      >{{ permission.code
-                      }}<ng-container *ngIf="permission.description">
-                        — {{ permission.description }}</ng-container
-                      ></small
-                    >
+                    {{ "admin.selectAll" | hhTranslate }}
                   </mat-checkbox>
-                </div>
-              </mat-expansion-panel>
-            </mat-accordion>
-          </hh-form-section>
-        </hh-form-layout>
+                  <div class="permission-options">
+                    <mat-checkbox
+                      *ngFor="let permission of group.options"
+                      [checked]="selectedPermissionCodes.has(permission.code)"
+                      (change)="
+                        togglePermission(permission.code, $event.checked)
+                      "
+                    >
+                      <span>{{ permission.name }}</span>
+                      <small
+                        >{{ permission.code
+                        }}<ng-container *ngIf="permission.description">
+                          — {{ permission.description }}</ng-container
+                        ></small
+                      >
+                    </mat-checkbox>
+                  </div>
+                </mat-expansion-panel>
+              </mat-accordion>
+            </hh-form-section>
+          </hh-form-layout>
+        </form>
       </div>
       <div hhCreateDialogFooter>
         <hh-action-button
@@ -205,7 +194,6 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         />
         <hh-action-button
           [disabled]="
-            formGroup.invalid ||
             saving ||
             loadingPermissions ||
             permissionLoadError ||
@@ -250,9 +238,9 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   ],
 })
 export class RoleEditDialogComponent implements OnInit {
-  readonly dialogRef = inject(MatDialogRef<RoleEditDialogComponent>);
+  readonly dialogRef = inject(HisHopeDialogRef<RoleEditDialogComponent>);
   private readonly api = inject(RolesApiService);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly toast = inject(HisHopeToastService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
   readonly isEdit: boolean;
@@ -275,8 +263,13 @@ export class RoleEditDialogComponent implements OnInit {
     riskTier: "standard",
     reviewCadenceDays: 90,
   };
+  readonly riskTierOptions = [
+    { value: "standard", label: "Standard" },
+    { value: "elevated", label: "Elevated" },
+    { value: "critical", label: "Critical" },
+  ];
 
-  constructor(@Inject(MAT_DIALOG_DATA) data: Role | null) {
+  constructor(@Inject(HIS_HOPE_DIALOG_DATA) data: Role | null) {
     this.isEdit = !!data;
     if (data) this.form = { ...data };
     const schema: HisHopeFormSchema<Record<string, unknown>> = {
@@ -299,6 +292,17 @@ export class RoleEditDialogComponent implements OnInit {
           label: this.i18n.t("admin.permissionRisk"),
           initialValue: this.form.riskTier ?? "",
           required: true,
+        },
+        owner: {
+          key: "owner",
+          label: this.i18n.t("admin.permissionOwner"),
+          initialValue: this.form.owner ?? "",
+          required: true,
+        },
+        permissionSearch: {
+          key: "permissionSearch",
+          label: this.i18n.t("admin.rolePermissionSearch"),
+          initialValue: "",
         },
       },
     };
@@ -329,6 +333,9 @@ export class RoleEditDialogComponent implements OnInit {
         this.roleOwners = owners;
         if (!this.form.owner && owners.length > 0)
           this.form.owner = owners[0].key;
+        this.formGroup.controls["owner"].setValue(
+          this.form.owner ?? owners[0]?.key ?? "",
+        );
         this.loadingOwners = false;
         this.cdr.markForCheck();
       },
@@ -338,6 +345,13 @@ export class RoleEditDialogComponent implements OnInit {
         this.cdr.markForCheck();
       },
     });
+  }
+
+  get ownerOptions() {
+    return this.roleOwners.map((owner) => ({
+      value: owner.key,
+      label: owner.name,
+    }));
   }
 
   get permissionGroups(): Array<{
@@ -369,7 +383,11 @@ export class RoleEditDialogComponent implements OnInit {
     options: PermissionDefinition[];
     selectedCount: number;
   }> {
-    const query = this.permissionSearch.trim().toLowerCase();
+    const query = String(
+      this.formGroup.controls["permissionSearch"].value ?? "",
+    )
+      .trim()
+      .toLowerCase();
     if (!query) return this.permissionGroups;
     return this.permissionGroups
       .map((group) => ({
@@ -427,7 +445,16 @@ export class RoleEditDialogComponent implements OnInit {
     this.collapsedPermissionGroups.add(name);
   }
 
+  submitForm(): void {
+    this.formGroup.markAllAsTouched();
+    if (this.formGroup.valid && !this.saving) {
+      this.save(this.formGroup.getRawValue());
+    }
+  }
+
   save(values: Record<string, unknown> = this.formGroup.getRawValue()): void {
+    this.formGroup.markAllAsTouched();
+    if (this.saving) return;
     this.saving = true;
     this.form = {
       ...this.form,
@@ -438,7 +465,7 @@ export class RoleEditDialogComponent implements OnInit {
     const payload = {
       name: this.form.name ?? "",
       description: this.form.description,
-      owner: this.form.owner,
+      owner: String(values["owner"] || this.form.owner || ""),
       riskTier: this.form.riskTier,
       permissions: [...this.selectedPermissionCodes].sort(),
       concurrencyToken: this.form.concurrencyToken,
@@ -451,9 +478,8 @@ export class RoleEditDialogComponent implements OnInit {
       .pipe(
         catchError(() => {
           this.saving = false;
-          this.snackBar.open(
+          this.toast.error(
             this.i18n.t("admin.roleSaveFailed", "Unable to save role"),
-            this.i18n.t("admin.close", "Close"),
             { duration: 3000 },
           );
           return of(null);
@@ -461,11 +487,9 @@ export class RoleEditDialogComponent implements OnInit {
       )
       .subscribe((result) => {
         if (result) {
-          this.snackBar.open(
-            this.i18n.t("admin.roleSaved", "Role saved"),
-            this.i18n.t("admin.close", "Close"),
-            { duration: 2000 },
-          );
+          this.toast.success(this.i18n.t("admin.roleSaved", "Role saved"), {
+            duration: 2000,
+          });
           this.dialogRef.close(true);
         }
       });

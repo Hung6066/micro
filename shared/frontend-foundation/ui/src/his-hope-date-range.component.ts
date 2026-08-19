@@ -1,0 +1,159 @@
+import { CommonModule } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  forwardRef,
+  input,
+  output,
+  signal,
+} from '@angular/core';
+import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+
+export interface HisHopeDateRange {
+  start: string | null;
+  end: string | null;
+}
+
+/**
+ * Native two-field date range picker (`<input type="date">`), validated so
+ * the end date cannot precede the start date. Implements
+ * `ControlValueAccessor` over `HisHopeDateRange`.
+ */
+@Component({
+  selector: 'hh-date-range',
+  standalone: true,
+  imports: [CommonModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [
+    {
+      provide: NG_VALUE_ACCESSOR,
+      useExisting: forwardRef(() => HisHopeDateRangeComponent),
+      multi: true,
+    },
+  ],
+  template: `
+    <div class="hh-date-range" role="group" [attr.aria-label]="label()">
+      <label class="hh-date-range__field">
+        <span>{{ startLabel() }}</span>
+        <input
+          type="date"
+          [value]="value().start ?? ''"
+          [min]="min() || null"
+          [max]="value().end || max() || null"
+          [disabled]="disabled()"
+          (change)="onStartChange($any($event.target).value)"
+        />
+      </label>
+      <span class="hh-date-range__sep" aria-hidden="true">&ndash;</span>
+      <label class="hh-date-range__field">
+        <span>{{ endLabel() }}</span>
+        <input
+          type="date"
+          [value]="value().end ?? ''"
+          [min]="value().start || min() || null"
+          [max]="max() || null"
+          [disabled]="disabled()"
+          (change)="onEndChange($any($event.target).value)"
+        />
+      </label>
+    </div>
+    @if (error()) {
+      <p class="hh-date-range__error" role="alert">{{ error() }}</p>
+    }
+  `,
+  styles: [
+    `
+      .hh-date-range {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+      }
+      .hh-date-range__field {
+        display: grid;
+        flex: 1;
+        gap: 6px;
+        min-width: 0;
+        color: var(--text-secondary);
+        font-size: 12px;
+        font-weight: var(--font-weight-semibold);
+      }
+      .hh-date-range__field input {
+        box-sizing: border-box;
+        width: 100%;
+        min-height: var(--control-height);
+        padding: 0 12px;
+        border: 1px solid var(--border-default);
+        border-radius: var(--radius-control);
+        background: var(--surface-white);
+        color: var(--text-primary);
+        font: inherit;
+      }
+      .hh-date-range__field input:focus-visible {
+        border-color: var(--color-primary);
+        outline: 3px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+      }
+      .hh-date-range__sep {
+        padding-bottom: 10px;
+        color: var(--text-muted);
+      }
+      .hh-date-range__error {
+        margin: 6px 0 0;
+        color: var(--color-danger, #b91c1c);
+        font-size: var(--font-size-caption);
+      }
+    `,
+  ],
+})
+export class HisHopeDateRangeComponent implements ControlValueAccessor {
+  readonly label = input('Date range');
+  readonly startLabel = input('From');
+  readonly endLabel = input('To');
+  readonly min = input('');
+  readonly max = input('');
+  readonly invalidRangeMessage = input('End date must be on or after the start date.');
+  readonly rangeChange = output<HisHopeDateRange>();
+
+  private readonly valueSignal = signal<HisHopeDateRange>({ start: null, end: null });
+  readonly value = this.valueSignal.asReadonly();
+  readonly disabled = signal(false);
+
+  readonly error = computed(() => {
+    const { start, end } = this.value();
+    return start && end && start > end ? this.invalidRangeMessage() : '';
+  });
+
+  private onChange: (value: HisHopeDateRange) => void = () => {};
+  private onTouched: () => void = () => {};
+
+  writeValue(value: HisHopeDateRange | null): void {
+    this.valueSignal.set(value ?? { start: null, end: null });
+  }
+
+  registerOnChange(fn: (value: HisHopeDateRange) => void): void {
+    this.onChange = fn;
+  }
+
+  registerOnTouched(fn: () => void): void {
+    this.onTouched = fn;
+  }
+
+  setDisabledState(isDisabled: boolean): void {
+    this.disabled.set(isDisabled);
+  }
+
+  onStartChange(value: string): void {
+    this.emit({ ...this.value(), start: value || null });
+  }
+
+  onEndChange(value: string): void {
+    this.emit({ ...this.value(), end: value || null });
+  }
+
+  private emit(next: HisHopeDateRange): void {
+    this.valueSignal.set(next);
+    this.onChange(next);
+    this.rangeChange.emit(next);
+    this.onTouched();
+  }
+}

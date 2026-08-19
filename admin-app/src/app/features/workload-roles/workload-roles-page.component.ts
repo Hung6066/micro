@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -7,7 +8,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { MatDialog, MatDialogModule } from "@angular/material/dialog";
+import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { forkJoin } from "rxjs";
 import {
   HisHopeDataTableCellDirective,
@@ -26,19 +27,19 @@ import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import {
   IamScope,
   IamWorkloadRole,
+  PermissionDefinition,
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
-import { iamScopeLabel } from "../../core/utils/iam-display.util";
 import { WorkloadRoleEditDialogComponent } from "./workload-role-edit-dialog.component";
 
 @Component({
   selector: "app-workload-roles-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    MatDialogModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -110,7 +111,7 @@ import { WorkloadRoleEditDialogComponent } from "./workload-role-edit-dialog.com
 })
 export class WorkloadRolesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
-  private readonly dialog = inject(MatDialog);
+  private readonly dialog = inject(HisHopeDialogService);
   private readonly permissionService = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -118,6 +119,7 @@ export class WorkloadRolesPageComponent implements OnInit {
   readonly state = new AdminResourceStateController<{
     roles: IamWorkloadRole[];
     scopes: IamScope[];
+    permissions: PermissionDefinition[];
   }>({
     destroyRef: this.destroyRef,
     i18n: this.i18n,
@@ -126,6 +128,7 @@ export class WorkloadRolesPageComponent implements OnInit {
   });
   roles: IamWorkloadRole[] = [];
   scopes: IamScope[] = [];
+  permissions: PermissionDefinition[] = [];
   rows: Record<string, unknown>[] = [];
   saving = false;
   get loading(): boolean {
@@ -149,7 +152,11 @@ export class WorkloadRolesPageComponent implements OnInit {
         label: this.i18n.t("admin.displayName", "Display name"),
       },
       { key: "audience", label: this.i18n.t("admin.audience", "Audience") },
-      { key: "scopeId", label: this.i18n.t("admin.scopeId", "Scope") },
+      {
+        key: "scopeId",
+        label: this.i18n.t("admin.scopeId", "Scope"),
+        format: { type: "friendlyReference", references: this.scopes },
+      },
       { key: "isActive", label: this.i18n.t("admin.active", "Active") },
       {
         key: "actions",
@@ -168,9 +175,9 @@ export class WorkloadRolesPageComponent implements OnInit {
       if (data) {
         this.roles = data.roles;
         this.scopes = data.scopes;
+        this.permissions = data.permissions;
         this.rows = data.roles.map((x) => ({
           ...x,
-          scopeId: iamScopeLabel(x.scopeId, data.scopes),
           isActive:
             (x as IamWorkloadRole & { isActive?: boolean }).isActive !== false,
           principalType: "workload",
@@ -184,6 +191,7 @@ export class WorkloadRolesPageComponent implements OnInit {
       forkJoin({
         roles: this.api.getIamWorkloadRoles(),
         scopes: this.api.getIamScopes(),
+        permissions: this.api.getPermissions(),
       }),
     );
   }
@@ -192,7 +200,11 @@ export class WorkloadRolesPageComponent implements OnInit {
       this.dialog
         .open(WorkloadRoleEditDialogComponent, {
           width: "680px",
-          data: { role: null, scopes: this.scopes },
+          data: {
+            role: null,
+            scopes: this.scopes,
+            permissions: this.permissions,
+          },
         })
         .afterClosed()
         .subscribe((saved) => {
@@ -206,7 +218,11 @@ export class WorkloadRolesPageComponent implements OnInit {
     this.dialog
       .open(WorkloadRoleEditDialogComponent, {
         width: "680px",
-        data: { role: item, scopes: this.scopes },
+        data: {
+          role: item,
+          scopes: this.scopes,
+          permissions: this.permissions,
+        },
       })
       .afterClosed()
       .subscribe((saved) => {

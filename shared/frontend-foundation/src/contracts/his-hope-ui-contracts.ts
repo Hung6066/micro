@@ -8,6 +8,23 @@ export type HisHopeFilterOperator =
   | "lt"
   | "lte"
   | "in";
+export type HisHopeDataTableFormat =
+  | "date"
+  | "dateTime"
+  | "number"
+  | "currency"
+  | {
+      type: "friendlyReference";
+      references: readonly {
+        id: string;
+        key?: string;
+        displayName?: string;
+        kind?: string;
+        email?: string;
+        userName?: string;
+      }[];
+      includeKind?: boolean;
+    };
 export type HisHopeFilterValue =
   | string
   | number

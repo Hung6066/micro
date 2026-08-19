@@ -18,13 +18,14 @@ import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
 import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
 import { MatSelectModule } from "@angular/material/select";
-import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeActionButtonComponent,
+  HisHopePhiMaskDirective,
+  HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -65,6 +66,7 @@ interface ProviderSettings {
   standalone: true,
   imports: [
     HisHopeActionButtonComponent,
+    HisHopePhiMaskDirective,
     CommonModule,
     FormsModule,
     HisHopePageHeaderComponent,
@@ -78,7 +80,6 @@ interface ProviderSettings {
     MatInputModule,
     MatProgressSpinnerModule,
     MatSelectModule,
-    MatSnackBarModule,
     PasskeyProviderCardComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -162,7 +163,7 @@ interface ProviderSettings {
                 />
               </div>
               <label>{{ "admin.secretKey" | hhTranslate: "Secret key" }}</label
-              ><code>{{ mfa.secretKey }}</code>
+              ><code [hhPhiMask]="mfa.secretKey"></code>
               <label>{{ "admin.otpUri" | hhTranslate: "OTP URI" }}</label
               ><textarea readonly rows="3" [value]="mfa.qrCodeUri"></textarea>
               <strong>{{
@@ -490,7 +491,7 @@ export class SecurityProvidersPageComponent {
     return this.permissions.has("admin.settings.write");
   }
   private readonly http = inject(HttpClient);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly toast = inject(HisHopeToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly errorMessages = inject(ApiErrorMessageService);
   private readonly destroyRef = inject(DestroyRef);
@@ -626,9 +627,8 @@ export class SecurityProvidersPageComponent {
         secretKey: "",
         verificationCode: "",
       };
-      this.snackBar.open(
+      this.toast.success(
         this.i18n.t("admin.mfaEnabledSuccessfully", "MFA enabled successfully"),
-        this.i18n.t("admin.close", "Close"),
         { duration: 3000 },
       );
       this.loadMfaStatus();
@@ -653,12 +653,11 @@ export class SecurityProvidersPageComponent {
           this.cdr.markForCheck();
         }),
         catchError((error) => {
-          this.snackBar.open(
+          this.toast.error(
             this.errorMessages.message(
               error,
               "errors.api.providerSettingsLoadFailed",
             ),
-            this.i18n.t("admin.close", "Close"),
             { duration: 5000 },
           );
           this.cdr.markForCheck();
@@ -755,21 +754,19 @@ export class SecurityProvidersPageComponent {
     this.api.saveIdentitySettings(updates, this.selectedFacilityId).subscribe({
       next: () => {
         this.saving = false;
-        this.snackBar.open(
+        this.toast.success(
           this.i18n.t("admin.providerSettingsSaved", "Provider settings saved"),
-          this.i18n.t("admin.close", "Close"),
           { duration: 3000 },
         );
         this.cdr.markForCheck();
       },
       error: (error) => {
         this.saving = false;
-        this.snackBar.open(
+        this.toast.error(
           this.errorMessages.message(
             error,
             "errors.api.providerSettingsSaveFailed",
           ),
-          this.i18n.t("admin.close", "Close"),
           { duration: 5000 },
         );
         this.cdr.markForCheck();

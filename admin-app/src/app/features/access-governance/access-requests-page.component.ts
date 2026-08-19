@@ -14,7 +14,6 @@ import { MatCardModule } from "@angular/material/card";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
-import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
 import {
   AccessGovernanceApiService,
   AccessRequest,
@@ -30,6 +29,7 @@ import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
+  HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 
@@ -46,7 +46,6 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
-    MatSnackBarModule,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeTranslatePipe,
@@ -181,7 +180,7 @@ export class AccessRequestsPageComponent implements OnInit {
   private readonly api = inject(AccessGovernanceApiService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
-  private readonly snack = inject(MatSnackBar);
+  private readonly toast = inject(HisHopeToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
   readonly state = new AdminResourceStateController<{
@@ -249,9 +248,8 @@ export class AccessRequestsPageComponent implements OnInit {
     this.busy = true;
     this.api.createAccessRequest(this.draft).subscribe({
       next: () => {
-        this.snack.open(
+        this.toast.success(
           this.i18n.t("admin.accessRequestCreated", "Access request created."),
-          this.i18n.t("admin.close", "Close"),
           { duration: 3000 },
         );
         this.draft = {
@@ -288,11 +286,7 @@ export class AccessRequestsPageComponent implements OnInit {
     this.busy = true;
     operation.subscribe({
       next: () => {
-        this.snack.open(
-          this.i18n.t(key, fallback),
-          this.i18n.t("admin.close", "Close"),
-          { duration: 3000 },
-        );
+        this.toast.success(this.i18n.t(key, fallback), { duration: 3000 });
         this.load();
       },
       error: () => this.fail(),

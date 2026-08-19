@@ -1,7 +1,6 @@
 import {
   ApplicationConfig,
   ErrorHandler,
-  importProvidersFrom,
   PLATFORM_ID,
 } from "@angular/core";
 import { DOCUMENT } from "@angular/common";
@@ -12,7 +11,6 @@ import {
   provideHttpClient,
   withInterceptors,
 } from "@angular/common/http";
-import { MatSnackBarModule } from "@angular/material/snack-bar";
 import { provideAuth } from "angular-auth-oidc-client";
 import {
   hisHopeCorrelationIdInterceptor,
@@ -89,7 +87,6 @@ export const appConfig: ApplicationConfig = {
       ]),
     ),
     { provide: ErrorHandler, useClass: HisHopeGlobalErrorHandler },
-    importProvidersFrom(MatSnackBarModule),
     provideAuth({
       config: {
         authority: runtime.oidcAuthority,

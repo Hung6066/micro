@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -7,7 +8,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { MatDialog, MatDialogModule } from "@angular/material/dialog";
+import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { catchError, of } from "rxjs";
 import {
   HisHopeDataTableCellDirective,
@@ -35,6 +36,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-sessions-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
@@ -125,8 +127,16 @@ export class IamSessionsPageComponent implements OnInit {
     return [
       { key: "userId", label: this.i18n.t("admin.subject", "Subject") },
       { key: "id", label: this.i18n.t("admin.sessionId", "Session ID") },
-      { key: "createdAt", label: this.i18n.t("admin.createdAt", "Created") },
-      { key: "expiresAt", label: this.i18n.t("admin.expiresAt", "Expires") },
+      {
+        key: "createdAt",
+        label: this.i18n.t("admin.createdAt", "Created"),
+        format: "dateTime",
+      },
+      {
+        key: "expiresAt",
+        label: this.i18n.t("admin.expiresAt", "Expires"),
+        format: "dateTime",
+      },
       {
         key: "actions",
         label: this.i18n.t("admin.actions", "Actions"),
@@ -173,10 +183,10 @@ export class IamSessionsPageComponent implements OnInit {
 @Component({
   selector: "app-iam-revocations-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    MatDialogModule,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
@@ -222,7 +232,7 @@ export class IamSessionsPageComponent implements OnInit {
 })
 export class IamRevocationsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
-  private readonly dialog = inject(MatDialog);
+  private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -269,7 +279,11 @@ export class IamRevocationsPageComponent implements OnInit {
         label: this.i18n.t("admin.principalType", "Type"),
       },
       { key: "reason", label: this.i18n.t("admin.reason", "Reason") },
-      { key: "occurredAt", label: this.i18n.t("admin.createdAt", "Occurred") },
+      {
+        key: "occurredAt",
+        label: this.i18n.t("admin.createdAt", "Occurred"),
+        format: "dateTime",
+      },
     ];
   }
   ngOnInit(): void {
@@ -302,6 +316,7 @@ export class IamRevocationsPageComponent implements OnInit {
 @Component({
   selector: "app-iam-unused-permissions-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,

@@ -1,6 +1,14 @@
 import { Component, Inject, inject } from "@angular/core";
-import { FormsModule } from "@angular/forms";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import {
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  Validators,
+} from "@angular/forms";
+import {
+  HIS_HOPE_DIALOG_DATA,
+  HisHopeDialogRef,
+} from "@his-hope/frontend-foundation/ui";
 import { IamApiService } from "../../core/services/iam-api.service";
 import {
   IamPermissionSet,
@@ -10,11 +18,15 @@ import {
 import {
   HisHopeActionButtonComponent,
   HisHopeCreateDialogShellComponent,
+  HisHopeFormLayoutComponent,
+  HisHopeFormSectionComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
+import { HisHopeMaterialFormFieldComponent } from "@his-hope/frontend-foundation/forms";
+import { iamScopeOptions } from "../../core/utils/iam-display.util";
 export interface PermissionSetEditDialogData {
   set: IamPermissionSet | null;
   scopes: IamScope[];
@@ -24,10 +36,13 @@ export interface PermissionSetEditDialogData {
   selector: "app-permission-set-edit-dialog",
   standalone: true,
   imports: [
-    FormsModule,
+    ReactiveFormsModule,
     HisHopeActionButtonComponent,
     HisHopeCreateDialogShellComponent,
+    HisHopeFormLayoutComponent,
+    HisHopeFormSectionComponent,
     HisHopeTranslatePipe,
+    HisHopeMaterialFormFieldComponent,
   ],
   template: `<hh-create-dialog-shell
     [title]="
@@ -36,41 +51,49 @@ export interface PermissionSetEditDialogData {
           : (data.set ? 'Edit permission set' : 'Create permission set')
     "
     ><div hhCreateDialogContent>
-      <form class="dialog-form">
-        <label
-          >{{ "admin.key" | hhTranslate
-          }}<input name="key" [(ngModel)]="draft.key" required /></label
-        ><label
-          >{{ "admin.displayName" | hhTranslate
-          }}<input
-            name="displayName"
-            [(ngModel)]="draft.displayName"
-            required /></label
-        ><label
-          >{{ "admin.scopeId" | hhTranslate
-          }}<select name="scopeId" [(ngModel)]="draft.scopeId" required>
-            <option value="">{{ "admin.select" | hhTranslate }}</option>
-            <option *ngFor="let scope of data.scopes" [value]="scope.id">
-              {{ scope.displayName }} · {{ scope.key }}
-            </option>
-          </select></label
-        ><label
-          >{{ "admin.permissions" | hhTranslate
-          }}<select
-            name="permissions"
-            [(ngModel)]="draft.permissions"
-            multiple
-            size="8"
-            required
-          >
-            <option
-              *ngFor="let permission of activePermissions"
-              [value]="permission.code"
-            >
-              {{ permission.code }} · {{ permission.name }}
-            </option>
-          </select></label
-        >
+      <form [formGroup]="formGroup" class="dialog-form" (ngSubmit)="save()">
+        @if (formGroup.invalid && formGroup.touched) {
+          <p class="form-error" role="alert">
+            {{
+              "admin.validationRequired"
+                | hhTranslate: "Complete the required fields."
+            }}
+          </p>
+        }
+        <hh-form-layout
+          ><hh-form-section
+            [title]="
+              'admin.permissionSetDetails'
+                | hhTranslate: 'Permission set details'
+            "
+            [description]="
+              'admin.permissionSetDetailsDescription'
+                | hhTranslate
+                  : 'Set the identity, scope, and permissions for this set.'
+            "
+            [span]="2"
+            ><hh-mat-form-field
+              [control]="formGroup.controls.key"
+              [label]="'admin.key' | hhTranslate"
+            />
+            <hh-mat-form-field
+              [control]="formGroup.controls.displayName"
+              [label]="'admin.displayName' | hhTranslate"
+            />
+            <hh-mat-form-field
+              [control]="formGroup.controls.scopeId"
+              [label]="'admin.scopeId' | hhTranslate"
+              kind="select"
+              [options]="scopeOptions"
+            />
+            <hh-mat-form-field
+              [control]="formGroup.controls.permissions"
+              [label]="'admin.permissions' | hhTranslate"
+              kind="select"
+              [multiple]="true"
+              [options]="permissionOptions"
+            /> </hh-form-section
+        ></hh-form-layout>
       </form>
     </div>
     <div hhCreateDialogFooter>
@@ -82,8 +105,8 @@ export interface PermissionSetEditDialogData {
       /><hh-action-button
         kind="primary"
         icon="save"
-        [disabled]="saving"
         [label]="(saving ? 'admin.saving' : 'admin.save') | hhTranslate"
+        [disabled]="saving"
         (pressed)="save()"
       /></div
   ></hh-create-dialog-shell>`,
@@ -93,20 +116,18 @@ export interface PermissionSetEditDialogData {
         display: grid;
         gap: 16px;
       }
-      label {
-        display: grid;
-        gap: 6px;
-      }
-      input,
-      select {
-        min-height: 40px;
-        padding: 8px 12px;
+      .form-error {
+        margin: 0;
+        color: var(--text-danger, #b42318);
+        font-size: 0.875rem;
       }
     `,
   ],
 })
 export class PermissionSetEditDialogComponent {
-  readonly dialogRef = inject(MatDialogRef<PermissionSetEditDialogComponent>);
+  readonly dialogRef = inject(
+    HisHopeDialogRef<PermissionSetEditDialogComponent>,
+  );
   private readonly api = inject(IamApiService);
   private readonly i18n = inject(HisHopeI18nService);
   saving = false;
@@ -116,8 +137,26 @@ export class PermissionSetEditDialogComponent {
     scopeId: "",
     permissions: [] as string[],
   };
+  readonly formGroup = new FormGroup({
+    key: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    displayName: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    scopeId: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    permissions: new FormControl<string[]>([], {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+  });
   constructor(
-    @Inject(MAT_DIALOG_DATA) readonly data: PermissionSetEditDialogData,
+    @Inject(HIS_HOPE_DIALOG_DATA) readonly data: PermissionSetEditDialogData,
   ) {
     Object.assign(this.draft, {
       key: data.set?.key ?? "",
@@ -128,13 +167,30 @@ export class PermissionSetEditDialogComponent {
         "",
       permissions: data.set ? JSON.parse(data.set.permissionsJson || "[]") : [],
     });
+    this.formGroup.patchValue(this.draft);
   }
   get activePermissions(): PermissionDefinition[] {
     return this.data.permissions.filter(
       (permission) => !permission.isDeprecated,
     );
   }
+  get scopeOptions() {
+    return iamScopeOptions(
+      this.data.scopes,
+      this.formGroup.controls.scopeId.value,
+      this.i18n.t("admin.select", "Select"),
+    );
+  }
+  get permissionOptions() {
+    return this.activePermissions.map((permission) => ({
+      value: permission.code,
+      label: `${permission.code} · ${permission.name}`,
+    }));
+  }
   save(): void {
+    this.formGroup.markAllAsTouched();
+    if (this.formGroup.invalid || this.saving) return;
+    Object.assign(this.draft, this.formGroup.getRawValue());
     if (
       this.saving ||
       !this.draft.key.trim() ||

@@ -19,7 +19,10 @@ The project-wide visual contract lives in [`DESIGN.md`](../../DESIGN.md). Read i
 Feature pages should own only domain data and actions. Compose the shared primitives:
 
 ```html
-<hh-page-header title="Patients" subtitle="Manage the hospital patient registry">
+<hh-page-header
+  title="Patients"
+  subtitle="Manage the hospital patient registry"
+>
   <button mat-flat-button color="primary" (click)="create()">
     <span class="material-icons">add</span>
     New patient
@@ -28,15 +31,15 @@ Feature pages should own only domain data and actions. Compose the shared primit
 
 <mat-card>
   @if (loading) {
-    <hh-state kind="loading" message="Loading patients..." />
+  <hh-state kind="loading" message="Loading patients..." />
   } @else if (error) {
-    <hh-state kind="error" icon="error" [message]="error">
-      <button mat-stroked-button (click)="reload()">Retry</button>
-    </hh-state>
+  <hh-state kind="error" icon="error" [message]="error">
+    <button mat-stroked-button (click)="reload()">Retry</button>
+  </hh-state>
   } @else if (patients.length === 0) {
-    <hh-state icon="person_search" message="No patients found." />
+  <hh-state icon="person_search" message="No patients found." />
   } @else {
-    <!-- Domain-specific table only. Shared table styling is global. -->
+  <!-- Domain-specific table only. Shared table styling is global. -->
   }
 </mat-card>
 ```
@@ -58,7 +61,17 @@ For complete integration examples, API contracts, accessibility rules, theme/i18
 ### Enterprise interaction contracts
 
 - `hh-confirm-dialog` is an accessible destructive-action dialog with Escape handling, focus trapping and focus restoration.
-- `hh-data-table` supports loading/error/empty states and, in configured data mode, sorting, pagination, row selection and column visibility.
+- `HisHopeDialogService` opens any standalone component in a CDK-overlay modal with focus trap, focus restoration and Escape/backdrop close; inject `HisHopeDialogRef`/`HIS_HOPE_DIALOG_DATA` inside the opened component. Prefer this over `MatDialog` for new dialogs.
+- `hh-menu`/`[hhMenuTriggerFor]` and `[hhTooltip]` are CDK-overlay-backed dropdown menu and hover/focus tooltip primitives.
+- `hh-select` is a `ControlValueAccessor` combobox (`role="listbox"` overlay panel, keyboard nav) for use inside `hh-form-field`.
+- `hh-multi-select` is the multi-value counterpart of `hh-select` (checkbox-style options, panel stays open across selections, `aria-multiselectable`).
+- `hh-chips` is a free-form tag/chip input (`ControlValueAccessor` over `string[]`, Enter/comma to add, Backspace to remove the last chip).
+- `hh-date-range` is a two-field native date range picker (`ControlValueAccessor` over `{ start, end }`) with cross-field min/max wiring and an inline validation message when the end date precedes the start date.
+- `hh-file-upload` is a drag-and-drop/click-to-browse file picker with client-side mime/size validation; rejected files are never added and are surfaced via a `rejected` output.
+- `[hhPhiMask]` masks sensitive text by default and reveals it only on click/keyboard activation, auto re-masking after a configurable timeout. Display-layer only — pair with real authorization checks for genuinely restricted data.
+- `hh-session-timeout-dialog` is a presentational countdown dialog for idle/session-expiry warnings; the host app owns idle detection and opens it via `HisHopeDialogService`.
+- `*hhHasPermission` (from `@his-hope/frontend-foundation/auth`) is a structural directive that reactively shows/hides content based on `HisHopePermissionService`.
+- `hh-data-table` supports loading/error/empty states and, in configured data mode, sorting, pagination, row selection, column visibility, bulk actions and manual-scroll virtualization.
 - `hh-filter-toolbar` supports a debounced search field and a clear action while still accepting projected filters.
 - `hh-form-field` standardizes labels, required markers, hints, validation errors and dirty/disabled states. Feature controls should bind `aria-describedby` to the field's hint/error id.
 - `hh-toast-outlet` and `HisHopeToastService` provide consistent transient notifications.
@@ -117,11 +130,21 @@ Import them from `@his-hope/frontend-foundation`. Sensitive healthcare actions b
 Example:
 
 ```html
-<hh-form-field controlId="email" label="Email" [required] error="Email is required">
+<hh-form-field
+  controlId="email"
+  label="Email"
+  [required]
+  error="Email is required"
+>
   <input id="email" type="email" />
 </hh-form-field>
 
-<hh-data-table [loading]="loading" [empty]="!rows.length" [error]="error" (retry)="reload()">
+<hh-data-table
+  [loading]="loading"
+  [empty]="!rows.length"
+  [error]="error"
+  (retry)="reload()"
+>
   <table mat-table [dataSource]="rows"></table>
 </hh-data-table>
 ```

@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -7,8 +8,8 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { MatDialog, MatDialogModule } from "@angular/material/dialog";
-import { catchError, of } from "rxjs";
+import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
+import { catchError, forkJoin, of } from "rxjs";
 import {
   HisHopeDataTableComponent,
   HisHopeDataTableColumn,
@@ -21,19 +22,24 @@ import {
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
-import { IamRevocation } from "../../core/contracts/admin.contracts";
+import {
+  IamRevocation,
+  IamWorkloadRole,
+  User,
+} from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { IamRevocationEditDialogComponent } from "./iam-revocation-edit-dialog.component";
+import { iamPrincipalLabel } from "../../core/utils/iam-display.util";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-revocations-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    MatDialogModule,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
@@ -79,7 +85,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class IamRevocationsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
-  private readonly dialog = inject(MatDialog);
+  private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -87,6 +93,8 @@ export class IamRevocationsPageComponent implements OnInit {
     return this.permissions.has("admin.sessions.revoke");
   }
   rows: Record<string, unknown>[] = [];
+  users: User[] = [];
+  workloadRoles: IamWorkloadRole[] = [];
   private readonly destroyRef = inject(DestroyRef);
   readonly state = new AdminResourceStateController<{
     revocations: IamRevocation[];
@@ -120,13 +128,25 @@ export class IamRevocationsPageComponent implements OnInit {
       {
         key: "principalId",
         label: this.i18n.t("admin.principalId", "Principal"),
+        computed: (row) =>
+          iamPrincipalLabel(
+            String(row["principalId"] ?? ""),
+            String(row["principalType"] ?? ""),
+            this.users,
+            [],
+            this.workloadRoles,
+          ),
       },
       {
         key: "principalType",
         label: this.i18n.t("admin.principalType", "Type"),
       },
       { key: "reason", label: this.i18n.t("admin.reason", "Reason") },
-      { key: "occurredAt", label: this.i18n.t("admin.createdAt", "Occurred") },
+      {
+        key: "occurredAt",
+        label: this.i18n.t("admin.createdAt", "Occurred"),
+        format: "dateTime",
+      },
     ];
   }
   ngOnInit(): void {
@@ -147,11 +167,23 @@ export class IamRevocationsPageComponent implements OnInit {
   }
   openCreate(): void {
     if (this.canWrite)
-      this.dialog
-        .open(IamRevocationEditDialogComponent, { width: "560px" })
-        .afterClosed()
-        .subscribe((saved) => {
-          if (saved) this.load();
-        });
+      forkJoin({
+        users: this.api.getUsers(),
+        workloadRoles: this.api.getIamWorkloadRoles(),
+      }).subscribe({
+        next: (data) =>
+          this.dialog
+            .open(IamRevocationEditDialogComponent, { width: "560px", data })
+            .afterClosed()
+            .subscribe((saved) => {
+              if (saved) this.load();
+            }),
+        error: () => {
+          this.error = this.i18n.t(
+            "admin.iamLoadFailed",
+            "Unable to load principals.",
+          );
+        },
+      });
   }
 }

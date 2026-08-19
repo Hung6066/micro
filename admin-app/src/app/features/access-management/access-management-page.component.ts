@@ -10,7 +10,6 @@ import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
-import { MatChipsModule } from "@angular/material/chips";
 import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
 import { RouterModule } from "@angular/router";
 import {
@@ -25,13 +24,14 @@ import {
   User,
 } from "../../core/contracts/admin.contracts";
 import { AccessGovernanceApiService } from "../../core/services/access-governance-api.service";
-import { catchError, forkJoin, of, tap } from "rxjs";
+import { catchError, forkJoin, of, tap, timeout } from "rxjs";
 import {
   HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import {
+  HisHopeChipsComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
 } from "@his-hope/frontend-foundation/ui";
@@ -46,8 +46,8 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
     RouterModule,
     MatButtonModule,
     MatCardModule,
-    MatChipsModule,
     MatProgressSpinnerModule,
+    HisHopeChipsComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeTranslatePipe,
@@ -92,11 +92,13 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
               {{ permissions.length }}
               {{ "admin.permissions" | hhTranslate: "permissions" }}
             </p>
-            <div class="chips">
-              @for (group of permissionGroups; track group) {
-                <mat-chip>{{ group }}</mat-chip>
-              }
-            </div>
+            <hh-chips
+              [ngModel]="permissionGroups"
+              [readonly]="true"
+              [label]="
+                'admin.permissionGroups' | hhTranslate: 'Permission groups'
+              "
+            />
             <div class="catalog-meta">
               <strong>{{
                 "admin.permissionGovernance"
@@ -415,12 +417,7 @@ export class AccessManagementPageComponent implements OnInit {
     this.state.setActionError(value);
   }
 
-  get permissionGroups(): string[] {
-    this.i18n.locale();
-    return [
-      ...new Set(this.permissions.map((permission) => permission.group)),
-    ].sort();
-  }
+  permissionGroups: string[] = [];
   get highRiskPermissionCount(): number {
     return this.permissions.filter(
       (permission) => permission.riskTier === "high",
@@ -473,8 +470,12 @@ export class AccessManagementPageComponent implements OnInit {
         accessReviews: this.api.getAccessReviews(),
         authorizationPolicies: this.api.getAuthorizationPolicies(),
       }).pipe(
+        timeout(8000),
         tap((state) => {
           this.permissions = state.permissions;
+          this.permissionGroups = [
+            ...new Set(state.permissions.map((permission) => permission.group)),
+          ].sort();
           this.roles = state.roles;
           this.users = state.users;
           this.auditCount = state.audit.totalCount;

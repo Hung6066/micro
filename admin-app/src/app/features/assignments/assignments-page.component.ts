@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -7,7 +8,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { MatDialog, MatDialogModule } from "@angular/material/dialog";
+import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { catchError, forkJoin, of } from "rxjs";
 import {
   HisHopeDataTableCellDirective,
@@ -32,15 +33,16 @@ import {
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { iamPrincipalLabel } from "../../core/utils/iam-display.util";
 import { AssignmentEditDialogComponent } from "./assignment-edit-dialog.component";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-assignments-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
-    MatDialogModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopeActionButtonComponent,
@@ -96,7 +98,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class AssignmentsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
-  private readonly dialog = inject(MatDialog);
+  private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -154,6 +156,7 @@ export class AssignmentsPageComponent implements OnInit {
       {
         key: "permissionSetId",
         label: this.i18n.t("admin.permissionSet", "Permission set"),
+        format: { type: "friendlyReference", references: this.sets },
       },
       {
         key: "principalType",
@@ -162,10 +165,26 @@ export class AssignmentsPageComponent implements OnInit {
       {
         key: "principalId",
         label: this.i18n.t("admin.principalId", "Principal"),
+        computed: (row) =>
+          iamPrincipalLabel(
+            String(row["principalId"] ?? ""),
+            String(row["principalType"] ?? ""),
+            this.users,
+            this.groups,
+            this.workloadRoles,
+          ),
       },
-      { key: "scopeId", label: this.i18n.t("admin.scopeId", "Scope") },
+      {
+        key: "scopeId",
+        label: this.i18n.t("admin.scopeId", "Scope"),
+        format: { type: "friendlyReference", references: this.scopes },
+      },
       { key: "status", label: this.i18n.t("admin.status", "Status") },
-      { key: "expiresAt", label: this.i18n.t("admin.expiresAt", "Expires") },
+      {
+        key: "expiresAt",
+        label: this.i18n.t("admin.expiresAt", "Expires"),
+        format: "dateTime",
+      },
       {
         key: "actions",
         label: this.i18n.t("admin.actions", "Actions"),

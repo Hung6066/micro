@@ -1,5 +1,5 @@
 import { Injectable, inject } from "@angular/core";
-import { HttpClient } from "@angular/common/http";
+import { HttpBackend, HttpClient } from "@angular/common/http";
 import { Router } from "@angular/router";
 import { Observable } from "rxjs";
 import { OidcSecurityService } from "angular-auth-oidc-client";
@@ -8,9 +8,10 @@ import { environment } from "../../../environments/environment";
 
 @Injectable({ providedIn: "root" })
 export class AuthService {
+  private readonly bffHttpClient = new HttpClient(inject(HttpBackend));
   private readonly coordinator = new HisHopeAuthCoordinator(
     inject(OidcSecurityService),
-    inject(HttpClient),
+    this.bffHttpClient,
     inject(Router),
     {
       defaultReturnUrl: "/clients",

@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -24,13 +25,13 @@ import {
   IamApiAudiencesResponse,
   IamScope,
 } from "../../core/contracts/admin.contracts";
-import { iamScopeLabel } from "../../core/utils/iam-display.util";
 import { forkJoin, map } from "rxjs";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-api-audiences-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
@@ -48,8 +49,13 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         'admin.apiAudiencesSubtitle'
           | hhTranslate: 'Resource audiences exposed by Identity Service.'
       " /><hh-toolbar hhPageToolbar
-      ><hh-action-button (pressed)="load()" hh-toolbar-actions kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate" /></hh-toolbar
-    >
+      ><hh-action-button
+        (pressed)="load()"
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+    /></hh-toolbar>
     <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
     <hh-data-table
       [columns]="columns"
@@ -88,7 +94,14 @@ export class IamApiAudiencesPageComponent implements OnInit {
         label: this.i18n.t("admin.displayName", "Display name"),
       },
       { key: "audience", label: this.i18n.t("admin.audience", "Audience") },
-      { key: "scopeId", label: this.i18n.t("admin.scopeId", "Scope") },
+      {
+        key: "scopeId",
+        label: this.i18n.t("admin.scopeId", "Scope"),
+        format: {
+          type: "friendlyReference",
+          references: this.state.resource.data()?.scopes ?? [],
+        },
+      },
       { key: "lifecycleStatus", label: this.i18n.t("admin.status", "Status") },
     ];
   }
@@ -96,10 +109,7 @@ export class IamApiAudiencesPageComponent implements OnInit {
     effect(() => {
       const x = this.state.resource.data();
       if (x) {
-        this.rows = x.audiences.map((item) => ({
-          ...item,
-          scopeId: iamScopeLabel(item.scopeId, x.scopes),
-        }));
+        this.rows = x.audiences.map((item) => ({ ...item }));
         this.cdr.markForCheck();
       }
     });

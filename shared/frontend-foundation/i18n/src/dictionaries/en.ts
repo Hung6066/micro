@@ -2,6 +2,12 @@ import { HisHopeTranslationDictionary } from "@his-hope/frontend-foundation/cont
 
 export const hisHopeEn: HisHopeTranslationDictionary = {
   locale: "en",
+  validation: {
+    required: "This field is required.",
+    email: "Enter a valid email address.",
+    minlength: "Enter more characters.",
+    maxlength: "Enter fewer characters.",
+  },
   admin: {
     accounts: "Accounts",
     activateSelected: "Activate selected",
@@ -51,6 +57,12 @@ export const hisHopeEn: HisHopeTranslationDictionary = {
     clientCreated:
       "Client created. Copy the secret now; it will not be shown again.",
     saveClientFailed: "Failed to save client",
+    clientIdRequired: "Client ID is required.",
+    clientDisplayNameRequired: "Display name is required.",
+    clientRedirectUrisInvalid:
+      "Use HTTPS redirect URIs; authorization code requires one.",
+    clientPostLogoutUrisInvalid: "Use HTTPS post-logout redirect URIs.",
+    clientJwksInvalid: "Enter valid JSON for the public JWK set.",
     completingSignIn: "Completing sign in...",
     consentControls: "Consent controls",
     consents: "Consents",

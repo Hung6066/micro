@@ -2,6 +2,12 @@ import { HisHopeTranslationDictionary } from "@his-hope/frontend-foundation/cont
 
 export const hisHopeViVN: HisHopeTranslationDictionary = {
   locale: "vi-VN",
+  validation: {
+    required: "Trường này là bắt buộc.",
+    email: "Nhập địa chỉ email hợp lệ.",
+    minlength: "Nhập thêm ký tự.",
+    maxlength: "Nhập ít ký tự hơn.",
+  },
   admin: {
     accounts: "Tài khoản",
     activateSelected: "Kích hoạt mục đã chọn",
@@ -50,6 +56,13 @@ export const hisHopeViVN: HisHopeTranslationDictionary = {
     clientCreated:
       "Đã tạo ứng dụng. Hãy sao chép secret vì secret sẽ không hiển thị lại.",
     saveClientFailed: "Không thể lưu ứng dụng",
+    clientIdRequired: "Mã ứng dụng là bắt buộc.",
+    clientDisplayNameRequired: "Tên hiển thị là bắt buộc.",
+    clientRedirectUrisInvalid:
+      "Chỉ dùng URI chuyển hướng HTTPS; authorization code yêu cầu ít nhất một URI.",
+    clientPostLogoutUrisInvalid:
+      "Chỉ dùng URI chuyển hướng sau đăng xuất HTTPS.",
+    clientJwksInvalid: "Nhập JSON hợp lệ cho bộ JWK công khai.",
     completingSignIn: "Đang hoàn tất đăng nhập...",
     consentControls: "Điều khiển chấp thuận",
     consents: "Chấp thuận",

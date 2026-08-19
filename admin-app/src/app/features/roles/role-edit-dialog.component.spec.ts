@@ -1,6 +1,9 @@
 import { TestBed } from "@angular/core/testing";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
-import { MatSnackBar } from "@angular/material/snack-bar";
+import {
+  HIS_HOPE_DIALOG_DATA,
+  HisHopeDialogRef,
+  HisHopeToastService,
+} from "@his-hope/frontend-foundation/ui";
 import { of } from "rxjs";
 import {
   PermissionDefinition,
@@ -52,12 +55,18 @@ describe("RoleEditDialogComponent", () => {
       imports: [RoleEditDialogComponent],
       providers: [
         { provide: RolesApiService, useValue: api },
-        { provide: MAT_DIALOG_DATA, useValue: data },
+        { provide: HIS_HOPE_DIALOG_DATA, useValue: data },
         {
-          provide: MatDialogRef,
+          provide: HisHopeDialogRef,
           useValue: { close: jasmine.createSpy("close") },
         },
-        { provide: MatSnackBar, useValue: { open: jasmine.createSpy("open") } },
+        {
+          provide: HisHopeToastService,
+          useValue: {
+            success: jasmine.createSpy("success"),
+            error: jasmine.createSpy("error"),
+          },
+        },
       ],
     });
     return api;

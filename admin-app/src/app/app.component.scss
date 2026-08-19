@@ -23,6 +23,40 @@
   font-family: var(--font-sans) !important;
 }
 
+.user-menu {
+  position: absolute;
+  top: calc(100% - 4px);
+  right: var(--space-3);
+  z-index: 20;
+  min-width: 150px;
+  padding: var(--space-1);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-white);
+  box-shadow: var(--shadow-dropdown);
+}
+
+.user-menu button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.user-menu button:hover,
+.user-menu button:focus-visible {
+  background: var(--surface-subtle);
+}
+
 hh-brand {
   display: block;
   padding: var(--space-5) var(--space-5) var(--space-4);

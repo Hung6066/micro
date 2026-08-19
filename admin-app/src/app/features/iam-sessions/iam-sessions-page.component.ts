@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -29,6 +30,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-sessions-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
@@ -122,8 +124,16 @@ export class IamSessionsPageComponent implements OnInit {
     return [
       { key: "displaySubject", label: this.i18n.t("admin.subject", "Subject") },
       { key: "id", label: this.i18n.t("admin.sessionId", "Session ID") },
-      { key: "createdAt", label: this.i18n.t("admin.createdAt", "Created") },
-      { key: "expiresAt", label: this.i18n.t("admin.expiresAt", "Expires") },
+      {
+        key: "createdAt",
+        label: this.i18n.t("admin.createdAt", "Created"),
+        format: "dateTime",
+      },
+      {
+        key: "expiresAt",
+        label: this.i18n.t("admin.expiresAt", "Expires"),
+        format: "dateTime",
+      },
       {
         key: "actions",
         label: this.i18n.t("admin.actions", "Actions"),

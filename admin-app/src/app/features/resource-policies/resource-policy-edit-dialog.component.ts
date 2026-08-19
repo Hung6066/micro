@@ -1,6 +1,14 @@
 import { Component, Inject, inject } from "@angular/core";
-import { FormsModule } from "@angular/forms";
-import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import {
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  Validators,
+} from "@angular/forms";
+import {
+  HIS_HOPE_DIALOG_DATA,
+  HisHopeDialogRef,
+} from "@his-hope/frontend-foundation/ui";
 import { IamApiService } from "../../core/services/iam-api.service";
 import {
   IamResourcePolicy,
@@ -10,11 +18,15 @@ import {
 import {
   HisHopeActionButtonComponent,
   HisHopeCreateDialogShellComponent,
+  HisHopeFormLayoutComponent,
+  HisHopeFormSectionComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
+import { HisHopeMaterialFormFieldComponent } from "@his-hope/frontend-foundation/forms";
+import { iamScopeOptions } from "../../core/utils/iam-display.util";
 export interface ResourcePolicyEditDialogData {
   policy: IamResourcePolicy | null;
   scopes: IamScope[];
@@ -24,9 +36,12 @@ export interface ResourcePolicyEditDialogData {
   selector: "app-resource-policy-edit-dialog",
   standalone: true,
   imports: [
-    FormsModule,
+    ReactiveFormsModule,
     HisHopeActionButtonComponent,
     HisHopeCreateDialogShellComponent,
+    HisHopeFormLayoutComponent,
+    HisHopeFormSectionComponent,
+    HisHopeMaterialFormFieldComponent,
     HisHopeTranslatePipe,
   ],
   template: `<hh-create-dialog-shell
@@ -36,38 +51,46 @@ export interface ResourcePolicyEditDialogData {
           : (data.policy ? 'Edit resource policy' : 'Create resource policy')
     "
     ><div hhCreateDialogContent>
-      <form class="dialog-form">
-        <label
-          >{{ "admin.scopeId" | hhTranslate
-          }}<select name="scopeId" [(ngModel)]="draft.scopeId" required>
-            <option value="">{{ "admin.select" | hhTranslate }}</option>
-            <option *ngFor="let scope of data.scopes" [value]="scope.id">
-              {{ scope.displayName }} · {{ scope.key }}
-            </option>
-          </select></label
-        ><label
-          >{{ "admin.serviceKey" | hhTranslate
-          }}<select name="serviceKey" [(ngModel)]="draft.serviceKey" required>
-            <option value="">{{ "admin.select" | hhTranslate }}</option>
-            <option *ngFor="let service of data.services" [value]="service.key">
-              {{ service.key }}
-            </option>
-          </select></label
-        ><label
-          >{{ "admin.resourcePattern" | hhTranslate
-          }}<input
-            name="resourcePattern"
-            [(ngModel)]="draft.resourcePattern"
-            required /></label
-        ><label
-          >{{ "admin.statementsJson" | hhTranslate
-          }}<textarea
-            name="statementsJson"
-            rows="8"
-            [(ngModel)]="draft.statementsJson"
-            required
-          ></textarea>
-        </label>
+      <form [formGroup]="formGroup" class="dialog-form" (ngSubmit)="save()">
+        @if (formGroup.invalid && formGroup.touched) {
+          <p class="form-error" role="alert">
+            {{
+              "admin.validationRequired"
+                | hhTranslate: "Complete the required fields."
+            }}
+          </p>
+        }
+        <hh-form-layout
+          ><hh-form-section
+            [title]="
+              'admin.resourcePolicyDetails'
+                | hhTranslate: 'Resource policy details'
+            "
+            [description]="
+              'admin.resourcePolicyDetailsDescription'
+                | hhTranslate
+                  : 'Choose the scope and service, then define the resource statements.'
+            "
+            [span]="2"
+            ><hh-mat-form-field
+              [control]="formGroup.controls.scopeId"
+              [label]="'admin.scopeId' | hhTranslate"
+              kind="select"
+              [options]="scopeOptions" />
+            <hh-mat-form-field
+              [control]="formGroup.controls.serviceKey"
+              [label]="'admin.serviceKey' | hhTranslate"
+              kind="select"
+              [options]="serviceOptions" />
+            <hh-mat-form-field
+              [control]="formGroup.controls.resourcePattern"
+              [label]="'admin.resourcePattern' | hhTranslate" />
+            <hh-mat-form-field
+              [control]="formGroup.controls.statementsJson"
+              [label]="'admin.statementsJson' | hhTranslate"
+              [multiline]="true"
+              [rows]="8" /></hh-form-section
+        ></hh-form-layout>
       </form>
     </div>
     <div hhCreateDialogFooter>
@@ -79,8 +102,8 @@ export interface ResourcePolicyEditDialogData {
       /><hh-action-button
         kind="primary"
         icon="save"
-        [disabled]="saving"
         [label]="(saving ? 'admin.saving' : 'admin.save') | hhTranslate"
+        [disabled]="saving"
         (pressed)="save()"
       /></div
   ></hh-create-dialog-shell>`,
@@ -90,21 +113,18 @@ export interface ResourcePolicyEditDialogData {
         display: grid;
         gap: 16px;
       }
-      label {
-        display: grid;
-        gap: 6px;
-      }
-      input,
-      select,
-      textarea {
-        min-height: 40px;
-        padding: 8px 12px;
+      .form-error {
+        margin: 0;
+        color: var(--text-danger, #b42318);
+        font-size: 0.875rem;
       }
     `,
   ],
 })
 export class ResourcePolicyEditDialogComponent {
-  readonly dialogRef = inject(MatDialogRef<ResourcePolicyEditDialogComponent>);
+  readonly dialogRef = inject(
+    HisHopeDialogRef<ResourcePolicyEditDialogComponent>,
+  );
   private readonly api = inject(IamApiService);
   private readonly i18n = inject(HisHopeI18nService);
   saving = false;
@@ -114,8 +134,26 @@ export class ResourcePolicyEditDialogComponent {
     resourcePattern: "",
     statementsJson: '{\n  "statements": []\n}',
   };
+  readonly formGroup = new FormGroup({
+    scopeId: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    serviceKey: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    resourcePattern: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    statementsJson: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+  });
   constructor(
-    @Inject(MAT_DIALOG_DATA) readonly data: ResourcePolicyEditDialogData,
+    @Inject(HIS_HOPE_DIALOG_DATA) readonly data: ResourcePolicyEditDialogData,
   ) {
     Object.assign(
       this.draft,
@@ -125,8 +163,28 @@ export class ResourcePolicyEditDialogComponent {
           data.services.find((service) => service.isActive)?.key ?? "",
       },
     );
+    this.formGroup.patchValue(this.draft);
+  }
+  get scopeOptions() {
+    return iamScopeOptions(
+      this.data.scopes,
+      this.formGroup.controls.scopeId.value,
+      this.i18n.t("admin.select", "Select"),
+    );
+  }
+  get serviceOptions() {
+    return [
+      { value: "", label: this.i18n.t("admin.select", "Select") },
+      ...this.data.services.map((service) => ({
+        value: service.key,
+        label: service.key,
+      })),
+    ];
   }
   save(): void {
+    this.formGroup.markAllAsTouched();
+    if (this.formGroup.invalid || this.saving) return;
+    Object.assign(this.draft, this.formGroup.getRawValue());
     if (
       this.saving ||
       !this.draft.scopeId ||

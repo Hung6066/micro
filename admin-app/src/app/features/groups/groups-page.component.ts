@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -24,18 +25,17 @@ import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { IamGroup, IamScope } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
-import { iamScopeLabel } from "../../core/utils/iam-display.util";
 import { finalize, forkJoin, take } from "rxjs";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
-import { MatDialog, MatDialogModule } from "@angular/material/dialog";
+import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { GroupEditDialogComponent } from "./group-edit-dialog.component";
 @Component({
   selector: "app-groups-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
-    MatDialogModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopeActionButtonComponent,
@@ -118,7 +118,7 @@ import { GroupEditDialogComponent } from "./group-edit-dialog.component";
 })
 export class GroupsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
-  private readonly dialog = inject(MatDialog);
+  private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -156,7 +156,11 @@ export class GroupsPageComponent implements OnInit {
         label: this.i18n.t("admin.displayName", "Display name"),
         sortable: true,
       },
-      { key: "scopeId", label: this.i18n.t("admin.scopeId", "Scope") },
+      {
+        key: "scopeId",
+        label: this.i18n.t("admin.scopeId", "Scope"),
+        format: { type: "friendlyReference", references: this.scopes },
+      },
       { key: "isActive", label: this.i18n.t("admin.active", "Active") },
       {
         key: "actions",
@@ -178,10 +182,7 @@ export class GroupsPageComponent implements OnInit {
       if (data) {
         this.groups = data.groups;
         this.scopes = data.scopes;
-        this.rows = data.groups.map((item) => ({
-          ...item,
-          scopeId: iamScopeLabel(item.scopeId, data.scopes),
-        }));
+        this.rows = data.groups.map((item) => ({ ...item }));
         this.cdr.markForCheck();
       }
     });

@@ -1,5 +1,6 @@
 import {
   ChangeDetectorRef,
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   OnInit,
@@ -7,7 +8,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { MatDialog, MatDialogModule } from "@angular/material/dialog";
+import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { forkJoin } from "rxjs";
 import {
   HisHopeDataTableCellDirective,
@@ -29,17 +30,16 @@ import {
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
-import { iamScopeLabel } from "../../core/utils/iam-display.util";
 import { PermissionSetEditDialogComponent } from "./permission-set-edit-dialog.component";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-permission-sets-page",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    MatDialogModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
@@ -99,7 +99,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class PermissionSetsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
-  private readonly dialog = inject(MatDialog);
+  private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
@@ -138,7 +138,11 @@ export class PermissionSetsPageComponent implements OnInit {
         key: "displayName",
         label: this.i18n.t("admin.displayName", "Display name"),
       },
-      { key: "scopeId", label: this.i18n.t("admin.scopeId", "Scope") },
+      {
+        key: "scopeId",
+        label: this.i18n.t("admin.scopeId", "Scope"),
+        format: { type: "friendlyReference", references: this.scopes },
+      },
       { key: "version", label: this.i18n.t("admin.version", "Version") },
       { key: "lifecycleStatus", label: this.i18n.t("admin.status", "Status") },
       {
@@ -161,10 +165,7 @@ export class PermissionSetsPageComponent implements OnInit {
         this.permissionsCatalog = x.permissions.filter(
           (item) => !item.isDeprecated,
         );
-        this.rows = x.sets.map((item) => ({
-          ...item,
-          scopeId: iamScopeLabel(item.scopeId, x.scopes),
-        }));
+        this.rows = x.sets.map((item) => ({ ...item }));
         this.cdr.markForCheck();
       }
     });
