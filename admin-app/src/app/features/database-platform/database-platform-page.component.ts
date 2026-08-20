@@ -1,4 +1,5 @@
 import {
+  ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
   DestroyRef,
@@ -46,6 +47,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     HisHopeTranslatePipe,
     DatabasePlatformOverviewComponent,
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hh-page-layout>
       <hh-page-header

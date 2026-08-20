@@ -16,6 +16,7 @@ import {
   HisHopeCreateDialogShellComponent,
   HisHopeFormLayoutComponent,
   HisHopeFormSectionComponent,
+  HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -115,6 +116,7 @@ export class IamRevocationEditDialogComponent {
   );
   private readonly api = inject(IamApiService);
   private readonly i18n = inject(HisHopeI18nService);
+  private readonly toast = inject(HisHopeToastService);
   saving = false;
   readonly draft = { principalId: "", principalType: "human", reason: "" };
   readonly principalTypeOptions = [
@@ -169,10 +171,20 @@ export class IamRevocationEditDialogComponent {
       return;
     this.saving = true;
     this.api.createIamRevocation(this.draft).subscribe({
-      next: () => this.dialogRef.close(true),
+      next: () => {
+        this.saving = false;
+        this.toast.success(
+          this.i18n.t("admin.revocationCreated", "Revocation created."),
+          { duration: 3000 },
+        );
+        this.dialogRef.close(true);
+      },
       error: () => {
         this.saving = false;
-        this.i18n.t("admin.iamSaveFailed", "Unable to create revocation.");
+        this.toast.error(
+          this.i18n.t("admin.iamSaveFailed", "Unable to create revocation."),
+          { duration: 5000 },
+        );
       },
     });
   }

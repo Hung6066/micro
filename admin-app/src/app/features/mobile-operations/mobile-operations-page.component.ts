@@ -18,11 +18,18 @@ import { MobileOperationsApiService } from "../../core/services/mobile-operation
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
+  HisHopeDataTableCellDirective,
+  HisHopeDataTableColumn,
+  HisHopeDataTableComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeStateComponent,
+  HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
-import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
+import {
+  HisHopeI18nService,
+  HisHopeTranslatePipe,
+} from "@his-hope/frontend-foundation/i18n";
 import { catchError, forkJoin, of, tap } from "rxjs";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
@@ -33,6 +40,8 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     HisHopeActionButtonComponent,
     CommonModule,
     MatButtonModule,
+    HisHopeDataTableCellDirective,
+    HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeStateComponent,
@@ -100,47 +109,22 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               [message]="'admin.noMobileDevices' | hhTranslate"
             />
           } @else {
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{{ "admin.platform" | hhTranslate }}</th>
-                    <th>{{ "admin.userId" | hhTranslate }}</th>
-                    <th>{{ "admin.lastSeen" | hhTranslate }}</th>
-                    <th>{{ "admin.status" | hhTranslate }}</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (device of devices; track device.id) {
-                    <tr>
-                      <td>{{ device.platform }}</td>
-                      <td class="mono">{{ device.userId }}</td>
-                      <td>{{ device.lastSeenAt | date: "short" }}</td>
-                      <td>
-                        {{
-                          device.active
-                            ? ("admin.active" | hhTranslate)
-                            : ("admin.revoked" | hhTranslate)
-                        }}
-                      </td>
-                      <td>
-                        @if (device.active && canWrite) {
-                          <button
-                            mat-button
-                            color="warn"
-                            type="button"
-                            (click)="revoke(device)"
-                          >
-                            {{ "admin.revoke" | hhTranslate }}
-                          </button>
-                        }
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
+            <hh-data-table
+              [label]="'admin.mobileDevices' | hhTranslate"
+              [columns]="columns"
+              [rows]="rows"
+              [loading]="loading"
+              [empty]="false"
+              ><ng-template hhDataTableCell="actions" let-row
+                ><hh-action-button
+                  *ngIf="row['active'] && canWrite"
+                  kind="danger"
+                  mode="icon-only"
+                  icon="link_off"
+                  [label]="'admin.revoke' | hhTranslate"
+                  [disabled]="busy"
+                  (pressed)="revokeByRow(row)" /></ng-template
+            ></hh-data-table>
           }
         </section>
         @if (summary?.lastFailure; as failure) {
@@ -190,28 +174,6 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         margin: 0;
         font-size: 18px;
       }
-      .table-wrap {
-        overflow: auto;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-      th,
-      td {
-        padding: 12px 8px;
-        border-bottom: 1px solid var(--border-light);
-        text-align: left;
-        white-space: nowrap;
-      }
-      th {
-        color: var(--text-secondary);
-        font-size: 12px;
-      }
-      .mono {
-        font-family: var(--font-mono);
-        font-size: 12px;
-      }
       .failure {
         color: var(--color-danger);
       }
@@ -226,7 +188,9 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 export class MobileOperationsPageComponent implements OnInit {
   private readonly api = inject(MobileOperationsApiService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly i18n = inject(HisHopeI18nService);
   private readonly permissions = inject(HisHopePermissionService);
+  private readonly toast = inject(HisHopeToastService);
   private readonly destroyRef = inject(DestroyRef);
   readonly resource = new HisHopeResourceState<{
     devices: {
@@ -242,10 +206,41 @@ export class MobileOperationsPageComponent implements OnInit {
   }
   devices: MobileDeviceRegistration[] = [];
   summary: MobileDeliverySummary | null = null;
+  busy = false;
   get loading(): boolean {
     return this.resource.loading();
   }
   error: string | null = null;
+  get rows(): Record<string, unknown>[] {
+    return this.devices.map((device) => ({
+      ...device,
+      displayStatus: device.active
+        ? this.i18n.t("admin.active", "Active")
+        : this.i18n.t("admin.revoked", "Revoked"),
+    }));
+  }
+  get columns(): HisHopeDataTableColumn[] {
+    this.i18n.locale();
+    return [
+      { key: "platform", label: this.i18n.t("admin.platform", "Platform") },
+      { key: "userId", label: this.i18n.t("admin.userId", "User ID") },
+      {
+        key: "lastSeenAt",
+        label: this.i18n.t("admin.lastSeen", "Last seen"),
+        format: "dateTime",
+      },
+      {
+        key: "displayStatus",
+        label: this.i18n.t("admin.status", "Status"),
+      },
+      {
+        key: "actions",
+        label: this.i18n.t("admin.actions", "Actions"),
+        sortable: false,
+        hideable: false,
+      },
+    ];
+  }
 
   ngOnInit(): void {
     this.load();
@@ -273,10 +268,37 @@ export class MobileOperationsPageComponent implements OnInit {
 
   revoke(device: MobileDeviceRegistration): void {
     if (!this.canWrite) return;
-    this.api.revokeMobileDevice(device.id).subscribe(() => {
-      device.active = false;
-      device.revokedAt = new Date().toISOString();
-      this.cdr.markForCheck();
+    this.busy = true;
+    this.cdr.markForCheck();
+    this.api.revokeMobileDevice(device.id).subscribe({
+      next: () => {
+        device.active = false;
+        device.revokedAt = new Date().toISOString();
+        this.busy = false;
+        this.toast.success(
+          this.i18n.t("admin.mobileDeviceRevoked", "Mobile device revoked."),
+          { duration: 3000 },
+        );
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.busy = false;
+        this.error = "admin.mobileDeviceRevokeFailed";
+        this.toast.error(
+          this.i18n.t(
+            "admin.mobileDeviceRevokeFailed",
+            "Unable to revoke mobile device.",
+          ),
+          { duration: 5000 },
+        );
+        this.cdr.markForCheck();
+      },
     });
+  }
+  revokeByRow(row: Record<string, unknown>): void {
+    const device = this.devices.find((item) => item.id === row["id"]);
+    if (device) {
+      this.revoke(device);
+    }
   }
 }

@@ -1,4 +1,5 @@
 import {
+  ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
   DestroyRef,
@@ -34,6 +35,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     HisHopeToolbarComponent,
     HisHopeTranslatePipe,
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<hh-page-layout
     ><hh-page-header
       hhPageHeader
@@ -43,8 +45,14 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
           | hhTranslate: 'Identity, authorization and governance posture.'
       "
     /><hh-toolbar hhPageToolbar
-      ><hh-action-button [disabled]="state.loading" (pressed)="load()" hh-toolbar-actions kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate" /></hh-toolbar
-    >
+      ><hh-action-button
+        [disabled]="state.loading"
+        (pressed)="load()"
+        hh-toolbar-actions
+        kind="secondary"
+        icon="refresh"
+        [label]="'admin.refresh' | hhTranslate"
+    /></hh-toolbar>
     @if (state.loading) {
       <hh-state kind="loading" message="state.loading" />
     } @else if (state.error) {

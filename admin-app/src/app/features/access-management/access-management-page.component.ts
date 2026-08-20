@@ -1,13 +1,13 @@
 import {
+  ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
   DestroyRef,
   OnInit,
-  effect,
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
@@ -42,7 +42,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
   standalone: true,
   imports: [
     CommonModule,
-    FormsModule,
+    ReactiveFormsModule,
     RouterModule,
     MatButtonModule,
     MatCardModule,
@@ -52,6 +52,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
     HisHopePageLayoutComponent,
     HisHopeTranslatePipe,
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hh-page-layout>
       <hh-page-header
@@ -93,7 +94,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
               {{ "admin.permissions" | hhTranslate: "permissions" }}
             </p>
             <hh-chips
-              [ngModel]="permissionGroups"
+              [formControl]="permissionGroupsControl"
               [readonly]="true"
               [label]="
                 'admin.permissionGroups' | hhTranslate: 'Permission groups'
@@ -418,6 +419,9 @@ export class AccessManagementPageComponent implements OnInit {
   }
 
   permissionGroups: string[] = [];
+  readonly permissionGroupsControl = new FormControl<string[]>([], {
+    nonNullable: true,
+  });
   get highRiskPermissionCount(): number {
     return this.permissions.filter(
       (permission) => permission.riskTier === "high",
@@ -476,6 +480,7 @@ export class AccessManagementPageComponent implements OnInit {
           this.permissionGroups = [
             ...new Set(state.permissions.map((permission) => permission.group)),
           ].sort();
+          this.permissionGroupsControl.setValue(this.permissionGroups);
           this.roles = state.roles;
           this.users = state.users;
           this.auditCount = state.audit.totalCount;

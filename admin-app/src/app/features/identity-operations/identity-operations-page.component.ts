@@ -3,12 +3,10 @@ import {
   ChangeDetectorRef,
   Component,
   DestroyRef,
-  OnInit,
-  effect,
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatCheckboxModule } from "@angular/material/checkbox";
@@ -18,6 +16,9 @@ import { MatSelectModule } from "@angular/material/select";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
+  HisHopeDataTableCellDirective,
+  HisHopeDataTableColumn,
+  HisHopeDataTableComponent,
   HisHopeFileUploadComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
@@ -31,9 +32,11 @@ import {
   AdminSession,
   BulkImportPreview,
   BulkImportResult,
+  User,
 } from "../../core/contracts/admin.contracts";
 import { IdentityOperationsApiService } from "../../core/services/identity-operations-api.service";
 import { catchError, of, tap } from "rxjs";
+import { UsersApiService } from "../../core/services/users-api.service";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
@@ -42,13 +45,15 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
+    ReactiveFormsModule,
     MatButtonModule,
     MatCardModule,
     MatCheckboxModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
+    HisHopeDataTableCellDirective,
+    HisHopeDataTableComponent,
     HisHopeFileUploadComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
@@ -75,7 +80,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               : "All actions are audited. Secrets and credential material remain server-side."
         }}
       </p>
-      <section class="grid two-col">
+      <section class="grid two-col" [formGroup]="formGroup">
         <mat-card
           ><mat-card-header
             ><mat-card-title>{{
@@ -86,17 +91,32 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               ><mat-label>{{
                 "admin.userId" | hhTranslate: "User ID"
               }}</mat-label
-              ><input matInput [(ngModel)]="userId" autocomplete="off"
-            /></mat-form-field>
+              ><mat-select [formControl]="formGroup.controls.userId"
+                ><mat-option value="">{{
+                  "admin.select" | hhTranslate: "Select"
+                }}</mat-option
+                ><mat-option *ngFor="let user of users" [value]="user.id">{{
+                  user.email || user.userName
+                }}</mat-option></mat-select
+              ></mat-form-field
+            >
             <mat-form-field appearance="outline"
               ><mat-label>{{
                 "admin.reason" | hhTranslate: "Reason"
               }}</mat-label
-              ><textarea matInput rows="2" [(ngModel)]="reason"></textarea>
+              ><textarea
+                matInput
+                rows="2"
+                [formControl]="formGroup.controls.reason"
+              ></textarea>
             </mat-form-field>
             <div class="actions">
               <hh-action-button
-                [disabled]="busy || !userId || !can('admin.sessions.read')"
+                [disabled]="
+                  busy ||
+                  !formGroup.controls.userId.value ||
+                  !can('admin.sessions.read')
+                "
                 (pressed)="loadSessions()"
                 kind="secondary"
                 icon="refresh"
@@ -113,43 +133,23 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
                 "
               />
             </div>
-            <div class="table-wrap" *ngIf="sessions.length">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{{ "admin.id" | hhTranslate: "ID" }}</th>
-                    <th>{{ "admin.expires" | hhTranslate: "Expires" }}</th>
-                    <th>{{ "admin.status" | hhTranslate: "Status" }}</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr *ngFor="let session of sessions">
-                    <td class="mono">{{ session.id }}</td>
-                    <td>{{ session.expiresAt | date: "short" }}</td>
-                    <td>
-                      {{
-                        session.active
-                          ? ("admin.active" | hhTranslate: "active")
-                          : ("admin.expired" | hhTranslate: "expired")
-                      }}
-                    </td>
-                    <td>
-                      <button
-                        mat-button
-                        color="warn"
-                        (click)="revokeSession(session)"
-                        [disabled]="busy || !can('admin.sessions.revoke')"
-                      >
-                        {{ "admin.revoke" | hhTranslate: "Revoke" }}
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </mat-card-content></mat-card
-        >
+            <hh-data-table
+              *ngIf="sessions.length"
+              [label]="'admin.sessionControls' | hhTranslate"
+              [columns]="sessionColumns"
+              [rows]="sessionRows"
+              [loading]="resource.loading()"
+              [empty]="false"
+              ><ng-template hhDataTableCell="actions" let-row
+                ><hh-action-button
+                  kind="danger"
+                  mode="icon-only"
+                  icon="link_off"
+                  [label]="'admin.revoke' | hhTranslate: 'Revoke'"
+                  [disabled]="busy || !can('admin.sessions.revoke')"
+                  (pressed)="revokeSessionByRow(row)" /></ng-template
+            ></hh-data-table> </mat-card-content
+        ></mat-card>
         <mat-card
           ><mat-card-header
             ><mat-card-title>{{
@@ -163,10 +163,10 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
                     : "Reset invalidates existing tokens and requires the user to authenticate again."
               }}
             </p>
-            <mat-checkbox [(ngModel)]="resetMfa">{{
+            <mat-checkbox [formControl]="formGroup.controls.resetMfa">{{
               "admin.resetMfa" | hhTranslate: "Reset MFA"
             }}</mat-checkbox
-            ><mat-checkbox [(ngModel)]="revokePasskeys">{{
+            ><mat-checkbox [formControl]="formGroup.controls.revokePasskeys">{{
               "admin.revokePasskeys" | hhTranslate: "Revoke passkeys"
             }}</mat-checkbox
             ><hh-action-button
@@ -174,7 +174,8 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
                 busy ||
                 !userId ||
                 !reason ||
-                (!resetMfa && !revokePasskeys) ||
+                (!formGroup.controls.resetMfa.value &&
+                  !formGroup.controls.revokePasskeys.value) ||
                 !can('admin.credentials.reset')
               "
               (pressed)="resetCredentials()"
@@ -196,7 +197,10 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               [maxSizeBytes]="10 * 1024 * 1024"
               [label]="'admin.bulkImport' | hhTranslate: 'Bulk user import'"
-              [hint]="'admin.bulkImportLimit' | hhTranslate: 'CSV/XLSX, maximum 10 MB and 10,000 users.'"
+              [hint]="
+                'admin.bulkImportLimit'
+                  | hhTranslate: 'CSV/XLSX, maximum 10 MB and 10,000 users.'
+              "
               (filesChange)="selectFile($event)"
             />
             <p class="muted">
@@ -244,7 +248,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               ><mat-label>{{
                 "admin.provisioningTarget" | hhTranslate: "Provisioning target"
               }}</mat-label
-              ><mat-select [(ngModel)]="provisioningTarget"
+              ><mat-select [formControl]="formGroup.controls.provisioningTarget"
                 ><mat-option value="scim">{{
                   "admin.provisioningScim" | hhTranslate: "SCIM"
                 }}</mat-option
@@ -266,7 +270,9 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               ><mat-label>{{
                 "admin.ssfOutboxId" | hhTranslate: "SSF outbox ID"
               }}</mat-label
-              ><input matInput [(ngModel)]="ssfId" /></mat-form-field
+              ><input
+                matInput
+                [formControl]="formGroup.controls.ssfId" /></mat-form-field
             ><hh-action-button
               [disabled]="
                 busy || !ssfId || !can('admin.security-signals.manage')
@@ -346,6 +352,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class IdentityOperationsPageComponent {
   private readonly api = inject(IdentityOperationsApiService);
+  private readonly usersApi = inject(UsersApiService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly toast = inject(HisHopeToastService);
@@ -354,18 +361,74 @@ export class IdentityOperationsPageComponent {
   readonly resource = new HisHopeResourceState<{ sessions: AdminSession[] }>(
     this.destroyRef,
   );
-  userId = "";
-  reason = "";
-  resetMfa = true;
-  revokePasskeys = true;
+  readonly formGroup = new FormGroup({
+    userId: new FormControl("", { nonNullable: true }),
+    reason: new FormControl("", { nonNullable: true }),
+    resetMfa: new FormControl(true, { nonNullable: true }),
+    revokePasskeys: new FormControl(true, { nonNullable: true }),
+    provisioningTarget: new FormControl<"scim" | "entra" | "google-workspace">(
+      "scim",
+      { nonNullable: true },
+    ),
+    ssfId: new FormControl("", { nonNullable: true }),
+  });
+  users: User[] = [];
   sessions: AdminSession[] = [];
   file?: File;
   preview?: BulkImportPreview;
   importResult?: BulkImportResult;
-  provisioningTarget: "scim" | "entra" | "google-workspace" = "scim";
-  ssfId = "";
   busy = false;
   error = "";
+  get userId(): string {
+    return this.formGroup.controls.userId.value;
+  }
+  get reason(): string {
+    return this.formGroup.controls.reason.value;
+  }
+  get ssfId(): string {
+    return this.formGroup.controls.ssfId.value;
+  }
+  get sessionRows(): Record<string, unknown>[] {
+    return this.sessions.map((session) => ({
+      ...session,
+      displayStatus: session.active
+        ? this.i18n.t("admin.active", "active")
+        : this.i18n.t("admin.expired", "expired"),
+    }));
+  }
+  get sessionColumns(): HisHopeDataTableColumn[] {
+    this.i18n.locale();
+    return [
+      { key: "id", label: this.i18n.t("admin.id", "ID") },
+      {
+        key: "expiresAt",
+        label: this.i18n.t("admin.expires", "Expires"),
+        format: "dateTime",
+      },
+      {
+        key: "displayStatus",
+        label: this.i18n.t("admin.status", "Status"),
+      },
+      {
+        key: "actions",
+        label: this.i18n.t("admin.actions", "Actions"),
+        sortable: false,
+        hideable: false,
+      },
+    ];
+  }
+  constructor() {
+    this.usersApi.getUsers().subscribe({
+      next: (users) => {
+        this.users = users;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.users = [];
+        this.cdr.markForCheck();
+      },
+    });
+  }
 
   can(permission: string): boolean {
     return this.permissions.has(permission);
@@ -397,7 +460,17 @@ export class IdentityOperationsPageComponent {
       () => {
         this.sessions = this.sessions.filter((item) => item.id !== session.id);
       },
+      "admin.sessionRevoked",
+      "Session revoked.",
+      "admin.iamSaveFailed",
+      "Unable to revoke session.",
     );
+  }
+  revokeSessionByRow(row: Record<string, unknown>): void {
+    const session = this.sessions.find((item) => item.id === row["id"]);
+    if (session) {
+      this.revokeSession(session);
+    }
   }
   revokeAllSessions(): void {
     if (!this.can("admin.sessions.revoke")) return;
@@ -406,6 +479,10 @@ export class IdentityOperationsPageComponent {
       () => {
         this.sessions = [];
       },
+      "admin.allSessionsRevoked",
+      "All sessions revoked.",
+      "admin.iamSaveFailed",
+      "Unable to revoke all sessions.",
     );
   }
   resetCredentials(): void {
@@ -413,11 +490,15 @@ export class IdentityOperationsPageComponent {
     this.run(
       () =>
         this.api.resetAdminCredentials(this.userId, {
-          resetMfa: this.resetMfa,
-          revokePasskeys: this.revokePasskeys,
+          resetMfa: this.formGroup.controls.resetMfa.value,
+          revokePasskeys: this.formGroup.controls.revokePasskeys.value,
           reason: this.reason,
         }),
-      () => this.notify("admin.credentialsReset"),
+      () => undefined,
+      "admin.credentialsReset",
+      "Credentials reset.",
+      "admin.identityOperationFailed",
+      "Unable to reset credentials.",
     );
   }
   selectFile(files: File[]): void {
@@ -440,15 +521,25 @@ export class IdentityOperationsPageComponent {
       () => this.api.importUsers(this.file!),
       (result) => {
         this.importResult = result;
-        this.notify("admin.importCompleted");
       },
+      "admin.importCompleted",
+      "Import completed.",
+      "admin.identityOperationFailed",
+      "Unable to execute import.",
     );
   }
   reconcile(): void {
     if (!this.can("admin.provisioning.manage")) return;
     this.run(
-      () => this.api.reconcileProvisioning(this.provisioningTarget),
-      (result) => this.notify(`admin.reconcileQueued:${result.queued}`),
+      () =>
+        this.api.reconcileProvisioning(
+          this.formGroup.controls.provisioningTarget.value,
+        ),
+      () => undefined,
+      "admin.reconcileQueued",
+      "Provisioning reconcile queued.",
+      "admin.identityOperationFailed",
+      "Unable to queue reconcile.",
     );
   }
   retrySsf(): void {
@@ -456,37 +547,43 @@ export class IdentityOperationsPageComponent {
     this.run(
       () => this.api.retrySecuritySignal(this.ssfId),
       () => {
-        this.ssfId = "";
-        this.notify("admin.ssfRetryQueued");
+        this.formGroup.patchValue({ ssfId: "" });
       },
+      "admin.ssfRetryQueued",
+      "SSF retry queued.",
+      "admin.identityOperationFailed",
+      "Unable to retry SSF delivery.",
     );
   }
 
   private run<T>(
     request: () => import("rxjs").Observable<T>,
     onSuccess: (value: T) => void,
+    successKey?: string,
+    successFallback?: string,
+    errorKey = "admin.identityOperationFailed",
+    errorFallback = "Identity operation was rejected.",
   ): void {
     this.busy = true;
     this.error = "";
+    this.cdr.markForCheck();
     request().subscribe({
-      next: (value) => onSuccess(value),
+      next: (value) => {
+        this.busy = false;
+        onSuccess(value);
+        if (successKey && successFallback) {
+          this.toast.success(this.i18n.t(successKey, successFallback), {
+            duration: 3000,
+          });
+        }
+        this.cdr.markForCheck();
+      },
       error: () => {
-        this.error = this.i18n.t(
-          "admin.identityOperationFailed",
-          "Identity operation was rejected.",
-        );
+        this.error = this.i18n.t(errorKey, errorFallback);
+        this.toast.error(this.error, { duration: 5000 });
         this.busy = false;
         this.cdr.markForCheck();
       },
-      complete: () => {
-        this.busy = false;
-        this.cdr.markForCheck();
-      },
-    });
-  }
-  private notify(key: string): void {
-    this.toast.success(this.i18n.t(key, "Operation queued"), {
-      duration: 3000,
     });
   }
 }

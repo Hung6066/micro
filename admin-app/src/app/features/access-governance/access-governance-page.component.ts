@@ -2,12 +2,12 @@ import {
   ChangeDetectorRef,
   Component,
   DestroyRef,
+  Input,
   OnInit,
   effect,
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatFormFieldModule } from "@angular/material/form-field";
@@ -44,7 +44,6 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
     MatButtonModule,
     MatCardModule,
     MatFormFieldModule,
@@ -67,7 +66,13 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               : 'Time-bound access requests, independent reviews and emergency elevation.'
         "
       >
-        <hh-action-button [disabled]="busy" (pressed)="reload()" kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate: 'Refresh'" />
+        <hh-action-button
+          [disabled]="busy"
+          (pressed)="reload()"
+          kind="secondary"
+          icon="refresh"
+          [label]="'admin.refresh' | hhTranslate: 'Refresh'"
+        />
       </hh-page-header>
 
       <p class="notice">
@@ -86,21 +91,18 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         [requests]="requests"
         [reviews]="reviews"
         [breakGlassRequests]="breakGlassRequests"
-        [request]="request"
-        [review]="review"
-        [breakGlass]="breakGlass"
         [showJit]="showJit"
         [showBreakGlass]="showBreakGlass"
         [busy]="busy"
         [canWrite]="canWrite"
         [displayUser]="displayUser.bind(this)"
-        (requestCreated)="createRequest()"
-        (reviewCreated)="createReview()"
+        (requestCreated)="createRequest($event)"
+        (reviewCreated)="createReview($event)"
         (requestApproved)="approve($event)"
         (requestRejected)="reject($event)"
         (reviewCertified)="certify($event)"
         (reviewRevoked)="revoke($event)"
-        (breakGlassCreated)="createBreakGlass()"
+        (breakGlassCreated)="createBreakGlass($event)"
         (breakGlassApproved)="approveBreakGlass($event)"
         (breakGlassRevoked)="revokeBreakGlass($event)"
       />
@@ -134,20 +136,6 @@ export class AccessGovernancePageComponent implements OnInit {
   permissions: PermissionDefinition[] = [];
   busy = false;
   error = "";
-  request = {
-    subjectUserId: "",
-    roleIds: [] as string[],
-    reason: "",
-    expiryHours: 8,
-  };
-  review = { subjectUserId: "", roleIds: [] as string[], dueDays: 30 };
-  breakGlass = {
-    subjectUserId: "",
-    permissionCode: "",
-    facilityId: "",
-    reason: "",
-    durationMinutes: 15,
-  };
   currentView = "";
   @Input() initialView = "";
 
@@ -215,26 +203,27 @@ export class AccessGovernancePageComponent implements OnInit {
     const user = this.users.find((item) => item.id === id);
     return user?.email || user?.userName || id;
   }
-  createRequest(): void {
+  createRequest(request: {
+    subjectUserId: string;
+    roleIds: string[];
+    reason: string;
+    expiryHours: number;
+  }): void {
     this.execute(
-      () => this.api.createAccessRequest(this.request),
+      () => this.api.createAccessRequest(request),
       "admin.accessRequestCreated",
       "Access request created.",
-      () =>
-        (this.request = {
-          subjectUserId: "",
-          roleIds: [],
-          reason: "",
-          expiryHours: 8,
-        }),
     );
   }
-  createReview(): void {
+  createReview(review: {
+    subjectUserId: string;
+    roleIds: string[];
+    dueDays: number;
+  }): void {
     this.execute(
-      () => this.api.createAccessReview(this.review),
+      () => this.api.createAccessReview(review),
       "admin.accessReviewCreated",
       "Access review created.",
-      () => (this.review = { subjectUserId: "", roleIds: [], dueDays: 30 }),
     );
   }
   approve(item: AccessRequest): void {
@@ -265,19 +254,17 @@ export class AccessGovernancePageComponent implements OnInit {
       "Access review revoked.",
     );
   }
-  createBreakGlass(): void {
+  createBreakGlass(breakGlass: {
+    subjectUserId: string;
+    permissionCode: string;
+    facilityId: string;
+    reason: string;
+    durationMinutes: number;
+  }): void {
     this.execute(
-      () => this.api.createBreakGlassRequest(this.breakGlass),
+      () => this.api.createBreakGlassRequest(breakGlass),
       "admin.breakGlassCreated",
       "Break-glass request created.",
-      () =>
-        (this.breakGlass = {
-          subjectUserId: "",
-          permissionCode: "",
-          facilityId: "",
-          reason: "",
-          durationMinutes: 15,
-        }),
     );
   }
   approveBreakGlass(item: BreakGlassRequest): void {

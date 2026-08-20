@@ -6,7 +6,12 @@ import {
   Output,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import {
+  FormControl,
+  FormGroup,
+  ReactiveFormsModule,
+  Validators,
+} from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatFormFieldModule } from "@angular/material/form-field";
@@ -29,7 +34,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
+    ReactiveFormsModule,
     MatButtonModule,
     MatCardModule,
     MatFormFieldModule,
@@ -51,7 +56,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               ><mat-label>{{
                 "admin.subject" | hhTranslate: "Subject"
               }}</mat-label
-              ><mat-select [(ngModel)]="request.subjectUserId"
+              ><mat-select [formControl]="requestForm.controls.subjectUserId"
                 ><mat-option *ngFor="let user of users" [value]="user.id">{{
                   user.email || user.userName
                 }}</mat-option></mat-select
@@ -59,7 +64,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
             >
             <mat-form-field appearance="outline"
               ><mat-label>{{ "admin.roles" | hhTranslate: "Roles" }}</mat-label
-              ><mat-select multiple [(ngModel)]="request.roleIds"
+              ><mat-select multiple [formControl]="requestForm.controls.roleIds"
                 ><mat-option *ngFor="let role of roles" [value]="role.id">{{
                   role.name
                 }}</mat-option></mat-select
@@ -72,7 +77,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               ><textarea
                 matInput
                 rows="2"
-                [(ngModel)]="request.reason"
+                [formControl]="requestForm.controls.reason"
               ></textarea>
             </mat-form-field>
             <mat-form-field appearance="outline"
@@ -84,17 +89,18 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
                 type="number"
                 min="1"
                 max="72"
-                [(ngModel)]="request.expiryHours"
+                [formControl]="requestForm.controls.expiryHours"
             /></mat-form-field>
-            <hh-action-button [disabled]="
-                busy ||
-                !canWrite ||
-                !request.subjectUserId ||
-                !request.roleIds.length ||
-                request.reason.trim().length < 10
-              " (pressed)="requestCreated.emit()" kind="primary" icon="add" [label]="'admin.createAccessRequest' | hhTranslate: 'Create request'" />
-          </mat-card-content></mat-card
-        >
+            <hh-action-button
+              [disabled]="busy || !canWrite || requestForm.invalid"
+              (pressed)="submitRequest()"
+              kind="primary"
+              icon="add"
+              [label]="
+                'admin.createAccessRequest' | hhTranslate: 'Create request'
+              "
+            /> </mat-card-content
+        ></mat-card>
         <mat-card
           ><mat-card-header
             ><mat-card-title>{{
@@ -105,7 +111,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               ><mat-label>{{
                 "admin.subject" | hhTranslate: "Subject"
               }}</mat-label
-              ><mat-select [(ngModel)]="review.subjectUserId"
+              ><mat-select [formControl]="reviewForm.controls.subjectUserId"
                 ><mat-option *ngFor="let user of users" [value]="user.id">{{
                   user.email || user.userName
                 }}</mat-option></mat-select
@@ -115,7 +121,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               ><mat-label>{{
                 "admin.roles" | hhTranslate: "Roles to review"
               }}</mat-label
-              ><mat-select multiple [(ngModel)]="review.roleIds"
+              ><mat-select multiple [formControl]="reviewForm.controls.roleIds"
                 ><mat-option *ngFor="let role of roles" [value]="role.id">{{
                   role.name
                 }}</mat-option></mat-select
@@ -130,16 +136,18 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
                 type="number"
                 min="1"
                 max="90"
-                [(ngModel)]="review.dueDays"
+                [formControl]="reviewForm.controls.dueDays"
             /></mat-form-field>
-            <hh-action-button [disabled]="
-                busy ||
-                !canWrite ||
-                !review.subjectUserId ||
-                !review.roleIds.length
-              " (pressed)="reviewCreated.emit()" kind="primary" icon="add" [label]="'admin.createAccessReview' | hhTranslate: 'Create review'" />
-          </mat-card-content></mat-card
-        >
+            <hh-action-button
+              [disabled]="busy || !canWrite || reviewForm.invalid"
+              (pressed)="submitReview()"
+              kind="primary"
+              icon="add"
+              [label]="
+                'admin.createAccessReview' | hhTranslate: 'Create review'
+              "
+            /> </mat-card-content
+        ></mat-card>
       </section>
       <section class="grid">
         <mat-card
@@ -262,7 +270,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               ><mat-label>{{
                 "admin.subject" | hhTranslate: "Subject"
               }}</mat-label
-              ><mat-select [(ngModel)]="breakGlass.subjectUserId"
+              ><mat-select [formControl]="breakGlassForm.controls.subjectUserId"
                 ><mat-option *ngFor="let user of users" [value]="user.id">{{
                   user.email || user.userName
                 }}</mat-option></mat-select
@@ -272,7 +280,8 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               ><mat-label>{{
                 "admin.permission" | hhTranslate: "Permission"
               }}</mat-label
-              ><mat-select [(ngModel)]="breakGlass.permissionCode"
+              ><mat-select
+                [formControl]="breakGlassForm.controls.permissionCode"
                 ><mat-option
                   *ngFor="let permission of permissions"
                   [value]="permission.code"
@@ -284,7 +293,9 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               ><mat-label>{{
                 "admin.facility" | hhTranslate: "Facility"
               }}</mat-label
-              ><input matInput [(ngModel)]="breakGlass.facilityId"
+              ><input
+                matInput
+                [formControl]="breakGlassForm.controls.facilityId"
             /></mat-form-field>
             <mat-form-field appearance="outline"
               ><mat-label>{{
@@ -293,19 +304,19 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
               ><textarea
                 matInput
                 rows="2"
-                [(ngModel)]="breakGlass.reason"
+                [formControl]="breakGlassForm.controls.reason"
               ></textarea>
             </mat-form-field>
-            <hh-action-button [disabled]="
-                busy ||
-                !canWrite ||
-                !breakGlass.subjectUserId ||
-                !breakGlass.permissionCode ||
-                !breakGlass.facilityId ||
-                breakGlass.reason.trim().length < 10
-              " (pressed)="breakGlassCreated.emit()" kind="danger" icon="link_off" [label]="'admin.requestBreakGlass' | hhTranslate: 'Request break-glass'" />
-          </mat-card-content></mat-card
-        >
+            <hh-action-button
+              [disabled]="busy || !canWrite || breakGlassForm.invalid"
+              (pressed)="submitBreakGlass()"
+              kind="danger"
+              icon="link_off"
+              [label]="
+                'admin.requestBreakGlass' | hhTranslate: 'Request break-glass'
+              "
+            /> </mat-card-content
+        ></mat-card>
         <mat-card
           ><mat-card-header
             ><mat-card-title>{{
@@ -374,32 +385,120 @@ export class AccessGovernanceWorkflowsComponent {
   @Input() requests: AccessRequest[] = [];
   @Input() reviews: AccessReview[] = [];
   @Input() breakGlassRequests: BreakGlassRequest[] = [];
-  @Input() request = {
-    subjectUserId: "",
-    roleIds: [] as string[],
-    reason: "",
-    expiryHours: 8,
-  };
-  @Input() review = { subjectUserId: "", roleIds: [] as string[], dueDays: 30 };
-  @Input() breakGlass = {
-    subjectUserId: "",
-    permissionCode: "",
-    facilityId: "",
-    reason: "",
-    durationMinutes: 15,
-  };
   @Input() showJit = true;
   @Input() showBreakGlass = true;
   @Input() busy = false;
   @Input() canWrite = false;
   @Input() displayUser: (id: string) => string = (id) => id;
-  @Output() requestCreated = new EventEmitter<void>();
-  @Output() reviewCreated = new EventEmitter<void>();
+  @Output() requestCreated = new EventEmitter<{
+    subjectUserId: string;
+    roleIds: string[];
+    reason: string;
+    expiryHours: number;
+  }>();
+  @Output() reviewCreated = new EventEmitter<{
+    subjectUserId: string;
+    roleIds: string[];
+    dueDays: number;
+  }>();
   @Output() requestApproved = new EventEmitter<AccessRequest>();
   @Output() requestRejected = new EventEmitter<AccessRequest>();
   @Output() reviewCertified = new EventEmitter<AccessReview>();
   @Output() reviewRevoked = new EventEmitter<AccessReview>();
-  @Output() breakGlassCreated = new EventEmitter<void>();
+  @Output() breakGlassCreated = new EventEmitter<{
+    subjectUserId: string;
+    permissionCode: string;
+    facilityId: string;
+    reason: string;
+    durationMinutes: number;
+  }>();
   @Output() breakGlassApproved = new EventEmitter<BreakGlassRequest>();
   @Output() breakGlassRevoked = new EventEmitter<BreakGlassRequest>();
+
+  readonly requestForm = new FormGroup({
+    subjectUserId: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    roleIds: new FormControl<string[]>([], {
+      nonNullable: true,
+      validators: Validators.minLength(1),
+    }),
+    reason: new FormControl("", {
+      nonNullable: true,
+      validators: [Validators.required, Validators.minLength(10)],
+    }),
+    expiryHours: new FormControl(8, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(1), Validators.max(72)],
+    }),
+  });
+  readonly reviewForm = new FormGroup({
+    subjectUserId: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    roleIds: new FormControl<string[]>([], {
+      nonNullable: true,
+      validators: Validators.minLength(1),
+    }),
+    dueDays: new FormControl(30, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(1), Validators.max(90)],
+    }),
+  });
+  readonly breakGlassForm = new FormGroup({
+    subjectUserId: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    permissionCode: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    facilityId: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    reason: new FormControl("", {
+      nonNullable: true,
+      validators: [Validators.required, Validators.minLength(10)],
+    }),
+    durationMinutes: new FormControl(15, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(1)],
+    }),
+  });
+
+  submitRequest(): void {
+    this.requestForm.markAllAsTouched();
+    if (this.requestForm.invalid || !this.canWrite || this.busy) return;
+    this.requestCreated.emit(this.requestForm.getRawValue());
+    this.requestForm.reset({
+      subjectUserId: "",
+      roleIds: [],
+      reason: "",
+      expiryHours: 8,
+    });
+  }
+
+  submitReview(): void {
+    this.reviewForm.markAllAsTouched();
+    if (this.reviewForm.invalid || !this.canWrite || this.busy) return;
+    this.reviewCreated.emit(this.reviewForm.getRawValue());
+    this.reviewForm.reset({ subjectUserId: "", roleIds: [], dueDays: 30 });
+  }
+
+  submitBreakGlass(): void {
+    this.breakGlassForm.markAllAsTouched();
+    if (this.breakGlassForm.invalid || !this.canWrite || this.busy) return;
+    this.breakGlassCreated.emit(this.breakGlassForm.getRawValue());
+    this.breakGlassForm.reset({
+      subjectUserId: "",
+      permissionCode: "",
+      facilityId: "",
+      reason: "",
+      durationMinutes: 15,
+    });
+  }
 }

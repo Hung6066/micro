@@ -4,11 +4,10 @@ import {
   Component,
   DestroyRef,
   OnInit,
-  effect,
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatFormFieldModule } from "@angular/material/form-field";
@@ -27,6 +26,9 @@ import {
 } from "@his-hope/frontend-foundation/i18n";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import {
+  HisHopeDataTableCellDirective,
+  HisHopeDataTableColumn,
+  HisHopeDataTableComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeToastService,
@@ -40,12 +42,14 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
+    ReactiveFormsModule,
     MatButtonModule,
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
+    HisHopeDataTableCellDirective,
+    HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeTranslatePipe,
@@ -60,8 +64,13 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
           'admin.accessRequestsSubtitle'
             | hhTranslate: 'Request and approve time-bound access.'
         "
-        ><hh-action-button [disabled]="busy" (pressed)="load()" kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate: 'Refresh'" /></hh-page-header
-      >
+        ><hh-action-button
+          [disabled]="busy"
+          (pressed)="load()"
+          kind="secondary"
+          icon="refresh"
+          [label]="'admin.refresh' | hhTranslate: 'Refresh'"
+      /></hh-page-header>
       <p class="notice">
         {{
           "admin.governanceBoundary"
@@ -75,105 +84,95 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
           ><mat-card-title>{{
             "admin.requestAccess" | hhTranslate: "Request access"
           }}</mat-card-title></mat-card-header
-        ><mat-card-content class="form-grid">
-          <mat-form-field appearance="outline"
-            ><mat-label>{{
-              "admin.subject" | hhTranslate: "Subject"
-            }}</mat-label
-            ><mat-select [(ngModel)]="draft.subjectUserId"
-              ><mat-option *ngFor="let user of users" [value]="user.id">{{
-                user.email || user.userName
-              }}</mat-option></mat-select
-            ></mat-form-field
-          >
-          <mat-form-field appearance="outline"
-            ><mat-label>{{ "admin.roles" | hhTranslate: "Roles" }}</mat-label
-            ><mat-select multiple [(ngModel)]="draft.roleIds"
-              ><mat-option *ngFor="let role of roles" [value]="role.id">{{
-                role.name
-              }}</mat-option></mat-select
-            ></mat-form-field
-          >
-          <mat-form-field appearance="outline"
-            ><mat-label>{{ "admin.reason" | hhTranslate: "Reason" }}</mat-label
-            ><textarea matInput rows="2" [(ngModel)]="draft.reason"></textarea>
-          </mat-form-field>
-          <mat-form-field appearance="outline"
-            ><mat-label>{{
-              "admin.expiryHours" | hhTranslate: "Expiry hours"
-            }}</mat-label
-            ><input
-              matInput
-              type="number"
-              min="1"
-              max="72"
-              [(ngModel)]="draft.expiryHours"
-          /></mat-form-field>
-          <hh-action-button [disabled]="
-              busy ||
-              !canWrite ||
-              !draft.subjectUserId ||
-              !draft.roleIds.length ||
-              draft.reason.trim().length < 10
-            " (pressed)="create()" kind="primary" icon="add" [label]="'admin.createAccessRequest' | hhTranslate: 'Create request'" />
-        </mat-card-content></mat-card
-      >
+        ><mat-card-content>
+          <form [formGroup]="formGroup" class="form-grid">
+            <mat-form-field appearance="outline"
+              ><mat-label>{{
+                "admin.subject" | hhTranslate: "Subject"
+              }}</mat-label
+              ><mat-select [formControl]="formGroup.controls.subjectUserId"
+                ><mat-option *ngFor="let user of users" [value]="user.id">{{
+                  user.email || user.userName
+                }}</mat-option></mat-select
+              ></mat-form-field
+            >
+            <mat-form-field appearance="outline"
+              ><mat-label>{{ "admin.roles" | hhTranslate: "Roles" }}</mat-label
+              ><mat-select multiple [formControl]="formGroup.controls.roleIds"
+                ><mat-option *ngFor="let role of roles" [value]="role.id">{{
+                  role.name
+                }}</mat-option></mat-select
+              ></mat-form-field
+            >
+            <mat-form-field appearance="outline"
+              ><mat-label>{{
+                "admin.reason" | hhTranslate: "Reason"
+              }}</mat-label
+              ><textarea
+                matInput
+                rows="2"
+                [formControl]="formGroup.controls.reason"
+              ></textarea>
+            </mat-form-field>
+            <mat-form-field appearance="outline"
+              ><mat-label>{{
+                "admin.expiryHours" | hhTranslate: "Expiry hours"
+              }}</mat-label
+              ><input
+                matInput
+                type="number"
+                min="1"
+                max="72"
+                [formControl]="formGroup.controls.expiryHours"
+            /></mat-form-field>
+            <hh-action-button
+              [disabled]="busy || !canWrite || !canSubmit"
+              (pressed)="create()"
+              kind="primary"
+              icon="add"
+              [label]="
+                'admin.createAccessRequest' | hhTranslate: 'Create request'
+              "
+            />
+          </form> </mat-card-content
+      ></mat-card>
       <mat-card class="table-card"
         ><mat-card-header
           ><mat-card-title>{{
             "admin.accessRequests" | hhTranslate: "Access requests"
           }}</mat-card-title></mat-card-header
-        ><mat-card-content class="table-wrap"
-          ><table>
-            <thead>
-              <tr>
-                <th>{{ "admin.subject" | hhTranslate: "Subject" }}</th>
-                <th>{{ "admin.status" | hhTranslate: "Status" }}</th>
-                <th>{{ "admin.expires" | hhTranslate: "Expires" }}</th>
-                <th>{{ "admin.actions" | hhTranslate: "Actions" }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let item of requests">
-                <td>{{ displayUser(item.subjectUserId) }}</td>
-                <td>{{ item.status }}</td>
-                <td>{{ item.expiresAt | date: "short" }}</td>
-                <td>
-                  <button
-                    mat-button
-                    color="primary"
-                    *ngIf="item.status === 'pending'"
-                    (click)="approve(item)"
-                    [disabled]="busy || !canWrite"
-                  >
-                    {{ "admin.approve" | hhTranslate: "Approve" }}</button
-                  ><button
-                    mat-button
-                    color="warn"
-                    *ngIf="item.status === 'pending'"
-                    (click)="reject(item)"
-                    [disabled]="busy || !canWrite"
-                  >
-                    {{ "admin.reject" | hhTranslate: "Reject" }}
-                  </button>
-                </td>
-              </tr>
-              <tr *ngIf="!requests.length">
-                <td colspan="4">
-                  {{
-                    "admin.noAccessRequests"
-                      | hhTranslate: "No access requests."
-                  }}
-                </td>
-              </tr>
-            </tbody>
-          </table></mat-card-content
-        ></mat-card
-      >
+        ><mat-card-content
+          ><hh-data-table
+            [label]="'admin.accessRequests' | hhTranslate"
+            [columns]="columns"
+            [rows]="rows"
+            [loading]="state.loading"
+            [empty]="!state.loading && !error && !rows.length"
+            ><ng-template hhDataTableCell="actions" let-row
+              ><div class="action-cell">
+                <hh-action-button
+                  *ngIf="row['status'] === 'pending'"
+                  kind="primary"
+                  mode="icon-only"
+                  icon="check"
+                  [label]="'admin.approve' | hhTranslate: 'Approve'"
+                  [disabled]="busy || !canWrite"
+                  (pressed)="approveByRow(row)"
+                />
+                <hh-action-button
+                  *ngIf="row['status'] === 'pending'"
+                  kind="danger"
+                  mode="icon-only"
+                  icon="close"
+                  [label]="'admin.reject' | hhTranslate: 'Reject'"
+                  [disabled]="busy || !canWrite"
+                  (pressed)="rejectByRow(row)"
+                /></div></ng-template></hh-data-table></mat-card-content
+      ></mat-card>
     </hh-page-layout>
   `,
   styles: [
-    ":host{display:block}.form-grid{display:grid;gap:var(--space-3)}.notice{padding:var(--space-3);border:1px solid var(--border-default);border-radius:var(--radius-card);background:var(--surface-muted);color:var(--text-secondary)}.error{color:var(--color-danger)}.table-card{margin-top:var(--space-4)}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:var(--space-2);border-bottom:1px solid var(--border-subtle);white-space:nowrap}",
+    ":host{display:block}.form-grid{display:grid;gap:var(--space-3)}.notice{padding:var(--space-3);border:1px solid var(--border-default);border-radius:var(--radius-card);background:var(--surface-muted);color:var(--text-secondary)}.error{color:var(--color-danger)}.table-card{margin-top:var(--space-4)}.action-cell{display:flex;gap:var(--space-2)}",
   ],
 })
 export class AccessRequestsPageComponent implements OnInit {
@@ -203,14 +202,50 @@ export class AccessRequestsPageComponent implements OnInit {
   set error(value: string) {
     this.state.setActionError(value);
   }
-  draft = {
-    subjectUserId: "",
-    roleIds: [] as string[],
-    reason: "",
-    expiryHours: 8,
-  };
+  readonly formGroup = new FormGroup({
+    subjectUserId: new FormControl("", { nonNullable: true }),
+    roleIds: new FormControl<string[]>([], { nonNullable: true }),
+    reason: new FormControl("", { nonNullable: true }),
+    expiryHours: new FormControl(8, { nonNullable: true }),
+  });
   get canWrite(): boolean {
     return this.permissions.has("admin.roles.write");
+  }
+  get canSubmit(): boolean {
+    const value = this.formGroup.getRawValue();
+    return (
+      !!value.subjectUserId &&
+      value.roleIds.length > 0 &&
+      value.reason.trim().length >= 10
+    );
+  }
+  get rows(): Record<string, unknown>[] {
+    return this.requests.map((item) => ({ ...item }));
+  }
+  get columns(): HisHopeDataTableColumn[] {
+    this.i18n.locale();
+    return [
+      {
+        key: "subjectUserId",
+        label: this.i18n.t("admin.subject", "Subject"),
+        computed: (row) => this.displayUser(String(row["subjectUserId"] ?? "")),
+      },
+      {
+        key: "status",
+        label: this.i18n.t("admin.status", "Status"),
+      },
+      {
+        key: "expiresAt",
+        label: this.i18n.t("admin.expires", "Expires"),
+        format: "dateTime",
+      },
+      {
+        key: "actions",
+        label: this.i18n.t("admin.actions", "Actions"),
+        sortable: false,
+        hideable: false,
+      },
+    ];
   }
   ngOnInit(): void {
     this.load();
@@ -246,21 +281,28 @@ export class AccessRequestsPageComponent implements OnInit {
   create(): void {
     if (!this.canWrite) return;
     this.busy = true;
-    this.api.createAccessRequest(this.draft).subscribe({
+    this.cdr.markForCheck();
+    this.api.createAccessRequest(this.formGroup.getRawValue()).subscribe({
       next: () => {
+        this.busy = false;
         this.toast.success(
           this.i18n.t("admin.accessRequestCreated", "Access request created."),
           { duration: 3000 },
         );
-        this.draft = {
+        this.formGroup.reset({
           subjectUserId: "",
           roleIds: [],
           reason: "",
           expiryHours: 8,
-        };
+        });
+        this.cdr.markForCheck();
         this.load();
       },
-      error: () => this.fail(),
+      error: () =>
+        this.fail(
+          "admin.accessRequestCreateFailed",
+          "Unable to create access request.",
+        ),
     });
   }
   approve(item: AccessRequest): void {
@@ -277,6 +319,18 @@ export class AccessRequestsPageComponent implements OnInit {
       "Access request rejected.",
     );
   }
+  approveByRow(row: Record<string, unknown>): void {
+    const item = this.requests.find((request) => request.id === row["id"]);
+    if (item) {
+      this.approve(item);
+    }
+  }
+  rejectByRow(row: Record<string, unknown>): void {
+    const item = this.requests.find((request) => request.id === row["id"]);
+    if (item) {
+      this.reject(item);
+    }
+  }
   private mutate(
     operation: import("rxjs").Observable<unknown>,
     key: string,
@@ -284,19 +338,20 @@ export class AccessRequestsPageComponent implements OnInit {
   ): void {
     if (!this.canWrite) return;
     this.busy = true;
+    this.cdr.markForCheck();
     operation.subscribe({
       next: () => {
+        this.busy = false;
         this.toast.success(this.i18n.t(key, fallback), { duration: 3000 });
+        this.cdr.markForCheck();
         this.load();
       },
-      error: () => this.fail(),
+      error: () => this.fail("admin.accessRequestMutationFailed", fallback),
     });
   }
-  private fail(): void {
-    this.error = this.i18n.t(
-      "admin.loadAccessGovernanceFailed",
-      "Unable to load access request data.",
-    );
+  private fail(key: string, fallback: string): void {
+    this.error = this.i18n.t(key, fallback);
+    this.toast.error(this.error, { duration: 5000 });
     this.busy = false;
     this.cdr.markForCheck();
   }

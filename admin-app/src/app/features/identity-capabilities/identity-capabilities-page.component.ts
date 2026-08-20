@@ -3,12 +3,10 @@ import {
   ChangeDetectorRef,
   Component,
   DestroyRef,
-  OnInit,
-  effect,
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatFormFieldModule } from "@angular/material/form-field";
@@ -41,6 +39,7 @@ import {
   RadiusEapTlsStatus,
   SecuritySignalOutboxEntry,
   SecuritySignalStatus,
+  User,
 } from "../../core/contracts/admin.contracts";
 import { IdentityCapabilitiesApiService } from "../../core/services/identity-capabilities-api.service";
 import {
@@ -48,7 +47,7 @@ import {
   IdentityCapabilityState,
 } from "../../core/services/identity-capabilities.service";
 import { ApiErrorMessageService } from "../../core/services/api-error-message.service";
-
+import { UsersApiService } from "../../core/services/users-api.service";
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-identity-capabilities-page",
@@ -56,7 +55,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
+    ReactiveFormsModule,
     MatButtonModule,
     MatCardModule,
     MatFormFieldModule,
@@ -93,7 +92,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       <mat-form-field appearance="outline" *ngIf="facilityIds.length > 1"
         ><mat-label>{{ "admin.facility" | hhTranslate: "Facility" }}</mat-label
         ><mat-select
-          [(ngModel)]="selectedFacilityId"
+          [formControl]="formGroup.controls.facilityId"
           (selectionChange)="reload()"
           ><mat-option
             *ngFor="let facilityId of facilityIds"
@@ -166,7 +165,8 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
                   ><mat-label>{{
                     "admin.target" | hhTranslate: "Target"
                   }}</mat-label
-                  ><mat-select [(ngModel)]="provisioning.target"
+                  ><mat-select
+                    [formControl]="formGroup.controls.provisioningTarget"
                     ><mat-option value="scim">{{
                       "admin.provisioningScim" | hhTranslate: "SCIM"
                     }}</mat-option
@@ -186,11 +186,13 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
                   }}</mat-label
                   ><input
                     matInput
-                    [(ngModel)]="provisioning.resourceId"
+                    [formControl]="formGroup.controls.provisioningResourceId"
                     autocomplete="off"
                 /></mat-form-field>
                 <hh-action-button
-                  [disabled]="busy || !provisioning.resourceId"
+                  [disabled]="
+                    busy || !formGroup.controls.provisioningResourceId.value
+                  "
                   (pressed)="queueProvisioning()"
                   kind="primary"
                   icon="queue"
@@ -604,7 +606,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
                   ><mat-label>{{
                     "admin.mode" | hhTranslate: "Mode"
                   }}</mat-label
-                  ><mat-select [(ngModel)]="policy.mode"
+                  ><mat-select [formControl]="formGroup.controls.policyMode"
                     ><mat-option value="observe">{{
                       "admin.safeDefault"
                         | hhTranslate: "Observe (safe default)"
@@ -627,14 +629,16 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
                     type="number"
                     min="60"
                     max="3600"
-                    [(ngModel)]="policy.evidenceTtlSeconds"
+                    [formControl]="formGroup.controls.policyEvidenceTtlSeconds"
                 /></mat-form-field>
                 <mat-form-field appearance="outline"
                   ><mat-label>{{
                     "admin.requiredSignals"
                       | hhTranslate: "Required signals (comma-separated)"
                   }}</mat-label
-                  ><input matInput [(ngModel)]="requiredSignalsText"
+                  ><input
+                    matInput
+                    [formControl]="formGroup.controls.requiredSignalsText"
                 /></mat-form-field>
                 <div class="provider-list">
                   <span
@@ -686,19 +690,29 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
                   ><mat-label>{{
                     "admin.userId" | hhTranslate: "User ID"
                   }}</mat-label
-                  ><input matInput [(ngModel)]="preview.userId"
-                /></mat-form-field>
+                  ><mat-select [formControl]="formGroup.controls.previewUserId"
+                    ><mat-option value="">{{
+                      "admin.select" | hhTranslate: "Select"
+                    }}</mat-option
+                    ><mat-option *ngFor="let user of users" [value]="user.id">{{
+                      user.email || user.userName
+                    }}</mat-option></mat-select
+                  ></mat-form-field
+                >
                 <mat-form-field appearance="outline"
                   ><mat-label>{{
                     "admin.deviceId" | hhTranslate: "Device ID"
                   }}</mat-label
-                  ><input matInput [(ngModel)]="preview.deviceId"
+                  ><input
+                    matInput
+                    [formControl]="formGroup.controls.previewDeviceId"
                 /></mat-form-field>
                 <mat-form-field appearance="outline"
                   ><mat-label>{{
                     "admin.provider" | hhTranslate: "Provider"
                   }}</mat-label
-                  ><mat-select [(ngModel)]="preview.provider"
+                  ><mat-select
+                    [formControl]="formGroup.controls.previewProvider"
                     ><mat-option
                       *ngFor="let provider of policy.providers"
                       [value]="provider"
@@ -713,7 +727,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
                   ><textarea
                     matInput
                     rows="3"
-                    [(ngModel)]="signalsJson"
+                    [formControl]="formGroup.controls.signalsJson"
                   ></textarea>
                 </mat-form-field>
                 <hh-action-button
@@ -905,6 +919,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 export class IdentityCapabilitiesPageComponent {
   private readonly api = inject(IdentityCapabilitiesApiService);
   private readonly capabilities = inject(IdentityCapabilitiesService);
+  private readonly usersApi = inject(UsersApiService);
   private readonly toast = inject(HisHopeToastService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly i18n = inject(HisHopeI18nService);
@@ -919,6 +934,7 @@ export class IdentityCapabilitiesPageComponent {
   }
   busy = false;
   error = "";
+  users: User[] = [];
   policy?: DevicePosturePolicy;
   assessments: DevicePostureAssessment[] = [];
   evaluation?: DevicePostureEvaluation;
@@ -932,28 +948,36 @@ export class IdentityCapabilitiesPageComponent {
   ssfStatus?: SecuritySignalStatus;
   ssfOutbox: SecuritySignalOutboxEntry[] = [];
   provisioningMode = "unknown";
-  requiredSignalsText = "";
-  signalsJson = '{"managed":true,"encrypted":true}';
-  preview = {
-    userId: "",
-    deviceId: "pilot-device",
-    provider: "advanced-compliance",
-  };
-  provisioning = {
-    target: "scim",
-    resourceId: "",
-    operation: "update",
-    resourceType: "User",
-  };
   p0Settings: IdentitySetting[] = [];
   federationSettings: IdentitySetting[] = [];
   scimSsfSettings: IdentitySetting[] = [];
   facilityIds = this.permissions.snapshot()?.facilityIds ?? [];
-  selectedFacilityId?: string =
-    this.facilityIds.length > 1 ? this.facilityIds[0] : undefined;
+  readonly formGroup = new FormGroup({
+    facilityId: new FormControl(
+      this.facilityIds.length > 1 ? (this.facilityIds[0] ?? "") : "",
+      { nonNullable: true },
+    ),
+    provisioningTarget: new FormControl("scim", { nonNullable: true }),
+    provisioningResourceId: new FormControl("", { nonNullable: true }),
+    policyMode: new FormControl("observe", { nonNullable: true }),
+    policyEvidenceTtlSeconds: new FormControl(300, { nonNullable: true }),
+    requiredSignalsText: new FormControl("", { nonNullable: true }),
+    previewUserId: new FormControl("", { nonNullable: true }),
+    previewDeviceId: new FormControl("pilot-device", { nonNullable: true }),
+    previewProvider: new FormControl("advanced-compliance", {
+      nonNullable: true,
+    }),
+    signalsJson: new FormControl('{"managed":true,"encrypted":true}', {
+      nonNullable: true,
+    }),
+  });
 
   constructor() {
     this.reload();
+  }
+
+  private get selectedFacilityId(): string | undefined {
+    return this.formGroup.controls.facilityId.value || undefined;
   }
 
   can(permission: string): boolean {
@@ -962,13 +986,24 @@ export class IdentityCapabilitiesPageComponent {
 
   reload(): void {
     this.error = "";
+    this.usersApi
+      .getUsers()
+      .pipe(catchError(() => of([])))
+      .subscribe({
+        next: (users) => {
+          this.users = users;
+          this.formGroup.patchValue({
+            previewUserId:
+              this.formGroup.controls.previewUserId.value || users[0]?.id || "",
+          });
+          this.cdr.markForCheck();
+        },
+      });
     this.resource.load(
       this.capabilities.loadState(this.selectedFacilityId).pipe(
         tap((state) => {
           this.policy = state.policy;
           this.assessments = state.assessments;
-          this.requiredSignalsText =
-            state.policy?.requiredSignals.join(", ") ?? "";
           this.p0Settings = state.settings.filter((item) =>
             /PASSWORD_HISTORY|AUDIT_|FEDERATION|SCIM_M2M|SSF_|MTLS_|RADIUS_|CSV_EXPORT/.test(
               item.key,
@@ -994,7 +1029,9 @@ export class IdentityCapabilitiesPageComponent {
               this.provisioningReadiness = readiness;
               this.cdr.markForCheck();
             },
-            error: () => (this.provisioningReadiness = undefined),
+            error: () => {
+              this.provisioningReadiness = undefined;
+            },
           });
           this.mtlsBindings = state.mtlsBindings;
           this.radiusStatus = state.radiusStatus;
@@ -1004,7 +1041,17 @@ export class IdentityCapabilitiesPageComponent {
               this.ssfOutbox = entries;
               this.cdr.markForCheck();
             },
-            error: () => (this.ssfOutbox = []),
+            error: () => {
+              this.ssfOutbox = [];
+            },
+          });
+          this.formGroup.patchValue({
+            policyMode: state.policy?.mode ?? "observe",
+            policyEvidenceTtlSeconds: state.policy?.evidenceTtlSeconds ?? 300,
+            requiredSignalsText: state.policy?.requiredSignals.join(", ") ?? "",
+            previewProvider:
+              state.policy?.providers[0] ??
+              this.formGroup.controls.previewProvider.value,
           });
           this.cdr.markForCheck();
         }),
@@ -1037,10 +1084,12 @@ export class IdentityCapabilitiesPageComponent {
       this.policy = await firstValueFrom(
         this.api.updateDevicePosturePolicy(
           {
-            mode: this.policy.mode,
+            mode: this.formGroup.controls.policyMode.value,
             providers: this.policy.providers,
-            evidenceTtlSeconds: Number(this.policy.evidenceTtlSeconds),
-            requiredSignals: this.requiredSignalsText
+            evidenceTtlSeconds: Number(
+              this.formGroup.controls.policyEvidenceTtlSeconds.value,
+            ),
+            requiredSignals: this.formGroup.controls.requiredSignalsText.value
               .split(",")
               .map((value) => value.trim())
               .filter(Boolean),
@@ -1048,7 +1097,11 @@ export class IdentityCapabilitiesPageComponent {
           this.selectedFacilityId,
         ),
       );
-      this.requiredSignalsText = this.policy.requiredSignals.join(", ");
+      this.formGroup.patchValue({
+        policyMode: this.policy.mode,
+        policyEvidenceTtlSeconds: this.policy.evidenceTtlSeconds,
+        requiredSignalsText: this.policy.requiredSignals.join(", "),
+      });
       this.toast.success(
         this.i18n.t("admin.policySaved", "Device posture policy saved"),
         { duration: 3000 },
@@ -1067,7 +1120,7 @@ export class IdentityCapabilitiesPageComponent {
   killSwitch(): void {
     if (!this.can("admin.settings.write")) return;
     if (!this.policy) return;
-    this.policy = { ...this.policy, mode: "observe" };
+    this.formGroup.patchValue({ policyMode: "observe" });
     void this.savePolicy();
   }
 
@@ -1088,7 +1141,11 @@ export class IdentityCapabilitiesPageComponent {
       this.policy = await firstValueFrom(
         this.api.rollbackDevicePosturePolicy(this.selectedFacilityId),
       );
-      this.requiredSignalsText = this.policy.requiredSignals.join(", ");
+      this.formGroup.patchValue({
+        policyMode: this.policy.mode,
+        policyEvidenceTtlSeconds: this.policy.evidenceTtlSeconds,
+        requiredSignalsText: this.policy.requiredSignals.join(", "),
+      });
       this.toast.success(
         this.i18n.t(
           "admin.policyRolledBack",
@@ -1112,10 +1169,18 @@ export class IdentityCapabilitiesPageComponent {
     this.busy = true;
     this.error = "";
     try {
-      const signals = JSON.parse(this.signalsJson) as Record<string, boolean>;
+      const signals = JSON.parse(
+        this.formGroup.controls.signalsJson.value,
+      ) as Record<string, boolean>;
       this.evaluation = await firstValueFrom(
         this.api.previewDevicePosture(
-          { ...this.preview, signals, observedAt: new Date().toISOString() },
+          {
+            userId: this.formGroup.controls.previewUserId.value,
+            deviceId: this.formGroup.controls.previewDeviceId.value,
+            provider: this.formGroup.controls.previewProvider.value,
+            signals,
+            observedAt: new Date().toISOString(),
+          },
           this.selectedFacilityId,
         ),
       );
@@ -1146,7 +1211,10 @@ export class IdentityCapabilitiesPageComponent {
     try {
       this.lastJob = await firstValueFrom(
         this.api.queueProvisioning({
-          ...this.provisioning,
+          target: this.formGroup.controls.provisioningTarget.value,
+          resourceId: this.formGroup.controls.provisioningResourceId.value,
+          operation: "update",
+          resourceType: "User",
           payload: { dryRun: true },
         }),
       );
@@ -1248,10 +1316,9 @@ export class IdentityCapabilitiesPageComponent {
           ? { ...item, lastError: undefined, completedAt: undefined }
           : item,
       );
-      this.toast.success(
-        this.i18n.t("admin.retryQueued", "Retry queued"),
-        { duration: 3000 },
-      );
+      this.toast.success(this.i18n.t("admin.retryQueued", "Retry queued"), {
+        duration: 3000,
+      });
     } catch {
       this.error = this.i18n.t(
         "admin.retryRejected",

@@ -8,7 +8,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { catchError, forkJoin, of } from "rxjs";
 import {
   HisHopePageHeaderComponent,
@@ -34,7 +34,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
+    ReactiveFormsModule,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeTableStateComponent,
@@ -59,11 +59,11 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         icon="refresh"
         [label]="'admin.refresh' | hhTranslate"
     /></hh-toolbar>
-    <div class="hh-form-grid">
+    <form [formGroup]="formGroup" class="hh-form-grid">
       <label
         >{{ "admin.subject" | hhTranslate
         }}<select
-          [(ngModel)]="userId"
+          [formControl]="formGroup.controls.userId"
           [disabled]="loadingUsers || !users.length"
         >
           <option *ngIf="loadingUsers" value="">
@@ -76,7 +76,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       ><label
         >{{ "admin.permission" | hhTranslate
         }}<select
-          [(ngModel)]="permission"
+          [formControl]="formGroup.controls.permission"
           [disabled]="loadingUsers || !permissions.length"
         >
           <option *ngIf="loadingUsers" value="">
@@ -87,9 +87,13 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
           </option>
         </select></label
       >
-    </div>
+    </form>
     <hh-action-button
-      [disabled]="loadingUsers || !userId || !permission"
+      [disabled]="
+        loadingUsers ||
+        !formGroup.controls.userId.value ||
+        !formGroup.controls.permission.value
+      "
       (pressed)="simulate()"
       kind="diagnostic"
       icon="refresh"
@@ -123,8 +127,10 @@ export class IamPolicySimulatorPageComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   users: User[] = [];
   permissions: PermissionDefinition[] = [];
-  userId = "";
-  permission = "";
+  readonly formGroup = new FormGroup({
+    userId: new FormControl("", { nonNullable: true }),
+    permission: new FormControl("", { nonNullable: true }),
+  });
   result: unknown;
   error = "";
   readonly state = new AdminResourceStateController<{
@@ -147,8 +153,14 @@ export class IamPolicySimulatorPageComponent implements OnInit {
         this.permissions = data.permissions.filter(
           (item) => !item.isDeprecated,
         );
-        this.userId ||= data.users[0]?.id ?? "";
-        this.permission ||= this.permissions[0]?.code ?? "";
+        this.formGroup.patchValue({
+          userId:
+            this.formGroup.controls.userId.value || (data.users[0]?.id ?? ""),
+          permission:
+            this.formGroup.controls.permission.value ||
+            this.permissions[0]?.code ||
+            "",
+        });
         this.cdr.markForCheck();
       }
     });
@@ -174,11 +186,12 @@ export class IamPolicySimulatorPageComponent implements OnInit {
     );
   }
   simulate(): void {
-    if (!this.userId || !this.permission) return;
+    const { userId, permission } = this.formGroup.getRawValue();
+    if (!userId || !permission) return;
     this.api
       .simulateIamPolicy({
-        userId: this.userId,
-        permissionCode: this.permission,
+        userId,
+        permissionCode: permission,
       })
       .subscribe({
         next: (result) => {

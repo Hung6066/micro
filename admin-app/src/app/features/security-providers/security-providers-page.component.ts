@@ -3,12 +3,10 @@ import {
   ChangeDetectorRef,
   Component,
   DestroyRef,
-  OnInit,
-  effect,
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { HttpClient } from "@angular/common/http";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
@@ -68,7 +66,7 @@ interface ProviderSettings {
     HisHopeActionButtonComponent,
     HisHopePhiMaskDirective,
     CommonModule,
-    FormsModule,
+    ReactiveFormsModule,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeTranslatePipe,
@@ -105,7 +103,9 @@ interface ProviderSettings {
       </hh-page-header>
       <mat-form-field appearance="outline" *ngIf="facilityIds.length > 1"
         ><mat-label>{{ "admin.facility" | hhTranslate: "Facility" }}</mat-label
-        ><mat-select [(ngModel)]="selectedFacilityId" (selectionChange)="load()"
+        ><mat-select
+          [formControl]="formGroup.controls.facilityId"
+          (selectionChange)="load()"
           ><mat-option
             *ngFor="let facilityId of facilityIds"
             [value]="facilityId"
@@ -179,10 +179,13 @@ interface ProviderSettings {
                   inputmode="numeric"
                   maxlength="6"
                   autocomplete="one-time-code"
-                  [(ngModel)]="mfa.verificationCode"
+                  [formControl]="formGroup.controls.verificationCode"
               /></mat-form-field>
               <hh-action-button
-                [disabled]="mfaBusy || mfa.verificationCode.length !== 6"
+                [disabled]="
+                  mfaBusy ||
+                  formGroup.controls.verificationCode.value.length !== 6
+                "
                 (pressed)="verifyMfa()"
                 kind="primary"
                 icon="verified"
@@ -224,7 +227,7 @@ interface ProviderSettings {
             }}</mat-card-subtitle></mat-card-header
           >
           <mat-card-content class="form-grid">
-            <mat-checkbox [(ngModel)]="settings.ldap.enabled">{{
+            <mat-checkbox [formControl]="formGroup.controls.ldapEnabled">{{
               "admin.enableLdapLogin" | hhTranslate: "Enable LDAP/AD login"
             }}</mat-checkbox>
             <mat-form-field appearance="outline"
@@ -233,14 +236,17 @@ interface ProviderSettings {
               }}</mat-label
               ><input
                 matInput
-                [(ngModel)]="settings.ldap.server"
+                [formControl]="formGroup.controls.ldapServer"
                 placeholder="dc01.hospital.local"
             /></mat-form-field>
             <mat-form-field appearance="outline"
               ><mat-label>{{ "admin.port" | hhTranslate: "Port" }}</mat-label
-              ><input matInput type="number" [(ngModel)]="settings.ldap.port"
+              ><input
+                matInput
+                type="number"
+                [formControl]="formGroup.controls.ldapPort"
             /></mat-form-field>
-            <mat-checkbox [(ngModel)]="settings.ldap.useSsl">{{
+            <mat-checkbox [formControl]="formGroup.controls.ldapUseSsl">{{
               "admin.useLdaps" | hhTranslate: "Use LDAPS/TLS"
             }}</mat-checkbox>
             <mat-form-field appearance="outline" class="wide"
@@ -249,7 +255,7 @@ interface ProviderSettings {
               }}</mat-label
               ><input
                 matInput
-                [(ngModel)]="settings.ldap.searchBase"
+                [formControl]="formGroup.controls.ldapSearchBase"
                 [placeholder]="
                   'admin.searchBasePlaceholder'
                     | hhTranslate: 'DC=hospital,DC=local'
@@ -259,7 +265,9 @@ interface ProviderSettings {
               ><mat-label>{{
                 "admin.searchFilter" | hhTranslate: "Search filter"
               }}</mat-label
-              ><input matInput [(ngModel)]="settings.ldap.searchFilter"
+              ><input
+                matInput
+                [formControl]="formGroup.controls.ldapSearchFilter"
             /></mat-form-field>
             <mat-form-field appearance="outline" class="wide"
               ><mat-label>{{
@@ -269,7 +277,7 @@ interface ProviderSettings {
               ><textarea
                 matInput
                 rows="3"
-                [(ngModel)]="settings.ldap.groupRoleMapping"
+                [formControl]="formGroup.controls.ldapGroupRoleMapping"
                 placeholder='{"CN=Doctors":"Provider"}'
               ></textarea>
             </mat-form-field>
@@ -287,7 +295,7 @@ interface ProviderSettings {
             }}</mat-card-subtitle></mat-card-header
           >
           <mat-card-content class="form-grid">
-            <mat-checkbox [(ngModel)]="settings.saml.enabled">{{
+            <mat-checkbox [formControl]="formGroup.controls.samlEnabled">{{
               "admin.enableSamlLogin" | hhTranslate: "Enable SAML login"
             }}</mat-checkbox>
             <mat-form-field appearance="outline" class="wide"
@@ -295,7 +303,7 @@ interface ProviderSettings {
                 "admin.serviceProviderIssuer"
                   | hhTranslate: "Service provider issuer"
               }}</mat-label
-              ><input matInput [(ngModel)]="settings.saml.issuer"
+              ><input matInput [formControl]="formGroup.controls.samlIssuer"
             /></mat-form-field>
             <mat-form-field appearance="outline" class="wide"
               ><mat-label>{{
@@ -303,7 +311,7 @@ interface ProviderSettings {
               }}</mat-label
               ><input
                 matInput
-                [(ngModel)]="settings.saml.singleSignOnDestination"
+                [formControl]="formGroup.controls.samlSingleSignOnDestination"
                 placeholder="https://idp.example.com/sso"
             /></mat-form-field>
             <mat-form-field appearance="outline" class="wide"
@@ -313,7 +321,7 @@ interface ProviderSettings {
               ><textarea
                 matInput
                 rows="5"
-                [(ngModel)]="settings.saml.idpMetadata"
+                [formControl]="formGroup.controls.samlIdpMetadata"
                 [placeholder]="
                   'admin.idpMetadataPlaceholder'
                     | hhTranslate: 'Paste metadata URL'
@@ -326,7 +334,7 @@ interface ProviderSettings {
               }}</mat-label
               ><input
                 matInput
-                [(ngModel)]="settings.saml.emailClaim"
+                [formControl]="formGroup.controls.samlEmailClaim"
                 placeholder="email"
             /></mat-form-field>
             <mat-form-field appearance="outline"
@@ -335,7 +343,7 @@ interface ProviderSettings {
               }}</mat-label
               ><input
                 matInput
-                [(ngModel)]="settings.saml.groupClaim"
+                [formControl]="formGroup.controls.samlGroupClaim"
                 placeholder="groups"
             /></mat-form-field>
             <mat-form-field appearance="outline" class="wide"
@@ -346,7 +354,7 @@ interface ProviderSettings {
               ><textarea
                 matInput
                 rows="3"
-                [(ngModel)]="settings.saml.groupRoleMapping"
+                [formControl]="formGroup.controls.samlGroupRoleMapping"
                 placeholder='{"HisHope-Admins":"Admin"}'
               ></textarea>
             </mat-form-field>
@@ -500,8 +508,32 @@ export class SecurityProvidersPageComponent {
   );
   private readonly settingsByKey = new Map<string, IdentitySetting>();
   facilityIds = this.permissions.snapshot()?.facilityIds ?? [];
-  selectedFacilityId?: string =
-    this.facilityIds.length > 1 ? this.facilityIds[0] : undefined;
+  readonly formGroup = new FormGroup({
+    facilityId: new FormControl(
+      this.facilityIds.length > 1 ? (this.facilityIds[0] ?? "") : "",
+      { nonNullable: true },
+    ),
+    verificationCode: new FormControl("", { nonNullable: true }),
+    ldapEnabled: new FormControl(false, { nonNullable: true }),
+    ldapServer: new FormControl("", { nonNullable: true }),
+    ldapPort: new FormControl(636, { nonNullable: true }),
+    ldapUseSsl: new FormControl(true, { nonNullable: true }),
+    ldapSearchBase: new FormControl("", { nonNullable: true }),
+    ldapSearchFilter: new FormControl(
+      "(&(objectClass=user)(objectCategory=person))",
+      { nonNullable: true },
+    ),
+    ldapGroupRoleMapping: new FormControl('{\n  "CN=Doctors": "Provider"\n}', {
+      nonNullable: true,
+    }),
+    samlEnabled: new FormControl(false, { nonNullable: true }),
+    samlIssuer: new FormControl("", { nonNullable: true }),
+    samlSingleSignOnDestination: new FormControl("", { nonNullable: true }),
+    samlIdpMetadata: new FormControl("", { nonNullable: true }),
+    samlEmailClaim: new FormControl("email", { nonNullable: true }),
+    samlGroupClaim: new FormControl("groups", { nonNullable: true }),
+    samlGroupRoleMapping: new FormControl("{}", { nonNullable: true }),
+  });
 
   get loading(): boolean {
     return this.resource.loading();
@@ -554,6 +586,10 @@ export class SecurityProvidersPageComponent {
     this.loadMfaStatus();
   }
 
+  private get selectedFacilityId(): string | undefined {
+    return this.formGroup.controls.facilityId.value || undefined;
+  }
+
   private loadMfaStatus(): void {
     firstValueFrom(
       this.http.get<{
@@ -597,8 +633,8 @@ export class SecurityProvidersPageComponent {
           margin: 1,
           errorCorrectionLevel: "M",
         }),
-        verificationCode: "",
       };
+      this.formGroup.patchValue({ verificationCode: "" });
     } catch (error) {
       this.mfaError = this.readApiError(
         error,
@@ -616,7 +652,7 @@ export class SecurityProvidersPageComponent {
     try {
       await firstValueFrom(
         this.http.post(`${environment.authApiUrl}/mfa/verify`, {
-          code: this.mfa.verificationCode,
+          code: this.formGroup.controls.verificationCode.value,
         }),
       );
       this.mfa = {
@@ -625,8 +661,8 @@ export class SecurityProvidersPageComponent {
         qrCodeUri: "",
         qrCodeDataUrl: "",
         secretKey: "",
-        verificationCode: "",
       };
+      this.formGroup.patchValue({ verificationCode: "" });
       this.toast.success(
         this.i18n.t("admin.mfaEnabledSuccessfully", "MFA enabled successfully"),
         { duration: 3000 },
@@ -719,36 +755,54 @@ export class SecurityProvidersPageComponent {
         groupRoleMapping: String(value("Saml2:GroupRoleMapping", "{}")),
       },
     };
+    this.formGroup.patchValue({
+      ldapEnabled: this.settings.ldap.enabled,
+      ldapServer: this.settings.ldap.server,
+      ldapPort: this.settings.ldap.port,
+      ldapUseSsl: this.settings.ldap.useSsl,
+      ldapSearchBase: this.settings.ldap.searchBase,
+      ldapSearchFilter: this.settings.ldap.searchFilter,
+      ldapGroupRoleMapping: this.settings.ldap.groupRoleMapping,
+      samlEnabled: this.settings.saml.enabled,
+      samlIssuer: this.settings.saml.issuer,
+      samlSingleSignOnDestination: this.settings.saml.singleSignOnDestination,
+      samlIdpMetadata: this.settings.saml.idpMetadata,
+      samlEmailClaim: this.settings.saml.emailClaim,
+      samlGroupClaim: this.settings.saml.groupClaim,
+      samlGroupRoleMapping: this.settings.saml.groupRoleMapping,
+    });
   }
 
   save(): void {
     if (!this.canWrite) return;
     this.saving = true;
+    this.cdr.markForCheck();
+    const formValue = this.formGroup.getRawValue();
     const updates = [
       { key: "Passkeys:RpId", value: this.settings.passkeys.rpId },
       { key: "Passkeys:Origins", value: this.settings.passkeys.origins },
-      { key: "Ldap:Enabled", value: this.settings.ldap.enabled },
-      { key: "Ldap:Server", value: this.settings.ldap.server },
-      { key: "Ldap:Port", value: this.settings.ldap.port },
-      { key: "Ldap:UseSsl", value: this.settings.ldap.useSsl },
-      { key: "Ldap:SearchBase", value: this.settings.ldap.searchBase },
-      { key: "Ldap:SearchFilter", value: this.settings.ldap.searchFilter },
+      { key: "Ldap:Enabled", value: formValue.ldapEnabled },
+      { key: "Ldap:Server", value: formValue.ldapServer },
+      { key: "Ldap:Port", value: formValue.ldapPort },
+      { key: "Ldap:UseSsl", value: formValue.ldapUseSsl },
+      { key: "Ldap:SearchBase", value: formValue.ldapSearchBase },
+      { key: "Ldap:SearchFilter", value: formValue.ldapSearchFilter },
       {
         key: "Ldap:GroupRoleMapping",
-        value: this.settings.ldap.groupRoleMapping,
+        value: formValue.ldapGroupRoleMapping,
       },
-      { key: "Saml2:Enabled", value: this.settings.saml.enabled },
-      { key: "Saml2:Issuer", value: this.settings.saml.issuer },
+      { key: "Saml2:Enabled", value: formValue.samlEnabled },
+      { key: "Saml2:Issuer", value: formValue.samlIssuer },
       {
         key: "Saml2:SingleSignOnDestination",
-        value: this.settings.saml.singleSignOnDestination,
+        value: formValue.samlSingleSignOnDestination,
       },
-      { key: "Saml2:IdPMetadata", value: this.settings.saml.idpMetadata },
-      { key: "Saml2:EmailClaim", value: this.settings.saml.emailClaim },
-      { key: "Saml2:GroupClaim", value: this.settings.saml.groupClaim },
+      { key: "Saml2:IdPMetadata", value: formValue.samlIdpMetadata },
+      { key: "Saml2:EmailClaim", value: formValue.samlEmailClaim },
+      { key: "Saml2:GroupClaim", value: formValue.samlGroupClaim },
       {
         key: "Saml2:GroupRoleMapping",
-        value: this.settings.saml.groupRoleMapping,
+        value: formValue.samlGroupRoleMapping,
       },
     ];
     this.api.saveIdentitySettings(updates, this.selectedFacilityId).subscribe({

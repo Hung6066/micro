@@ -8,7 +8,6 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
 import {
   HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
@@ -29,6 +28,7 @@ import { finalize, forkJoin, take } from "rxjs";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
+import { HisHopeToastService } from "@his-hope/frontend-foundation/ui";
 import { GroupEditDialogComponent } from "./group-edit-dialog.component";
 @Component({
   selector: "app-groups-page",
@@ -102,6 +102,7 @@ import { GroupEditDialogComponent } from "./group-edit-dialog.component";
             icon="toggle_off"
             [label]="'admin.deactivate' | hhTranslate"
             (pressed)="toggle(row)"
+            [disabled]="busy"
           />
           <hh-action-button
             *ngIf="canWrite && !row['isActive']"
@@ -110,6 +111,7 @@ import { GroupEditDialogComponent } from "./group-edit-dialog.component";
             icon="toggle_on"
             [label]="'admin.activate' | hhTranslate"
             (pressed)="toggle(row)"
+            [disabled]="busy"
           />
         </ng-template>
       </hh-data-table>
@@ -122,12 +124,14 @@ export class GroupsPageComponent implements OnInit {
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly toast = inject(HisHopeToastService);
   get canWrite(): boolean {
     return this.permissions.has("admin.roles.write");
   }
   groups: IamGroup[] = [];
   scopes: IamScope[] = [];
   rows: Record<string, unknown>[] = [];
+  busy = false;
   private readonly destroyRef = inject(DestroyRef);
   readonly state = new AdminResourceStateController<{
     groups: IamGroup[];
@@ -224,13 +228,29 @@ export class GroupsPageComponent implements OnInit {
     const request = row["isActive"]
       ? this.api.deactivateIamGroup(id)
       : this.api.activateIamGroup(id);
-    request.subscribe({
-      next: () => this.load(),
-      error: () =>
-        (this.error = this.i18n.t(
-          "admin.iamSaveFailed",
-          "Unable to update group.",
-        )),
-    });
+    this.busy = true;
+    request
+      .pipe(
+        finalize(() => {
+          this.busy = false;
+          this.cdr.markForCheck();
+        }),
+      )
+      .subscribe({
+        next: () => {
+          this.toast.success(
+            this.i18n.t("admin.groupUpdated", "Group updated."),
+            { duration: 3000 },
+          );
+          this.load();
+        },
+        error: () => {
+          this.error = this.i18n.t(
+            "admin.iamSaveFailed",
+            "Unable to update group.",
+          );
+          this.toast.error(this.error, { duration: 5000 });
+        },
+      });
   }
 }

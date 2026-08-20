@@ -8,7 +8,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { catchError, of } from "rxjs";
 import {
   HisHopePageHeaderComponent,
@@ -31,7 +31,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
+    ReactiveFormsModule,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeTableStateComponent,
@@ -54,25 +54,29 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         hh-toolbar-actions
         kind="secondary"
         icon="refresh"
-        [label]="'admin.refresh' | hhTranslate" /></hh-toolbar
-    ><label class="hh-field"
-      >{{ "admin.subject" | hhTranslate
-      }}<select
-        [(ngModel)]="selectedUserId"
-        [disabled]="loadingUsers || !users.length"
+        [label]="'admin.refresh' | hhTranslate"
+    /></hh-toolbar>
+    <form [formGroup]="formGroup">
+      <label class="hh-field"
+        >{{ "admin.subject" | hhTranslate
+        }}<select
+          [formControl]="formGroup.controls.selectedUserId"
+          [disabled]="loadingUsers || !users.length"
+        >
+          <option *ngIf="loadingUsers" value="">
+            {{ "admin.loading" | hhTranslate: "Loading…" }}
+          </option>
+          <option *ngIf="!loadingUsers && !users.length" value="">
+            {{ "admin.noUsers" | hhTranslate: "No users available" }}
+          </option>
+          <option *ngFor="let user of users" [value]="user.id">
+            {{ user.email || user.userName }}
+          </option>
+        </select></label
       >
-        <option *ngIf="loadingUsers" value="">
-          {{ "admin.loading" | hhTranslate: "Loading…" }}
-        </option>
-        <option *ngIf="!loadingUsers && !users.length" value="">
-          {{ "admin.noUsers" | hhTranslate: "No users available" }}
-        </option>
-        <option *ngFor="let user of users" [value]="user.id">
-          {{ user.email || user.userName }}
-        </option>
-      </select></label
-    ><hh-action-button
-      [disabled]="loadingUsers || !selectedUserId"
+    </form>
+    <hh-action-button
+      [disabled]="loadingUsers || !formGroup.controls.selectedUserId.value"
       (pressed)="evaluate()"
       kind="primary"
       icon="refresh"
@@ -105,7 +109,9 @@ export class IamEffectiveAccessPageComponent implements OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
   users: User[] = [];
-  selectedUserId = "";
+  readonly formGroup = new FormGroup({
+    selectedUserId: new FormControl("", { nonNullable: true }),
+  });
   result: unknown;
   error = "";
   readonly state = new AdminResourceStateController<User[]>({
@@ -122,7 +128,10 @@ export class IamEffectiveAccessPageComponent implements OnInit {
       const users = this.state.resource.data();
       if (users) {
         this.users = users;
-        this.selectedUserId ||= users[0]?.id ?? "";
+        this.formGroup.patchValue({
+          selectedUserId:
+            this.formGroup.controls.selectedUserId.value || users[0]?.id || "",
+        });
         this.cdr.markForCheck();
       }
     });
@@ -145,8 +154,9 @@ export class IamEffectiveAccessPageComponent implements OnInit {
     );
   }
   evaluate(): void {
-    if (!this.selectedUserId) return;
-    this.api.getIamEffectiveAccess(this.selectedUserId).subscribe({
+    const selectedUserId = this.formGroup.controls.selectedUserId.value;
+    if (!selectedUserId) return;
+    this.api.getIamEffectiveAccess(selectedUserId).subscribe({
       next: (result) => {
         this.result = result;
         this.cdr.markForCheck();

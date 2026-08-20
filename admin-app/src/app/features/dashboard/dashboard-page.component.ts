@@ -1,4 +1,5 @@
 import {
+  ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
   DestroyRef,
@@ -36,6 +37,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     HisHopeStateComponent,
     HisHopeTranslatePipe,
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hh-page-layout>
       <hh-page-header
@@ -50,7 +52,12 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         />
       } @else if (error) {
         <hh-state kind="error" icon="error" [message]="error">
-          <hh-action-button (pressed)="loadDashboardStats()" kind="secondary" icon="refresh" [label]="'common.retry' | hhTranslate" />
+          <hh-action-button
+            (pressed)="loadDashboardStats()"
+            kind="secondary"
+            icon="refresh"
+            [label]="'common.retry' | hhTranslate"
+          />
         </hh-state>
       } @else if (stats) {
         <div class="stats-grid">

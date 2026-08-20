@@ -8,7 +8,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { catchError, of } from "rxjs";
 import {
   HisHopePageHeaderComponent,
@@ -31,7 +31,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
+    ReactiveFormsModule,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeTableStateComponent,
@@ -55,11 +55,11 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         icon="refresh"
         [label]="'admin.refresh' | hhTranslate"
     /></hh-toolbar>
-    <div class="hh-form-grid">
+    <form [formGroup]="formGroup" class="hh-form-grid">
       <label
         >{{ "admin.before" | hhTranslate
         }}<select
-          [(ngModel)]="beforeId"
+          [formControl]="formGroup.controls.beforeId"
           [disabled]="loadingSets || !sets.length"
         >
           <option *ngFor="let set of sets" [value]="set.id">
@@ -69,7 +69,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       ><label
         >{{ "admin.after" | hhTranslate
         }}<select
-          [(ngModel)]="afterId"
+          [formControl]="formGroup.controls.afterId"
           [disabled]="loadingSets || !sets.length"
         >
           <option *ngFor="let set of sets" [value]="set.id">
@@ -77,9 +77,13 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
           </option>
         </select></label
       >
-    </div>
+    </form>
     <hh-action-button
-      [disabled]="loadingSets || !beforeId || !afterId"
+      [disabled]="
+        loadingSets ||
+        !formGroup.controls.beforeId.value ||
+        !formGroup.controls.afterId.value
+      "
       (pressed)="compare()"
       kind="primary"
       icon="compare_arrows"
@@ -111,8 +115,10 @@ export class IamAccessDiffPageComponent implements OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
   sets: IamPermissionSet[] = [];
-  beforeId = "";
-  afterId = "";
+  readonly formGroup = new FormGroup({
+    beforeId: new FormControl("", { nonNullable: true }),
+    afterId: new FormControl("", { nonNullable: true }),
+  });
   result: unknown;
   error = "";
   readonly state = new AdminResourceStateController<IamPermissionSet[]>({
@@ -129,8 +135,15 @@ export class IamAccessDiffPageComponent implements OnInit {
       const sets = this.state.resource.data();
       if (sets) {
         this.sets = sets;
-        this.beforeId ||= sets[0]?.id ?? "";
-        this.afterId ||= sets[1]?.id ?? sets[0]?.id ?? "";
+        this.formGroup.patchValue({
+          beforeId:
+            this.formGroup.controls.beforeId.value || (sets[0]?.id ?? ""),
+          afterId:
+            this.formGroup.controls.afterId.value ||
+            sets[1]?.id ||
+            sets[0]?.id ||
+            "",
+        });
         this.cdr.markForCheck();
       }
     });
@@ -161,11 +174,12 @@ export class IamAccessDiffPageComponent implements OnInit {
     }
   }
   compare(): void {
-    if (!this.beforeId || !this.afterId) return;
+    const { beforeId, afterId } = this.formGroup.getRawValue();
+    if (!beforeId || !afterId) return;
     this.api
       .analyzeIamNewAccessDiff(
-        this.permissions(this.beforeId),
-        this.permissions(this.afterId),
+        this.permissions(beforeId),
+        this.permissions(afterId),
       )
       .subscribe({
         next: (result) => {

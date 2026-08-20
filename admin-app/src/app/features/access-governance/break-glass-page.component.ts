@@ -4,11 +4,10 @@ import {
   Component,
   DestroyRef,
   OnInit,
-  effect,
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
+import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCardModule } from "@angular/material/card";
 import { MatFormFieldModule } from "@angular/material/form-field";
@@ -27,6 +26,9 @@ import {
 } from "@his-hope/frontend-foundation/i18n";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import {
+  HisHopeDataTableCellDirective,
+  HisHopeDataTableColumn,
+  HisHopeDataTableComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeToastService,
@@ -40,12 +42,14 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    FormsModule,
+    ReactiveFormsModule,
     MatButtonModule,
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
     MatSelectModule,
+    HisHopeDataTableCellDirective,
+    HisHopeDataTableComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeTranslatePipe,
@@ -61,8 +65,13 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
             | hhTranslate
               : 'Emergency elevation with short expiry and full audit.'
         "
-        ><hh-action-button [disabled]="busy" (pressed)="load()" kind="secondary" icon="refresh" [label]="'admin.refresh' | hhTranslate: 'Refresh'" /></hh-page-header
-      >
+        ><hh-action-button
+          [disabled]="busy"
+          (pressed)="load()"
+          kind="secondary"
+          icon="refresh"
+          [label]="'admin.refresh' | hhTranslate: 'Refresh'"
+      /></hh-page-header>
       <p class="warning">
         {{
           "admin.breakGlassWarning"
@@ -76,107 +85,95 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
           ><mat-card-title>{{
             "admin.requestBreakGlass" | hhTranslate: "Request break-glass"
           }}</mat-card-title></mat-card-header
-        ><mat-card-content class="form-grid"
-          ><mat-form-field appearance="outline"
-            ><mat-label>{{
-              "admin.subject" | hhTranslate: "Subject"
-            }}</mat-label
-            ><mat-select [(ngModel)]="draft.subjectUserId"
-              ><mat-option *ngFor="let user of users" [value]="user.id">{{
-                user.email || user.userName
-              }}</mat-option></mat-select
-            ></mat-form-field
-          ><mat-form-field appearance="outline"
-            ><mat-label>{{
-              "admin.permission" | hhTranslate: "Permission"
-            }}</mat-label
-            ><mat-select [(ngModel)]="draft.permissionCode"
-              ><mat-option
-                *ngFor="let permission of permissions"
-                [value]="permission.code"
-                >{{ permission.name }} · {{ permission.code }}</mat-option
-              ></mat-select
-            ></mat-form-field
-          ><mat-form-field appearance="outline"
-            ><mat-label>{{
-              "admin.facility" | hhTranslate: "Facility"
-            }}</mat-label
-            ><input matInput [(ngModel)]="draft.facilityId" /></mat-form-field
-          ><mat-form-field appearance="outline"
-            ><mat-label>{{ "admin.reason" | hhTranslate: "Reason" }}</mat-label
-            ><textarea
-              matInput
-              rows="2"
-              [(ngModel)]="draft.reason"
-            ></textarea></mat-form-field
-          ><hh-action-button [disabled]="
-              busy ||
-              !canWrite ||
-              !draft.subjectUserId ||
-              !draft.permissionCode ||
-              !draft.facilityId ||
-              draft.reason.trim().length < 10
-            " (pressed)="create()" kind="danger" icon="link_off" [label]="'admin.requestBreakGlass' | hhTranslate: 'Request break-glass'" /></mat-card-content
-        ></mat-card
-      >
+        ><mat-card-content
+          ><form [formGroup]="formGroup" class="form-grid">
+            <mat-form-field appearance="outline"
+              ><mat-label>{{
+                "admin.subject" | hhTranslate: "Subject"
+              }}</mat-label
+              ><mat-select [formControl]="formGroup.controls.subjectUserId"
+                ><mat-option *ngFor="let user of users" [value]="user.id">{{
+                  user.email || user.userName
+                }}</mat-option></mat-select
+              ></mat-form-field
+            ><mat-form-field appearance="outline"
+              ><mat-label>{{
+                "admin.permission" | hhTranslate: "Permission"
+              }}</mat-label
+              ><mat-select [formControl]="formGroup.controls.permissionCode"
+                ><mat-option
+                  *ngFor="let permission of permissions"
+                  [value]="permission.code"
+                  >{{ permission.name }} · {{ permission.code }}</mat-option
+                ></mat-select
+              ></mat-form-field
+            ><mat-form-field appearance="outline"
+              ><mat-label>{{
+                "admin.facility" | hhTranslate: "Facility"
+              }}</mat-label
+              ><mat-select [formControl]="formGroup.controls.facilityId"
+                ><mat-option
+                  *ngFor="let facilityId of facilityIds"
+                  [value]="facilityId"
+                  >{{ facilityId }}</mat-option
+                ></mat-select
+              ></mat-form-field
+            ><mat-form-field appearance="outline"
+              ><mat-label>{{
+                "admin.reason" | hhTranslate: "Reason"
+              }}</mat-label
+              ><textarea
+                matInput
+                rows="2"
+                [formControl]="formGroup.controls.reason"
+              ></textarea></mat-form-field
+            ><hh-action-button
+              [disabled]="busy || !canWrite || !canSubmit"
+              (pressed)="create()"
+              kind="danger"
+              icon="link_off"
+              [label]="
+                'admin.requestBreakGlass' | hhTranslate: 'Request break-glass'
+              "
+            /></form></mat-card-content
+      ></mat-card>
       <mat-card class="table-card"
         ><mat-card-header
           ><mat-card-title>{{
             "admin.breakGlassRequests" | hhTranslate: "Break-glass requests"
           }}</mat-card-title></mat-card-header
-        ><mat-card-content class="table-wrap"
-          ><table>
-            <thead>
-              <tr>
-                <th>{{ "admin.subject" | hhTranslate: "Subject" }}</th>
-                <th>{{ "admin.permission" | hhTranslate: "Permission" }}</th>
-                <th>{{ "admin.status" | hhTranslate: "Status" }}</th>
-                <th>{{ "admin.expires" | hhTranslate: "Expires" }}</th>
-                <th>{{ "admin.actions" | hhTranslate: "Actions" }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr *ngFor="let item of requests">
-                <td>{{ displayUser(item.subjectUserId) }}</td>
-                <td>{{ item.permissionCode }}</td>
-                <td>{{ item.status }}</td>
-                <td>{{ item.expiresAt | date: "short" }}</td>
-                <td>
-                  <button
-                    mat-button
-                    color="primary"
-                    *ngIf="item.status === 'pending'"
-                    (click)="approve(item)"
-                    [disabled]="busy || !canWrite"
-                  >
-                    {{ "admin.approve" | hhTranslate: "Approve" }}</button
-                  ><button
-                    mat-button
-                    color="warn"
-                    *ngIf="item.status === 'approved'"
-                    (click)="revoke(item)"
-                    [disabled]="busy || !canWrite"
-                  >
-                    {{ "admin.revoke" | hhTranslate: "Revoke" }}
-                  </button>
-                </td>
-              </tr>
-              <tr *ngIf="!requests.length">
-                <td colspan="5">
-                  {{
-                    "admin.noBreakGlassRequests"
-                      | hhTranslate: "No break-glass requests."
-                  }}
-                </td>
-              </tr>
-            </tbody>
-          </table></mat-card-content
-        ></mat-card
-      >
+        ><mat-card-content
+          ><hh-data-table
+            [label]="'admin.breakGlassRequests' | hhTranslate"
+            [columns]="columns"
+            [rows]="rows"
+            [loading]="state.loading"
+            [empty]="!state.loading && !error && !rows.length"
+            ><ng-template hhDataTableCell="actions" let-row
+              ><div class="action-cell">
+                <hh-action-button
+                  *ngIf="row['status'] === 'pending'"
+                  kind="primary"
+                  mode="icon-only"
+                  icon="check"
+                  [label]="'admin.approve' | hhTranslate: 'Approve'"
+                  [disabled]="busy || !canWrite"
+                  (pressed)="approveByRow(row)"
+                />
+                <hh-action-button
+                  *ngIf="row['status'] === 'approved'"
+                  kind="danger"
+                  mode="icon-only"
+                  icon="link_off"
+                  [label]="'admin.revoke' | hhTranslate: 'Revoke'"
+                  [disabled]="busy || !canWrite"
+                  (pressed)="revokeByRow(row)"
+                /></div></ng-template></hh-data-table></mat-card-content
+      ></mat-card>
     </hh-page-layout>
   `,
   styles: [
-    ":host{display:block}.form-grid{display:grid;gap:var(--space-3)}.warning{padding:var(--space-3);border:1px solid var(--color-warning);border-radius:var(--radius-card);color:var(--text-secondary)}.error{color:var(--color-danger)}.table-card{margin-top:var(--space-4)}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:var(--space-2);border-bottom:1px solid var(--border-subtle);white-space:nowrap}",
+    ":host{display:block}.form-grid{display:grid;gap:var(--space-3)}.warning{padding:var(--space-3);border:1px solid var(--color-warning);border-radius:var(--radius-card);color:var(--text-secondary)}.error{color:var(--color-danger)}.table-card{margin-top:var(--space-4)}.action-cell{display:flex;gap:var(--space-2)}",
   ],
 })
 export class BreakGlassPageComponent implements OnInit {
@@ -206,15 +203,57 @@ export class BreakGlassPageComponent implements OnInit {
   set error(value: string) {
     this.state.setActionError(value);
   }
-  draft = {
-    subjectUserId: "",
-    permissionCode: "",
-    facilityId: "",
-    reason: "",
-    durationMinutes: 15,
-  };
+  readonly facilityIds = this.permissionsService.snapshot()?.facilityIds?.length
+    ? [...(this.permissionsService.snapshot()?.facilityIds ?? [])]
+    : ["unassigned"];
+  readonly formGroup = new FormGroup({
+    subjectUserId: new FormControl("", { nonNullable: true }),
+    permissionCode: new FormControl("", { nonNullable: true }),
+    facilityId: new FormControl(this.facilityIds[0] ?? "", {
+      nonNullable: true,
+    }),
+    reason: new FormControl("", { nonNullable: true }),
+  });
   get canWrite(): boolean {
     return this.permissionsService.has("admin.breakglass.write");
+  }
+  get canSubmit(): boolean {
+    const value = this.formGroup.getRawValue();
+    return (
+      !!value.subjectUserId &&
+      !!value.permissionCode &&
+      !!value.facilityId &&
+      value.reason.trim().length >= 10
+    );
+  }
+  get rows(): Record<string, unknown>[] {
+    return this.requests.map((item) => ({ ...item }));
+  }
+  get columns(): HisHopeDataTableColumn[] {
+    this.i18n.locale();
+    return [
+      {
+        key: "subjectUserId",
+        label: this.i18n.t("admin.subject", "Subject"),
+        computed: (row) => this.displayUser(String(row["subjectUserId"] ?? "")),
+      },
+      {
+        key: "permissionCode",
+        label: this.i18n.t("admin.permission", "Permission"),
+      },
+      { key: "status", label: this.i18n.t("admin.status", "Status") },
+      {
+        key: "expiresAt",
+        label: this.i18n.t("admin.expires", "Expires"),
+        format: "dateTime",
+      },
+      {
+        key: "actions",
+        label: this.i18n.t("admin.actions", "Actions"),
+        sortable: false,
+        hideable: false,
+      },
+    ];
   }
   ngOnInit(): void {
     this.load();
@@ -250,16 +289,18 @@ export class BreakGlassPageComponent implements OnInit {
   create(): void {
     if (!this.canWrite) return;
     this.mutate(
-      this.api.createBreakGlassRequest(this.draft),
+      this.api.createBreakGlassRequest({
+        ...this.formGroup.getRawValue(),
+        durationMinutes: 15,
+      }),
       "admin.breakGlassCreated",
       "Break-glass request created.",
       () =>
-        (this.draft = {
+        this.formGroup.reset({
           subjectUserId: "",
           permissionCode: "",
-          facilityId: "",
+          facilityId: this.facilityIds[0] ?? "",
           reason: "",
-          durationMinutes: 15,
         }),
     );
   }
@@ -277,6 +318,18 @@ export class BreakGlassPageComponent implements OnInit {
       "Break-glass request revoked.",
     );
   }
+  approveByRow(row: Record<string, unknown>): void {
+    const item = this.requests.find((request) => request.id === row["id"]);
+    if (item) {
+      this.approve(item);
+    }
+  }
+  revokeByRow(row: Record<string, unknown>): void {
+    const item = this.requests.find((request) => request.id === row["id"]);
+    if (item) {
+      this.revoke(item);
+    }
+  }
   private mutate(
     operation: import("rxjs").Observable<unknown>,
     key: string,
@@ -285,20 +338,21 @@ export class BreakGlassPageComponent implements OnInit {
   ): void {
     if (!this.canWrite) return;
     this.busy = true;
+    this.cdr.markForCheck();
     operation.subscribe({
       next: () => {
+        this.busy = false;
         after?.();
         this.toast.success(this.i18n.t(key, fallback), { duration: 3000 });
+        this.cdr.markForCheck();
         this.load();
       },
-      error: () => this.fail(),
+      error: () => this.fail("admin.breakGlassMutationFailed", fallback),
     });
   }
-  private fail(): void {
-    this.error = this.i18n.t(
-      "admin.loadAccessGovernanceFailed",
-      "Unable to load break-glass data.",
-    );
+  private fail(key: string, fallback: string): void {
+    this.error = this.i18n.t(key, fallback);
+    this.toast.error(this.error, { duration: 5000 });
     this.busy = false;
     this.cdr.markForCheck();
   }
