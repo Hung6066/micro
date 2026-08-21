@@ -55,19 +55,19 @@ export interface HisHopeSessionTimeoutDialogData {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 8px;
+        gap: var(--space-sm);
         max-width: 360px;
-        padding: 28px 24px;
+        padding: var(--page-padding-block) var(--space-2xl);
         text-align: center;
         color: var(--text-primary);
         background: var(--surface-white);
       }
       .hh-session-timeout__icon {
-        font-size: 32px;
+        font-size: var(--font-size-display-md);
         color: var(--color-warning, #b45309);
       }
       h2 {
-        margin: 4px 0 0;
+        margin: var(--space-2xs) 0 0;
         font-size: var(--font-size-title);
       }
       p {
@@ -76,12 +76,12 @@ export interface HisHopeSessionTimeoutDialogData {
       }
       .hh-session-timeout__actions {
         display: flex;
-        gap: 12px;
-        margin-top: 12px;
+        gap: var(--space-md);
+        margin-top: var(--space-md);
       }
       .hh-button {
         min-height: var(--button-height);
-        padding: 0 16px;
+        padding: 0 var(--space-lg);
         border: 1px solid transparent;
         border-radius: var(--radius-button);
         font: inherit;

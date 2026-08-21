@@ -15,6 +15,7 @@ import { catchError, of, tap } from "rxjs";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
+  HisHopeConfirmDialogComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeStateComponent,
@@ -33,6 +34,7 @@ import {
 import { DatabasePlatformOverviewComponent } from "./database-platform-overview.component";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
+import { AdminConfirmState } from "../../core/services/admin-confirm-state";
 @Component({
   selector: "app-database-platform-page",
   standalone: true,
@@ -44,6 +46,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeStateComponent,
+    HisHopeConfirmDialogComponent,
     HisHopeTranslatePipe,
     DatabasePlatformOverviewComponent,
   ],
@@ -102,6 +105,14 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
           (auditRefreshRequested)="loadAudit()"
         />
       }
+      <hh-confirm-dialog
+        [open]="confirm.open"
+        [title]="confirm.title"
+        [message]="confirm.message"
+        [confirmLabel]="confirm.confirmLabel"
+        (confirmed)="confirm.confirm()"
+        (cancelled)="confirm.cancel()"
+      />
     </hh-page-layout>
   `,
   styles: [
@@ -109,20 +120,20 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       .platform-summary {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 16px;
-        margin-bottom: 24px;
+        gap: var(--space-lg);
+        margin-bottom: var(--space-2xl);
       }
       .summary-card,
       .resource-card {
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-white);
-        padding: var(--space-5);
+        padding: var(--space-xl);
       }
       .summary-card {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       .summary-label {
         color: var(--text-muted);
@@ -134,38 +145,38 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       .resource-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 16px;
+        gap: var(--space-lg);
       }
       .continuity-panel {
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-white);
-        padding: var(--space-5);
-        margin-bottom: var(--space-6);
+        padding: var(--space-xl);
+        margin-bottom: var(--space-2xl);
       }
       .continuity-heading {
         display: flex;
         justify-content: space-between;
-        gap: 16px;
+        gap: var(--space-lg);
         align-items: flex-start;
       }
       .continuity-heading h2 {
         margin: 0;
       }
       .continuity-heading p {
-        margin: 4px 0 0;
+        margin: var(--space-2xs) 0 0;
       }
       .continuity-grid {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 12px;
+        gap: var(--space-md);
         margin-top: 18px;
       }
       .continuity-grid div {
         display: flex;
         flex-direction: column;
-        gap: var(--space-2);
-        padding: var(--space-3);
+        gap: var(--space-sm);
+        padding: var(--space-md);
         border-radius: var(--radius-input);
         background: var(--surface-muted);
       }
@@ -176,9 +187,9 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       .continuity-alerts {
         display: flex;
         align-items: flex-start;
-        gap: var(--space-2);
-        margin-top: var(--space-4);
-        padding: var(--space-3) var(--space-4);
+        gap: var(--space-sm);
+        margin-top: var(--space-lg);
+        padding: var(--space-md) var(--space-lg);
         border: 1px solid var(--color-danger);
         border-radius: var(--radius-input);
         background: var(--surface-danger);
@@ -190,24 +201,24 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       .continuity-alerts div {
         display: flex;
         flex-direction: column;
-        gap: 3px;
+        gap: var(--space-xxs);
       }
       .configuration-errors {
         color: var(--color-danger);
-        margin: var(--space-4) 0 0;
+        margin: var(--space-lg) 0 0;
       }
       .continuity-actions {
         display: flex;
         flex-wrap: wrap;
-        gap: 12px;
+        gap: var(--space-md);
         margin-top: 18px;
       }
       .job-status {
-        margin: var(--space-4) 0 0;
+        margin: var(--space-lg) 0 0;
         color: var(--text-muted);
       }
       .job-status span {
-        margin-left: var(--space-2);
+        margin-left: var(--space-sm);
         font-weight: var(--font-weight-semibold);
         color: var(--color-primary);
       }
@@ -216,32 +227,32 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         color: var(--color-danger);
       }
       .action-error {
-        margin: 12px 0 0;
+        margin: var(--space-md) 0 0;
       }
       .audit-table {
-        margin-top: var(--space-5);
+        margin-top: var(--space-xl);
         border-top: 1px solid var(--border-default);
-        padding-top: var(--space-4);
+        padding-top: var(--space-lg);
       }
       .audit-heading {
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
-        gap: 16px;
+        gap: var(--space-lg);
       }
       .audit-heading h3 {
         margin: 0;
         font-size: 1rem;
       }
       .audit-heading p {
-        margin: 4px 0 0;
+        margin: var(--space-2xs) 0 0;
       }
       .audit-row {
         display: grid;
         grid-template-columns: 1.1fr 1fr 1fr 1.3fr 1.5fr;
-        gap: var(--space-3);
+        gap: var(--space-md);
         align-items: center;
-        padding: var(--space-3) 0;
+        padding: var(--space-md) 0;
         border-bottom: 1px solid var(--border-default);
         font-size: var(--font-size-caption);
       }
@@ -268,12 +279,12 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         font-weight: var(--font-weight-semibold);
       }
       .audit-empty {
-        padding: 16px 0 0;
+        padding: var(--space-lg) 0 0;
       }
       .resource-heading {
         display: flex;
         align-items: flex-start;
-        gap: 12px;
+        gap: var(--space-md);
       }
       .resource-heading mat-icon {
         color: var(--color-primary);
@@ -283,13 +294,13 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         font-size: 1.05rem;
       }
       p {
-        margin: var(--space-1) 0 0;
+        margin: var(--space-2xs) 0 0;
         color: var(--text-muted);
       }
       .status {
         margin-left: auto;
         border-radius: var(--radius-pill);
-        padding: var(--space-1) var(--space-2);
+        padding: var(--space-2xs) var(--space-sm);
         font-size: var(--font-size-caption);
         background: var(--surface-danger);
         color: var(--color-danger);
@@ -299,14 +310,14 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         color: var(--color-success);
       }
       dl {
-        margin: 20px 0 0;
+        margin: var(--space-xl) 0 0;
         display: grid;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       dl div {
         display: flex;
         justify-content: space-between;
-        gap: 16px;
+        gap: var(--space-lg);
       }
       dt {
         color: var(--text-muted);
@@ -317,21 +328,21 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       }
       .checks {
         list-style: none;
-        padding: var(--space-3) 0 0;
-        margin: var(--space-3) 0 0;
+        padding: var(--space-md) 0 0;
+        margin: var(--space-md) 0 0;
         border-top: 1px solid var(--border-default);
         display: grid;
-        gap: var(--space-2);
+        gap: var(--space-sm);
       }
       .checks li {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: var(--space-sm);
         font-size: 0.85rem;
       }
       .checks mat-icon {
         color: var(--color-danger);
-        font-size: 18px;
+        font-size: var(--font-size-icon-sm);
         height: 18px;
         width: 18px;
       }
@@ -356,6 +367,7 @@ export class DatabasePlatformPageComponent implements OnInit {
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  readonly confirm = new AdminConfirmState();
   readonly resource = new HisHopeResourceState<PlatformResource[]>(
     this.destroyRef,
   );
@@ -462,15 +474,16 @@ export class DatabasePlatformPageComponent implements OnInit {
 
   requestRestoreDrill(): void {
     if (!this.canMutate) return;
-    if (
-      !window.confirm(
-        this.i18n.t(
-          "admin.restoreDrillConfirm",
-          "Run a restore drill in the isolated staging environment?",
-        ),
-      )
-    )
-      return;
+    this.confirm.ask(
+      this.i18n.t(
+        "admin.restoreDrillConfirm",
+        "Run a restore drill in the isolated staging environment?",
+      ),
+      () => this.commitRestoreDrill(),
+    );
+  }
+
+  private commitRestoreDrill(): void {
     this.actionLoading = true;
     this.actionError = null;
     this.api.requestRestoreDrill().subscribe({

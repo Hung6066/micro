@@ -18,6 +18,7 @@ import { catchError, firstValueFrom, of, tap } from "rxjs";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
+  HisHopeConfirmDialogComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeToastService,
@@ -49,6 +50,7 @@ import {
 import { ApiErrorMessageService } from "../../core/services/api-error-message.service";
 import { UsersApiService } from "../../core/services/users-api.service";
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
+import { AdminConfirmState } from "../../core/services/admin-confirm-state";
 @Component({
   selector: "app-identity-capabilities-page",
   standalone: true,
@@ -65,6 +67,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     MatTabsModule,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
+    HisHopeConfirmDialogComponent,
     HisHopeTranslatePipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -809,6 +812,14 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
           >
         </mat-tab>
       </mat-tab-group>
+      <hh-confirm-dialog
+        [open]="confirm.open"
+        [title]="confirm.title"
+        [message]="confirm.message"
+        [confirmLabel]="confirm.confirmLabel"
+        (confirmed)="confirm.confirm()"
+        (cancelled)="confirm.cancel()"
+      />
       <p class="error" *ngIf="error">{{ error }}</p>
     </hh-page-layout>
   `,
@@ -816,10 +827,10 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     `
       .notice {
         display: flex;
-        gap: 10px;
+        gap: var(--space-inset);
         align-items: flex-start;
-        padding: 14px 16px;
-        margin-bottom: var(--space-4);
+        padding: var(--font-size-body) var(--space-lg);
+        margin-bottom: var(--space-lg);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-muted);
@@ -830,21 +841,21 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       }
       .grid {
         display: grid;
-        gap: var(--space-4);
-        margin: var(--space-4) 0;
+        gap: var(--space-lg);
+        margin: var(--space-lg) 0;
       }
       .two-col {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       .form-grid {
         display: grid;
-        gap: var(--space-3);
+        gap: var(--space-md);
       }
       .status-row {
         display: flex;
         justify-content: space-between;
-        gap: var(--space-3);
-        padding: 10px 0;
+        gap: var(--space-md);
+        padding: var(--space-inset) 0;
         border-bottom: 1px solid var(--border-subtle);
         font-size: var(--font-size-caption);
       }
@@ -864,11 +875,11 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       .actions {
         display: flex;
         flex-wrap: wrap;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       .pill {
-        padding: 5px 9px;
-        border-radius: 999px;
+        padding: var(--space-snug) var(--space-nudge);
+        border-radius: var(--radius-pill);
         background: var(--surface-muted);
         font-size: var(--font-size-caption);
       }
@@ -889,7 +900,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       }
       .mono {
         font-family: var(--font-mono);
-        font-size: 11px;
+        font-size: var(--font-size-nav);
       }
       .muted {
         color: var(--text-muted);
@@ -897,8 +908,8 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       }
       .result {
         display: grid;
-        gap: 4px;
-        padding: 12px;
+        gap: var(--space-2xs);
+        padding: var(--space-md);
         border-radius: var(--radius-input);
         background: var(--surface-muted);
       }
@@ -926,6 +937,7 @@ export class IdentityCapabilitiesPageComponent {
   private readonly permissions = inject(HisHopePermissionService);
   private readonly errorMessages = inject(ApiErrorMessageService);
   private readonly destroyRef = inject(DestroyRef);
+  readonly confirm = new AdminConfirmState();
   readonly resource = new HisHopeResourceState<IdentityCapabilityState | null>(
     this.destroyRef,
   );
@@ -1069,15 +1081,13 @@ export class IdentityCapabilitiesPageComponent {
   async savePolicy(): Promise<void> {
     if (!this.can("admin.settings.write")) return;
     if (!this.policy) return;
-    if (
-      !window.confirm(
-        this.i18n.t(
-          "admin.confirmPolicyChange",
-          "Apply this device posture policy?",
-        ),
-      )
-    )
-      return;
+    this.confirm.ask("admin.confirmPolicyChange", () => {
+      void this.commitPolicy();
+    });
+  }
+
+  private async commitPolicy(): Promise<void> {
+    if (!this.policy) return;
     this.busy = true;
     this.error = "";
     try {
@@ -1126,15 +1136,12 @@ export class IdentityCapabilitiesPageComponent {
 
   async rollbackPolicy(): Promise<void> {
     if (!this.can("admin.settings.write")) return;
-    if (
-      !window.confirm(
-        this.i18n.t(
-          "admin.confirmPolicyRollback",
-          "Rollback the previous posture policy?",
-        ),
-      )
-    )
-      return;
+    this.confirm.ask("admin.confirmPolicyRollback", () => {
+      void this.commitRollbackPolicy();
+    });
+  }
+
+  private async commitRollbackPolicy(): Promise<void> {
     this.busy = true;
     this.error = "";
     try {
@@ -1197,15 +1204,12 @@ export class IdentityCapabilitiesPageComponent {
 
   async queueProvisioning(): Promise<void> {
     if (!this.can("admin.provisioning.manage")) return;
-    if (
-      !window.confirm(
-        this.i18n.t(
-          "admin.confirmProvisioningQueue",
-          "Queue this provisioning job in dry-run mode?",
-        ),
-      )
-    )
-      return;
+    this.confirm.ask("admin.confirmProvisioningQueue", () => {
+      void this.commitQueueProvisioning();
+    });
+  }
+
+  private async commitQueueProvisioning(): Promise<void> {
     this.busy = true;
     this.error = "";
     try {
@@ -1235,15 +1239,12 @@ export class IdentityCapabilitiesPageComponent {
 
   async revokeBinding(binding: MtlsBinding): Promise<void> {
     if (!this.can("admin.clients.write")) return;
-    if (
-      !window.confirm(
-        this.i18n.t(
-          "admin.confirmCertificateRevoke",
-          "Revoke this certificate binding?",
-        ),
-      )
-    )
-      return;
+    this.confirm.ask("admin.confirmCertificateRevoke", () => {
+      void this.commitRevokeBinding(binding);
+    });
+  }
+
+  private async commitRevokeBinding(binding: MtlsBinding): Promise<void> {
     this.busy = true;
     this.error = "";
     try {
@@ -1270,12 +1271,14 @@ export class IdentityCapabilitiesPageComponent {
 
   async retrySsf(entry: SecuritySignalOutboxEntry): Promise<void> {
     if (!this.can("admin.settings.write")) return;
-    if (
-      !window.confirm(
-        this.i18n.t("admin.confirmSsfRetry", "Retry this SSF delivery?"),
-      )
-    )
-      return;
+    this.confirm.ask("admin.confirmSsfRetry", () => {
+      void this.commitRetrySsf(entry);
+    });
+  }
+
+  private async commitRetrySsf(
+    entry: SecuritySignalOutboxEntry,
+  ): Promise<void> {
     this.busy = true;
     this.error = "";
     try {
@@ -1298,15 +1301,12 @@ export class IdentityCapabilitiesPageComponent {
 
   async retryJob(job: ProvisioningJob): Promise<void> {
     if (!this.can("admin.provisioning.manage")) return;
-    if (
-      !window.confirm(
-        this.i18n.t(
-          "admin.confirmProvisioningRetry",
-          "Retry this provisioning job?",
-        ),
-      )
-    )
-      return;
+    this.confirm.ask("admin.confirmProvisioningRetry", () => {
+      void this.commitRetryJob(job);
+    });
+  }
+
+  private async commitRetryJob(job: ProvisioningJob): Promise<void> {
     this.busy = true;
     this.error = "";
     try {

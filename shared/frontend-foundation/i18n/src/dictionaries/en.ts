@@ -59,6 +59,9 @@ export const hisHopeEn: HisHopeTranslationDictionary = {
     saveClientFailed: "Failed to save client",
     clientIdRequired: "Client ID is required.",
     clientDisplayNameRequired: "Display name is required.",
+    clientRedirectUriRequired:
+      "At least one redirect URI is required for the authorization code grant.",
+    clientRedirectUrisHttpsInvalid: "Use HTTPS redirect URIs.",
     clientRedirectUrisInvalid:
       "Use HTTPS redirect URIs; authorization code requires one.",
     clientPostLogoutUrisInvalid: "Use HTTPS post-logout redirect URIs.",
@@ -172,6 +175,7 @@ export const hisHopeEn: HisHopeTranslationDictionary = {
     id: "ID",
     identityAdministration: "Identity administration",
     loadConsentsFailed: "Failed to load consents.",
+    loadClientsFailed: "Failed to load clients.",
     loadRolesFailed: "Failed to load roles.",
     loadUsersFailed: "Failed to load users.",
     loadingDashboard: "Loading dashboard...",
@@ -1675,6 +1679,42 @@ export const hisHopeEn: HisHopeTranslationDictionary = {
     deviceRegistered: "This device is registered for MFA approval.",
     deviceRegistrationFailed: "Unable to register this device for MFA.",
     exportDesktop: "Export is available from the desktop admin workspace.",
+    exportCsv: "Spreadsheet-friendly, one row per record.",
+    exportFailed: "Export failed.",
+    exportHint: "The export covers the rows matching the current filters.",
+    exportJson: "Structured payload including nested fields.",
+    exportTitle: "Export records",
+    deviceBlockedCompromised: "Device integrity could not be verified.",
+    deviceBlockedEmulator:
+      "Emulator environments are not supported in production.",
+    deviceBlockedMessage:
+      "This device failed the security check. Use a managed device to access administration.",
+    deviceBlockedRooted: "Rooted or jailbroken device detected.",
+    deviceBlockedTitle: "Device not allowed",
+    forbiddenMessage:
+      "You do not have permission to view this mobile workspace section.",
+    forbiddenTitle: "Access denied",
+    maintenanceMessage:
+      "The identity platform is temporarily unavailable. Please try again shortly.",
+    maintenanceTitle: "Maintenance in progress",
+    pinDescription: "Use a local PIN as an additional lock for this device.",
+    pinPlaceholder: "App PIN",
+    pinSave: "Set PIN",
+    pinSaved: "PIN saved on this device.",
+    pinSaveFailed: "PIN could not be saved.",
+    pinTitle: "App PIN",
+    pinUnlockFailed: "PIN is incorrect.",
+    pinUpdate: "Update PIN",
+    sessionExpiredMessage:
+      "Your session expired. Sign in again to continue securely.",
+    sessionExpiredReLogin: "Sign in again",
+    sessionExpiredTitle: "Session expired",
+    signInAgain: "Sign in again",
+    unlockWithPin: "Unlock with PIN",
+    upgradeOpenStore: "Open app store",
+    upgradeRequiredMessage:
+      "Please install the latest His.Hope Mobile version to continue securely.",
+    upgradeRequiredTitle: "Update required",
     fallbackDescription:
       "Use the authenticator code configured on your computer if native passkey registration is unavailable.",
     goodToSeeYou: "Good to see you",
@@ -1752,6 +1792,8 @@ export const hisHopeEn: HisHopeTranslationDictionary = {
     unlockBiometrics: "Unlock with biometrics",
     unlockContinue: "Unlock to continue where you left off.",
     unlockFailed: "Unlock failed. Try again or sign out.",
+    useDesktopForCreate:
+      "Create and edit records in the desktop admin workspace.",
     useDeviceMfa: "Use this device for MFA",
   },
   navigation: {

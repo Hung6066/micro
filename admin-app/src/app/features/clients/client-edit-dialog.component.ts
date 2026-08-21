@@ -1,4 +1,4 @@
-import { Component, Inject, inject } from "@angular/core";
+import { Component, ElementRef, Inject, inject } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import {
   AbstractControl,
@@ -16,21 +16,22 @@ import { ClientsApiService } from "../../core/services/clients-api.service";
 import { catchError, map } from "rxjs/operators";
 import { of } from "rxjs";
 import {
+  HisHopeActionButtonComponent,
   HisHopeCreateDialogShellComponent,
   HIS_HOPE_DIALOG_DATA,
   HisHopeDialogRef,
   HisHopeFormLayoutComponent,
   HisHopeFormSectionComponent,
+  HisHopeFormValidationSummaryComponent,
   HisHopePhiMaskDirective,
   HisHopeToastService,
+  focusFirstInvalidControl,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
 import { HisHopeMaterialFormFieldComponent } from "@his-hope/frontend-foundation/forms";
-
-import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 
 function httpsUriLinesValidator(
   control: AbstractControl,
@@ -93,6 +94,7 @@ function jwksValidator(control: AbstractControl): ValidationErrors | null {
     HisHopeCreateDialogShellComponent,
     HisHopeFormLayoutComponent,
     HisHopeFormSectionComponent,
+    HisHopeFormValidationSummaryComponent,
     HisHopePhiMaskDirective,
     HisHopeTranslatePipe,
     HisHopeMaterialFormFieldComponent,
@@ -106,6 +108,7 @@ function jwksValidator(control: AbstractControl): ValidationErrors | null {
     >
       <div hhCreateDialogContent>
         <form class="dialog-form" [formGroup]="formGroup" (ngSubmit)="save()">
+          <hh-form-validation-summary [form]="formGroup" />
           <hh-form-layout>
             <hh-form-section
               [title]="'admin.basicInformation' | hhTranslate"
@@ -166,13 +169,12 @@ function jwksValidator(control: AbstractControl): ValidationErrors | null {
                 [placeholder]="'https://app.example.com/auth/callback'"
                 [messages]="{
                   httpsUri:
-                    ('admin.clientRedirectUrisInvalid'
-                    | hhTranslate
-                      : 'Use HTTPS redirect URIs; authorization code requires one.'),
+                    ('admin.clientRedirectUrisHttpsInvalid'
+                    | hhTranslate: 'Use HTTPS redirect URIs.'),
                   redirectUriRequired:
-                    ('admin.clientRedirectUrisInvalid'
+                    ('admin.clientRedirectUriRequired'
                     | hhTranslate
-                      : 'Use HTTPS redirect URIs; authorization code requires one.'),
+                      : 'At least one redirect URI is required for the authorization code grant.'),
                 }"
               />
               <hh-mat-form-field
@@ -313,16 +315,16 @@ function jwksValidator(control: AbstractControl): ValidationErrors | null {
       }
       .secret-panel {
         display: grid;
-        gap: var(--space-2);
-        margin: var(--space-2) 0 var(--space-4);
-        padding: var(--space-3);
+        gap: var(--space-sm);
+        margin: var(--space-sm) 0 var(--space-lg);
+        padding: var(--space-md);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-success);
       }
       .secret-panel code {
         overflow-wrap: anywhere;
-        padding: var(--space-2);
+        padding: var(--space-sm);
         background: var(--surface-white);
         border: 1px solid var(--border-default);
         color: var(--text-primary);
@@ -336,6 +338,7 @@ function jwksValidator(control: AbstractControl): ValidationErrors | null {
   ],
 })
 export class ClientEditDialogComponent {
+  private readonly host = inject(ElementRef<HTMLElement>);
   private readonly api = inject(ClientsApiService);
   private readonly dialogRef = inject(
     HisHopeDialogRef<ClientEditDialogComponent>,
@@ -393,7 +396,12 @@ export class ClientEditDialogComponent {
 
   save(): void {
     this.formGroup.markAllAsTouched();
-    if (this.saving || this.formGroup.invalid) return;
+    if (this.saving || this.formGroup.invalid) {
+      if (this.formGroup.invalid) {
+        focusFirstInvalidControl(this.host.nativeElement);
+      }
+      return;
+    }
     this.saving = true;
     const values = this.formGroup.getRawValue();
     const clientRequest: Partial<OidcClient> = {

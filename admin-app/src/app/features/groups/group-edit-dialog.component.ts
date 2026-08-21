@@ -1,26 +1,16 @@
 import { Component, Inject, inject } from "@angular/core";
-import {
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-  Validators,
-} from "@angular/forms";
+import { FormControl, FormGroup, Validators } from "@angular/forms";
 import {
   HIS_HOPE_DIALOG_DATA,
   HisHopeDialogRef,
-} from "@his-hope/frontend-foundation/ui";
-import {
-  HisHopeCreateDialogShellComponent,
-  HisHopeActionButtonComponent,
-  HisHopeFormLayoutComponent,
-  HisHopeFormSectionComponent,
+  HisHopeEntityDialogComponent,
 } from "@his-hope/frontend-foundation/ui";
 
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import {
-  HisHopeI18nService,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation/i18n";
-import { HisHopeMaterialFormFieldComponent } from "@his-hope/frontend-foundation/forms";
+  HisHopeFormFieldSchema,
+  HisHopeMaterialFormRendererComponent,
+} from "@his-hope/frontend-foundation/forms";
 import { IamGroup, IamScope } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 
@@ -32,85 +22,23 @@ export interface GroupEditDialogData {
 @Component({
   selector: "app-group-edit-dialog",
   standalone: true,
-  imports: [
-    ReactiveFormsModule,
-    HisHopeActionButtonComponent,
-    HisHopeCreateDialogShellComponent,
-    HisHopeFormLayoutComponent,
-    HisHopeFormSectionComponent,
-    HisHopeTranslatePipe,
-    HisHopeMaterialFormFieldComponent,
-  ],
+  imports: [HisHopeEntityDialogComponent, HisHopeMaterialFormRendererComponent],
   template: `
-    <hh-create-dialog-shell
-      [title]="
-        (data.group ? 'admin.editGroup' : 'admin.createGroup')
-          | hhTranslate: (data.group ? 'Edit group' : 'Create group')
-      "
+    <hh-entity-dialog
+      [title]="data.group ? 'admin.editGroup' : 'admin.createGroup'"
+      [titleFallback]="data.group ? 'Edit group' : 'Create group'"
+      sectionTitle="admin.groupDetails"
+      sectionTitleFallback="Group details"
+      sectionDescription="admin.groupDetailsDescription"
+      sectionDescriptionFallback="Define the group identity and scope assignment."
+      [formGroup]="formGroup"
+      [saving]="saving"
+      (save)="save()"
+      (cancel)="dialogRef.close()"
     >
-      <div hhCreateDialogContent>
-        <form [formGroup]="formGroup" (ngSubmit)="save()" class="group-form">
-          @if (formGroup.invalid && formGroup.touched) {
-            <p class="form-error" role="alert">
-              {{
-                "admin.validationRequired"
-                  | hhTranslate: "Complete the required fields."
-              }}
-            </p>
-          }
-          <hh-form-layout
-            ><hh-form-section
-              [title]="'admin.groupDetails' | hhTranslate: 'Group details'"
-              [description]="
-                'admin.groupDetailsDescription'
-                  | hhTranslate
-                    : 'Define the group identity and scope assignment.'
-              "
-              [span]="2"
-              ><hh-mat-form-field
-                [control]="formGroup.controls.key"
-                [label]="'admin.key' | hhTranslate: 'Key'" />
-              <hh-mat-form-field
-                [control]="formGroup.controls.displayName"
-                [label]="'admin.displayName' | hhTranslate: 'Display name'" />
-              <hh-mat-form-field
-                [control]="formGroup.controls.scopeId"
-                [label]="'admin.scopeId' | hhTranslate: 'Scope'"
-                kind="select"
-                [options]="scopeOptions" /></hh-form-section
-          ></hh-form-layout>
-        </form>
-      </div>
-      <div hhCreateDialogFooter>
-        <hh-action-button
-          kind="secondary"
-          icon="close"
-          [label]="'common.cancel' | hhTranslate"
-          (pressed)="dialogRef.close()"
-        />
-        <hh-action-button
-          kind="primary"
-          icon="save"
-          [label]="(saving ? 'admin.saving' : 'admin.save') | hhTranslate"
-          [disabled]="saving"
-          (pressed)="save()"
-        />
-      </div>
-    </hh-create-dialog-shell>
+      <hh-material-form-renderer [fields]="fields" [form]="formGroup" />
+    </hh-entity-dialog>
   `,
-  styles: [
-    `
-      .group-form {
-        display: grid;
-        gap: 16px;
-      }
-      .form-error {
-        margin: 0;
-        color: var(--text-danger, #b42318);
-        font-size: 0.875rem;
-      }
-    `,
-  ],
 })
 export class GroupEditDialogComponent {
   readonly dialogRef = inject(HisHopeDialogRef<GroupEditDialogComponent>);
@@ -157,8 +85,32 @@ export class GroupEditDialogComponent {
     ];
   }
 
+  get fields(): HisHopeFormFieldSchema<unknown>[] {
+    return [
+      {
+        key: "key",
+        label: this.i18n.t("admin.key", "Key"),
+        initialValue: "",
+        required: true,
+      },
+      {
+        key: "displayName",
+        label: this.i18n.t("admin.displayName", "Display name"),
+        initialValue: "",
+        required: true,
+      },
+      {
+        key: "scopeId",
+        label: this.i18n.t("admin.scopeId", "Scope"),
+        initialValue: "",
+        required: true,
+        type: "select",
+        options: this.scopeOptions,
+      },
+    ];
+  }
+
   save(): void {
-    this.formGroup.markAllAsTouched();
     if (this.formGroup.invalid || this.saving) return;
     Object.assign(this.draft, this.formGroup.getRawValue());
     if (

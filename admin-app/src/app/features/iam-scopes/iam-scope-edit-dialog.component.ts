@@ -1,28 +1,17 @@
 import { Component, Inject, inject } from "@angular/core";
-import { CommonModule } from "@angular/common";
-import {
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-  Validators,
-} from "@angular/forms";
+import { FormControl, FormGroup, Validators } from "@angular/forms";
 import {
   HIS_HOPE_DIALOG_DATA,
   HisHopeDialogRef,
+  HisHopeEntityDialogComponent,
 } from "@his-hope/frontend-foundation/ui";
 import { IamScope } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import {
-  HisHopeActionButtonComponent,
-  HisHopeCreateDialogShellComponent,
-  HisHopeFormLayoutComponent,
-  HisHopeFormSectionComponent,
-} from "@his-hope/frontend-foundation/ui";
-import {
-  HisHopeI18nService,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation/i18n";
-import { HisHopeMaterialFormFieldComponent } from "@his-hope/frontend-foundation/forms";
+  HisHopeFormFieldSchema,
+  HisHopeMaterialFormRendererComponent,
+} from "@his-hope/frontend-foundation/forms";
 
 export interface IamScopeEditDialogData {
   scope: IamScope | null;
@@ -32,93 +21,22 @@ export interface IamScopeEditDialogData {
 @Component({
   selector: "app-iam-scope-edit-dialog",
   standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    HisHopeActionButtonComponent,
-    HisHopeCreateDialogShellComponent,
-    HisHopeFormLayoutComponent,
-    HisHopeFormSectionComponent,
-    HisHopeMaterialFormFieldComponent,
-    HisHopeTranslatePipe,
-  ],
-  template: `<hh-create-dialog-shell
-    [title]="
-      (data.scope ? 'admin.editScope' : 'admin.createScope')
-        | hhTranslate: (data.scope ? 'Edit scope' : 'Create scope')
-    "
+  imports: [HisHopeEntityDialogComponent, HisHopeMaterialFormRendererComponent],
+  template: `<hh-entity-dialog
+    [title]="data.scope ? 'admin.editScope' : 'admin.createScope'"
+    [titleFallback]="data.scope ? 'Edit scope' : 'Create scope'"
+    sectionTitle="admin.scopeDetails"
+    sectionTitleFallback="Scope details"
+    sectionDescription="admin.scopeDetailsDescription"
+    sectionDescriptionFallback="Define the scope identity and hierarchy."
+    [formGroup]="formGroup"
+    [saving]="saving"
+    cancelLabel="admin.cancel"
+    (save)="save()"
+    (cancel)="dialogRef.close()"
   >
-    <div hhCreateDialogContent>
-      <form [formGroup]="formGroup" (ngSubmit)="save()" class="dialog-form">
-        @if (formGroup.invalid && formGroup.touched) {
-          <p class="form-error" role="alert">
-            {{
-              "admin.validationRequired"
-                | hhTranslate: "Complete the required fields."
-            }}
-          </p>
-        }
-        <hh-form-layout>
-          <hh-form-section
-            [title]="'admin.scopeDetails' | hhTranslate: 'Scope details'"
-            [description]="
-              'admin.scopeDetailsDescription'
-                | hhTranslate: 'Define the scope identity and hierarchy.'
-            "
-            [span]="2"
-            ><hh-mat-form-field
-              [control]="formGroup.controls.key"
-              [label]="'admin.key' | hhTranslate"
-            />
-            <hh-mat-form-field
-              [control]="formGroup.controls.displayName"
-              [label]="'admin.displayName' | hhTranslate"
-            />
-            <hh-mat-form-field
-              [control]="formGroup.controls.kind"
-              [label]="'admin.kind' | hhTranslate"
-              kind="select"
-              [options]="kindOptions"
-            />
-            <hh-mat-form-field
-              [control]="formGroup.controls.parentId"
-              [label]="'admin.parentScope' | hhTranslate"
-              *ngIf="draft.kind !== 'organization'"
-              kind="select"
-              [options]="parentOptionsList"
-            />
-          </hh-form-section>
-        </hh-form-layout>
-      </form>
-    </div>
-    <div hhCreateDialogFooter>
-      <hh-action-button
-        kind="secondary"
-        icon="close"
-        [label]="'admin.cancel' | hhTranslate"
-        (pressed)="dialogRef.close()"
-      /><hh-action-button
-        kind="primary"
-        icon="save"
-        [label]="(saving ? 'admin.saving' : 'admin.save') | hhTranslate"
-        [disabled]="saving"
-        (pressed)="save()"
-      />
-    </div>
-  </hh-create-dialog-shell>`,
-  styles: [
-    `
-      .dialog-form {
-        display: grid;
-        gap: 16px;
-      }
-      .form-error {
-        margin: 0;
-        color: var(--text-danger, #b42318);
-        font-size: 0.875rem;
-      }
-    `,
-  ],
+    <hh-material-form-renderer [fields]="fields" [form]="formGroup" />
+  </hh-entity-dialog>`,
 })
 export class IamScopeEditDialogComponent {
   readonly dialogRef = inject(HisHopeDialogRef<IamScopeEditDialogComponent>);
@@ -177,8 +95,39 @@ export class IamScopeEditDialogComponent {
       })),
     ];
   }
+  get fields(): HisHopeFormFieldSchema<unknown>[] {
+    return [
+      {
+        key: "key",
+        label: this.i18n.t("admin.key", "Key"),
+        initialValue: "",
+        required: true,
+      },
+      {
+        key: "displayName",
+        label: this.i18n.t("admin.displayName", "Display name"),
+        initialValue: "",
+        required: true,
+      },
+      {
+        key: "kind",
+        label: this.i18n.t("admin.kind", "Kind"),
+        initialValue: "organization",
+        required: true,
+        type: "select",
+        options: this.kindOptions,
+      },
+      {
+        key: "parentId",
+        label: this.i18n.t("admin.parentScope", "Parent scope"),
+        initialValue: "",
+        type: "select",
+        options: this.parentOptionsList,
+        hidden: this.formGroup.controls.kind.value === "organization",
+      },
+    ];
+  }
   save(): void {
-    this.formGroup.markAllAsTouched();
     if (this.formGroup.invalid || this.saving) return;
     Object.assign(this.draft, this.formGroup.getRawValue());
     if (this.saving || !this.draft.key.trim() || !this.draft.displayName.trim())

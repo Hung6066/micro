@@ -1,6 +1,9 @@
 import { DOCUMENT, isPlatformBrowser } from "@angular/common";
 import { Injectable, PLATFORM_ID, inject, signal } from "@angular/core";
 import {
+  hisHopeTypographyCssVariables,
+} from "../contracts/his-hope-typography.contract";
+import {
   DEFAULT_HIS_HOPE_DESIGN_PRESET,
   getHisHopeDesignPreset,
   HisHopeDesignPreset,
@@ -9,6 +12,7 @@ import {
 
 export type HisHopeTheme = "light" | "dark" | "system";
 export type HisHopeResolvedTheme = "light" | "dark";
+export type HisHopePlatform = "mobile" | "desktop";
 
 @Injectable({ providedIn: "root" })
 export class HisHopeThemeService {
@@ -74,6 +78,14 @@ export class HisHopeThemeService {
     localStorage.setItem("hh-ui-preset", selected.id);
     if (broadcast)
       this.syncChannel?.postMessage({ type: "preset", preset: selected.id });
+  }
+
+  /** Applies `[data-platform]` for mobile density/type overrides. */
+  setPlatform(platform: HisHopePlatform | null): void {
+    if (!isPlatformBrowser(this.platformId)) return;
+    const root = this.document.documentElement;
+    if (platform) root.dataset["platform"] = platform;
+    else root.removeAttribute("data-platform");
   }
 
   restore(): void {
@@ -152,10 +164,10 @@ export class HisHopeThemeService {
       "--font-body": preset.typography.body,
       "--font-display": preset.typography.display,
       "--font-mono": preset.typography.mono,
-      "--font-size-body": preset.typography.bodySize,
-      "--font-size-title": preset.typography.titleSize,
+      ...hisHopeTypographyCssVariables(preset.typography.scale),
       "--font-weight-regular": preset.typography.weight,
       "--leading-body": preset.typography.lineHeight,
+      "--leading-tight": preset.typography.lineHeightTight,
       "--shell-sidebar-width": preset.layout.sidebarWidth,
       "--max-width-container": preset.layout.contentMaxWidth,
       "--control-height": preset.layout.controlHeight,

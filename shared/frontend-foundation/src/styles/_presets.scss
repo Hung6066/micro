@@ -70,7 +70,7 @@
 [data-ui-preset="expo"] .hh-table-shell,
 [data-ui-preset="expo"] .hh-filter-toolbar {
   border-color: var(--border-strong) !important;
-  box-shadow: 0 4px 12px rgba(23, 23, 23, 0.04) !important;
+  box-shadow: var(--shadow-preset-card) !important;
 }
 
 [data-ui-preset="expo"] .mat-mdc-raised-button.mat-primary,
@@ -248,7 +248,7 @@
   font-weight: 600 !important;
 }
 [data-ui-preset="linear"] .hh-table-shell .mat-mdc-header-cell {
-  font-size: 11px;
+  font-size: var(--font-size-nav);
   letter-spacing: 0.05em;
 }
 
@@ -294,7 +294,7 @@
 [data-ui-preset="intercom"] .hh-table-shell,
 [data-ui-preset="intercom"] .hh-filter-toolbar {
   border-color: var(--border-default) !important;
-  box-shadow: 0 6px 18px rgba(22, 119, 200, 0.06) !important;
+  box-shadow: var(--shadow-mobile-dashboard) !important;
 }
 [data-ui-preset="intercom"] .mat-mdc-button,
 [data-ui-preset="intercom"] .mat-mdc-raised-button,
@@ -390,7 +390,7 @@
 [data-ui-table-style="dense"] .hh-table-shell .mat-mdc-header-cell {
   padding-top: 8px;
   padding-bottom: 8px;
-  font-size: 13px;
+  font-size: var(--font-size-label);
 }
 
 [data-ui-table-style="quiet"] .hh-table-shell .mat-mdc-header-cell {

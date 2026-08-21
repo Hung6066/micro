@@ -39,7 +39,7 @@ import { HisHopeThemeService } from "./his-hope-theme.service";
       .hh-preset-switcher {
         display: inline-flex;
         align-items: center;
-        gap: var(--space-2);
+        gap: var(--space-sm);
         color: inherit;
       }
       .hh-preset-switcher__label {
@@ -50,14 +50,14 @@ import { HisHopeThemeService } from "./his-hope-theme.service";
         min-height: var(--touch-target);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-button);
-        padding: 0 var(--space-3);
+        padding: 0 var(--space-md);
         background: var(--surface-white);
         color: var(--text-primary);
         font: inherit;
       }
       .hh-preset-switcher__select:focus-visible {
         outline: 2px solid var(--color-focus);
-        outline-offset: 2px;
+        outline-offset: var(--focus-ring-width);
       }
     `,
   ],

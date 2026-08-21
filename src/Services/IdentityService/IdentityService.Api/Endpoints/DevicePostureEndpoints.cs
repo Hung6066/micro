@@ -6,7 +6,9 @@ using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Facility;
 using His.Hope.Contracts.Identity;
 using His.Hope.Contracts;
+using His.Hope.SharedKernel.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authorization;
 
 namespace His.Hope.IdentityService.Api.Endpoints;
 
@@ -122,10 +124,23 @@ public static class DevicePostureEndpoints
             return Results.Ok(assessments.Select(item => ToAssessmentResponse(item, now)));
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsRead);
 
-        app.MapGet(IdentityApiRoutes.DevicePostureDecision + "/{userId:guid}/{deviceId}", async (Guid userId, string deviceId, IdentityDbContext db, FacilityContext facilityContext, CancellationToken ct) =>
+        app.MapGet(IdentityApiRoutes.DevicePostureDecision + "/{userId:guid}/{deviceId}", async (
+            Guid userId,
+            string deviceId,
+            IdentityDbContext db,
+            FacilityContext facilityContext,
+            HttpContext http,
+            IAuthorizationService authorization,
+            CancellationToken ct) =>
         {
+            if (!await CanReadPostureDecisionAsync(http, authorization, userId))
+                return Results.Forbid();
+
             var scopeId = ResolveScope(facilityContext, null);
-            var assessment = await db.DevicePostureAssessments.AsNoTracking().Where(item => item.UserId == userId && item.DeviceId == deviceId && (scopeId == null || item.ScopeId == scopeId)).OrderByDescending(item => item.ObservedAt).FirstOrDefaultAsync(ct);
+            var assessment = await db.DevicePostureAssessments.AsNoTracking()
+                .Where(item => item.UserId == userId && item.DeviceId == deviceId && (scopeId == null || item.ScopeId == scopeId))
+                .OrderByDescending(item => item.ObservedAt)
+                .FirstOrDefaultAsync(ct);
             if (assessment is null) return Results.NotFound();
             return Results.Ok(new { assessment.UserId, assessment.DeviceId, assessment.Provider, assessment.Decision, fresh = assessment.ExpiresAt > DateTime.UtcNow, assessment.ExpiresAt, assessment.PolicyVersion });
         }).RequireAuthorization();
@@ -201,4 +216,20 @@ public static class DevicePostureEndpoints
         !context.IsCrossFacility && !string.IsNullOrWhiteSpace(context.FacilityId)
             ? context.FacilityId
             : string.IsNullOrWhiteSpace(requestedFacility) ? IdentityScope.Global : requestedFacility.Trim();
+
+    private static async Task<bool> CanReadPostureDecisionAsync(
+        HttpContext http,
+        IAuthorizationService authorization,
+        Guid userId)
+    {
+        var subject = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub");
+        if (Guid.TryParse(subject, out var currentUserId) && currentUserId == userId)
+            return true;
+
+        var admin = await authorization.AuthorizeAsync(
+            http.User,
+            null,
+            AuthorizationPolicyNames.Permissions.AdminSettingsRead);
+        return admin.Succeeded;
+    }
 }

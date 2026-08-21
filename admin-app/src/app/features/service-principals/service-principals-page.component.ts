@@ -11,12 +11,9 @@ import { CommonModule } from "@angular/common";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { forkJoin } from "rxjs";
 import {
-  HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
-  HisHopeDataTableComponent,
-  HisHopeToolbarComponent,
-  HisHopePageHeaderComponent,
-  HisHopePageLayoutComponent,
+  HisHopeResourceListPageComponent,
+  HisHopeResourceRowActionsDirective,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -40,87 +37,52 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    HisHopeDataTableCellDirective,
-    HisHopeDataTableComponent,
-    HisHopePageHeaderComponent,
-    HisHopePageLayoutComponent,
-    HisHopeToolbarComponent,
+    HisHopeResourceListPageComponent,
+    HisHopeResourceRowActionsDirective,
     HisHopeTranslatePipe,
   ],
   template: `
-    <hh-page-layout>
-      <hh-page-header
-        hhPageHeader
-        [title]="'admin.servicePrincipals' | hhTranslate: 'Service principals'"
-        [subtitle]="
-          'admin.servicePrincipalsSubtitle'
-            | hhTranslate: 'Non-human identities and workload credentials.'
-        "
-      />
-      <hh-toolbar
-        hhPageToolbar
-        [label]="'admin.servicePrincipals' | hhTranslate: 'Service principals'"
-      >
-        <span hhToolbarTitle
-          >{{ roles.length }}
-          {{
-            "admin.servicePrincipals" | hhTranslate: "Service principals"
-          }}</span
-        >
+    <hh-resource-list-page
+      title="admin.servicePrincipals"
+      titleFallback="Service principals"
+      subtitle="admin.servicePrincipalsSubtitle"
+      subtitleFallback="Non-human identities and workload credentials."
+      [count]="roles.length"
+      [canWrite]="canWrite"
+      [columns]="columns"
+      [rows]="rows"
+      [loading]="loading"
+      [error]="error"
+      (create)="openCreate()"
+      (refresh)="load()"
+    >
+      <ng-template hhResourceRowActions let-row>
         <hh-action-button
           *ngIf="canWrite"
-          (pressed)="openCreate()"
-          hh-toolbar-actions
-          kind="primary"
-          icon="add"
-          [label]="'admin.create' | hhTranslate"
+          (pressed)="edit(row)"
+          kind="row"
+          mode="icon-only"
+          icon="edit"
+          [label]="'admin.edit' | hhTranslate: 'Edit'"
         />
         <hh-action-button
-          (pressed)="load()"
-          hh-toolbar-actions
-          kind="secondary"
-          icon="refresh"
-          [label]="'admin.refresh' | hhTranslate"
+          *ngIf="canWrite && row['isActive']"
+          (pressed)="toggle(row)"
+          kind="danger"
+          mode="icon-only"
+          icon="toggle_off"
+          [label]="'admin.deactivate' | hhTranslate"
         />
-      </hh-toolbar>
-      <div *ngIf="error" class="hh-state hh-state--error" role="alert">
-        {{ error }}
-      </div>
-      <hh-data-table
-        [label]="'admin.servicePrincipals' | hhTranslate: 'Service principals'"
-        [columns]="columns"
-        [rows]="rows"
-        [loading]="loading"
-        [empty]="!loading && !error && !rows.length"
-      >
-        <ng-template hhDataTableCell="actions" let-row>
-          <hh-action-button
-            *ngIf="canWrite"
-            (pressed)="edit(row)"
-            kind="row"
-            mode="icon-only"
-            icon="edit"
-            [label]="'admin.edit' | hhTranslate: 'Edit'"
-          />
-          <hh-action-button
-            *ngIf="canWrite && row['isActive']"
-            (pressed)="toggle(row)"
-            kind="danger"
-            mode="icon-only"
-            icon="toggle_off"
-            [label]="'admin.deactivate' | hhTranslate"
-          />
-          <hh-action-button
-            *ngIf="canWrite && !row['isActive']"
-            (pressed)="toggle(row)"
-            kind="row"
-            mode="icon-only"
-            icon="toggle_on"
-            [label]="'admin.activate' | hhTranslate"
-          />
-        </ng-template>
-      </hh-data-table>
-    </hh-page-layout>
+        <hh-action-button
+          *ngIf="canWrite && !row['isActive']"
+          (pressed)="toggle(row)"
+          kind="row"
+          mode="icon-only"
+          icon="toggle_on"
+          [label]="'admin.activate' | hhTranslate"
+        />
+      </ng-template>
+    </hh-resource-list-page>
   `,
 })
 export class ServicePrincipalsPageComponent implements OnInit {

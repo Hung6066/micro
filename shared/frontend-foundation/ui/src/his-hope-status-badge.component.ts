@@ -15,8 +15,8 @@ export type HisHopeStatusTone = 'neutral' | 'info' | 'success' | 'warning' | 'da
   `,
   styles: [`
     :host { display: inline-flex; }
-    .status-badge { display: inline-flex; align-items: center; gap: 6px; }
-    .status-badge__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .status-badge { display: inline-flex; align-items: center; gap: var(--space-xs); }
+    .status-badge__dot { width: var(--space-xs); height: var(--space-xs); border-radius: var(--radius-full); background: currentColor; }
   `],
 })
 export class HisHopeStatusBadgeComponent {

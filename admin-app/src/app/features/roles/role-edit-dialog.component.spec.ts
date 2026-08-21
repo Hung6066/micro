@@ -105,7 +105,11 @@ describe("RoleEditDialogComponent", () => {
     fixture.detectChanges();
     const component = fixture.componentInstance;
     component.form.name = "Clinical reviewer";
-    component.formGroup.patchValue({ riskTier: "high" });
+    component.formGroup.patchValue({
+      name: "Clinical reviewer",
+      riskTier: "elevated",
+      owner: "identity-service",
+    });
     component.togglePermission("clinical.sign", true);
     component.togglePermission("clinical.read", true);
     component.save();
@@ -113,7 +117,7 @@ describe("RoleEditDialogComponent", () => {
     expect(api.createRole).toHaveBeenCalledWith(
       jasmine.objectContaining({
         name: "Clinical reviewer",
-        riskTier: "high",
+        riskTier: "elevated",
         permissions: ["clinical.read", "clinical.sign"],
       }),
     );

@@ -11,12 +11,9 @@ import { CommonModule } from "@angular/common";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { forkJoin } from "rxjs";
 import {
-  HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
-  HisHopeDataTableComponent,
-  HisHopePageHeaderComponent,
-  HisHopePageLayoutComponent,
-  HisHopeToolbarComponent,
+  HisHopeResourceListPageComponent,
+  HisHopeResourceRowActionsDirective,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -40,62 +37,45 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    HisHopeDataTableCellDirective,
-    HisHopeDataTableComponent,
-    HisHopePageHeaderComponent,
-    HisHopePageLayoutComponent,
-    HisHopeToolbarComponent,
+    HisHopeResourceListPageComponent,
+    HisHopeResourceRowActionsDirective,
     HisHopeTranslatePipe,
   ],
-  template: ` <hh-page-layout
-    ><hh-page-header
-      hhPageHeader
-      [title]="'admin.permissionSets' | hhTranslate: 'Permission sets'"
-      [subtitle]="
-        'admin.permissionSetsSubtitle'
-          | hhTranslate: 'Governed bundles of canonical permissions.'
-      " /><hh-toolbar
-      hhPageToolbar
-      [label]="'admin.permissionSets' | hhTranslate: 'Permission sets'"
-      ><span hhToolbarTitle
-        >{{ sets.length }} {{ "admin.permissionSets" | hhTranslate }}</span
-      ><hh-action-button
-        *ngIf="canWrite"
-        hh-toolbar-actions
-        kind="primary"
-        icon="add"
-        [label]="'admin.create' | hhTranslate"
-        (pressed)="openCreate()" /><hh-action-button
-        hh-toolbar-actions
-        kind="secondary"
-        icon="refresh"
-        [label]="'admin.refresh' | hhTranslate"
-        (pressed)="load()"
-    /></hh-toolbar>
-    <div *ngIf="error" class="hh-state hh-state--error" role="alert">
-      {{ error }}
-    </div>
-    <hh-data-table
-      [label]="'admin.permissionSets' | hhTranslate: 'Permission sets'"
+  template: `
+    <hh-resource-list-page
+      title="admin.permissionSets"
+      titleFallback="Permission sets"
+      subtitle="admin.permissionSetsSubtitle"
+      subtitleFallback="Governed bundles of canonical permissions."
+      [count]="sets.length"
+      [canWrite]="canWrite"
       [columns]="columns"
       [rows]="rows"
       [loading]="loading"
-      [empty]="!loading && !error && !rows.length"
-      ><ng-template hhDataTableCell="actions" let-row
-        ><hh-action-button
+      [error]="error"
+      (create)="openCreate()"
+      (refresh)="load()"
+    >
+      <ng-template hhResourceRowActions let-row>
+        <hh-action-button
           *ngIf="canWrite"
           kind="row"
           mode="icon-only"
           icon="edit"
           [label]="'admin.edit' | hhTranslate"
-          (pressed)="edit(row)" /><hh-action-button
+          (pressed)="edit(row)"
+        />
+        <hh-action-button
           *ngIf="canWrite && row['lifecycleStatus'] !== 'published'"
           kind="row"
           mode="icon-only"
           icon="publish"
           [label]="'admin.publish' | hhTranslate"
-          (pressed)="publish(row)" /></ng-template></hh-data-table
-  ></hh-page-layout>`,
+          (pressed)="publish(row)"
+        />
+      </ng-template>
+    </hh-resource-list-page>
+  `,
 })
 export class PermissionSetsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);

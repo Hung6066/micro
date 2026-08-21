@@ -57,7 +57,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         align-items: center;
         min-height: 100vh;
         background: var(--bg-warm);
-        padding: 24px;
+        padding: var(--space-2xl);
       }
       .login-card {
         max-width: 400px;
@@ -65,7 +65,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       }
       .login-header {
         text-align: center;
-        margin-bottom: 32px;
+        margin-bottom: var(--space-3xl);
       }
       .logo {
         font-size: var(--font-size-label);
@@ -73,14 +73,14 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         letter-spacing: 0.08em;
         text-transform: uppercase;
         color: var(--text-secondary);
-        margin-bottom: 8px;
+        margin-bottom: var(--space-sm);
       }
       .login-header h2 {
         font-size: var(--font-size-title);
         line-height: 1.25;
         font-weight: 700;
         color: var(--text-primary);
-        margin: 0 0 4px;
+        margin: 0 0 var(--space-2xs);
         letter-spacing: 0;
       }
       .subtitle {
@@ -91,7 +91,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       .login-buttons {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: var(--space-md);
       }
       .full-width {
         width: 100%;
@@ -102,7 +102,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       .btn-spinner {
         display: inline-block;

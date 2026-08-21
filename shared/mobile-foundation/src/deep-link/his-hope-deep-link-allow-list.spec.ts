@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import { isHisHopeDeepLinkAllowed } from "./his-hope-deep-link-allow-list";
 
 const ALLOW_LIST = [
-  { scheme: "hishope", host: "auth" },
-  { scheme: "https", host: "mobile.his-hope.example", pathPrefix: "/auth" },
+  { scheme: "hishope", host: "auth", pathPrefix: "/callback" },
+  { scheme: "hishope", host: "auth", pathPrefix: "/logout-callback" },
+  { scheme: "https", host: "mobile.his-hope.example", pathPrefix: "/auth/callback" },
+  { scheme: "https", host: "mobile.his-hope.example", pathPrefix: "/auth/logout-callback" },
 ];
 
 describe("isHisHopeDeepLinkAllowed", () => {
@@ -22,6 +24,13 @@ describe("isHisHopeDeepLinkAllowed", () => {
         ALLOW_LIST,
       ),
       true,
+    );
+  });
+
+  it("rejects custom-scheme paths outside callback allow-list", () => {
+    assert.equal(
+      isHisHopeDeepLinkAllowed("hishope://auth/evil", ALLOW_LIST),
+      false,
     );
   });
 

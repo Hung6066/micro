@@ -2,7 +2,13 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const buildFlavor = process.env["HIS_HOPE_BUILD_FLAVOR"] ?? "development";
 const androidScheme =
-  process.env["CAPACITOR_ANDROID_SCHEME"] === "http" ? "http" : "https";
+  process.env["CAPACITOR_ANDROID_SCHEME"] === "http"
+    ? "http"
+    : process.env["CAPACITOR_ANDROID_SCHEME"] === "https"
+      ? "https"
+      : buildFlavor === "production"
+        ? "https"
+        : "http";
 
 if (buildFlavor === "production" && androidScheme !== "https") {
   throw new Error(

@@ -6,7 +6,7 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { FormGroup, ReactiveFormsModule } from "@angular/forms";
+import { FormGroup } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
 import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatExpansionModule } from "@angular/material/expansion";
@@ -18,9 +18,9 @@ import {
 } from "../../core/contracts/admin.contracts";
 import { RolesApiService } from "../../core/services/roles-api.service";
 import {
-  HisHopeCreateDialogShellComponent,
   HIS_HOPE_DIALOG_DATA,
   HisHopeDialogRef,
+  HisHopeEntityDialogComponent,
   HisHopeFormLayoutComponent,
   HisHopeFormSectionComponent,
   HisHopeToastService,
@@ -37,32 +37,41 @@ import {
 } from "@his-hope/frontend-foundation/i18n";
 import { catchError, of } from "rxjs";
 
-import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-role-edit-dialog",
   standalone: true,
   imports: [
-    HisHopeActionButtonComponent,
     CommonModule,
-    ReactiveFormsModule,
     MatButtonModule,
     MatCheckboxModule,
     MatExpansionModule,
     MatProgressSpinnerModule,
-    HisHopeCreateDialogShellComponent,
+    HisHopeEntityDialogComponent,
     HisHopeFormLayoutComponent,
     HisHopeFormSectionComponent,
     HisHopeTranslatePipe,
     HisHopeMaterialFormFieldComponent,
   ],
   template: `
-    <hh-create-dialog-shell
-      [title]="(isEdit ? 'admin.editRole' : 'admin.createRole') | hhTranslate"
-      [subtitle]="'admin.roleDialogSubtitle' | hhTranslate"
+    <hh-entity-dialog
+      [title]="isEdit ? 'admin.editRole' : 'admin.createRole'"
+      [titleFallback]="isEdit ? 'Edit role' : 'Create role'"
+      subtitle="admin.roleDialogSubtitle"
+      subtitleFallback="Define role identity, owner, and permission assignments."
+      [formGroup]="formGroup"
+      [saving]="saving"
+      [saveDisabled]="
+        loadingPermissions ||
+        permissionLoadError ||
+        loadingOwners ||
+        ownerLoadError
+      "
+      saveLabel="admin.saveRole"
+      saveLabelFallback="Save role"
+      (save)="save()"
+      (cancel)="dialogRef.close()"
     >
-      <div hhCreateDialogContent>
-        <form [formGroup]="formGroup" (ngSubmit)="submitForm()">
-          <hh-form-layout>
+      <hh-form-layout>
             <hh-form-section
               [title]="'admin.roleDetails' | hhTranslate"
               [description]="'admin.roleDetailsDescription' | hhTranslate"
@@ -182,31 +191,8 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
                 </mat-expansion-panel>
               </mat-accordion>
             </hh-form-section>
-          </hh-form-layout>
-        </form>
-      </div>
-      <div hhCreateDialogFooter>
-        <hh-action-button
-          kind="secondary"
-          icon="close"
-          [label]="'admin.cancel' | hhTranslate: 'Cancel'"
-          (pressed)="dialogRef.close()"
-        />
-        <hh-action-button
-          [disabled]="
-            saving ||
-            loadingPermissions ||
-            permissionLoadError ||
-            loadingOwners ||
-            ownerLoadError
-          "
-          (pressed)="save()"
-          kind="primary"
-          icon="save"
-          [label]="(saving ? 'admin.saving' : 'admin.saveRole') | hhTranslate"
-        />
-      </div>
-    </hh-create-dialog-shell>
+      </hh-form-layout>
+    </hh-entity-dialog>
   `,
   styles: [
     `
@@ -214,12 +200,12 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         width: 100%;
       }
       .permission-summary {
-        margin: 0 0 12px;
+        margin: 0 0 var(--space-md);
       }
       .permission-options {
         display: grid;
-        gap: 8px;
-        padding: 8px 0 16px;
+        gap: var(--space-sm);
+        padding: var(--space-sm) 0 var(--space-lg);
       }
       .permission-options mat-checkbox {
         display: block;
@@ -229,7 +215,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         opacity: 0.72;
       }
       .group-toggle {
-        margin-right: 8px;
+        margin-right: var(--space-sm);
       }
       .permission-error {
         color: var(--hh-color-danger, inherit);
@@ -445,16 +431,8 @@ export class RoleEditDialogComponent implements OnInit {
     this.collapsedPermissionGroups.add(name);
   }
 
-  submitForm(): void {
-    this.formGroup.markAllAsTouched();
-    if (this.formGroup.valid && !this.saving) {
-      this.save(this.formGroup.getRawValue());
-    }
-  }
-
   save(values: Record<string, unknown> = this.formGroup.getRawValue()): void {
-    this.formGroup.markAllAsTouched();
-    if (this.saving) return;
+    if (this.saving || this.formGroup.invalid) return;
     this.saving = true;
     this.form = {
       ...this.form,

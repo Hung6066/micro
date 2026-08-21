@@ -16,12 +16,12 @@ import {
   HisHopePageQuery,
 } from "@his-hope/frontend-foundation";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
-import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
   HisHopeDataTableComponent,
   HisHopeDataTableColumn,
   HisHopeDataTableDetailDirective,
   HisHopeActionButtonComponent,
+  HisHopeConfirmDialogComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeToolbarComponent,
@@ -30,17 +30,13 @@ import {
   HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
-import {
-  AdminPageQuery,
-  AdminPageResult,
-  AdminSavedTableView,
-  Role,
-} from "../../core/contracts/admin.contracts";
+import { AdminPageQuery, Role } from "../../core/contracts/admin.contracts";
 import { AdminTableApiService } from "../../core/services/admin-table-api.service";
 import { RolesApiService } from "../../core/services/roles-api.service";
-import { catchError, finalize } from "rxjs/operators";
-import { of } from "rxjs";
 import { RoleEditDialogComponent } from "./role-edit-dialog.component";
+import { AdminResourceTableController } from "../../core/services/admin-resource-table.controller";
+import { AdminConfirmState } from "../../core/services/admin-confirm-state";
+import { downloadAdminTableExport } from "../../core/services/admin-query.util";
 
 @Component({
   selector: "app-roles-page",
@@ -51,6 +47,7 @@ import { RoleEditDialogComponent } from "./role-edit-dialog.component";
     HisHopeDataTableComponent,
     HisHopeDataTableDetailDirective,
     HisHopeActionButtonComponent,
+    HisHopeConfirmDialogComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeToolbarComponent,
@@ -142,6 +139,14 @@ import { RoleEditDialogComponent } from "./role-edit-dialog.component";
           </div>
         </ng-template>
       </hh-data-table>
+      <hh-confirm-dialog
+        [open]="confirm.open"
+        [title]="confirm.title"
+        [message]="confirm.message"
+        [confirmLabel]="confirm.confirmLabel"
+        (confirmed)="confirm.confirm()"
+        (cancelled)="confirm.cancel()"
+      />
     </hh-page-layout>
   `,
 })
@@ -152,65 +157,59 @@ export class RolesPageComponent implements OnInit {
   private readonly i18n = inject(HisHopeI18nService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
+
+  roles: Role[] = [];
+  tableRows: Record<string, unknown>[] = [];
+  columns: HisHopeDataTableColumn[] = [];
+  bulkActions: HisHopeBulkAction[] = [];
+  readonly confirm = new AdminConfirmState();
+
+  readonly table = new AdminResourceTableController<AdminPageQuery, Role>({
+    destroyRef: this.destroyRef,
+    i18n: this.i18n,
+    initialQuery: { page: 1, pageSize: 20 },
+    loader: (query) => this.api.getRolesPage(query),
+    loadErrorMessageKey: "admin.loadRolesFailed",
+    loadErrorFallback: "Failed to load roles.",
+    onStateChange: () => this.cdr.markForCheck(),
+  });
+
   get canExport(): boolean {
     return this.permissions.has("reports.export");
   }
   get canWrite(): boolean {
     return this.permissions.has("admin.roles.write");
   }
-  roles: Role[] = [];
-  get columns(): HisHopeDataTableColumn[] {
-    this.i18n.locale();
-    return [
-      {
-        key: "name",
-        label: this.i18n.t("admin.name"),
-        sortable: true,
-        responsivePriority: 1,
-        pinned: "left",
-      },
-      {
-        key: "description",
-        label: this.i18n.t("admin.description"),
-        responsivePriority: 2,
-      },
-      {
-        key: "owner",
-        label: this.i18n.t("admin.permissionOwner", "Owner"),
-        responsivePriority: 3,
-      },
-      { key: "riskTier", label: this.i18n.t("admin.permissionRisk", "Risk") },
-      {
-        key: "version",
-        label: this.i18n.t("admin.permissionVersion", "Version"),
-      },
-    ];
-  }
-  tableRows: Record<string, unknown>[] = [];
-  private readonly destroyRef = inject(DestroyRef);
-  readonly resource = new HisHopeResourceState<AdminPageResult<Role>>(
-    this.destroyRef,
-  );
-  bulkLoading = false;
-  private actionError: string | null = null;
   get loading(): boolean {
-    return this.resource.loading() || this.bulkLoading;
+    return this.table.loading;
   }
   get error(): string | null {
-    return (
-      this.actionError ||
-      (this.resource.error() ? this.resource.errorMessage() : null)
-    );
+    return this.table.error;
   }
-  totalItems = 0;
-  query: AdminPageQuery = { page: 1, pageSize: 20 };
-  savedView: AdminSavedTableView = {};
-  expandedRowKeys: string[] = [];
+  get totalItems(): number {
+    return this.table.totalItems;
+  }
+  get query(): AdminPageQuery {
+    return this.table.query;
+  }
+  get savedView() {
+    return this.table.savedView;
+  }
+  get expandedRowKeys() {
+    return this.table.expandedRowKeys;
+  }
+
   constructor() {
     effect(() => {
-      const result = this.resource.data();
+      this.i18n.locale();
+      this.columns = this.createColumns();
+      this.bulkActions = this.createBulkActions();
+      this.cdr.markForCheck();
+    });
+    effect(() => {
+      const result = this.table.resource.data();
       if (result) {
-        this.totalItems = result.totalCount;
         this.roles = result.items;
         this.tableRows = result.items.map((role) => ({
           ...role,
@@ -222,21 +221,9 @@ export class RolesPageComponent implements OnInit {
       }
     });
   }
-  get bulkActions(): HisHopeBulkAction[] {
-    this.i18n.locale();
-    return this.canWrite
-      ? [
-          {
-            id: "delete",
-            label: this.i18n.t("admin.deleteSelected"),
-            tone: "danger",
-          },
-        ]
-      : [];
-  }
 
   ngOnInit(): void {
-    this.loadServerView();
+    this.table.loadServerView(() => this.tableApi.getViews("roles"));
     this.loadRoles();
   }
 
@@ -262,49 +249,26 @@ export class RolesPageComponent implements OnInit {
       });
   }
 
-  loadServerView(): void {
-    this.tableApi.getViews("roles").subscribe((views) => {
-      const view = views.find((item) => item.name === "default") ?? views[0];
-      if (view) this.savedView = JSON.parse(view.payloadJson);
-    });
-  }
   saveView(event: { name: string; payload: unknown }): void {
-    this.tableApi.saveView("roles", event.name, event.payload).subscribe();
+    this.table.saveView(event, (name, payload) =>
+      this.tableApi.saveView("roles", name, payload),
+    );
   }
+
   resetView(event: { name: string }): void {
-    this.savedView = {};
-    this.tableApi
-      .deleteView("roles", event.name)
-      .subscribe({ error: () => this.loadServerView() });
+    this.table.resetView(
+      event,
+      (name) => this.tableApi.deleteView("roles", name),
+      () => this.table.loadServerView(() => this.tableApi.getViews("roles")),
+    );
   }
+
   toggleRowExpand(event: { rowKey: string; expanded: boolean }): void {
-    this.expandedRowKeys = event.expanded
-      ? [...this.expandedRowKeys, event.rowKey]
-      : this.expandedRowKeys.filter((key) => key !== event.rowKey);
+    this.table.toggleRowExpand(event);
   }
 
   loadRoles(query = this.query): void {
-    this.query = query;
-    this.actionError = null;
-    this.resource.load(
-      this.api.getRolesPage(query).pipe(
-        catchError(() => {
-          this.actionError = this.i18n.t(
-            "admin.loadRolesFailed",
-            "Failed to load roles.",
-          );
-          return of({
-            items: [],
-            totalCount: 0,
-            page: query.page,
-            pageSize: query.pageSize,
-            totalPages: 0,
-            hasNextPage: false,
-            hasPreviousPage: false,
-          });
-        }),
-      ),
-    );
+    this.table.load(query);
   }
 
   onQueryChange(query: HisHopePageQuery): void {
@@ -313,53 +277,92 @@ export class RolesPageComponent implements OnInit {
 
   onBulkAction(request: HisHopeBulkActionRequest): void {
     if (!this.canWrite) return;
-    this.bulkLoading = true;
-    this.tableApi
-      .bulk("roles", request)
-      .pipe(
-        finalize(() => (this.bulkLoading = false)),
-        catchError(() => {
-          this.actionError = this.i18n.t(
-            "admin.updateRolesFailed",
-            "Failed to update selected roles.",
-          );
-          return of(null);
-        }),
-      )
-      .subscribe((result) => {
-        if (result) this.loadRoles(this.query);
-      });
+    this.table.runBulkAction(
+      request,
+      (bulkRequest) => this.tableApi.bulk("roles", bulkRequest),
+      "admin.updateRolesFailed",
+      "Failed to update selected roles.",
+    );
   }
 
   onExport(request: HisHopeTableExportRequest): void {
     this.tableApi.export("roles", request).subscribe((blob) => {
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `roles-${new Date().toISOString().slice(0, 10)}.${request.format}`;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      downloadAdminTableExport(blob, "roles", request.format);
     });
   }
 
   publishRole(row: Record<string, unknown>): void {
     if (!this.canWrite) return;
     const id = String(row["id"] ?? "");
-    if (!id || !window.confirm(this.i18n.t("admin.confirmRolePublish"))) return;
-    this.api.publishRole(id).subscribe({
-      next: () => this.loadRoles(this.query),
-      error: () => (this.actionError = this.i18n.t("admin.rolePublishFailed")),
+    if (!id) return;
+    this.confirm.ask("admin.confirmRolePublish", () => this.runPublish(id), {
+      confirmLabel: "admin.publishRole",
     });
   }
 
   rollbackRole(row: Record<string, unknown>): void {
     if (!this.canWrite) return;
     const id = String(row["id"] ?? "");
-    if (!id || !window.confirm(this.i18n.t("admin.confirmRoleRollback")))
-      return;
+    if (!id) return;
+    this.confirm.ask(
+      "admin.confirmRoleRollback",
+      () => this.runRollback(id),
+      { confirmLabel: "admin.rollbackRole" },
+    );
+  }
+
+  private runPublish(id: string): void {
+    this.api.publishRole(id).subscribe({
+      next: () => this.loadRoles(this.query),
+      error: () =>
+        this.table.setActionError(this.i18n.t("admin.rolePublishFailed")),
+    });
+  }
+
+  private runRollback(id: string): void {
     this.api.rollbackRole(id).subscribe({
       next: () => this.loadRoles(this.query),
-      error: () => (this.actionError = this.i18n.t("admin.roleRollbackFailed")),
+      error: () =>
+        this.table.setActionError(this.i18n.t("admin.roleRollbackFailed")),
     });
+  }
+
+  private createColumns(): HisHopeDataTableColumn[] {
+    return [
+      {
+        key: "name",
+        label: this.i18n.t("admin.name"),
+        sortable: true,
+        responsivePriority: 1,
+        pinned: "left",
+      },
+      {
+        key: "description",
+        label: this.i18n.t("admin.description"),
+        responsivePriority: 2,
+      },
+      {
+        key: "owner",
+        label: this.i18n.t("admin.permissionOwner", "Owner"),
+        responsivePriority: 3,
+      },
+      { key: "riskTier", label: this.i18n.t("admin.permissionRisk", "Risk") },
+      {
+        key: "version",
+        label: this.i18n.t("admin.permissionVersion", "Version"),
+      },
+    ];
+  }
+
+  private createBulkActions(): HisHopeBulkAction[] {
+    return this.canWrite
+      ? [
+          {
+            id: "delete",
+            label: this.i18n.t("admin.deleteSelected"),
+            tone: "danger",
+          },
+        ]
+      : [];
   }
 }

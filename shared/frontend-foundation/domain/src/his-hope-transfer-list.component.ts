@@ -7,7 +7,7 @@ export interface HisHopeTransferItem { id: string; label: string; disabled?: boo
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<div class="hh-transfer"><fieldset><legend>{{ availableLabel() }}</legend>@for (item of available(); track item.id) { <label><input type="checkbox" [checked]="selected().has(item.id)" [disabled]="item.disabled" (change)="toggle(item.id)"> {{ item.label }}</label> }</fieldset><button type="button" (click)="moveSelected()" [disabled]="selected().size === 0">{{ moveLabel() }}</button><fieldset><legend>{{ selectedLabel() }}</legend>@for (item of chosen(); track item.id) { <span>{{ item.label }}</span> }</fieldset></div>`,
-  styles: [`:host { display: block; }.hh-transfer { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; } fieldset { min-height: 140px; display: grid; align-content: start; gap: 8px; padding: 12px; border: 1px solid var(--border-default); } label, fieldset span { padding: 4px; } button { min-height: 36px; } @media (max-width: 640px) { .hh-transfer { grid-template-columns: 1fr; } }`],
+  styles: [`:host { display: block; }.hh-transfer { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--space-lg); } fieldset { min-height: 140px; display: grid; align-content: start; gap: var(--space-sm); padding: var(--space-md); border: 1px solid var(--border-default); } label, fieldset span { padding: var(--space-2xs); } button { min-height: var(--control-height-compact); } @media (max-width: 640px) { .hh-transfer { grid-template-columns: 1fr; } }`],
 })
 export class HisHopeTransferListComponent {
   readonly items = input<readonly HisHopeTransferItem[]>([]);

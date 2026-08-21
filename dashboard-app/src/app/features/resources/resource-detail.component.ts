@@ -215,59 +215,59 @@ import { Resource, HealthCheckResult } from '../../core/models/resource.model';
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
-        gap: 16px;
-        padding: 20px 24px;
+        gap: var(--space-lg);
+        padding: var(--space-xl) var(--space-2xl);
       }
       .detail-header-left {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: var(--space-md);
       }
       .detail-icon {
-        font-size: 32px;
-        width: 32px;
-        height: 32px;
+        font-size: var(--font-size-display-md);
+        width: var(--space-3xl);
+        height: var(--space-3xl);
         color: var(--color-primary, #2f6b4a);
       }
       .detail-title {
-        font-size: 18px;
+        font-size: var(--font-size-icon-sm);
         font-weight: 600;
         margin: 0;
         color: var(--text-primary, #1a1a1a);
       }
       .detail-subtitle {
-        font-size: 13px;
+        font-size: var(--font-size-label);
         color: var(--text-secondary, #787774);
       }
       .detail-section {
-        padding: 16px 24px;
+        padding: var(--space-lg) var(--space-2xl);
       }
       .section-title {
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.05em;
         color: var(--text-muted, #a1a09b);
-        margin: 0 0 12px;
+        margin: 0 0 var(--space-md);
       }
       .info-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 12px;
+        gap: var(--space-md);
       }
       .info-item {
         display: flex;
         flex-direction: column;
-        gap: 2px;
+        gap: var(--space-hairline);
       }
       .info-label {
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         color: var(--text-muted, #a1a09b);
         text-transform: uppercase;
         letter-spacing: 0.03em;
       }
       .info-value {
-        font-size: 14px;
+        font-size: var(--font-size-body);
         font-weight: 500;
         color: var(--text-primary, #1a1a1a);
       }
@@ -280,40 +280,40 @@ import { Resource, HealthCheckResult } from '../../core/models/resource.model';
       .endpoint-list {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       .endpoint-item {
         display: flex;
         align-items: center;
-        gap: 8px;
-        font-size: 13px;
+        gap: var(--space-sm);
+        font-size: var(--font-size-label);
       }
       .endpoint-item mat-icon {
-        font-size: 16px;
-        width: 16px;
-        height: 16px;
+        font-size: var(--font-size-toolbar);
+        width: var(--size-timeline-rail);
+        height: var(--size-timeline-rail);
         color: var(--text-muted, #a1a09b);
       }
       .endpoint-item code {
         background: var(--bg-warm, #f7f6f3);
-        padding: 2px 8px;
-        border-radius: 4px;
+        padding: var(--space-hairline) var(--space-sm);
+        border-radius: var(--radius-input);
         font-family: var(--font-mono);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
       }
       .health-list {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       .health-item {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: var(--space-inset);
       }
       .health-dot {
-        width: 8px;
-        height: 8px;
+        width: var(--size-status-dot);
+        height: var(--size-status-dot);
         border-radius: 50%;
         background: var(--text-muted, #a1a09b);
         flex-shrink: 0;
@@ -333,24 +333,24 @@ import { Resource, HealthCheckResult } from '../../core/models/resource.model';
         gap: 1px;
       }
       .health-name {
-        font-size: 13px;
+        font-size: var(--font-size-label);
         font-weight: 500;
         color: var(--text-primary, #1a1a1a);
       }
       .health-duration {
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         color: var(--text-muted, #a1a09b);
       }
       .env-list {
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: var(--space-xs);
       }
       .env-item {
         display: flex;
-        gap: 12px;
-        font-size: 12px;
-        padding: 4px 0;
+        gap: var(--space-md);
+        font-size: var(--font-size-caption);
+        padding: var(--space-2xs) 0;
       }
       .env-key {
         font-family: var(--font-mono);

@@ -1,41 +1,66 @@
-import { Component, inject } from "@angular/core";
+import { Component, inject, signal } from "@angular/core";
 import { RouterOutlet } from "@angular/router";
+import { filter, take } from "rxjs/operators";
 import { HisHopeThemeService } from "@his-hope/frontend-foundation";
 import {
   HisHopeOfflineBannerComponent,
   HisHopeToastComponent,
+  HisHopeMobileDeviceBlockedScreenComponent,
+  HisHopeMobileDeviceBlockReason,
+  HisHopeMobileMaintenanceScreenComponent,
 } from "@his-hope/frontend-foundation/ui";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
+import type { HisHopeDeviceSecurityResult } from "@his-hope/mobile-foundation";
 import { MobileAuthService } from "./core/auth.service";
 import { NativeCapabilityService } from "./core/native-capability.service";
 import { MobilePlatformService } from "./core/mobile-platform.service";
 import { MobileTelemetryService } from "./core/mobile-telemetry.service";
-import { MobileSyncQueueService } from "./core/mobile-sync-queue.service";
+import { MobilePlatformCapabilitiesService } from "./core/services/mobile-platform-capabilities.service";
+import { MobileDeviceAttestationService } from "./core/mobile-device-attestation.service";
 import { environment } from "../environments/environment";
 
 @Component({
   selector: "app-root",
   standalone: true,
-  imports: [RouterOutlet, HisHopeOfflineBannerComponent, HisHopeToastComponent],
+  imports: [
+    RouterOutlet,
+    HisHopeOfflineBannerComponent,
+    HisHopeToastComponent,
+    HisHopeMobileMaintenanceScreenComponent,
+    HisHopeMobileDeviceBlockedScreenComponent,
+    HisHopeTranslatePipe,
+  ],
   template: `
     <hh-offline-banner></hh-offline-banner>
-    <router-outlet></router-outlet>
+    @if (!platform.maintenance() && !deviceBlocked()) {
+      <router-outlet></router-outlet>
+    }
     @if (platform.upgradeRequired()) {
       <section class="mobile-upgrade" role="alert">
-        <h1>Update required</h1>
-        <p>
-          Please install the latest His.Hope Mobile version to continue
-          securely.
-        </p>
+        <h1>{{ "mobile.upgradeRequiredTitle" | hhTranslate }}</h1>
+        <p>{{ "mobile.upgradeRequiredMessage" | hhTranslate }}</p>
         @if (platform.storeUrl(); as storeUrl) {
           <a
             class="mobile-upgrade__action"
             [href]="storeUrl"
             target="_blank"
             rel="noopener"
-            >Open app store</a
+            >{{ "mobile.upgradeOpenStore" | hhTranslate }}</a
           >
         }
       </section>
+    }
+    @if (platform.maintenance()) {
+      <hh-mobile-maintenance-screen
+        [retrying]="maintenanceRetrying()"
+        (retry)="retryMaintenance()"
+      />
+    }
+    @if (deviceBlocked()) {
+      <hh-mobile-device-blocked-screen
+        [reasons]="deviceBlockReasons()"
+        (signOut)="signOut()"
+      />
     }
     <hh-toast-outlet />
   `,
@@ -47,8 +72,8 @@ import { environment } from "../environments/environment";
         z-index: 100;
         display: grid;
         place-content: center;
-        gap: 10px;
-        padding: 24px;
+        gap: var(--space-inset);
+        padding: var(--space-2xl);
         text-align: center;
         background: var(--bg-warm);
         color: var(--text-primary);
@@ -59,8 +84,8 @@ import { environment } from "../environments/environment";
       }
       .mobile-upgrade__action {
         justify-self: center;
-        padding: 12px 18px;
-        border-radius: 10px;
+        padding: var(--space-md) var(--font-size-icon-sm);
+        border-radius: var(--radius-chip);
         background: var(--accent);
         color: white;
         text-decoration: none;
@@ -75,19 +100,44 @@ export class AppComponent {
   private readonly native = inject(NativeCapabilityService);
   readonly platform = inject(MobilePlatformService);
   private readonly telemetry = inject(MobileTelemetryService);
-  private readonly sync = inject(MobileSyncQueueService);
+  private readonly platformCapabilities = inject(MobilePlatformCapabilitiesService);
+  private readonly attestation = inject(MobileDeviceAttestationService);
+  readonly deviceBlocked = signal(false);
+  readonly deviceBlockReasons = signal<readonly HisHopeMobileDeviceBlockReason[]>(
+    [],
+  );
+  readonly maintenanceRetrying = signal(false);
+
   constructor() {
-    // The callback component owns the one-time authorization-code exchange.
-    // Running the startup check on the same URL can redeem the code twice and
-    // make the second request fail with invalid_grant.
     if (!this.isOidcCallbackUrl()) this.auth.checkAuth().subscribe();
     this.theme.restore();
     this.telemetry.initialize();
     void this.native.initialize();
     void this.platform.configureCertificatePins();
     void this.bootstrapPolicy();
-    window.addEventListener("online", () => void this.sync.flush());
-    if (navigator.onLine) void this.sync.flush();
+    void this.checkDeviceIntegrity();
+    this.auth.isAuthenticated$
+      .pipe(filter(Boolean), take(1))
+      .subscribe(() => void this.attestation.submitIfEligible());
+    window.addEventListener("online", () =>
+      void this.platformCapabilities.flushOfflineSync(),
+    );
+    if (navigator.onLine) void this.platformCapabilities.flushOfflineSync();
+  }
+
+  signOut(): void {
+    this.auth.logout();
+  }
+
+  async retryMaintenance(): Promise<void> {
+    this.maintenanceRetrying.set(true);
+    try {
+      await this.platform.appPolicy();
+    } catch {
+      // Keep the maintenance screen visible until policy recovers.
+    } finally {
+      this.maintenanceRetrying.set(false);
+    }
   }
 
   private isOidcCallbackUrl(): boolean {
@@ -112,5 +162,51 @@ export class AppComponent {
     } catch {
       // A policy outage must not prevent an already-installed app from opening.
     }
+  }
+
+  private async checkDeviceIntegrity(): Promise<void> {
+    try {
+      const result = await this.platform.deviceSecurity();
+      if (this.shouldBlockDevice(result)) {
+        this.deviceBlockReasons.set(this.buildDeviceBlockReasons(result));
+        this.deviceBlocked.set(true);
+        return;
+      }
+      void this.attestation.submitIfEligible(result);
+    } catch {
+      // Integrity plugin outages must not brick the app on web or dev builds.
+    }
+  }
+
+  private shouldBlockDevice(result: HisHopeDeviceSecurityResult): boolean {
+    if (result.status === "compromised" || result.rootedOrJailbroken)
+      return true;
+    if (result.debuggable) return false;
+    return environment.production && result.emulator;
+  }
+
+  private buildDeviceBlockReasons(
+    result: HisHopeDeviceSecurityResult,
+  ): HisHopeMobileDeviceBlockReason[] {
+    const reasons: HisHopeMobileDeviceBlockReason[] = [];
+    if (result.rootedOrJailbroken) {
+      reasons.push({
+        key: "mobile.deviceBlockedRooted",
+        fallback: "Rooted or jailbroken device detected.",
+      });
+    }
+    if (result.emulator) {
+      reasons.push({
+        key: "mobile.deviceBlockedEmulator",
+        fallback: "Emulator environments are not supported in production.",
+      });
+    }
+    if (result.status === "compromised") {
+      reasons.push({
+        key: "mobile.deviceBlockedCompromised",
+        fallback: "Device integrity could not be verified.",
+      });
+    }
+    return reasons;
   }
 }

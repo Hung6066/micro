@@ -55,6 +55,33 @@ OIDC uses Authorization Code + PKCE in the system browser. Tokens must not be st
 
 Native refresh uses the `HisHopeNativeRefreshCapability` adapter contract. The shared Angular refresher keeps a browser/touch fallback; an Ionic `ion-refresher` or dedicated Capacitor plugin can implement the native contract without changing feature pages.
 
+## Angular shell (`@his-hope/mobile-foundation/angular`)
+
+Import the Angular entry point when bootstrapping a new Capacitor app:
+
+```typescript
+import {
+  provideHisHopeMobilePlatformAdapters,
+  HIS_HOPE_SECURE_STORAGE,
+  HIS_HOPE_BIOMETRIC,
+  HIS_HOPE_APP_PIN,
+  HIS_HOPE_OFFLINE_SYNC_CONFIG,
+  HIS_HOPE_MOBILE_AUTH,
+  HIS_HOPE_TABLE_API_BASE_URL,
+  hisHopeMobileSessionInterceptor,
+  createHisHopePermissionReadGuard,
+  HisHopeMobileLockService,
+  HisHopeMobilePagedResourceController,
+  HisHopeResourceTableController,
+  HisHopeResourceStateController,
+  HisHopeMobileTableApiService,
+} from '@his-hope/mobile-foundation/angular';
+```
+
+The host app supplies platform adapters through DI tokens (`HIS_HOPE_SECURE_STORAGE`, `HIS_HOPE_BIOMETRIC`, `HIS_HOPE_APP_PIN`, `HIS_HOPE_MOBILE_AUTH`, `HIS_HOPE_OFFLINE_SYNC_CONFIG`, `HIS_HOPE_TABLE_API_BASE_URL`). Feature routes, API services, and permission maps remain in the host app.
+
+See `mobile-app/src/app/core/mobile-foundation.providers.ts` for the reference Identity Admin wiring.
+
 ## Angular adapter
 
 `mobile-app/src/app/core/native-capability.service.ts` is the application adapter

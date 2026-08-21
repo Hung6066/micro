@@ -21,9 +21,9 @@ import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
   `,
   styles: [`
     :host { display: block; min-width: 0; }
-    .hh-data-table__edit-input { display: block; width: 100%; min-height: var(--control-height-compact); box-sizing: border-box; border: 1px solid var(--border-default); border-radius: var(--radius-input); padding: 0 var(--space-3); background: var(--surface-white); color: var(--text-primary); font: inherit; line-height: 1.4; }
+    .hh-data-table__edit-input { display: block; width: 100%; min-height: var(--control-height-compact); box-sizing: border-box; border: 1px solid var(--border-default); border-radius: var(--radius-input); padding: 0 var(--space-md); background: var(--surface-white); color: var(--text-primary); font: inherit; line-height: 1.4; }
     .hh-data-table__edit-input[aria-invalid="true"] { border-color: var(--color-danger); }
-    .hh-data-table__edit-input:focus { outline: 2px solid var(--color-focus); outline-offset: 1px; }
+    .hh-data-table__edit-input:focus { outline: var(--focus-ring-width) solid var(--color-focus); outline-offset: var(--focus-ring-offset-tight); }
     .hh-data-table__edit-input:disabled { background: var(--surface-muted); color: var(--text-muted); cursor: not-allowed; }
   `],
 })

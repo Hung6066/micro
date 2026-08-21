@@ -11,7 +11,7 @@ public static class SecuritySignalAdminEndpoints
     {
         var group = app.MapGroup(IdentityApiRoutes.AdminSecuritySignals)
             .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin)
-            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsRead);
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSecuritySignalsManage);
 
         group.MapGet("/status", async (IdentityDbContext db, IConfiguration configuration, CancellationToken ct) =>
         {
@@ -66,6 +66,6 @@ public static class SecuritySignalAdminEndpoints
             entry.LastError = null;
             await db.SaveChangesAsync(ct);
             return Results.Accepted($"/api/v1/admin/security-signals/outbox/{id}", new { entry.Id, status = "queued" });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsWrite);
+        });
     }
 }

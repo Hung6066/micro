@@ -1,108 +1,39 @@
 import { Component, Inject, inject } from "@angular/core";
-import {
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-  Validators,
-} from "@angular/forms";
+import { FormControl, FormGroup, Validators } from "@angular/forms";
 import {
   HIS_HOPE_DIALOG_DATA,
   HisHopeDialogRef,
+  HisHopeEntityDialogComponent,
 } from "@his-hope/frontend-foundation/ui";
 import { IamServiceDefinition } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import {
-  HisHopeActionButtonComponent,
-  HisHopeCreateDialogShellComponent,
-  HisHopeFormLayoutComponent,
-  HisHopeFormSectionComponent,
-} from "@his-hope/frontend-foundation/ui";
-import {
-  HisHopeI18nService,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation/i18n";
-import { HisHopeMaterialFormFieldComponent } from "@his-hope/frontend-foundation/forms";
+  HisHopeFormFieldSchema,
+  HisHopeMaterialFormRendererComponent,
+} from "@his-hope/frontend-foundation/forms";
 export interface IamServiceEditDialogData {
   service: IamServiceDefinition | null;
 }
 @Component({
   selector: "app-iam-service-edit-dialog",
   standalone: true,
-  imports: [
-    ReactiveFormsModule,
-    HisHopeActionButtonComponent,
-    HisHopeCreateDialogShellComponent,
-    HisHopeFormLayoutComponent,
-    HisHopeFormSectionComponent,
-    HisHopeTranslatePipe,
-    HisHopeMaterialFormFieldComponent,
-  ],
-  template: `<hh-create-dialog-shell
-    [title]="
-      (data.service ? 'admin.editService' : 'admin.createService')
-        | hhTranslate: (data.service ? 'Edit service' : 'Create service')
-    "
-    ><div hhCreateDialogContent>
-      <form [formGroup]="formGroup" class="dialog-form" (ngSubmit)="save()">
-        @if (formGroup.invalid && formGroup.touched) {
-          <p class="form-error" role="alert">
-            {{
-              "admin.validationRequired"
-                | hhTranslate: "Complete the required fields."
-            }}
-          </p>
-        }
-        <hh-form-layout
-          ><hh-form-section
-            [title]="'admin.serviceDetails' | hhTranslate: 'Service details'"
-            [description]="
-              'admin.serviceDetailsDescription'
-                | hhTranslate
-                  : 'Set the service key, display name, permission prefix, and owner.'
-            "
-            [span]="2"
-            ><hh-mat-form-field
-              [control]="formGroup.controls.key"
-              [label]="'admin.key' | hhTranslate" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.displayName"
-              [label]="'admin.displayName' | hhTranslate" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.permissionPrefix"
-              [label]="'admin.permissionPrefix' | hhTranslate" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.owner"
-              [label]="'admin.owner' | hhTranslate" /></hh-form-section
-        ></hh-form-layout>
-      </form>
-    </div>
-    <div hhCreateDialogFooter>
-      <hh-action-button
-        kind="secondary"
-        icon="close"
-        [label]="'admin.cancel' | hhTranslate"
-        (pressed)="dialogRef.close()"
-      /><hh-action-button
-        kind="primary"
-        icon="save"
-        [label]="(saving ? 'admin.saving' : 'admin.save') | hhTranslate"
-        [disabled]="saving"
-        (pressed)="save()"
-      /></div
-  ></hh-create-dialog-shell>`,
-  styles: [
-    `
-      .dialog-form {
-        display: grid;
-        gap: 16px;
-      }
-      .form-error {
-        margin: 0;
-        color: var(--text-danger, #b42318);
-        font-size: 0.875rem;
-      }
-    `,
-  ],
+  imports: [HisHopeEntityDialogComponent, HisHopeMaterialFormRendererComponent],
+  template: `<hh-entity-dialog
+    [title]="data.service ? 'admin.editService' : 'admin.createService'"
+    [titleFallback]="data.service ? 'Edit service' : 'Create service'"
+    sectionTitle="admin.serviceDetails"
+    sectionTitleFallback="Service details"
+    sectionDescription="admin.serviceDetailsDescription"
+    sectionDescriptionFallback="Set the service key, display name, permission prefix, and owner."
+    [formGroup]="formGroup"
+    [saving]="saving"
+    cancelLabel="admin.cancel"
+    (save)="save()"
+    (cancel)="dialogRef.close()"
+  >
+    <hh-material-form-renderer [fields]="fields" [form]="formGroup" />
+  </hh-entity-dialog>`,
 })
 export class IamServiceEditDialogComponent {
   readonly dialogRef = inject(HisHopeDialogRef<IamServiceEditDialogComponent>);
@@ -139,8 +70,35 @@ export class IamServiceEditDialogComponent {
     Object.assign(this.draft, data.service ?? {});
     this.formGroup.patchValue(this.draft);
   }
+  get fields(): HisHopeFormFieldSchema<unknown>[] {
+    return [
+      {
+        key: "key",
+        label: this.i18n.t("admin.key", "Key"),
+        initialValue: "",
+        required: true,
+      },
+      {
+        key: "displayName",
+        label: this.i18n.t("admin.displayName", "Display name"),
+        initialValue: "",
+        required: true,
+      },
+      {
+        key: "permissionPrefix",
+        label: this.i18n.t("admin.permissionPrefix", "Permission prefix"),
+        initialValue: "",
+        required: true,
+      },
+      {
+        key: "owner",
+        label: this.i18n.t("admin.owner", "Owner"),
+        initialValue: "",
+        required: true,
+      },
+    ];
+  }
   save(): void {
-    this.formGroup.markAllAsTouched();
     if (this.formGroup.invalid || this.saving) return;
     Object.assign(this.draft, this.formGroup.getRawValue());
     if (

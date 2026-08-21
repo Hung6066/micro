@@ -71,5 +71,7 @@ public static class AuthorizationPolicyNames
         public const string AdminSessionsRead = "Permission:admin.sessions.read";
         public const string AdminSessionsRevoke = "Permission:admin.sessions.revoke";
         public const string AdminCredentialsReset = "Permission:admin.credentials.reset";
+        public const string AdminProvisioningManage = "Permission:admin.provisioning.manage";
+        public const string AdminSecuritySignalsManage = "Permission:admin.security-signals.manage";
     }
 }

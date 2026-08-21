@@ -71,15 +71,15 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       .iam-overview__grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: var(--space-3);
+        gap: var(--space-md);
         min-width: 0;
       }
       .iam-overview__card {
         display: flex;
         flex-direction: column;
-        gap: var(--space-2);
+        gap: var(--space-sm);
         min-width: 0;
-        padding: var(--space-4);
+        padding: var(--space-lg);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-muted);

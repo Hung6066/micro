@@ -168,18 +168,18 @@ const PRESETS: PresetOption[] = [
       .time-range-picker {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: var(--space-sm);
         flex-wrap: wrap;
       }
       .preset-group {
         display: flex;
-        gap: 4px;
+        gap: var(--space-2xs);
         flex-wrap: wrap;
       }
       .preset-btn {
         min-width: 44px;
-        font-size: 12px;
-        padding: 0 10px;
+        font-size: var(--font-size-caption);
+        padding: 0 var(--space-inset);
         line-height: 30px;
         transition: all 150ms ease;
       }
@@ -191,7 +191,7 @@ const PRESETS: PresetOption[] = [
       .custom-range {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: var(--space-sm);
         flex-wrap: wrap;
       }
       .custom-range mat-form-field {

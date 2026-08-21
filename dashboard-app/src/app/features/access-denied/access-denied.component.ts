@@ -39,23 +39,23 @@ import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
         display: grid;
         place-items: center;
         min-height: 100dvh;
-        padding: var(--space-6);
+        padding: var(--space-2xl);
       }
       .access-denied__card {
         width: min(100%, 34rem);
-        padding: var(--space-8);
+        padding: var(--space-3xl);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-white);
         box-shadow: var(--shadow-dropdown);
       }
       .access-denied__eyebrow {
-        margin: 0 0 var(--space-2);
+        margin: 0 0 var(--space-sm);
         color: var(--text-secondary);
         font-size: var(--font-size-sm);
       }
       h1 {
-        margin: 0 0 var(--space-3);
+        margin: 0 0 var(--space-md);
         font-size: var(--font-size-title);
       }
       p {

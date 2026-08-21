@@ -4,11 +4,13 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Diagnostics;
+using His.Hope.IdentityService.Application.DevicePosture;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.IdentityService.Infrastructure.Facility;
 using StackExchange.Redis;
 using His.Hope.IdentityService.Api.Services;
 using His.Hope.Contracts.Identity;
@@ -72,6 +74,86 @@ public static class MobilePlatformEndpoints
             registration.RevokedAt = null;
             await db.SaveChangesAsync(cancellationToken);
             return Results.NoContent();
+        }).RequireAuthorization();
+
+        mobile.MapPost("/attestation", async (
+            MobileAttestationRequest request,
+            HttpContext context,
+            IdentityDbContext db,
+            DevicePosturePolicyEvaluator evaluator,
+            IConfiguration configuration,
+            FacilityContext facilityContext,
+            CancellationToken cancellationToken) =>
+        {
+            var userIdValue = GetUserId(context);
+            if (string.IsNullOrWhiteSpace(userIdValue) || !Guid.TryParse(userIdValue, out var userId))
+                return Results.Unauthorized();
+
+            if (request.UserId != userId)
+                return Results.Forbid();
+
+            try
+            {
+                var evidence = new DevicePostureEvidence(
+                    userId,
+                    request.DeviceId,
+                    request.Provider,
+                    request.Signals,
+                    request.ObservedAt.ToUniversalTime(),
+                    request.ReplayNonce,
+                    request.FacilityId);
+                var scopeId = string.IsNullOrWhiteSpace(request.FacilityId)
+                    ? IdentityScope.Global
+                    : request.FacilityId.Trim();
+                var policy = await db.DevicePosturePolicies
+                    .Where(item => item.Id == "default" && (item.ScopeId == IdentityScope.Global || item.ScopeId == scopeId))
+                    .OrderByDescending(item => item.ScopeId == scopeId && scopeId != IdentityScope.Global)
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (policy is null)
+                    return Results.Accepted(value: new { status = "ignored", reason = "posture_policy_unconfigured" });
+
+                var normalized = DevicePostureEvidenceNormalizer.Normalize(evidence);
+                if (!JsonSerializer.Deserialize<string[]>(policy.ProvidersJson)!.Contains(normalized.Provider, StringComparer.OrdinalIgnoreCase))
+                    return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ProviderNotEnabled });
+
+                var existing = await db.DevicePostureAssessments.AnyAsync(
+                    item => item.ScopeId == policy.ScopeId &&
+                            item.Provider == normalized.Provider &&
+                            item.EvidenceHash == normalized.Hash,
+                    cancellationToken);
+                if (existing)
+                    return Results.Conflict(new { errorCode = "replayed_evidence" });
+
+                var evaluation = evaluator.Evaluate(policy, evidence, DateTime.UtcNow);
+                var assessment = new DevicePostureAssessment
+                {
+                    ScopeId = policy.ScopeId,
+                    UserId = userId,
+                    DeviceId = normalized.DeviceId,
+                    Provider = normalized.Provider,
+                    EvidenceHash = normalized.Hash,
+                    SignalsJson = JsonSerializer.Serialize(normalized.Signals),
+                    ObservedAt = evidence.ObservedAt,
+                    ExpiresAt = evaluation.ExpiresAt,
+                    PolicyVersion = policy.Version,
+                    Decision = evaluation.Decision,
+                    CorrelationId = context.TraceIdentifier
+                };
+                db.DevicePostureAssessments.Add(assessment);
+                await db.SaveChangesAsync(cancellationToken);
+                return Results.Accepted(value: new
+                {
+                    assessment.Id,
+                    assessment.Decision,
+                    evaluation.Fresh,
+                    evaluation.MeetsRequirements,
+                    assessment.ExpiresAt
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["attestation"] = [ex.Message] });
+            }
         }).RequireAuthorization();
 
         mobile.MapGet("/notifications", async (
@@ -315,6 +397,15 @@ public static class MobilePlatformEndpoints
         bool Maintenance);
 
     public sealed record PushTokenRequest(string Token, string Platform);
+
+    public sealed record MobileAttestationRequest(
+        Guid UserId,
+        string DeviceId,
+        string Provider,
+        IReadOnlyDictionary<string, bool> Signals,
+        DateTime ObservedAt,
+        string? ReplayNonce = null,
+        string? FacilityId = null);
 
     public sealed record MobileCrashReport(
         string Message,

@@ -36,7 +36,7 @@ const MENU_ITEM_SELECTOR = '[hh-menu-item]:not([disabled])';
         display: flex;
         flex-direction: column;
         min-width: 180px;
-        padding: 6px;
+        padding: var(--space-xs);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-white);

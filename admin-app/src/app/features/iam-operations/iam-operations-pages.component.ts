@@ -57,12 +57,12 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         icon="refresh"
         [label]="'admin.refresh' | hhTranslate"
     /></hh-toolbar>
-    <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
     <hh-data-table
       [columns]="columns"
       [rows]="rows"
       [loading]="loading"
-      [empty]="!loading && !rows.length"
+      [error]="error"
+      [empty]="!loading && !error && !rows.length"
       ><ng-template hhDataTableCell="actions" let-row
         ><hh-action-button
           *ngIf="canWrite"
@@ -182,12 +182,12 @@ export class IamWorkloadSessionsPageComponent implements OnInit {
         {{ integration.ssf.pending }} pending
       </p>
     </section>
-    <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
     <hh-data-table
       [columns]="columns"
       [rows]="rows"
       [loading]="loading"
-      [empty]="!loading && !rows.length"
+      [error]="error"
+      [empty]="!loading && !error && !rows.length"
       ><ng-template hhDataTableCell="actions" let-row
         ><hh-action-button
           *ngIf="canWrite"

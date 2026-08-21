@@ -1,49 +1,22 @@
 import { Injectable, inject } from "@angular/core";
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Observable, firstValueFrom } from "rxjs";
-import {
-  HisHopePageQuery,
-  HisHopePageResult,
-} from "@his-hope/frontend-foundation/contracts";
 import type {
   HisHopeNotification,
-  HisHopeNotificationPage,
   HisHopeNotificationInboxApi,
+  HisHopeNotificationPage,
 } from "@his-hope/mobile-foundation";
 import { environment } from "../../environments/environment";
 
-export interface MobileDashboardStats {
-  totalClients: number;
-  totalUsers: number;
-  totalRoles: number;
-  totalConsents: number;
-}
-export interface MobileClient {
-  id?: string;
-  clientId: string;
-  displayName: string;
-  clientType: string;
-  redirectUris: string[];
-}
-export interface MobileUser {
-  id: string;
-  userName: string;
-  email: string;
-  roles: string[];
-  isActive: boolean;
-}
-export interface MobileRole {
-  id?: string;
-  name: string;
-  description?: string;
-}
-export interface MobileConsent {
-  id: string;
-  subject: string;
-  clientId: string;
-  scopes: string[];
-  created: string;
-}
+export type {
+  Consent as MobileConsent,
+  DashboardStats as MobileDashboardStats,
+  MobileResource,
+  OidcClient as MobileClient,
+  Role as MobileRole,
+  User as MobileUser,
+} from "./contracts/mobile.contracts";
+
 export interface MobileMfaEnrollment {
   secretKey: string;
   qrCodeUri: string;
@@ -57,8 +30,8 @@ export interface MobileMfaStatus {
 }
 export type MobileNotification = HisHopeNotification;
 export type MobileNotificationPage = HisHopeNotificationPage;
-export type MobileResource = "clients" | "users" | "roles" | "consents";
 
+/** Mobile platform API: MFA, notifications, passkeys — not resource CRUD. */
 @Injectable({ providedIn: "root" })
 export class MobileAdminApiService implements HisHopeNotificationInboxApi {
   private readonly http = inject(HttpClient);
@@ -66,9 +39,6 @@ export class MobileAdminApiService implements HisHopeNotificationInboxApi {
   private readonly authApiUrl = this.baseUrl.replace(/\/admin$/, "/auth");
   private readonly mobileApiUrl = this.baseUrl.replace(/\/admin$/, "");
 
-  getDashboard(): Observable<MobileDashboardStats> {
-    return this.http.get<MobileDashboardStats>(`${this.baseUrl}/dashboard`);
-  }
   getMyPermissions(): Observable<{ permissions: string[]; roles: string[] }> {
     return this.http.get<{ permissions: string[]; roles: string[] }>(
       `${this.baseUrl}/me/permissions`,
@@ -151,46 +121,5 @@ export class MobileAdminApiService implements HisHopeNotificationInboxApi {
       `${this.authApiUrl}/passkeys/mfa/native/complete`,
       { ticket, response },
     );
-  }
-
-  getPage<T>(
-    resource: MobileResource,
-    query: HisHopePageQuery,
-  ): Observable<HisHopePageResult<T>> {
-    let params = new HttpParams()
-      .set("page", String(query.page))
-      .set("pageSize", String(query.pageSize));
-    if (query.search?.trim())
-      params = params.set("search", query.search.trim());
-    if (query.cursor) params = params.set("cursor", query.cursor);
-    const sorts = query.sort
-      ? Array.isArray(query.sort)
-        ? query.sort
-        : [query.sort]
-      : [];
-    if (sorts.length)
-      params = params.set(
-        "sort",
-        sorts.map((sort) => `${sort.key}:${sort.direction}`).join(","),
-      );
-    Object.entries(query.filters ?? {}).forEach(([key, value]) => {
-      if (value !== null && value !== undefined && value !== "")
-        params = params.set(key, String(value));
-    });
-    return this.http.get<HisHopePageResult<T>>(`${this.baseUrl}/${resource}`, {
-      params,
-    });
-  }
-
-  bulk(
-    resource: Exclude<MobileResource, "consents">,
-    actionId: string,
-    rowKeys: string[],
-  ): Observable<unknown> {
-    return this.http.post(`${this.baseUrl}/tables/${resource}/bulk`, {
-      actionId,
-      rowKeys,
-      selection: "page",
-    });
   }
 }

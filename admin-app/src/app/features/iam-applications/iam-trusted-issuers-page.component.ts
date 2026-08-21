@@ -7,59 +7,34 @@ import {
   effect,
   inject,
 } from "@angular/core";
-import { CommonModule } from "@angular/common";
 import {
-  HisHopeDataTableComponent,
   HisHopeDataTableColumn,
-  HisHopePageHeaderComponent,
-  HisHopePageLayoutComponent,
-  HisHopeToolbarComponent,
+  HisHopeResourceListPageComponent,
 } from "@his-hope/frontend-foundation/ui";
-import {
-  HisHopeI18nService,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation/i18n";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { IamTrustedIssuersResponse } from "../../core/contracts/admin.contracts";
 
-import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-trusted-issuers-page",
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    HisHopeActionButtonComponent,
-    CommonModule,
-    HisHopeDataTableComponent,
-    HisHopePageHeaderComponent,
-    HisHopePageLayoutComponent,
-    HisHopeToolbarComponent,
-    HisHopeTranslatePipe,
-  ],
-  template: `<hh-page-layout
-    ><hh-page-header
-      hhPageHeader
-      [title]="'admin.trustedIssuers' | hhTranslate: 'Trusted issuers'"
-      [subtitle]="
-        'admin.trustedIssuersSubtitle'
-          | hhTranslate: 'Configured OIDC/SAML issuer metadata.'
-      " /><hh-toolbar hhPageToolbar
-      ><hh-action-button
-        (pressed)="load()"
-        hh-toolbar-actions
-        kind="secondary"
-        icon="refresh"
-        [label]="'admin.refresh' | hhTranslate"
-    /></hh-toolbar>
-    <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
-    <hh-data-table
+  imports: [HisHopeResourceListPageComponent],
+  template: `
+    <hh-resource-list-page
+      title="admin.trustedIssuers"
+      titleFallback="Trusted issuers"
+      subtitle="admin.trustedIssuersSubtitle"
+      subtitleFallback="Configured OIDC/SAML issuer metadata."
+      [showCreate]="false"
       [columns]="columns"
       [rows]="rows"
       [loading]="loading"
-      [empty]="!loading && !rows.length"
-    ></hh-data-table
-  ></hh-page-layout>`,
+      [error]="error"
+      (refresh)="load()"
+    />
+  `,
 })
 export class IamTrustedIssuersPageComponent implements OnInit {
   private readonly api = inject(IamApiService);

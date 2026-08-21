@@ -933,14 +933,14 @@ public static class IdentityServiceEndpointExtensions
         {
             await syncService.SyncAsync(ct);
             return Results.Ok(new { message = "LDAP sync completed" });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
 
         // Key rotation (admin only)
         admin.MapPost("/security/rotate-signing-key", async (VaultKeyService keyService, CancellationToken ct) =>
         {
             await keyService.RotateKeyAsync(ct);
             return Results.Ok(new { message = "Signing key rotated successfully" });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminSettingsWrite);
 
         var settings = app.MapGroup("/api/v1").RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin);
         settings.MapSettingsEndpoints();

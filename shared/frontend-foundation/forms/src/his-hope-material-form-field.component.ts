@@ -46,7 +46,7 @@ export class HisHopeMaterialFormFieldComponent {
   readonly type = input<"text" | "email" | "number" | "password">("text");
   readonly messages = input<Record<string, string>>({});
   readonly appearance = input<"fill" | "outline">("outline");
-  readonly subscriptSizing = input<"fixed" | "dynamic">("fixed");
+  readonly subscriptSizing = input<"fixed" | "dynamic">("dynamic");
   readonly multiple = input(false);
   readonly multiline = input(false);
   readonly rows = input(2);

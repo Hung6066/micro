@@ -8,16 +8,9 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { MatTableModule } from "@angular/material/table";
-import { MatButtonModule } from "@angular/material/button";
-import { MatIconModule } from "@angular/material/icon";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
-import { MatCardModule } from "@angular/material/card";
-import { MatProgressSpinnerModule } from "@angular/material/progress-spinner";
 import {
   AdminPageQuery,
-  AdminPageResult,
-  AdminSavedTableView,
   OidcClient,
 } from "../../core/contracts/admin.contracts";
 import { ClientsApiService } from "../../core/services/clients-api.service";
@@ -29,7 +22,8 @@ import {
   HisHopeTableExportRequest,
 } from "@his-hope/frontend-foundation";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
-import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
+import { AdminResourceTableController } from "../../core/services/admin-resource-table.controller";
+import { downloadAdminTableExport } from "../../core/services/admin-query.util";
 import {
   HisHopeConfirmDialogComponent,
   HisHopeDataTableCellDirective,
@@ -46,7 +40,7 @@ import {
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
 import { ClientEditDialogComponent } from "./client-edit-dialog.component";
-import { catchError, finalize } from "rxjs/operators";
+import { catchError } from "rxjs/operators";
 import { of } from "rxjs";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
@@ -55,11 +49,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   standalone: true,
   imports: [
     CommonModule,
-    MatTableModule,
-    MatButtonModule,
     HisHopeTranslatePipe,
-    MatCardModule,
-    MatProgressSpinnerModule,
     HisHopeConfirmDialogComponent,
     HisHopeActionButtonComponent,
     HisHopeDataTableCellDirective,
@@ -241,25 +231,37 @@ export class ClientsPageComponent implements OnInit {
     ];
   }
   private readonly destroyRef = inject(DestroyRef);
-  readonly resource = new HisHopeResourceState<AdminPageResult<OidcClient>>(
-    this.destroyRef,
+  readonly table = new AdminResourceTableController<AdminPageQuery, OidcClient>(
+    {
+      destroyRef: this.destroyRef,
+      i18n: this.i18n,
+      initialQuery: { page: 1, pageSize: 20 },
+      loader: (query) => this.api.getClientsPage(query),
+      loadErrorMessageKey: "admin.loadClientsFailed",
+      loadErrorFallback:
+        "Failed to load clients. Make sure the API is running.",
+      onStateChange: () => this.cdr.markForCheck(),
+    },
   );
-  bulkLoading = false;
-  private actionError: string | null = null;
   get loading(): boolean {
-    return this.resource.loading() || this.bulkLoading;
+    return this.table.loading;
   }
   get error(): string | null {
-    return (
-      this.actionError ||
-      (this.resource.error() ? this.resource.errorMessage() : null)
-    );
+    return this.table.error;
   }
   clientPendingDelete: OidcClient | null = null;
-  totalItems = 0;
-  query: AdminPageQuery = { page: 1, pageSize: 20 };
-  savedView: AdminSavedTableView = {};
-  expandedRowKeys: string[] = [];
+  get totalItems(): number {
+    return this.table.totalItems;
+  }
+  get query(): AdminPageQuery {
+    return this.table.query;
+  }
+  get savedView() {
+    return this.table.savedView;
+  }
+  get expandedRowKeys() {
+    return this.table.expandedRowKeys;
+  }
   constructor() {
     effect(() => {
       this.i18n.locale();
@@ -276,9 +278,8 @@ export class ClientsPageComponent implements OnInit {
       this.cdr.markForCheck();
     });
     effect(() => {
-      const result = this.resource.data();
+      const result = this.table.resource.data();
       if (result) {
-        this.totalItems = result.totalCount;
         this.clients = result.items;
         this.tableRows = result.items.map((client) => ({
           id: client.id ?? client.clientId,
@@ -344,54 +345,32 @@ export class ClientsPageComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.loadServerView();
+    this.table.loadServerView(() => this.api.getTableViews("clients"));
     this.loadClients();
   }
 
   loadServerView(): void {
-    this.api.getTableViews("clients").subscribe((views) => {
-      const view = views.find((item) => item.name === "default") ?? views[0];
-      if (view) this.savedView = JSON.parse(view.payloadJson);
-    });
+    this.table.loadServerView(() => this.api.getTableViews("clients"));
   }
 
   saveView(event: { name: string; payload: unknown }): void {
-    this.api.saveTableView("clients", event.name, event.payload).subscribe();
+    this.table.saveView(event, (name, payload) =>
+      this.api.saveTableView("clients", name, payload),
+    );
   }
   resetView(event: { name: string }): void {
-    this.savedView = {};
-    this.api
-      .deleteTableView("clients", event.name)
-      .subscribe({ error: () => this.loadServerView() });
+    this.table.resetView(
+      event,
+      (name) => this.api.deleteTableView("clients", name),
+      () => this.loadServerView(),
+    );
   }
   toggleRowExpand(event: { rowKey: string; expanded: boolean }): void {
-    this.expandedRowKeys = event.expanded
-      ? [...this.expandedRowKeys, event.rowKey]
-      : this.expandedRowKeys.filter((key) => key !== event.rowKey);
+    this.table.toggleRowExpand(event);
   }
 
   loadClients(query = this.query): void {
-    this.query = query;
-    this.actionError = null;
-    this.resource.load(
-      this.api.getClientsPage(query).pipe(
-        catchError(() => {
-          this.actionError = this.i18n.t(
-            "admin.loadClientsFailed",
-            "Failed to load clients. Make sure the API is running.",
-          );
-          return of({
-            items: [],
-            totalCount: 0,
-            page: query.page,
-            pageSize: query.pageSize,
-            totalPages: 0,
-            hasNextPage: false,
-            hasPreviousPage: false,
-          });
-        }),
-      ),
-    );
+    this.table.load(query);
   }
 
   onQueryChange(query: HisHopePageQuery): void {
@@ -400,32 +379,17 @@ export class ClientsPageComponent implements OnInit {
 
   onBulkAction(request: HisHopeBulkActionRequest): void {
     if (!this.canWrite) return;
-    this.bulkLoading = true;
-    this.api
-      .bulkTable("clients", request)
-      .pipe(
-        finalize(() => (this.bulkLoading = false)),
-        catchError(() => {
-          this.actionError = this.i18n.t(
-            "admin.updateClientsFailed",
-            "Failed to update selected clients.",
-          );
-          return of(null);
-        }),
-      )
-      .subscribe((result) => {
-        if (result) this.loadClients(this.query);
-      });
+    this.table.runBulkAction(
+      request,
+      (bulkRequest) => this.api.bulkTable("clients", bulkRequest),
+      "admin.updateClientsFailed",
+      "Failed to update selected clients.",
+    );
   }
 
   onExport(request: HisHopeTableExportRequest): void {
     this.api.exportTable("clients", request).subscribe((blob) => {
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `clients-${new Date().toISOString().slice(0, 10)}.${request.format}`;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      downloadAdminTableExport(blob, "clients", request.format);
     });
   }
 

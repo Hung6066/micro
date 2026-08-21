@@ -100,11 +100,11 @@ export interface IamRevocationEditDialogData {
     `
       .dialog-form {
         display: grid;
-        gap: 16px;
+        gap: var(--space-lg);
       }
       .form-error {
         margin: 0;
-        color: var(--text-danger, #b42318);
+        color: var(--color-danger);
         font-size: 0.875rem;
       }
     `,

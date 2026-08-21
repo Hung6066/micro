@@ -81,8 +81,8 @@ export interface HisHopeFileUploadRejection {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 4px;
-        padding: 24px 16px;
+        gap: var(--space-2xs);
+        padding: var(--space-2xl) var(--space-lg);
         border: 2px dashed var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-white);
@@ -92,14 +92,14 @@ export interface HisHopeFileUploadRejection {
       }
       .hh-file-upload__dropzone:focus-visible {
         border-color: var(--color-primary);
-        outline: 3px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+        outline: var(--focus-ring-width-strong) solid color-mix(in srgb, var(--color-primary) 20%, transparent);
       }
       .hh-file-upload__dropzone--active {
         border-color: var(--color-primary);
         background: var(--surface-hover);
       }
       .hh-file-upload__icon {
-        font-size: 28px;
+        font-size: var(--font-size-display);
         color: var(--color-primary);
       }
       .hh-file-upload__hint {
@@ -116,8 +116,8 @@ export interface HisHopeFileUploadRejection {
       }
       .hh-file-upload__list {
         display: grid;
-        gap: 6px;
-        margin: 10px 0 0;
+        gap: var(--space-xs);
+        margin: var(--space-md) 0 0;
         padding: 0;
         list-style: none;
       }
@@ -125,8 +125,8 @@ export interface HisHopeFileUploadRejection {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 8px;
-        padding: 6px 10px;
+        gap: var(--space-sm);
+        padding: var(--space-xs) var(--space-md);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-control);
         background: var(--surface-white);
@@ -136,17 +136,17 @@ export interface HisHopeFileUploadRejection {
       .hh-file-upload__remove {
         display: grid;
         place-items: center;
-        width: 22px;
-        height: 22px;
+        width: var(--size-config-nav-indicator);
+        height: var(--size-config-nav-indicator);
         border: 0;
-        border-radius: 50%;
+        border-radius: var(--radius-full);
         background: transparent;
         color: var(--text-secondary);
-        font-size: 16px;
+        font-size: var(--font-size-input);
         cursor: pointer;
       }
       .hh-file-upload__error {
-        margin: 8px 0 0;
+        margin: var(--space-sm) 0 0;
         color: var(--color-danger, #b91c1c);
         font-size: var(--font-size-caption);
       }

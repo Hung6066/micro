@@ -4,12 +4,16 @@ export interface HisHopeFormFieldSchema<TValue> {
   key: string;
   label: string;
   initialValue: TValue;
-  type?: 'text' | 'email' | 'number' | 'password' | 'textarea' | 'select';
+  type?: "text" | "email" | "number" | "password" | "textarea" | "select";
   placeholder?: string;
   hint?: string;
   options?: readonly { value: string; label: string }[];
   disabled?: boolean;
   required?: boolean;
+  hidden?: boolean;
+  multiple?: boolean;
+  multiline?: boolean;
+  rows?: number;
   messages?: Record<string, string>;
 }
 

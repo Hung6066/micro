@@ -176,7 +176,7 @@ import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
     `
       .mono {
         font-family: var(--font-mono);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
       }
     `,
   ],

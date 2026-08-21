@@ -19,9 +19,11 @@ import type {
   IamWorkloadSessionResponse,
 } from "./iam.contracts";
 import type {
+  HisHopeBulkActionResult,
   HisHopePageQuery,
   HisHopePageResult,
-  HisHopeSort,
+  HisHopeSavedTableView,
+  HisHopeTableViewRecord,
 } from "@his-hope/frontend-foundation";
 
 export type {
@@ -145,11 +147,7 @@ export interface DashboardStats {
 export type AdminPageQuery = HisHopePageQuery;
 export interface AdminPageResult<T> extends HisHopePageResult<T> {}
 
-export interface AdminBulkActionResponse {
-  actionId: string;
-  requested: number;
-  updated: number;
-}
+export interface AdminBulkActionResponse extends HisHopeBulkActionResult {}
 
 export interface AdminJobContract {
   jobId: string;
@@ -162,18 +160,9 @@ export interface AdminJobContract {
   errorCode?: string;
 }
 
-export interface AdminTableView {
-  name: string;
-  payloadJson: string;
-  updatedAt: string;
-}
+export interface AdminTableView extends HisHopeTableViewRecord {}
 
-export interface AdminSavedTableView {
-  hiddenColumns?: string[];
-  columnOrder?: string[];
-  columnWidths?: Record<string, number>;
-  sort?: HisHopeSort | null;
-}
+export interface AdminSavedTableView extends HisHopeSavedTableView {}
 
 export interface AdminTableAnalysisResult {
   resource: string;

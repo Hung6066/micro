@@ -28,13 +28,13 @@ export interface HisHopeCommand { id: string; label: string; description?: strin
   styles: [`
     :host { display: contents; }
     .hh-command-backdrop { position: fixed; inset: 0; z-index: 1300; background: rgba(15,35,25,.42); }
-    .hh-command { position: fixed; top: 12vh; left: 50%; z-index: 1310; width: min(620px, calc(100vw - 32px)); transform: translateX(-50%); overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-card); background: var(--surface-white); box-shadow: var(--shadow-dialog); }
-    .hh-command > input { width: 100%; min-height: 56px; border: 0; border-bottom: 1px solid var(--border-default); padding: 0 18px; background: transparent; color: var(--text-primary); font: inherit; outline: 0; }
-    .hh-command [role=listbox] { max-height: 52vh; overflow: auto; padding: 8px; }
-    .hh-command button { display: grid; width: 100%; gap: 2px; min-height: 52px; border: 0; border-radius: var(--radius-button); padding: 10px 12px; background: transparent; color: var(--text-primary); text-align: left; font: inherit; cursor: pointer; }
+    .hh-command { position: fixed; top: 12vh; left: 50%; z-index: 1310; width: min(620px, calc(100vw - var(--space-3xl))); transform: translateX(-50%); overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-card); background: var(--surface-white); box-shadow: var(--shadow-dialog); }
+    .hh-command > input { width: 100%; min-height: var(--mobile-toolbar-height); border: 0; border-bottom: 1px solid var(--border-default); padding: 0 var(--space-lg); background: transparent; color: var(--text-primary); font: inherit; outline: 0; }
+    .hh-command [role=listbox] { max-height: 52vh; overflow: auto; padding: var(--space-sm); }
+    .hh-command button { display: grid; width: 100%; gap: var(--space-hairline); min-height: var(--control-height-comfort); border: 0; border-radius: var(--radius-button); padding: var(--space-md); background: transparent; color: var(--text-primary); text-align: left; font: inherit; cursor: pointer; }
     .hh-command button:hover, .hh-command button:focus-visible { background: var(--surface-hover); outline: 0; }
     .hh-command small, .hh-command__empty { color: var(--text-secondary); font-size: var(--font-size-caption); }
-    .hh-command__empty { padding: 20px; text-align: center; }
+    .hh-command__empty { padding: var(--space-xl); text-align: center; }
     .hh-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   `],
 })

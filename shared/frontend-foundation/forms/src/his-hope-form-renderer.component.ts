@@ -72,7 +72,7 @@ import { HisHopeValidationMessageRegistry } from "./his-hope-validation-message-
       select {
         box-sizing: border-box;
         min-height: var(--control-height, 40px);
-        padding: 8px 10px;
+        padding: var(--space-sm) var(--space-inset);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-input);
         background: var(--surface-white);
@@ -80,7 +80,7 @@ import { HisHopeValidationMessageRegistry } from "./his-hope-validation-message-
         font: inherit;
       }
       textarea {
-        min-height: 96px;
+        min-height: var(--size-empty-state-icon);
         resize: vertical;
       }
     `,

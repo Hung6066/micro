@@ -1,5 +1,7 @@
 package com.hishope.mobile;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.CancellationSignal;
 import android.util.Base64;
@@ -52,35 +54,90 @@ import java.util.concurrent.Executors;
 
 @CapacitorPlugin(name = "HisHopeSecurity")
 public final class HisHopeSecurityPlugin extends Plugin {
-    private static final String PREFS = "his_hope_security";
+    private static final String LEGACY_PREFS = "his_hope_security";
     private static final String PIN_HASH = "pin_hash";
     private static final String PIN_SALT = "pin_salt";
+    private static final String PIN_FAIL_COUNT = "pin_fail_count";
+    private static final String PIN_LOCK_UNTIL_MS = "pin_lock_until_ms";
+    private static final int MAX_PIN_ATTEMPTS = 5;
+    private static final long PIN_LOCK_BASE_MS = 30_000L;
     private final ExecutorService credentialExecutor = Executors.newSingleThreadExecutor();
 
     @PluginMethod
     public void deviceSecurity(PluginCall call) {
         boolean rooted = hasRootIndicators();
+        boolean debuggable =
+            (getContext().getApplicationInfo().flags
+                    & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE)
+                != 0;
         JSObject result = new JSObject();
         result.put("status", rooted ? "compromised" : "secure");
         result.put("rootedOrJailbroken", rooted);
         result.put("emulator", isEmulator());
+        result.put("debuggable", debuggable);
         if (rooted) result.put("reason", "native_root_indicator");
         call.resolve(result);
     }
 
     @PluginMethod
+    public void deviceAttestation(PluginCall call) {
+        boolean rooted = hasRootIndicators();
+        boolean debuggable =
+            (getContext().getApplicationInfo().flags
+                    & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE)
+                != 0;
+        HisHopeDeviceAttestation.collect(
+            getContext(),
+            rooted,
+            isEmulator(),
+            debuggable,
+            new HisHopeDeviceAttestation.Callback() {
+                @Override
+                public void onSuccess(JSObject result) {
+                    call.resolve(result);
+                }
+
+                @Override
+                public void onFailure(String message) {
+                    call.reject(message);
+                }
+            });
+    }
+
+    @PluginMethod
     public void configureCertificatePins(PluginCall call) {
-        // The production transport must consume this allow-list in the native
-        // HTTP adapter. Keeping it in native preferences prevents JS from
-        // silently changing pins at runtime.
-        String pins = call.getArray("pins") == null ? "[]" : call.getArray("pins").toString();
-        getContext().getSharedPreferences(PREFS, 0).edit().putString("certificate_pins", pins).apply();
+        JSONArray submitted = call.getArray("pins");
+        if (submitted == null) {
+            call.reject("At least one valid certificate pin is required");
+            return;
+        }
+        JSONArray bundled = bundledCertificatePins();
+        if (bundled.length() == 0 && !isDebuggable()) {
+            call.reject("Bundled certificate pins are required in release builds");
+            return;
+        }
+        if (bundled.length() > 0
+                && !containsPlaceholderPin(bundled)
+                && !canonicalPins(submitted).equals(canonicalPins(bundled))) {
+            call.reject("Certificate pins must match the bundled release allow-list");
+            return;
+        }
+        if (containsPlaceholderPin(submitted) && !isDebuggable()) {
+            call.reject("Release builds cannot use placeholder certificate pins");
+            return;
+        }
+        getContext()
+            .getSharedPreferences(LEGACY_PREFS, 0)
+            .edit()
+            .putString("certificate_pins", submitted.toString())
+            .apply();
         call.resolve();
     }
 
     @PluginMethod
     public void isPinConfigured(PluginCall call) {
-        boolean configured = getContext().getSharedPreferences(PREFS, 0).contains(PIN_HASH);
+        migrateLegacyPinIfNeeded();
+        boolean configured = securePrefs().contains(PIN_HASH);
         call.resolve(new JSObject().put("configured", configured));
     }
 
@@ -94,31 +151,64 @@ public final class HisHopeSecurityPlugin extends Plugin {
         byte[] salt = new byte[16];
         new SecureRandom().nextBytes(salt);
         byte[] hash = derive(pin, salt);
-        getContext().getSharedPreferences(PREFS, 0).edit()
-                .putString(PIN_SALT, Base64.encodeToString(salt, Base64.NO_WRAP))
-                .putString(PIN_HASH, Base64.encodeToString(hash, Base64.NO_WRAP))
-                .apply();
+        securePrefs().edit()
+            .putString(PIN_SALT, Base64.encodeToString(salt, Base64.NO_WRAP))
+            .putString(PIN_HASH, Base64.encodeToString(hash, Base64.NO_WRAP))
+            .remove(PIN_FAIL_COUNT)
+            .remove(PIN_LOCK_UNTIL_MS)
+            .apply();
+        getContext().getSharedPreferences(LEGACY_PREFS, 0).edit()
+            .remove(PIN_HASH)
+            .remove(PIN_SALT)
+            .apply();
         call.resolve();
     }
 
     @PluginMethod
     public void verifyAppPin(PluginCall call) {
+        migrateLegacyPinIfNeeded();
+        long lockedUntil = securePrefs().getLong(PIN_LOCK_UNTIL_MS, 0L);
+        if (lockedUntil > System.currentTimeMillis()) {
+            call.reject("PIN entry is temporarily locked", "pin_locked");
+            return;
+        }
         String pin = call.getString("pin", "");
-        var prefs = getContext().getSharedPreferences(PREFS, 0);
+        SharedPreferences prefs = securePrefs();
         String saltValue = prefs.getString(PIN_SALT, null);
         String hashValue = prefs.getString(PIN_HASH, null);
         boolean valid = false;
         if (saltValue != null && hashValue != null) {
             valid = MessageDigest.isEqual(
-                    derive(pin, Base64.decode(saltValue, Base64.NO_WRAP)),
-                    Base64.decode(hashValue, Base64.NO_WRAP));
+                derive(pin, Base64.decode(saltValue, Base64.NO_WRAP)),
+                Base64.decode(hashValue, Base64.NO_WRAP));
         }
+        SharedPreferences.Editor editor = prefs.edit();
+        if (valid) {
+            editor.remove(PIN_FAIL_COUNT).remove(PIN_LOCK_UNTIL_MS);
+        } else if (saltValue != null && hashValue != null) {
+            int failures = prefs.getInt(PIN_FAIL_COUNT, 0) + 1;
+            editor.putInt(PIN_FAIL_COUNT, failures);
+            if (failures >= MAX_PIN_ATTEMPTS) {
+                long backoff = PIN_LOCK_BASE_MS * (1L << Math.min(failures - MAX_PIN_ATTEMPTS, 4));
+                editor.putLong(PIN_LOCK_UNTIL_MS, System.currentTimeMillis() + backoff);
+            }
+        }
+        editor.apply();
         call.resolve(new JSObject().put("valid", valid));
     }
 
     @PluginMethod
     public void clearAppPin(PluginCall call) {
-        getContext().getSharedPreferences(PREFS, 0).edit().remove(PIN_HASH).remove(PIN_SALT).apply();
+        securePrefs().edit()
+            .remove(PIN_HASH)
+            .remove(PIN_SALT)
+            .remove(PIN_FAIL_COUNT)
+            .remove(PIN_LOCK_UNTIL_MS)
+            .apply();
+        getContext().getSharedPreferences(LEGACY_PREFS, 0).edit()
+            .remove(PIN_HASH)
+            .remove(PIN_SALT)
+            .apply();
         call.resolve();
     }
 
@@ -191,6 +281,22 @@ public final class HisHopeSecurityPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void openPinnedAuthBrowser(PluginCall call) {
+        String url = call.getString("url", "");
+        if (url.isBlank()) {
+            call.reject("Authorization URL is required");
+            return;
+        }
+        getActivity().runOnUiThread(() -> {
+            android.content.Intent intent =
+                new android.content.Intent(getActivity(), OidcAuthActivity.class);
+            intent.putExtra(OidcAuthActivity.EXTRA_URL, url);
+            getActivity().startActivity(intent);
+            call.resolve();
+        });
+    }
+
+    @PluginMethod
     public void request(PluginCall call) {
         String rawUrl = call.getString("url", "");
         String method = call.getString("method", "GET");
@@ -255,18 +361,24 @@ public final class HisHopeSecurityPlugin extends Plugin {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("No system trust manager"));
         String[] pins = pinsForHost(host);
-        if (pins.length == 0) throw new IllegalStateException("No certificate pin configured for " + host);
+        if (pins.length == 0) {
+            if (isDebuggable()) {
+                SSLContext context = SSLContext.getInstance("TLS");
+                context.init(null, new TrustManager[] { systemTrust }, new SecureRandom());
+                return context.getSocketFactory();
+            }
+            throw new IllegalStateException("No certificate pin configured for " + host);
+        }
         X509TrustManager pinningTrust = new X509TrustManager() {
             public X509Certificate[] getAcceptedIssuers() { return systemTrust.getAcceptedIssuers(); }
             public void checkClientTrusted(X509Certificate[] chain, String authType) throws java.security.cert.CertificateException { systemTrust.checkClientTrusted(chain, authType); }
             public void checkServerTrusted(X509Certificate[] chain, String authType) throws java.security.cert.CertificateException {
                 systemTrust.checkServerTrusted(chain, authType);
                 if (chain == null || chain.length == 0) throw new java.security.cert.CertificateException("Empty server certificate chain");
-                String actual;
                 try {
-                    actual = "sha256/" + Base64.encodeToString(MessageDigest.getInstance("SHA-256").digest(chain[0].getPublicKey().getEncoded()), Base64.NO_WRAP);
-                } catch (java.security.NoSuchAlgorithmException ex) {
-                    throw new java.security.cert.CertificateException("SHA-256 unavailable", ex);
+                    actual = HisHopeSpkiPin.sha256SpkiPin(chain[0]);
+                } catch (java.security.cert.CertificateException ex) {
+                    throw ex;
                 }
                 if (!Arrays.asList(pins).contains(actual)) throw new java.security.cert.CertificateException("Certificate pin mismatch");
             }
@@ -277,7 +389,7 @@ public final class HisHopeSecurityPlugin extends Plugin {
     }
 
     private String[] pinsForHost(String host) {
-        String raw = getContext().getSharedPreferences(PREFS, 0).getString("certificate_pins", "[]");
+        String raw = getContext().getSharedPreferences(LEGACY_PREFS, 0).getString("certificate_pins", "[]");
         try {
             JSONArray array = new JSONArray(raw);
             java.util.List<String> pins = new java.util.ArrayList<>();
@@ -310,5 +422,56 @@ public final class HisHopeSecurityPlugin extends Plugin {
     private boolean isEmulator() {
         return Build.FINGERPRINT.startsWith("generic") || Build.MODEL.contains("Emulator") ||
                 Build.MODEL.contains("Android SDK built for");
+    }
+
+    private boolean isDebuggable() {
+        return (getContext().getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+    }
+
+    private SharedPreferences securePrefs() {
+        return HisHopeSecurePrefs.open(getContext());
+    }
+
+    private void migrateLegacyPinIfNeeded() {
+        SharedPreferences legacy = getContext().getSharedPreferences(LEGACY_PREFS, 0);
+        String legacyHash = legacy.getString(PIN_HASH, null);
+        String legacySalt = legacy.getString(PIN_SALT, null);
+        if (legacyHash == null || legacySalt == null) return;
+        SharedPreferences secure = securePrefs();
+        if (secure.contains(PIN_HASH)) {
+            legacy.edit().remove(PIN_HASH).remove(PIN_SALT).apply();
+            return;
+        }
+        secure.edit().putString(PIN_HASH, legacyHash).putString(PIN_SALT, legacySalt).apply();
+        legacy.edit().remove(PIN_HASH).remove(PIN_SALT).apply();
+    }
+
+    private JSONArray bundledCertificatePins() {
+        try (InputStream stream = getContext().getResources().openRawResource(R.raw.certificate_pins)) {
+            return new JSONArray(new String(stream.readAllBytes(), StandardCharsets.UTF_8));
+        } catch (Exception ex) {
+            return new JSONArray();
+        }
+    }
+
+    private static boolean containsPlaceholderPin(JSONArray pins) {
+        for (int index = 0; index < pins.length(); index++) {
+            JSONObject item = pins.optJSONObject(index);
+            if (item == null) continue;
+            String spki = item.optString("sha256Spki", "");
+            if (spki.contains("REPLACE_IN_RELEASE")) return true;
+        }
+        return false;
+    }
+
+    private static String canonicalPins(JSONArray pins) {
+        java.util.List<String> entries = new java.util.ArrayList<>();
+        for (int index = 0; index < pins.length(); index++) {
+            JSONObject item = pins.optJSONObject(index);
+            if (item == null) continue;
+            entries.add(item.optString("host", "").toLowerCase(java.util.Locale.ROOT) + "=" + item.optString("sha256Spki"));
+        }
+        java.util.Collections.sort(entries);
+        return String.join("|", entries);
     }
 }

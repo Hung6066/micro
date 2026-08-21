@@ -1,11 +1,14 @@
 import { Routes } from "@angular/router";
 import { authGuard } from "./core/guards/auth.guard";
+import { adminReadGuard } from "./core/guards/admin-read.guard";
 import { capabilityPermissionGuard } from "./core/guards/capability-permission.guard";
+
+const protectedRoute = [authGuard, adminReadGuard] as const;
 
 const iamWorkbenchRoutes: Routes = [
   {
     path: "iam/overview",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/iam-overview/iam-overview-page.component").then(
         (m) => m.IamOverviewPageComponent,
@@ -13,7 +16,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/scopes",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/iam-scopes/iam-scopes-page.component").then(
         (m) => m.IamScopesPageComponent,
@@ -21,7 +24,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/users",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/users/users-page.component").then(
         (m) => m.UsersPageComponent,
@@ -29,7 +32,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/groups",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/groups/groups-page.component").then(
         (m) => m.GroupsPageComponent,
@@ -37,7 +40,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/external-identities",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/iam-applications/iam-external-identities-page.component").then(
         (m) => m.IamExternalIdentitiesPageComponent,
@@ -45,7 +48,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/service-principals",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/service-principals/service-principals-page.component").then(
         (m) => m.ServicePrincipalsPageComponent,
@@ -53,7 +56,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/workload-roles",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/workload-roles/workload-roles-page.component").then(
         (m) => m.WorkloadRolesPageComponent,
@@ -61,7 +64,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/clients",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/clients/clients-page.component").then(
         (m) => m.ClientsPageComponent,
@@ -69,7 +72,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/api-audiences",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/iam-applications/iam-api-audiences-page.component").then(
         (m) => m.IamApiAudiencesPageComponent,
@@ -77,7 +80,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/trusted-issuers",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/iam-applications/iam-trusted-issuers-page.component").then(
         (m) => m.IamTrustedIssuersPageComponent,
@@ -85,7 +88,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/services",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/iam-services/iam-services-page.component").then(
         (m) => m.IamServicesPageComponent,
@@ -93,7 +96,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/permission-sets",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/permission-sets/permission-sets-page.component").then(
         (m) => m.PermissionSetsPageComponent,
@@ -101,7 +104,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/policies",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/policies/policies-page.component").then(
         (m) => m.PoliciesPageComponent,
@@ -109,7 +112,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/boundaries",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/boundaries/boundaries-page.component").then(
         (m) => m.BoundariesPageComponent,
@@ -117,7 +120,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/resource-policies",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/resource-policies/resource-policies-page.component").then(
         (m) => m.ResourcePoliciesPageComponent,
@@ -125,7 +128,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/assignments",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/assignments/assignments-page.component").then(
         (m) => m.AssignmentsPageComponent,
@@ -133,7 +136,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/sessions",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/iam-sessions/iam-sessions-page.component").then(
         (m) => m.IamSessionsPageComponent,
@@ -141,7 +144,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/workload-sessions",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/iam-operations/iam-operations-pages.component").then(
         (m) => m.IamWorkloadSessionsPageComponent,
@@ -149,7 +152,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/revocations",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/iam-sessions/iam-revocations-page.component").then(
         (m) => m.IamRevocationsPageComponent,
@@ -157,7 +160,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/analyzer/effective-access",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/iam-analyzer/iam-effective-access-page.component").then(
         (m) => m.IamEffectiveAccessPageComponent,
@@ -165,7 +168,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/analyzer/policy-simulator",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/iam-analyzer/iam-policy-simulator-page.component").then(
         (m) => m.IamPolicySimulatorPageComponent,
@@ -173,7 +176,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/analyzer/access-diff",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/iam-analyzer/iam-access-diff-page.component").then(
         (m) => m.IamAccessDiffPageComponent,
@@ -181,7 +184,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/analyzer/unused-permissions",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/iam-sessions/iam-unused-permissions-page.component").then(
         (m) => m.IamUnusedPermissionsPageComponent,
@@ -189,7 +192,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/audit-integrations",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/iam-operations/iam-operations-pages.component").then(
         (m) => m.IamAuditIntegrationsPageComponent,
@@ -197,7 +200,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/access-requests",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/access-governance/access-requests-page.component").then(
         (m) => m.AccessRequestsPageComponent,
@@ -205,7 +208,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/access-reviews",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/access-governance/access-reviews-page.component").then(
         (m) => m.AccessReviewsPageComponent,
@@ -213,7 +216,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/jit-access",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/access-governance/jit-access-page.component").then(
         (m) => m.JitAccessPageComponent,
@@ -221,7 +224,7 @@ const iamWorkbenchRoutes: Routes = [
   },
   {
     path: "iam/break-glass",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/access-governance/break-glass-page.component").then(
         (m) => m.BreakGlassPageComponent,
@@ -234,7 +237,7 @@ export const routes: Routes = [
   { path: "", redirectTo: "/dashboard", pathMatch: "full" },
   {
     path: "clients",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/clients/clients-page.component").then(
         (m) => m.ClientsPageComponent,
@@ -242,7 +245,7 @@ export const routes: Routes = [
   },
   {
     path: "users",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/users/users-page.component").then(
         (m) => m.UsersPageComponent,
@@ -250,7 +253,7 @@ export const routes: Routes = [
   },
   {
     path: "roles",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/roles/roles-page.component").then(
         (m) => m.RolesPageComponent,
@@ -258,7 +261,7 @@ export const routes: Routes = [
   },
   {
     path: "consents",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/consents/consents-page.component").then(
         (m) => m.ConsentsPageComponent,
@@ -266,7 +269,7 @@ export const routes: Routes = [
   },
   {
     path: "security-providers",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/security-providers/security-providers-page.component").then(
         (m) => m.SecurityProvidersPageComponent,
@@ -274,7 +277,7 @@ export const routes: Routes = [
   },
   {
     path: "dashboard",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/dashboard/dashboard-page.component").then(
         (m) => m.DashboardPageComponent,
@@ -282,7 +285,7 @@ export const routes: Routes = [
   },
   {
     path: "access-management",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/access-management/access-management-page.component").then(
         (m) => m.AccessManagementPageComponent,
@@ -290,20 +293,20 @@ export const routes: Routes = [
   },
   {
     path: "access-governance",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     redirectTo: "/iam/access-requests",
     pathMatch: "full",
   },
   // Compatibility bookmark only. Canonical IAM navigation is component-per-resource above.
   {
     path: "iam-control-plane",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     redirectTo: "/iam/overview",
     pathMatch: "full",
   },
   {
     path: "identity-capabilities",
-    canActivate: [authGuard, capabilityPermissionGuard],
+    canActivate: [...protectedRoute, capabilityPermissionGuard],
     loadComponent: () =>
       import("./features/identity-capabilities/identity-capabilities-page.component").then(
         (m) => m.IdentityCapabilitiesPageComponent,
@@ -311,7 +314,7 @@ export const routes: Routes = [
   },
   {
     path: "identity-operations",
-    canActivate: [authGuard, capabilityPermissionGuard],
+    canActivate: [...protectedRoute, capabilityPermissionGuard],
     loadComponent: () =>
       import("./features/identity-operations/identity-operations-page.component").then(
         (m) => m.IdentityOperationsPageComponent,
@@ -319,7 +322,7 @@ export const routes: Routes = [
   },
   {
     path: "security/identity",
-    canActivate: [authGuard, capabilityPermissionGuard],
+    canActivate: [...protectedRoute, capabilityPermissionGuard],
     loadComponent: () =>
       import("./features/identity-capabilities/identity-capabilities-page.component").then(
         (m) => m.IdentityCapabilitiesPageComponent,
@@ -334,7 +337,7 @@ export const routes: Routes = [
   },
   {
     path: "database-platform",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/database-platform/database-platform-page.component").then(
         (m) => m.DatabasePlatformPageComponent,
@@ -342,7 +345,7 @@ export const routes: Routes = [
   },
   {
     path: "mobile-operations",
-    canActivate: [authGuard],
+    canActivate: [...protectedRoute],
     loadComponent: () =>
       import("./features/mobile-operations/mobile-operations-page.component").then(
         (m) => m.MobileOperationsPageComponent,

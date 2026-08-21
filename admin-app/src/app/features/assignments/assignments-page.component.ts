@@ -11,12 +11,9 @@ import { CommonModule } from "@angular/common";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { catchError, forkJoin, of } from "rxjs";
 import {
-  HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
-  HisHopeDataTableComponent,
-  HisHopePageHeaderComponent,
-  HisHopePageLayoutComponent,
-  HisHopeToolbarComponent,
+  HisHopeResourceListPageComponent,
+  HisHopeResourceRowActionsDirective,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -43,58 +40,38 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
-    HisHopeDataTableCellDirective,
-    HisHopeDataTableComponent,
     HisHopeActionButtonComponent,
-    HisHopePageHeaderComponent,
-    HisHopePageLayoutComponent,
-    HisHopeToolbarComponent,
+    HisHopeResourceListPageComponent,
+    HisHopeResourceRowActionsDirective,
     HisHopeTranslatePipe,
   ],
-  template: ` <hh-page-layout
-    ><hh-page-header
-      hhPageHeader
-      [title]="'admin.assignments' | hhTranslate: 'Assignments'"
-      [subtitle]="
-        'admin.assignmentsSubtitle'
-          | hhTranslate
-            : 'Bind permission sets to human, group and workload principals.'
-      " /><hh-toolbar
-      hhPageToolbar
-      [label]="'admin.assignments' | hhTranslate: 'Assignments'"
-      ><span hhToolbarTitle
-        >{{ assignments.length }} {{ "admin.assignments" | hhTranslate }}</span
-      ><hh-action-button
-        *ngIf="canWrite"
-        hh-toolbar-actions
-        kind="primary"
-        icon="add"
-        [label]="'admin.create' | hhTranslate"
-        (pressed)="openCreate()" /><hh-action-button
-        hh-toolbar-actions
-        kind="secondary"
-        icon="refresh"
-        [label]="'admin.refresh' | hhTranslate"
-        (pressed)="load()"
-    /></hh-toolbar>
-    <div *ngIf="error" class="hh-state hh-state--error" role="alert">
-      {{ error }}
-    </div>
-    <hh-data-table
-      [label]="'admin.assignments' | hhTranslate: 'Assignments'"
+  template: `
+    <hh-resource-list-page
+      title="admin.assignments"
+      titleFallback="Assignments"
+      subtitle="admin.assignmentsSubtitle"
+      subtitleFallback="Bind permission sets to human, group and workload principals."
+      [count]="assignments.length"
+      [canWrite]="canWrite"
       [columns]="columns"
       [rows]="rows"
       [loading]="loading"
-      [empty]="!loading && !error && !rows.length"
-      ><ng-template hhDataTableCell="actions" let-row
-        ><hh-action-button
+      [error]="error"
+      (create)="openCreate()"
+      (refresh)="load()"
+    >
+      <ng-template hhResourceRowActions let-row>
+        <hh-action-button
           *ngIf="canWrite && row['status'] === 'active'"
           kind="danger"
           mode="icon-only"
           icon="link_off"
           [label]="'admin.revoke' | hhTranslate"
-          (pressed)="revoke(row)" /></ng-template></hh-data-table
-  ></hh-page-layout>`,
+          (pressed)="revoke(row)"
+        />
+      </ng-template>
+    </hh-resource-list-page>
+  `,
 })
 export class AssignmentsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);

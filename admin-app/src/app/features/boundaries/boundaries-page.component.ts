@@ -11,12 +11,9 @@ import { CommonModule } from "@angular/common";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { catchError, forkJoin, of } from "rxjs";
 import {
-  HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
-  HisHopeDataTableComponent,
-  HisHopePageHeaderComponent,
-  HisHopePageLayoutComponent,
-  HisHopeToolbarComponent,
+  HisHopeResourceListPageComponent,
+  HisHopeResourceRowActionsDirective,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -43,59 +40,37 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    HisHopeDataTableCellDirective,
-    HisHopeDataTableComponent,
-    HisHopePageHeaderComponent,
-    HisHopePageLayoutComponent,
-    HisHopeToolbarComponent,
+    HisHopeResourceListPageComponent,
+    HisHopeResourceRowActionsDirective,
     HisHopeTranslatePipe,
   ],
-  template: ` <hh-page-layout
-    ><hh-page-header
-      hhPageHeader
-      [title]="'admin.boundaries' | hhTranslate: 'Permission boundaries'"
-      [subtitle]="
-        'admin.boundariesSubtitle'
-          | hhTranslate
-            : 'Limit the maximum permissions a principal can receive.'
-      " /><hh-toolbar
-      hhPageToolbar
-      [label]="'admin.boundaries' | hhTranslate: 'Permission boundaries'"
-      ><span hhToolbarTitle
-        >{{ boundaries.length }} {{ "admin.boundaries" | hhTranslate }}</span
-      ><hh-action-button
-        *ngIf="canWrite"
-        hh-toolbar-actions
-        kind="primary"
-        icon="add"
-        [label]="'admin.create' | hhTranslate"
-        (pressed)="openCreate()" /><hh-action-button
-        hh-toolbar-actions
-        kind="secondary"
-        icon="refresh"
-        [label]="'admin.refresh' | hhTranslate"
-        (pressed)="load()"
-    /></hh-toolbar>
-    <div *ngIf="error" class="hh-state hh-state--error" role="alert">
-      {{ error }}
-    </div>
-    <hh-data-table
-      [label]="'admin.boundaries' | hhTranslate: 'Permission boundaries'"
+  template: `
+    <hh-resource-list-page
+      title="admin.boundaries"
+      titleFallback="Permission boundaries"
+      subtitle="admin.boundariesSubtitle"
+      subtitleFallback="Limit the maximum permissions a principal can receive."
+      [count]="boundaries.length"
+      [canWrite]="canWrite"
       [columns]="columns"
       [rows]="rows"
       [loading]="loading"
-      [empty]="!loading && !error && !rows.length"
-      ><ng-template hhDataTableCell="actions" let-row
-        ><hh-action-button
+      [error]="error"
+      (create)="openCreate()"
+      (refresh)="load()"
+    >
+      <ng-template hhResourceRowActions let-row>
+        <hh-action-button
           *ngIf="canWrite && row['isActive']"
           (pressed)="toggle(row)"
           kind="danger"
           mode="icon-only"
           icon="toggle_off"
-          [label]="
-            'admin.deactivate' | hhTranslate
-          " /></ng-template></hh-data-table
-  ></hh-page-layout>`,
+          [label]="'admin.deactivate' | hhTranslate"
+        />
+      </ng-template>
+    </hh-resource-list-page>
+  `,
 })
 export class BoundariesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);

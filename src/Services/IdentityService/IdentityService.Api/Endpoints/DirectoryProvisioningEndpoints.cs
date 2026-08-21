@@ -4,6 +4,7 @@ using His.Hope.Contracts.Identity;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Facility;
+using His.Hope.SharedKernel.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,8 +15,7 @@ public static class DirectoryProvisioningEndpoints
     public static void MapDirectoryProvisioningEndpoints(this WebApplication app)
     {
         var group = app.MapGroup(IdentityApiRoutes.AdminProvisioning)
-            .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin)
-            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
+            .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin);
         group.MapGet("/readiness", (IConfiguration configuration) =>
         {
             var mode = (configuration["PROVISIONING_MODE"] ?? "dry-run").Trim().ToLowerInvariant();
@@ -26,7 +26,7 @@ public static class DirectoryProvisioningEndpoints
                 Readiness("google-workspace", configuration.GetValue<bool>("Provisioning:GoogleWorkspace:Enabled"), configuration["Provisioning:GoogleWorkspace:BaseUrl"], configuration["Provisioning:GoogleWorkspace:TokenUrl"], configuration["Provisioning:GoogleWorkspace:ServiceAccountSecretId"])
             };
             return Results.Ok(new { mode, targets = rows });
-        });
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         group.MapGet("/delivery-health", async (IdentityDbContext db, IConfiguration configuration, CancellationToken ct) =>
         {
             var provisioning = await db.DirectoryProvisioningOutbox.AsNoTracking()
@@ -68,7 +68,7 @@ public static class DirectoryProvisioningEndpoints
                     status = item.failed > 0 ? "failed" : item.pending > 0 ? "pending" : "healthy"
                 })
             });
-        });
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         group.MapPost("/queue", async (ProvisioningQueueRequest request, IdentityDbContext db, FacilityContext facilityContext, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(request.Target) || string.IsNullOrWhiteSpace(request.Operation) ||
@@ -109,12 +109,12 @@ public static class DirectoryProvisioningEndpoints
             db.DirectoryProvisioningOutbox.Add(entry);
             await db.SaveChangesAsync(ct);
             return Results.Accepted(IdentityApiRoutes.AdminProvisioningJob(entry.Id), new { entry.Id, entry.Target, entry.Operation, entry.ResourceType, entry.ResourceId });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminProvisioningManage);
         group.MapGet("/jobs/{id:guid}", async (Guid id, IdentityDbContext db, FacilityContext facilityContext, CancellationToken ct) =>
         {
             var entry = await db.DirectoryProvisioningOutbox.AsNoTracking().SingleOrDefaultAsync(item => item.Id == id, ct);
             return entry is null ? Results.NotFound() : await HasFacilityAccessAsync(db, facilityContext, entry, ct) ? Results.Ok(ToResponse(entry)) : Results.Forbid();
-        });
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         group.MapGet("/jobs", async (IdentityDbContext db, FacilityContext facilityContext, CancellationToken ct) =>
         {
             var jobs = await db.DirectoryProvisioningOutbox.AsNoTracking()
@@ -129,7 +129,7 @@ public static class DirectoryProvisioningEndpoints
                 jobs = visible;
             }
             return Results.Ok(jobs.Select(ToResponse));
-        });
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
         group.MapPost("/jobs/{id:guid}/retry", async (Guid id, IdentityDbContext db, FacilityContext facilityContext, CancellationToken ct) =>
         {
             var entry = await db.DirectoryProvisioningOutbox.SingleOrDefaultAsync(item => item.Id == id, ct);
@@ -140,7 +140,7 @@ public static class DirectoryProvisioningEndpoints
             entry.LastError = null;
             await db.SaveChangesAsync(ct);
             return Results.Accepted(IdentityApiRoutes.AdminProvisioningJob(id), new { entry.Id, status = "queued" });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminProvisioningManage);
         group.MapPost("/reconcile/{target}", async (string target, UserManager<User> users, IdentityDbContext db, FacilityContext facilityContext, HttpContext httpContext, ILoggerFactory loggerFactory, CancellationToken ct) =>
         {
             target = target.Trim().ToLowerInvariant();
@@ -204,7 +204,7 @@ public static class DirectoryProvisioningEndpoints
             }
             await db.SaveChangesAsync(ct);
             return Results.Accepted(value: new { target, queued, sourceCount = sourceUsers.Count });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminProvisioningManage);
     }
 
     public sealed record ProvisioningQueueRequest(

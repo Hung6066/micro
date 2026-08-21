@@ -7,7 +7,14 @@ namespace His.Hope.IdentityService.Application.DevicePosture;
 public static class DevicePostureProviders
 {
     public static readonly IReadOnlySet<string> Allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    { "chrome-enterprise", "advanced-compliance", "windows-local-login" };
+    {
+        "chrome-enterprise",
+        "advanced-compliance",
+        "windows-local-login",
+        "play-integrity",
+        "app-attest",
+        "firebase-app-check",
+    };
 }
 
 public sealed record DevicePostureEvidence(

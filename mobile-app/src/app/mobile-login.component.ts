@@ -43,22 +43,22 @@ import { MobileAuthService } from "./core/auth.service";
         display: grid;
         place-items: center;
         min-height: 100dvh;
-        padding: 24px;
+        padding: var(--space-2xl);
         box-sizing: border-box;
         background: var(--bg-warm);
       }
       .mobile-auth__card {
         display: grid;
-        gap: 16px;
+        gap: var(--space-lg);
         width: min(100%, 420px);
-        padding: 28px;
+        padding: var(--page-padding-block);
         border: 1px solid var(--border-default);
-        border-radius: 24px;
+        border-radius: var(--radius-mobile-sheet);
         background: var(--surface-white);
         box-shadow: var(--shadow-card);
       }
       .mobile-auth__eyebrow {
-        margin: 16px 0 0;
+        margin: var(--space-lg) 0 0;
         color: var(--color-primary);
         font-size: var(--font-size-label);
         font-weight: var(--font-weight-semibold);
@@ -76,7 +76,7 @@ import { MobileAuthService } from "./core/auth.service";
         color: var(--text-secondary);
       }
       .mobile-auth__error {
-        padding: 12px;
+        padding: var(--space-md);
         border: 1px solid
           color-mix(in srgb, var(--color-danger) 32%, var(--border-default));
         border-radius: var(--radius-input);
@@ -89,7 +89,7 @@ import { MobileAuthService } from "./core/auth.service";
         line-height: 1.45;
       }
       .hh-button {
-        min-height: 48px;
+        min-height: var(--space-4xl);
       }
     `,
   ],

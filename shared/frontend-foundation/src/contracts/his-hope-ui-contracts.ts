@@ -82,6 +82,22 @@ export interface HisHopeBulkActionRequest<T = Record<string, unknown>> {
   query: HisHopePageQuery;
   selection?: HisHopeTableSelectionState;
 }
+export interface HisHopeBulkActionResult {
+  actionId: string;
+  requested: number;
+  updated: number;
+}
+export interface HisHopeTableViewRecord {
+  name: string;
+  payloadJson: string;
+  updatedAt: string;
+}
+export interface HisHopeSavedTableView {
+  hiddenColumns?: string[];
+  columnOrder?: string[];
+  columnWidths?: Record<string, number>;
+  sort?: HisHopeSort | null;
+}
 export interface HisHopeBulkRowProgress {
   rowKey: string;
   status: "queued" | "running" | "completed" | "failed" | "skipped";
@@ -175,6 +191,14 @@ export interface HisHopeTranslator {
     params?: Record<string, string | number>,
   ): string;
   locale: string;
+}
+/** Minimal i18n surface for resource controllers (compatible with `HisHopeI18nService`). */
+export interface HisHopeTranslateFn {
+  t(
+    key: string,
+    fallback?: string,
+    params?: Record<string, string | number>,
+  ): string;
 }
 export interface HisHopeAuditFeedback {
   action: string;

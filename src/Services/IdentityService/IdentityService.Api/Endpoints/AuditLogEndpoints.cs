@@ -2,8 +2,10 @@ using His.Hope.IdentityService.Application.UseCases.AuditLogs.Queries;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using His.Hope.SharedKernel.Authorization;
 using System.Text;
 using System.Text.Json;
 using His.Hope.Contracts.Query;
@@ -31,6 +33,11 @@ public static class AuditLogEndpoints
         ,"read_patient"
     };
 
+    private static readonly HashSet<string> SessionAuditActions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "login", "logout", "auth.login", "auth.logout", "auth.refresh"
+    };
+
     public static RouteGroupBuilder MapAuditLogEndpoints(this RouteGroupBuilder group)
     {
         // POST /api/v1/audit/events - Client-side audit event ingestion
@@ -38,6 +45,7 @@ public static class AuditLogEndpoints
             AuditEventsRequest request,
             HttpContext httpContext,
             IdentityDbContext db,
+            IAuthorizationService authorization,
             CancellationToken ct) =>
         {
             if (request.Events is null || request.Events.Count == 0)
@@ -57,6 +65,10 @@ public static class AuditLogEndpoints
                     statusCode: 400);
             }
 
+            var acceptedEvents = request.Events.Take(MaxAuditEventsPerRequest).ToList();
+            var denied = await ValidateAuditAuthorizationAsync(httpContext.User, authorization, acceptedEvents);
+            if (denied is not null) return denied;
+
             var authenticatedUserId = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                 ?? httpContext.User.FindFirst("sub")?.Value
                 ?? string.Empty;
@@ -65,7 +77,6 @@ public static class AuditLogEndpoints
             var ipAddress = httpContext.Connection.RemoteIpAddress?.ToString();
             var userAgent = httpContext.Request.Headers.UserAgent.ToString();
             var serverTimestamp = DateTime.UtcNow;
-            var acceptedEvents = request.Events.Take(MaxAuditEventsPerRequest).ToList();
 
             foreach (var auditEvent in acceptedEvents)
             {
@@ -213,6 +224,27 @@ public static class AuditLogEndpoints
         while (lastFullChar > 0 && char.IsHighSurrogate(truncated[lastFullChar - 1]))
             lastFullChar--;
         return truncated[..lastFullChar] + "...[truncated]";
+    }
+
+    private static async Task<IResult?> ValidateAuditAuthorizationAsync(
+        ClaimsPrincipal user,
+        IAuthorizationService authorization,
+        IReadOnlyCollection<ClientAuditEvent> events)
+    {
+        foreach (var action in events.Select(item => item.Action).Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (SessionAuditActions.Contains(action))
+                continue;
+
+            var policy = action.Equals("read_patient", StringComparison.OrdinalIgnoreCase)
+                ? AuthorizationPolicyNames.Permissions.PatientsView
+                : AuthorizationPolicyNames.Permissions.AdminAuditRead;
+
+            if (!(await authorization.AuthorizeAsync(user, null, policy)).Succeeded)
+                return Results.Forbid();
+        }
+
+        return null;
     }
 }
 

@@ -21,7 +21,7 @@ import {
     `
       .hh-tooltip {
         max-width: 240px;
-        padding: 6px 10px;
+        padding: var(--space-xs) var(--space-md);
         border-radius: var(--radius-control);
         background: var(--text-primary);
         color: var(--surface-white);

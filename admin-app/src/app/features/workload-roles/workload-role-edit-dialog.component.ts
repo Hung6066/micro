@@ -1,13 +1,9 @@
 import { Component, Inject, inject } from "@angular/core";
-import {
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-  Validators,
-} from "@angular/forms";
+import { FormControl, FormGroup, Validators } from "@angular/forms";
 import {
   HIS_HOPE_DIALOG_DATA,
   HisHopeDialogRef,
+  HisHopeEntityDialogComponent,
 } from "@his-hope/frontend-foundation/ui";
 import { IamApiService } from "../../core/services/iam-api.service";
 import {
@@ -15,17 +11,11 @@ import {
   IamWorkloadRole,
   PermissionDefinition,
 } from "../../core/contracts/admin.contracts";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import {
-  HisHopeActionButtonComponent,
-  HisHopeCreateDialogShellComponent,
-  HisHopeFormLayoutComponent,
-  HisHopeFormSectionComponent,
-} from "@his-hope/frontend-foundation/ui";
-import {
-  HisHopeI18nService,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation/i18n";
-import { HisHopeMaterialFormFieldComponent } from "@his-hope/frontend-foundation/forms";
+  HisHopeFormFieldSchema,
+  HisHopeMaterialFormRendererComponent,
+} from "@his-hope/frontend-foundation/forms";
 import { iamScopeOptions } from "../../core/utils/iam-display.util";
 export interface WorkloadRoleEditDialogData {
   role: IamWorkloadRole | null;
@@ -36,111 +26,22 @@ export interface WorkloadRoleEditDialogData {
 @Component({
   selector: "app-workload-role-edit-dialog",
   standalone: true,
-  imports: [
-    ReactiveFormsModule,
-    HisHopeActionButtonComponent,
-    HisHopeCreateDialogShellComponent,
-    HisHopeFormLayoutComponent,
-    HisHopeFormSectionComponent,
-    HisHopeTranslatePipe,
-    HisHopeMaterialFormFieldComponent,
-  ],
-  template: `<hh-create-dialog-shell
-    [title]="
-      (data.role ? 'admin.edit' : 'admin.create')
-        | hhTranslate: (data.role ? 'Edit' : 'Create')
-    "
-    ><div hhCreateDialogContent>
-      <form [formGroup]="formGroup" class="dialog-form" (ngSubmit)="save()">
-        @if (formGroup.invalid && formGroup.touched) {
-          <p class="form-error" role="alert">
-            {{
-              "admin.validationRequired"
-                | hhTranslate: "Complete the required fields."
-            }}
-          </p>
-        }
-        <hh-form-layout
-          ><hh-form-section
-            [title]="
-              'admin.workloadRoleDetails' | hhTranslate: 'Workload role details'
-            "
-            [description]="
-              'admin.workloadRoleDetailsDescription'
-                | hhTranslate
-                  : 'Configure the workload role identity, access, and trust settings.'
-            "
-            [span]="2"
-            ><hh-mat-form-field
-              [control]="formGroup.controls.key"
-              [label]="'admin.key' | hhTranslate" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.displayName"
-              [label]="'admin.displayName' | hhTranslate" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.scopeId"
-              [label]="'admin.scopeId' | hhTranslate"
-              kind="select"
-              [options]="scopeOptions" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.audience"
-              [label]="'admin.audience' | hhTranslate" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.maxSessionSeconds"
-              [label]="'admin.maxSessionSeconds' | hhTranslate"
-              [messages]="{
-                min:
-                  ('admin.workloadRoleSessionRange'
-                  | hhTranslate: 'Use a value between 300 and 86400 seconds.'),
-                max:
-                  ('admin.workloadRoleSessionRange'
-                  | hhTranslate: 'Use a value between 300 and 86400 seconds.'),
-              }" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.permissions"
-              [label]="'admin.permissions' | hhTranslate"
-              kind="select"
-              [multiple]="true"
-              [options]="permissionOptions" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.trustPolicyJson"
-              [label]="'admin.trustPolicy' | hhTranslate"
-              [multiline]="true"
-              [rows]="5"
-              [messages]="{
-                invalidJson:
-                  ('admin.invalidJson' | hhTranslate: 'Enter valid JSON.'),
-              }" /></hh-form-section
-        ></hh-form-layout>
-      </form>
-    </div>
-    <div hhCreateDialogFooter>
-      <hh-action-button
-        kind="secondary"
-        icon="close"
-        [label]="'admin.cancel' | hhTranslate"
-        (pressed)="dialogRef.close()"
-      /><hh-action-button
-        kind="primary"
-        icon="save"
-        [label]="(saving ? 'admin.saving' : 'admin.save') | hhTranslate"
-        [disabled]="saving"
-        (pressed)="save()"
-      /></div
-  ></hh-create-dialog-shell>`,
-  styles: [
-    `
-      .dialog-form {
-        display: grid;
-        gap: 16px;
-      }
-      .form-error {
-        margin: 0;
-        color: var(--text-danger, #b42318);
-        font-size: 0.875rem;
-      }
-    `,
-  ],
+  imports: [HisHopeEntityDialogComponent, HisHopeMaterialFormRendererComponent],
+  template: `<hh-entity-dialog
+    [title]="data.role ? 'admin.edit' : 'admin.create'"
+    [titleFallback]="data.role ? 'Edit' : 'Create'"
+    sectionTitle="admin.workloadRoleDetails"
+    sectionTitleFallback="Workload role details"
+    sectionDescription="admin.workloadRoleDetailsDescription"
+    sectionDescriptionFallback="Configure the workload role identity, access, and trust settings."
+    [formGroup]="formGroup"
+    [saving]="saving"
+    cancelLabel="admin.cancel"
+    (save)="save()"
+    (cancel)="dialogRef.close()"
+  >
+    <hh-material-form-renderer [fields]="fields" [form]="formGroup" />
+  </hh-entity-dialog>`,
 })
 export class WorkloadRoleEditDialogComponent {
   readonly dialogRef = inject(
@@ -224,8 +125,67 @@ export class WorkloadRoleEditDialogComponent {
         label: `${permission.code} · ${permission.name}`,
       }));
   }
+  get fields(): HisHopeFormFieldSchema<unknown>[] {
+    const sessionRangeMessage = this.i18n.t(
+      "admin.workloadRoleSessionRange",
+      "Use a value between 300 and 86400 seconds.",
+    );
+    return [
+      {
+        key: "key",
+        label: this.i18n.t("admin.key", "Key"),
+        initialValue: "",
+        required: true,
+      },
+      {
+        key: "displayName",
+        label: this.i18n.t("admin.displayName", "Display name"),
+        initialValue: "",
+        required: true,
+      },
+      {
+        key: "scopeId",
+        label: this.i18n.t("admin.scopeId", "Scope"),
+        initialValue: "",
+        required: true,
+        type: "select",
+        options: this.scopeOptions,
+      },
+      {
+        key: "audience",
+        label: this.i18n.t("admin.audience", "Audience"),
+        initialValue: "",
+        required: true,
+      },
+      {
+        key: "maxSessionSeconds",
+        label: this.i18n.t("admin.maxSessionSeconds", "Max session seconds"),
+        initialValue: 3600,
+        required: true,
+        type: "number",
+        messages: { min: sessionRangeMessage, max: sessionRangeMessage },
+      },
+      {
+        key: "permissions",
+        label: this.i18n.t("admin.permissions", "Permissions"),
+        initialValue: [],
+        type: "select",
+        multiple: true,
+        options: this.permissionOptions,
+      },
+      {
+        key: "trustPolicyJson",
+        label: this.i18n.t("admin.trustPolicy", "Trust policy"),
+        initialValue: "{}",
+        multiline: true,
+        rows: 5,
+        messages: {
+          invalidJson: this.i18n.t("admin.invalidJson", "Enter valid JSON."),
+        },
+      },
+    ];
+  }
   save(): void {
-    this.formGroup.markAllAsTouched();
     this.trustPolicyJsonError = false;
     if (this.formGroup.invalid || this.saving) return;
     Object.assign(this.draft, this.formGroup.getRawValue());

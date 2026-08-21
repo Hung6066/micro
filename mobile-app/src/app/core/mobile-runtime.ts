@@ -1,12 +1,13 @@
 import { Capacitor } from "@capacitor/core";
-import { RuntimeConfigService } from "../../../../shared/mobile-foundation/src/runtime/runtime-config.service";
+import {
+  RuntimeConfigService,
+  type HisHopeResolvedMobileRuntimeConfig,
+} from "@his-hope/mobile-foundation";
 
 function defaultMobileRuntimeSource() {
   const platform = Capacitor.isNativePlatform() ? Capacitor.getPlatform() : "web";
   const fallbackOrigin =
-    platform === "android"
-      ? "http://10.0.2.2:5000"
-      : "http://localhost:5000";
+    platform === "android" ? "http://10.0.2.2:5000" : "http://localhost:5000";
 
   return (
     window.__HISHOPE_CONFIG__ ?? {
@@ -17,8 +18,15 @@ function defaultMobileRuntimeSource() {
   );
 }
 
-function requireMobileRuntime(production: boolean) {
-  return new RuntimeConfigService(defaultMobileRuntimeSource()).require({
+export function createMobileRuntimeConfig(
+  production: boolean,
+): Readonly<HisHopeResolvedMobileRuntimeConfig> {
+  const source = defaultMobileRuntimeSource();
+  // Angular production bundles are also used for local Capacitor/emulator
+  // installs. Honor the injected runtime flag so HTTP emulator origins do
+  // not throw during module evaluation and leave a white screen.
+  const enforceProduction = production && source.production !== false;
+  return new RuntimeConfigService(source).require({
     platform: {
       isNative: Capacitor.isNativePlatform(),
       platform: Capacitor.isNativePlatform()
@@ -30,7 +38,7 @@ function requireMobileRuntime(production: boolean) {
     secureRoutes: ["/api/v1/"],
     redirectPath: "/auth/callback",
     postLogoutRedirectPath: "/auth/logout-callback",
-    production,
+    production: enforceProduction,
     webOrigin:
       typeof window !== "undefined" && window.location.origin
         ? window.location.origin
@@ -39,12 +47,12 @@ function requireMobileRuntime(production: boolean) {
 }
 
 export function resolveMobileApiOrigin(): string {
-  return requireMobileRuntime(false).apiOrigin;
+  return createMobileRuntimeConfig(false).apiOrigin;
 }
 
 /** Production origin resolution — no emulator IPs, no http fallback. */
 export function resolveProductionApiOrigin(): string {
-  return requireMobileRuntime(true).apiOrigin;
+  return createMobileRuntimeConfig(true).apiOrigin;
 }
 
 export function resolveMobileSentryDsn(defaultDsn = ""): string {
@@ -64,10 +72,32 @@ export function resolveMobilePushNotificationsEnabled(defaultEnabled: boolean): 
   return window.__HISHOPE_CONFIG__?.pushNotificationsEnabled ?? defaultEnabled;
 }
 
+export function rewriteHisHopeNativeOidcUrl(
+  url: string,
+  publicAuthority: string,
+): string {
+  try {
+    const parsed = new URL(url);
+    const publicOrigin = new URL(publicAuthority);
+    const dockerHosts = new Set(["identityservice", "identity", "his-hope-identity"]);
+    const isDockerIdentity = dockerHosts.has(parsed.hostname);
+    const isLocalOidcPort =
+      (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") &&
+      (parsed.port === "5001" || parsed.port === "5003");
+    if (!isDockerIdentity && !isLocalOidcPort) return url;
+    parsed.protocol = publicOrigin.protocol;
+    parsed.hostname = publicOrigin.hostname;
+    parsed.port = publicOrigin.port;
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 export function resolveMobileRedirectUri(
   path: "/auth/callback" | "/auth/logout-callback",
 ): string {
-  const runtime = requireMobileRuntime(false);
+  const runtime = createMobileRuntimeConfig(false);
   return path === "/auth/callback"
     ? runtime.redirectUrl
     : runtime.postLogoutRedirectUri;

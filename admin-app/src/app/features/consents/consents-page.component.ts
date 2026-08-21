@@ -114,6 +114,7 @@ export class ConsentsPageComponent implements OnInit {
     loader: (query) => this.api.getConsentsPage(query),
     loadErrorMessageKey: "admin.loadConsentsFailed",
     loadErrorFallback: "Failed to load consents.",
+    onStateChange: () => this.cdr.markForCheck(),
   });
   get loading(): boolean {
     return this.table.loading;

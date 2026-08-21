@@ -1305,8 +1305,8 @@ export class HisHopeDataTableCellDirective {
         z-index: 3;
         display: flex;
         justify-content: center;
-        gap: 8px;
-        padding-top: 72px;
+        gap: var(--space-sm);
+        padding-top: var(--dialog-footer-min-height);
         background: color-mix(in srgb, var(--surface-white) 72%, transparent);
         color: var(--text-secondary);
         pointer-events: none;
@@ -1316,8 +1316,8 @@ export class HisHopeDataTableCellDirective {
         z-index: 4;
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 8px 12px;
+        gap: var(--space-sm);
+        padding: var(--space-sm) var(--space-md);
         border-bottom: 1px solid
           color-mix(in srgb, var(--color-danger) 25%, var(--border-light));
         background: color-mix(
@@ -1346,10 +1346,10 @@ export class HisHopeDataTableCellDirective {
       }
       .hh-data-table__mobile-item {
         display: grid;
-        gap: 10px;
-        min-height: 64px;
+        gap: var(--space-md);
+        min-height: var(--shell-header-height);
         box-sizing: border-box;
-        padding: 12px 16px;
+        padding: var(--space-md) var(--space-lg);
         border-bottom: 1px solid var(--border-light);
         background: var(--surface-white);
       }
@@ -1359,7 +1359,7 @@ export class HisHopeDataTableCellDirective {
       .hh-data-table__mobile-item-header {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: var(--space-md);
         min-width: 0;
       }
       .hh-data-table__mobile-item-header strong {
@@ -1372,13 +1372,13 @@ export class HisHopeDataTableCellDirective {
       }
       .hh-data-table__mobile-fields {
         display: grid;
-        gap: 10px;
+        gap: var(--space-md);
         margin: 0;
       }
       .hh-data-table__mobile-fields > div {
         display: grid;
         grid-template-columns: minmax(96px, 38%) minmax(0, 1fr);
-        gap: 12px;
+        gap: var(--space-md);
         align-items: start;
       }
       .hh-data-table__mobile-fields dt {
@@ -1400,7 +1400,7 @@ export class HisHopeDataTableCellDirective {
         display: inline-flex;
       }
       .hh-data-table__mobile-detail {
-        padding: 12px;
+        padding: var(--space-md);
         border-radius: var(--radius-input);
         background: var(--surface-subtle);
         color: var(--text-secondary);
@@ -1409,7 +1409,7 @@ export class HisHopeDataTableCellDirective {
       .hh-data-table__mobile-item-actions {
         display: flex;
         justify-content: flex-end;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       .hh-data-table__content table {
         width: 100%;
@@ -1420,7 +1420,7 @@ export class HisHopeDataTableCellDirective {
       .hh-data-table th,
       .hh-data-table td {
         box-sizing: border-box;
-        padding: 12px 16px;
+        padding: var(--space-md) var(--space-lg);
         border-bottom: 1px solid var(--border-light);
         color: var(--text-primary);
         overflow-wrap: anywhere;
@@ -1434,7 +1434,7 @@ export class HisHopeDataTableCellDirective {
         z-index: 3;
         width: 208px;
         min-width: 208px;
-        padding-inline: 8px;
+        padding-inline: var(--space-sm);
         white-space: nowrap;
         overflow-wrap: normal;
         vertical-align: middle;
@@ -1457,7 +1457,7 @@ export class HisHopeDataTableCellDirective {
         display: inline-flex;
         align-items: center;
         flex-wrap: nowrap;
-        gap: 8px;
+        gap: var(--space-sm);
         white-space: nowrap;
         vertical-align: middle;
       }
@@ -1476,8 +1476,8 @@ export class HisHopeDataTableCellDirective {
         background: var(--surface-hover);
       }
       .hh-data-table__row--clickable:focus-visible {
-        outline: 2px solid var(--color-focus);
-        outline-offset: -2px;
+        outline: var(--focus-ring-width) solid var(--color-focus);
+        outline-offset: -var(--focus-ring-width);
       }
       .hh-data-table th {
         color: var(--text-secondary);
@@ -1488,7 +1488,7 @@ export class HisHopeDataTableCellDirective {
       }
       .hh-data-table--compact th,
       .hh-data-table--compact td {
-        padding: 8px 12px;
+        padding: var(--space-sm) var(--space-md);
       }
       .hh-data-table__toolbar,
       .hh-data-table__pagination {
@@ -1496,8 +1496,8 @@ export class HisHopeDataTableCellDirective {
         align-items: center;
         justify-content: flex-end;
         flex-wrap: wrap;
-        gap: 12px;
-        padding: 10px 12px;
+        gap: var(--space-md);
+        padding: var(--space-md);
         border-bottom: 1px solid var(--border-light);
       }
       .hh-data-table__toolbar {
@@ -1509,10 +1509,10 @@ export class HisHopeDataTableCellDirective {
         display: flex;
         flex: 1 1 260px;
         align-items: center;
-        gap: var(--space-2);
+        gap: var(--space-sm);
         min-width: min(260px, 100%);
         min-height: var(--control-height);
-        padding: 0 var(--space-2) 0 var(--space-3);
+        padding: 0 var(--space-sm) 0 var(--space-md);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-input);
         background: var(--surface-white);
@@ -1522,10 +1522,10 @@ export class HisHopeDataTableCellDirective {
         border-color: var(--color-focus);
         outline: 2px solid
           color-mix(in srgb, var(--color-focus) 25%, transparent);
-        outline-offset: 1px;
+        outline-offset: var(--focus-ring-offset-tight);
       }
       .hh-data-table__search > .material-icons {
-        font-size: 20px;
+        font-size: var(--font-size-section);
       }
       .hh-data-table__search input {
         min-width: 0;
@@ -1551,8 +1551,8 @@ export class HisHopeDataTableCellDirective {
         color: var(--text-muted);
       }
       .hh-data-table__search .hh-icon-button {
-        width: 32px;
-        height: 32px;
+        width: var(--space-3xl);
+        height: var(--space-3xl);
         min-width: 32px;
       }
       .hh-data-table__selection {
@@ -1567,11 +1567,11 @@ export class HisHopeDataTableCellDirective {
       .hh-data-table__sort {
         display: inline-flex;
         align-items: center;
-        gap: 3px;
-        min-height: 32px;
-        padding: 2px 4px;
+        gap: var(--space-xxs);
+        min-height: var(--space-3xl);
+        padding: var(--space-hairline) var(--space-2xs);
         border: 0;
-        border-radius: 4px;
+        border-radius: var(--radius-input);
         background: transparent;
         color: inherit;
         font: inherit;
@@ -1584,11 +1584,11 @@ export class HisHopeDataTableCellDirective {
       .hh-data-table__sort-icon {
         display: inline-grid;
         place-items: center;
-        width: 16px;
-        height: 16px;
+        width: var(--size-timeline-rail);
+        height: var(--size-timeline-rail);
         color: var(--text-muted);
-        font-size: 16px;
-        font-weight: 400;
+        font-size: var(--font-size-input);
+        font-weight: var(--font-weight-regular);
         line-height: 1;
       }
       .hh-data-table__sort:hover .hh-data-table__sort-icon,
@@ -1599,19 +1599,19 @@ export class HisHopeDataTableCellDirective {
         display: inline-grid;
         place-items: center;
         min-width: 14px;
-        height: 14px;
-        border-radius: 50%;
+        height: var(--size-timeline-dot);
+        border-radius: var(--radius-full);
         background: var(--color-primary);
         color: var(--surface-white);
-        font-size: 9px;
+        font-size: var(--font-size-micro);
         line-height: 1;
       }
       .hh-data-table__resize {
         position: absolute;
         top: 50%;
         right: 0;
-        width: 6px;
-        height: 22px;
+        width: var(--space-xs);
+        height: var(--size-config-nav-indicator);
         padding: 0;
         border: 0;
         border-right: 1px solid transparent;
@@ -1630,7 +1630,7 @@ export class HisHopeDataTableCellDirective {
         height: 20px;
         padding: 0;
         border: 0;
-        border-radius: 4px;
+        border-radius: var(--radius-input);
         background: transparent;
         color: var(--text-muted);
         opacity: 0.42;
@@ -1638,7 +1638,7 @@ export class HisHopeDataTableCellDirective {
         cursor: grab;
       }
       .hh-data-table__reorder .material-icons {
-        font-size: 16px;
+        font-size: var(--font-size-input);
       }
       .hh-data-table th:hover .hh-data-table__reorder,
       .hh-data-table__reorder:focus-visible {
@@ -1646,8 +1646,8 @@ export class HisHopeDataTableCellDirective {
         background: var(--surface-hover);
       }
       .hh-data-table__reorder:focus-visible {
-        outline: 2px solid var(--color-focus);
-        outline-offset: 1px;
+        outline: var(--focus-ring-width) solid var(--color-focus);
+        outline-offset: var(--focus-ring-offset-tight);
       }
       .hh-data-table__resize:hover,
       .hh-data-table__resize:focus-visible {
@@ -1655,14 +1655,14 @@ export class HisHopeDataTableCellDirective {
         outline: 0;
       }
       .hh-data-table__select {
-        width: 56px;
+        width: var(--mobile-toolbar-height);
         min-width: 56px;
-        padding-inline: 8px !important;
+        padding-inline: var(--space-sm) !important;
       }
       .hh-data-table__edit-actions {
         width: 148px;
         min-width: 148px;
-        padding: var(--space-2) var(--space-3) !important;
+        padding: var(--space-sm) var(--space-md) !important;
         text-align: start !important;
         white-space: normal;
         vertical-align: middle;
@@ -1672,16 +1672,16 @@ export class HisHopeDataTableCellDirective {
         flex-wrap: wrap;
         align-items: center;
         justify-content: flex-start;
-        gap: var(--space-2);
+        gap: var(--space-sm);
         min-width: 128px;
       }
       .hh-data-table__edit-input {
         width: 100%;
-        min-height: 40px;
+        min-height: var(--control-height);
         box-sizing: border-box;
         border: 1px solid var(--border-default);
         border-radius: var(--radius-input);
-        padding: 0 10px;
+        padding: 0 var(--space-md);
         background: var(--surface-white);
         color: var(--text-primary);
         font: inherit;
@@ -1691,7 +1691,7 @@ export class HisHopeDataTableCellDirective {
       }
       .hh-data-table__edit-error {
         display: block;
-        margin-top: 4px;
+        margin-top: var(--space-2xs);
         color: var(--color-danger);
         font-size: var(--font-size-caption);
       }
@@ -1712,12 +1712,12 @@ export class HisHopeDataTableCellDirective {
         display: inline;
       }
       .hh-data-table__edit-input:focus {
-        outline: 2px solid var(--color-focus);
-        outline-offset: 1px;
+        outline: var(--focus-ring-width) solid var(--color-focus);
+        outline-offset: var(--focus-ring-offset-tight);
       }
       .hh-data-table .hh-button--small {
-        min-height: 32px;
-        padding: 0 10px;
+        min-height: var(--space-3xl);
+        padding: 0 var(--space-md);
         font-size: var(--font-size-caption);
       }
       .hh-data-table__columns {
@@ -1731,13 +1731,13 @@ export class HisHopeDataTableCellDirective {
       }
       .hh-data-table__columns-menu {
         position: absolute;
-        top: calc(100% + 8px);
+        top: calc(100% + var(--space-sm));
         right: 0;
         z-index: 30;
         display: grid;
-        gap: 8px;
+        gap: var(--space-sm);
         min-width: 180px;
-        padding: 12px;
+        padding: var(--space-md);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-white);
@@ -1745,7 +1745,7 @@ export class HisHopeDataTableCellDirective {
       }
       .hh-data-table__columns-menu label {
         display: flex;
-        gap: 8px;
+        gap: var(--space-sm);
         white-space: normal;
         overflow-wrap: anywhere;
         font-size: var(--font-size-caption);
@@ -1758,10 +1758,10 @@ export class HisHopeDataTableCellDirective {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 4px;
+        gap: var(--space-2xs);
         min-width: 34px;
         height: 34px;
-        padding: 0 7px;
+        padding: 0 var(--space-compact);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-control);
         background: var(--surface-white);
@@ -1774,29 +1774,29 @@ export class HisHopeDataTableCellDirective {
         display: none;
       }
       .hh-data-table__toolbar-icon {
-        font-size: 18px;
+        font-size: var(--font-size-icon-sm);
         line-height: 1;
       }
       .hh-data-table__filter-count {
         display: inline-grid;
         place-items: center;
-        min-width: 18px;
-        height: 18px;
-        margin-left: 4px;
-        border-radius: 50%;
+        min-width: var(--font-size-icon-sm);
+        height: var(--font-size-icon-sm);
+        margin-left: var(--space-2xs);
+        border-radius: var(--radius-full);
         background: var(--color-primary);
         color: var(--surface-white);
-        font-size: 10px;
+        font-size: var(--font-size-overline);
       }
       .hh-data-table__filters-menu {
         position: absolute;
-        top: calc(100% + 8px);
+        top: calc(100% + var(--space-sm));
         right: 0;
         z-index: 30;
         display: grid;
-        gap: 12px;
-        min-width: min(620px, calc(100vw - 32px));
-        padding: 14px;
+        gap: var(--space-md);
+        min-width: min(620px, calc(100vw - var(--space-3xl)));
+        padding: var(--space-lg);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-white);
@@ -1805,25 +1805,25 @@ export class HisHopeDataTableCellDirective {
       .hh-data-table__utility-actions {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: var(--space-xs);
       }
       .hh-data-table__filter-group {
         display: grid;
-        gap: 8px;
-        padding-bottom: 10px;
+        gap: var(--space-sm);
+        padding-bottom: var(--space-md);
         border-bottom: 1px solid var(--border-light);
       }
       .hh-data-table__filter-row {
         display: grid;
         grid-template-columns: minmax(120px, 1fr) 120px minmax(120px, 1fr) 40px;
-        gap: 8px;
+        gap: var(--space-sm);
         align-items: center;
       }
       .hh-data-table__filter-row select,
       .hh-data-table__filter-row input {
-        min-height: 36px;
+        min-height: var(--control-height-compact);
         min-width: 0;
-        padding: 0 8px;
+        padding: 0 var(--space-sm);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-input);
         background: var(--surface-white);
@@ -1857,23 +1857,23 @@ export class HisHopeDataTableCellDirective {
         background: var(--surface-white);
       }
       .hh-data-table__detail-row td {
-        padding: 16px;
+        padding: var(--space-lg);
         background: var(--surface-subtle);
       }
       .hh-data-table__export {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: var(--space-xs);
         color: var(--text-secondary);
         font-size: var(--font-size-caption);
       }
       .hh-data-table__export select {
-        min-height: 32px;
+        min-height: var(--space-3xl);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-input);
         background: var(--surface-white);
         color: var(--text-primary);
-        padding: 0 8px;
+        padding: 0 var(--space-sm);
       }
       .hh-data-table__select {
         text-align: center;
@@ -1886,15 +1886,15 @@ export class HisHopeDataTableCellDirective {
         color: var(--text-secondary);
       }
       .hh-data-table__pagination .hh-button {
-        min-height: 32px;
+        min-height: var(--space-3xl);
       }
       .hh-data-table__mobile-load-more {
         display: none;
         align-items: center;
         justify-content: center;
         flex-wrap: wrap;
-        gap: 8px 12px;
-        padding: 12px 16px;
+        gap: var(--space-sm) var(--space-md);
+        padding: var(--space-md) var(--space-lg);
         border-top: 1px solid var(--border-light);
         color: var(--text-secondary);
         font-size: var(--font-size-caption);
@@ -1906,19 +1906,19 @@ export class HisHopeDataTableCellDirective {
       .hh-data-table__mobile-load-more-status {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       .hh-data-table__mobile-load-more-skeleton {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: var(--space-sm);
         width: min(100%, 220px);
       }
       .hh-data-table__mobile-load-more-skeleton span {
         display: block;
         flex: 1;
-        height: 8px;
-        border-radius: 999px;
+        height: var(--size-status-dot);
+        border-radius: var(--radius-pill);
         background: linear-gradient(
           90deg,
           var(--skeleton-base),
@@ -1934,16 +1934,16 @@ export class HisHopeDataTableCellDirective {
       .hh-data-table__page-size {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: var(--space-xs);
         color: var(--text-secondary);
       }
       .hh-data-table__page-size select {
-        min-height: 32px;
+        min-height: var(--space-3xl);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-input);
         background: var(--surface-white);
         color: var(--text-primary);
-        padding: 0 8px;
+        padding: 0 var(--space-sm);
       }
       .hh-visually-hidden {
         position: absolute;
@@ -1959,9 +1959,9 @@ export class HisHopeDataTableCellDirective {
       .hh-data-table__state {
         display: grid;
         place-items: center;
-        gap: 12px;
+        gap: var(--space-md);
         min-height: 180px;
-        padding: 32px 24px;
+        padding: var(--space-3xl) var(--space-2xl);
         color: var(--text-muted);
         text-align: center;
       }
@@ -1969,9 +1969,9 @@ export class HisHopeDataTableCellDirective {
         margin: 0;
       }
       .hh-data-table__state .material-icons {
-        font-size: 40px;
-        width: 40px;
-        height: 40px;
+        font-size: var(--font-size-display-lg);
+        width: var(--button-height);
+        height: var(--button-height);
         opacity: 0.65;
       }
       .hh-data-table__state--error {
@@ -1988,10 +1988,10 @@ export class HisHopeDataTableCellDirective {
         grid-template-columns:
           minmax(120px, 1.1fr) minmax(150px, 1.4fr) minmax(110px, 1fr)
           minmax(90px, 0.8fr) minmax(64px, 0.45fr);
-        gap: 16px;
+        gap: var(--space-lg);
         align-items: center;
         min-height: 58px;
-        padding: 0 24px;
+        padding: 0 var(--space-2xl);
         border-bottom: 1px solid var(--border-light);
         background: var(--surface-white);
       }
@@ -2002,7 +2002,7 @@ export class HisHopeDataTableCellDirective {
         display: block;
         width: 100%;
         height: 12px;
-        border-radius: 6px;
+        border-radius: var(--radius-button);
         background: linear-gradient(
           90deg,
           var(--skeleton-base),
@@ -2013,7 +2013,7 @@ export class HisHopeDataTableCellDirective {
         animation: hh-skeleton-shimmer 1.3s linear infinite;
       }
       .hh-data-table__skeleton-item span:first-child {
-        height: 14px;
+        height: var(--size-timeline-dot);
       }
       .hh-data-table__skeleton-item span:nth-child(3) {
         width: 82%;
@@ -2032,7 +2032,7 @@ export class HisHopeDataTableCellDirective {
       }
       .hh-data-table--compact .hh-data-table__state {
         min-height: 140px;
-        padding: 24px 16px;
+        padding: var(--space-2xl) var(--space-lg);
       }
       @media (max-width: 768px) {
         .hh-data-table {
@@ -2041,8 +2041,8 @@ export class HisHopeDataTableCellDirective {
         .hh-data-table__toolbar,
         .hh-data-table__pagination {
           justify-content: flex-start;
-          gap: 8px;
-          padding: 8px;
+          gap: var(--space-sm);
+          padding: var(--space-sm);
         }
         .hh-data-table__selection {
           flex: 1 0 100%;
@@ -2052,7 +2052,7 @@ export class HisHopeDataTableCellDirective {
           display: flex;
           flex: 1 0 100%;
           flex-wrap: wrap;
-          gap: 8px;
+          gap: var(--space-sm);
         }
         .hh-data-table__pagination > * {
           max-width: 100%;
@@ -2069,21 +2069,21 @@ export class HisHopeDataTableCellDirective {
         .hh-data-table__columns-menu {
           right: auto;
           left: 0;
-          width: min(240px, calc(100vw - 32px));
+          width: min(var(--max-width-mobile-nav-label), calc(100vw - var(--space-3xl)));
           min-width: 0;
         }
         .hh-data-table__filters-menu {
           right: auto;
           left: 0;
-          width: min(620px, calc(100vw - 32px));
+          width: min(620px, calc(100vw - var(--space-3xl)));
           min-width: 0;
         }
         .hh-data-table__skeleton-item {
           grid-template-columns:
             minmax(100px, 1.2fr) minmax(120px, 1.5fr)
             minmax(80px, 1fr);
-          gap: 10px;
-          padding: 0 12px;
+          gap: var(--space-md);
+          padding: 0 var(--space-md);
         }
         .hh-data-table__skeleton-item span:nth-child(n + 4) {
           display: none;
@@ -2101,7 +2101,7 @@ export class HisHopeDataTableCellDirective {
           min-width: 0;
         }
         .hh-data-table__pagination {
-          font-size: 11px;
+          font-size: var(--font-size-nav);
         }
       }
       @media (max-width: 600px) {
@@ -2113,7 +2113,7 @@ export class HisHopeDataTableCellDirective {
         }
         .hh-data-table__mobile-fields > div {
           grid-template-columns: 1fr;
-          gap: 3px;
+          gap: var(--space-xxs);
         }
       }
       @media print {

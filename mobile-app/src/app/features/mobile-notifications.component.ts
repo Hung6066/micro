@@ -92,22 +92,22 @@ import {
       }
       .mobile-page {
         display: grid;
-        gap: 12px;
+        gap: var(--space-md);
       }
       .unread {
         margin: 0;
         color: var(--text-secondary);
-        font-size: 13px;
+        font-size: var(--font-size-label);
       }
       .notification-list {
         display: grid;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       .notification {
         display: flex;
         align-items: flex-start;
-        gap: 10px;
-        padding: 13px;
+        gap: var(--space-inset);
+        padding: var(--space-list-item);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-white);
@@ -131,7 +131,7 @@ import {
         width: 34px;
         height: 34px;
         flex: 0 0 34px;
-        border-radius: 10px;
+        border-radius: var(--radius-chip);
         background: var(--color-primary-soft);
         color: var(--color-primary);
       }
@@ -140,23 +140,23 @@ import {
         flex: 1;
       }
       h2 {
-        margin: 0 0 4px;
-        font-size: 15px;
+        margin: 0 0 var(--space-2xs);
+        font-size: var(--font-size-body-emphasis);
       }
       p {
-        margin: 0 0 6px;
+        margin: 0 0 var(--space-xs);
         color: var(--text-secondary);
-        font-size: 13px;
+        font-size: var(--font-size-label);
         line-height: 1.4;
       }
       time {
         color: var(--text-muted);
-        font-size: 11px;
+        font-size: var(--font-size-nav);
       }
       .notification__dot {
-        width: 8px;
-        height: 8px;
-        margin-top: 5px;
+        width: var(--size-status-dot);
+        height: var(--size-status-dot);
+        margin-top: var(--space-snug);
         flex: 0 0 8px;
         border-radius: 50%;
         background: var(--color-primary);

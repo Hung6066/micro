@@ -67,7 +67,7 @@ h6,
 }
 h1 {
   font-size: var(--font-size-title, 24px);
-  line-height: 1.25;
+  line-height: var(--leading-tight);
   font-weight: var(--font-weight-semibold, 600);
 }
 h2 {
@@ -76,8 +76,8 @@ h2 {
   font-weight: var(--font-weight-semibold, 600);
 }
 h3 {
-  font-size: 16px;
-  line-height: 1.5;
+  font-size: var(--font-size-toolbar);
+  line-height: var(--leading-body);
   font-weight: var(--font-weight-semibold, 600);
 }
 
@@ -90,8 +90,8 @@ select {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: var(--focus-ring-offset);
 }
 
 button,
@@ -125,7 +125,7 @@ form.dialog-form textarea {
   box-sizing: border-box;
   width: 100%;
   min-height: var(--control-height);
-  padding: 8px 12px;
+  padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-card);
   color: var(--text-primary);
@@ -142,14 +142,15 @@ form.dialog-form input:focus,
 form.dialog-form select:focus,
 form.dialog-form textarea:focus {
   border-color: var(--color-focus);
-  outline: 2px solid color-mix(in srgb, var(--color-focus) 28%, transparent);
-  outline-offset: 1px;
+  outline: var(--focus-ring-width) solid
+    color-mix(in srgb, var(--color-focus) 28%, transparent);
+  outline-offset: var(--focus-ring-offset-tight);
 }
 
 /* Shared application shell used by the admin and operations workspaces. */
 .app-toolbar {
-  height: 64px !important;
-  min-height: 64px !important;
+  height: var(--shell-header-height) !important;
+  min-height: var(--shell-header-height) !important;
   padding-inline: var(--toolbar-padding-inline) !important;
   column-gap: var(--toolbar-item-gap);
   align-items: center;
@@ -181,12 +182,12 @@ form.dialog-form textarea:focus {
 }
 .app-title {
   font-size: var(--font-size-toolbar, 16px) !important;
-  line-height: 24px !important;
+  line-height: var(--line-height-relaxed) !important;
   font-weight: var(--font-weight-semibold, 600) !important;
   letter-spacing: 0 !important;
 }
 .sidenav-container {
-  height: calc(100dvh - 64px) !important;
+  height: calc(100dvh - var(--shell-header-height)) !important;
   background: var(--bg-warm) !important;
 }
 .app-sidenav {
@@ -197,24 +198,24 @@ form.dialog-form textarea:focus {
 .app-sidenav .mat-mdc-list-item {
   min-height: var(--menu-item-height);
   margin: var(--menu-item-gap) 10px;
-  border-radius: 8px !important;
+  border-radius: var(--radius-card) !important;
   border-left: 0 !important;
 }
 .app-sidenav .mat-mdc-list-item .mdc-list-item__primary-text {
   font-size: var(--font-size-body, 14px) !important;
-  line-height: 20px !important;
+  line-height: var(--line-height-compact) !important;
   font-weight: 500 !important;
 }
 .app-sidenav .active-link {
   color: var(--color-primary) !important;
   background: var(--color-primary-soft) !important;
-  box-shadow: inset 3px 0 0 var(--color-primary);
+  box-shadow: var(--shadow-nav-inset-active);
 }
 .app-sidenav .mat-mdc-list-item:hover {
   background: var(--surface-muted) !important;
 }
 .sidenav-content {
-  padding: 28px 32px !important;
+  padding: 28px var(--space-3xl) !important;
   background: var(--bg-warm);
 }
 .main-content {
@@ -225,27 +226,27 @@ form.dialog-form textarea:focus {
 .side-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 22px 22px 18px;
+  gap: var(--space-inset);
+  padding: var(--size-config-nav-indicator) var(--size-config-nav-indicator) 18px;
   color: var(--text-primary);
-  font-size: 18px;
+  font-size: var(--font-size-icon-sm);
   font-weight: 700;
 }
 .side-brand-mark {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
+  width: var(--space-3xl);
+  height: var(--space-3xl);
+  border-radius: var(--radius-brand-mark);
   color: #fff;
   background: var(--color-primary);
-  font-size: 20px;
+  font-size: var(--font-size-section);
   font-weight: 800;
 }
 .side-brand-caption {
-  margin: 0 22px 12px;
+  margin: 0 22px var(--space-md);
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: var(--font-size-overline);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -255,42 +256,42 @@ form.dialog-form textarea:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: var(--space-xl);
   min-height: 78px;
   margin: 0;
-  padding: 18px 32px;
+  padding: 18px var(--space-3xl);
   border-bottom: 1px solid var(--border-default);
   background: rgba(255, 255, 255, 0.78);
 }
 .hh-workspace-header__eyebrow {
-  margin-bottom: 3px;
+  margin-bottom: var(--space-xxs);
   color: var(--color-primary);
-  font-size: 10px;
+  font-size: var(--font-size-overline);
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 .hh-workspace-header h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--font-size-section);
   font-weight: var(--font-weight-semibold, 600);
   line-height: 1.2;
 }
 .hh-workspace-header__status {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-compact);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--font-size-caption);
   white-space: nowrap;
 }
 .hh-workspace-header__status::before {
   content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: var(--size-status-dot);
+  height: var(--size-status-dot);
+  border-radius: var(--radius-full);
   background: #2f8b5b;
-  box-shadow: 0 0 0 4px #e3f2e8;
+  box-shadow: var(--shadow-focus-success);
 }
 
 .mat-icon.material-icons,
@@ -362,8 +363,9 @@ form.dialog-form textarea:focus {
 .mat-mdc-icon-button:focus-visible,
 .mat-mdc-fab:focus-visible,
 .mat-mdc-mini-fab:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--color-focus) 35%, transparent);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width-strong) solid
+    color-mix(in srgb, var(--color-focus) 35%, transparent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .mat-mdc-dialog-container .mdc-dialog__surface {
@@ -371,18 +373,18 @@ form.dialog-form textarea:focus {
   overflow: hidden;
 }
 .mat-mdc-dialog-container .mat-mdc-dialog-title {
-  padding: 24px 24px 8px;
-  font-size: 24px;
-  line-height: 32px;
+  padding: var(--space-2xl) var(--space-2xl) var(--space-sm);
+  font-size: var(--font-size-title);
+  line-height: var(--line-height-title);
   font-weight: 600;
 }
 .mat-mdc-dialog-container .mat-mdc-dialog-content {
-  padding: 8px 24px 24px;
+  padding: var(--space-sm) var(--space-2xl) var(--space-2xl);
 }
 .mat-mdc-dialog-container .mat-mdc-dialog-actions {
   min-height: 72px;
-  padding: 12px 24px 16px;
-  gap: 8px;
+  padding: var(--space-md) var(--space-2xl) var(--space-lg);
+  gap: var(--space-sm);
 }
 
 .mat-mdc-menu-panel,
@@ -405,7 +407,7 @@ form.dialog-form textarea:focus {
 .mat-mdc-select-panel .mat-mdc-option,
 .mat-mdc-autocomplete-panel .mat-mdc-option {
   min-height: var(--menu-item-height);
-  margin: 2px 0;
+  margin: var(--space-hairline) 0;
   padding-inline: var(--menu-item-padding-inline);
   border-radius: var(--radius-button);
 }
@@ -415,8 +417,8 @@ form.dialog-form textarea:focus {
 }
 .mat-mdc-menu-item:focus-visible,
 .mat-mdc-option:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: -2px;
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
 }
 
 .mat-mdc-tab-group {
@@ -424,7 +426,7 @@ form.dialog-form textarea:focus {
   --mdc-tab-indicator-active-indicator-shape: 3px;
 }
 .mat-mdc-tab {
-  min-height: 48px;
+  min-height: var(--space-4xl);
   font-weight: 600;
 }
 .mat-mdc-tab-header {
@@ -435,7 +437,7 @@ form.dialog-form textarea:focus {
 }
 
 .mat-mdc-paginator {
-  min-height: 56px;
+  min-height: var(--mobile-toolbar-height);
   border-top: 1px solid var(--border-light);
   background: transparent;
   color: var(--text-secondary);
@@ -452,7 +454,7 @@ form.dialog-form textarea:focus {
     border-color var(--motion-fast) var(--ease-standard);
 }
 .mat-mdc-chip {
-  min-height: 32px;
+  min-height: var(--space-3xl);
   border-radius: var(--radius-badge) !important;
 }
 
@@ -465,6 +467,32 @@ form.dialog-form textarea:focus {
 }
 .mat-mdc-form-field .mat-mdc-form-field-subscript-wrapper {
   font-size: var(--font-size-caption);
+}
+.mat-mdc-form-field.hh-mat-field {
+  .mat-mdc-form-field-subscript-wrapper {
+    position: static;
+    margin-top: var(--space-2xs);
+    min-height: 0;
+    padding-inline: 0;
+  }
+  .mat-mdc-form-field-bottom-align::before {
+    display: none;
+  }
+  mat-error {
+    display: block;
+    line-height: 1.45;
+  }
+  &.mat-form-field-invalid
+    .mdc-text-field--outlined
+    .mdc-notched-outline__leading,
+  &.mat-form-field-invalid
+    .mdc-text-field--outlined
+    .mdc-notched-outline__notch,
+  &.mat-form-field-invalid
+    .mdc-text-field--outlined
+    .mdc-notched-outline__trailing {
+    border-color: var(--color-danger);
+  }
 }
 
 .hh-button,
@@ -483,8 +511,9 @@ form.dialog-form textarea:focus {
 .hh-drawer__close:focus-visible,
 .hh-filter-toolbar__clear:focus-visible,
 .hh-toast__close:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--color-focus) 35%, transparent);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width-strong) solid
+    color-mix(in srgb, var(--color-focus) 35%, transparent);
+  outline-offset: var(--focus-ring-offset);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -499,10 +528,10 @@ form.dialog-form textarea:focus {
 }
 
 .mat-mdc-card-header {
-  padding: 20px 20px 0;
+  padding: var(--space-xl) var(--space-xl) 0;
 }
 .mat-mdc-card-content {
-  padding: 20px;
+  padding: var(--space-xl);
 }
 
 .mat-mdc-button,
@@ -516,7 +545,7 @@ form.dialog-form textarea:focus {
   font-size: var(--button-font-size) !important;
   font-weight: var(--button-font-weight) !important;
   letter-spacing: 0 !important;
-  line-height: 20px !important;
+  line-height: var(--line-height-compact) !important;
 }
 
 .mat-mdc-raised-button,
@@ -596,7 +625,7 @@ form.dialog-form textarea:focus {
 }
 
 .cdk-overlay-pane [class*="mat-elevation-z"] {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  box-shadow: var(--shadow-dropdown) !important;
 }
 
 .mat-mdc-table {
@@ -636,22 +665,22 @@ form.dialog-form textarea:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: var(--space-2xl);
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--space-md);
 }
 
 .page-title {
   font-size: var(--font-size-title, 24px);
-  line-height: 1.25;
+  line-height: var(--leading-tight);
   font-weight: 600;
   color: var(--text-primary, #1a1a1a);
-  line-height: 1.25;
+  line-height: var(--leading-tight);
   letter-spacing: 0;
 }
 
 .page-subtitle {
-  margin: 4px 0 0;
+  margin: var(--space-2xs) 0 0;
   color: var(--text-secondary, #5d5f5a);
   font-size: var(--font-size-body, 14px);
 }
@@ -659,7 +688,7 @@ form.dialog-form textarea:focus {
 .page-header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
 }
 
 .hh-state {
@@ -667,33 +696,33 @@ form.dialog-form textarea:focus {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  min-height: 160px;
-  padding: 32px 24px;
+  gap: var(--space-md);
+  min-height: var(--size-upload-dropzone-min);
+  padding: var(--space-3xl) var(--space-2xl);
   color: var(--text-muted, #a1a09b);
   text-align: center;
 }
 
 .hh-state mat-icon {
-  width: 40px;
-  height: 40px;
-  font-size: 40px;
+  width: var(--button-height);
+  height: var(--button-height);
+  font-size: var(--font-size-display-lg);
   opacity: 0.55;
 }
 
 .hh-state-icon {
-  width: 40px;
-  height: 40px;
-  font-size: 40px;
+  width: var(--button-height);
+  height: var(--button-height);
+  font-size: var(--font-size-display-lg);
   opacity: 0.55;
 }
 
 .hh-spinner {
-  width: 32px;
-  height: 32px;
+  width: var(--space-3xl);
+  height: var(--space-3xl);
   border: 3px solid var(--border-default, #eaeaea);
   border-top-color: var(--color-primary, #2f6b4a);
-  border-radius: 50%;
+  border-radius: var(--radius-full);
   animation: hh-spin 0.8s linear infinite;
 }
 
@@ -730,10 +759,10 @@ form.dialog-form textarea:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  min-height: 56px;
-  margin-bottom: 16px;
-  padding: 8px 12px;
+  gap: var(--space-lg);
+  min-height: var(--mobile-toolbar-height);
+  margin-bottom: var(--space-lg);
+  padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-card);
   background: var(--surface-white);
@@ -741,8 +770,8 @@ form.dialog-form textarea:focus {
 /* Shared form contract for feature pages. */
 .hh-form-card {
   display: grid;
-  gap: var(--space-4);
-  padding: var(--space-4);
+  gap: var(--space-lg);
+  padding: var(--space-lg);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-card);
   background: var(--surface-white);
@@ -751,13 +780,13 @@ form.dialog-form textarea:focus {
 .hh-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
+  gap: var(--space-lg);
   align-items: start;
 }
 .hh-form-grid > label,
 .hh-form-card > label {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-2xs);
   min-width: 0;
   color: var(--text-secondary);
   font-size: var(--font-size-label);
@@ -773,7 +802,7 @@ form.dialog-form textarea:focus {
   width: 100%;
   min-width: 0;
   min-height: var(--control-height);
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-md);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-input);
   background: var(--surface-white);
@@ -783,8 +812,8 @@ form.dialog-form textarea:focus {
 }
 .hh-form-grid textarea,
 .hh-form-card > textarea {
-  min-height: 96px;
-  padding-block: var(--space-2);
+  min-height: var(--size-empty-state-icon);
+  padding-block: var(--space-sm);
   resize: vertical;
 }
 .hh-form-grid input::placeholder,
@@ -800,8 +829,8 @@ form.dialog-form textarea:focus {
 .hh-form-card > select:focus-visible,
 .hh-form-card > textarea:focus-visible {
   border-color: var(--color-focus);
-  outline: 2px solid var(--color-focus);
-  outline-offset: 1px;
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: var(--focus-ring-offset-tight);
 }
 .hh-form-grid input:disabled,
 .hh-form-grid select:disabled,
@@ -822,7 +851,7 @@ form.dialog-form textarea:focus {
 /* Single-field forms used by analyzer and operational pages. */
 .hh-field {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-2xs);
   min-width: 0;
   color: var(--text-secondary);
   font-size: var(--font-size-label);
@@ -835,7 +864,7 @@ form.dialog-form textarea:focus {
   width: 100%;
   min-width: 0;
   min-height: var(--control-height);
-  padding: 0 var(--space-3);
+  padding: 0 var(--space-md);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-input);
   background: var(--surface-white);
@@ -844,16 +873,16 @@ form.dialog-form textarea:focus {
   font-weight: var(--font-weight-regular, 400);
 }
 .hh-field textarea {
-  min-height: 96px;
-  padding-block: var(--space-2);
+  min-height: var(--size-empty-state-icon);
+  padding-block: var(--space-sm);
   resize: vertical;
 }
 .hh-field input:focus-visible,
 .hh-field select:focus-visible,
 .hh-field textarea:focus-visible {
   border-color: var(--color-focus);
-  outline: 2px solid var(--color-focus);
-  outline-offset: 1px;
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: var(--focus-ring-offset-tight);
 }
 .hh-page-layout__content > .hh-button {
   justify-self: start;
@@ -863,21 +892,21 @@ form.dialog-form textarea:focus {
 .hh-filter-toolbar__controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-md);
   flex-wrap: wrap;
 }
 .hh-filter-toolbar__count {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: var(--font-size-caption);
   white-space: nowrap;
 }
 
 .hh-toolbar {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-md);
   min-height: var(--control-height);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-lg);
 }
 .hh-toolbar__leading,
 .hh-toolbar__controls,
@@ -885,7 +914,7 @@ form.dialog-form textarea:focus {
 .hh-toolbar__title {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-sm);
 }
 .hh-toolbar__title {
   min-width: 0;
@@ -907,16 +936,16 @@ form.dialog-form textarea:focus {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-3);
-  min-height: 160px;
-  padding: var(--space-6) var(--space-4);
+  gap: var(--space-md);
+  min-height: var(--size-upload-dropzone-min);
+  padding: var(--space-2xl) var(--space-lg);
   color: var(--text-muted);
   text-align: center;
 }
 .hh-table-state__icon {
-  width: 40px;
-  height: 40px;
-  font-size: 40px;
+  width: var(--button-height);
+  height: var(--button-height);
+  font-size: var(--font-size-display-lg);
   opacity: 0.55;
 }
 .hh-table-state p,
@@ -952,13 +981,13 @@ form.dialog-form textarea:focus {
 
 .hh-skeleton {
   display: grid;
-  gap: 12px;
-  padding: 24px 0;
+  gap: var(--space-md);
+  padding: var(--space-2xl) 0;
 }
 .hh-skeleton span {
   display: block;
-  height: 14px;
-  border-radius: 4px;
+  height: var(--size-timeline-dot);
+  border-radius: var(--radius-input);
   background: linear-gradient(
     90deg,
     var(--skeleton-base) 25%,
@@ -983,24 +1012,24 @@ form.dialog-form textarea:focus {
   z-index: 1000;
   display: grid;
   place-items: center;
-  padding: 20px;
+  padding: var(--space-xl);
   background: rgba(15, 35, 25, 0.42);
 }
 .hh-dialog {
   width: min(100%, 420px);
-  padding: 28px;
+  padding: var(--page-padding-block);
   border: 1px solid var(--border-default);
-  border-radius: 12px;
+  border-radius: var(--radius-control);
   background: var(--surface-white);
-  box-shadow: 0 24px 64px rgba(15, 35, 25, 0.24);
+  box-shadow: var(--shadow-dialog-elevated);
 }
 .hh-dialog__icon {
   color: #b6581c;
-  font-size: 30px;
+  font-size: var(--font-size-display-md);
 }
 .hh-dialog h2 {
-  margin: 12px 0 8px;
-  font-size: 20px;
+  margin: var(--space-md) 0 var(--space-sm);
+  font-size: var(--font-size-section);
 }
 .hh-dialog p {
   margin: 0;
@@ -1010,12 +1039,43 @@ form.dialog-form textarea:focus {
 .hh-dialog__actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 24px;
+  gap: var(--space-sm);
+  margin-top: var(--space-2xl);
 }
+
+/* CDK overlay dialogs opened via HisHopeDialogService */
+.cdk-overlay-backdrop.hh-dialog-cdk-backdrop {
+  background: color-mix(in srgb, #0f2319 54%, transparent);
+  backdrop-filter: blur(var(--blur-subtle));
+  -webkit-backdrop-filter: blur(var(--blur-subtle));
+}
+
+.cdk-overlay-pane.hh-dialog-cdk-panel {
+  border: 1px solid var(--border-strong, #d2d2d8);
+  border-radius: var(--radius-card, 12px);
+  background: var(--surface-white, #ffffff);
+  box-shadow:
+    var(--shadow-dialog),
+    0 0 0 1px
+      color-mix(in srgb, var(--surface-white) 80%, var(--border-default));
+  overflow: hidden;
+  max-height: min(95vh, 900px);
+}
+
+html[data-theme="dark"] .cdk-overlay-backdrop.hh-dialog-cdk-backdrop {
+  background: color-mix(in srgb, #000 72%, transparent);
+}
+
+html[data-theme="dark"] .cdk-overlay-pane.hh-dialog-cdk-panel {
+  border-color: var(--border-strong, #6d8377);
+  box-shadow:
+    0 32px 88px rgba(0, 0, 0, 0.66),
+    0 0 0 1px color-mix(in srgb, var(--border-strong) 60%, transparent);
+}
+
 .hh-button {
   min-height: var(--button-height);
-  padding: 0 16px;
+  padding: 0 var(--space-lg);
   border: 0;
   border-radius: var(--radius-button);
   color: var(--button-primary-text);
@@ -1051,15 +1111,15 @@ form.dialog-form textarea:focus {
   opacity: 0.7;
 }
 .hh-button:focus-visible {
-  outline: 3px solid rgba(47, 125, 85, 0.28);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width-strong) solid rgba(47, 125, 85, 0.28);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .hh-icon-button {
   display: inline-grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: var(--button-height);
+  height: var(--button-height);
   padding: 0;
   border: 1px solid var(--button-secondary-border);
   border-radius: var(--radius-button);
@@ -1080,15 +1140,15 @@ form.dialog-form textarea:focus {
   color: var(--button-danger-text);
 }
 .hh-icon-button:focus-visible {
-  outline: 3px solid rgba(47, 125, 85, 0.28);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width-strong) solid rgba(47, 125, 85, 0.28);
+  outline-offset: var(--focus-ring-offset);
 }
 .hh-icon-button .material-icons {
-  font-size: 20px;
+  font-size: var(--font-size-section);
 }
 .hh-icon-button--small {
-  width: 32px;
-  height: 32px;
+  width: var(--space-3xl);
+  height: var(--space-3xl);
 }
 
 /* Explicit danger fallback: lifecycle/revoke buttons remain visible even when
@@ -1110,7 +1170,7 @@ form.dialog-form textarea:focus {
   color: currentColor;
   -webkit-text-fill-color: currentColor;
   font-family: Arial, sans-serif;
-  font-size: 24px;
+  font-size: var(--font-size-title);
   font-weight: 700;
   line-height: 1;
 }
@@ -1138,7 +1198,7 @@ form.dialog-form textarea:focus {
 .hh-icon-button[aria-label="Kích hoạt"] .material-icons::before {
   content: "✓";
   font-family: Arial, sans-serif;
-  font-size: 18px;
+  font-size: var(--font-size-icon-sm);
   font-weight: 700;
   line-height: 1;
 }
@@ -1147,7 +1207,7 @@ form.dialog-form textarea:focus {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 48px;
+  padding: var(--space-4xl);
   color: var(--text-muted, #a1a09b);
 }
 
@@ -1155,20 +1215,20 @@ form.dialog-form textarea:focus {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 48px 24px;
+  padding: var(--space-4xl) var(--space-2xl);
   color: var(--text-muted, #a1a09b);
   text-align: center;
 
   mat-icon {
-    font-size: 48px;
-    width: 48px;
-    height: 48px;
-    margin-bottom: 16px;
+    font-size: var(--font-size-display-xl);
+    width: var(--space-4xl);
+    height: var(--space-4xl);
+    margin-bottom: var(--space-lg);
     opacity: 0.4;
   }
 
   p {
-    font-size: 14px;
+    font-size: var(--font-size-body);
     line-height: 1.6;
     max-width: 320px;
   }
@@ -1178,28 +1238,28 @@ form.dialog-form textarea:focus {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 48px 24px;
+  padding: var(--space-4xl) var(--space-2xl);
   text-align: center;
   color: var(--color-warn, #c62828);
 
   mat-icon {
-    font-size: 48px;
-    width: 48px;
-    height: 48px;
-    margin-bottom: 16px;
+    font-size: var(--font-size-display-xl);
+    width: var(--space-4xl);
+    height: var(--space-4xl);
+    margin-bottom: var(--space-lg);
   }
 
   p {
-    font-size: 14px;
+    font-size: var(--font-size-body);
   }
 }
 
 .status-badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 10px;
+  padding: var(--space-hairline) var(--space-inset);
   border-radius: var(--radius-badge, 4px);
-  font-size: 11px;
+  font-size: var(--font-size-nav);
   font-weight: 500;
   line-height: 1.6;
   white-space: nowrap;
@@ -1210,11 +1270,11 @@ form.dialog-form textarea:focus {
   .page-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: var(--space-sm);
   }
 
   .page-title {
-    font-size: 20px;
+    font-size: var(--font-size-section);
   }
 
   .mat-mdc-table {
@@ -1234,12 +1294,12 @@ form.dialog-form textarea:focus {
 
   .mat-mdc-menu-panel,
   .mat-mdc-dialog-container {
-    max-width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - var(--space-2xl)) !important;
   }
 
   .loading-state,
   .empty-state {
-    padding: 32px 16px;
+    padding: var(--space-3xl) var(--space-lg);
   }
 
   .filters-row,
@@ -1268,9 +1328,9 @@ form.dialog-form textarea:focus {
   }
 
   .sidenav-content {
-    padding: 20px 16px !important;
+    padding: var(--space-xl) var(--space-lg) !important;
   }
   .hh-workspace-header {
-    padding: 16px;
+    padding: var(--space-lg);
   }
 }

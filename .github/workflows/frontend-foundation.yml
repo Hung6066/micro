@@ -11,6 +11,7 @@ on:
       - "src/Frontend/his-hope-app/**"
       - "scripts/validate-shared-foundation.ps1"
       - "scripts/validate-design-tokens.mjs"
+      - "scripts/validate-no-hardcoded-px.mjs"
       - "scripts/validate-shared-package-governance.ps1"
       - "package.json"
       - "package-lock.json"
@@ -25,6 +26,7 @@ on:
       - "src/Frontend/his-hope-app/**"
       - "scripts/validate-shared-foundation.ps1"
       - "scripts/validate-design-tokens.mjs"
+      - "scripts/validate-no-hardcoded-px.mjs"
       - "scripts/validate-shared-package-governance.ps1"
       - "package.json"
       - "package-lock.json"
@@ -47,6 +49,7 @@ jobs:
       - run: npm run lint
       - run: pwsh -NoProfile -File scripts/validate-shared-foundation.ps1
       - run: npm run lint:design-tokens
+      - run: npm run lint:hardcoded-px
       - run: npm run build:shared
       - run: npm --workspace @his-hope/frontend-foundation run test -- --watch=false --browsers=ChromeHeadless
       - run: npm run storybook:build

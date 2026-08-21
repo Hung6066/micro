@@ -5,19 +5,31 @@ import {
   inject,
 } from "@angular/core";
 import { AbstractControl } from "@angular/forms";
-import { MatFormFieldModule } from "@angular/material/form-field";
 import { HisHopeValidationMessageRegistry } from "./his-hope-validation-message-registry";
 
+/** Field-level validation message rendered below the Material outline. */
 @Component({
   selector: "hh-mat-validation-error",
   standalone: true,
-  imports: [MatFormFieldModule],
   changeDetection: ChangeDetectionStrategy.Default,
   template: `
     @if (message()) {
-      <mat-error>{{ message() }}</mat-error>
+      <p class="hh-field-error" role="alert">{{ message() }}</p>
     }
   `,
+  styles: [
+    `
+      :host {
+        display: block;
+      }
+      .hh-field-error {
+        margin: var(--space-2xs) 0 0;
+        color: var(--color-danger);
+        font-size: var(--font-size-caption, 12px);
+        line-height: 1.45;
+      }
+    `,
+  ],
 })
 export class HisHopeMaterialValidationErrorComponent {
   readonly control = input.required<AbstractControl>();

@@ -685,7 +685,7 @@
   "runtimeSettings": [
     { "key": "AUTHZ_PDP_MODE", "type": "string", "allowedValues": ["disabled", "shadow", "canary"] },
     { "key": "DEVICE_POSTURE_MODE", "type": "string", "allowedValues": ["observe", "stepup", "deny"] },
-    { "key": "DEVICE_POSTURE_PROVIDERS", "type": "csv", "allowedValues": ["chrome-enterprise", "advanced-compliance", "windows-local-login"] },
+    { "key": "DEVICE_POSTURE_PROVIDERS", "type": "csv", "allowedValues": ["chrome-enterprise", "advanced-compliance", "windows-local-login", "play-integrity", "app-attest", "firebase-app-check"] },
     { "key": "DEVICE_POSTURE_TTL_SECONDS", "type": "integer", "minimum": 60, "maximum": 3600 },
     { "key": "DEVICE_POSTURE_ENFORCE_CLINICAL", "type": "boolean", "allowedValues": ["false"] },
     { "key": "PASSWORD_HISTORY_ENABLED", "type": "boolean", "allowedValues": ["true"] },

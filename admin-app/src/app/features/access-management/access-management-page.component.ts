@@ -34,6 +34,7 @@ import {
   HisHopeChipsComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
+  HisHopeStateComponent,
 } from "@his-hope/frontend-foundation/ui";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 
@@ -50,6 +51,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
     HisHopeChipsComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
+    HisHopeStateComponent,
     HisHopeTranslatePipe,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -73,7 +75,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
         ></mat-spinner>
       }
       @if (error) {
-        <div class="hh-state hh-state--error" role="alert">{{ error }}</div>
+        <hh-state kind="error" [message]="error" />
       }
       <section
         class="access-grid"
@@ -333,7 +335,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
       .access-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: 16px;
+        gap: var(--space-lg);
       }
       mat-card {
         min-height: 170px;
@@ -341,7 +343,7 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
       .chips {
         display: flex;
         flex-wrap: wrap;
-        gap: 6px;
+        gap: var(--space-xs);
       }
       .muted {
         color: var(--text-muted);
@@ -349,8 +351,8 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
       .catalog-meta {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--space-2);
-        margin-top: var(--space-3);
+        gap: var(--space-sm);
+        margin-top: var(--space-md);
         color: var(--text-muted);
         font-size: var(--font-size-caption);
       }
@@ -359,14 +361,14 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
       }
       .implementation-note {
         display: flex;
-        gap: var(--space-2);
-        margin-top: var(--space-5);
-        padding: var(--space-3);
+        gap: var(--space-sm);
+        margin-top: var(--space-xl);
+        padding: var(--space-md);
         border-radius: var(--radius-card);
         background: var(--surface-subtle);
       }
       mat-spinner {
-        margin: 8px auto 20px;
+        margin: var(--space-sm) auto var(--space-xl);
       }
       @media (max-width: 640px) {
         .implementation-note {

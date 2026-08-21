@@ -42,13 +42,13 @@ export type HisHopeActionMode = "label" | "icon-only";
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
-        min-height: 40px;
-        padding: 0 16px;
+        gap: var(--space-sm);
+        min-height: var(--control-height);
+        padding: 0 var(--space-lg);
         border: 1px solid transparent;
         border-radius: var(--radius-button);
         font: inherit;
-        font-weight: 600;
+        font-weight: var(--font-weight-semibold);
         cursor: pointer;
         transition:
           background-color 0.15s ease,
@@ -61,7 +61,7 @@ export type HisHopeActionMode = "label" | "icon-only";
       }
       .hh-action--primary {
         background: var(--color-primary);
-        color: var(--text-on-primary, #fff);
+        color: var(--color-on-primary);
       }
       .hh-action--secondary,
       .hh-action--diagnostic {
@@ -74,11 +74,11 @@ export type HisHopeActionMode = "label" | "icon-only";
       }
       .hh-action--danger {
         background: var(--color-danger);
-        color: #fff;
+        color: var(--color-on-danger);
       }
       .hh-action--row {
-        width: 40px;
-        min-height: 40px;
+        width: var(--control-height);
+        min-height: var(--control-height);
         padding: 0;
         background: transparent;
         color: var(--text-secondary);

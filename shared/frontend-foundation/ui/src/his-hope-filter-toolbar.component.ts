@@ -28,8 +28,8 @@ import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
   `,
   styles: [`
     :host { display: block; }
-    .hh-filter-toolbar__search { display: inline-flex; align-items: center; gap: 8px; min-height: var(--control-height, 40px); padding: 0 10px; border: 1px solid var(--border-default); border-radius: var(--radius-input); background: var(--surface-white); }
-    .hh-filter-toolbar__search .material-icons { color: var(--text-muted); font-size: 18px; }
+    .hh-filter-toolbar__search { display: inline-flex; align-items: center; gap: var(--space-sm); min-height: var(--control-height, 40px); padding: 0 var(--space-md); border: 1px solid var(--border-default); border-radius: var(--radius-input); background: var(--surface-white); }
+    .hh-filter-toolbar__search .material-icons { color: var(--text-muted); font-size: var(--font-size-icon-sm); }
     .hh-filter-toolbar__search input { width: min(280px, 40vw); border: 0; outline: 0; background: transparent; color: var(--text-primary); font: inherit; }
     .hh-filter-toolbar__clear { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: var(--radius-button); background: transparent; color: var(--text-secondary); cursor: pointer; }
     .hh-filter-toolbar__clear:hover { background: var(--surface-muted); }

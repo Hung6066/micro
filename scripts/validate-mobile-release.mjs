@@ -27,18 +27,24 @@ for (const entry of pinEntries) {
     violations.push(`${files[0]}: invalid SPKI pin for ${entry.host}`);
 }
 const iosPinsPath = "mobile-app/ios/App/App/HisHopeCertificatePins.plist";
+const androidPinsPath = "mobile-app/android/app/src/main/res/raw/certificate_pins.json";
 const iosPinsSource = fs.readFileSync(iosPinsPath, "utf8");
+const androidPinsSource = fs.readFileSync(androidPinsPath, "utf8");
 if (!iosPinsSource.includes("<dict>") || iosPinsSource.includes("REPLACE_IN_RELEASE") || iosPinsSource.includes("api.his-hope.example"))
   violations.push(`${iosPinsPath}: native iOS pin bundle is not prepared`);
+if (androidPinsSource.includes("REPLACE_IN_RELEASE") || androidPinsSource.includes("api.his-hope.example"))
+  violations.push(`${androidPinsPath}: native Android pin bundle is not prepared`);
 for (const entry of pinEntries) {
   if (!iosPinsSource.includes(`<string>${entry.host}</string>`) || !iosPinsSource.includes(`<string>${entry.pin}</string>`))
     violations.push(`${iosPinsPath}: missing pin for ${entry.host}`);
+  if (!androidPinsSource.includes(`"${entry.host}"`) || !androidPinsSource.includes(`"${entry.pin}"`))
+    violations.push(`${androidPinsPath}: missing pin for ${entry.host}`);
 }
 const pinningContracts = [
   ["mobile-app/src/app/app.config.ts", ["mobileNativeHttpInterceptor", "withInterceptors"]],
   ["mobile-app/ios/App/App/HisHopeSecurityPlugin.swift", ["openPinnedAuthBrowser", "WKWebView", "didReceive challenge", "SecTrustEvaluateWithError", "SecCertificateCopyData", "subjectPublicKeyInfo", "Bundle.main.url", "canonicalPins"]],
   ["mobile-app/src/app/core/native-capability.service.ts", ["getPlatform() === \"ios\"", "openPinnedAuthBrowser"]],
-  ["mobile-app/src/app/core/mobile-native-http.interceptor.ts", ["Capacitor.getPlatform() === \"ios\"", "new URL(url).protocol === \"https:\"", "nativeRequest"]],
+  ["mobile-app/src/app/core/mobile-native-http.interceptor.ts", ["Capacitor.getPlatform() === \"android\"", "environment.production", "nativeRequest"]],
   ["mobile-app/src/app/core/auth.interceptor.ts", ["tokenType: Capacitor.isNativePlatform() ? \"DPoP\" : \"Bearer\"", "\"DPoP\""]],
   ["mobile-app/src/app/core/dpop-proof.service.ts", ["typ: \"dpop+jwt\"", "alg: \"ES256\"", "jti", "payload[\"ath\"]"]],
   ["mobile-app/src/app/core/mobile-telemetry.service.ts", ["!Capacitor.isNativePlatform()", "pinned API boundary"]],

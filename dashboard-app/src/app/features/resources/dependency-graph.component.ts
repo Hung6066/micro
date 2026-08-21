@@ -351,17 +351,17 @@ const LAYER_PADDING = 80;
       .graph-container {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: var(--space-md);
       }
       .graph-toolbar {
         display: flex;
         align-items: center;
-        gap: 16px;
+        gap: var(--space-lg);
         flex-wrap: wrap;
-        padding: 4px 0;
+        padding: var(--space-2xs) 0;
       }
       .graph-title {
-        font-size: 13px;
+        font-size: var(--font-size-label);
         font-weight: 500;
         color: var(--text-secondary, #787774);
         margin-right: auto;
@@ -369,11 +369,11 @@ const LAYER_PADDING = 80;
       .zoom-controls {
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: var(--space-2xs);
         background: var(--surface-white, #ffffff);
         border: 1px solid var(--border-default, #eaeaea);
-        border-radius: 6px;
-        padding: 2px;
+        border-radius: var(--radius-button);
+        padding: var(--space-hairline);
       }
       .zoom-btn {
         display: flex;
@@ -383,7 +383,7 @@ const LAYER_PADDING = 80;
         height: 28px;
         border: none;
         background: transparent;
-        border-radius: 4px;
+        border-radius: var(--radius-input);
         cursor: pointer;
         color: var(--text-secondary, #787774);
         transition:
@@ -398,10 +398,10 @@ const LAYER_PADDING = 80;
         transform: scale(0.95);
       }
       .zoom-reset {
-        margin-left: 2px;
+        margin-left: var(--space-hairline);
       }
       .zoom-level {
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         font-weight: 500;
         color: var(--text-secondary, #787774);
         min-width: 36px;
@@ -411,29 +411,29 @@ const LAYER_PADDING = 80;
       .graph-legend {
         display: flex;
         align-items: center;
-        gap: 12px;
-        font-size: 11px;
+        gap: var(--space-md);
+        font-size: var(--font-size-nav);
         color: var(--text-muted, #a1a09b);
       }
       .legend-item {
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: var(--space-2xs);
       }
       .legend-dot {
-        width: 8px;
-        height: 8px;
+        width: var(--size-status-dot);
+        height: var(--size-status-dot);
         border-radius: 50%;
         display: inline-block;
       }
       .legend-divider {
         width: 1px;
-        height: 14px;
+        height: var(--size-timeline-dot);
         background: var(--border-default, #eaeaea);
       }
       .legend-line {
         display: inline-block;
-        width: 16px;
+        width: var(--size-timeline-rail);
         height: 2px;
         flex-shrink: 0;
       }
@@ -447,7 +447,7 @@ const LAYER_PADDING = 80;
       .graph-canvas {
         background: var(--surface-white, #ffffff);
         border: 1px solid var(--border-default, #eaeaea);
-        border-radius: 8px;
+        border-radius: var(--radius-card);
         overflow: hidden;
         min-height: 400px;
       }
@@ -495,7 +495,7 @@ const LAYER_PADDING = 80;
       }
       :host ::ng-deep .node-group text.node-label {
         font-family: var(--font-sans);
-        font-size: 10px;
+        font-size: var(--font-size-overline);
         fill: var(--text-primary, #1a1a1a);
         font-weight: 500;
         pointer-events: none;

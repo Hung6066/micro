@@ -173,7 +173,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     </hh-page-layout>
   `,
   styles: [
-    ":host{display:block}.form-grid{display:grid;gap:var(--space-3)}.warning{padding:var(--space-3);border:1px solid var(--color-warning);border-radius:var(--radius-card);color:var(--text-secondary)}.error{color:var(--color-danger)}.table-card{margin-top:var(--space-4)}.action-cell{display:flex;gap:var(--space-2)}",
+    ":host{display:block}.form-grid{display:grid;gap:var(--space-md)}.warning{padding:var(--space-md);border:1px solid var(--color-warning);border-radius:var(--radius-card);color:var(--text-secondary)}.error{color:var(--color-danger)}.table-card{margin-top:var(--space-lg)}.action-cell{display:flex;gap:var(--space-sm)}",
   ],
 })
 export class BreakGlassPageComponent implements OnInit {

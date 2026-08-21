@@ -310,11 +310,11 @@ interface ChartDataset {
   styles: [
     `
       .live-badge {
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         font-weight: var(--font-weight-semibold);
         color: var(--color-success);
         background: var(--surface-success);
-        padding: 2px 8px;
+        padding: var(--space-hairline) var(--space-sm);
         border-radius: var(--radius-badge);
         letter-spacing: 0.04em;
         animation: live-pulse 2s ease-in-out infinite;
@@ -337,21 +337,21 @@ interface ChartDataset {
       .service-chips {
         display: flex;
         flex-wrap: wrap;
-        gap: 6px;
+        gap: var(--space-xs);
       }
       .chip {
         display: inline-flex;
         align-items: center;
-        gap: 4px;
-        padding: 2px 8px 2px 10px;
+        gap: var(--space-2xs);
+        padding: var(--space-hairline) var(--space-sm) var(--space-hairline) var(--space-inset);
         border-radius: var(--radius-badge);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         font-weight: var(--font-weight-medium);
       }
       .chip-remove {
-        font-size: 14px;
-        width: 14px;
-        height: 14px;
+        font-size: var(--font-size-body);
+        width: var(--size-timeline-dot);
+        height: var(--size-timeline-dot);
         cursor: pointer;
         opacity: 0.6;
       }
@@ -359,10 +359,10 @@ interface ChartDataset {
         opacity: 1;
       }
       .empty-chips {
-        margin-top: 4px;
+        margin-top: var(--space-2xs);
       }
       .chip-hint {
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         color: var(--text-muted);
         font-style: italic;
       }
@@ -371,7 +371,7 @@ interface ChartDataset {
         position: relative;
         width: 100%;
         min-height: 350px;
-        margin-top: 8px;
+        margin-top: var(--space-sm);
       }
       .chart-wrapper canvas {
         width: 100% !important;

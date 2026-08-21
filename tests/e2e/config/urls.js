@@ -6,4 +6,6 @@ module.exports = {
   clinicalUrl: trimTrailingSlash(process.env.E2E_CLINICAL_URL || 'http://127.0.0.1:8081'),
   dashboardUrl: trimTrailingSlash(process.env.E2E_DASHBOARD_URL || 'http://127.0.0.1:8082'),
   adminUrl: trimTrailingSlash(process.env.E2E_ADMIN_URL || 'http://127.0.0.1:8083'),
+  mobileUrl: trimTrailingSlash(process.env.E2E_MOBILE_URL || 'http://127.0.0.1:4300'),
+  apiUrl: trimTrailingSlash(process.env.E2E_API_URL || 'http://127.0.0.1:5000'),
 };

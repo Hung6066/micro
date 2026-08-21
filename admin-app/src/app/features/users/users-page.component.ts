@@ -8,15 +8,12 @@ import {
   inject,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { MatButtonModule } from "@angular/material/button";
-import { MatIconModule } from "@angular/material/icon";
 import {
   HisHopeBulkAction,
   HisHopeBulkActionRequest,
   HisHopeTableExportRequest,
 } from "@his-hope/frontend-foundation";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
-import { HisHopeResourceStore } from "@his-hope/frontend-foundation/query";
 import {
   HisHopeDataTableCellDirective,
   HisHopeDataTableComponent,
@@ -27,32 +24,25 @@ import {
   HisHopePageLayoutComponent,
   HisHopeToastService,
   HisHopeToolbarComponent,
+  HisHopeActionButtonComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
-import {
-  AdminPageQuery,
-  AdminPageResult,
-  AdminSavedTableView,
-  User,
-} from "../../core/contracts/admin.contracts";
+import { AdminPageQuery, User } from "../../core/contracts/admin.contracts";
 import { UsersApiService } from "../../core/services/users-api.service";
 import { HisHopePageQuery } from "@his-hope/frontend-foundation";
-import { catchError, finalize } from "rxjs/operators";
-import { of } from "rxjs";
 import { UserEditDialogComponent } from "./user-edit-dialog.component";
+import { AdminResourceTableController } from "../../core/services/admin-resource-table.controller";
+import { downloadAdminTableExport } from "../../core/services/admin-query.util";
 
-import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-users-page",
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
-    MatButtonModule,
-    MatIconModule,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
     HisHopeDataTableDetailDirective,
@@ -71,7 +61,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       />
       <hh-toolbar hhPageToolbar [label]="'admin.users' | hhTranslate">
         <span hhToolbarTitle
-          >{{ tableRows.length }} {{ "admin.users" | hhTranslate }}</span
+          >{{ totalItems }} {{ "admin.users" | hhTranslate }}</span
         >
         <hh-action-button
           *ngIf="canWrite"
@@ -153,109 +143,58 @@ export class UsersPageComponent implements OnInit {
   private readonly i18n = inject(HisHopeI18nService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
+
+  users: User[] = [];
+  tableRows: Record<string, unknown>[] = [];
+  columns: HisHopeDataTableColumn[] = [];
+  bulkActions: HisHopeBulkAction[] = [];
+
+  readonly table = new AdminResourceTableController<AdminPageQuery, User>({
+    destroyRef: this.destroyRef,
+    i18n: this.i18n,
+    initialQuery: { page: 1, pageSize: 20 },
+    loader: (query) => this.api.getUsersPage(query),
+    loadErrorMessageKey: "admin.loadUsersFailed",
+    loadErrorFallback: "Failed to load users.",
+    onStateChange: () => this.cdr.markForCheck(),
+  });
+
   get canExport(): boolean {
     return this.permissions.has("reports.export");
   }
   get canWrite(): boolean {
     return this.permissions.has("admin.users.write");
   }
-  users: User[] = [];
-  get columns(): HisHopeDataTableColumn[] {
-    this.i18n.locale();
-    return [
-      {
-        key: "id",
-        label: this.i18n.t("admin.id"),
-        responsivePriority: 3,
-        pinned: "left",
-      },
-      {
-        key: "userName",
-        label: this.i18n.t("admin.username"),
-        sortable: true,
-        responsivePriority: 1,
-        pinned: "left",
-      },
-      {
-        key: "email",
-        label: this.i18n.t("admin.email"),
-        sortable: true,
-        responsivePriority: 2,
-      },
-      {
-        key: "roles",
-        label: this.i18n.t("admin.roles"),
-        responsivePriority: 3,
-      },
-      {
-        key: "isActive",
-        label: this.i18n.t("admin.active"),
-        responsivePriority: 2,
-        pinned: "right",
-      },
-      {
-        key: "actions",
-        label: this.i18n.t("admin.actions", "Actions"),
-        hideable: false,
-        sortable: false,
-        reorderable: false,
-        width: "96px",
-        minWidth: 96,
-        align: "center" as const,
-        responsivePriority: 1,
-        pinned: "right",
-      },
-    ];
-  }
-  tableRows: Record<string, unknown>[] = [];
-  private readonly destroyRef = inject(DestroyRef);
-  query: AdminPageQuery = { page: 1, pageSize: 20 };
-  private actionError: string | null = null;
-  readonly resource = new HisHopeResourceStore<
-    AdminPageQuery,
-    AdminPageResult<User>
-  >(
-    (query) =>
-      this.api.getUsersPage(query).pipe(
-        catchError(() => {
-          this.actionError = this.i18n.t(
-            "admin.loadUsersFailed",
-            "Failed to load users.",
-          );
-          return of<AdminPageResult<User>>({
-            items: [],
-            totalCount: 0,
-            page: query.page,
-            pageSize: query.pageSize,
-            totalPages: 0,
-            hasNextPage: false,
-            hasPreviousPage: false,
-          });
-        }),
-      ),
-    this.query,
-    this.destroyRef,
-  );
-  bulkLoading = false;
   get loading(): boolean {
-    return this.resource.loading() || this.bulkLoading;
+    return this.table.loading;
   }
   get error(): string | null {
-    return (
-      this.actionError ||
-      (this.resource.error()
-        ? this.i18n.t("admin.loadUsersFailed", "Failed to load users.")
-        : null)
-    );
+    return this.table.error;
   }
-  totalItems = 0;
-  savedView: AdminSavedTableView = {};
-  expandedRowKeys: string[] = [];
+  get totalItems(): number {
+    return this.table.totalItems;
+  }
+  get query(): AdminPageQuery {
+    return this.table.query;
+  }
+  get savedView() {
+    return this.table.savedView;
+  }
+  get expandedRowKeys() {
+    return this.table.expandedRowKeys;
+  }
+
   constructor() {
     effect(() => {
-      const result = this.resource.data();
+      this.i18n.locale();
+      this.columns = this.createColumns();
+      this.bulkActions = this.createBulkActions();
+      this.cdr.markForCheck();
+    });
+    effect(() => {
+      const result = this.table.resource.data();
       if (result) {
-        this.totalItems = result.totalCount;
         this.users = result.items;
         this.tableRows = result.items.map((user) => ({
           id: user.id,
@@ -269,55 +208,36 @@ export class UsersPageComponent implements OnInit {
       }
     });
   }
-  get bulkActions(): HisHopeBulkAction[] {
-    this.i18n.locale();
-    return this.permissions.has("admin.users.write")
-      ? [
-          {
-            id: "activate",
-            label: this.i18n.t("admin.activateSelected"),
-            icon: "person_add",
-          },
-          {
-            id: "deactivate",
-            label: this.i18n.t("admin.deactivateSelected"),
-            icon: "person_off",
-            tone: "danger",
-          },
-        ]
-      : [];
-  }
 
   ngOnInit(): void {
-    this.loadServerView();
+    this.table.loadServerView(() => this.api.getTableViews("users"));
     this.loadUsers();
   }
 
-  loadServerView(): void {
-    this.api.getTableViews("users").subscribe((views) => {
-      const view = views.find((item) => item.name === "default") ?? views[0];
-      if (view) this.savedView = JSON.parse(view.payloadJson);
-    });
-  }
-  saveView(event: { name: string; payload: unknown }): void {
-    this.api.saveTableView("users", event.name, event.payload).subscribe();
-  }
-  resetView(event: { name: string }): void {
-    this.savedView = {};
-    this.api
-      .deleteTableView("users", event.name)
-      .subscribe({ error: () => this.loadServerView() });
-  }
-  toggleRowExpand(event: { rowKey: string; expanded: boolean }): void {
-    this.expandedRowKeys = event.expanded
-      ? [...this.expandedRowKeys, event.rowKey]
-      : this.expandedRowKeys.filter((key) => key !== event.rowKey);
+  loadUsers(query = this.query): void {
+    this.table.load(query);
   }
 
-  loadUsers(query = this.query): void {
-    this.query = query;
-    this.actionError = null;
-    this.resource.setQuery(query);
+  onQueryChange(query: HisHopePageQuery): void {
+    this.loadUsers(query);
+  }
+
+  toggleRowExpand(event: { rowKey: string; expanded: boolean }): void {
+    this.table.toggleRowExpand(event);
+  }
+
+  saveView(event: { name: string; payload: unknown }): void {
+    this.table.saveView(event, (name, payload) =>
+      this.api.saveTableView("users", name, payload),
+    );
+  }
+
+  resetView(event: { name: string }): void {
+    this.table.resetView(
+      event,
+      (name) => this.api.deleteTableView("users", name),
+      () => this.table.loadServerView(() => this.api.getTableViews("users")),
+    );
   }
 
   openCreateDialog(): void {
@@ -381,38 +301,84 @@ export class UsersPageComponent implements OnInit {
     });
   }
 
-  onQueryChange(query: HisHopePageQuery): void {
-    this.loadUsers(query);
-  }
-
   onBulkAction(request: HisHopeBulkActionRequest): void {
-    if (!this.permissions.has("admin.users.write")) return;
-    this.bulkLoading = true;
-    this.api
-      .bulkUsers(request)
-      .pipe(
-        finalize(() => (this.bulkLoading = false)),
-        catchError(() => {
-          this.actionError = this.i18n.t(
-            "admin.updateUsersFailed",
-            "Failed to update selected users.",
-          );
-          return of(null);
-        }),
-      )
-      .subscribe((result) => {
-        if (result) this.loadUsers(this.query);
-      });
+    if (!this.canWrite) return;
+    this.table.runBulkAction(
+      request,
+      (bulkRequest) => this.api.bulkUsers(bulkRequest),
+      "admin.updateUsersFailed",
+      "Failed to update selected users.",
+    );
   }
 
   onExport(request: HisHopeTableExportRequest): void {
     this.api.exportTable("users", request).subscribe((blob) => {
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `users-${new Date().toISOString().slice(0, 10)}.${request.format}`;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      downloadAdminTableExport(blob, "users", request.format);
     });
+  }
+
+  private createColumns(): HisHopeDataTableColumn[] {
+    return [
+      {
+        key: "id",
+        label: this.i18n.t("admin.id"),
+        responsivePriority: 3,
+        pinned: "left",
+      },
+      {
+        key: "userName",
+        label: this.i18n.t("admin.username"),
+        sortable: true,
+        responsivePriority: 1,
+        pinned: "left",
+      },
+      {
+        key: "email",
+        label: this.i18n.t("admin.email"),
+        sortable: true,
+        responsivePriority: 2,
+      },
+      {
+        key: "roles",
+        label: this.i18n.t("admin.roles"),
+        responsivePriority: 3,
+      },
+      {
+        key: "isActive",
+        label: this.i18n.t("admin.active"),
+        responsivePriority: 2,
+        pinned: "right",
+      },
+      {
+        key: "actions",
+        label: this.i18n.t("admin.actions", "Actions"),
+        hideable: false,
+        sortable: false,
+        reorderable: false,
+        width: "var(--size-empty-state-icon)",
+        minWidth: 96,
+        align: "center" as const,
+        responsivePriority: 1,
+        pinned: "right",
+      },
+    ];
+  }
+
+  private createBulkActions(): HisHopeBulkAction[] {
+    return this.canWrite
+      ? [
+          {
+            id: "activate",
+            label: this.i18n.t("admin.activateSelected"),
+            icon: "person_add",
+          },
+          {
+            id: "deactivate",
+            label: this.i18n.t("admin.deactivateSelected"),
+            icon: "person_off",
+            tone: "danger",
+          },
+        ]
+      : [];
   }
 }

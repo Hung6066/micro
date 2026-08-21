@@ -31,19 +31,19 @@ import { HisHopeLocalizationApiService } from './his-hope-localization-api.servi
   `,
   styles: [`
     :host { display: inline-block; z-index: 30; }
-    .hh-language-switcher { position: relative; display: inline-block; padding-bottom: 6px; color: inherit; }
-    .hh-language-trigger, .hh-language-option { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--touch-target); border: 1px solid currentColor; border-radius: var(--radius-button); padding: 0 var(--space-3); background: transparent; color: inherit; font: inherit; cursor: pointer; box-sizing: border-box; }
+    .hh-language-switcher { position: relative; display: inline-block; padding-bottom: var(--space-xs); color: inherit; }
+    .hh-language-trigger, .hh-language-option { display: inline-flex; align-items: center; gap: var(--space-sm); min-height: var(--touch-target); border: 1px solid currentColor; border-radius: var(--radius-button); padding: 0 var(--space-md); background: transparent; color: inherit; font: inherit; cursor: pointer; box-sizing: border-box; }
     .hh-language-trigger { min-width: 82px; justify-content: center; }
-    .hh-language-trigger:focus-visible, .hh-language-option:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
-    .hh-language-option { width: 100%; min-height: var(--menu-item-height); justify-content: flex-start; border: 0; border-radius: var(--radius-button); padding: 8px 12px; box-sizing: border-box; text-align: start; }
+    .hh-language-trigger:focus-visible, .hh-language-option:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus); outline-offset: var(--focus-ring-width); }
+    .hh-language-option { width: 100%; min-height: var(--menu-item-height); justify-content: flex-start; border: 0; border-radius: var(--radius-button); padding: var(--space-sm) var(--space-md); box-sizing: border-box; text-align: start; }
     .hh-language-option:hover, .hh-language-option:focus-visible { background: var(--surface-hover); outline: 0; }
     .hh-language-option[aria-selected="true"] { background: var(--color-primary-soft); color: var(--color-primary-deep); }
-    .hh-language-icon { display: inline-grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; overflow: hidden; border: 1px solid var(--border-default); border-radius: 50%; background: var(--surface-white); font-size: 17px; line-height: 1; }
+    .hh-language-icon { display: inline-grid; place-items: center; width: var(--size-nav-icon-track); height: var(--size-nav-icon-track); flex: 0 0 var(--size-nav-icon-track); overflow: hidden; border: 1px solid var(--border-default); border-radius: 50%; background: var(--surface-white); font-size: var(--font-size-subhead); line-height: 1; }
     .hh-language-flag { display: block; width: 100%; height: 100%; object-fit: cover; }
     .hh-language-code { min-width: 25px; font-size: var(--font-size-label); font-weight: var(--font-weight-semibold); letter-spacing: .04em; }
     .hh-language-label { flex: 1; color: var(--text-secondary); font-size: var(--font-size-body); font-weight: var(--font-weight-regular); white-space: nowrap; }
-    .hh-language-menu { position: absolute; top: calc(100% - 1px); inset-inline-end: 0; z-index: 20; display: flex; flex-direction: column; align-items: stretch; gap: var(--menu-item-gap); padding: var(--menu-item-gap); box-sizing: border-box; width: min(220px, calc(100vw - 32px)); max-height: min(360px, 70vh); overflow-y: auto; border: 1px solid var(--border-default); border-radius: var(--radius-card); background: var(--surface-white); box-shadow: var(--shadow-dropdown); }
-    @media (max-width: 640px) { .hh-language-menu { position: fixed; top: 64px; right: 16px; bottom: auto; left: auto; width: min(210px, calc(100vw - 32px)); max-height: calc(100vh - 80px); } }
+    .hh-language-menu { position: absolute; top: calc(100% - 1px); inset-inline-end: 0; z-index: 20; display: flex; flex-direction: column; align-items: stretch; gap: var(--menu-item-gap); padding: var(--menu-item-gap); box-sizing: border-box; width: min(var(--max-width-popover-compact), calc(100vw - var(--space-3xl))); max-height: min(var(--max-width-language-menu), 70vh); overflow-y: auto; border: 1px solid var(--border-default); border-radius: var(--radius-card); background: var(--surface-white); box-shadow: var(--shadow-dropdown); }
+    @media (max-width: 640px) { .hh-language-menu { position: fixed; top: var(--shell-header-height); right: var(--size-timeline-rail); bottom: auto; left: auto; width: min(210px, calc(100vw - var(--space-3xl))); max-height: calc(100vh - 80px); } }
   `],
 })
 export class HisHopeLanguageSwitcherComponent {

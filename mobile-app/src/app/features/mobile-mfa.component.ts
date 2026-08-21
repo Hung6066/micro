@@ -183,7 +183,7 @@ import { NativeCapabilityService } from "../core/native-capability.service";
       }
       .mfa-page {
         display: grid;
-        gap: 16px;
+        gap: var(--space-lg);
       }
       .mfa-page hh-toolbar a {
         color: inherit;
@@ -191,15 +191,15 @@ import { NativeCapabilityService } from "../core/native-capability.service";
       }
       .mfa-card {
         display: grid;
-        gap: 16px;
-        padding: 20px;
+        gap: var(--space-lg);
+        padding: var(--space-xl);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-white);
       }
       .mfa-card h1 {
         margin: 0;
-        font-size: 24px;
+        font-size: var(--font-size-title);
       }
       .mfa-card p {
         margin: 0;
@@ -208,15 +208,15 @@ import { NativeCapabilityService } from "../core/native-capability.service";
       }
       .eyebrow {
         color: var(--color-primary) !important;
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         font-weight: var(--font-weight-semibold);
         letter-spacing: 0.08em;
       }
       .mfa-qr {
         display: grid;
         justify-items: center;
-        gap: 12px;
-        padding: 16px;
+        gap: var(--space-md);
+        padding: var(--space-lg);
         border: 1px solid var(--border-light);
         border-radius: var(--radius-card);
         background: var(--surface-subtle);
@@ -224,28 +224,27 @@ import { NativeCapabilityService } from "../core/native-capability.service";
       .mfa-qr__heading {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: var(--space-sm);
         color: var(--text-primary);
       }
       .mfa-qr__heading .material-icons {
-        font-size: 20px;
+        font-size: var(--font-size-section);
         color: var(--color-primary);
       }
       .mfa-qr__image {
         width: min(220px, 70vw);
         height: auto;
         aspect-ratio: 1;
-        border: 10px solid #fff;
-        border-radius: 12px;
-        box-shadow: 0 4px 16px
-          color-mix(in srgb, var(--text-primary) 12%, transparent);
+        border: var(--space-inset) solid var(--surface-white);
+        border-radius: var(--radius-control);
+        box-shadow: var(--shadow-qr-frame);
         image-rendering: pixelated;
       }
       .mfa-qr__loading,
       .mfa-qr__error {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: var(--space-sm);
         min-height: 220px;
         justify-content: center;
         text-align: center;
@@ -264,24 +263,24 @@ import { NativeCapabilityService } from "../core/native-capability.service";
       }
       .mfa-secret {
         display: grid;
-        gap: 6px;
+        gap: var(--space-xs);
       }
       .mfa-secret strong,
       .mfa-success {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       .mfa-secret strong .material-icons,
       .mfa-success .material-icons {
-        font-size: 18px;
+        font-size: var(--font-size-icon-sm);
         color: var(--color-primary);
       }
       .mfa-secret code,
       .mfa-codes {
         display: block;
         overflow: auto;
-        padding: 10px;
+        padding: var(--space-inset);
         border-radius: var(--radius-input);
         background: var(--surface-subtle);
         color: var(--text-primary);
@@ -294,17 +293,17 @@ import { NativeCapabilityService } from "../core/native-capability.service";
       }
       details {
         border-top: 1px solid var(--border-light);
-        padding-top: 12px;
+        padding-top: var(--space-md);
       }
       summary {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: var(--space-sm);
         cursor: pointer;
         font-weight: var(--font-weight-semibold);
       }
       summary .material-icons {
-        font-size: 18px;
+        font-size: var(--font-size-icon-sm);
         color: var(--color-primary);
       }
       @keyframes mfa-spin {

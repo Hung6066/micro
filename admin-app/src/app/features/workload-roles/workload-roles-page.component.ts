@@ -11,12 +11,9 @@ import { CommonModule } from "@angular/common";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { forkJoin } from "rxjs";
 import {
-  HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
-  HisHopeDataTableComponent,
-  HisHopePageHeaderComponent,
-  HisHopePageLayoutComponent,
-  HisHopeToolbarComponent,
+  HisHopeResourceListPageComponent,
+  HisHopeResourceRowActionsDirective,
 } from "@his-hope/frontend-foundation/ui";
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 import {
@@ -40,73 +37,53 @@ import { WorkloadRoleEditDialogComponent } from "./workload-role-edit-dialog.com
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    HisHopeDataTableCellDirective,
-    HisHopeDataTableComponent,
-    HisHopePageHeaderComponent,
-    HisHopePageLayoutComponent,
-    HisHopeToolbarComponent,
+    HisHopeResourceListPageComponent,
+    HisHopeResourceRowActionsDirective,
     HisHopeTranslatePipe,
   ],
   template: `
-    <hh-page-layout
-      ><hh-page-header
-        hhPageHeader
-        [title]="'admin.workloadRoles' | hhTranslate: 'Workload roles'"
-        [subtitle]="
-          'admin.workloadRolesSubtitle'
-            | hhTranslate: 'Issue and govern non-human workload sessions.'
-        "
-      />
-      <hh-toolbar
-        hhPageToolbar
-        [label]="'admin.workloadRoles' | hhTranslate: 'Workload roles'"
-        ><span hhToolbarTitle
-          >{{ roles.length }}
-          {{ "admin.workloadRoles" | hhTranslate: "Workload roles" }}</span
-        ><hh-action-button
+    <hh-resource-list-page
+      title="admin.workloadRoles"
+      titleFallback="Workload roles"
+      subtitle="admin.workloadRolesSubtitle"
+      subtitleFallback="Issue and govern non-human workload sessions."
+      refreshLabelFallback="Refresh"
+      [count]="roles.length"
+      [canWrite]="canWrite"
+      [columns]="columns"
+      [rows]="rows"
+      [loading]="loading"
+      [error]="error"
+      (create)="openCreate()"
+      (refresh)="load()"
+    >
+      <ng-template hhResourceRowActions let-row>
+        <hh-action-button
           *ngIf="canWrite"
-          (pressed)="openCreate()"
-          hh-toolbar-actions
-          kind="primary"
-          icon="add"
-          [label]="'admin.create' | hhTranslate" /><hh-action-button
-          hhToolbarActions
-          kind="secondary"
-          icon="refresh"
-          [label]="'admin.refresh' | hhTranslate: 'Refresh'"
-          (pressed)="load()"
-      /></hh-toolbar>
-      <div *ngIf="error" class="hh-state hh-state--error" role="alert">
-        {{ error }}
-      </div>
-      <hh-data-table
-        [label]="'admin.workloadRoles' | hhTranslate: 'Workload roles'"
-        [columns]="columns"
-        [rows]="rows"
-        [loading]="loading"
-        [empty]="!loading && !error && !rows.length"
-        ><ng-template hhDataTableCell="actions" let-row
-          ><hh-action-button
-            *ngIf="canWrite"
-            kind="row"
-            mode="icon-only"
-            icon="edit"
-            [label]="'admin.edit' | hhTranslate"
-            (pressed)="edit(row)" /><hh-action-button
-            *ngIf="canWrite && row['isActive']"
-            kind="danger"
-            mode="icon-only"
-            icon="toggle_off"
-            [label]="'admin.deactivate' | hhTranslate"
-            (pressed)="toggle(row)" /><hh-action-button
-            *ngIf="canWrite && !row['isActive']"
-            kind="row"
-            mode="icon-only"
-            icon="toggle_on"
-            [label]="'admin.activate' | hhTranslate"
-            (pressed)="toggle(row)" /></ng-template
-      ></hh-data-table>
-    </hh-page-layout>
+          kind="row"
+          mode="icon-only"
+          icon="edit"
+          [label]="'admin.edit' | hhTranslate"
+          (pressed)="edit(row)"
+        />
+        <hh-action-button
+          *ngIf="canWrite && row['isActive']"
+          kind="danger"
+          mode="icon-only"
+          icon="toggle_off"
+          [label]="'admin.deactivate' | hhTranslate"
+          (pressed)="toggle(row)"
+        />
+        <hh-action-button
+          *ngIf="canWrite && !row['isActive']"
+          kind="row"
+          mode="icon-only"
+          icon="toggle_on"
+          [label]="'admin.activate' | hhTranslate"
+          (pressed)="toggle(row)"
+        />
+      </ng-template>
+    </hh-resource-list-page>
   `,
 })
 export class WorkloadRolesPageComponent implements OnInit {

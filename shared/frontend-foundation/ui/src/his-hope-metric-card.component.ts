@@ -24,8 +24,8 @@ import { RouterModule } from '@angular/router';
       display: flex;
       min-height: 156px;
       flex-direction: column;
-      gap: 14px;
-      padding: 18px;
+      gap: var(--space-lg);
+      padding: var(--space-lg);
       border: 1px solid var(--border-default);
       border-radius: var(--radius-card);
       background: var(--surface-white);
@@ -33,27 +33,27 @@ import { RouterModule } from '@angular/router';
       text-decoration: none;
       transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
     }
-    .metric-card:hover { border-color: var(--color-primary); box-shadow: 0 8px 22px rgba(47, 107, 74, .10); transform: translateY(-2px); }
+    .metric-card:hover { border-color: var(--color-primary); box-shadow: var(--shadow-metric-hover); transform: translateY(calc(var(--space-hairline) * -1)); }
     .metric-card:active { transform: translateY(0); }
-    .metric-card:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
-    .metric-card__top { display: flex; align-items: center; gap: 10px; }
+    .metric-card:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus); outline-offset: var(--focus-ring-width); }
+    .metric-card__top { display: flex; align-items: center; gap: var(--space-md); }
     .metric-icon {
       display: grid;
-      width: 36px;
-      height: 36px;
+      width: var(--control-height-compact);
+      height: var(--control-height-compact);
       place-items: center;
-      border-radius: 8px;
+      border-radius: var(--radius-card);
       background: var(--color-primary-soft);
       color: var(--color-primary);
-      font-size: 20px;
+      font-size: var(--font-size-section);
     }
     .tone-info .metric-icon { background: var(--surface-info); color: var(--color-info); }
     .tone-warning .metric-icon { background: var(--surface-warning); color: var(--color-warning); }
     .tone-danger .metric-icon { background: var(--surface-danger); color: var(--color-danger); }
-    .metric-label { color: var(--text-secondary); font-size: 12px; font-weight: 600; }
-    .metric-value { min-height: 29px; font-size: 24px; font-weight: 700; line-height: 1.2; }
-    .metric-action { display: inline-flex; align-items: center; gap: 4px; margin-top: auto; color: var(--color-primary); font-size: 13px; font-weight: 600; }
-    .metric-action .material-icons { font-size: 16px; }
+    .metric-label { color: var(--text-secondary); font-size: var(--font-size-caption); font-weight: var(--font-weight-semibold); }
+    .metric-value { min-height: var(--page-padding-block); font-size: var(--font-size-title); font-weight: var(--font-weight-bold); line-height: 1.2; }
+    .metric-action { display: inline-flex; align-items: center; gap: var(--space-2xs); margin-top: auto; color: var(--color-primary); font-size: var(--font-size-label); font-weight: var(--font-weight-semibold); }
+    .metric-action .material-icons { font-size: var(--font-size-input); }
   `],
 })
 export class HisHopeMetricCardComponent {

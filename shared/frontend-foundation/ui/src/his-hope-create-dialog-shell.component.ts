@@ -47,11 +47,18 @@ import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
         max-height: min(80vh, 760px);
         color: var(--text-primary);
         background: var(--surface-white);
+        border-radius: inherit;
       }
       .hh-create-dialog-shell__header {
         flex: 0 0 auto;
         padding: var(--form-dialog-padding-block)
-          var(--form-dialog-padding-inline) var(--space-2);
+          var(--form-dialog-padding-inline) var(--space-sm);
+        border-bottom: 1px solid var(--border-default);
+        background: color-mix(
+          in srgb,
+          var(--surface-muted, #fafafa) 40%,
+          var(--surface-white)
+        );
       }
       .hh-create-dialog-shell__title {
         margin: 0;
@@ -60,7 +67,7 @@ import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
         font-weight: var(--font-weight-semibold);
       }
       .hh-create-dialog-shell__subtitle {
-        margin: var(--space-2) 0 0;
+        margin: var(--space-sm) 0 0;
         color: var(--text-secondary);
         font-size: var(--font-size-body);
         line-height: var(--leading-body);
@@ -68,7 +75,7 @@ import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
       .hh-create-dialog-shell__content {
         min-height: 0;
         overflow-y: auto;
-        padding: var(--space-3) var(--form-dialog-padding-inline) var(--space-6);
+        padding: var(--space-md) var(--form-dialog-padding-inline) var(--space-2xl);
       }
       .hh-create-dialog-shell__footer {
         display: flex;
@@ -76,9 +83,9 @@ import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
         flex-wrap: nowrap;
         align-items: center;
         justify-content: flex-end;
-        gap: var(--space-3);
-        min-height: 64px;
-        padding: var(--space-3) var(--form-dialog-padding-inline);
+        gap: var(--space-md);
+        min-height: var(--shell-header-height);
+        padding: var(--space-md) var(--form-dialog-padding-inline);
         border-top: 1px solid var(--border-default);
         background: var(--surface-white);
       }
@@ -88,7 +95,7 @@ import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
         flex-wrap: nowrap;
         align-items: center;
         justify-content: flex-end;
-        gap: 12px;
+        gap: var(--space-md);
         min-width: 0;
       }
       .hh-create-dialog-shell__actions ::ng-deep [hhCreateDialogFooter] {
@@ -96,7 +103,7 @@ import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
         flex: 0 0 auto;
         flex-wrap: nowrap;
         align-items: center;
-        gap: 12px;
+        gap: var(--space-md);
       }
       .hh-create-dialog-shell__actions ::ng-deep [hhCreateDialogFooter] > * {
         flex: 0 0 auto;
@@ -107,13 +114,13 @@ import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
           max-height: 100dvh;
         }
         .hh-create-dialog-shell__header {
-          padding: var(--space-5) var(--space-4) var(--space-2);
+          padding: var(--space-xl) var(--space-lg) var(--space-sm);
         }
         .hh-create-dialog-shell__content {
-          padding-inline: var(--space-4);
+          padding-inline: var(--space-lg);
         }
         .hh-create-dialog-shell__footer {
-          padding-inline: var(--space-4);
+          padding-inline: var(--space-lg);
         }
       }
     `,

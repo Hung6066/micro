@@ -5,6 +5,7 @@ import Security
 import UIKit
 import WebKit
 import AuthenticationServices
+import DeviceCheck
 
 @objc(HisHopeSecurityPlugin)
 public class HisHopeSecurityPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -12,6 +13,7 @@ public class HisHopeSecurityPlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "HisHopeSecurity"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "deviceSecurity", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "deviceAttestation", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "configureCertificatePins", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "isPinConfigured", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setAppPin", returnType: CAPPluginReturnPromise),
@@ -24,7 +26,8 @@ public class HisHopeSecurityPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "authenticatePasskey", returnType: CAPPluginReturnPromise)
     ]
 
-    private let defaults = UserDefaults.standard
+    private let pinService = "com.hishope.mobile.app-pin"
+    private let pinAccount = "local-pin"
     private var passkeyCall: CAPPluginCall?
 
     @objc func deviceSecurity(_ call: CAPPluginCall) {
@@ -33,8 +36,58 @@ public class HisHopeSecurityPlugin: CAPPlugin, CAPBridgedPlugin {
             "status": rooted ? "compromised" : "secure",
             "rootedOrJailbroken": rooted,
             "emulator": false,
+            "debuggable": isDebuggableInstall(),
             "reason": rooted ? "native_jailbreak_indicator" : NSNull()
         ])
+    }
+
+    @objc func deviceAttestation(_ call: CAPPluginCall) {
+        let rooted = ["/Applications/Cydia.app", "/usr/sbin/sshd", "/bin/bash", "/private/var/lib/apt"].contains { FileManager.default.fileExists(atPath: $0) }
+        let debuggable = isDebuggableInstall()
+        let notEmulator: Bool = {
+            #if targetEnvironment(simulator)
+            return false
+            #else
+            return true
+            #endif
+        }()
+        var signals: [String: Bool] = [
+            "device_secure": !rooted && notEmulator,
+            "not_rooted": !rooted,
+            "not_emulator": notEmulator,
+            "not_debuggable": !debuggable,
+            "app_attest_supported": DCAppAttestService.shared.isSupported
+        ]
+
+        guard DCAppAttestService.shared.isSupported else {
+            signals["app_attest_key_generated"] = false
+            signals["app_attest_attested"] = false
+            call.resolve(["provider": "app-attest", "signals": signals])
+            return
+        }
+
+        DCAppAttestService.shared.generateKey { keyId, error in
+            if let keyId, error == nil {
+                let challenge = Data(UUID().uuidString.utf8)
+                DCAppAttestService.shared.attestKey(keyId, clientDataHash: Self.sha256(challenge)) { _, attestError in
+                    signals["app_attest_key_generated"] = true
+                    signals["app_attest_attested"] = attestError == nil
+                    call.resolve(["provider": "app-attest", "signals": signals])
+                }
+            } else {
+                signals["app_attest_key_generated"] = false
+                signals["app_attest_attested"] = false
+                call.resolve(["provider": "app-attest", "signals": signals])
+            }
+        }
+    }
+
+    private static func sha256(_ data: Data) -> Data {
+        var hash = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
+        data.withUnsafeBytes { buffer in
+            _ = CC_SHA256(buffer.baseAddress, CC_LONG(buffer.count), &hash)
+        }
+        return Data(hash)
     }
 
     @objc func configureCertificatePins(_ call: CAPPluginCall) {
@@ -49,17 +102,30 @@ public class HisHopeSecurityPlugin: CAPPlugin, CAPBridgedPlugin {
                   digest.count == Int(CC_SHA256_DIGEST_LENGTH) else { return nil }
             return ["host": host, "sha256Spki": spki]
         }
-        guard !rawPins.isEmpty, pins.count == rawPins.count,
-              !bundledPins().isEmpty,
-              canonicalPins(pins) == canonicalPins(bundledPins()) else {
+        guard !rawPins.isEmpty, pins.count == rawPins.count else {
             call.reject("At least one valid certificate pin is required")
+            return
+        }
+        let bundled = bundledPins()
+        if bundled.isEmpty && !isDebuggableInstall() {
+            call.reject("Bundled certificate pins are required in release builds")
+            return
+        }
+        if !bundled.isEmpty,
+           !bundledContainsPlaceholder(),
+           canonicalPins(pins) != canonicalPins(bundled) {
+            call.reject("Certificate pins must match the bundled release allow-list")
+            return
+        }
+        if pinsContainPlaceholder(pins) && !isDebuggableInstall() {
+            call.reject("Release builds cannot use placeholder certificate pins")
             return
         }
         call.resolve()
     }
 
     @objc func isPinConfigured(_ call: CAPPluginCall) {
-        call.resolve(["configured": !bundledPins().isEmpty])
+        call.resolve(["configured": readPinMaterial()?.hash != nil])
     }
 
     @objc func setAppPin(_ call: CAPPluginCall) {
@@ -69,21 +135,38 @@ public class HisHopeSecurityPlugin: CAPPlugin, CAPBridgedPlugin {
         }
         var salt = Data(count: 16)
         _ = salt.withUnsafeMutableBytes { SecRandomCopyBytes(kSecRandomDefault, 16, $0.baseAddress!) }
-        defaults.set(derive(pin, salt: salt), forKey: "pin_hash")
-        defaults.set(salt, forKey: "pin_salt")
+        let hash = derive(pin, salt: salt)
+        guard storePinMaterial(hash: hash, salt: salt) else {
+            call.reject("Unable to persist app PIN")
+            return
+        }
+        clearPinLockout()
         call.resolve()
     }
 
     @objc func verifyAppPin(_ call: CAPPluginCall) {
-        guard let pin = call.getString("pin"), let salt = defaults.data(forKey: "pin_salt"), let expected = defaults.data(forKey: "pin_hash") else {
+        if let lockedUntil = pinLockUntil(), lockedUntil > Date() {
+            call.reject("PIN entry is temporarily locked", "pin_locked")
+            return
+        }
+        guard let pin = call.getString("pin"),
+              let material = readPinMaterial(),
+              let salt = material.salt,
+              let expected = material.hash else {
             call.resolve(["valid": false]); return
         }
-        call.resolve(["valid": derive(pin, salt: salt) == expected])
+        let valid = derive(pin, salt: salt) == expected
+        if valid {
+            clearPinLockout()
+        } else if material.hash != nil {
+            registerPinFailure()
+        }
+        call.resolve(["valid": valid])
     }
 
     @objc func clearAppPin(_ call: CAPPluginCall) {
-        defaults.removeObject(forKey: "pin_hash")
-        defaults.removeObject(forKey: "pin_salt")
+        deletePinMaterial()
+        clearPinLockout()
         call.resolve()
     }
 
@@ -224,6 +307,102 @@ public class HisHopeSecurityPlugin: CAPPlugin, CAPBridgedPlugin {
               let value = try? PropertyListSerialization.propertyList(from: data, format: nil),
               let entries = value as? [[String: Any]] else { return [] }
         return entries
+    }
+
+    private func bundledContainsPlaceholder() -> Bool {
+        bundledPins().contains { entry in
+            (entry["sha256Spki"] as? String)?.contains("REPLACE_IN_RELEASE") == true
+        }
+    }
+
+    private func pinsContainPlaceholder(_ entries: [[String: Any]]) -> Bool {
+        entries.contains { entry in
+            (entry["sha256Spki"] as? String)?.contains("REPLACE_IN_RELEASE") == true
+        }
+    }
+
+    private struct PinMaterial {
+        let hash: Data?
+        let salt: Data?
+    }
+
+    private func storePinMaterial(hash: Data, salt: Data) -> Bool {
+        let payload = hash.base64EncodedString() + ":" + salt.base64EncodedString()
+        deletePinMaterial()
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: pinService,
+            kSecAttrAccount as String: pinAccount,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly,
+            kSecValueData as String: Data(payload.utf8)
+        ]
+        return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
+    }
+
+    private func readPinMaterial() -> PinMaterial? {
+        migrateLegacyPinIfNeeded()
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: pinService,
+            kSecAttrAccount as String: pinAccount,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data,
+              let payload = String(data: data, encoding: .utf8) else { return PinMaterial(hash: nil, salt: nil) }
+        let parts = payload.split(separator: ":", maxSplits: 1).map(String.init)
+        guard parts.count == 2,
+              let hash = Data(base64Encoded: parts[0]),
+              let salt = Data(base64Encoded: parts[1]) else { return PinMaterial(hash: nil, salt: nil) }
+        return PinMaterial(hash: hash, salt: salt)
+    }
+
+    private func deletePinMaterial() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: pinService,
+            kSecAttrAccount as String: pinAccount
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+
+    private func migrateLegacyPinIfNeeded() {
+        guard readPinMaterial()?.hash == nil,
+              let hash = UserDefaults.standard.data(forKey: "pin_hash"),
+              let salt = UserDefaults.standard.data(forKey: "pin_salt") else { return }
+        if storePinMaterial(hash: hash, salt: salt) {
+            UserDefaults.standard.removeObject(forKey: "pin_hash")
+            UserDefaults.standard.removeObject(forKey: "pin_salt")
+        }
+    }
+
+    private func registerPinFailure() {
+        let failures = UserDefaults.standard.integer(forKey: "pin_fail_count") + 1
+        UserDefaults.standard.set(failures, forKey: "pin_fail_count")
+        if failures >= 5 {
+            let exponent = min(failures - 5, 4)
+            let lockSeconds = 30.0 * pow(2.0, Double(exponent))
+            UserDefaults.standard.set(Date().addingTimeInterval(lockSeconds), forKey: "pin_lock_until")
+        }
+    }
+
+    private func clearPinLockout() {
+        UserDefaults.standard.removeObject(forKey: "pin_fail_count")
+        UserDefaults.standard.removeObject(forKey: "pin_lock_until")
+    }
+
+    private func pinLockUntil() -> Date? {
+        UserDefaults.standard.object(forKey: "pin_lock_until") as? Date
+    }
+
+    private func isDebuggableInstall() -> Bool {
+        #if DEBUG
+        return true
+        #else
+        return Bundle.main.infoDictionary?["get-task-allow"] as? Bool ?? false
+        #endif
     }
 
     private func canonicalPins(_ entries: [[String: Any]]) -> String {

@@ -358,58 +358,58 @@ const SERVICE_COLORS = [
   styles: [
     `
       .back-btn {
-        font-size: 13px;
+        font-size: var(--font-size-label);
       }
       .back-btn mat-icon {
-        font-size: 18px;
-        width: 18px;
-        height: 18px;
+        font-size: var(--font-size-icon-sm);
+        width: var(--font-size-icon-sm);
+        height: var(--font-size-icon-sm);
       }
 
       .header-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-        gap: 16px;
-        margin-bottom: 16px;
+        grid-template-columns: repeat(auto-fill, minmax(var(--size-description-min), 1fr));
+        gap: var(--space-lg);
+        margin-bottom: var(--space-lg);
       }
       .field-label {
         display: block;
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         font-weight: var(--font-weight-semibold);
         text-transform: uppercase;
         letter-spacing: 0.04em;
         color: var(--text-muted);
-        margin-bottom: 4px;
+        margin-bottom: var(--space-2xs);
       }
       .field-value {
-        font-size: 14px;
+        font-size: var(--font-size-body);
         color: var(--text-primary);
         font-weight: var(--font-weight-medium);
       }
       .field-value.mono {
         font-family: var(--font-mono);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         word-break: break-all;
       }
       .service-chips {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: var(--space-xs);
         flex-wrap: wrap;
       }
       .service-chip-label {
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         font-weight: var(--font-weight-semibold);
         text-transform: uppercase;
         letter-spacing: 0.04em;
         color: var(--text-muted);
-        margin-right: 4px;
+        margin-right: var(--space-2xs);
       }
       .service-chip {
         display: inline-block;
-        padding: 2px 10px;
+        padding: var(--space-hairline) var(--space-inset);
         border-radius: var(--radius-badge);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         font-weight: var(--font-weight-medium);
       }
 
@@ -417,7 +417,7 @@ const SERVICE_COLORS = [
       .waterfall-container {
         display: flex;
         gap: 0;
-        margin-top: 8px;
+        margin-top: var(--space-sm);
       }
       .waterfall-labels {
         flex: 0 0 320px;
@@ -432,12 +432,12 @@ const SERVICE_COLORS = [
       .waterfall-time-axis {
         display: flex;
         justify-content: space-between;
-        padding: 8px 0;
+        padding: var(--space-sm) 0;
         border-bottom: 1px solid var(--border-default);
         margin-bottom: 0;
       }
       .time-tick {
-        font-size: 10px;
+        font-size: var(--font-size-overline);
         color: var(--text-muted);
         font-family: var(--font-mono);
       }
@@ -445,11 +445,11 @@ const SERVICE_COLORS = [
       .waterfall-bar-row {
         display: flex;
         align-items: center;
-        padding: 8px 12px;
+        padding: var(--space-sm) var(--space-md);
         border-bottom: 1px solid var(--border-light);
         cursor: pointer;
         transition: background-color 150ms ease;
-        min-height: 36px;
+        min-height: var(--control-height-compact);
       }
       .waterfall-label-row:hover,
       .waterfall-bar-row:hover {
@@ -464,8 +464,8 @@ const SERVICE_COLORS = [
         background: var(--surface-muted);
       }
       .waterfall-label-row {
-        gap: 8px;
-        font-size: 12px;
+        gap: var(--space-sm);
+        font-size: var(--font-size-caption);
       }
       .label-service {
         flex: 0 0 100px;
@@ -486,19 +486,19 @@ const SERVICE_COLORS = [
         flex: 0 0 60px;
         text-align: right;
         font-family: var(--font-mono);
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         color: var(--text-primary);
       }
       .expand-icon {
-        font-size: 16px;
-        width: 16px;
-        height: 16px;
+        font-size: var(--font-size-toolbar);
+        width: var(--size-timeline-rail);
+        height: var(--size-timeline-rail);
         color: var(--text-muted);
         flex-shrink: 0;
       }
       .waterfall-bar-track {
         width: 100%;
-        height: 16px;
+        height: var(--size-timeline-rail);
         position: relative;
         background: var(--surface-muted);
         border-radius: 3px;
@@ -518,38 +518,38 @@ const SERVICE_COLORS = [
       /* Span detail */
       .span-meta-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-        gap: 12px;
-        margin-top: 8px;
+        grid-template-columns: repeat(auto-fill, minmax(var(--size-description-min), 1fr));
+        gap: var(--space-md);
+        margin-top: var(--space-sm);
       }
       .detail-divider {
-        margin: 16px 0 !important;
+        margin: var(--space-lg) 0 !important;
       }
       .detail-section {
-        margin-bottom: 16px;
+        margin-bottom: var(--space-lg);
       }
       .detail-section:last-child {
         margin-bottom: 0;
       }
       .detail-section-title {
-        font-size: 13px;
+        font-size: var(--font-size-label);
         font-weight: var(--font-weight-semibold);
         color: var(--text-primary);
-        margin: 0 0 8px 0;
+        margin: 0 0 var(--space-sm) 0;
       }
       .tags-grid {
         display: flex;
         flex-wrap: wrap;
-        gap: 6px;
+        gap: var(--space-xs);
       }
       .tag-item {
         display: inline-flex;
-        gap: 6px;
-        padding: 3px 10px;
+        gap: var(--space-xs);
+        padding: var(--space-xxs) var(--space-inset);
         background: var(--surface-muted);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-input);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
       }
       .tag-key {
         font-weight: var(--font-weight-semibold);
@@ -558,15 +558,15 @@ const SERVICE_COLORS = [
       .tag-value {
         color: var(--text-primary);
         font-family: var(--font-mono);
-        font-size: 11px;
+        font-size: var(--font-size-nav);
       }
       .events-list {
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       .event-item {
-        padding: 8px 12px;
+        padding: var(--space-sm) var(--space-md);
         background: var(--surface-muted);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-input);
@@ -575,22 +575,22 @@ const SERVICE_COLORS = [
         display: flex;
         justify-content: space-between;
         align-items: center;
-        margin-bottom: 6px;
+        margin-bottom: var(--space-xs);
       }
       .event-name {
-        font-size: 13px;
+        font-size: var(--font-size-label);
         font-weight: var(--font-weight-semibold);
         color: var(--text-primary);
       }
       .event-time {
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         color: var(--text-muted);
         font-family: var(--font-mono);
       }
       .event-attributes {
         display: flex;
         flex-wrap: wrap;
-        gap: 4px;
+        gap: var(--space-2xs);
       }
     `,
   ],

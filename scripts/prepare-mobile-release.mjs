@@ -38,6 +38,8 @@ if (originUrl.protocol !== "https:" || originUrl.hostname.toLowerCase() !== host
   process.exit(1);
 }
 
+fs.writeFileSync("mobile-app/android/app/src/main/res/raw/certificate_pins.json", `${JSON.stringify(pins, null, 2)}\n`);
+
 const environmentPath = "mobile-app/src/environments/environment.prod.ts";
 let environment = fs.readFileSync(environmentPath, "utf8");
 environment = environment

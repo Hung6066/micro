@@ -391,11 +391,11 @@ function serviceToneFor(service: string): HisHopeStatusTone {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 8px 12px;
+        padding: var(--space-sm) var(--space-md);
         background: var(--surface-muted);
         border: 1px solid var(--border-light);
         border-radius: var(--radius-input);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         color: var(--text-secondary);
       }
       .query-summary-text {
@@ -409,10 +409,10 @@ function serviceToneFor(service: string): HisHopeStatusTone {
       .filter-group {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: var(--space-2xs);
       }
       .filter-label {
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         font-weight: var(--font-weight-semibold);
         text-transform: uppercase;
         letter-spacing: 0.04em;
@@ -432,21 +432,21 @@ function serviceToneFor(service: string): HisHopeStatusTone {
       .level-filter-group {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: var(--space-2xs);
       }
       .level-chips {
         display: flex;
-        gap: 4px;
+        gap: var(--space-2xs);
         flex-wrap: wrap;
       }
       .level-chip {
         display: inline-flex;
         align-items: center;
-        padding: 4px 12px;
+        padding: var(--space-2xs) var(--space-md);
         border-radius: var(--radius-badge);
         border: 1px solid var(--border-default);
         background: transparent;
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         font-weight: var(--font-weight-medium);
         color: var(--text-secondary);
         cursor: pointer;
@@ -469,19 +469,19 @@ function serviceToneFor(service: string): HisHopeStatusTone {
       .cell-timestamp {
         white-space: nowrap;
         font-family: var(--font-mono);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
       }
       .message-text {
         font-family: var(--font-mono);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         line-height: 1.5;
       }
       .trace-link {
         color: var(--color-info);
         font-family: var(--font-mono);
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         cursor: pointer;
-        margin-left: 6px;
+        margin-left: var(--space-xs);
         white-space: nowrap;
         text-decoration: none;
         border-bottom: 1px dashed var(--color-info);
@@ -494,7 +494,7 @@ function serviceToneFor(service: string): HisHopeStatusTone {
         cursor: pointer !important;
         text-decoration: none !important;
         font-family: var(--font-mono);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         border-bottom: 1px dashed var(--color-info) !important;
       }
       .trace-link-inline:hover {
@@ -503,25 +503,25 @@ function serviceToneFor(service: string): HisHopeStatusTone {
 
       /* ── Expanded detail row ── */
       .expanded-detail {
-        padding: 16px 24px;
+        padding: var(--space-lg) var(--space-2xl);
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: var(--space-md);
       }
       .detail-field {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: var(--space-2xs);
       }
       .detail-field-label {
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         font-weight: var(--font-weight-semibold);
         text-transform: uppercase;
         letter-spacing: 0.04em;
         color: var(--text-muted);
       }
       .detail-field-value {
-        font-size: 13px;
+        font-size: var(--font-size-label);
         color: var(--text-primary);
         margin: 0;
       }
@@ -529,17 +529,17 @@ function serviceToneFor(service: string): HisHopeStatusTone {
         color: var(--color-danger);
         white-space: pre-wrap;
         font-family: var(--font-mono);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         background: var(--surface-danger);
-        padding: 8px 12px;
+        padding: var(--space-sm) var(--space-md);
         border-radius: var(--radius-input);
         line-height: 1.5;
       }
       .detail-field-value.json {
         font-family: var(--font-mono);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         background: var(--surface-muted);
-        padding: 8px 12px;
+        padding: var(--space-sm) var(--space-md);
         border-radius: var(--radius-input);
         line-height: 1.5;
         max-height: 200px;
@@ -547,9 +547,9 @@ function serviceToneFor(service: string): HisHopeStatusTone {
       }
       .detail-field-value code {
         font-family: var(--font-mono);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         background: var(--surface-muted);
-        padding: 2px 6px;
+        padding: var(--space-hairline) var(--space-xs);
         border-radius: 3px;
       }
 

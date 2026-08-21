@@ -326,28 +326,28 @@ function fmt(val: number, decimals = 2): string {
       .slo-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-        gap: 16px;
-        margin-bottom: 24px;
+        gap: var(--space-lg);
+        margin-bottom: var(--space-2xl);
       }
 
       /* ── Card ── */
       .slo-card mat-card-content {
-        padding: 0 20px 20px !important;
+        padding: 0 var(--space-xl) var(--space-xl) !important;
       }
       .slo-title {
-        font-size: 15px;
+        font-size: var(--font-size-body-emphasis);
         font-weight: var(--font-weight-semibold);
         color: var(--text-primary);
       }
       .slo-subtitle {
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         color: var(--text-secondary);
       }
 
       .slo-content {
         display: flex;
         flex-direction: column;
-        gap: 16px;
+        gap: var(--space-lg);
       }
 
       /* ── Gauge ── */
@@ -366,15 +366,15 @@ function fmt(val: number, decimals = 2): string {
         display: flex;
         flex-direction: column;
         align-items: center;
-        margin-top: -4px;
+        margin-top: -var(--space-2xs);
       }
       .gauge-value {
-        font-size: 22px;
+        font-size: var(--font-size-headline);
         font-weight: var(--font-weight-bold);
         line-height: 1.2;
       }
       .gauge-meta {
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         color: var(--text-secondary);
         text-transform: uppercase;
         letter-spacing: 0.04em;
@@ -384,7 +384,7 @@ function fmt(val: number, decimals = 2): string {
       .budget-row {
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: var(--space-xs);
       }
       .budget-header {
         display: flex;
@@ -392,15 +392,15 @@ function fmt(val: number, decimals = 2): string {
         align-items: center;
       }
       .budget-label {
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         color: var(--text-secondary);
       }
       .budget-value {
-        font-size: 13px;
+        font-size: var(--font-size-label);
         font-weight: var(--font-weight-semibold);
       }
       .budget-track {
-        height: 8px;
+        height: var(--size-status-dot);
         background: var(--border-default);
         border-radius: var(--radius-badge);
         overflow: hidden;
@@ -416,8 +416,8 @@ function fmt(val: number, decimals = 2): string {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 16px;
-        padding: 12px;
+        gap: var(--space-lg);
+        padding: var(--space-md);
         background: var(--surface-muted);
         border-radius: var(--radius-input);
       }
@@ -425,21 +425,21 @@ function fmt(val: number, decimals = 2): string {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 2px;
+        gap: var(--space-hairline);
       }
       .burn-value {
-        font-size: 18px;
+        font-size: var(--font-size-icon-sm);
         font-weight: var(--font-weight-bold);
       }
       .burn-label {
-        font-size: 10px;
+        font-size: var(--font-size-overline);
         color: var(--text-secondary);
         text-transform: uppercase;
         letter-spacing: 0.04em;
       }
       .burn-divider {
         width: 1px;
-        height: 32px;
+        height: var(--space-3xl);
         background: var(--border-strong);
       }
 
@@ -447,29 +447,29 @@ function fmt(val: number, decimals = 2): string {
       .latency-row {
         display: flex;
         align-items: center;
-        gap: 6px;
-        padding: 8px 12px;
+        gap: var(--space-xs);
+        padding: var(--space-sm) var(--space-md);
         background: var(--surface-muted);
         border-radius: var(--radius-input);
       }
       .latency-icon {
-        font-size: 18px;
+        font-size: var(--font-size-icon-sm);
         width: 18px;
         height: 18px;
       }
       .latency-value {
-        font-size: 16px;
+        font-size: var(--font-size-toolbar);
         font-weight: var(--font-weight-semibold);
       }
       .latency-label {
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         color: var(--text-secondary);
         margin-left: auto;
       }
 
       /* ── Sparkline card ── */
       .sparkline-card {
-        margin-bottom: 24px;
+        margin-bottom: var(--space-2xl);
       }
       .sparkline-container {
         width: 100%;

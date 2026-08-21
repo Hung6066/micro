@@ -26,8 +26,10 @@ import {
 } from "@his-hope/mobile-foundation";
 
 const ALLOWED_DEEP_LINKS = [
-  { scheme: "hishope", host: "auth" },
-  { scheme: "https", host: "mobile.his-hope.example", pathPrefix: "/auth" },
+  { scheme: "hishope", host: "auth", pathPrefix: "/callback" },
+  { scheme: "hishope", host: "auth", pathPrefix: "/logout-callback" },
+  { scheme: "https", host: "mobile.his-hope.example", pathPrefix: "/auth/callback" },
+  { scheme: "https", host: "mobile.his-hope.example", pathPrefix: "/auth/logout-callback" },
 ];
 
 @Injectable({ providedIn: "root" })
@@ -100,14 +102,10 @@ export class NativeCapabilityService {
       window.location.assign(url);
       return;
     }
-    if (Capacitor.getPlatform() === "ios") {
-      // Route iOS OIDC authorization through the native pinned WKWebView.
-      // Safari or Capacitor Browser cannot apply the app's SPKI pin to every
-      // redirect.
-      await this.platform.openPinnedAuthBrowser(url);
-      return;
-    }
-    await Browser.open({ url, presentationStyle: "popover", toolbarColor: "#195c43" });
+    // Chrome Custom Tabs follow Identity Docker Location headers
+    // (identityservice:5003) which the emulator cannot resolve. The native
+    // auth WebView rewrites those hosts onto the public gateway origin.
+    await this.platform.openPinnedAuthBrowser(url);
   }
 
   consumeAuthCallbackUrl(): string | null {

@@ -294,20 +294,20 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       }
       .grid {
         display: grid;
-        gap: var(--space-4);
-        margin-top: var(--space-4);
+        gap: var(--space-lg);
+        margin-top: var(--space-lg);
       }
       .two-col {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       .form-grid {
         display: grid;
-        gap: var(--space-3);
+        gap: var(--space-md);
       }
       .actions {
         display: flex;
         flex-wrap: wrap;
-        gap: var(--space-2);
+        gap: var(--space-sm);
       }
       .notice,
       .muted {
@@ -315,7 +315,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         font-size: var(--font-size-caption);
       }
       .notice {
-        padding: 12px;
+        padding: var(--space-md);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-muted);
@@ -331,13 +331,13 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       th,
       td {
         text-align: left;
-        padding: 8px;
+        padding: var(--space-sm);
         border-bottom: 1px solid var(--border-subtle);
         white-space: nowrap;
       }
       .mono {
         font-family: var(--font-mono);
-        font-size: 11px;
+        font-size: var(--font-size-nav);
       }
       .error {
         color: var(--color-danger);

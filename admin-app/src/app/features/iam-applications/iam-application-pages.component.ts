@@ -53,12 +53,12 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         icon="refresh"
         [label]="'admin.refresh' | hhTranslate"
     /></hh-toolbar>
-    <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
     <hh-data-table
       [columns]="columns"
       [rows]="rows"
       [loading]="loading"
-      [empty]="!loading && !rows.length"
+      [error]="error"
+      [empty]="!loading && !error && !rows.length"
     ></hh-data-table
   ></hh-page-layout>`,
 })
@@ -141,12 +141,12 @@ export class IamApiAudiencesPageComponent implements OnInit {
         icon="refresh"
         [label]="'admin.refresh' | hhTranslate"
     /></hh-toolbar>
-    <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
     <hh-data-table
       [columns]="columns"
       [rows]="rows"
       [loading]="loading"
-      [empty]="!loading && !rows.length"
+      [error]="error"
+      [empty]="!loading && !error && !rows.length"
     ></hh-data-table
   ></hh-page-layout>`,
 })
@@ -228,12 +228,12 @@ export class IamTrustedIssuersPageComponent implements OnInit {
         icon="refresh"
         [label]="'admin.refresh' | hhTranslate"
     /></hh-toolbar>
-    <div *ngIf="error" class="hh-state hh-state--error">{{ error }}</div>
     <hh-data-table
       [columns]="columns"
       [rows]="rows"
       [loading]="loading"
-      [empty]="!loading && !rows.length"
+      [error]="error"
+      [empty]="!loading && !error && !rows.length"
     ></hh-data-table
   ></hh-page-layout>`,
 })

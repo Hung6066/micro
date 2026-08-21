@@ -9,12 +9,9 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import {
-  HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
-  HisHopeDataTableComponent,
-  HisHopePageHeaderComponent,
-  HisHopePageLayoutComponent,
-  HisHopeToolbarComponent,
+  HisHopeResourceListPageComponent,
+  HisHopeResourceRowActionsDirective,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -36,86 +33,56 @@ import { GroupEditDialogComponent } from "./group-edit-dialog.component";
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
-    HisHopeDataTableCellDirective,
-    HisHopeDataTableComponent,
     HisHopeActionButtonComponent,
-    HisHopePageHeaderComponent,
-    HisHopePageLayoutComponent,
-    HisHopeToolbarComponent,
+    HisHopeResourceListPageComponent,
+    HisHopeResourceRowActionsDirective,
     HisHopeTranslatePipe,
   ],
   template: `
-    <hh-page-layout>
-      <hh-page-header
-        hhPageHeader
-        [title]="'admin.groups' | hhTranslate"
-        [subtitle]="
-          'admin.groupsSubtitle'
-            | hhTranslate: 'Manage identity groups and memberships.'
-        "
-      />
-      <hh-toolbar hhPageToolbar [label]="'admin.groups' | hhTranslate">
-        <span hhToolbarTitle
-          >{{ groups.length }} {{ "admin.groups" | hhTranslate }}</span
-        >
+    <hh-resource-list-page
+      title="admin.groups"
+      subtitle="admin.groupsSubtitle"
+      subtitleFallback="Manage identity groups and memberships."
+      refreshLabel="common.refresh"
+      refreshLabelFallback="Refresh"
+      [count]="groups.length"
+      [canWrite]="canWrite"
+      [columns]="columns"
+      [rows]="rows"
+      [loading]="loading"
+      [error]="error"
+      (create)="openCreateDialog()"
+      (refresh)="load()"
+    >
+      <ng-template hhResourceRowActions let-row>
         <hh-action-button
           *ngIf="canWrite"
-          hh-toolbar-actions
-          kind="primary"
-          mode="label"
-          icon="add"
-          [label]="'admin.create' | hhTranslate"
-          (pressed)="openCreateDialog()"
+          kind="row"
+          mode="icon-only"
+          icon="edit"
+          [label]="'admin.edit' | hhTranslate"
+          (pressed)="edit(row)"
         />
         <hh-action-button
-          hh-toolbar-actions
-          kind="secondary"
-          mode="label"
-          icon="refresh"
-          [label]="'common.refresh' | hhTranslate: 'Refresh'"
-          (pressed)="load()"
+          *ngIf="canWrite && row['isActive']"
+          kind="danger"
+          mode="icon-only"
+          icon="toggle_off"
+          [label]="'admin.deactivate' | hhTranslate"
+          (pressed)="toggle(row)"
+          [disabled]="busy"
         />
-      </hh-toolbar>
-      <div *ngIf="error" class="hh-state hh-state--error" role="alert">
-        {{ error }}
-      </div>
-      <hh-data-table
-        [label]="'admin.groups' | hhTranslate"
-        [columns]="columns"
-        [rows]="rows"
-        [loading]="loading"
-        [empty]="!loading && !error && !rows.length"
-      >
-        <ng-template hhDataTableCell="actions" let-row>
-          <hh-action-button
-            *ngIf="canWrite"
-            kind="row"
-            mode="icon-only"
-            icon="edit"
-            [label]="'admin.edit' | hhTranslate"
-            (pressed)="edit(row)"
-          />
-          <hh-action-button
-            *ngIf="canWrite && row['isActive']"
-            kind="danger"
-            mode="icon-only"
-            icon="toggle_off"
-            [label]="'admin.deactivate' | hhTranslate"
-            (pressed)="toggle(row)"
-            [disabled]="busy"
-          />
-          <hh-action-button
-            *ngIf="canWrite && !row['isActive']"
-            kind="row"
-            mode="icon-only"
-            icon="toggle_on"
-            [label]="'admin.activate' | hhTranslate"
-            (pressed)="toggle(row)"
-            [disabled]="busy"
-          />
-        </ng-template>
-      </hh-data-table>
-    </hh-page-layout>
+        <hh-action-button
+          *ngIf="canWrite && !row['isActive']"
+          kind="row"
+          mode="icon-only"
+          icon="toggle_on"
+          [label]="'admin.activate' | hhTranslate"
+          (pressed)="toggle(row)"
+          [disabled]="busy"
+        />
+      </ng-template>
+    </hh-resource-list-page>
   `,
 })
 export class GroupsPageComponent implements OnInit {

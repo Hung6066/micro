@@ -23,23 +23,23 @@ import { HisHopeToastService } from './his-hope-toast.service';
   `,
   styles: [`
     :host { display: contents; }
-    .hh-toast-outlet { position: fixed; top: 76px; right: 24px; z-index: 1100; display: grid; gap: 10px; width: min(380px, calc(100vw - 32px)); pointer-events: none; }
-    .hh-toast { display: flex; align-items: flex-start; gap: 10px; padding: 12px 12px 12px 14px; border: 1px solid var(--border-default); border-left: 3px solid var(--color-info); border-radius: var(--radius-card); background: var(--surface-white); color: var(--text-primary); box-shadow: 0 8px 24px rgba(15, 35, 25, .14); pointer-events: auto; }
+    .hh-toast-outlet { position: fixed; top: var(--toast-offset-top); right: var(--space-2xl); z-index: 1100; display: grid; gap: var(--space-md); width: min(var(--max-width-toast-stack), calc(100vw - var(--space-3xl))); pointer-events: none; }
+    .hh-toast { display: flex; align-items: flex-start; gap: var(--space-md); padding: var(--space-md) var(--space-md) var(--space-md) var(--space-lg); border: 1px solid var(--border-default); border-left: var(--focus-ring-width-strong) solid var(--color-info); border-radius: var(--radius-card); background: var(--surface-white); color: var(--text-primary); box-shadow: var(--shadow-toast); pointer-events: auto; }
     .hh-toast--success { border-left-color: var(--color-success); }
     .hh-toast--warning { border-left-color: var(--color-warning); }
     .hh-toast--error { border-left-color: var(--color-danger); }
-    .hh-toast__icon { color: var(--color-info); font-size: 20px; }
+    .hh-toast__icon { color: var(--color-info); font-size: var(--font-size-section); }
     .hh-toast--success .hh-toast__icon { color: var(--color-success); }
     .hh-toast--warning .hh-toast__icon { color: var(--color-warning); }
     .hh-toast--error .hh-toast__icon { color: var(--color-danger); }
     .hh-toast__body { flex: 1; min-width: 0; }
     .hh-toast__body p, .hh-toast__body small { display: block; margin: 0; }
-    .hh-toast__body p { font-size: var(--font-size-body); font-weight: 600; line-height: 1.4; }
-    .hh-toast__body small { margin-top: 2px; color: var(--text-secondary); font-size: var(--font-size-caption); line-height: 1.4; }
-    .hh-toast__close { display: grid; place-items: center; width: 32px; height: 32px; margin: -4px -4px 0 0; border: 0; border-radius: var(--radius-button); color: var(--text-secondary); background: transparent; cursor: pointer; }
+    .hh-toast__body p { font-size: var(--font-size-body); font-weight: var(--font-weight-semibold); line-height: 1.4; }
+    .hh-toast__body small { margin-top: var(--space-hairline); color: var(--text-secondary); font-size: var(--font-size-caption); line-height: 1.4; }
+    .hh-toast__close { display: grid; place-items: center; width: var(--space-3xl); height: var(--space-3xl); margin: -var(--space-2xs) -var(--space-2xs) 0 0; border: 0; border-radius: var(--radius-button); color: var(--text-secondary); background: transparent; cursor: pointer; }
     .hh-toast__close:hover { background: var(--surface-muted); }
-    .hh-toast__close .material-icons { font-size: 18px; }
-    @media (max-width: 768px) { .hh-toast-outlet { top: 16px; right: 16px; } }
+    .hh-toast__close .material-icons { font-size: var(--font-size-icon-sm); }
+    @media (max-width: 768px) { .hh-toast-outlet { top: var(--size-timeline-rail); right: var(--size-timeline-rail); } }
   `],
 })
 export class HisHopeToastComponent {

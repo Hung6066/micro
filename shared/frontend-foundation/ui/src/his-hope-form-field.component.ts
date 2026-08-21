@@ -20,7 +20,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
   `,
   styles: [`
     :host { display: block; min-width: 0; }
-    .hh-form-field { display: grid; gap: 6px; min-width: 0; }
+    .hh-form-field { display: grid; gap: var(--space-xs); min-width: 0; }
     label { color: var(--text-primary); font-size: var(--font-size-label); font-weight: var(--font-weight-semibold, 600); line-height: 1.4; }
     label span { color: var(--color-danger); }
     .hh-form-field__control { min-width: 0; }

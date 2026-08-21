@@ -115,11 +115,11 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 8px;
+        gap: var(--space-sm);
         min-height: var(--control-height);
         box-sizing: border-box;
         width: 100%;
-        padding: 0 12px;
+        padding: 0 var(--space-md);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-white);
@@ -129,7 +129,7 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
       }
       :host(:focus-visible) {
         border-color: var(--color-primary);
-        outline: 3px solid
+        outline: var(--focus-ring-width-strong) solid
           color-mix(in srgb, var(--color-primary) 20%, transparent);
       }
       :host([aria-disabled="true"]) {
@@ -141,14 +141,14 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
       }
       .hh-select__caret {
         color: var(--text-secondary);
-        font-size: 20px;
+        font-size: var(--font-size-section);
       }
       .hh-select__panel {
         margin: 0;
         min-width: 180px;
         max-height: min(320px, 60vh);
         overflow: auto;
-        padding: 4px;
+        padding: var(--space-2xs);
         list-style: none;
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
@@ -156,7 +156,7 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
         box-shadow: var(--shadow-dropdown);
       }
       .hh-select__option {
-        padding: 8px 10px;
+        padding: var(--space-sm) var(--space-md);
         border-radius: var(--radius-card);
         cursor: pointer;
       }
@@ -172,7 +172,7 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
         cursor: not-allowed;
       }
       .hh-select__empty {
-        padding: 10px;
+        padding: var(--space-md);
         color: var(--text-secondary);
         font-size: var(--font-size-caption);
         text-align: center;

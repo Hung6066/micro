@@ -1,4 +1,12 @@
-import { ChangeDetectorRef, Component, OnInit, inject } from "@angular/core";
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  OnInit,
+  effect,
+  inject,
+} from "@angular/core";
 import { Router, RouterLink } from "@angular/router";
 import {
   HisHopeI18nService,
@@ -14,11 +22,9 @@ import {
   HisHopeStateComponent,
   HisHopeToolbarComponent,
 } from "@his-hope/frontend-foundation/ui";
-import { catchError, finalize, of } from "rxjs";
-import {
-  MobileAdminApiService,
-  MobileDashboardStats,
-} from "../core/admin-api.service";
+import { DashboardStats } from "../core/contracts/mobile.contracts";
+import { DashboardApiService } from "../core/services/dashboard-api.service";
+import { MobileResourceStateController } from "../core/services/mobile-resource-state.controller";
 
 @Component({
   standalone: true,
@@ -34,6 +40,7 @@ import {
     HisHopeToolbarComponent,
     HisHopeTranslatePipe,
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="mobile-page">
       <hh-toolbar [label]="'mobile.controls' | hhTranslate"
@@ -42,7 +49,7 @@ import {
           hh-toolbar-actions
           class="hh-icon-button"
           type="button"
-          (click)="load()"
+          (click)="loadDashboardStats()"
           [attr.aria-label]="'mobile.refreshDashboard' | hhTranslate"
         >
           <hh-mobile-icon name="refresh" /></button
@@ -57,7 +64,7 @@ import {
           ><button
             class="hh-button hh-button--secondary"
             type="button"
-            (click)="load()"
+            (click)="loadDashboardStats()"
           >
             {{ "common.retry" | hhTranslate }}
           </button></hh-state
@@ -93,28 +100,32 @@ import {
             [attr.aria-label]="'mobile.administrationSummary' | hhTranslate"
           >
             <a class="stat-card" routerLink="/admin/clients"
-              ><hh-mobile-icon name="clients" size="medium" /><strong>{{
-                stats.totalClients
-              }}</strong
-              ><span>{{ "admin.clients" | hhTranslate }}</span></a
+              ><hh-mobile-icon name="clients" size="medium" />
+              <div class="stat-card__metric"
+                ><strong>{{ stats.totalClients }}</strong
+                ><span>{{ "admin.clients" | hhTranslate }}</span></div
+              ></a
             >
             <a class="stat-card" routerLink="/admin/users"
-              ><hh-mobile-icon name="users" size="medium" /><strong>{{
-                stats.totalUsers
-              }}</strong
-              ><span>{{ "admin.users" | hhTranslate }}</span></a
+              ><hh-mobile-icon name="users" size="medium" />
+              <div class="stat-card__metric"
+                ><strong>{{ stats.totalUsers }}</strong
+                ><span>{{ "admin.users" | hhTranslate }}</span></div
+              ></a
             >
             <a class="stat-card" routerLink="/admin/roles"
-              ><hh-mobile-icon name="roles" size="medium" /><strong>{{
-                stats.totalRoles
-              }}</strong
-              ><span>{{ "admin.roles" | hhTranslate }}</span></a
+              ><hh-mobile-icon name="roles" size="medium" />
+              <div class="stat-card__metric"
+                ><strong>{{ stats.totalRoles }}</strong
+                ><span>{{ "admin.roles" | hhTranslate }}</span></div
+              ></a
             >
             <a class="stat-card" routerLink="/admin/consents"
-              ><hh-mobile-icon name="consents" size="medium" /><strong>{{
-                stats.totalConsents
-              }}</strong
-              ><span>{{ "admin.consents" | hhTranslate }}</span></a
+              ><hh-mobile-icon name="consents" size="medium" />
+              <div class="stat-card__metric"
+                ><strong>{{ stats.totalConsents }}</strong
+                ><span>{{ "admin.consents" | hhTranslate }}</span></div
+              ></a
             >
           </div>
           <section
@@ -208,14 +219,14 @@ import {
       }
       .mobile-page {
         display: grid;
-        gap: 14px;
+        gap: var(--size-timeline-dot);
       }
       .welcome-panel {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 12px;
-        padding: 14px 16px;
+        gap: var(--space-md);
+        padding: var(--font-size-body) var(--space-lg);
         border: 1px solid
           color-mix(in srgb, var(--color-primary) 20%, var(--border-default));
         border-radius: var(--radius-card);
@@ -232,48 +243,47 @@ import {
       .welcome-panel__copy {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: var(--space-inset);
         min-width: 0;
       }
       .welcome-panel h1 {
-        margin: 3px 0 4px;
-        font-size: 22px;
+        margin: var(--space-xxs) 0 var(--space-2xs);
+        font-size: var(--font-size-headline);
         letter-spacing: -0.01em;
       }
       .welcome-panel p:not(.eyebrow) {
         max-width: 34ch;
         margin: 0;
         color: var(--text-secondary);
-        font-size: 13px;
+        font-size: var(--font-size-label);
         line-height: 1.35;
       }
       .eyebrow {
         margin: 0;
         color: var(--color-primary);
-        font-size: 10px;
+        font-size: var(--font-size-overline);
         font-weight: var(--font-weight-semibold);
         letter-spacing: 0.08em;
       }
       .welcome-icon {
         flex: 0 0 44px;
-        width: 44px;
-        height: 44px;
-        border-radius: 14px;
+        width: var(--touch-target);
+        height: var(--touch-target);
+        border-radius: var(--radius-feature);
         background: var(--surface-white);
         color: var(--color-primary);
-        box-shadow: 0 6px 18px
-          color-mix(in srgb, var(--color-primary) 14%, transparent);
+        box-shadow: var(--shadow-welcome-icon);
       }
       .stats-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 10px;
+        gap: var(--space-inset);
       }
       .stat-card {
         display: grid;
-        gap: 6px;
+        gap: var(--space-xs);
         min-height: 104px;
-        padding: 12px;
+        padding: var(--space-md);
         box-sizing: border-box;
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
@@ -289,27 +299,36 @@ import {
         transform: scale(0.98);
       }
       .stat-card hh-mobile-icon {
-        width: 32px;
-        height: 32px;
-        padding: 7px;
+        width: var(--space-3xl);
+        height: var(--space-3xl);
+        padding: var(--space-compact);
         box-sizing: border-box;
-        border-radius: 10px;
+        border-radius: var(--radius-chip);
         background: var(--color-primary-soft);
         color: var(--color-primary);
       }
       .stat-card strong {
-        font-size: 24px;
+        font-size: var(--font-size-title);
         line-height: 1;
       }
-      .stat-card span:last-child {
+      .stat-card__metric {
+        display: flex;
+        align-items: baseline;
+        gap: var(--space-xs);
+        min-width: 0;
+      }
+      .stat-card__metric span {
         color: var(--text-secondary);
-        font-size: 13px;
+        font-size: var(--font-size-label);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .quick-actions,
       .security-panel {
         display: grid;
         gap: 0;
-        padding: 14px;
+        padding: var(--size-timeline-dot);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-white);
@@ -318,57 +337,33 @@ import {
         display: flex;
         align-items: baseline;
         justify-content: space-between;
-        gap: 12px;
-        margin-bottom: 4px;
+        gap: var(--space-md);
+        margin-bottom: var(--space-2xs);
       }
       h2 {
         margin: 0;
-        font-size: 17px;
+        font-size: var(--font-size-subhead);
       }
       .section-heading span {
         color: var(--text-secondary);
-        font-size: 11px;
-      }
-      .quick-actions a {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        min-height: 60px;
-        border-bottom: 1px solid var(--border-light);
-        color: var(--text-primary);
-        text-decoration: none;
-      }
-      .quick-actions a:last-child {
-        border-bottom: 0;
+        font-size: var(--font-size-nav);
       }
       .action-icon {
-        width: 32px !important;
-        height: 32px !important;
-        padding: 7px;
+        width: var(--space-3xl) !important;
+        height: var(--space-3xl) !important;
+        padding: var(--space-compact);
         box-sizing: border-box;
-        border-radius: 10px;
+        border-radius: var(--radius-chip);
         background: var(--color-primary-soft);
         color: var(--color-primary);
       }
-      .action-copy {
-        display: grid;
-        gap: 3px;
-        flex: 1;
-      }
-      .action-copy strong {
-        font-size: 14px;
-      }
-      .action-copy small {
-        color: var(--text-secondary);
-        font-size: 12px;
-      }
       .arrow {
         color: var(--text-secondary);
-        font-size: 20px;
+        font-size: var(--font-size-section);
       }
       .security-link {
         display: inline-block;
-        margin-top: 8px;
+        margin-top: var(--space-sm);
         color: var(--color-primary);
         font-weight: var(--font-weight-semibold);
       }
@@ -376,43 +371,61 @@ import {
   ],
 })
 export class MobileDashboardComponent implements OnInit {
-  private readonly api = inject(MobileAdminApiService);
+  private readonly api = inject(DashboardApiService);
   private readonly router = inject(Router);
-  private readonly changeDetector = inject(ChangeDetectorRef);
+  private readonly cdr = inject(ChangeDetectorRef);
   private readonly i18n = inject(HisHopeI18nService);
-  stats: MobileDashboardStats | null = null;
-  loading = false;
-  error = "";
+  private readonly destroyRef = inject(DestroyRef);
+
+  stats: DashboardStats | null = null;
   dashboardView = "overview";
-  readonly dashboardViews = [
-    { value: "overview", label: "Overview" },
-    { value: "security", label: "Security" },
-  ];
-  ngOnInit(): void {
-    this.load();
+  dashboardViews: Array<{ value: string; label: string }> = [];
+
+  readonly state = new MobileResourceStateController<DashboardStats>({
+    destroyRef: this.destroyRef,
+    i18n: this.i18n,
+    loadErrorMessageKey: "mobile.dashboardLoadFailed",
+    loadErrorFallback: "Unable to load dashboard.",
+  });
+
+  get loading(): boolean {
+    return this.state.loading;
   }
+
+  get error(): string {
+    return this.state.error;
+  }
+
+  constructor() {
+    effect(() => {
+      this.stats = this.state.resource.data();
+      this.cdr.markForCheck();
+    });
+    effect(() => {
+      this.i18n.locale();
+      this.dashboardViews = [
+        {
+          value: "overview",
+          label: this.i18n.t("mobile.overview", "Overview"),
+        },
+        {
+          value: "security",
+          label: this.i18n.t("mobile.securityPosture", "Security"),
+        },
+      ];
+      this.cdr.markForCheck();
+    });
+  }
+
+  ngOnInit(): void {
+    this.loadDashboardStats();
+  }
+
   navigate(url: string): void {
     void this.router.navigateByUrl(url);
   }
-  load(): void {
-    this.loading = true;
-    this.error = "";
-    this.changeDetector.detectChanges();
-    this.api
-      .getDashboard()
-      .pipe(
-        finalize(() => {
-          this.loading = false;
-          this.changeDetector.detectChanges();
-        }),
-        catchError(() => {
-          this.error = this.i18n.t("mobile.dashboardLoadFailed");
-          return of(null);
-        }),
-      )
-      .subscribe((value) => {
-        this.stats = value;
-        this.changeDetector.detectChanges();
-      });
+
+  loadDashboardStats(): void {
+    this.state.load(this.api.getDashboardStats());
   }
 }

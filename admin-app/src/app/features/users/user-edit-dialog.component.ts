@@ -1,6 +1,5 @@
 import { Component, inject } from "@angular/core";
-import { FormGroup, ReactiveFormsModule } from "@angular/forms";
-import { MatFormFieldModule } from "@angular/material/form-field";
+import { FormGroup } from "@angular/forms";
 import { User } from "../../core/contracts/admin.contracts";
 import { UsersApiService } from "../../core/services/users-api.service";
 import {
@@ -11,133 +10,69 @@ import {
 } from "@his-hope/frontend-foundation/forms";
 import {
   HIS_HOPE_DIALOG_DATA,
-  HisHopeCreateDialogShellComponent,
   HisHopeDialogRef,
-  HisHopeFormLayoutComponent,
-  HisHopeFormSectionComponent,
+  HisHopeEntityDialogComponent,
   HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
-import {
-  HisHopeI18nService,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation/i18n";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import { catchError, of } from "rxjs";
 
-import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-user-edit-dialog",
   standalone: true,
-  imports: [
-    HisHopeActionButtonComponent,
-    HisHopeCreateDialogShellComponent,
-    HisHopeFormLayoutComponent,
-    HisHopeFormSectionComponent,
-    HisHopeTranslatePipe,
-    ReactiveFormsModule,
-    HisHopeMaterialFormFieldComponent,
-  ],
+  imports: [HisHopeEntityDialogComponent, HisHopeMaterialFormFieldComponent],
   template: `
-    <hh-create-dialog-shell
-      [title]="
-        (isEdit ? 'admin.editUser' : 'admin.createUser')
-          | hhTranslate: (isEdit ? 'Edit user' : 'Create user')
-      "
+    <hh-entity-dialog
+      [title]="isEdit ? 'admin.editUser' : 'admin.createUser'"
+      [titleFallback]="isEdit ? 'Edit user' : 'Create user'"
+      sectionTitle="admin.basicInformation"
+      sectionTitleFallback="Basic information"
+      [sectionSpan]="2"
+      [formGroup]="formGroup"
+      [saving]="saving"
+      (save)="save(formGroup.getRawValue())"
+      (cancel)="dialogRef.close()"
     >
-      <div hhCreateDialogContent>
-        <form [formGroup]="formGroup" (ngSubmit)="submitForm()">
-          <hh-form-layout>
-            <hh-form-section
-              [title]="'admin.basicInformation' | hhTranslate"
-              [span]="2"
-            >
-              <div class="form-grid">
-                <hh-mat-form-field
-                  [control]="formGroup.controls['username']"
-                  [label]="fields[0].label"
-                />
-                <hh-mat-form-field
-                  [control]="formGroup.controls['email']"
-                  [label]="fields[1].label"
-                  type="email"
-                />
-                <hh-mat-form-field
-                  [control]="formGroup.controls['firstName']"
-                  [label]="fields[2].label"
-                />
-                <hh-mat-form-field
-                  [control]="formGroup.controls['lastName']"
-                  [label]="fields[3].label"
-                />
-                <hh-mat-form-field
-                  [control]="formGroup.controls['phoneNumber']"
-                  [label]="fields[4].label"
-                />
-                <hh-mat-form-field
-                  [control]="formGroup.controls['password']"
-                  [label]="fields[5].label"
-                  type="password"
-                />
-                <hh-mat-form-field
-                  [control]="formGroup.controls['role']"
-                  [label]="fields[6].label"
-                />
-              </div>
-            </hh-form-section>
-          </hh-form-layout>
-        </form>
-      </div>
-      <div hhCreateDialogFooter>
-        <hh-action-button
-          (pressed)="dialogRef.close()"
-          kind="secondary"
-          icon="close"
-          [label]="'admin.cancel' | hhTranslate"
+      <div class="form-grid">
+        <hh-mat-form-field
+          [control]="formGroup.controls['username']"
+          [label]="fields[0].label"
         />
-        <hh-action-button
-          [disabled]="saving"
-          (pressed)="submitForm()"
-          kind="primary"
-          icon="save"
-          [label]="
-            saving
-              ? ('admin.saving' | hhTranslate)
-              : ('admin.save' | hhTranslate)
-          "
+        <hh-mat-form-field
+          [control]="formGroup.controls['email']"
+          [label]="fields[1].label"
+          type="email"
+        />
+        <hh-mat-form-field
+          [control]="formGroup.controls['firstName']"
+          [label]="fields[2].label"
+        />
+        <hh-mat-form-field
+          [control]="formGroup.controls['lastName']"
+          [label]="fields[3].label"
+        />
+        <hh-mat-form-field
+          [control]="formGroup.controls['phoneNumber']"
+          [label]="fields[4].label"
+        />
+        <hh-mat-form-field
+          [control]="formGroup.controls['password']"
+          [label]="fields[5].label"
+          type="password"
+        />
+        <hh-mat-form-field
+          [control]="formGroup.controls['role']"
+          [label]="fields[6].label"
         />
       </div>
-    </hh-create-dialog-shell>
+    </hh-entity-dialog>
   `,
   styles: [
     `
-      .hh-button {
-        min-height: var(--button-height);
-        padding: 0 16px;
-        border: 1px solid transparent;
-        border-radius: var(--radius-button);
-        font: inherit;
-        font-weight: var(--button-font-weight);
-        cursor: pointer;
-      }
-      .hh-button--primary {
-        color: var(--button-primary-text);
-        background: var(--button-primary-bg);
-      }
-      .hh-button--secondary {
-        color: var(--button-secondary-text);
-        border-color: var(--button-secondary-border);
-        background: var(--button-secondary-bg);
-      }
-      .hh-button:disabled {
-        cursor: not-allowed;
-        opacity: 0.65;
-      }
       .form-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 16px;
-      }
-      mat-form-field {
-        width: 100%;
+        gap: var(--space-lg);
       }
       @media (max-width: 720px) {
         .form-grid {
@@ -224,12 +159,6 @@ export class UserEditDialogComponent {
       return value.length > 0 && value.length < 12 ? { minlength: true } : null;
     });
     this.formGroup.get("password")?.updateValueAndValidity();
-  }
-
-  submitForm(): void {
-    this.formGroup.markAllAsTouched();
-    if (this.formGroup.valid && !this.saving)
-      this.save(this.formGroup.getRawValue());
   }
 
   save(values: Record<string, unknown>): void {

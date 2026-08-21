@@ -28,12 +28,15 @@ import { HisHopeGlobalErrorHandler } from "@his-hope/frontend-foundation";
 import { routes } from "./app.routes";
 import { authInterceptor } from "./core/auth.interceptor";
 import { mobileNativeHttpInterceptor } from "./core/mobile-native-http.interceptor";
+import { mobileSessionInterceptor } from "./core/mobile-session.interceptor";
 import { MobileSecureOidcStorage } from "./core/secure-oidc-storage.service";
+import { provideMobileFoundation } from "./core/mobile-foundation.providers";
 import { MobilePlatformService } from "./core/mobile-platform.service";
 import { environment } from "../environments/environment";
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    ...provideMobileFoundation(),
     {
       provide: HisHopeI18nService,
       useFactory: (document: Document, platformId: object) =>
@@ -61,6 +64,7 @@ export const appConfig: ApplicationConfig = {
         hisHopeInternationalizationInterceptor,
         authInterceptor,
         mobileNativeHttpInterceptor,
+        mobileSessionInterceptor,
         hisHopeErrorInterceptor,
       ]),
     ),

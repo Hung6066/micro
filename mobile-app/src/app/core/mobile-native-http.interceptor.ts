@@ -5,15 +5,22 @@ import { from, of, switchMap, throwError } from "rxjs";
 import { MobilePlatformService } from "./mobile-platform.service";
 import { DpopProofService } from "./dpop-proof.service";
 
+import { environment } from "../../environments/environment";
+
 // Capacitor serves the WebView from https://localhost. Android development
 // therefore cannot call the local HTTP gateway from WebView because Chromium
-// blocks mixed content. Use the native client for Android HTTP dev traffic and
-// for every pinned iOS HTTPS request. Production Android must use HTTPS too.
+// blocks mixed content. Use the native client for Android HTTP dev traffic.
+// Production Android and all iOS HTTPS API traffic use the pinned native client.
 function isNativeTransportRequest(url: string): boolean {
   try {
     const protocol = new URL(url).protocol;
-    return (Capacitor.getPlatform() === "android" && protocol === "http:") ||
-      (Capacitor.getPlatform() === "ios" && protocol === "https:");
+    const platform = Capacitor.getPlatform();
+    if (platform === "ios" && protocol === "https:") return true;
+    if (platform === "android") {
+      if (protocol === "http:") return true;
+      if (protocol === "https:" && environment.production) return true;
+    }
+    return false;
   } catch {
     return false;
   }

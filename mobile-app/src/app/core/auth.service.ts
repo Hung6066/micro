@@ -3,13 +3,16 @@ import { Injectable, inject, signal } from '@angular/core';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
 import { BehaviorSubject, Observable, catchError, filter, map, of, switchMap, take, tap } from 'rxjs';
 import { NativeCapabilityService } from './native-capability.service';
+import { DpopProofService } from './dpop-proof.service';
 import { environment } from '../../environments/environment';
+import { rewriteHisHopeNativeOidcUrl } from './mobile-runtime';
 
 @Injectable({ providedIn: 'root' })
 export class MobileAuthService {
   private readonly oidc = inject(OidcSecurityService);
   private readonly http = inject(HttpClient);
   private readonly native = inject(NativeCapabilityService);
+  private readonly dpop = inject(DpopProofService);
   private readonly mfaStatusUrl = environment.adminApiUrl.replace(/\/admin$/, '/auth/mfa/status');
   readonly isAuthenticated$ = this.oidc.isAuthenticated$.pipe(map(state => state.isAuthenticated));
   readonly userData$ = this.oidc.userData$;
@@ -90,7 +93,11 @@ export class MobileAuthService {
       if (!discovery) return;
       try {
         this.oidc.authorize(undefined, {
-          urlHandler: url => { void this.native.openAuthBrowser(url); },
+          urlHandler: url => {
+            void this.native.openAuthBrowser(
+              rewriteHisHopeNativeOidcUrl(url, environment.oidc.authority),
+            );
+          },
         });
       } catch (error) {
         this.loginInProgress.set(false);
@@ -100,9 +107,14 @@ export class MobileAuthService {
   }
   async unlockWithBiometric(): Promise<boolean> { return this.native.authenticateBiometric(); }
   logout(): void {
+    void this.dpop.clear();
     void this.native.secureRemove('his-hope.mobile.session');
     this.oidc.logoff(undefined, {
-      urlHandler: url => { void this.native.openAuthBrowser(url); },
+      urlHandler: url => {
+        void this.native.openAuthBrowser(
+          rewriteHisHopeNativeOidcUrl(url, environment.oidc.authority),
+        );
+      },
     }).subscribe();
   }
 

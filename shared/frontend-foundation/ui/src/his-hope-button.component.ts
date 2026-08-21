@@ -16,17 +16,17 @@ export type HisHopeButtonSize = 'small' | 'medium' | 'large';
   `,
   styles: [`
     :host { display: inline-block; }
-    button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 16px; border: 1px solid transparent; border-radius: var(--radius-button); font: inherit; font-weight: 600; cursor: pointer; transition: background-color .15s ease, border-color .15s ease, opacity .15s ease; }
+    button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-sm); min-height: var(--control-height); padding: 0 var(--space-lg); border: 1px solid transparent; border-radius: var(--radius-button); font: inherit; font-weight: var(--font-weight-semibold); cursor: pointer; transition: background-color .15s ease, border-color .15s ease, opacity .15s ease; }
     button:disabled { cursor: not-allowed; opacity: .62; }
-    .hh-button--small { min-height: 32px; padding: 0 12px; font-size: var(--font-size-caption); }
-    .hh-button--large { min-height: 48px; padding: 0 20px; }
-    .hh-button--primary { background: var(--color-primary); color: var(--text-on-primary, #fff); }
+    .hh-button--small { min-height: var(--space-3xl); padding: 0 var(--space-md); font-size: var(--font-size-caption); }
+    .hh-button--large { min-height: var(--space-4xl); padding: 0 var(--space-xl); }
+    .hh-button--primary { background: var(--color-primary); color: var(--color-on-primary); }
     .hh-button--secondary { border-color: var(--border-default); background: var(--surface-white); color: var(--text-primary); }
-    .hh-button--danger { background: var(--color-danger); color: #fff; }
+    .hh-button--danger { background: var(--color-danger); color: var(--color-on-danger); }
     .hh-button--ghost { background: transparent; color: var(--text-primary); }
-    .hh-button--icon-only { width: 40px; padding: 0; }
+    .hh-button--icon-only { width: var(--button-height); padding: 0; }
     .hh-button__content--hidden { visibility: hidden; }
-    .hh-button__spinner { width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: hh-button-spin .7s linear infinite; position: absolute; }
+    .hh-button__spinner { width: var(--size-timeline-rail); height: var(--size-timeline-rail); border: var(--focus-ring-width) solid currentColor; border-right-color: transparent; border-radius: var(--radius-full); animation: hh-button-spin .7s linear infinite; position: absolute; }
     @keyframes hh-button-spin { to { transform: rotate(360deg); } }
   `],
 })

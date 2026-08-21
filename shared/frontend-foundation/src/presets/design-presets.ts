@@ -1,3 +1,8 @@
+import {
+  DEFAULT_HIS_HOPE_TYPOGRAPHY_SCALE,
+  HisHopeTypographyScale,
+} from "../contracts/his-hope-typography.contract";
+
 export type HisHopeDesignPresetId =
   | "linear"
   | "intercom"
@@ -44,10 +49,10 @@ export interface HisHopeDesignPreset {
     body: string;
     display: string;
     mono: string;
-    bodySize: string;
-    titleSize: string;
+    scale: HisHopeTypographyScale;
     weight: string;
     lineHeight: string;
+    lineHeightTight: string;
   }>;
   readonly layout: Readonly<{
     density: "compact" | "comfortable" | "spacious";
@@ -65,9 +70,23 @@ export interface HisHopeDesignPreset {
   }>;
 }
 
+type PresetTypographyOverrides = {
+  body?: string;
+  display?: string;
+  mono?: string;
+  scale?: Partial<HisHopeTypographyScale>;
+  weight?: string;
+  lineHeight?: string;
+  lineHeightTight?: string;
+  /** Legacy preset field mapped to `scale.body`. */
+  bodySize?: string;
+  /** Legacy preset field mapped to `scale.title`. */
+  titleSize?: string;
+};
+
 type PresetOverrides = {
   tokens?: Partial<HisHopePresetTokens>;
-  typography?: Partial<HisHopeDesignPreset["typography"]>;
+  typography?: PresetTypographyOverrides;
   layout?: Partial<HisHopeDesignPreset["layout"]>;
   components?: Partial<HisHopeDesignPreset["components"]>;
 };
@@ -99,16 +118,34 @@ const base = (
     header: "#123B29",
     ...overrides.tokens,
   },
-  typography: {
-    body: "HisHope Inter, Inter, ui-sans-serif, system-ui, sans-serif",
-    display: "HisHope Inter, Inter, ui-sans-serif, system-ui, sans-serif",
-    mono: 'HisHope JetBrains Mono, "Cascadia Mono", Consolas, monospace',
-    bodySize: "14px",
-    titleSize: "24px",
-    weight: "400",
-    lineHeight: "1.5",
-    ...overrides.typography,
-  },
+  typography: (() => {
+    const typography = overrides.typography ?? {};
+    const {
+      bodySize,
+      titleSize,
+      scale: scaleOverrides,
+      body = "HisHope Inter, Inter, ui-sans-serif, system-ui, sans-serif",
+      display = "HisHope Inter, Inter, ui-sans-serif, system-ui, sans-serif",
+      mono = 'HisHope JetBrains Mono, "Cascadia Mono", Consolas, monospace',
+      weight = "400",
+      lineHeight = "1.5",
+      lineHeightTight = "1.25",
+    } = typography;
+    return {
+      body,
+      display,
+      mono,
+      scale: {
+        ...DEFAULT_HIS_HOPE_TYPOGRAPHY_SCALE,
+        ...(bodySize ? { body: bodySize } : {}),
+        ...(titleSize ? { title: titleSize } : {}),
+        ...scaleOverrides,
+      },
+      weight,
+      lineHeight,
+      lineHeightTight,
+    };
+  })(),
   layout: {
     density: "comfortable",
     sidebarWidth: "264px",

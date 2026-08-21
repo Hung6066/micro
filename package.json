@@ -11,6 +11,8 @@
   ],
   "scripts": {
     "build:shared": "npm --workspace @his-hope/frontend-foundation run build",
+    "build:mobile-foundation": "npm --workspace @his-hope/mobile-foundation run build",
+    "build:shared:all": "npm run build:shared && npm run build:mobile-foundation",
     "storybook": "npm --workspace @his-hope/frontend-foundation run storybook",
     "storybook:build": "npm --workspace @his-hope/frontend-foundation run build-storybook",
     "test:visual": "npm --prefix tests/e2e run test:shared-foundation",
@@ -20,10 +22,12 @@
     "audit:admin-ui": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/audit-admin-ui-actions.ps1",
     "audit:i18n-keys": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/audit-i18n-keys.ps1 -FailOnMissing",
     "lint:design-tokens": "node scripts/validate-design-tokens.mjs",
+    "lint:hardcoded-px": "node scripts/validate-no-hardcoded-px.mjs",
     "validate:i18n": "node scripts/validate-i18n-boundary.mjs",
     "policy:gate": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-his-hope-policy.ps1 -Ci",
     "validate:mobile-release": "node scripts/validate-mobile-release.mjs",
     "prepare:mobile-release": "node scripts/prepare-mobile-release.mjs",
+    "inject:mobile-cert-pins": "node scripts/inject-mobile-cert-pins.mjs",
     "hooks:install": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-git-hooks.ps1",
     "lint:foundation": "npm --workspace @his-hope/frontend-foundation run lint",
     "lint:mobile-foundation": "npm --workspace @his-hope/mobile-foundation run lint",
@@ -33,7 +37,9 @@
     "lint:mobile": "npm --workspace @his-hope/mobile-app run lint",
     "lint": "npm run lint:foundation && npm run lint:mobile-foundation && npm run lint:admin && npm run lint:dashboard && npm run lint:clinical && npm run lint:mobile",
     "test:mobile-foundation": "npm --workspace @his-hope/mobile-foundation run test",
-    "test:e2e": "npm --prefix tests/e2e run test"
+    "test:mobile": "npm --workspace @his-hope/mobile-app run test",
+    "test:e2e": "npm --prefix tests/e2e run test",
+    "test:e2e:security": "npm --prefix tests/e2e run test:security"
   },
   "devDependencies": {
     "@angular/localize": "^21.2.19"

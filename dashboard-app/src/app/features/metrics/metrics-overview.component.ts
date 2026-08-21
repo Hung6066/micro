@@ -73,8 +73,8 @@ import { Resource } from '../../core/models/resource.model';
       .stats-grid {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 16px;
-        margin-bottom: 24px;
+        gap: var(--space-lg);
+        margin-bottom: var(--space-2xl);
       }
       @media (max-width: 900px) {
         .stats-grid {

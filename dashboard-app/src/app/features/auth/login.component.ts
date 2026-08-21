@@ -70,7 +70,7 @@ import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
         align-items: center;
         min-height: 100vh;
         background: var(--bg-warm);
-        padding: 24px;
+        padding: var(--space-2xl);
       }
       .login-card {
         max-width: 400px;
@@ -78,37 +78,37 @@ import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
       }
       .login-header {
         text-align: center;
-        margin-bottom: 32px;
+        margin-bottom: var(--space-3xl);
       }
       .logo {
-        font-size: 14px;
+        font-size: var(--font-size-body);
         font-weight: 600;
         letter-spacing: 0.08em;
         text-transform: uppercase;
         color: var(--text-secondary);
-        margin-bottom: 8px;
+        margin-bottom: var(--space-sm);
       }
       .login-header h2 {
-        font-size: 24px;
+        font-size: var(--font-size-title);
         font-weight: 600;
         color: var(--text-primary);
-        margin: 0 0 4px;
+        margin: 0 0 var(--space-2xs);
       }
       .subtitle {
-        font-size: 14px;
+        font-size: var(--font-size-body);
         color: var(--text-secondary);
         margin: 0;
       }
       .login-buttons {
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: var(--space-md);
       }
       .full-width {
         width: 100%;
       }
       .oidc-btn {
-        height: 44px;
+        height: var(--touch-target);
         min-height: var(--button-height, 40px);
         font-size: var(--button-font-size, 14px);
         font-weight: var(--button-font-weight, 600);
@@ -116,7 +116,7 @@ import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       .btn-spinner {
         display: inline-block;

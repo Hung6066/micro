@@ -141,8 +141,8 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       .summary-grid {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 16px;
-        margin-bottom: 16px;
+        gap: var(--space-lg);
+        margin-bottom: var(--space-lg);
       }
       .summary-grid article,
       .panel {
@@ -152,11 +152,11 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       }
       .summary-grid article {
         display: grid;
-        gap: 5px;
+        gap: var(--space-snug);
         padding: 18px;
       }
       .summary-grid strong {
-        font-size: 28px;
+        font-size: var(--font-size-display);
       }
       .summary-grid span {
         color: var(--text-secondary);
@@ -168,11 +168,11 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 12px;
+        gap: var(--space-md);
       }
       h2 {
         margin: 0;
-        font-size: 18px;
+        font-size: var(--font-size-icon-sm);
       }
       .failure {
         color: var(--color-danger);

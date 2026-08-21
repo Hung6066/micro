@@ -195,11 +195,13 @@ app.Use(async (context, next) =>
             {
                 var publicOrigin = $"{context.Request.Scheme}://{context.Request.Host}".TrimEnd('/');
                 context.Response.Headers.Location = location.ToString()
+                    .Replace("http://identityservice:5003", publicOrigin, StringComparison.OrdinalIgnoreCase)
                     .Replace("http://identityservice:5001", publicOrigin, StringComparison.OrdinalIgnoreCase)
                     .Replace("http://identityservice:5000", publicOrigin, StringComparison.OrdinalIgnoreCase)
                     // OpenIddict uses its configured issuer when creating the
                     // login redirect. Keep the host selected by the caller so
-                    // native clients do not receive a localhost URL.
+                    // native clients do not receive a localhost or Docker URL.
+                    .Replace("http://localhost:5001", publicOrigin, StringComparison.OrdinalIgnoreCase)
                     .Replace("http://localhost:5000", publicOrigin, StringComparison.OrdinalIgnoreCase);
             }
 

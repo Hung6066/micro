@@ -101,9 +101,12 @@ jobs:
       - run: npm ci
       - run: npm run validate:foundation
       - run: npm run lint:design-tokens
+      - run: npm run lint:hardcoded-px
       - run: npm run lint
       - run: npm run build:shared
       - run: npm run test:mobile-foundation
+      - run: npm run test:mobile
+      - run: npm --workspace @his-hope/mobile-app run build
       - run: npm pack --workspace @his-hope/frontend-foundation --dry-run
       - run: npm --workspace admin-app run build
       - run: npm --workspace dashboard-app run build

@@ -5,6 +5,7 @@ import { firstValueFrom } from "rxjs";
 import type {
   HisHopeAppPolicy,
   HisHopeCertificatePin,
+  HisHopeDeviceAttestationResult,
   HisHopeDeviceSecurityResult,
   HisHopeNativeHttpRequest,
   HisHopeNativeHttpResponse,
@@ -15,6 +16,7 @@ import { environment } from "../../environments/environment";
 
 interface HisHopeSecurityPlugin {
   deviceSecurity(): Promise<HisHopeDeviceSecurityResult>;
+  deviceAttestation(): Promise<HisHopeDeviceAttestationResult>;
   configureCertificatePins(options: { pins: readonly HisHopeCertificatePin[] }): Promise<void>;
   isPinConfigured(): Promise<{ configured: boolean }>;
   setAppPin(options: { pin: string }): Promise<void>;
@@ -38,8 +40,30 @@ export class MobilePlatformService implements Partial<HisHopeNativePasskeyCapabi
   readonly storeUrl = signal<string | null>(null);
 
   async deviceSecurity(): Promise<HisHopeDeviceSecurityResult> {
-    if (!Capacitor.isNativePlatform()) return { status: "unsupported", rootedOrJailbroken: false, emulator: false };
+    if (!Capacitor.isNativePlatform()) {
+      return {
+        status: "unsupported",
+        rootedOrJailbroken: false,
+        emulator: false,
+        debuggable: !environment.production,
+      };
+    }
     return Security.deviceSecurity();
+  }
+
+  async deviceAttestation(): Promise<HisHopeDeviceAttestationResult> {
+    if (!Capacitor.isNativePlatform()) {
+      return {
+        provider: Capacitor.getPlatform() === "ios" ? "app-attest" : "play-integrity",
+        signals: {
+          device_secure: true,
+          not_rooted: true,
+          not_emulator: true,
+          not_debuggable: !environment.production,
+        },
+      };
+    }
+    return Security.deviceAttestation();
   }
 
   async configureCertificatePins(): Promise<void> {
@@ -109,5 +133,16 @@ export class MobilePlatformService implements Partial<HisHopeNativePasskeyCapabi
 
   reportRum(event: HisHopeRumEvent): Promise<void> {
     return firstValueFrom(this.http.post<void>(`${this.baseUrl}/mobile/rum`, event));
+  }
+
+  submitDeviceAttestation(payload: {
+    userId: string;
+    deviceId: string;
+    provider: string;
+    signals: Readonly<Record<string, boolean>>;
+    observedAt: string;
+    replayNonce: string;
+  }): Promise<void> {
+    return firstValueFrom(this.http.post<void>(`${this.baseUrl}/mobile/attestation`, payload));
   }
 }

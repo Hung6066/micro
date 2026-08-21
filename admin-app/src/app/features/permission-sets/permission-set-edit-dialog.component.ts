@@ -1,13 +1,9 @@
 import { Component, Inject, inject } from "@angular/core";
-import {
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-  Validators,
-} from "@angular/forms";
+import { FormControl, FormGroup, Validators } from "@angular/forms";
 import {
   HIS_HOPE_DIALOG_DATA,
   HisHopeDialogRef,
+  HisHopeEntityDialogComponent,
 } from "@his-hope/frontend-foundation/ui";
 import { IamApiService } from "../../core/services/iam-api.service";
 import {
@@ -15,17 +11,11 @@ import {
   IamScope,
   PermissionDefinition,
 } from "../../core/contracts/admin.contracts";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import {
-  HisHopeActionButtonComponent,
-  HisHopeCreateDialogShellComponent,
-  HisHopeFormLayoutComponent,
-  HisHopeFormSectionComponent,
-} from "@his-hope/frontend-foundation/ui";
-import {
-  HisHopeI18nService,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation/i18n";
-import { HisHopeMaterialFormFieldComponent } from "@his-hope/frontend-foundation/forms";
+  HisHopeFormFieldSchema,
+  HisHopeMaterialFormRendererComponent,
+} from "@his-hope/frontend-foundation/forms";
 import { iamScopeOptions } from "../../core/utils/iam-display.util";
 export interface PermissionSetEditDialogData {
   set: IamPermissionSet | null;
@@ -35,94 +25,26 @@ export interface PermissionSetEditDialogData {
 @Component({
   selector: "app-permission-set-edit-dialog",
   standalone: true,
-  imports: [
-    ReactiveFormsModule,
-    HisHopeActionButtonComponent,
-    HisHopeCreateDialogShellComponent,
-    HisHopeFormLayoutComponent,
-    HisHopeFormSectionComponent,
-    HisHopeTranslatePipe,
-    HisHopeMaterialFormFieldComponent,
-  ],
-  template: `<hh-create-dialog-shell
+  imports: [HisHopeEntityDialogComponent, HisHopeMaterialFormRendererComponent],
+  template: `<hh-entity-dialog
     [title]="
-      (data.set ? 'admin.editPermissionSet' : 'admin.createPermissionSet')
-        | hhTranslate
-          : (data.set ? 'Edit permission set' : 'Create permission set')
+      data.set ? 'admin.editPermissionSet' : 'admin.createPermissionSet'
     "
-    ><div hhCreateDialogContent>
-      <form [formGroup]="formGroup" class="dialog-form" (ngSubmit)="save()">
-        @if (formGroup.invalid && formGroup.touched) {
-          <p class="form-error" role="alert">
-            {{
-              "admin.validationRequired"
-                | hhTranslate: "Complete the required fields."
-            }}
-          </p>
-        }
-        <hh-form-layout
-          ><hh-form-section
-            [title]="
-              'admin.permissionSetDetails'
-                | hhTranslate: 'Permission set details'
-            "
-            [description]="
-              'admin.permissionSetDetailsDescription'
-                | hhTranslate
-                  : 'Set the identity, scope, and permissions for this set.'
-            "
-            [span]="2"
-            ><hh-mat-form-field
-              [control]="formGroup.controls.key"
-              [label]="'admin.key' | hhTranslate"
-            />
-            <hh-mat-form-field
-              [control]="formGroup.controls.displayName"
-              [label]="'admin.displayName' | hhTranslate"
-            />
-            <hh-mat-form-field
-              [control]="formGroup.controls.scopeId"
-              [label]="'admin.scopeId' | hhTranslate"
-              kind="select"
-              [options]="scopeOptions"
-            />
-            <hh-mat-form-field
-              [control]="formGroup.controls.permissions"
-              [label]="'admin.permissions' | hhTranslate"
-              kind="select"
-              [multiple]="true"
-              [options]="permissionOptions"
-            /> </hh-form-section
-        ></hh-form-layout>
-      </form>
-    </div>
-    <div hhCreateDialogFooter>
-      <hh-action-button
-        kind="secondary"
-        icon="close"
-        [label]="'admin.cancel' | hhTranslate"
-        (pressed)="dialogRef.close()"
-      /><hh-action-button
-        kind="primary"
-        icon="save"
-        [label]="(saving ? 'admin.saving' : 'admin.save') | hhTranslate"
-        [disabled]="saving"
-        (pressed)="save()"
-      /></div
-  ></hh-create-dialog-shell>`,
-  styles: [
-    `
-      .dialog-form {
-        display: grid;
-        gap: 16px;
-      }
-      .form-error {
-        margin: 0;
-        color: var(--text-danger, #b42318);
-        font-size: 0.875rem;
-      }
-    `,
-  ],
+    [titleFallback]="
+      data.set ? 'Edit permission set' : 'Create permission set'
+    "
+    sectionTitle="admin.permissionSetDetails"
+    sectionTitleFallback="Permission set details"
+    sectionDescription="admin.permissionSetDetailsDescription"
+    sectionDescriptionFallback="Set the identity, scope, and permissions for this set."
+    [formGroup]="formGroup"
+    [saving]="saving"
+    cancelLabel="admin.cancel"
+    (save)="save()"
+    (cancel)="dialogRef.close()"
+  >
+    <hh-material-form-renderer [fields]="fields" [form]="formGroup" />
+  </hh-entity-dialog>`,
 })
 export class PermissionSetEditDialogComponent {
   readonly dialogRef = inject(
@@ -187,8 +109,40 @@ export class PermissionSetEditDialogComponent {
       label: `${permission.code} · ${permission.name}`,
     }));
   }
+  get fields(): HisHopeFormFieldSchema<unknown>[] {
+    return [
+      {
+        key: "key",
+        label: this.i18n.t("admin.key", "Key"),
+        initialValue: "",
+        required: true,
+      },
+      {
+        key: "displayName",
+        label: this.i18n.t("admin.displayName", "Display name"),
+        initialValue: "",
+        required: true,
+      },
+      {
+        key: "scopeId",
+        label: this.i18n.t("admin.scopeId", "Scope"),
+        initialValue: "",
+        required: true,
+        type: "select",
+        options: this.scopeOptions,
+      },
+      {
+        key: "permissions",
+        label: this.i18n.t("admin.permissions", "Permissions"),
+        initialValue: [],
+        required: true,
+        type: "select",
+        multiple: true,
+        options: this.permissionOptions,
+      },
+    ];
+  }
   save(): void {
-    this.formGroup.markAllAsTouched();
     if (this.formGroup.invalid || this.saving) return;
     Object.assign(this.draft, this.formGroup.getRawValue());
     if (

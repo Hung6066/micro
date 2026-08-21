@@ -10,12 +10,9 @@ import {
 import { CommonModule } from "@angular/common";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import {
-  HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
-  HisHopeDataTableComponent,
-  HisHopePageHeaderComponent,
-  HisHopePageLayoutComponent,
-  HisHopeToolbarComponent,
+  HisHopeResourceListPageComponent,
+  HisHopeResourceRowActionsDirective,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -35,70 +32,55 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
   imports: [
     HisHopeActionButtonComponent,
     CommonModule,
-    HisHopeDataTableCellDirective,
-    HisHopeDataTableComponent,
-    HisHopePageHeaderComponent,
-    HisHopePageLayoutComponent,
-    HisHopeToolbarComponent,
+    HisHopeResourceListPageComponent,
+    HisHopeResourceRowActionsDirective,
     HisHopeTranslatePipe,
   ],
-  template: ` <hh-page-layout
-    ><hh-page-header
-      hhPageHeader
-      [title]="'admin.services' | hhTranslate: 'Service catalog'"
-      [subtitle]="
-        'admin.servicesSubtitle'
-          | hhTranslate
-            : 'Register business services and their permission namespaces.'
-      " /><hh-toolbar
-      hhPageToolbar
-      [label]="'admin.services' | hhTranslate: 'Service catalog'"
-      ><span hhToolbarTitle
-        >{{ services.length }}
-        {{ "admin.services" | hhTranslate: "Services" }}</span
-      ><hh-action-button
-        *ngIf="canWrite"
-        hh-toolbar-actions
-        kind="primary"
-        icon="add"
-        [label]="'admin.create' | hhTranslate"
-        (pressed)="openCreate()" /><hh-action-button
-        hh-toolbar-actions
-        kind="secondary"
-        icon="refresh"
-        [label]="'admin.refresh' | hhTranslate"
-        (pressed)="load()"
-    /></hh-toolbar>
-    <div *ngIf="error" class="hh-state hh-state--error" role="alert">
-      {{ error }}
-    </div>
-    <hh-data-table
-      [label]="'admin.services' | hhTranslate: 'Service catalog'"
+  template: `
+    <hh-resource-list-page
+      title="admin.services"
+      titleFallback="Service catalog"
+      subtitle="admin.servicesSubtitle"
+      subtitleFallback="Register business services and their permission namespaces."
+      countLabel="admin.services"
+      countLabelFallback="Services"
+      [count]="services.length"
+      [canWrite]="canWrite"
       [columns]="columns"
       [rows]="rows"
       [loading]="loading"
-      [empty]="!loading && !error && !rows.length"
-      ><ng-template hhDataTableCell="actions" let-row
-        ><hh-action-button
+      [error]="error"
+      (create)="openCreate()"
+      (refresh)="load()"
+    >
+      <ng-template hhResourceRowActions let-row>
+        <hh-action-button
           *ngIf="canWrite"
           kind="row"
           mode="icon-only"
           icon="edit"
           [label]="'admin.edit' | hhTranslate"
-          (pressed)="edit(row)" /><hh-action-button
+          (pressed)="edit(row)"
+        />
+        <hh-action-button
           *ngIf="canWrite && row['isActive']"
           kind="danger"
           mode="icon-only"
           icon="toggle_off"
           [label]="'admin.deactivate' | hhTranslate"
-          (pressed)="toggle(row)" /><hh-action-button
+          (pressed)="toggle(row)"
+        />
+        <hh-action-button
           *ngIf="canWrite && !row['isActive']"
           kind="row"
           mode="icon-only"
           icon="toggle_on"
           [label]="'admin.activate' | hhTranslate"
-          (pressed)="toggle(row)" /></ng-template></hh-data-table
-  ></hh-page-layout>`,
+          (pressed)="toggle(row)"
+        />
+      </ng-template>
+    </hh-resource-list-page>
+  `,
 })
 export class IamServicesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);

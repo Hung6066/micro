@@ -1,0 +1,26 @@
+/* Mobile typography density — applied via HisHopeThemeService.setPlatform('mobile'). */
+
+[data-platform="mobile"] {
+  --font-size-body: var(--font-size-input);
+  --font-size-label: var(--font-size-body);
+}
+
+@media (max-width: 768px) {
+  :root:not([data-platform="desktop"]) {
+    --font-size-body: var(--font-size-input);
+  }
+}
+
+/*
+ * Spacing reference (semantic tokens in _tokens.scss)
+ *
+ * none  0
+ * 2xs   4px   hairline / chip inset
+ * xs    6px   tight inline
+ * sm    8px   compact gap, toolbar items
+ * md    12px  default component gap
+ * lg    16px  field padding, form gaps
+ * xl    20px  section rhythm
+ * 2xl   24px  dialog / section blocks
+ * 3xl   32px  page gutter, brand mark
+ */

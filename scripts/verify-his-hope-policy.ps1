@@ -22,12 +22,13 @@ if ($Staged) {
 }
 
 # CI runs the full baseline. Local hooks run only gates relevant to staged files.
-$frontendChanged = $Ci -or ($changed | Where-Object { $_ -match '^(shared/frontend-foundation|admin-app|dashboard-app|src/Frontend/his-hope-app|scripts/validate-design-tokens\.mjs|package\.json)' }).Count -gt 0
+$frontendChanged = $Ci -or ($changed | Where-Object { $_ -match '^(shared/frontend-foundation|admin-app|dashboard-app|mobile-app|src/Frontend/his-hope-app|scripts/validate-design-tokens\.mjs|scripts/validate-no-hardcoded-px\.mjs|package\.json)' }).Count -gt 0
 $backendChanged = $Ci -or ($changed | Where-Object { $_ -match '^(src/Services|src/Shared|src/ApiGateway|src/Bff|tests/|His\.Hope\.sln|scripts/validate-api-platform-conventions\.ps1)' }).Count -gt 0
 
 if ($frontendChanged) {
     Invoke-Checked 'npm' @('run', 'validate:foundation')
     Invoke-Checked 'npm' @('run', 'lint:design-tokens')
+    Invoke-Checked 'npm' @('run', 'lint:hardcoded-px')
     if ($Ci) {
         Invoke-Checked 'npm' @('run', 'build:shared')
         Invoke-Checked 'npm' @('--workspace', 'admin-app', 'run', 'build')

@@ -471,13 +471,9 @@ export class AppComponent {
   }
 
   isNavItemVisible(item: AdminNavItem): boolean {
-    // Keep navigation discoverable while the permission snapshot is loading;
-    // route guards/API policies remain authoritative and fail closed.
-    return (
-      !item.permission ||
-      !this.permissionService.hasSnapshot() ||
-      this.permissionService.has(item.permission)
-    );
+    if (!item.permission) return true;
+    if (!this.permissionService.hasSnapshot()) return false;
+    return this.permissionService.has(item.permission);
   }
 
   visibleNavItems(section: AdminNavSection): readonly AdminNavItem[] {

@@ -96,10 +96,17 @@ export type HisHopeDeviceSecurityStatus =
   | "unsupported"
   | "unknown";
 
+export interface HisHopeDeviceAttestationResult {
+  readonly provider: "play-integrity" | "app-attest";
+  readonly signals: Readonly<Record<string, boolean>>;
+}
+
 export interface HisHopeDeviceSecurityResult {
   readonly status: HisHopeDeviceSecurityStatus;
   readonly rootedOrJailbroken: boolean;
   readonly emulator: boolean;
+  /** True when the native binary is a debug/debuggable install. */
+  readonly debuggable?: boolean;
   readonly reason?: string;
 }
 
@@ -240,3 +247,5 @@ export * from "./deep-link/his-hope-deep-link-allow-list";
 export * from "./internationalization";
 export * from "./security/his-hope-native-mfa";
 export * from "./runtime/runtime-config.contract";
+export * from "./runtime/runtime-config.service";
+export * from "./offline-sync/his-hope-offline-sync-config";

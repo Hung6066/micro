@@ -7,20 +7,13 @@ import {
   effect,
   inject,
 } from "@angular/core";
-import { CommonModule } from "@angular/common";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
 import { catchError, forkJoin, of } from "rxjs";
 import {
-  HisHopeDataTableComponent,
   HisHopeDataTableColumn,
-  HisHopePageHeaderComponent,
-  HisHopePageLayoutComponent,
-  HisHopeToolbarComponent,
+  HisHopeResourceListPageComponent,
 } from "@his-hope/frontend-foundation/ui";
-import {
-  HisHopeI18nService,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation/i18n";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import {
   IamRevocation,
@@ -32,56 +25,27 @@ import { AdminResourceStateController } from "../../core/services/admin-resource
 import { IamRevocationEditDialogComponent } from "./iam-revocation-edit-dialog.component";
 import { iamPrincipalLabel } from "../../core/utils/iam-display.util";
 
-import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
   selector: "app-iam-revocations-page",
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    HisHopeActionButtonComponent,
-    CommonModule,
-    HisHopeDataTableComponent,
-    HisHopePageHeaderComponent,
-    HisHopePageLayoutComponent,
-    HisHopeToolbarComponent,
-    HisHopeTranslatePipe,
-  ],
-  template: ` <hh-page-layout
-    ><hh-page-header
-      hhPageHeader
-      [title]="'admin.revocations' | hhTranslate: 'Revocations'"
-      [subtitle]="
-        'admin.revocationsSubtitle'
-          | hhTranslate: 'Record and inspect explicit principal revocations.'
-      " /><hh-toolbar
-      hhPageToolbar
-      [label]="'admin.revocations' | hhTranslate: 'Revocations'"
-      ><span hhToolbarTitle
-        >{{ rows.length }} {{ "admin.revocations" | hhTranslate }}</span
-      ><hh-action-button
-        *ngIf="canWrite"
-        hh-toolbar-actions
-        kind="primary"
-        icon="add"
-        [label]="'admin.create' | hhTranslate"
-        (pressed)="openCreate()" /><hh-action-button
-        hh-toolbar-actions
-        kind="secondary"
-        icon="refresh"
-        [label]="'admin.refresh' | hhTranslate"
-        (pressed)="load()"
-    /></hh-toolbar>
-    <div *ngIf="error" class="hh-state hh-state--error" role="alert">
-      {{ error }}
-    </div>
-    <hh-data-table
-      [label]="'admin.revocations' | hhTranslate"
+  imports: [HisHopeResourceListPageComponent],
+  template: `
+    <hh-resource-list-page
+      title="admin.revocations"
+      titleFallback="Revocations"
+      subtitle="admin.revocationsSubtitle"
+      subtitleFallback="Record and inspect explicit principal revocations."
+      [count]="rows.length"
+      [canWrite]="canWrite"
       [columns]="columns"
       [rows]="rows"
       [loading]="loading"
-      [empty]="!loading && !error && !rows.length"
-    ></hh-data-table
-  ></hh-page-layout>`,
+      [error]="error"
+      (create)="openCreate()"
+      (refresh)="load()"
+    />
+  `,
 })
 export class IamRevocationsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);

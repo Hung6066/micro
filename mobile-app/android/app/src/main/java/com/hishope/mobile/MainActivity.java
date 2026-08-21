@@ -1,5 +1,6 @@
 package com.hishope.mobile;
 
+import android.content.pm.ApplicationInfo;
 import android.os.Bundle;
 import android.view.WindowManager;
 import com.getcapacitor.BridgeActivity;
@@ -12,9 +13,13 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Blocks screenshots/screen recording and hides content in the recent-apps
-        // switcher \u2014 this app shows identity/permission data that should not be
-        // captured by the OS or other apps.
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);
+        // Release builds hide the window from screenshots, recents, and the
+        // Android Studio emulator capture stream. Debug installs stay visible
+        // so local emulator runs are not a blank white screen.
+        if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
+            getWindow().setFlags(
+                WindowManager.LayoutParams.FLAG_SECURE,
+                WindowManager.LayoutParams.FLAG_SECURE);
+        }
     }
 }

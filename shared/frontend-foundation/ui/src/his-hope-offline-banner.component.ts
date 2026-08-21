@@ -7,7 +7,7 @@ import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
   imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `@if (!online()) { <div class="hh-offline" role="alert">{{ 'state.offline' | hhTranslate }}</div> }`,
-  styles: [`.hh-offline { position: sticky; top: 0; z-index: 100; padding: 10px 16px; background: var(--surface-warning); color: var(--text-primary); font-size: var(--font-size-body); text-align: center; }`],
+  styles: [`.hh-offline { position: sticky; top: 0; z-index: 100; padding: var(--space-md) var(--space-lg); background: var(--surface-warning); color: var(--text-primary); font-size: var(--font-size-body); text-align: center; }`],
 })
 export class HisHopeOfflineBannerComponent implements OnDestroy {
   readonly online = signal(typeof navigator === 'undefined' ? true : navigator.onLine);

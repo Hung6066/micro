@@ -58,6 +58,9 @@ export const hisHopeViVN: HisHopeTranslationDictionary = {
     saveClientFailed: "Không thể lưu ứng dụng",
     clientIdRequired: "Mã ứng dụng là bắt buộc.",
     clientDisplayNameRequired: "Tên hiển thị là bắt buộc.",
+    clientRedirectUriRequired:
+      "Authorization code yêu cầu ít nhất một URI chuyển hướng.",
+    clientRedirectUrisHttpsInvalid: "Chỉ dùng URI chuyển hướng HTTPS.",
     clientRedirectUrisInvalid:
       "Chỉ dùng URI chuyển hướng HTTPS; authorization code yêu cầu ít nhất một URI.",
     clientPostLogoutUrisInvalid:
@@ -172,6 +175,7 @@ export const hisHopeViVN: HisHopeTranslationDictionary = {
     id: "Mã",
     identityAdministration: "Quản trị danh tính",
     loadConsentsFailed: "Không thể tải chấp thuận.",
+    loadClientsFailed: "Không thể tải ứng dụng khách.",
     loadRolesFailed: "Không thể tải vai trò.",
     loadUsersFailed: "Không thể tải người dùng.",
     loadingDashboard: "Đang tải tổng quan...",
@@ -1684,6 +1688,43 @@ export const hisHopeViVN: HisHopeTranslationDictionary = {
     deviceRegistrationFailed: "Không thể đăng ký thiết bị cho MFA.",
     exportDesktop:
       "Tính năng xuất dữ liệu có trên không gian quản trị máy tính.",
+    exportCsv: "Định dạng bảng tính, mỗi bản ghi một dòng.",
+    exportFailed: "Xuất dữ liệu thất bại.",
+    exportHint: "Bản xuất bao gồm các dòng khớp bộ lọc hiện tại.",
+    exportJson: "Dữ liệu có cấu trúc, bao gồm trường lồng nhau.",
+    exportTitle: "Xuất bản ghi",
+    deviceBlockedCompromised: "Không thể xác minh tính toàn vẹn thiết bị.",
+    deviceBlockedEmulator:
+      "Môi trường giả lập không được hỗ trợ trên bản production.",
+    deviceBlockedMessage:
+      "Thiết bị này không vượt qua kiểm tra bảo mật. Hãy dùng thiết bị được quản lý.",
+    deviceBlockedRooted: "Phát hiện thiết bị đã root hoặc jailbreak.",
+    deviceBlockedTitle: "Thiết bị không được phép",
+    forbiddenMessage:
+      "Bạn không có quyền xem mục không gian quản trị mobile này.",
+    forbiddenTitle: "Truy cập bị từ chối",
+    maintenanceMessage:
+      "Nền tảng danh tính tạm thời không khả dụng. Vui lòng thử lại sau.",
+    maintenanceTitle: "Đang bảo trì",
+    pinDescription:
+      "Dùng mã PIN cục bộ như lớp khóa bổ sung cho thiết bị này.",
+    pinPlaceholder: "Mã PIN ứng dụng",
+    pinSave: "Đặt PIN",
+    pinSaved: "Đã lưu PIN trên thiết bị này.",
+    pinSaveFailed: "Không thể lưu PIN.",
+    pinTitle: "Mã PIN ứng dụng",
+    pinUnlockFailed: "Mã PIN không đúng.",
+    pinUpdate: "Cập nhật PIN",
+    sessionExpiredMessage:
+      "Phiên đã hết hạn. Đăng nhập lại để tiếp tục an toàn.",
+    sessionExpiredReLogin: "Đăng nhập lại",
+    sessionExpiredTitle: "Phiên đã hết hạn",
+    signInAgain: "Đăng nhập lại",
+    unlockWithPin: "Mở khóa bằng PIN",
+    upgradeOpenStore: "Mở cửa hàng ứng dụng",
+    upgradeRequiredMessage:
+      "Hãy cài phiên bản His.Hope Mobile mới nhất để tiếp tục an toàn.",
+    upgradeRequiredTitle: "Cần cập nhật",
     fallbackDescription:
       "Dùng mã xác thực đã cấu hình trên máy tính nếu không thể đăng ký passkey native.",
     goodToSeeYou: "Chào mừng bạn",
@@ -1761,6 +1802,8 @@ export const hisHopeViVN: HisHopeTranslationDictionary = {
     unlockBiometrics: "Mở khóa bằng sinh trắc học",
     unlockContinue: "Mở khóa để tiếp tục công việc.",
     unlockFailed: "Mở khóa thất bại. Hãy thử lại hoặc đăng xuất.",
+    useDesktopForCreate:
+      "Tạo và chỉnh sửa bản ghi trong workspace admin trên máy tính.",
     useDeviceMfa: "Dùng thiết bị này cho MFA",
   },
   navigation: {

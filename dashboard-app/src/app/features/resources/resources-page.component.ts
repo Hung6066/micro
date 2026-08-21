@@ -246,11 +246,11 @@ interface GroupedResources {
     `
       .view-toggle {
         border: 1px solid var(--border-default, #eaeaea);
-        border-radius: 6px;
+        border-radius: var(--radius-button);
         overflow: hidden;
       }
       .view-toggle .mat-button-toggle {
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         font-weight: 500;
         color: var(--text-secondary, #787774);
       }
@@ -259,53 +259,53 @@ interface GroupedResources {
         color: #ffffff;
       }
       .view-toggle .mat-button-toggle mat-icon {
-        font-size: 16px;
-        width: 16px;
-        height: 16px;
-        margin-right: 4px;
+        font-size: var(--font-size-toolbar);
+        width: var(--size-timeline-rail);
+        height: var(--size-timeline-rail);
+        margin-right: var(--space-2xs);
       }
       .loading-overlay {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
-        padding: 8px;
-        font-size: 13px;
+        gap: var(--space-sm);
+        padding: var(--space-sm);
+        font-size: var(--font-size-label);
         color: var(--text-secondary, #787774);
       }
       .resource-group {
-        margin-bottom: 32px;
+        margin-bottom: var(--space-3xl);
       }
       .group-header {
         display: flex;
         align-items: center;
-        gap: 8px;
-        margin-bottom: 16px;
+        gap: var(--space-sm);
+        margin-bottom: var(--space-lg);
       }
       .group-header mat-icon {
-        font-size: 20px;
+        font-size: var(--font-size-section);
         width: 20px;
         height: 20px;
         color: var(--text-secondary, #787774);
       }
       .group-title {
-        font-size: 16px;
+        font-size: var(--font-size-toolbar);
         font-weight: 600;
         color: var(--text-primary, #1a1a1a);
         margin: 0;
       }
       .group-count {
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         color: var(--text-muted, #a1a09b);
         background: var(--bg-warm, #f7f6f3);
-        padding: 0 8px;
-        border-radius: 10px;
-        line-height: 20px;
+        padding: 0 var(--space-sm);
+        border-radius: var(--radius-chip);
+        line-height: var(--line-height-compact);
       }
       .card-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-        gap: 16px;
+        gap: var(--space-lg);
       }
     `,
   ],

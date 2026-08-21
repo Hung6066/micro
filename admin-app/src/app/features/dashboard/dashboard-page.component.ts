@@ -100,7 +100,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
       .stats-grid {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 16px;
+        gap: var(--space-lg);
       }
       @media (max-width: 900px) {
         .stats-grid {

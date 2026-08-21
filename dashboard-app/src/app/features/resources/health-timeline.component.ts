@@ -284,35 +284,35 @@ function fmtTime(ts: number): string {
   styles: [
     `
       .ht-section {
-        margin-top: 32px;
+        margin-top: var(--space-3xl);
       }
       .ht-header {
         display: flex;
         align-items: center;
-        gap: 12px;
-        margin-bottom: 16px;
+        gap: var(--space-md);
+        margin-bottom: var(--space-lg);
       }
       .ht-title {
-        font-size: 16px;
+        font-size: var(--font-size-toolbar);
         font-weight: 600;
         color: var(--text-primary, #1a1a1a);
         margin: 0;
       }
       .ht-subtitle {
-        font-size: 13px;
+        font-size: var(--font-size-label);
         color: var(--text-secondary, #787774);
       }
       .incident-chip {
         --mdc-chip-elevated-container-color: #fdebec;
         --mdc-chip-label-text-color: #c25450;
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         font-weight: 500;
       }
       .ht-chart-wrap {
         position: relative;
         background: var(--surface-white, #ffffff);
         border: 1px solid var(--border-default, #eaeaea);
-        border-radius: 8px;
+        border-radius: var(--radius-card);
         overflow: hidden;
       }
       .ht-svg {
@@ -324,19 +324,19 @@ function fmtTime(ts: number): string {
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding: 48px 24px;
+        padding: var(--space-4xl) var(--space-2xl);
         color: var(--text-muted, #a1a09b);
         text-align: center;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       .ht-empty mat-icon {
-        font-size: 40px;
-        width: 40px;
-        height: 40px;
+        font-size: var(--font-size-display-lg);
+        width: var(--button-height);
+        height: var(--button-height);
         opacity: 0.4;
       }
       .ht-empty p {
-        font-size: 14px;
+        font-size: var(--font-size-body);
       }
 
       /* Grid lines */
@@ -365,13 +365,13 @@ function fmtTime(ts: number): string {
 
       /* Labels */
       .ht-label {
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         font-weight: 500;
         fill: var(--text-primary, #1a1a1a);
         font-family: var(--font-sans);
       }
       .ht-axis {
-        font-size: 10px;
+        font-size: var(--font-size-overline);
         fill: var(--text-muted, #a1a09b);
         font-family: var(--font-sans);
       }
@@ -381,15 +381,15 @@ function fmtTime(ts: number): string {
         position: absolute;
         background: #1a1a1a;
         color: #ffffff;
-        font-size: 12px;
-        border-radius: 6px;
-        padding: 8px 12px;
+        font-size: var(--font-size-caption);
+        border-radius: var(--radius-button);
+        padding: var(--space-sm) var(--space-md);
         pointer-events: none;
         z-index: 100;
         line-height: 1.5;
         white-space: nowrap;
         transform: translate(-50%, -120%);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        box-shadow: var(--shadow-dropdown);
       }
       .ht-tooltip-name {
         font-weight: 600;
@@ -399,50 +399,50 @@ function fmtTime(ts: number): string {
       }
       .ht-tooltip-time {
         color: #a1a09b;
-        font-size: 11px;
+        font-size: var(--font-size-nav);
       }
 
       /* Legend */
       .ht-legend {
         display: flex;
         flex-wrap: wrap;
-        gap: 16px;
-        padding: 12px 0 0;
-        font-size: 12px;
+        gap: var(--space-lg);
+        padding: var(--space-md) 0 0;
+        font-size: var(--font-size-caption);
         color: var(--text-secondary, #787774);
       }
       .ht-legend-item {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: var(--space-xs);
       }
       .ht-dot {
-        width: 8px;
-        height: 8px;
+        width: var(--size-status-dot);
+        height: var(--size-status-dot);
         border-radius: 50%;
         flex-shrink: 0;
       }
 
       /* Incident detail */
       .ht-incident {
-        margin-top: 12px;
+        margin-top: var(--space-md);
         background: #fdebec;
         border: 1px solid #f5c6c4;
-        border-radius: 8px;
+        border-radius: var(--radius-card);
         overflow: hidden;
-        font-size: 13px;
+        font-size: var(--font-size-label);
       }
       .ht-incident-header {
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 10px 16px;
+        gap: var(--space-sm);
+        padding: var(--space-inset) var(--space-lg);
         background: rgba(194, 84, 80, 0.08);
         font-weight: 600;
         color: #c25450;
       }
       .ht-incident-header mat-icon {
-        font-size: 18px;
+        font-size: var(--font-size-icon-sm);
         width: 18px;
         height: 18px;
       }
@@ -452,21 +452,21 @@ function fmtTime(ts: number): string {
       .ht-incident-close {
         background: none;
         border: none;
-        font-size: 20px;
+        font-size: var(--font-size-section);
         cursor: pointer;
         color: #c25450;
         line-height: 1;
-        padding: 0 4px;
+        padding: 0 var(--space-2xs);
       }
       .ht-incident-body {
-        padding: 12px 16px;
+        padding: var(--space-md) var(--space-lg);
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: var(--space-xs);
       }
       .ht-incident-row {
         display: flex;
-        gap: 12px;
+        gap: var(--space-md);
       }
       .ht-incident-label {
         color: var(--text-muted, #a1a09b);

@@ -1,13 +1,9 @@
 import { Component, Inject, inject } from "@angular/core";
-import {
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-  Validators,
-} from "@angular/forms";
+import { FormControl, FormGroup, Validators } from "@angular/forms";
 import {
   HIS_HOPE_DIALOG_DATA,
   HisHopeDialogRef,
+  HisHopeEntityDialogComponent,
 } from "@his-hope/frontend-foundation/ui";
 import { IamApiService } from "../../core/services/iam-api.service";
 import {
@@ -15,17 +11,11 @@ import {
   IamScope,
   IamServiceDefinition,
 } from "../../core/contracts/admin.contracts";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import {
-  HisHopeActionButtonComponent,
-  HisHopeCreateDialogShellComponent,
-  HisHopeFormLayoutComponent,
-  HisHopeFormSectionComponent,
-} from "@his-hope/frontend-foundation/ui";
-import {
-  HisHopeI18nService,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation/i18n";
-import { HisHopeMaterialFormFieldComponent } from "@his-hope/frontend-foundation/forms";
+  HisHopeFormFieldSchema,
+  HisHopeMaterialFormRendererComponent,
+} from "@his-hope/frontend-foundation/forms";
 import { iamScopeOptions } from "../../core/utils/iam-display.util";
 export interface ResourcePolicyEditDialogData {
   policy: IamResourcePolicy | null;
@@ -35,91 +25,26 @@ export interface ResourcePolicyEditDialogData {
 @Component({
   selector: "app-resource-policy-edit-dialog",
   standalone: true,
-  imports: [
-    ReactiveFormsModule,
-    HisHopeActionButtonComponent,
-    HisHopeCreateDialogShellComponent,
-    HisHopeFormLayoutComponent,
-    HisHopeFormSectionComponent,
-    HisHopeMaterialFormFieldComponent,
-    HisHopeTranslatePipe,
-  ],
-  template: `<hh-create-dialog-shell
+  imports: [HisHopeEntityDialogComponent, HisHopeMaterialFormRendererComponent],
+  template: `<hh-entity-dialog
     [title]="
-      (data.policy ? 'admin.editResourcePolicy' : 'admin.createResourcePolicy')
-        | hhTranslate
-          : (data.policy ? 'Edit resource policy' : 'Create resource policy')
+      data.policy ? 'admin.editResourcePolicy' : 'admin.createResourcePolicy'
     "
-    ><div hhCreateDialogContent>
-      <form [formGroup]="formGroup" class="dialog-form" (ngSubmit)="save()">
-        @if (formGroup.invalid && formGroup.touched) {
-          <p class="form-error" role="alert">
-            {{
-              "admin.validationRequired"
-                | hhTranslate: "Complete the required fields."
-            }}
-          </p>
-        }
-        <hh-form-layout
-          ><hh-form-section
-            [title]="
-              'admin.resourcePolicyDetails'
-                | hhTranslate: 'Resource policy details'
-            "
-            [description]="
-              'admin.resourcePolicyDetailsDescription'
-                | hhTranslate
-                  : 'Choose the scope and service, then define the resource statements.'
-            "
-            [span]="2"
-            ><hh-mat-form-field
-              [control]="formGroup.controls.scopeId"
-              [label]="'admin.scopeId' | hhTranslate"
-              kind="select"
-              [options]="scopeOptions" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.serviceKey"
-              [label]="'admin.serviceKey' | hhTranslate"
-              kind="select"
-              [options]="serviceOptions" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.resourcePattern"
-              [label]="'admin.resourcePattern' | hhTranslate" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.statementsJson"
-              [label]="'admin.statementsJson' | hhTranslate"
-              [multiline]="true"
-              [rows]="8" /></hh-form-section
-        ></hh-form-layout>
-      </form>
-    </div>
-    <div hhCreateDialogFooter>
-      <hh-action-button
-        kind="secondary"
-        icon="close"
-        [label]="'admin.cancel' | hhTranslate"
-        (pressed)="dialogRef.close()"
-      /><hh-action-button
-        kind="primary"
-        icon="save"
-        [label]="(saving ? 'admin.saving' : 'admin.save') | hhTranslate"
-        [disabled]="saving"
-        (pressed)="save()"
-      /></div
-  ></hh-create-dialog-shell>`,
-  styles: [
-    `
-      .dialog-form {
-        display: grid;
-        gap: 16px;
-      }
-      .form-error {
-        margin: 0;
-        color: var(--text-danger, #b42318);
-        font-size: 0.875rem;
-      }
-    `,
-  ],
+    [titleFallback]="
+      data.policy ? 'Edit resource policy' : 'Create resource policy'
+    "
+    sectionTitle="admin.resourcePolicyDetails"
+    sectionTitleFallback="Resource policy details"
+    sectionDescription="admin.resourcePolicyDetailsDescription"
+    sectionDescriptionFallback="Choose the scope and service, then define the resource statements."
+    [formGroup]="formGroup"
+    [saving]="saving"
+    cancelLabel="admin.cancel"
+    (save)="save()"
+    (cancel)="dialogRef.close()"
+  >
+    <hh-material-form-renderer [fields]="fields" [form]="formGroup" />
+  </hh-entity-dialog>`,
 })
 export class ResourcePolicyEditDialogComponent {
   readonly dialogRef = inject(
@@ -181,8 +106,41 @@ export class ResourcePolicyEditDialogComponent {
       })),
     ];
   }
+  get fields(): HisHopeFormFieldSchema<unknown>[] {
+    return [
+      {
+        key: "scopeId",
+        label: this.i18n.t("admin.scopeId", "Scope"),
+        initialValue: "",
+        required: true,
+        type: "select",
+        options: this.scopeOptions,
+      },
+      {
+        key: "serviceKey",
+        label: this.i18n.t("admin.serviceKey", "Service"),
+        initialValue: "",
+        required: true,
+        type: "select",
+        options: this.serviceOptions,
+      },
+      {
+        key: "resourcePattern",
+        label: this.i18n.t("admin.resourcePattern", "Resource pattern"),
+        initialValue: "",
+        required: true,
+      },
+      {
+        key: "statementsJson",
+        label: this.i18n.t("admin.statementsJson", "Statements JSON"),
+        initialValue: "",
+        required: true,
+        multiline: true,
+        rows: 8,
+      },
+    ];
+  }
   save(): void {
-    this.formGroup.markAllAsTouched();
     if (this.formGroup.invalid || this.saving) return;
     Object.assign(this.draft, this.formGroup.getRawValue());
     if (

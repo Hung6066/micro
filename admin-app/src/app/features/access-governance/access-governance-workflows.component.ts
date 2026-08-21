@@ -375,7 +375,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
     }
   `,
   styles: [
-    ":host{display:block}.grid{display:grid;gap:var(--space-4);margin-top:var(--space-4)}.two-col{grid-template-columns:repeat(2,minmax(0,1fr))}.form-grid{display:grid;gap:var(--space-3)}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:var(--space-2);border-bottom:1px solid var(--border-subtle);white-space:nowrap}@media(max-width:800px){.two-col{grid-template-columns:1fr}}",
+    ":host{display:block}.grid{display:grid;gap:var(--space-lg);margin-top:var(--space-lg)}.two-col{grid-template-columns:repeat(2,minmax(0,1fr))}.form-grid{display:grid;gap:var(--space-md)}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:var(--space-sm);border-bottom:1px solid var(--border-subtle);white-space:nowrap}@media(max-width:800px){.two-col{grid-template-columns:1fr}}",
   ],
 })
 export class AccessGovernanceWorkflowsComponent {

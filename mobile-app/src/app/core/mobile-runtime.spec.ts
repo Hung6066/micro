@@ -5,6 +5,7 @@ import {
   resolveMobileSentryDsn,
   resolveMobileSentryEnvironment,
   resolveProductionApiOrigin,
+  rewriteHisHopeNativeOidcUrl,
 } from "./mobile-runtime";
 
 describe("mobile runtime", () => {
@@ -65,10 +66,30 @@ describe("mobile runtime", () => {
     window.__HISHOPE_CONFIG__ = {
       apiOrigin: "http://api.example.test",
       oidcAuthority: "http://identity.example.test",
+      production: true,
     };
     expect(() => resolveProductionApiOrigin()).toThrowError(
       "Production mobile runtime config requires HTTPS apiOrigin and oidcAuthority.",
     );
     delete window.__HISHOPE_CONFIG__;
+  });
+
+  it("allows HTTP emulator origins when injected runtime is not production", () => {
+    window.__HISHOPE_CONFIG__ = {
+      apiOrigin: "http://10.0.2.2:5000",
+      oidcAuthority: "http://10.0.2.2:5000",
+      production: false,
+    };
+    expect(resolveProductionApiOrigin()).toBe("http://10.0.2.2:5000");
+    delete window.__HISHOPE_CONFIG__;
+  });
+
+  it("rewrites Docker Identity login URLs onto the public authority", () => {
+    expect(
+      rewriteHisHopeNativeOidcUrl(
+        "http://identityservice:5003/connect/authorize?client_id=his-hope-mobile",
+        "http://10.0.2.2:5000",
+      ),
+    ).toBe("http://10.0.2.2:5000/connect/authorize?client_id=his-hope-mobile");
   });
 });

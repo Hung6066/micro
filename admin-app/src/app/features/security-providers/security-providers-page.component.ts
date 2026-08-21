@@ -370,9 +370,9 @@ interface ProviderSettings {
     `
       .notice {
         display: flex;
-        gap: 10px;
+        gap: var(--space-inset);
         align-items: flex-start;
-        padding: 14px 16px;
+        padding: var(--font-size-body) var(--space-lg);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-muted);
@@ -385,7 +385,7 @@ interface ProviderSettings {
       .provider-grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: var(--space-5);
+        gap: var(--space-xl);
       }
       .provider-card {
         min-height: 330px;
@@ -401,13 +401,13 @@ interface ProviderSettings {
       }
       .form-grid {
         display: grid;
-        gap: var(--space-2);
+        gap: var(--space-sm);
       }
       .wide {
         grid-column: 1/-1;
       }
       .status {
-        padding: 10px 12px;
+        padding: var(--space-inset) var(--space-md);
         border-radius: var(--radius-input);
         background: var(--surface-muted);
         color: var(--text-secondary);
@@ -423,8 +423,8 @@ interface ProviderSettings {
       }
       .mfa-setup {
         display: grid;
-        gap: var(--space-2);
-        margin-top: var(--space-3);
+        gap: var(--space-sm);
+        margin-top: var(--space-md);
       }
       .mfa-setup label {
         font-size: var(--font-size-caption);
@@ -445,7 +445,7 @@ interface ProviderSettings {
         width: 100%;
         resize: vertical;
         font: var(--font-size-caption) var(--font-mono);
-        padding: 8px;
+        padding: var(--space-sm);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-input);
         background: var(--surface-white);
@@ -455,7 +455,7 @@ interface ProviderSettings {
         display: grid;
         place-items: center;
         width: fit-content;
-        padding: 12px;
+        padding: var(--space-md);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-white);
@@ -467,8 +467,8 @@ interface ProviderSettings {
       }
       .recovery {
         display: grid;
-        gap: 6px;
-        padding: 10px;
+        gap: var(--space-xs);
+        padding: var(--space-inset);
         border: 1px solid var(--color-warning);
         background: var(--surface-warning);
         border-radius: var(--radius-input);
@@ -476,7 +476,7 @@ interface ProviderSettings {
       .loading {
         display: grid;
         place-items: center;
-        padding: 40px;
+        padding: var(--button-height);
       }
       @media (max-width: 980px) {
         .provider-grid {

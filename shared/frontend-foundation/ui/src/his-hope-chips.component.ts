@@ -67,11 +67,11 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
         display: flex;
         flex-wrap: wrap;
         align-items: center;
-        gap: 6px;
+        gap: var(--space-xs);
         min-height: var(--control-height);
         box-sizing: border-box;
         width: 100%;
-        padding: 6px 8px;
+        padding: var(--space-xs) var(--space-sm);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-card);
         background: var(--surface-white);
@@ -83,7 +83,7 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
       }
       :host(:focus-within) {
         border-color: var(--color-focus);
-        outline: 3px solid
+        outline: var(--focus-ring-width-strong) solid
           color-mix(in srgb, var(--color-primary) 20%, transparent);
       }
       :host([aria-readonly="true"]) {
@@ -95,9 +95,9 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
       .hh-chips__chip {
         display: inline-flex;
         align-items: center;
-        gap: 4px;
-        padding: 2px 4px 2px 10px;
-        border-radius: 999px;
+        gap: var(--space-2xs);
+        padding: var(--space-hairline) var(--space-2xs) var(--space-hairline) var(--space-md);
+        border-radius: var(--radius-pill);
         border: 1px solid
           color-mix(in srgb, var(--color-primary) 24%, transparent);
         background: var(--color-primary-soft, var(--surface-hover));
@@ -110,10 +110,10 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
         width: 20px;
         height: 20px;
         border: 0;
-        border-radius: 50%;
+        border-radius: var(--radius-full);
         background: transparent;
         color: inherit;
-        font-size: 14px;
+        font-size: var(--font-size-body);
         cursor: pointer;
       }
       .hh-chips__remove:hover {

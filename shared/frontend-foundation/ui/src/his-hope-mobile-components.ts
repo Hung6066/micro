@@ -72,13 +72,13 @@ function focusableElements(host: HTMLElement): HTMLElement[] {
       }
       .hh-mobile-infinite-list__loading {
         display: grid;
-        gap: 8px;
-        padding: 16px;
+        gap: var(--space-sm);
+        padding: var(--space-lg);
       }
       .hh-mobile-skeleton {
         display: block;
         height: 12px;
-        border-radius: 999px;
+        border-radius: var(--radius-pill);
         background: linear-gradient(
           90deg,
           var(--skeleton-base),
@@ -94,8 +94,8 @@ function focusableElements(host: HTMLElement): HTMLElement[] {
       .hh-mobile-button {
         display: block;
         width: 100%;
-        min-height: 44px;
-        margin-top: 12px;
+        min-height: var(--control-height-touch);
+        margin-top: var(--space-md);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-control);
         background: var(--surface-white);
@@ -104,9 +104,9 @@ function focusableElements(host: HTMLElement): HTMLElement[] {
         font-weight: var(--font-weight-semibold);
       }
       .hh-mobile-list-end {
-        margin: 12px 0;
+        margin: var(--space-md) 0;
         color: var(--text-muted);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         text-align: center;
       }
       @keyframes hh-mobile-shimmer {
@@ -169,14 +169,14 @@ export class HisHopeMobileInfiniteListComponent {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
+        gap: var(--space-sm);
         overflow: hidden;
         color: var(--text-secondary);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
       }
       .hh-mobile-refresher__indicator span {
         display: inline-block;
-        font-size: 18px;
+        font-size: var(--font-size-icon-sm);
         transition: transform 0.16s ease;
       }
     `,
@@ -240,9 +240,9 @@ export class HisHopeMobileRefresherComponent {
       .hh-mobile-searchbar {
         display: flex;
         align-items: center;
-        gap: 8px;
-        min-height: 44px;
-        padding: 0 12px;
+        gap: var(--space-sm);
+        min-height: var(--control-height-touch);
+        padding: 0 var(--space-md);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-control);
         background: var(--surface-white);
@@ -250,7 +250,7 @@ export class HisHopeMobileRefresherComponent {
       }
       .hh-mobile-searchbar:focus-within {
         border-color: var(--color-primary);
-        outline: 3px solid
+        outline: var(--focus-ring-width-strong) solid
           color-mix(in srgb, var(--color-primary) 20%, transparent);
       }
       input {
@@ -263,12 +263,12 @@ export class HisHopeMobileRefresherComponent {
         font: inherit;
       }
       .hh-mobile-searchbar__clear {
-        width: 32px;
-        height: 32px;
+        width: var(--space-3xl);
+        height: var(--space-3xl);
         border: 0;
         background: transparent;
         color: var(--text-secondary);
-        font-size: 22px;
+        font-size: var(--font-size-headline);
       }
     `,
   ],
@@ -329,34 +329,35 @@ export class HisHopeMobileSearchbarComponent {
         z-index: 100;
         display: flex;
         align-items: flex-end;
-        background: color-mix(in srgb, #000 38%, transparent);
+        background: var(--overlay-backdrop);
       }
       .hh-mobile-sheet {
         display: grid;
-        gap: 8px;
+        gap: var(--space-sm);
         width: 100%;
         max-height: 80dvh;
         overflow: auto;
-        padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
-        border-radius: 20px 20px 0 0;
+        padding: var(--space-md) var(--space-lg)
+          calc(var(--space-lg) + env(safe-area-inset-bottom));
+        border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
         background: var(--surface-white);
         color: var(--text-primary);
-        box-shadow: 0 -10px 30px color-mix(in srgb, #000 20%, transparent);
+        box-shadow: var(--shadow-sheet-up);
       }
       .hh-mobile-sheet__handle {
-        width: 36px;
+        width: var(--control-height-compact);
         height: 4px;
-        margin: 0 auto 8px;
-        border-radius: 99px;
+        margin: 0 auto var(--space-sm);
+        border-radius: var(--radius-pill);
         background: var(--border-default);
       }
       h2 {
-        margin: 0 0 4px;
-        font-size: 18px;
+        margin: 0 0 var(--space-2xs);
+        font-size: var(--font-size-subhead);
       }
       .hh-mobile-sheet__cancel {
-        min-height: 44px;
-        margin-top: 8px;
+        min-height: var(--control-height-touch);
+        margin-top: var(--space-sm);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-control);
         background: var(--surface-white);
@@ -450,40 +451,40 @@ export class HisHopeMobileActionSheetComponent implements OnChanges {
         z-index: 100;
         display: flex;
         align-items: flex-end;
-        background: color-mix(in srgb, #000 38%, transparent);
+        background: var(--overlay-backdrop);
       }
       .hh-mobile-bottom-sheet {
         width: 100%;
         max-height: 90dvh;
         overflow: auto;
-        border-radius: 20px 20px 0 0;
+        border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
         background: var(--surface-white);
-        box-shadow: 0 -10px 30px color-mix(in srgb, #000 20%, transparent);
+        box-shadow: var(--shadow-sheet-up);
       }
       header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 12px;
-        padding: 16px;
+        gap: var(--space-md);
+        padding: var(--space-lg);
         border-bottom: 1px solid var(--border-light);
       }
       h2 {
         margin: 0;
-        font-size: 18px;
+        font-size: var(--font-size-subhead);
       }
       .hh-mobile-icon-button {
-        width: 40px;
-        height: 40px;
+        width: var(--control-height);
+        height: var(--control-height);
         border: 1px solid var(--border-default);
-        border-radius: 50%;
+        border-radius: var(--radius-full);
         background: transparent;
-        font-size: 24px;
+        font-size: var(--font-size-title);
       }
       .hh-mobile-bottom-sheet__content {
-        padding: 16px calc(16px + env(safe-area-inset-right))
-          calc(20px + env(safe-area-inset-bottom))
-          calc(16px + env(safe-area-inset-left));
+        padding: var(--space-lg) calc(var(--space-lg) + env(safe-area-inset-right))
+          calc(var(--space-xl) + env(safe-area-inset-bottom))
+          calc(var(--space-lg) + env(safe-area-inset-left));
       }
     `,
   ],
@@ -563,13 +564,13 @@ export class HisHopeMobileBottomSheetComponent implements OnChanges {
         display: grid;
         grid-auto-flow: column;
         grid-auto-columns: 1fr;
-        gap: 4px;
-        padding: 4px;
+        gap: var(--space-2xs);
+        padding: var(--space-2xs);
         border-radius: var(--radius-control);
         background: var(--surface-subtle);
       }
       button {
-        min-height: 40px;
+        min-height: var(--control-height);
         border: 0;
         border-radius: var(--radius-control);
         background: transparent;
@@ -620,7 +621,7 @@ export class HisHopeMobileSegmentComponent {
         justify-content: space-between;
         width: 100%;
         min-height: 52px;
-        padding: 12px 0;
+        padding: var(--space-md) 0;
         border: 0;
         background: transparent;
         color: var(--text-primary);
@@ -629,7 +630,7 @@ export class HisHopeMobileSegmentComponent {
         text-align: left;
       }
       .hh-mobile-accordion__content {
-        padding: 0 0 16px;
+        padding: 0 0 var(--space-lg);
         color: var(--text-secondary);
         line-height: 1.5;
       }
@@ -665,10 +666,10 @@ export class HisHopeMobileAccordionComponent {
       .hh-mobile-avatar {
         display: grid;
         place-items: center;
-        width: 40px;
-        height: 40px;
+        width: var(--button-height);
+        height: var(--button-height);
         overflow: hidden;
-        border-radius: 50%;
+        border-radius: var(--radius-full);
         background: var(--color-primary-soft);
         color: var(--color-primary);
         font-weight: var(--font-weight-semibold);
@@ -708,22 +709,22 @@ export class HisHopeMobileAvatarComponent {
       }
       .hh-mobile-field {
         display: grid;
-        gap: 6px;
+        gap: var(--space-xs);
         color: var(--text-secondary);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         font-weight: var(--font-weight-semibold);
       }
       input {
         box-sizing: border-box;
         width: 100%;
-        min-height: 44px;
-        padding: 0 12px;
+        min-height: var(--control-height-touch);
+        padding: 0 var(--space-md);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-control);
         background: var(--surface-white);
         color: var(--text-primary);
         font: inherit;
-        font-size: 16px;
+        font-size: var(--font-size-input);
       }
     `,
   ],
@@ -769,10 +770,10 @@ export class HisHopeMobileDateTimeComponent {
       .hh-mobile-otp {
         display: flex;
         justify-content: center;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       .hh-mobile-otp input {
-        width: 44px;
+        width: var(--touch-target);
         height: 52px;
         box-sizing: border-box;
         border: 1px solid var(--border-default);
@@ -780,12 +781,12 @@ export class HisHopeMobileDateTimeComponent {
         background: var(--surface-white);
         color: var(--text-primary);
         font: inherit;
-        font-size: 22px;
+        font-size: var(--font-size-headline);
         text-align: center;
       }
       .hh-mobile-otp input:focus {
         border-color: var(--color-primary);
-        outline: 3px solid
+        outline: var(--focus-ring-width-strong) solid
           color-mix(in srgb, var(--color-primary) 20%, transparent);
       }
     `,

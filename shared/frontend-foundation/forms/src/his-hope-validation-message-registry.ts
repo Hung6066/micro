@@ -1,6 +1,7 @@
 import { Injectable, inject } from "@angular/core";
 import { AbstractControl } from "@angular/forms";
 import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
+import { firstValidationErrorKey } from "./his-hope-form-validation.util";
 
 export type HisHopeValidationMessage = string | ((value: unknown) => string);
 
@@ -23,7 +24,7 @@ export class HisHopeValidationMessageRegistry {
     return this.i18n.t(`validation.${key}`, message ?? key);
   }
   first(errors: Record<string, unknown> | null | undefined): string | null {
-    const key = errors ? Object.keys(errors)[0] : undefined;
+    const key = errors ? firstValidationErrorKey(errors) : undefined;
     return key ? this.resolve(key, errors?.[key]) : null;
   }
 
@@ -32,7 +33,7 @@ export class HisHopeValidationMessageRegistry {
     overrides: Record<string, string> = {},
   ): string {
     if ((!control.touched && !control.dirty) || !control.errors) return "";
-    const key = Object.keys(control.errors)[0];
+    const key = firstValidationErrorKey(control.errors);
     return overrides[key] ?? this.resolve(key, control.errors[key]);
   }
 }

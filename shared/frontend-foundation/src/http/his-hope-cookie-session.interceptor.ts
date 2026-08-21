@@ -1,9 +1,28 @@
-import { HttpInterceptorFn } from '@angular/common/http';
+import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
+import { throwError } from 'rxjs';
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 /** BFF-only browser contract: cookies plus CSRF, never an Authorization header. */
 export const hisHopeCookieSessionInterceptor: HttpInterceptorFn = (req, next) => {
+  if (
+    MUTATING_METHODS.has(req.method) &&
+    req.url.includes('/api/') &&
+    !readCookie('hishop_csrf')
+  ) {
+    return throwError(
+      () =>
+        new HttpErrorResponse({
+          status: 403,
+          statusText: 'CSRF token missing',
+          url: req.urlWithParams,
+          error: {
+            detail: 'Session expired or CSRF cookie missing. Sign in again.',
+          },
+        }),
+    );
+  }
+
   let request = req.clone({ withCredentials: true });
   if (MUTATING_METHODS.has(req.method)) {
     const csrfToken = readCookie('hishop_csrf');

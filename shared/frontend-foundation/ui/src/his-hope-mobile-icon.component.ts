@@ -22,7 +22,8 @@ export type HisHopeMobileIconName =
   | 'offline'
   | 'forbidden'
   | 'empty'
-  | 'next';
+  | 'next'
+  | 'add';
 
 const MOBILE_ICON_GLYPHS: Record<HisHopeMobileIconName, string> = {
   home: 'dashboard',
@@ -47,6 +48,7 @@ const MOBILE_ICON_GLYPHS: Record<HisHopeMobileIconName, string> = {
   forbidden: 'lock',
   empty: 'inbox',
   next: 'arrow_forward',
+  add: 'add',
 };
 
 @Component({
@@ -64,10 +66,10 @@ const MOBILE_ICON_GLYPHS: Record<HisHopeMobileIconName, string> = {
   `,
   styles: [`
     :host { display: inline-grid; place-items: center; flex: 0 0 auto; width: 24px; height: 24px; line-height: 1; vertical-align: middle; }
-    .hh-mobile-icon { display: grid; place-items: center; width: 100%; height: 100%; margin: 0; line-height: 1; font-family: 'Material Symbols Rounded', 'Material Icons'; font-weight: 400; font-style: normal; font-size: 20px; font-feature-settings: 'liga'; font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24; }
-    .hh-mobile-icon--small { font-size: 18px; }
-    .hh-mobile-icon--medium { font-size: 20px; }
-    .hh-mobile-icon--large { font-size: 24px; }
+    .hh-mobile-icon { display: grid; place-items: center; width: 100%; height: 100%; margin: 0; line-height: 1; font-family: 'Material Symbols Rounded', 'Material Icons'; font-weight: var(--font-weight-regular); font-style: normal; font-size: var(--font-size-section); font-feature-settings: 'liga'; font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24; }
+    .hh-mobile-icon--small { font-size: var(--font-size-icon-sm); }
+    .hh-mobile-icon--medium { font-size: var(--font-size-section); }
+    .hh-mobile-icon--large { font-size: var(--font-size-title); }
   `],
 })
 export class HisHopeMobileIconComponent {

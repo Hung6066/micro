@@ -233,17 +233,17 @@ import { Resource } from '../../core/models/resource.model';
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
-        gap: 12px;
-        margin-bottom: 12px;
+        gap: var(--space-md);
+        margin-bottom: var(--space-md);
       }
       .card-header-left {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: var(--space-md);
         min-width: 0;
       }
       .resource-icon {
-        font-size: 28px;
+        font-size: var(--font-size-display);
         width: 28px;
         height: 28px;
         color: var(--text-muted, #a1a09b);
@@ -267,7 +267,7 @@ import { Resource } from '../../core/models/resource.model';
         min-width: 0;
       }
       .resource-name {
-        font-size: 14px;
+        font-size: var(--font-size-body);
         font-weight: 600;
         color: var(--text-primary, #1a1a1a);
         white-space: nowrap;
@@ -275,29 +275,29 @@ import { Resource } from '../../core/models/resource.model';
         text-overflow: ellipsis;
       }
       .resource-type {
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         color: var(--text-secondary, #787774);
         margin-top: 1px;
       }
       .card-meta {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        padding: 12px 0;
+        gap: var(--space-sm);
+        padding: var(--space-md) 0;
       }
       .meta-item {
         display: flex;
         flex-direction: column;
-        gap: 2px;
+        gap: var(--space-hairline);
       }
       .meta-label {
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         color: var(--text-muted, #a1a09b);
         text-transform: uppercase;
         letter-spacing: 0.03em;
       }
       .meta-value {
-        font-size: 13px;
+        font-size: var(--font-size-label);
         font-weight: 500;
         color: var(--text-primary, #1a1a1a);
       }
@@ -312,26 +312,26 @@ import { Resource } from '../../core/models/resource.model';
       }
       .card-actions {
         display: flex;
-        gap: 8px;
-        padding-top: 12px;
+        gap: var(--space-sm);
+        padding-top: var(--space-md);
       }
       .card-actions button {
         flex: 1;
         min-width: 0;
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         line-height: 1;
       }
       .card-actions button mat-icon {
-        font-size: 16px;
-        width: 16px;
-        height: 16px;
-        margin-right: 2px;
+        font-size: var(--font-size-toolbar);
+        width: var(--size-timeline-rail);
+        height: var(--size-timeline-rail);
+        margin-right: var(--space-hairline);
       }
       .quick-links {
         display: flex;
         align-items: center;
-        gap: 2px;
-        padding-top: 8px;
+        gap: var(--space-hairline);
+        padding-top: var(--space-sm);
       }
       .quick-links a {
         color: var(--text-muted, #a1a09b);
@@ -340,14 +340,14 @@ import { Resource } from '../../core/models/resource.model';
         color: var(--color-primary, #2f6b4a);
       }
       .quick-links mat-icon {
-        font-size: 18px;
+        font-size: var(--font-size-icon-sm);
         width: 18px;
         height: 18px;
       }
       .quick-links-label {
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         color: var(--text-muted, #a1a09b);
-        margin-left: 4px;
+        margin-left: var(--space-2xs);
       }
     `,
   ],

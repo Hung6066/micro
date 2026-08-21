@@ -140,20 +140,20 @@ import { LogEntry } from '../../core/models/log-entry.model';
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 12px 16px;
+        padding: var(--space-md) var(--space-lg);
         border-bottom: 1px solid var(--border-default, #eaeaea);
         flex-wrap: wrap;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       .stream-status {
         display: flex;
         align-items: center;
-        gap: 8px;
-        font-size: 13px;
+        gap: var(--space-sm);
+        font-size: var(--font-size-label);
       }
       .status-dot {
-        width: 8px;
-        height: 8px;
+        width: var(--size-status-dot);
+        height: var(--size-status-dot);
         border-radius: 50%;
         background: var(--text-muted, #a1a09b);
         transition: background 300ms ease;
@@ -167,36 +167,36 @@ import { LogEntry } from '../../core/models/log-entry.model';
         font-weight: 500;
       }
       .log-count {
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         color: var(--color-primary, #2f6b4a);
         background: #edf3ec;
-        padding: 1px 8px;
-        border-radius: 4px;
+        padding: 1px var(--space-sm);
+        border-radius: var(--radius-input);
         font-weight: 500;
       }
       .stream-actions {
         display: flex;
-        gap: 6px;
+        gap: var(--space-xs);
       }
       .stream-actions button {
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         line-height: 28px;
       }
       .stream-actions mat-icon {
-        font-size: 16px;
-        width: 16px;
-        height: 16px;
+        font-size: var(--font-size-toolbar);
+        width: var(--size-timeline-rail);
+        height: var(--size-timeline-rail);
       }
       .stream-list {
         flex: 1;
         overflow-y: auto;
-        padding: 4px 0;
+        padding: var(--space-2xs) 0;
         background: #fafaf8;
         font-family: var(--font-mono);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
       }
       .stream-entry {
-        padding: 6px 16px;
+        padding: var(--space-xs) var(--space-lg);
         border-bottom: 1px solid #f0f0ee;
         transition: background 150ms ease;
         animation: fadeIn 300ms ease;
@@ -216,19 +216,19 @@ import { LogEntry } from '../../core/models/log-entry.model';
       .entry-header {
         display: flex;
         align-items: center;
-        gap: 8px;
-        margin-bottom: 2px;
+        gap: var(--space-sm);
+        margin-bottom: var(--space-hairline);
       }
       .entry-time {
         color: var(--text-muted, #a1a09b);
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         flex-shrink: 0;
       }
       .entry-level {
         display: inline-block;
-        padding: 0 6px;
+        padding: 0 var(--space-xs);
         border-radius: 3px;
-        font-size: 10px;
+        font-size: var(--font-size-overline);
         font-weight: 600;
         letter-spacing: 0.03em;
         text-transform: uppercase;
@@ -252,7 +252,7 @@ import { LogEntry } from '../../core/models/log-entry.model';
         color: #6b4fa0;
       }
       .entry-service {
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         font-weight: 500;
         color: var(--text-secondary, #787774);
         flex-shrink: 0;
@@ -265,14 +265,14 @@ import { LogEntry } from '../../core/models/log-entry.model';
         text-overflow: ellipsis;
       }
       .entry-detail {
-        margin-top: 4px;
+        margin-top: var(--space-2xs);
       }
       .entry-exception {
         margin: 0;
-        font-size: 11px;
+        font-size: var(--font-size-nav);
         color: #c25450;
         background: #fdebec;
-        padding: 6px 10px;
+        padding: var(--space-xs) var(--space-inset);
         border-radius: 3px;
         white-space: pre-wrap;
         line-height: 1.4;
@@ -283,20 +283,20 @@ import { LogEntry } from '../../core/models/log-entry.model';
         display: flex;
         flex-direction: column;
         align-items: center;
-        padding: 64px 24px;
+        padding: var(--shell-header-height) var(--space-2xl);
         color: var(--text-muted, #a1a09b);
         text-align: center;
         font-family: var(--font-sans);
       }
       .stream-empty mat-icon {
-        font-size: 40px;
-        width: 40px;
-        height: 40px;
-        margin-bottom: 12px;
+        font-size: var(--font-size-display-lg);
+        width: var(--button-height);
+        height: var(--button-height);
+        margin-bottom: var(--space-md);
         opacity: 0.5;
       }
       .stream-empty p {
-        font-size: 14px;
+        font-size: var(--font-size-body);
         line-height: 1.6;
         max-width: 280px;
       }

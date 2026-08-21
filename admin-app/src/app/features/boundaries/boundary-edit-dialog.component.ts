@@ -1,14 +1,9 @@
-import { CommonModule } from "@angular/common";
 import { Component, Inject, inject } from "@angular/core";
-import {
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-  Validators,
-} from "@angular/forms";
+import { FormControl, FormGroup, Validators } from "@angular/forms";
 import {
   HIS_HOPE_DIALOG_DATA,
   HisHopeDialogRef,
+  HisHopeEntityDialogComponent,
 } from "@his-hope/frontend-foundation/ui";
 import { IamApiService } from "../../core/services/iam-api.service";
 import {
@@ -17,17 +12,11 @@ import {
   PermissionDefinition,
   User,
 } from "../../core/contracts/admin.contracts";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import {
-  HisHopeActionButtonComponent,
-  HisHopeCreateDialogShellComponent,
-  HisHopeFormLayoutComponent,
-  HisHopeFormSectionComponent,
-} from "@his-hope/frontend-foundation/ui";
-import {
-  HisHopeI18nService,
-  HisHopeTranslatePipe,
-} from "@his-hope/frontend-foundation/i18n";
-import { HisHopeMaterialFormFieldComponent } from "@his-hope/frontend-foundation/forms";
+  HisHopeFormFieldSchema,
+  HisHopeMaterialFormRendererComponent,
+} from "@his-hope/frontend-foundation/forms";
 import { iamScopeOptions } from "../../core/utils/iam-display.util";
 export interface BoundaryEditDialogData {
   scopes: IamScope[];
@@ -38,93 +27,22 @@ export interface BoundaryEditDialogData {
 @Component({
   selector: "app-boundary-edit-dialog",
   standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    HisHopeActionButtonComponent,
-    HisHopeCreateDialogShellComponent,
-    HisHopeFormLayoutComponent,
-    HisHopeFormSectionComponent,
-    HisHopeTranslatePipe,
-    HisHopeMaterialFormFieldComponent,
-  ],
-  template: `<hh-create-dialog-shell
-    [title]="'admin.createBoundary' | hhTranslate: 'Create permission boundary'"
-    ><div hhCreateDialogContent>
-      <form [formGroup]="formGroup" class="dialog-form" (ngSubmit)="save()">
-        @if (formGroup.invalid && formGroup.touched) {
-          <p class="form-error" role="alert">
-            {{
-              "admin.validationRequired"
-                | hhTranslate: "Complete the required fields."
-            }}
-          </p>
-        }
-        <hh-form-layout
-          ><hh-form-section
-            [title]="'admin.boundaryDetails' | hhTranslate: 'Boundary details'"
-            [description]="
-              'admin.boundaryDetailsDescription'
-                | hhTranslate
-                  : 'Define the principal, scope, permissions, and resource constraints.'
-            "
-            [span]="2"
-            ><hh-mat-form-field
-              [control]="formGroup.controls.principalType"
-              [label]="'admin.principalType' | hhTranslate"
-              kind="select"
-              [options]="principalTypeOptions" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.principalId"
-              [label]="'admin.principalId' | hhTranslate"
-              kind="select"
-              [options]="principalOptions" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.scopeId"
-              [label]="'admin.scopeId' | hhTranslate"
-              kind="select"
-              [options]="scopeOptions" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.allowedPermissions"
-              [label]="'admin.permissions' | hhTranslate"
-              kind="select"
-              [multiple]="true"
-              [options]="permissionOptions" />
-            <hh-mat-form-field
-              [control]="formGroup.controls.resourceConstraintsJson"
-              [label]="'admin.resourceConstraints' | hhTranslate"
-              [multiline]="true"
-              [rows]="4" /></hh-form-section
-        ></hh-form-layout>
-      </form>
-    </div>
-    <div hhCreateDialogFooter>
-      <hh-action-button
-        kind="secondary"
-        icon="close"
-        [label]="'admin.cancel' | hhTranslate"
-        (pressed)="dialogRef.close()"
-      /><hh-action-button
-        kind="primary"
-        icon="save"
-        [label]="(saving ? 'admin.saving' : 'admin.save') | hhTranslate"
-        [disabled]="saving"
-        (pressed)="save()"
-      /></div
-  ></hh-create-dialog-shell>`,
-  styles: [
-    `
-      .dialog-form {
-        display: grid;
-        gap: 16px;
-      }
-      .form-error {
-        margin: 0;
-        color: var(--text-danger, #b42318);
-        font-size: 0.875rem;
-      }
-    `,
-  ],
+  imports: [HisHopeEntityDialogComponent, HisHopeMaterialFormRendererComponent],
+  template: `<hh-entity-dialog
+    title="admin.createBoundary"
+    titleFallback="Create permission boundary"
+    sectionTitle="admin.boundaryDetails"
+    sectionTitleFallback="Boundary details"
+    sectionDescription="admin.boundaryDetailsDescription"
+    sectionDescriptionFallback="Define the principal, scope, permissions, and resource constraints."
+    [formGroup]="formGroup"
+    [saving]="saving"
+    cancelLabel="admin.cancel"
+    (save)="save()"
+    (cancel)="dialogRef.close()"
+  >
+    <hh-material-form-renderer [fields]="fields" [form]="formGroup" />
+  </hh-entity-dialog>`,
 })
 export class BoundaryEditDialogComponent {
   readonly dialogRef = inject(HisHopeDialogRef<BoundaryEditDialogComponent>);
@@ -203,8 +121,51 @@ export class BoundaryEditDialogComponent {
       label: `${permission.code} · ${permission.name}`,
     }));
   }
+  get fields(): HisHopeFormFieldSchema<unknown>[] {
+    return [
+      {
+        key: "principalType",
+        label: this.i18n.t("admin.principalType", "Principal type"),
+        initialValue: "human",
+        type: "select",
+        options: this.principalTypeOptions,
+      },
+      {
+        key: "principalId",
+        label: this.i18n.t("admin.principalId", "Principal"),
+        initialValue: "",
+        required: true,
+        type: "select",
+        options: this.principalOptions,
+      },
+      {
+        key: "scopeId",
+        label: this.i18n.t("admin.scopeId", "Scope"),
+        initialValue: "",
+        required: true,
+        type: "select",
+        options: this.scopeOptions,
+      },
+      {
+        key: "allowedPermissions",
+        label: this.i18n.t("admin.permissions", "Permissions"),
+        initialValue: [],
+        required: true,
+        type: "select",
+        multiple: true,
+        options: this.permissionOptions,
+      },
+      {
+        key: "resourceConstraintsJson",
+        label: this.i18n.t("admin.resourceConstraints", "Resource constraints"),
+        initialValue: "{}",
+        required: true,
+        multiline: true,
+        rows: 4,
+      },
+    ];
+  }
   save(): void {
-    this.formGroup.markAllAsTouched();
     if (this.formGroup.invalid || this.saving) return;
     Object.assign(this.draft, this.formGroup.getRawValue());
     if (

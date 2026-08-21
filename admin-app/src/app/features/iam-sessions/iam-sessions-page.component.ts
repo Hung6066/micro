@@ -61,14 +61,12 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
         icon="refresh"
         [label]="'admin.refresh' | hhTranslate"
     /></hh-toolbar>
-    <div *ngIf="error" class="hh-state hh-state--error" role="alert">
-      {{ error }}
-    </div>
     <hh-data-table
       [label]="'admin.activeSessions' | hhTranslate"
       [columns]="columns"
       [rows]="rows"
       [loading]="loading"
+      [error]="error"
       [empty]="!loading && !error && !rows.length"
       ><ng-template hhDataTableCell="actions" let-row
         ><hh-action-button

@@ -67,22 +67,22 @@ export interface HisHopeDateRange {
       .hh-date-range {
         display: flex;
         align-items: flex-end;
-        gap: 8px;
+        gap: var(--space-sm);
       }
       .hh-date-range__field {
         display: grid;
         flex: 1;
-        gap: 6px;
+        gap: var(--space-xs);
         min-width: 0;
         color: var(--text-secondary);
-        font-size: 12px;
+        font-size: var(--font-size-caption);
         font-weight: var(--font-weight-semibold);
       }
       .hh-date-range__field input {
         box-sizing: border-box;
         width: 100%;
         min-height: var(--control-height);
-        padding: 0 12px;
+        padding: 0 var(--space-md);
         border: 1px solid var(--border-default);
         border-radius: var(--radius-control);
         background: var(--surface-white);
@@ -91,14 +91,14 @@ export interface HisHopeDateRange {
       }
       .hh-date-range__field input:focus-visible {
         border-color: var(--color-primary);
-        outline: 3px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+        outline: var(--focus-ring-width-strong) solid color-mix(in srgb, var(--color-primary) 20%, transparent);
       }
       .hh-date-range__sep {
-        padding-bottom: 10px;
+        padding-bottom: var(--space-md);
         color: var(--text-muted);
       }
       .hh-date-range__error {
-        margin: 6px 0 0;
+        margin: var(--space-xs) 0 0;
         color: var(--color-danger, #b91c1c);
         font-size: var(--font-size-caption);
       }
