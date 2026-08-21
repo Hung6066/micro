@@ -54,7 +54,7 @@ jobs:
         run: ./scripts/validate-identity-coverage.ps1 -CoverageRoot coverage-results -LineThreshold 90 -BranchThreshold 80
       
       - name: Upload Coverage Report
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report
           path: coverage-report
@@ -80,7 +80,7 @@ jobs:
           npx ng test --no-watch --browsers=ChromeHeadless --code-coverage
       
       - name: Upload Frontend Coverage
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: frontend-coverage
           path: src/Frontend/his-hope-app/coverage
