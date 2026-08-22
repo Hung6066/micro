@@ -65,6 +65,7 @@ describe("HisHope native MFA bridge", () => {
     assert.deepEqual(await bridge.approveMfa({ ticket: "ticket-123" }), {
       approved: false,
       status: "cancelled",
+      reasonKey: "mobile.mfa.cancelled",
       reason: "Native prompt cancelled",
     });
   });
@@ -88,7 +89,7 @@ describe("HisHope native MFA bridge", () => {
     assert.deepEqual(await bridge.approveMfa({ ticket: "ticket-123" }), {
       approved: false,
       status: "unsupported",
-      reason: "Native passkey approval is not supported on this device.",
+      reasonKey: "mobile.mfa.passkeyUnsupported",
     });
     assert.equal(optionsRequested, false);
   });
@@ -110,6 +111,7 @@ describe("HisHope native MFA bridge", () => {
     assert.deepEqual(await bridge.approveMfa({ ticket: "ticket-123" }), {
       approved: false,
       status: "expired",
+      reasonKey: "mobile.mfa.expired",
       reason: "MFA approval ticket expired",
     });
   });
@@ -129,7 +131,7 @@ describe("HisHope native MFA bridge", () => {
     assert.deepEqual(await bridge.approveMfa({ ticket: "ticket-123" }), {
       approved: false,
       status: "rejected",
-      reason: "Native MFA assertion was rejected.",
+      reasonKey: "mobile.mfa.assertionRejected",
     });
   });
 });

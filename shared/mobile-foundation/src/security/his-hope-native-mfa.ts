@@ -12,6 +12,9 @@ export type HisHopeNativeMfaStatus =
 export interface HisHopeNativeMfaResult {
   readonly approved: boolean;
   readonly status: HisHopeNativeMfaStatus;
+  /** i18n dictionary key for user-facing copy */
+  readonly reasonKey?: string;
+  /** Optional diagnostic detail from the native bridge or server */
   readonly reason?: string;
 }
 
@@ -70,10 +73,10 @@ class DefaultHisHopeNativeMfaBridge implements HisHopeNativeMfaBridge {
 
   async approveMfa(request: HisHopeNativeMfaRequest): Promise<HisHopeNativeMfaResult> {
     const ticket = request.ticket.trim();
-    if (!ticket) return rejected("Native MFA approval ticket is required.");
+    if (!ticket) return rejected("mobile.mfa.ticketRequired");
 
     if (!await this.dependencies.passkey.isSupported()) {
-      return unsupported("Native passkey approval is not supported on this device.");
+      return unsupported("mobile.mfa.passkeyUnsupported");
     }
 
     let options: Readonly<Record<string, unknown>>;
@@ -97,7 +100,8 @@ class DefaultHisHopeNativeMfaBridge implements HisHopeNativeMfaBridge {
       return {
         approved: false,
         status,
-        reason: completion.reason ?? defaultReason(status),
+        reasonKey: defaultReasonKey(status),
+        reason: completion.reason,
       };
     } catch (error) {
       return classifyFailure(error);
@@ -107,14 +111,24 @@ class DefaultHisHopeNativeMfaBridge implements HisHopeNativeMfaBridge {
 
 function classifyFailure(error: unknown): HisHopeNativeMfaResult {
   if (error instanceof HisHopeNativeMfaBridgeError) {
-    return { approved: false, status: error.status, reason: error.message };
+    return {
+      approved: false,
+      status: error.status,
+      reasonKey: defaultReasonKey(error.status),
+      reason: error.message,
+    };
   }
 
   const status = normalizeStatus(errorCode(error))
     ?? statusFromHttpStatus(error)
     ?? statusFromMessage(errorMessage(error))
     ?? "rejected";
-  return { approved: false, status, reason: errorMessage(error) ?? defaultReason(status) };
+  return {
+    approved: false,
+    status,
+    reasonKey: defaultReasonKey(status),
+    reason: errorMessage(error) ?? undefined,
+  };
 }
 
 function normalizeStatus(value: unknown): Exclude<HisHopeNativeMfaStatus, "approved"> | null {
@@ -164,23 +178,23 @@ function errorMessage(error: unknown): string | null {
   return null;
 }
 
-function defaultReason(status: Exclude<HisHopeNativeMfaStatus, "approved">): string {
+function defaultReasonKey(status: Exclude<HisHopeNativeMfaStatus, "approved">): string {
   switch (status) {
     case "cancelled":
-      return "Native MFA approval was cancelled.";
+      return "mobile.mfa.cancelled";
     case "unsupported":
-      return "Native passkey approval is not supported on this device.";
+      return "mobile.mfa.passkeyUnsupported";
     case "expired":
-      return "MFA approval ticket expired.";
+      return "mobile.mfa.expired";
     case "rejected":
-      return "Native MFA assertion was rejected.";
+      return "mobile.mfa.assertionRejected";
   }
 }
 
-function rejected(reason: string): HisHopeNativeMfaResult {
-  return { approved: false, status: "rejected", reason };
+function rejected(reasonKey: string): HisHopeNativeMfaResult {
+  return { approved: false, status: "rejected", reasonKey };
 }
 
-function unsupported(reason: string): HisHopeNativeMfaResult {
-  return { approved: false, status: "unsupported", reason };
+function unsupported(reasonKey: string): HisHopeNativeMfaResult {
+  return { approved: false, status: "unsupported", reasonKey };
 }

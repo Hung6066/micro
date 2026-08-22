@@ -5,10 +5,13 @@ import {
   ElementRef,
   ViewChild,
   computed,
+  inject,
   input,
   output,
   signal,
 } from '@angular/core';
+import { HisHopeI18nService } from '@his-hope/frontend-foundation/i18n';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
 
 export interface HisHopeFileUploadRejection {
   file: File;
@@ -23,7 +26,7 @@ export interface HisHopeFileUploadRejection {
 @Component({
   selector: 'hh-file-upload',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'hh-file-upload' },
   template: `
@@ -32,7 +35,7 @@ export interface HisHopeFileUploadRejection {
       [class.hh-file-upload__dropzone--active]="dragActive()"
       role="button"
       tabindex="0"
-      [attr.aria-label]="label()"
+      [attr.aria-label]="labelText()"
       (click)="browse()"
       (keydown.enter)="browse()"
       (keydown.space)="onSpace($event)"
@@ -41,7 +44,7 @@ export interface HisHopeFileUploadRejection {
       (drop)="onDrop($event)"
     >
       <span class="hh-file-upload__icon material-icons" aria-hidden="true">upload_file</span>
-      <p class="hh-file-upload__hint">{{ hint() }}</p>
+      <p class="hh-file-upload__hint">{{ hintText() }}</p>
       <input
         #fileInput
         type="file"
@@ -59,7 +62,7 @@ export interface HisHopeFileUploadRejection {
             <button
               type="button"
               class="hh-file-upload__remove"
-              [attr.aria-label]="removeLabel() + ' ' + file.name"
+              [attr.aria-label]="removeAriaLabel(file.name)"
               (click)="removeFile(i)"
             >
               &times;
@@ -154,16 +157,21 @@ export interface HisHopeFileUploadRejection {
   ],
 })
 export class HisHopeFileUploadComponent {
-  readonly label = input('Upload files');
-  readonly hint = input('Drag files here or click to browse');
+  private readonly i18n = inject(HisHopeI18nService);
+
+  readonly label = input('common.uploadFiles');
+  readonly hint = input('common.dragFilesHint');
   readonly accept = input('');
   readonly multiple = input(false);
   readonly maxSizeBytes = input<number | null>(null);
-  readonly removeLabel = input('Remove');
-  readonly typeRejectedMessage = input('unsupported file type');
-  readonly sizeRejectedMessage = input('file too large');
+  readonly removeLabel = input('common.delete');
+  readonly typeRejectedMessage = input('common.fileTypeRejected');
+  readonly sizeRejectedMessage = input('common.fileTooLarge');
   readonly filesChange = output<File[]>();
   readonly rejected = output<HisHopeFileUploadRejection[]>();
+
+  readonly labelText = computed(() => this.i18n.t(this.label(), this.label()));
+  readonly hintText = computed(() => this.i18n.t(this.hint(), this.hint()));
 
   @ViewChild('fileInput') private readonly fileInput!: ElementRef<HTMLInputElement>;
 
@@ -176,11 +184,17 @@ export class HisHopeFileUploadComponent {
       .map(
         (rejection) =>
           `${rejection.file.name}: ${
-            rejection.reason === 'type' ? this.typeRejectedMessage() : this.sizeRejectedMessage()
+            rejection.reason === 'type'
+              ? this.i18n.t(this.typeRejectedMessage(), this.typeRejectedMessage())
+              : this.i18n.t(this.sizeRejectedMessage(), this.sizeRejectedMessage())
           }`,
       )
       .join(', '),
   );
+
+  removeAriaLabel(fileName: string): string {
+    return `${this.i18n.t(this.removeLabel(), this.removeLabel())} ${fileName}`;
+  }
 
   browse(): void {
     this.fileInput.nativeElement.click();

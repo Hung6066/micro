@@ -1,16 +1,18 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, input, Output } from '@angular/core';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
 
 export type HisHopeAlertTone = 'info' | 'success' | 'warning' | 'error';
 
 @Component({
   selector: 'hh-alert',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="hh-alert" [class]="'hh-alert hh-alert--' + tone()" [attr.role]="tone() === 'error' ? 'alert' : 'status'" aria-live="polite">
       <span class="material-icons" aria-hidden="true">{{ icon() }}</span>
-      <div class="hh-alert__content"><strong>{{ title() }}</strong><ng-content /></div>
-      @if (dismissible()) { <button type="button" class="hh-alert__close" aria-label="Dismiss" (click)="dismissed.emit()"><span class="material-icons" aria-hidden="true">close</span></button> }
+      <div class="hh-alert__content"><strong>{{ title() | hhTranslate }}</strong><ng-content /></div>
+      @if (dismissible()) { <button type="button" class="hh-alert__close" [attr.aria-label]="'common.dismiss' | hhTranslate" (click)="dismissed.emit()"><span class="material-icons" aria-hidden="true">close</span></button> }
     </section>
   `,
   styles: [`
@@ -27,7 +29,7 @@ export type HisHopeAlertTone = 'info' | 'success' | 'warning' | 'error';
 })
 export class HisHopeAlertComponent {
   readonly tone = input<HisHopeAlertTone>('info');
-  readonly title = input('Notice');
+  readonly title = input('common.notice');
   readonly dismissible = input(false);
   readonly icon = input('info');
   @Output() readonly dismissed = new EventEmitter<void>();

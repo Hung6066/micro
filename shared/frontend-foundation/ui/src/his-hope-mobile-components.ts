@@ -118,14 +118,14 @@ function focusableElements(host: HTMLElement): HTMLElement[] {
   ],
 })
 export class HisHopeMobileInfiniteListComponent {
-  readonly label = input("List");
+  readonly label = input("common.list");
   readonly loading = input(false);
   readonly hasMore = input(false);
   readonly loadedCount = input(0);
   readonly totalCount = input<number | null>(null);
   readonly nextCursor = input("");
-  readonly loadMoreLabel = input("Load more");
-  readonly endLabel = input("All records loaded");
+  readonly loadMoreLabel = input("common.loadMore");
+  readonly endLabel = input("common.allRecordsLoaded");
   readonly loadMore = output<void>();
   readonly loadMoreRequested = output<{ cursor: string | null }>();
   requestLoadMore(): void {
@@ -184,8 +184,8 @@ export class HisHopeMobileInfiniteListComponent {
 })
 export class HisHopeMobileRefresherComponent {
   readonly threshold = input(72);
-  readonly pullLabel = input("Pull to refresh");
-  readonly releaseLabel = input("Release to refresh");
+  readonly pullLabel = input("common.pullToRefresh");
+  readonly releaseLabel = input("common.releaseToRefresh");
   readonly refreshed = output<void>();
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
   distance = 0;
@@ -275,9 +275,9 @@ export class HisHopeMobileRefresherComponent {
 })
 export class HisHopeMobileSearchbarComponent {
   readonly value = input("");
-  readonly placeholder = input("Search");
-  readonly label = input("Search");
-  readonly clearLabel = input("Clear search");
+  readonly placeholder = input("common.search");
+  readonly label = input("common.search");
+  readonly clearLabel = input("common.clearSearch");
   readonly valueChange = output<string>();
   private timer: ReturnType<typeof setTimeout> | null = null;
   onInput(value: string): void {
@@ -369,8 +369,8 @@ export class HisHopeMobileSearchbarComponent {
 })
 export class HisHopeMobileActionSheetComponent implements OnChanges {
   readonly open = input(false);
-  readonly label = input("Actions");
-  readonly cancelLabel = input("Cancel");
+  readonly label = input("common.actions");
+  readonly cancelLabel = input("common.cancel");
   readonly close = output<void>();
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
   private previousActiveElement: HTMLElement | null = null;
@@ -491,8 +491,8 @@ export class HisHopeMobileActionSheetComponent implements OnChanges {
 })
 export class HisHopeMobileBottomSheetComponent implements OnChanges {
   readonly open = input(false);
-  readonly label = input("Details");
-  readonly closeLabel = input("Close");
+  readonly label = input("common.details");
+  readonly closeLabel = input("common.close");
   readonly close = output<void>();
   private readonly isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
   private previousActiveElement: HTMLElement | null = null;
@@ -587,7 +587,7 @@ export class HisHopeMobileBottomSheetComponent implements OnChanges {
   ],
 })
 export class HisHopeMobileSegmentComponent {
-  readonly label = input("View");
+  readonly label = input("common.view");
   readonly options = input<Array<{ value: string; label: string }>>([]);
   readonly value = input("");
   readonly valueChange = output<string>();
@@ -638,7 +638,7 @@ export class HisHopeMobileSegmentComponent {
   ],
 })
 export class HisHopeMobileAccordionComponent {
-  readonly title = input("Section");
+  readonly title = input("common.section");
   open = false;
 }
 
@@ -683,7 +683,7 @@ export class HisHopeMobileAccordionComponent {
   ],
 })
 export class HisHopeMobileAvatarComponent {
-  readonly label = input("Avatar");
+  readonly label = input("common.avatar");
   readonly src = input("");
   readonly initials = input("");
 }
@@ -730,7 +730,7 @@ export class HisHopeMobileAvatarComponent {
   ],
 })
 export class HisHopeMobileDateTimeComponent {
-  readonly label = input("Date and time");
+  readonly label = input("common.dateAndTime");
   readonly mode = input<"date" | "datetime-local">("datetime-local");
   readonly value = input("");
   readonly min = input("");
@@ -793,7 +793,7 @@ export class HisHopeMobileDateTimeComponent {
   ],
 })
 export class HisHopeMobileOtpComponent {
-  readonly label = input("Verification code");
+  readonly label = input("common.verificationCode");
   readonly length = input(6);
   readonly valueChange = output<string>();
   readonly completed = output<string>();

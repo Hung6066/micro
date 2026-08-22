@@ -346,7 +346,7 @@ export class HisHopeDataTableCellDirective {
                   class="hh-button hh-button--secondary hh-button--small"
                   (click)="exportJobCancelled.emit(job.jobId)"
                 >
-                  Cancel export
+                  {{ "common.cancelExport" | hhTranslate }}
                 </button>
               }
               @if (job.status === "failed" && job.retryable) {
@@ -355,7 +355,7 @@ export class HisHopeDataTableCellDirective {
                   class="hh-button hh-button--secondary hh-button--small"
                   (click)="exportJobRetry.emit(job.jobId)"
                 >
-                  Retry export
+                  {{ "common.retryExport" | hhTranslate }}
                 </button>
               }
             }
@@ -364,8 +364,8 @@ export class HisHopeDataTableCellDirective {
             <button
               type="button"
               class="hh-icon-button"
-              aria-label="Save table view"
-              title="Save table view"
+              [attr.aria-label]="'common.saveTableView' | hhTranslate"
+              [attr.title]="'common.saveTableView' | hhTranslate"
               (click)="saveView()"
             >
               <span class="material-icons" aria-hidden="true"
@@ -375,8 +375,8 @@ export class HisHopeDataTableCellDirective {
             <button
               type="button"
               class="hh-icon-button"
-              aria-label="Reset table view"
-              title="Reset table view"
+              [attr.aria-label]="'common.resetTableView' | hhTranslate"
+              [attr.title]="'common.resetTableView' | hhTranslate"
               (click)="resetView()"
             >
               <span class="material-icons" aria-hidden="true">restart_alt</span>
@@ -384,13 +384,18 @@ export class HisHopeDataTableCellDirective {
           }
           @if (filterBuilder()) {
             <details class="hh-data-table__filters">
-              <summary aria-label="Open filters" title="Filters">
+              <summary
+                [attr.aria-label]="'common.openFilters' | hhTranslate"
+                [attr.title]="'common.filters' | hhTranslate"
+              >
                 <span
                   class="material-icons hh-data-table__toolbar-icon"
                   aria-hidden="true"
                   >filter_alt</span
                 >
-                <span class="hh-visually-hidden">Filters</span>
+                <span class="hh-visually-hidden">{{
+                  "common.filters" | hhTranslate
+                }}</span>
                 <span class="hh-data-table__filter-count">{{
                   filterCount()
                 }}</span>
@@ -398,7 +403,7 @@ export class HisHopeDataTableCellDirective {
               <div
                 class="hh-data-table__filters-menu"
                 role="group"
-                aria-label="Advanced filters"
+                [attr.aria-label]="'common.advancedFilters' | hhTranslate"
               >
                 @for (
                   group of localFilterGroups();
@@ -406,7 +411,11 @@ export class HisHopeDataTableCellDirective {
                   let groupIndex = $index
                 ) {
                   <div class="hh-data-table__filter-group">
-                    <strong>{{ group.join === "and" ? "All" : "Any" }}</strong>
+                    <strong>{{
+                      group.join === "and"
+                        ? ("common.all" | hhTranslate)
+                        : ("common.any" | hhTranslate)
+                    }}</strong>
                     @for (
                       filter of group.filters;
                       track $index;
@@ -415,7 +424,7 @@ export class HisHopeDataTableCellDirective {
                       <div class="hh-data-table__filter-row">
                         <select
                           [value]="filter.key"
-                          aria-label="Filter field"
+                          [attr.aria-label]="'common.filterField' | hhTranslate"
                           (change)="
                             updateFilter(groupIndex, filterIndex, 'key', $event)
                           "
@@ -431,7 +440,7 @@ export class HisHopeDataTableCellDirective {
                         </select>
                         <select
                           [value]="filter.operator"
-                          aria-label="Filter operator"
+                          [attr.aria-label]="'common.filterOperator' | hhTranslate"
                           (change)="
                             updateFilter(
                               groupIndex,
@@ -449,7 +458,7 @@ export class HisHopeDataTableCellDirective {
                         </select>
                         <input
                           [value]="filter.value ?? ''"
-                          aria-label="Filter value"
+                          [attr.aria-label]="'common.filterValue' | hhTranslate"
                           (input)="
                             updateFilter(
                               groupIndex,
@@ -462,8 +471,8 @@ export class HisHopeDataTableCellDirective {
                         <button
                           type="button"
                           class="hh-icon-button"
-                          aria-label="Remove filter"
-                          title="Remove filter"
+                          [attr.aria-label]="'common.removeFilter' | hhTranslate"
+                          [attr.title]="'common.removeFilter' | hhTranslate"
                           (click)="removeFilter(groupIndex, filterIndex)"
                         >
                           <span class="material-icons" aria-hidden="true"
@@ -507,14 +516,14 @@ export class HisHopeDataTableCellDirective {
             <div
               class="hh-data-table__utility-actions"
               role="group"
-              aria-label="Table utilities"
+              [attr.aria-label]="'common.tableUtilities' | hhTranslate"
             >
               @if (clipboard()) {
                 <button
                   type="button"
                   class="hh-icon-button"
-                  aria-label="Copy table"
-                  title="Copy table"
+                  [attr.aria-label]="'common.copyTable' | hhTranslate"
+                  [attr.title]="'common.copyTable' | hhTranslate"
                   (click)="copyTable()"
                 >
                   <span class="material-icons" aria-hidden="true"
@@ -526,8 +535,8 @@ export class HisHopeDataTableCellDirective {
                 <button
                   type="button"
                   class="hh-icon-button"
-                  aria-label="Print table"
-                  title="Print table"
+                  [attr.aria-label]="'common.printTable' | hhTranslate"
+                  [attr.title]="'common.printTable' | hhTranslate"
                   (click)="printTable()"
                 >
                   <span class="material-icons" aria-hidden="true">print</span>
@@ -537,8 +546,8 @@ export class HisHopeDataTableCellDirective {
                 <button
                   type="button"
                   class="hh-icon-button"
-                  aria-label="Import data"
-                  title="Import data"
+                  [attr.aria-label]="'common.importData' | hhTranslate"
+                  [attr.title]="'common.importData' | hhTranslate"
                   (click)="importInput.click()"
                 >
                   <span class="material-icons" aria-hidden="true"
@@ -567,7 +576,7 @@ export class HisHopeDataTableCellDirective {
             <div
               class="hh-data-table__bulk-actions"
               role="group"
-              aria-label="Bulk actions"
+              [attr.aria-label]="'common.bulkActions' | hhTranslate"
             >
               @for (action of bulkActions(); track action.id) {
                 <button
@@ -708,7 +717,7 @@ export class HisHopeDataTableCellDirective {
                           [attr.aria-label]="
                             'Reorder ' + column.label + ' column'
                           "
-                          title="Reorder column"
+                          [attr.title]="'common.reorderColumn' | hhTranslate"
                           (click)="
                             moveColumn(column.key, $event.shiftKey ? -1 : 1)
                           "
@@ -734,7 +743,7 @@ export class HisHopeDataTableCellDirective {
                           [attr.aria-valuenow]="columnWidth(column) ?? 160"
                           [attr.aria-valuemin]="column.minWidth ?? 96"
                           [attr.aria-valuemax]="column.maxWidth ?? 640"
-                          title="Resize column"
+                          [attr.title]="'common.resizeColumn' | hhTranslate"
                           (pointerdown)="beginColumnResize($event, column)"
                           (keydown.arrowleft)="
                             resizeByKeyboard($any($event), column, -8)
@@ -797,7 +806,12 @@ export class HisHopeDataTableCellDirective {
                           type="checkbox"
                           [checked]="isSelected(row)"
                           (change)="toggleRow(row)"
-                          [attr.aria-label]="'Select row ' + rowKeyValue(row)"
+                          [attr.aria-label]="
+                            'common.selectRow'
+                              | hhTranslate
+                                : 'Select row ' + rowKeyValue(row)
+                                : { row: rowKeyValue(row) }
+                          "
                         />
                       </td>
                     }
@@ -1054,7 +1068,7 @@ export class HisHopeDataTableCellDirective {
           </div>
           <div
             class="hh-data-table__mobile-list"
-            aria-label="Mobile table list"
+            [attr.aria-label]="'common.mobileTableList' | hhTranslate"
           >
             @for (row of renderedRows(); track rowKeyValue(row)) {
               <article
@@ -1080,7 +1094,12 @@ export class HisHopeDataTableCellDirective {
                       [checked]="isSelected(row)"
                       (click)="$event.stopPropagation()"
                       (change)="toggleRow(row)"
-                      [attr.aria-label]="'Select row ' + rowKeyValue(row)"
+                      [attr.aria-label]="
+                        'common.selectRow'
+                          | hhTranslate
+                            : 'Select row ' + rowKeyValue(row)
+                            : { row: rowKeyValue(row) }
+                      "
                     />
                   }
                   <strong>{{ mobileItemTitle(row) }}</strong>
@@ -1194,7 +1213,7 @@ export class HisHopeDataTableCellDirective {
                 <div
                   class="hh-data-table__mobile-load-more-skeleton"
                   role="status"
-                  aria-label="Loading more records"
+                  [attr.aria-label]="'common.loadingMore' | hhTranslate"
                   aria-live="polite"
                 >
                   <span></span><span></span>
@@ -1214,7 +1233,10 @@ export class HisHopeDataTableCellDirective {
               }
             </section>
           }
-          <nav class="hh-data-table__pagination" aria-label="Table pagination">
+          <nav
+            class="hh-data-table__pagination"
+            [attr.aria-label]="'common.tablePagination' | hhTranslate"
+          >
             @if (cursorPaging()) {
               <button
                 type="button"

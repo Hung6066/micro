@@ -17,6 +17,8 @@ import {
   signal,
 } from "@angular/core";
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
 export interface HisHopeSelectOption<T = string> {
   value: T;
@@ -50,7 +52,7 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
 @Component({
   selector: "hh-select",
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [
     {
@@ -64,7 +66,7 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
     role: "combobox",
     "[attr.aria-expanded]": "isOpen()",
     "[attr.aria-disabled]": "disabled()",
-    "[attr.aria-label]": "label()",
+    "[attr.aria-label]": "labelText()",
     "[attr.tabindex]": "disabled() ? -1 : 0",
     "(click)": "toggle()",
     "(keydown)": "onTriggerKeydown($event)",
@@ -75,7 +77,7 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
       class="hh-select__value"
       [class.hh-select__value--placeholder]="!selectedOption()"
     >
-      {{ selectedOption()?.label ?? placeholder() }}
+      {{ selectedOption()?.label ?? (placeholder() | hhTranslate) }}
     </span>
     <span class="hh-select__caret material-icons" aria-hidden="true"
       >expand_more</span
@@ -85,7 +87,7 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
         #panel
         class="hh-select__panel"
         role="listbox"
-        [attr.aria-label]="label()"
+        [attr.aria-label]="labelText()"
         (keydown)="onPanelKeydown($event)"
       >
         @for (option of options(); track option.value) {
@@ -103,7 +105,7 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
           </li>
         } @empty {
           <li class="hh-select__empty" role="presentation">
-            {{ emptyLabel() }}
+            {{ emptyLabel() | hhTranslate }}
           </li>
         }
       </ul>
@@ -183,10 +185,12 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
 export class HisHopeSelectComponent<T = string>
   implements ControlValueAccessor, OnDestroy
 {
+  private readonly i18n = inject(HisHopeI18nService);
   readonly options = input<HisHopeSelectOption<T>[]>([]);
-  readonly label = input("Select");
-  readonly placeholder = input("Select an option");
-  readonly emptyLabel = input("No options available");
+  readonly label = input("common.select");
+  readonly placeholder = input("common.selectAnOption");
+  readonly emptyLabel = input("common.noOptionsAvailable");
+  readonly labelText = computed(() => this.i18n.t(this.label(), this.label()));
   readonly valueChange = output<T | null>();
 
   @ViewChild("panelTemplate")

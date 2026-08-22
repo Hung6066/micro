@@ -1,4 +1,5 @@
 import { ErrorHandler, Injectable, inject } from "@angular/core";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import { HisHopeErrorReportingService } from "../http/his-hope-error-reporting.service";
 import { HisHopeToastService } from "@his-hope/frontend-foundation/ui";
 
@@ -10,6 +11,7 @@ import { HisHopeToastService } from "@his-hope/frontend-foundation/ui";
 export class HisHopeGlobalErrorHandler implements ErrorHandler {
   private readonly errorReporting = inject(HisHopeErrorReportingService);
   private readonly toast = inject(HisHopeToastService);
+  private readonly i18n = inject(HisHopeI18nService);
 
   handleError(error: unknown): void {
     const message = this.describe(error);
@@ -20,7 +22,7 @@ export class HisHopeGlobalErrorHandler implements ErrorHandler {
       severity: "fatal",
       stack: error instanceof Error ? error.stack : undefined,
     });
-    this.toast.error("Something went wrong. Please try again.", {
+    this.toast.error(this.i18n.t("errors.unhandled"), {
       detail: message,
     });
   }
@@ -31,7 +33,7 @@ export class HisHopeGlobalErrorHandler implements ErrorHandler {
     try {
       return JSON.stringify(error);
     } catch {
-      return "Unknown error";
+      return this.i18n.t("errors.unknownError");
     }
   }
 }

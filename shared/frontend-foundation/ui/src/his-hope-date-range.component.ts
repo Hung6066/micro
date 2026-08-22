@@ -4,11 +4,14 @@ import {
   Component,
   computed,
   forwardRef,
+  inject,
   input,
   output,
   signal,
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import { HisHopeI18nService } from '@his-hope/frontend-foundation/i18n';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
 
 export interface HisHopeDateRange {
   start: string | null;
@@ -23,7 +26,7 @@ export interface HisHopeDateRange {
 @Component({
   selector: 'hh-date-range',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [
     {
@@ -33,9 +36,9 @@ export interface HisHopeDateRange {
     },
   ],
   template: `
-    <div class="hh-date-range" role="group" [attr.aria-label]="label()">
+    <div class="hh-date-range" role="group" [attr.aria-label]="labelText()">
       <label class="hh-date-range__field">
-        <span>{{ startLabel() }}</span>
+        <span>{{ startLabel() | hhTranslate }}</span>
         <input
           type="date"
           [value]="value().start ?? ''"
@@ -47,7 +50,7 @@ export interface HisHopeDateRange {
       </label>
       <span class="hh-date-range__sep" aria-hidden="true">&ndash;</span>
       <label class="hh-date-range__field">
-        <span>{{ endLabel() }}</span>
+        <span>{{ endLabel() | hhTranslate }}</span>
         <input
           type="date"
           [value]="value().end ?? ''"
@@ -59,7 +62,7 @@ export interface HisHopeDateRange {
       </label>
     </div>
     @if (error()) {
-      <p class="hh-date-range__error" role="alert">{{ error() }}</p>
+      <p class="hh-date-range__error" role="alert">{{ errorText() }}</p>
     }
   `,
   styles: [
@@ -106,13 +109,17 @@ export interface HisHopeDateRange {
   ],
 })
 export class HisHopeDateRangeComponent implements ControlValueAccessor {
-  readonly label = input('Date range');
-  readonly startLabel = input('From');
-  readonly endLabel = input('To');
+  private readonly i18n = inject(HisHopeI18nService);
+
+  readonly label = input('common.dateRange');
+  readonly startLabel = input('common.from');
+  readonly endLabel = input('common.to');
   readonly min = input('');
   readonly max = input('');
-  readonly invalidRangeMessage = input('End date must be on or after the start date.');
+  readonly invalidRangeMessage = input('common.invalidDateRange');
   readonly rangeChange = output<HisHopeDateRange>();
+
+  readonly labelText = computed(() => this.i18n.t(this.label(), this.label()));
 
   private readonly valueSignal = signal<HisHopeDateRange>({ start: null, end: null });
   readonly value = this.valueSignal.asReadonly();
@@ -120,8 +127,13 @@ export class HisHopeDateRangeComponent implements ControlValueAccessor {
 
   readonly error = computed(() => {
     const { start, end } = this.value();
-    return start && end && start > end ? this.invalidRangeMessage() : '';
+    return start && end && start > end;
   });
+  readonly errorText = computed(() =>
+    this.error()
+      ? this.i18n.t(this.invalidRangeMessage(), this.invalidRangeMessage())
+      : '',
+  );
 
   private onChange: (value: HisHopeDateRange) => void = () => {};
   private onTouched: () => void = () => {};

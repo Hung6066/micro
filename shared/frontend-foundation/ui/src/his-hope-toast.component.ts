@@ -1,9 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
 import { HisHopeToastService } from './his-hope-toast.service';
 
 @Component({
   selector: 'hh-toast-outlet',
   standalone: true,
+  imports: [HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="hh-toast-outlet" aria-live="polite" aria-atomic="false">
@@ -14,7 +16,7 @@ import { HisHopeToastService } from './his-hope-toast.service';
             <p>{{ toast.message }}</p>
             @if (toast.detail) { <small>{{ toast.detail }}</small> }
           </div>
-          <button type="button" class="hh-toast__close" (click)="toastService.dismiss(toast.id)" aria-label="Dismiss notification">
+          <button type="button" class="hh-toast__close" (click)="toastService.dismiss(toast.id)" [attr.aria-label]="'common.dismissNotification' | hhTranslate">
             <span class="material-icons" aria-hidden="true">close</span>
           </button>
         </article>

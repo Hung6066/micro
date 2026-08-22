@@ -2,12 +2,16 @@ import { CommonModule } from "@angular/common";
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   forwardRef,
+  inject,
   input,
   output,
   signal,
 } from "@angular/core";
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
 /**
  * Free-form tag/chip input. Implements `ControlValueAccessor` (`string[]`)
@@ -17,7 +21,7 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
 @Component({
   selector: "hh-chips",
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [
     {
@@ -29,7 +33,7 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
   host: {
     class: "hh-chips",
     role: "list",
-    "[attr.aria-label]": "label()",
+    "[attr.aria-label]": "labelText()",
     "[attr.aria-readonly]": "readonly()",
     "[attr.aria-disabled]": "disabled()",
   },
@@ -41,7 +45,7 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
           <button
             type="button"
             class="hh-chips__remove"
-            [attr.aria-label]="removeLabel() + ' ' + chip"
+            [attr.aria-label]="removeAriaLabel(chip)"
             (click)="remove(i)"
           >
             &times;
@@ -54,8 +58,8 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
         #chipInput
         class="hh-chips__input"
         type="text"
-        [placeholder]="value().length ? '' : placeholder()"
-        [attr.aria-label]="label()"
+        [placeholder]="value().length ? '' : (placeholder() | hhTranslate)"
+        [attr.aria-label]="labelText()"
         (keydown)="onKeydown($event, chipInput)"
         (blur)="onBlur(chipInput)"
       />
@@ -78,25 +82,18 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
         color: var(--text-primary);
         transition:
           border-color var(--motion-fast) var(--ease-standard),
-          background-color var(--motion-fast) var(--ease-standard),
-          outline-color var(--motion-fast) var(--ease-standard);
+          box-shadow var(--motion-fast) var(--ease-standard);
       }
       :host(:focus-within) {
-        border-color: var(--color-focus);
-        outline: var(--focus-ring-width-strong) solid
-          color-mix(in srgb, var(--color-primary) 20%, transparent);
-      }
-      :host([aria-readonly="true"]) {
-        background: var(--surface-muted);
-      }
-      :host([aria-disabled="true"]) {
-        opacity: 0.6;
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px
+          color-mix(in srgb, var(--color-primary) 16%, transparent);
       }
       .hh-chips__chip {
         display: inline-flex;
         align-items: center;
         gap: var(--space-2xs);
-        padding: var(--space-hairline) var(--space-2xs) var(--space-hairline) var(--space-md);
+        padding: var(--space-2xs) var(--space-sm);
         border-radius: var(--radius-pill);
         border: 1px solid
           color-mix(in srgb, var(--color-primary) 24%, transparent);
@@ -132,13 +129,16 @@ import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
   ],
 })
 export class HisHopeChipsComponent implements ControlValueAccessor {
-  readonly label = input("Tags");
-  readonly placeholder = input("Add a tag");
-  readonly removeLabel = input("Remove");
+  private readonly i18n = inject(HisHopeI18nService);
+
+  readonly label = input("common.tags");
+  readonly placeholder = input("common.addTag");
+  readonly removeLabel = input("common.delete");
   readonly maxChips = input<number | null>(null);
   readonly readonly = input(false);
   readonly separatorKeys = input<readonly string[]>(["Enter", ","]);
   readonly chipsChange = output<string[]>();
+  readonly labelText = computed(() => this.i18n.t(this.label(), this.label()));
 
   private readonly valueSignal = signal<string[]>([]);
   readonly value = this.valueSignal.asReadonly();
@@ -146,6 +146,10 @@ export class HisHopeChipsComponent implements ControlValueAccessor {
 
   private onChange: (value: string[]) => void = () => {};
   private onTouched: () => void = () => {};
+
+  removeAriaLabel(chip: string): string {
+    return `${this.i18n.t(this.removeLabel(), this.removeLabel())} ${chip}`;
+  }
 
   writeValue(value: string[] | null): void {
     this.valueSignal.set(value ?? []);
@@ -183,19 +187,20 @@ export class HisHopeChipsComponent implements ControlValueAccessor {
 
   remove(index: number): void {
     const next = this.value().filter((_, i) => i !== index);
-    this.emit(next);
+    this.valueSignal.set(next);
+    this.onChange(next);
+    this.chipsChange.emit(next);
   }
 
   private addFromInput(chipInput: HTMLInputElement): void {
     const raw = chipInput.value.trim();
     chipInput.value = "";
-    if (!raw || this.value().includes(raw)) return;
+    if (!raw) return;
     const max = this.maxChips();
-    if (max !== null && this.value().length >= max) return;
-    this.emit([...this.value(), raw]);
-  }
-
-  private emit(next: string[]): void {
+    const current = this.value();
+    if (max !== null && current.length >= max) return;
+    if (current.includes(raw)) return;
+    const next = [...current, raw];
     this.valueSignal.set(next);
     this.onChange(next);
     this.chipsChange.emit(next);

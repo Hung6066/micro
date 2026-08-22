@@ -19,9 +19,18 @@ if (-not $docker) {
     throw "Docker CLI not found. Install Docker Desktop and ensure 'docker' is on PATH."
 }
 
-Write-Host "Rebuilding identity + gateway + admin containers with updated device posture policy..."
+Write-Host "Building shared frontend packages..."
+Push-Location (Join-Path $PSScriptRoot "..")
+try {
+    npm run build:shared
+    npm run build:mobile-foundation
+} finally {
+    Pop-Location
+}
+
+Write-Host "Rebuilding frontend Docker images affected by foundation i18n changes..."
 $env:COMPOSE_PARALLEL_LIMIT = "1"
-$services = @("identityservice", "api-gateway", "admin-app")
+$services = @("frontend", "admin-app", "dashboard-app")
 foreach ($service in $services) {
     Write-Host "Building $service..."
     & $docker compose -f $ComposeFile --env-file $EnvFile build $service
@@ -31,24 +40,7 @@ foreach ($service in $services) {
 }
 & $docker compose -f $ComposeFile --env-file $EnvFile up -d --force-recreate @services
 
-Write-Host "Waiting for API gateway (http://127.0.0.1:5000)..."
-$deadline = (Get-Date).AddMinutes(3)
-while ((Get-Date) -lt $deadline) {
-    try {
-        $response = Invoke-WebRequest -Uri "http://127.0.0.1:5000/health" -UseBasicParsing -TimeoutSec 5
-        if ($response.StatusCode -eq 200) { break }
-    } catch {}
-    Start-Sleep -Seconds 3
-}
-
-Write-Host "Stack endpoints:"
-Write-Host "  API gateway : http://127.0.0.1:5000"
-Write-Host "  Identity    : http://127.0.0.1:5001"
-Write-Host "  Admin (docker): http://127.0.0.1:8083"
-Write-Host ""
-Write-Host "Optional local dev servers (instead of docker admin/mobile):"
-Write-Host "  cd admin-app; npx ng serve --port 8083 --host 127.0.0.1"
-Write-Host "  cd mobile-app; npm run start"
-Write-Host ""
-Write-Host "Security E2E:"
-Write-Host "  npm run test:e2e:security"
+Write-Host "Frontend endpoints:"
+Write-Host "  Clinical app : http://127.0.0.1:8081"
+Write-Host "  Admin app    : http://127.0.0.1:8083"
+Write-Host "  Dashboard    : http://127.0.0.1:8082"

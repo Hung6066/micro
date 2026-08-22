@@ -17,6 +17,8 @@ import {
   signal,
 } from "@angular/core";
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from "@angular/forms";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
 export interface HisHopeMultiSelectOption<T = string> {
   value: T;
@@ -49,7 +51,7 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
 @Component({
   selector: "hh-multi-select",
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, HisHopeTranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [
     {
@@ -63,7 +65,7 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
     role: "combobox",
     "[attr.aria-expanded]": "isOpen()",
     "[attr.aria-disabled]": "disabled()",
-    "[attr.aria-label]": "label()",
+    "[attr.aria-label]": "labelText()",
     "[attr.tabindex]": "disabled() ? -1 : 0",
     "(click)": "toggle()",
     "(keydown)": "onTriggerKeydown($event)",
@@ -74,7 +76,7 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
       class="hh-multi-select__value"
       [class.hh-multi-select__value--placeholder]="!summaryLabel()"
     >
-      {{ summaryLabel() || placeholder() }}
+      {{ summaryLabel() || (placeholder() | hhTranslate) }}
     </span>
     <span class="hh-multi-select__caret material-icons" aria-hidden="true"
       >expand_more</span
@@ -85,7 +87,7 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
         class="hh-multi-select__panel"
         role="listbox"
         aria-multiselectable="true"
-        [attr.aria-label]="label()"
+        [attr.aria-label]="labelText()"
         (keydown)="onPanelKeydown($event)"
       >
         @for (option of options(); track option.value) {
@@ -111,7 +113,7 @@ const PANEL_POSITIONS: ConnectedPosition[] = [
           </li>
         } @empty {
           <li class="hh-multi-select__empty" role="presentation">
-            {{ emptyLabel() }}
+            {{ emptyLabel() | hhTranslate }}
           </li>
         }
       </ul>
@@ -202,9 +204,11 @@ export class HisHopeMultiSelectComponent<T = string>
   implements ControlValueAccessor, OnDestroy
 {
   readonly options = input<HisHopeMultiSelectOption<T>[]>([]);
-  readonly label = input("Select");
-  readonly placeholder = input("Select options");
-  readonly emptyLabel = input("No options available");
+  private readonly i18n = inject(HisHopeI18nService);
+  readonly label = input("common.select");
+  readonly placeholder = input("common.selectOptions");
+  readonly emptyLabel = input("common.noOptionsAvailable");
+  readonly labelText = computed(() => this.i18n.t(this.label(), this.label()));
   readonly valueChange = output<T[]>();
 
   @ViewChild("panelTemplate")
