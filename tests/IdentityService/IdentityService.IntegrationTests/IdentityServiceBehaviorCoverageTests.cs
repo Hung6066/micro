@@ -35,7 +35,18 @@ public sealed class IdentityServiceBehaviorCoverageTests(IdentityServiceTestFixt
 
         var loggedIn = await identity.LoginAsync(new LoginRequest(Email: email, Password: password));
         Assert.Equal(registered.User.Id, loggedIn.User.Id);
-        await identity.LogoutAsync(loggedIn.RefreshToken);
+        var refreshed = await identity.RefreshTokenAsync(new RefreshTokenRequest(
+            loggedIn.AccessToken,
+            loggedIn.RefreshToken,
+            DeviceInfo: "coverage-device"));
+        Assert.Equal(registered.User.Id, refreshed.User.Id);
+        await identity.LogoutAsync(refreshed.RefreshToken);
+
+        await identity.ChangePasswordAsync(registered.User.Id, password, "Coverage-password!124");
+        var resetToken = await identity.GeneratePasswordResetTokenAsync(email);
+        await identity.ResetPasswordAsync(email, resetToken, "Coverage-password!125");
+        var confirmationToken = await identity.GenerateEmailConfirmationTokenAsync(registered.User.Id);
+        await identity.ConfirmEmailAsync(email, confirmationToken);
     }
 
     [Fact]
