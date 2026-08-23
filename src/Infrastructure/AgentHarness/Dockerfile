@@ -11,13 +11,13 @@ COPY ["src/Infrastructure/AgentHarness/src/AgentHarness.Mcp/*.csproj", "Infrastr
 COPY ["src/Infrastructure/AgentHarness/src/AgentHarness.Application/*.csproj", "Infrastructure/AgentHarness/src/AgentHarness.Application/"]
 COPY ["src/Infrastructure/AgentHarness/src/AgentHarness.Infrastructure/*.csproj", "Infrastructure/AgentHarness/src/AgentHarness.Infrastructure/"]
 COPY ["src/Infrastructure/AgentHarness/src/AgentHarness.Core/*.csproj", "Infrastructure/AgentHarness/src/AgentHarness.Core/"]
-RUN --mount=type=cache,target=/root/.nuget/packages \
+RUN --mount=type=cache,id=his-hope-agent-harness-nuget,target=/root/.nuget/packages \
     dotnet restore "Infrastructure/AgentHarness/src/AgentHarness.Mcp/His.Hope.AgentHarness.Mcp.csproj"
 
 # --- Copy source and publish ---
 COPY ["src/Infrastructure/AgentHarness/", "Infrastructure/AgentHarness/"]
 
-RUN --mount=type=cache,target=/root/.nuget/packages \
+RUN --mount=type=cache,id=his-hope-agent-harness-nuget,target=/root/.nuget/packages \
     dotnet restore "Infrastructure/AgentHarness/src/AgentHarness.Mcp/His.Hope.AgentHarness.Mcp.csproj" && \
     dotnet publish "Infrastructure/AgentHarness/src/AgentHarness.Mcp/His.Hope.AgentHarness.Mcp.csproj" \
     -c Release \
