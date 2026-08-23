@@ -18,13 +18,14 @@ jobs:
           dotnet-version: '8.0.x'
       
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore --disable-parallel
 
       - name: Verify Docker for Identity integration tests
         run: docker info
       
       - name: Backend Tests with Coverage
         run: |
+          set -euo pipefail
           dotnet test tests/Services/PatientService/PatientService.Domain.Tests/PatientService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
           dotnet test tests/Services/PatientService/PatientService.Application.Tests/PatientService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
           dotnet test tests/Services/IdentityService/IdentityService.Domain.Tests/IdentityService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results

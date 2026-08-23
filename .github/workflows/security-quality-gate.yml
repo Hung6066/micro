@@ -142,6 +142,27 @@ jobs:
             # Repository Dockerfiles restore shared projects from the repository
             # root; using dirname(Dockerfile) would silently change the build
             # context and produce false security-gate failures.
-            docker build --file "$dockerfile" --tag "$image" .
-            trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$image"
+            echo "Building and scanning $dockerfile as $image"
+            for attempt in 1 2 3; do
+              if docker build --file "$dockerfile" --tag "$image" .; then
+                break
+              fi
+              if [ "$attempt" -eq 3 ]; then
+                echo "Docker build failed after 3 attempts: $dockerfile" >&2
+                exit 1
+              fi
+              echo "Docker build attempt $attempt failed; retrying" >&2
+              sleep $((attempt * 10))
+            done
+            for attempt in 1 2 3; do
+              if trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$image"; then
+                break
+              fi
+              if [ "$attempt" -eq 3 ]; then
+                echo "Trivy image gate failed after 3 attempts: $dockerfile" >&2
+                exit 1
+              fi
+              echo "Trivy attempt $attempt failed; retrying" >&2
+              sleep $((attempt * 10))
+            done
           done

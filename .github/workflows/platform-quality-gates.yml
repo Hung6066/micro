@@ -88,6 +88,11 @@ jobs:
       - name: Lint and check protobuf compatibility
         working-directory: src/Shared/Protos
         run: |
+          set -euo pipefail
+          # actions/checkout fetches origin/main but does not create a local
+          # main branch. Buf's git module resolver expects the branch ref to
+          # exist locally, otherwise it exits 100 before comparing schemas.
+          git fetch --no-tags origin main:refs/heads/main
           # Each contract currently has its own package while the legacy
           # module keeps the files in one directory. Lint/breaking each file
           # preserves strict checks without allowing mixed packages to mask
@@ -111,7 +116,24 @@ jobs:
         with:
           node-version: '22.22.3'
           cache: npm
-      - run: npm ci --ignore-scripts --legacy-peer-deps --no-audit --no-fund
+      - name: Install frontend dependencies (with registry retry)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 20000
+          npm config set fetch-retry-maxtimeout 120000
+          for attempt in 1 2 3; do
+            if npm ci --ignore-scripts --legacy-peer-deps --no-audit --no-fund; then
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "npm ci attempt $attempt failed; retrying"
+              rm -rf node_modules
+              sleep $((attempt * 10))
+            fi
+          done
+          exit 1
       - run: npm run validate:foundation
       - run: npm run lint:design-tokens
       - run: npm run lint:hardcoded-px
@@ -209,10 +231,13 @@ jobs:
         run: docker compose -f docker/docker-compose.yml up -d postgres redis identityservice
       - name: Generate current OpenAPI document
         shell: pwsh
-        run: ./scripts/generate-openapi.ps1 -Output artifacts/openapi/identity-v1.json
+        run: ./scripts/generate-openapi.ps1 -TimeoutSeconds 300 -Output artifacts/openapi/identity-v1.json
       - name: Check OpenAPI compatibility
         shell: pwsh
         run: ./scripts/check-openapi-breaking.ps1 -Baseline docs/openapi/identity-v1.json -Current artifacts/openapi/identity-v1.json
       - name: Stop Identity dependencies
         if: always()
-        run: docker compose -f docker/docker-compose.yml down --volumes
+        run: |
+          docker compose -f docker/docker-compose.yml ps
+          docker compose -f docker/docker-compose.yml logs --no-color --tail=200 identityservice || true
+          docker compose -f docker/docker-compose.yml down --volumes
