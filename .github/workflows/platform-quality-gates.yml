@@ -12,6 +12,7 @@ permissions:
 jobs:
   backend-contracts:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -107,6 +108,7 @@ jobs:
 
   frontend-contracts:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       # Secrets are intentionally reduced to an availability flag for step
       # conditions; the values themselves are passed only to the E2E step.
@@ -170,6 +172,7 @@ jobs:
 
   supply-chain:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -227,12 +230,13 @@ jobs:
 
   openapi:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
       - name: Start Identity dependencies and service
-        run: docker compose -f docker/docker-compose.yml up -d postgres redis identityservice
+        run: timeout --signal=TERM --kill-after=20s 5m docker compose -f docker/docker-compose.yml up -d postgres redis identityservice
       - name: Generate current OpenAPI document
         shell: pwsh
         run: ./scripts/generate-openapi.ps1 -TimeoutSeconds 300 -Output artifacts/openapi/identity-v1.json
@@ -244,4 +248,4 @@ jobs:
         run: |
           docker compose -f docker/docker-compose.yml ps
           docker compose -f docker/docker-compose.yml logs --no-color --tail=200 identityservice || true
-          docker compose -f docker/docker-compose.yml down --volumes
+          timeout --signal=TERM --kill-after=20s 3m docker compose -f docker/docker-compose.yml down --volumes || true
