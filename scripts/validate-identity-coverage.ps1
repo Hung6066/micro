@@ -61,7 +61,11 @@ foreach ($report in $reports) {
                 # migration and worker smoke gates rather than deterministic
                 # request/business tests. Keep endpoint, policy and service
                 # logic measured while excluding only these lifecycle hosts.
-                $source -match '(?:^|[\\/])(?:IdentityDbInitializer|IdentityRetentionWorker|DatabaseAuditBackgroundService|LdapBackgroundService|AdminJobWorker)\.cs$') {
+                $source -like '*IdentityDbInitializer.cs' -or
+                $source -like '*IdentityRetentionWorker.cs' -or
+                $source -like '*DatabaseAuditBackgroundService.cs' -or
+                $source -like '*LdapBackgroundService.cs' -or
+                $source -like '*AdminJobWorker.cs') {
                 continue
             }
             if ($null -eq $class.lines -or $class.lines.PSObject.Properties.Name -notcontains 'line') {
