@@ -85,7 +85,6 @@ jobs:
           # severity-filtered SARIF below instead of trusting that wrapper exit.
           exit-code: '0'
           limit-severities-for-sarif: true
-          trivyignores: .trivyignore
           format: sarif
           output: trivy-results.sarif
       - name: Enforce Trivy SARIF severity gate
