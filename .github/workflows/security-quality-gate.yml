@@ -74,7 +74,9 @@ jobs:
         with:
           scan-type: fs
           scan-ref: .
-          scanners: vuln,secret,misconfig
+          # Kubernetes misconfiguration is scanned against rendered manifests
+          # in the dedicated K3s DevSecOps gate.
+          scanners: vuln,secret
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'

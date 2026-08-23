@@ -237,6 +237,7 @@ public static class IdentityServiceEndpointExtensions
             }
         })
         .WithOpenApi()
+        .Produces(StatusCodes.Status400BadRequest)
         .AllowAnonymous();
 
         auth.MapPost("/refresh", async (RefreshTokenRequest request, IIdentityService identityService,

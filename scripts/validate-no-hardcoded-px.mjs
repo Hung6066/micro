@@ -72,7 +72,9 @@ function gitDiffRange() {
   if (event === "pull_request" && baseRef) {
     try {
       execFileSync("git", ["fetch", "--no-tags", "origin", baseRef], { cwd: repoRoot, stdio: "pipe" });
-      return `origin/${baseRef}...HEAD`;
+      const base = `origin/${baseRef}`;
+      execFileSync("git", ["merge-base", "--is-ancestor", base, "HEAD"], { cwd: repoRoot, stdio: "pipe" });
+      return `${base}...HEAD`;
     } catch {
       return "HEAD~1...HEAD";
     }

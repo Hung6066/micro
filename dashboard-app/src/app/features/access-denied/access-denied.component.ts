@@ -4,7 +4,7 @@ import { HisHopeTranslatePipe } from '@his-hope/frontend-foundation/i18n';
 
 @Component({
   standalone: true,
-  selector: 'hh-dashboard-access-denied',
+  selector: 'app-dashboard-access-denied',
   imports: [RouterLink, HisHopeTranslatePipe],
   template: `
     <main class="access-denied" aria-labelledby="access-denied-title">
