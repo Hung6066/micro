@@ -41,7 +41,7 @@ jobs:
         with:
           node-version: '20.19.4'
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - name: Audit production dependencies
         shell: bash
         run: |

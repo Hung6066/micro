@@ -17,7 +17,6 @@ $deployment = ($deploymentPaths | ForEach-Object { Get-Content -Raw -LiteralPath
 $provider = Get-Content -Raw -LiteralPath $providerPath
 
 $deploymentRequirements = @(
-    'secretProviderClass: identity-service-secrets',
     'mountPath: /mnt/secrets-store',
     'OpenIddict__Signing__PrivateKeyPath',
     'OpenIddict__Encryption__PrivateKeyPath',
@@ -43,6 +42,13 @@ foreach ($requirement in $deploymentRequirements) {
     if ($deployment -notmatch [regex]::Escape($requirement)) {
         throw "Identity deployment is missing required security wiring: $requirement"
     }
+}
+
+# Production applies the `his-hope-` namePrefix to CSI resources. Accept both
+# the source manifest name and the rendered name while still requiring the
+# identity-specific SecretProviderClass reference.
+if ($deployment -notmatch 'secretProviderClass:\s+(?:his-hope-)?identity-service-secrets') {
+    throw 'Identity deployment is missing required security wiring: secretProviderClass: identity-service-secrets'
 }
 
 foreach ($requirement in $providerRequirements) {
