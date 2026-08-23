@@ -91,7 +91,7 @@ public static class MfaEndpoints
                 .FirstOrDefaultAsync(m => m.UserId == userId.Value, ct);
 
             if (existing is { IsEnabled: true })
-                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidMfaState });
+                return Results.Problem("MFA is already enabled.", statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidMfaState });
 
             var secret = totpService.GenerateSecret();
             var encryptedSecret = encryptor.Encrypt(secret);
@@ -166,7 +166,7 @@ public static class MfaEndpoints
                 .FirstOrDefaultAsync(m => m.UserId == userId.Value, ct);
 
             if (mfa is null)
-                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidMfaState });
+                return Results.Problem("MFA is not enrolled.", statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidMfaState });
 
             // Reject malformed input before decrypting the secret or invoking
             // the TOTP parser; blank codes must be a client error, never a 500.
@@ -267,13 +267,13 @@ public static class MfaEndpoints
                 .FirstOrDefaultAsync(m => m.UserId == userId.Value, ct);
 
             if (mfa is null)
-                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidMfaState });
+                return Results.Problem("MFA is not enrolled.", statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidMfaState });
 
             var codeHash = recoveryCodeService.HashCode(request.RecoveryCode);
             var index = Array.IndexOf(mfa.RecoveryCodes, codeHash);
 
             if (index < 0)
-                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidRecoveryCode });
+                return Results.Problem("Invalid recovery code.", statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidRecoveryCode });
 
             var codes = mfa.RecoveryCodes.ToList();
             codes.RemoveAt(index);
