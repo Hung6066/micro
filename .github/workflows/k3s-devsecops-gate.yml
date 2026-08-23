@@ -187,6 +187,8 @@ jobs:
         if: matrix.environment == 'prod'
         shell: pwsh
         run: |
+          dotnet tool install --global dotnet-ef --version 8.0.10
+          $env:PATH = "$HOME/.dotnet/tools:$env:PATH"
           ./scripts/generate-database-migration-scripts.ps1 -OutputDirectory artifacts/database-migrations-current
           ./scripts/validate-database-migration-contract.ps1 -MigrationDirectory artifacts/database-migrations-current -OutputPath artifacts/evidence/database-migration-contract.json
 
