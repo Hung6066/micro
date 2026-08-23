@@ -11,8 +11,8 @@ import yaml
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "gitops-release-promotion.yml"
 WORKFLOW = ROOT / ".github" / "workflows" / "gitops-promotion.yml"
+RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "gitops-release-promotion.yml"
 UPDATER = ROOT / "scripts" / "update-gitops-digest.ps1"
 RELEASE_UPDATER = ROOT / "scripts" / "update-gitops-release-digests.ps1"
 
@@ -23,19 +23,16 @@ def fail(message: str) -> None:
 
 
 def main() -> int:
-    # The repository's canonical workflow is gitops-release-promotion.yml;
-    # accept the legacy name for compatibility with older branches.
-    workflow = WORKFLOW if WORKFLOW.is_file() else RELEASE_WORKFLOW
-    if not workflow.is_file():
-        fail("missing GitOps promotion workflow")
-    raw = workflow.read_text(encoding="utf-8")
+    if not WORKFLOW.is_file():
+        fail("missing .github/workflows/gitops-promotion.yml")
+    raw = WORKFLOW.read_text(encoding="utf-8")
     try:
         document = yaml.safe_load(raw) or {}
     except yaml.YAMLError as exc:
         fail(f"invalid YAML: {exc}")
 
     jobs = document.get("jobs") or {}
-    promotion = jobs.get("promotion") or jobs.get("promotion-pr")
+    promotion = jobs.get("promotion")
     if not isinstance(promotion, dict):
         fail("promotion job is missing")
     if promotion.get("environment") != "production":
@@ -45,20 +42,20 @@ def main() -> int:
         fail("promotion job requires timeout-minutes between 1 and 60")
 
     required_fragments = (
+        "update-gitops-digest.ps1",
+        "Install pinned Cosign verifier",
         "verify-image-attestations.ps1",
         "cosign-linux-amd64",
         "8b24b946dd5809c6bd93de08033bcf6bc0ed7d336b7785787c080f574b89249b",
         "container-release.yml",
+        "HARBOR_PROJECT",
+        "IMAGE_DIGEST",
         "HARBOR_CA_CHAIN_B64",
         "update-ca-certificates",
     )
     for fragment in required_fragments:
         if fragment not in raw:
             fail(f"missing required supply-chain control: {fragment}")
-    if "Cosign" not in raw:
-        fail("promotion workflow must install and use Cosign")
-    if "update-gitops-digest.ps1" not in raw and "update-gitops-release-digests.ps1" not in raw:
-        fail("promotion workflow must invoke a digest updater")
     if not UPDATER.is_file():
         fail("missing scripts/update-gitops-digest.ps1")
     if not RELEASE_WORKFLOW.is_file():
@@ -69,9 +66,9 @@ def main() -> int:
     if "ReleaseSha" not in updater or "newTag:" not in updater:
         fail("digest updater must align the image tag with ReleaseSha when promoting a digest")
 
-    if not re.search(r"\^sha256:\[0-9a-f\]\{64\}\$", raw) and "sha256" not in raw.lower():
-        fail("workflow must validate immutable sha256 image references")
-    if ".github/workflows/container-release.yml" not in raw or "CertificateIdentityRegex" not in raw:
+    if not re.search(r"\^sha256:\[0-9a-f\]\{64\}\$", raw):
+        fail("workflow must validate lowercase immutable sha256 input")
+    if not re.search(r"\^https://github\.com/\$\{(?:GITHUB_REPOSITORY|env:GITHUB_REPOSITORY)\}/\.github/workflows/container-release\.yml", raw):
         fail("workflow must bind verification to the container-release workflow identity")
     if re.search(r"kubectl\s+(?:apply|create|patch|label)|helm\s+upgrade|ansible-playbook", raw):
         fail("promotion workflow must open a PR and not mutate a cluster")
