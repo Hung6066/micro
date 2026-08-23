@@ -102,8 +102,8 @@ jobs:
             for proto in "${changed_protos[@]}"; do
               buf lint --path "$proto"
             done
+            buf breaking --against '.git#branch=main,subdir=src/Shared/Protos'
           fi
-          buf breaking --against '.git#branch=main,subdir=src/Shared/Protos'
 
   frontend-contracts:
     runs-on: ubuntu-latest
