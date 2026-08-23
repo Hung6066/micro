@@ -6,6 +6,7 @@ using His.Hope.IdentityService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace His.Hope.IdentityService.IntegrationTests;
@@ -13,6 +14,22 @@ namespace His.Hope.IdentityService.IntegrationTests;
 [Collection("IdentityServiceIntegration")]
 public sealed class IdentityServiceBehaviorCoverageTests(IdentityServiceTestFixture fixture)
 {
+    [Fact]
+    public void Database_initializer_runs_the_idempotent_seed_path_in_testing()
+    {
+        var configuration = fixture.Services.GetRequiredService<IConfiguration>();
+        var previous = configuration["Persistence:RunMigrationsOnStartup"];
+        configuration["Persistence:RunMigrationsOnStartup"] = "true";
+        try
+        {
+            IdentityDbInitializer.Initialize(fixture.Services);
+        }
+        finally
+        {
+            configuration["Persistence:RunMigrationsOnStartup"] = previous;
+        }
+    }
+
     [Fact]
     public async Task Register_login_and_lookup_cover_identity_service_happy_paths()
     {
