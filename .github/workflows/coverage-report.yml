@@ -82,10 +82,11 @@ jobs:
         with:
           node-version: '22.22.3'
       
-      - name: Install Dependencies
-        run: |
-          cd src/Frontend/his-hope-app
-          npm ci
+      - name: Install workspace dependencies
+        run: npm ci --ignore-scripts --legacy-peer-deps --no-audit --no-fund
+
+      - name: Build shared frontend foundation
+        run: npm run build:shared
       
       - name: Frontend Tests with Coverage
         run: |
