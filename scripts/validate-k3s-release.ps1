@@ -8,8 +8,7 @@ param(
     [string]$Kubeconfig,
     [string]$OutputPath,
     [switch]$RequireCluster,
-    [switch]$RequirePodSecurity,
-    [switch]$AllowEnvironmentBlocked
+    [switch]$RequirePodSecurity
 )
 
 $ErrorActionPreference = 'Stop'
@@ -254,8 +253,5 @@ if ($status -eq 'fail') {
     if (@($checks | Where-Object { $_.name -eq 'pod-security' -and $_.status -eq 'fail' }).Count -gt 0) { exit 30 }
     exit 70
 }
-if ($status -eq 'environment-blocked') {
-    if ($AllowEnvironmentBlocked) { exit 0 }
-    exit 70
-}
+if ($status -eq 'environment-blocked') { exit 70 }
 exit 0

@@ -18,23 +18,18 @@ jobs:
           dotnet-version: '8.0.x'
       
       - name: Restore
-        run: dotnet restore --disable-parallel
+        run: dotnet restore
 
       - name: Verify Docker for Identity integration tests
         run: docker info
       
       - name: Backend Tests with Coverage
         run: |
-          set -euo pipefail
-          mkdir -p coverage-results/diagnostics
-          exec > >(tee coverage-results/diagnostics/backend-coverage.log) 2>&1
-          echo "Starting backend unit tests"
           dotnet test tests/Services/PatientService/PatientService.Domain.Tests/PatientService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
           dotnet test tests/Services/PatientService/PatientService.Application.Tests/PatientService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
           dotnet test tests/Services/IdentityService/IdentityService.Domain.Tests/IdentityService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
           dotnet test tests/Services/IdentityService/IdentityService.Application.Tests/IdentityService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
           dotnet test tests/Services/IdentityService/IdentityService.Infrastructure.Tests/IdentityService.Infrastructure.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
-          echo "Starting Identity Docker integration tests"
           pwsh -NoProfile -File ./scripts/run-identity-tests-docker.ps1 -Network bridge -CollectCoverage -ResultsDirectory coverage-results/identity-integration
           dotnet test tests/Services/ClinicalService/ClinicalService.Domain.Tests/ClinicalService.Domain.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
           dotnet test tests/Services/ClinicalService/ClinicalService.Application.Tests/ClinicalService.Application.Tests.csproj --collect:'XPlat Code Coverage' --results-directory:coverage-results
@@ -64,14 +59,6 @@ jobs:
           name: coverage-report
           path: coverage-report
 
-      - name: Upload backend coverage diagnostics
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: backend-coverage-diagnostics
-          path: coverage-results/diagnostics
-          if-no-files-found: warn
-
   frontend-coverage:
     runs-on: ubuntu-latest
     steps:
@@ -80,7 +67,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: '22.22.3'
+          node-version: '20'
       
       - name: Install Dependencies
         run: |

@@ -12,12 +12,12 @@ internal static class BffSessionGuard
         SessionTokenProtector tokenProtector,
         bool requireAuthenticatedPrincipal = true)
     {
+        if (requireAuthenticatedPrincipal && httpContext.User.Identity?.IsAuthenticated != true)
+            return Results.Unauthorized();
+
         var sessionId = httpContext.Request.Cookies["hishop_sid"];
         if (string.IsNullOrWhiteSpace(sessionId))
             return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { ["errorCode"] = "session_cookie_required" });
-
-        if (requireAuthenticatedPrincipal && httpContext.User.Identity?.IsAuthenticated != true)
-            return Results.Unauthorized();
 
         var sessionJson = await redis.GetDatabase().StringGetAsync($"session:{sessionId}");
         if (!sessionJson.HasValue)

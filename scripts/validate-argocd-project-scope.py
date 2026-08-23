@@ -17,7 +17,6 @@ BOOTSTRAP = ROOT / "k8s" / "gitops" / "bootstrap"
 # be added here and to AppProject.clusterResourceWhitelist deliberately.
 CLUSTER_SCOPED = {
     ("", "Namespace"),
-    ("apiextensions.k8s.io", "CustomResourceDefinition"),
     ("scheduling.k8s.io", "PriorityClass"),
     ("constraints.gatekeeper.sh", "K8sApprovedImageRegistry"),
     ("constraints.gatekeeper.sh", "K8sRequiredResources"),

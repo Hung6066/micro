@@ -176,7 +176,7 @@ jobs:
       - name: Validate production release invariants
         if: matrix.environment == 'prod'
         shell: pwsh
-        run: ./scripts/validate-k3s-release.ps1 -Environment prod -AllowEnvironmentBlocked -OutputPath artifacts/evidence/release-gate.json
+        run: ./scripts/validate-k3s-release.ps1 -Environment prod -OutputPath artifacts/evidence/release-gate.json
 
       - name: Validate reliability platform contract
         if: matrix.environment == 'prod'
@@ -186,11 +186,7 @@ jobs:
       - name: Validate migration artifact and startup isolation
         if: matrix.environment == 'prod'
         shell: pwsh
-        run: |
-          dotnet tool install --global dotnet-ef --version 8.0.10
-          $env:PATH = "$HOME/.dotnet/tools:$env:PATH"
-          ./scripts/generate-database-migration-scripts.ps1 -OutputDirectory artifacts/database-migrations-current
-          ./scripts/validate-database-migration-contract.ps1 -MigrationDirectory artifacts/database-migrations-current -OutputPath artifacts/evidence/database-migration-contract.json
+        run: ./scripts/validate-database-migration-contract.ps1 -OutputPath artifacts/evidence/database-migration-contract.json
 
       - name: Validate container build contract
         if: matrix.environment == 'prod'
@@ -375,16 +371,17 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      # Scan the exact production manifests produced by the render gate.
-      # Development/staging renders are separate rehearsal environments and
-      # must not weaken the production admission gate with their local-only
-      # bootstrap settings. The render job remains the source of truth and is
-      # a prerequisite for this job.
+      # Scan the exact manifests produced by the render gate.  Scanning the
+      # repository's unrendered bases/patch fragments produced false positives
+      # for fields supplied by production overlays and did not represent what
+      # Argo CD can apply.  The render job remains the source of truth and is a
+      # prerequisite for this job.
       - name: Download rendered production manifests
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: k8s-prod-rendered
+          pattern: k8s-*-rendered
           path: artifacts/k8s
+          merge-multiple: true
 
       - name: Trivy IaC scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0

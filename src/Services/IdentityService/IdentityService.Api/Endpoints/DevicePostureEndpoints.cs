@@ -217,13 +217,6 @@ public static class DevicePostureEndpoints
             ? context.FacilityId
             : string.IsNullOrWhiteSpace(requestedFacility) ? IdentityScope.Global : requestedFacility.Trim();
 
-    private static string[] GetAllowedFacilities(FacilityContext context) => context.AuthorizedFacilities
-        .Append(context.FacilityId)
-        .Where(value => !string.IsNullOrWhiteSpace(value))
-        .Select(value => value!)
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .ToArray();
-
     private static async Task<bool> CanReadPostureDecisionAsync(
         HttpContext http,
         IAuthorizationService authorization,

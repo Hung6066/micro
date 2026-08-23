@@ -319,9 +319,6 @@ spec:
           image: harbor.his-hope.local:9443/his-hope/spire-fetcher:1.15.2@sha256:fd30ab2c9ea11fe706725f52e4c04cc708294d2998c0746c73574a13be9b8599
           imagePullPolicy: IfNotPresent
           env: [{ name: SPIFFE_ID, value: spiffe://his-hope.local/ns/his-hope/sa/billing-service }]
-          resources:
-            requests: { cpu: 10m, memory: 32Mi }
-            limits: { cpu: 100m, memory: 64Mi }
           securityContext:
             runAsUser: 0
             runAsGroup: 0

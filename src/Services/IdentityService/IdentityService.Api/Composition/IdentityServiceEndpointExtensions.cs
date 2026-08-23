@@ -237,7 +237,6 @@ public static class IdentityServiceEndpointExtensions
             }
         })
         .WithOpenApi()
-        .Produces(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status400BadRequest)
         .AllowAnonymous();
 
@@ -551,11 +550,7 @@ public static class IdentityServiceEndpointExtensions
         .WithDeprecationNotice()
         .WithOpenApi()
         .RequireRateLimiting("auth")
-        // The session guard performs the authoritative cookie, CSRF, user-agent
-        // and principal binding checks. Allow anonymous middleware traversal so
-        // a missing cookie returns the contract's 400 response instead of the
-        // generic authorization middleware 401.
-        .AllowAnonymous();
+        .RequireAuthorization();
 
         auth.MapGet("/verify", async (HttpContext httpContext) =>
         {

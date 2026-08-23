@@ -2,20 +2,17 @@ import { TestBed } from "@angular/core/testing";
 import { HisHopeGlobalErrorHandler } from "./his-hope-global-error-handler";
 import { HisHopeErrorReportingService } from "../http/his-hope-error-reporting.service";
 import { HisHopeToastService } from "@his-hope/frontend-foundation/ui";
-import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 
 describe("HisHopeGlobalErrorHandler", () => {
   let handler: HisHopeGlobalErrorHandler;
   let errorReporting: HisHopeErrorReportingService;
   let toast: HisHopeToastService;
-  let i18n: HisHopeI18nService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
     handler = TestBed.inject(HisHopeGlobalErrorHandler);
     errorReporting = TestBed.inject(HisHopeErrorReportingService);
     toast = TestBed.inject(HisHopeToastService);
-    i18n = TestBed.inject(HisHopeI18nService);
     spyOn(console, "error");
   });
 
@@ -43,6 +40,6 @@ describe("HisHopeGlobalErrorHandler", () => {
     const circular: Record<string, unknown> = {};
     circular["self"] = circular;
     handler.handleError(circular);
-    expect(errorReporting.events()[0].message).toBe(i18n.t("errors.unknownError"));
+    expect(errorReporting.events()[0].message).toBe("Unknown error");
   });
 });

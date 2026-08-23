@@ -17,6 +17,7 @@ commonAnnotations:
 
 resources:
   - release-metadata.yaml
+  - cache-service-aliases.yaml
   # Argo PreSync migration hooks run before application Deployments. The
   # hooks are digest-transformed by the production image component below.
   - ../../jobs/production-migration-job.yaml
@@ -306,7 +307,6 @@ patches:
         value:
           runAsNonRoot: true
           allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
           seccompProfile:
             type: RuntimeDefault
   - target:
@@ -320,7 +320,6 @@ patches:
         value:
           runAsNonRoot: true
           allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
           seccompProfile:
             type: RuntimeDefault
       - op: add
@@ -343,7 +342,6 @@ patches:
         value:
           runAsNonRoot: true
           allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
           seccompProfile:
             type: RuntimeDefault
   # Migration hooks share the service image contract but need explicit bounded
@@ -472,16 +470,9 @@ patchesStrategicMerge:
   - api-gateway-health-probe-patch.yaml
   - redis-tls-runtime-patch.yaml
   - workload-spiffe-patches.yaml
-  - spire-fetcher-readonly-patch.yaml
+  - workload-readonly-root-patches.yaml
   - database-continuity-storage-patch.yaml
   - k3s-local-capacity-patch.yaml
-  # Apply the final filesystem policy after workload-specific patches, which
-  # may otherwise replace the container securityContext map.
-  - workload-readonly-root-patches.yaml
-  # FHIR Gateway is still WIP and is not part of the signed production image
-  # set. Keep it available to non-production overlays until a release digest
-  # and attestation are published.
-  - fhir-gateway-production-disable.yaml
 
 components:
   - image-digests

@@ -102,25 +102,28 @@ import { toMobileSchemaFields } from "../../core/mobile-schema.util";
                   | hhTranslate: "" : { count: selectedPermissionCodes.size }
               }}
             </div>
-            @if (loadingPermissions) {
-              <mat-spinner
-                diameter="28"
-                [attr.aria-label]="'admin.loading' | hhTranslate"
-              />
-            }
-            @if (permissionLoadError) {
-              <p class="permission-error" role="alert">
-                {{ "admin.rolePermissionsLoadFailed" | hhTranslate }}
-              </p>
-            }
-            @if (!loadingPermissions && !permissionLoadError) {
-              <mat-accordion multi>
-                @for (group of filteredGroups; track group.name) {
-                  <mat-expansion-panel
-                    [expanded]="isGroupExpanded(group.name)"
-                    (opened)="expandGroup(group.name)"
-                    (closed)="collapseGroup(group.name)"
-                  >
+            <mat-spinner
+              *ngIf="loadingPermissions"
+              diameter="28"
+              [attr.aria-label]="'admin.loading' | hhTranslate"
+            />
+            <p
+              *ngIf="permissionLoadError"
+              class="permission-error"
+              role="alert"
+            >
+              {{ "admin.rolePermissionsLoadFailed" | hhTranslate }}
+            </p>
+            <mat-accordion
+              *ngIf="!loadingPermissions && !permissionLoadError"
+              multi
+            >
+              <mat-expansion-panel
+                *ngFor="let group of filteredGroups"
+                [expanded]="isGroupExpanded(group.name)"
+                (opened)="expandGroup(group.name)"
+                (closed)="collapseGroup(group.name)"
+              >
                 <mat-expansion-panel-header>
                   <mat-panel-title>{{ group.name }}</mat-panel-title>
                   <mat-panel-description>
@@ -142,26 +145,23 @@ import { toMobileSchemaFields } from "../../core/mobile-schema.util";
                 >
                   {{ "admin.selectAll" | hhTranslate }}
                 </mat-checkbox>
-                    <div class="permission-options">
-                      @for (permission of group.options; track permission.code) {
-                        <mat-checkbox
-                          [checked]="selectedPermissionCodes.has(permission.code)"
-                          (change)="togglePermission(permission.code, $event.checked)"
-                        >
-                          <span>{{ permission.name }}</span>
-                          <small>
-                            {{ permission.code }}
-                            @if (permission.description) {
-                              — {{ permission.description }}
-                            }
-                          </small>
-                        </mat-checkbox>
-                      }
-                    </div>
-                  </mat-expansion-panel>
-                }
-              </mat-accordion>
-            }
+                <div class="permission-options">
+                  <mat-checkbox
+                    *ngFor="let permission of group.options"
+                    [checked]="selectedPermissionCodes.has(permission.code)"
+                    (change)="togglePermission(permission.code, $event.checked)"
+                  >
+                    <span>{{ permission.name }}</span>
+                    <small
+                      >{{ permission.code
+                      }}<ng-container *ngIf="permission.description">
+                        — {{ permission.description }}</ng-container
+                      ></small
+                    >
+                  </mat-checkbox>
+                </div>
+              </mat-expansion-panel>
+            </mat-accordion>
           </hh-form-section>
         </hh-form-layout>
       </hh-mobile-entity-edit-page>
@@ -422,21 +422,17 @@ export class MobileRoleEditPageComponent implements OnInit {
     checked: boolean,
   ): void {
     for (const permission of group.options) {
-      if (checked) {
-        this.selectedPermissionCodes.add(permission.code);
-      } else {
-        this.selectedPermissionCodes.delete(permission.code);
-      }
+      checked
+        ? this.selectedPermissionCodes.add(permission.code)
+        : this.selectedPermissionCodes.delete(permission.code);
     }
     this.cdr.markForCheck();
   }
 
   togglePermission(code: string, checked: boolean): void {
-    if (checked) {
-      this.selectedPermissionCodes.add(code);
-    } else {
-      this.selectedPermissionCodes.delete(code);
-    }
+    checked
+      ? this.selectedPermissionCodes.add(code)
+      : this.selectedPermissionCodes.delete(code);
     this.cdr.markForCheck();
   }
 

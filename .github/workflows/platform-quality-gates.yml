@@ -143,7 +143,7 @@ jobs:
       - run: npm run lint
       - run: npm run build:shared
       - run: npm run test:mobile-foundation
-      - run: npm run test:mobile -- --watch=false --browsers=ChromeHeadless
+      - run: npm --workspace @his-hope/mobile-app run test -- --watch=false --browsers=ChromeHeadless
       - run: npm --workspace @his-hope/mobile-app run build
       - run: npm pack --workspace @his-hope/frontend-foundation --dry-run
       - run: npm --workspace admin-app run build

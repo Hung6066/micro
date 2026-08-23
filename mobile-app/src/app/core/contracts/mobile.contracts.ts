@@ -96,8 +96,8 @@ export interface DashboardStats {
 }
 
 export type MobilePageQuery = HisHopePageQuery;
-export type MobilePageResult<T> = HisHopePageResult<T>;
-export type MobileBulkActionResponse = HisHopeBulkActionResult;
+export interface MobilePageResult<T> extends HisHopePageResult<T> {}
+export interface MobileBulkActionResponse extends HisHopeBulkActionResult {}
 
 export type MobileResource = "clients" | "users" | "roles" | "consents";
 export type MobileTableResource = Exclude<MobileResource, "consents">;
