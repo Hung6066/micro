@@ -143,32 +143,55 @@ jobs:
           # Keep the repository-wide scan bounded. A single unavailable base
           # image or registry must not hold the protected gate indefinitely.
           deadline=$((SECONDS + 2700))
-          for dockerfile in "${dockerfiles[@]}"; do
-            if (( SECONDS >= deadline )); then
-              echo "Container security scan exceeded its 45 minute budget" >&2
-              exit 1
-            fi
-            safe_name="${dockerfile#./}"
+          max_parallel=8
+          pids=()
+          names=()
+          failures=()
+          scan_one() {
+            local dockerfile="$1"
+            local safe_name="${dockerfile#./}"
             safe_name="${safe_name//\//-}"
             safe_name="${safe_name//./-}"
-            image="his-hope-scan:${safe_name//[^a-zA-Z0-9_-]/-}"
+            local image="his-hope-scan:${safe_name//[^a-zA-Z0-9_-]/-}"
+            local build_log="security-container-logs/${safe_name}.build.log"
+            local scan_log="security-container-logs/${safe_name}.trivy.log"
             # Repository Dockerfiles restore shared projects from the repository
             # root; using dirname(Dockerfile) would silently change the build
             # context and produce false security-gate failures.
             echo "Building and scanning $dockerfile as $image"
-            build_log="security-container-logs/${safe_name}.build.log"
-            scan_log="security-container-logs/${safe_name}.trivy.log"
             if ! timeout --signal=TERM --kill-after=30s 5m docker build --file "$dockerfile" --tag "$image" . 2>&1 | tee "$build_log"; then
               echo "Docker build failed or timed out: $dockerfile" >&2
               echo "::error title=Docker build failed::$dockerfile"
-              exit 1
+              return 1
             fi
             if ! timeout --signal=TERM --kill-after=30s 3m trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$image" 2>&1 | tee "$scan_log"; then
               echo "Trivy image gate failed or timed out: $dockerfile" >&2
               echo "::error title=Trivy image gate failed::$dockerfile"
-              exit 1
+              return 1
             fi
+          }
+          reap_one() {
+            local pid="${pids[0]}" name="${names[0]}"
+            if ! wait "$pid"; then failures+=("$name"); fi
+            pids=("${pids[@]:1}")
+            names=("${names[@]:1}")
+          }
+          for dockerfile in "${dockerfiles[@]}"; do
+            if (( SECONDS >= deadline )); then
+              echo "Container security scan exceeded its 45 minute budget" >&2
+              failures+=("budget")
+              break
+            fi
+            scan_one "$dockerfile" &
+            pids+=("$!")
+            names+=("$dockerfile")
+            if ((${#pids[@]} >= max_parallel)); then reap_one; fi
           done
+          while ((${#pids[@]})); do reap_one; done
+          if ((${#failures[@]})); then
+            printf 'Container security scan failures: %s\n' "${failures[*]}" >&2
+            exit 1
+          fi
       - name: Upload container security logs
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
