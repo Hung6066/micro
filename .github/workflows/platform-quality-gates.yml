@@ -94,8 +94,8 @@ jobs:
           # contract violations.
           for proto in *.proto; do
             buf lint --path "$proto"
-            buf breaking --path "$proto" --against '.git#branch=main,subdir=src/Shared/Protos'
           done
+          buf breaking --against '.git#branch=main,subdir=src/Shared/Protos'
 
   frontend-contracts:
     runs-on: ubuntu-latest
@@ -109,7 +109,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: '20.19.4'
+          node-version: '22.22.3'
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run validate:foundation
