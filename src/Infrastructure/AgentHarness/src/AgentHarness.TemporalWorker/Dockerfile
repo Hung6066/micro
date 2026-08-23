@@ -10,13 +10,13 @@ WORKDIR /src
 COPY ["src/Infrastructure/AgentHarness/src/AgentHarness.TemporalWorker/*.csproj", "Infrastructure/AgentHarness/src/AgentHarness.TemporalWorker/"]
 COPY ["src/Infrastructure/AgentHarness/src/AgentHarness.Infrastructure/*.csproj", "Infrastructure/AgentHarness/src/AgentHarness.Infrastructure/"]
 COPY ["src/Infrastructure/AgentHarness/src/AgentHarness.Core/*.csproj", "Infrastructure/AgentHarness/src/AgentHarness.Core/"]
-RUN --mount=type=cache,target=/root/.nuget/packages \
+RUN --mount=type=cache,id=his-hope-agent-harness-temporal-nuget,target=/root/.nuget/packages \
     dotnet restore "Infrastructure/AgentHarness/src/AgentHarness.TemporalWorker/His.Hope.AgentHarness.TemporalWorker.csproj"
 
 # --- Copy source and publish ---
 COPY ["src/Infrastructure/AgentHarness/", "Infrastructure/AgentHarness/"]
 
-RUN --mount=type=cache,target=/root/.nuget/packages \
+RUN --mount=type=cache,id=his-hope-agent-harness-temporal-nuget,target=/root/.nuget/packages \
     dotnet restore "Infrastructure/AgentHarness/src/AgentHarness.TemporalWorker/His.Hope.AgentHarness.TemporalWorker.csproj" && \
     dotnet publish "Infrastructure/AgentHarness/src/AgentHarness.TemporalWorker/His.Hope.AgentHarness.TemporalWorker.csproj" \
     -c Release \
