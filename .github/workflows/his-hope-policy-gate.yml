@@ -22,7 +22,9 @@ jobs:
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '8.0.x'
-      - run: npm ci
+      # Avoid npm's workspace prepare hook racing secondary ng-packagr entry
+      # points during install; the policy gate explicitly builds the package.
+      - run: npm ci --ignore-scripts
       - name: Run mandatory His.Hope policy gate
         shell: pwsh
         run: ./scripts/verify-his-hope-policy.ps1 -Ci

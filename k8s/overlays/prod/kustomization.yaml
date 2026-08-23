@@ -473,6 +473,10 @@ patchesStrategicMerge:
   - workload-readonly-root-patches.yaml
   - database-continuity-storage-patch.yaml
   - k3s-local-capacity-patch.yaml
+  # FHIR Gateway is still WIP and is not part of the signed production image
+  # set. Keep it available to non-production overlays until a release digest
+  # and attestation are published.
+  - fhir-gateway-production-disable.yaml
 
 components:
   - image-digests

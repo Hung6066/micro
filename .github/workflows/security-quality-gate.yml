@@ -79,9 +79,25 @@ jobs:
           scanners: vuln,secret
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          exit-code: '1'
+          # The action's SARIF build step currently exits non-zero when the
+          # scanner emits informational findings, even when the configured
+          # HIGH/CRITICAL gate is clean. Keep the gate strict by parsing the
+          # severity-filtered SARIF below instead of trusting that wrapper exit.
+          exit-code: '0'
+          limit-severities-for-sarif: true
+          trivyignores: .trivyignore
           format: sarif
           output: trivy-results.sarif
+      - name: Enforce Trivy SARIF severity gate
+        shell: node {0}
+        run: |
+          const fs = require('fs');
+          const report = JSON.parse(fs.readFileSync('trivy-results.sarif', 'utf8'));
+          const findings = (report.runs ?? []).flatMap(run => run.results ?? []);
+          if (findings.length) {
+            console.error(`Trivy HIGH/CRITICAL findings: ${findings.length}`);
+            process.exit(1);
+          }
       - name: Upload Trivy SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@0fa1882f994fbd81a47ab0804f93354f5ea40147 # v3.28.17
