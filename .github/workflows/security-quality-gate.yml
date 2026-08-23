@@ -134,6 +134,7 @@ jobs:
           set -euo pipefail
           mapfile -t dockerfiles < <(find . -type f -name Dockerfile -not -path './docs/*' -not -path './node_modules/*' | sort)
           test "${#dockerfiles[@]}" -gt 0
+          mkdir -p security-container-logs
           for dockerfile in "${dockerfiles[@]}"; do
             safe_name="${dockerfile#./}"
             safe_name="${safe_name//\//-}"
@@ -143,26 +144,37 @@ jobs:
             # root; using dirname(Dockerfile) would silently change the build
             # context and produce false security-gate failures.
             echo "Building and scanning $dockerfile as $image"
+            build_log="security-container-logs/${safe_name}.build.log"
+            scan_log="security-container-logs/${safe_name}.trivy.log"
             for attempt in 1 2 3; do
-              if docker build --file "$dockerfile" --tag "$image" .; then
+              if docker build --file "$dockerfile" --tag "$image" . 2>&1 | tee "$build_log"; then
                 break
               fi
               if [ "$attempt" -eq 3 ]; then
                 echo "Docker build failed after 3 attempts: $dockerfile" >&2
+                echo "::error title=Docker build failed::$dockerfile"
                 exit 1
               fi
               echo "Docker build attempt $attempt failed; retrying" >&2
               sleep $((attempt * 10))
             done
             for attempt in 1 2 3; do
-              if trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$image"; then
+              if trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$image" 2>&1 | tee "$scan_log"; then
                 break
               fi
               if [ "$attempt" -eq 3 ]; then
                 echo "Trivy image gate failed after 3 attempts: $dockerfile" >&2
+                echo "::error title=Trivy image gate failed::$dockerfile"
                 exit 1
               fi
               echo "Trivy attempt $attempt failed; retrying" >&2
               sleep $((attempt * 10))
             done
           done
+      - name: Upload container security logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: security-container-logs
+          path: security-container-logs
+          if-no-files-found: warn
