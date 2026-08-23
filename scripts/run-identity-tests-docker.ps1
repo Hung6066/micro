@@ -98,7 +98,7 @@ try {
     # Docker Desktop runners share memory with the host; the default project
     # graph parallelism can be OOM-killed (exit 137) while compiling the full
     # Identity integration suite. Test execution itself remains unchanged.
-    $testCommand = "export HOME=/tmp/dotnet-home DOTNET_CLI_HOME=/tmp/dotnet-home DOTNET_CLI_TELEMETRY_OPTOUT=1 NUGET_PACKAGES=/root/.nuget/packages NUGET_FALLBACK_PACKAGES= && mkdir -p /tmp/dotnet-home && echo $nugetConfig | base64 -d > /tmp/nuget.docker.config && find /src -type d -name obj -prune -exec rm -rf {} + && dotnet restore $project --disable-parallel --force --force-evaluate --configfile /tmp/nuget.docker.config -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RestoreFallbackFolders= -p:RestoreAdditionalProjectFallbackFolders= && dotnet test $project --no-restore --logger 'console;verbosity=minimal' -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false"
+    $testCommand = "export HOME=/tmp/dotnet-home DOTNET_CLI_HOME=/tmp/dotnet-home DOTNET_CLI_TELEMETRY_OPTOUT=1 NUGET_PACKAGES=/tmp/nuget NUGET_FALLBACK_PACKAGES= && mkdir -p /tmp/dotnet-home /tmp/nuget && echo $nugetConfig | base64 -d > /tmp/nuget.docker.config && find /src -type d -name obj -prune -exec rm -rf {} + && dotnet restore $project --disable-parallel --force --force-evaluate --configfile /tmp/nuget.docker.config -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RestoreFallbackFolders= -p:RestoreAdditionalProjectFallbackFolders= && dotnet test $project --no-restore --logger 'console;verbosity=minimal' -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false"
     if ($Filter) { $testCommand += " --filter '$Filter'" }
     if ($CollectCoverage) { $testCommand += " --collect:'XPlat Code Coverage' --results-directory /src/$ResultsDirectory" }
 
@@ -116,7 +116,7 @@ try {
         $dockerUserArguments = @('--user', "${runnerUid}:${runnerGid}")
     }
     Invoke-Docker (@('run', '-d', '--name', $runner) + $dockerUserArguments + @('--memory', '6g', '--memory-swap', '6g', '--network', $testNetwork,
-        '-v', "${repo}:/src", '-v', "${nuget}:/root/.nuget/packages", '-w', '/src',
+        '-v', "${repo}:/src", '-v', "${nuget}:/tmp/nuget", '-w', '/src',
         '-e', "IDENTITY_TEST_POSTGRES_CONNECTION=Host=$postgres;Port=5432;Database=hishopetest;Username=testuser;Password=testpass123",
         '-e', "IDENTITY_TEST_REDIS_CONNECTION=${redis}:6379",
         'mcr.microsoft.com/dotnet/sdk:8.0', 'bash', '-lc', $testCommand))
