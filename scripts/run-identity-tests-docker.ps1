@@ -98,7 +98,7 @@ try {
     # Docker Desktop runners share memory with the host; the default project
     # graph parallelism can be OOM-killed (exit 137) while compiling the full
     # Identity integration suite. Test execution itself remains unchanged.
-    $testCommand = "export DOTNET_CLI_TELEMETRY_OPTOUT=1 NUGET_PACKAGES=/root/.nuget/packages NUGET_FALLBACK_PACKAGES= && echo $nugetConfig | base64 -d > /tmp/nuget.docker.config && find /src -type d -name obj -prune -exec rm -rf {} + && dotnet restore $project --disable-parallel --force --force-evaluate --configfile /tmp/nuget.docker.config -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RestoreFallbackFolders= -p:RestoreAdditionalProjectFallbackFolders= && dotnet test $project --no-restore --logger 'console;verbosity=minimal' -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false"
+    $testCommand = "export HOME=/tmp/dotnet-home DOTNET_CLI_HOME=/tmp/dotnet-home DOTNET_CLI_TELEMETRY_OPTOUT=1 NUGET_PACKAGES=/root/.nuget/packages NUGET_FALLBACK_PACKAGES= && mkdir -p /tmp/dotnet-home && echo $nugetConfig | base64 -d > /tmp/nuget.docker.config && find /src -type d -name obj -prune -exec rm -rf {} + && dotnet restore $project --disable-parallel --force --force-evaluate --configfile /tmp/nuget.docker.config -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false -p:RestoreFallbackFolders= -p:RestoreAdditionalProjectFallbackFolders= && dotnet test $project --no-restore --logger 'console;verbosity=minimal' -m:1 -p:BuildInParallel=false -p:UseSharedCompilation=false"
     if ($Filter) { $testCommand += " --filter '$Filter'" }
     if ($CollectCoverage) { $testCommand += " --collect:'XPlat Code Coverage' --results-directory /src/$ResultsDirectory" }
 

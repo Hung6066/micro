@@ -178,7 +178,8 @@ jobs:
         with:
           node-version: '20.19.4'
           cache: npm
-      - run: npm ci
+      - name: Install dependencies without lifecycle builds
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: SCA audit for production dependency graph
         run: npm audit --omit=dev --audit-level=high
       - name: Capture full dependency audit
