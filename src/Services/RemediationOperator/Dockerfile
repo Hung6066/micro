@@ -8,17 +8,16 @@ WORKDIR /src
 
 # --- Restore dependencies (layer cached) ---
 COPY ["src/Services/RemediationOperator/*.csproj", "Services/RemediationOperator/"]
-RUN --mount=type=cache,target=/root/.nuget/packages \
+RUN --mount=type=cache,id=his-hope-remediation-operator-nuget,target=/root/.nuget/packages \
     dotnet restore "Services/RemediationOperator/RemediationOperator.csproj"
 
 # --- Copy source and publish ---
 COPY ["src/Services/RemediationOperator/", "Services/RemediationOperator/"]
 
-RUN --mount=type=cache,target=/root/.nuget/packages \
+RUN --mount=type=cache,id=his-hope-remediation-operator-nuget,target=/root/.nuget/packages \
     dotnet publish "Services/RemediationOperator/RemediationOperator.csproj" \
     -c Release \
-    -o /app/publish \
-    
+    -o /app/publish
 
 # ============================================================
 # CURL STAGE (for healthchecks)
