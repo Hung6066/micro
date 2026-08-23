@@ -148,7 +148,7 @@ jobs:
             build_log="security-container-logs/${safe_name}.build.log"
             scan_log="security-container-logs/${safe_name}.trivy.log"
             for attempt in 1 2 3; do
-              if docker build --file "$dockerfile" --tag "$image" . 2>&1 | tee "$build_log"; then
+              if timeout --signal=TERM --kill-after=30s 10m docker build --file "$dockerfile" --tag "$image" . 2>&1 | tee "$build_log"; then
                 break
               fi
               if [ "$attempt" -eq 3 ]; then
@@ -160,7 +160,7 @@ jobs:
               sleep $((attempt * 10))
             done
             for attempt in 1 2 3; do
-              if trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$image" 2>&1 | tee "$scan_log"; then
+              if timeout --signal=TERM --kill-after=30s 5m trivy image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$image" 2>&1 | tee "$scan_log"; then
                 break
               fi
               if [ "$attempt" -eq 3 ]; then
