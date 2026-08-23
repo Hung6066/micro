@@ -9,8 +9,8 @@ data:
   OBSERVABILITY_ALERTMANAGER_URL: http://kps-kube-prometheus-stack-alertmanager.monitoring.svc.cluster.local:9093
   OBSERVABILITY_LOKI_URL: http://loki.monitoring.svc.cluster.local:3100
   OBSERVABILITY_JAEGER_URL: http://jaeger.monitoring.svc.cluster.local:16686
-  ADAPTER_RABBITMQ_HOST: his-hope-rabbitmq.his-hope.svc.cluster.local
-  RABBITMQ_URL: amqp://his_hope_app@his-hope-rabbitmq.his-hope.svc.cluster.local:5672
+  ADAPTER_RABBITMQ_HOST: his-hope-rabbitmq.his-hope-data.svc.cluster.local
+  RABBITMQ_URL: amqp://his_hope_app@his-hope-rabbitmq.his-hope-data.svc.cluster.local:5672
   ADAPTER_GRPC_APPOINTMENT_URL: http://his-hope-appointment-service.his-hope.svc.cluster.local:5008
   ADAPTER_GRPC_BILLING_URL: http://his-hope-billing-service.his-hope.svc.cluster.local:5022
   ADAPTER_GRPC_CLINICAL_URL: http://his-hope-clinical-service.his-hope.svc.cluster.local:5009

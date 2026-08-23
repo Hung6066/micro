@@ -15,6 +15,13 @@ COPY shared/frontend-foundation/tsconfig.lib.json ./shared/frontend-foundation/
 COPY shared/frontend-foundation/README.md shared/frontend-foundation/CHANGELOG.md shared/frontend-foundation/COMPATIBILITY.md shared/frontend-foundation/LICENSE ./shared/frontend-foundation/
 COPY shared/frontend-foundation/docs ./shared/frontend-foundation/docs
 COPY shared/frontend-foundation/src ./shared/frontend-foundation/src
+COPY shared/frontend-foundation/auth ./shared/frontend-foundation/auth
+COPY shared/frontend-foundation/contracts ./shared/frontend-foundation/contracts
+COPY shared/frontend-foundation/domain ./shared/frontend-foundation/domain
+COPY shared/frontend-foundation/forms ./shared/frontend-foundation/forms
+COPY shared/frontend-foundation/i18n ./shared/frontend-foundation/i18n
+COPY shared/frontend-foundation/query ./shared/frontend-foundation/query
+COPY shared/frontend-foundation/ui ./shared/frontend-foundation/ui
 RUN cd shared/frontend-foundation && npm install --legacy-peer-deps --ignore-scripts && npm run build
 WORKDIR /workspace/src/Frontend/his-hope-app
 # Copy package files and install dependencies with cache

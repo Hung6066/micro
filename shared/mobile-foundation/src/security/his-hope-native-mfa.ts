@@ -97,12 +97,14 @@ class DefaultHisHopeNativeMfaBridge implements HisHopeNativeMfaBridge {
       const completion = await this.dependencies.server.complete(ticket, assertion);
       if (completion.approved) return { approved: true, status: "approved" };
       const status = normalizeStatus(completion.status) ?? "rejected";
-      return {
+      const result: HisHopeNativeMfaResult = {
         approved: false,
         status,
         reasonKey: defaultReasonKey(status),
-        reason: completion.reason,
       };
+      return completion.reason === undefined
+        ? result
+        : { ...result, reason: completion.reason };
     } catch (error) {
       return classifyFailure(error);
     }

@@ -124,8 +124,17 @@ if (-not (Test-Path -LiteralPath $renderPath -PathType Leaf)) {
         $_ -notmatch 'Redis__TlsCaFile\s*\r?\n\s*\s*value:\s*/etc/tls/redis/ca.crt' -or
         $_ -notmatch 'secretName:\s*redis-tls' -or
         $_ -notmatch 'fsGroup:\s*1654' -or
-        $_ -notmatch 'spire-jwt-fetcher' -or
-        $_ -notmatch 'hostPath:\s*\r?\n\s*path:\s*/run/spire/sockets'
+        # Production accepts either Kubernetes Vault auth with a projected
+        # service-account token, or the legacy SPIFFE-JWT bootstrap.  Both
+        # paths remain fail-closed against static Vault tokens.
+        (
+            (($_ -match 'Vault__AuthMethod\s*\r?\n\s*\s*value:\s*kubernetes') -and
+                $_ -notmatch 'serviceAccountToken:') -or
+            (($_ -match 'Vault__AuthMethod\s*\r?\n\s*\s*value:\s*spiffe-jwt') -and
+                (($_ -notmatch 'spire-jwt-fetcher') -or
+                    ($_ -notmatch 'hostPath:\s*\r?\n\s*path:\s*/run/spire/sockets'))) -or
+            (($_ -notmatch 'Vault__AuthMethod\s*\r?\n\s*\s*value:\s*(?:kubernetes|spiffe-jwt)'))
+        )
     })
     $unpinnedJobImages = @($migrationJobs | ForEach-Object {
         [regex]::Matches($_, '(?m)^\s*image:\s*(?<image>\S+)') | ForEach-Object { $_.Groups['image'].Value }

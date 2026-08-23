@@ -14,8 +14,6 @@ data:
   HIS_HOPE_PUBLIC_ADMIN_ORIGIN: https://admin.his-hope.example
   HIS_HOPE_PUBLIC_DASHBOARD_ORIGIN: https://ops.his-hope.example
   HIS_HOPE_OIDC_AUTHORITY: https://identity.his-hope.example
-  HIS_HOPE_SECRET_PROVIDER: vault
-  HIS_HOPE_SECRET_PROVIDER_REF: kv/data/his-hope/production/runtime
   SERVICE_API_GATEWAY_URL: http://api-gateway.his-hope.svc.cluster.local:5000
   SERVICE_IDENTITY_URL: http://identity-service.his-hope.svc.cluster.local:5003
   SERVICE_IDENTITY_API_URL: http://identity-service.his-hope.svc.cluster.local:5003
@@ -64,21 +62,11 @@ data:
   OBSERVABILITY_ELASTICSEARCH_REQUIRED: "false"
   OBSERVABILITY_JAEGER_URL: http://jaeger.monitoring.svc.cluster.local:16686
   OBSERVABILITY_JAEGER_REQUIRED: "false"
-  SECRET_POSTGRES_PASSWORD: __FROM_SECRET_PROVIDER__
-  SECRET_POSTGRES_PASSWORD_REF: kv/data/his-hope/production/postgres#password
-  SECRET_RABBITMQ_PASSWORD: __FROM_SECRET_PROVIDER__
-  SECRET_RABBITMQ_PASSWORD_REF: kv/data/his-hope/production/rabbitmq#password
-  SECRET_REDIS_PASSWORD: __FROM_SECRET_PROVIDER__
-  SECRET_REDIS_PASSWORD_REF: kv/data/his-hope/production/redis#password
-  SECRET_OIDC_CLIENT_SECRET: __FROM_SECRET_PROVIDER__
-  SECRET_OIDC_CLIENT_SECRET_REF: kv/data/his-hope/production/oidc#client-secret
   DEVICE_POSTURE_MODE: observe
   DEVICE_POSTURE_PROVIDERS: chrome-enterprise,advanced-compliance,windows-local-login,play-integrity,app-attest
   DEVICE_POSTURE_TTL_SECONDS: "900"
   DEVICE_POSTURE_REQUIRED_SIGNALS: device_secure,not_rooted
   DEVICE_POSTURE_ENFORCE_CLINICAL: "false"
-  PASSWORD_HISTORY_ENABLED: "true"
-  PASSWORD_HISTORY_COUNT: "5"
   AUDIT_APPEND_ONLY: "true"
   AUDIT_REDACTION_ENABLED: "true"
   EXTERNAL_FEDERATION_ENABLED: "false"
@@ -90,12 +78,10 @@ data:
   RADIUS_EAP_TLS_ENABLED: "false"
   CSV_EXPORT_ENABLED: "true"
   PROVISIONING_SCIM_BASE_URL: ""
-  PROVISIONING_SCIM_TOKEN_URL: ""
   PROVISIONING_SCIM_CLIENT_ID: ""
   PROVISIONING_SCIM_SCOPE: scim.write
   PROVISIONING_ENTRA_ENABLED: "false"
   PROVISIONING_ENTRA_BASE_URL: https://graph.microsoft.com/v1.0
-  PROVISIONING_ENTRA_TOKEN_URL: ""
   PROVISIONING_ENTRA_CLIENT_ID: ""
   PROVISIONING_ENTRA_SCOPE: https://graph.microsoft.com/.default
   ENTRA_AUTHORITY: ""
@@ -106,8 +92,6 @@ data:
   EXTERNAL_SOURCE_0_CLIENT_ID: ""
   PROVISIONING_GOOGLE_WORKSPACE_ENABLED: "false"
   PROVISIONING_GOOGLE_WORKSPACE_BASE_URL: https://admin.googleapis.com/admin/directory/v1
-  PROVISIONING_GOOGLE_WORKSPACE_TOKEN_URL: https://oauth2.googleapis.com/token
-  PROVISIONING_GOOGLE_WORKSPACE_SECRET_ID: google-workspace-service-account
   PROVISIONING_GOOGLE_WORKSPACE_DELEGATED_ADMIN: ""
   SSF_RECEIVER_URL: ""
   SSF_RECEIVER_AUDIENCE: ""
@@ -117,13 +101,13 @@ data:
   ADAPTER_RABBITMQ_HOST: rabbitmq.his-hope.svc.cluster.local
   ADAPTER_JAEGER_TRACES_ENDPOINT: http://jaeger.his-hope.svc.cluster.local:14278/api/traces
   ADAPTER_CONSUL_ADDRESS: http://consul.his-hope.svc.cluster.local:8500
-  ADAPTER_CONNECTIONSTRINGS_APPOINTMENTDB: Host=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=appointmentdb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_BILLINGDB: Host=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=billingdb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_CLINICALDB: Host=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=clinicaldb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_IDENTITYDB: Host=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=identitydb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_LABDB: Host=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=labdb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_PATIENTDB: Host=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=patientdb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_PHARMACYDB: Host=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=pharmacydb;Username=his_hope;Password=
+  ADAPTER_CONNECTIONSTRINGS_APPOINTMENTDB: postgresql://his_hope_app@his-hope-postgres.his-hope.svc.cluster.local:5432/appointmentdb
+  ADAPTER_CONNECTIONSTRINGS_BILLINGDB: postgresql://his_hope_app@his-hope-postgres.his-hope.svc.cluster.local:5432/billingdb
+  ADAPTER_CONNECTIONSTRINGS_CLINICALDB: postgresql://his_hope_app@his-hope-postgres.his-hope.svc.cluster.local:5432/clinicaldb
+  ADAPTER_CONNECTIONSTRINGS_IDENTITYDB: postgresql://his_hope_app@his-hope-postgres.his-hope.svc.cluster.local:5432/identitydb
+  ADAPTER_CONNECTIONSTRINGS_LABDB: postgresql://his_hope_app@his-hope-postgres.his-hope.svc.cluster.local:5432/labdb
+  ADAPTER_CONNECTIONSTRINGS_PATIENTDB: postgresql://his_hope_app@his-hope-postgres.his-hope.svc.cluster.local:5432/patientdb
+  ADAPTER_CONNECTIONSTRINGS_PHARMACYDB: postgresql://his_hope_app@his-hope-postgres.his-hope.svc.cluster.local:5432/pharmacydb
   ADAPTER_SERVICE_IDENTITY_HTTP: http://identity-service.his-hope.svc.cluster.local:5003
   ADAPTER_SERVICE_PATIENT_HTTP: http://patient-service.his-hope.svc.cluster.local:5002
   ADAPTER_SERVICE_APPOINTMENT_HTTP: http://appointment-service.his-hope.svc.cluster.local:5004

@@ -109,7 +109,11 @@ public sealed class AuditLogEndpointTests : IAsyncLifetime
             options.UseInMemoryDatabase(_databaseName, DatabaseRoot));
         builder.Services.AddAuthentication(TestAuthHandler.Scheme)
             .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.Scheme, _ => { });
-        builder.Services.AddAuthorization();
+        builder.Services.AddAuthorization(options =>
+        {
+            options.AddPolicy("Permission:patients.view", policy => policy.RequireAuthenticatedUser());
+            options.AddPolicy("Permission:admin.audit.read", policy => policy.RequireAuthenticatedUser());
+        });
 
         _app = builder.Build();
         _app.UseAuthentication();

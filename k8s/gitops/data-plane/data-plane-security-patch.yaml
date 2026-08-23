@@ -81,7 +81,7 @@ spec:
               readOnly: true
       initContainers:
         - name: rabbitmq-cookie-init
-          image: docker.io/library/busybox:1.36.1
+          image: harbor.his-hope.local:9443/his-hope/busybox:1.36@sha256:b7f3d86d6e84fc17718c48bcde1450807faa2d56704205c697b4bd5df7b9e29f
           command: ["sh", "-c", "cp /bootstrap/.erlang.cookie /runtime/.erlang.cookie && chmod 0600 /runtime/.erlang.cookie"]
           securityContext:
             runAsUser: 999

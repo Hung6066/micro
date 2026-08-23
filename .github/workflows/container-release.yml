@@ -55,7 +55,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm ci
+          npm ci --ignore-scripts
           npm audit --omit=dev --audit-level=high
           npm run build:shared
           npm --workspace admin-app run build -- --configuration production

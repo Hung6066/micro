@@ -27,7 +27,9 @@ public static class ClientEndpoints
 
     public static IEndpointRouteBuilder MapDynamicClientRegistration(this IEndpointRouteBuilder app)
     {
-        app.MapPost(IdentityApiRoutes.OidcRegister, RegisterDynamicClient).AllowAnonymous();
+        app.MapPost(IdentityApiRoutes.OidcRegister, RegisterDynamicClient)
+            .AllowAnonymous()
+            .Produces(StatusCodes.Status400BadRequest);
         return app;
     }
 
