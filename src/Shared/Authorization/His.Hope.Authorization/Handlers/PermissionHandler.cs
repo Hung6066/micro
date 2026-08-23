@@ -6,7 +6,8 @@ namespace His.Hope.Authorization.Handlers;
 
 public sealed class PermissionHandler(
     ILogger<PermissionHandler> logger,
-    IAuthorizationDecisionSink? decisionSink = null) : AuthorizationHandler<PermissionRequirement>
+    IAuthorizationDecisionSink? decisionSink = null,
+    OpenFgaCanaryAuthorizer? canaryAuthorizer = null) : AuthorizationHandler<PermissionRequirement>
 {
     protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, PermissionRequirement requirement)
     {
@@ -22,6 +23,11 @@ public sealed class PermissionHandler(
         if (permissions.Count > 0)
         {
             var allowed = permissions.Contains(requirement.PermissionCode);
+            if (allowed && canaryAuthorizer is not null &&
+                !await canaryAuthorizer.AllowsAsync(context.User, requirement.PermissionCode))
+            {
+                allowed = false;
+            }
             if (allowed) context.Succeed(requirement);
             else logger.LogDebug("Permission denied for {Permission}", requirement.PermissionCode);
             await RecordDecisionAsync(context, requirement, allowed, allowed ? "allowed" : "permission_missing");

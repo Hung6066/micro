@@ -4,7 +4,19 @@
 **Date**: 2026-07-24  
 **Scope**: P1 (hardening release) + P2 (enterprise maturity)  
 **Service**: `src/Services/IdentityService/`  
-**Audit Reference**: 18 issues found — 1 fixed, 5 partial, 12 open
+**Audit Reference**: 18 issues found — 7 fixed/partial (2026-08-22), 11 open
+
+**2026-08-22 remediation batch (automated evidence):**
+| # | Status | Evidence |
+|---|--------|----------|
+| 2 | ✅ Done | `AuthenticationRedirectValidator` + integration tests |
+| 3 | ✅ Done | `/internal/refresh` → `RequireAuthorization()` + `BffSessionGuard` |
+| 5 | ✅ Done | Production fail-fast when MFA Vault transit unavailable |
+| 8 | ✅ Partial | BFF tokens protected via `SessionTokenProtector` (`dp:v1:` prefix) |
+| — | ✅ Done | AAL policy middleware + `config/assurance-policy.v1.json` |
+| — | ✅ Done | OpenFGA canary deny path (`AUTHZ_PDP_MODE=canary`) |
+| — | ✅ Done | SIEM/WORM dead-letter + tamper drill scripts |
+| — | ✅ Done | Legacy auth deprecation runbook (`docs/runbooks/legacy-auth-deprecation.md`) |
 
 ---
 

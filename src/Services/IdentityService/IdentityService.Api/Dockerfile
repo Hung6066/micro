@@ -65,6 +65,7 @@ COPY ["src/Shared/EventBus/Src/His.Hope.EventBus/", "Shared/EventBus/Src/His.Hop
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/", "Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
 COPY ["src/Shared/Protos/", "Shared/Protos/"]
+COPY ["config/assurance-policy.v1.json", "Services/IdentityService/IdentityService.Api/config/assurance-policy.v1.json"]
 
 RUN --mount=type=cache,target=/root/.nuget/packages \
     dotnet publish "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj" \

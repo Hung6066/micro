@@ -7,8 +7,8 @@ metadata:
     app: outbox-cleanup
     component: data-lifecycle
 spec:
-  schedule: "0 3 * * *"          # Daily at 3:00 AM
-  concurrencyPolicy: Forbid       # Don't start a new run if previous is still running
+  schedule: "0 3 * * *"
+  concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 1
   jobTemplate:
@@ -23,43 +23,42 @@ spec:
           restartPolicy: OnFailure
           containers:
           - name: cleanup
-            image: cockroachdb/cockroach:v24.1.2
+            image: postgres:16-alpine
             imagePullPolicy: IfNotPresent
             env:
-            - name: COCKROACH_HOST
-              value: cockroachdb-public:26257
-            - name: COCKROACH_USER
-              value: root
+            - name: PGHOST
+              value: postgres-rw
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: username
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: password
             - name: RETENTION_DAYS
               value: "30"
             command:
-            - /bin/bash
+            - /bin/sh
             - -c
             - |
-              set -euo pipefail
+              set -eu
               RETENTION_DAYS=${RETENTION_DAYS:-30}
               echo "=== Outbox Cleanup - $(date -u -Iseconds) ==="
               echo "Retention period: ${RETENTION_DAYS} days"
-
-              # Databases that contain outbox messages
-              DATABASES=("patientdb" "appointmentdb" "clinicaldb" "identitydb" "labdb" "billingdb" "pharmacydb")
-
-              for db in "${DATABASES[@]}"; do
-                echo ">>> Cleaning ${db}.OutboxMessages ..."
-                cockroach sql \
-                  --host="${COCKROACH_HOST}" \
-                  --user="${COCKROACH_USER}" \
-                  --insecure \
-                  --database="${db}" \
-                  -e "
-                DELETE FROM OutboxMessages
-                WHERE  Status IN ('Completed', 'Skipped')
-                  AND  ProcessedOn IS NOT NULL
-                  AND  ProcessedOn < now() - INTERVAL '${RETENTION_DAYS} days';
+              DATABASES="patientdb appointmentdb clinicaldb identitydb labdb billingdb pharmacydb"
+              for db in $DATABASES; do
+                echo ">>> Cleaning ${db}.outbox_messages ..."
+                psql -d "$db" -v ON_ERROR_STOP=1 -c "
+                  DELETE FROM outbox_messages
+                  WHERE status IN ('Completed', 'Skipped')
+                    AND processed_on IS NOT NULL
+                    AND processed_on < NOW() - INTERVAL '${RETENTION_DAYS} days';
                 "
                 echo "<<< Done: ${db}"
               done
-
               echo "=== Outbox cleanup completed successfully ==="
 ---
 apiVersion: v1

@@ -7,6 +7,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Services;
 using His.Hope.IdentityService.Application.Interfaces;
+using His.Hope.IdentityService.Application.Security;
 using His.Hope.IdentityService.Application.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
@@ -112,7 +113,7 @@ public sealed class OidcLoginCompletionService(
         IReadOnlyCollection<string> authenticationMethods,
         CancellationToken cancellationToken = default)
     {
-        var safeReturnUrl = SafeReturnUrl(returnUrl);
+        var safeReturnUrl = ResolveSafeReturnUrl(returnUrl);
         var mfaEnabled = user.TwoFactorEnabled || await db.UserMfas
             .AsNoTracking()
             .AnyAsync(item => item.UserId == user.Id && item.IsEnabled, cancellationToken);
@@ -313,15 +314,12 @@ public sealed class OidcLoginCompletionService(
         return pending.ReturnUrl;
     }
 
-    private static string SafeReturnUrl(string? value) =>
-        !string.IsNullOrWhiteSpace(value) && value.StartsWith("/", StringComparison.Ordinal) &&
-        !value.StartsWith("//", StringComparison.Ordinal) && !value.Contains('\\') && !value.Contains(':')
-            ? value
-            : "/";
+    private string ResolveSafeReturnUrl(string? value) =>
+        AuthenticationRedirectValidator.ResolveSafeReturnUrl(value, configuration);
 
-    private static string CreateRedirectHandle(string returnUrl)
+    private string CreateRedirectHandle(string returnUrl)
     {
-        var safeReturnUrl = SafeReturnUrl(returnUrl);
+        var safeReturnUrl = ResolveSafeReturnUrl(returnUrl);
         var delimiterIndex = safeReturnUrl.IndexOfAny(['?', '#']);
         return delimiterIndex >= 0 ? safeReturnUrl[..delimiterIndex] : safeReturnUrl;
     }

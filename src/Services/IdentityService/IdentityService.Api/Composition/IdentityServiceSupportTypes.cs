@@ -9,6 +9,7 @@ using His.Hope.Infrastructure.Locking;
 using His.Hope.Observability;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.Secrets;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Npgsql;
 using StackExchange.Redis;
@@ -51,8 +52,12 @@ internal static class LegacyEndpointFilter
     {
         return builder.AddEndpointFilter(async (ctx, next) =>
         {
+            var configuration = ctx.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
+            var sunset = configuration["Authentication:LegacyAuthSunset"]
+                ?? configuration["LEGACY_AUTH_SUNSET"]
+                ?? "Sat, 01 Jan 2028 00:00:00 GMT";
             ctx.HttpContext.Response.Headers["Deprecation"] = "true";
-            ctx.HttpContext.Response.Headers["Sunset"] = "Sat, 01 Jan 2028 00:00:00 GMT";
+            ctx.HttpContext.Response.Headers["Sunset"] = sunset;
             ctx.HttpContext.Response.Headers["Link"] = $"<{IdentityApiRoutes.OidcAuthorize}>; rel=\"successor-version\"";
             return await next(ctx);
         });
@@ -77,7 +82,7 @@ internal class ProductionConfigurationValidator
         if (string.IsNullOrWhiteSpace(vaultAddress) || !vaultAddress.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             errors.Add("Vault:Address is required in production.");
         if (!config.GetValue("Vault:EnableTransit", false))
-            errors.Add("Vault:EnableTransit must be true in production.");
+            errors.Add("Vault:EnableTransit must be true in production (required for MFA secret encryption).");
         var vaultRole = config["Vault:Role"];
         var vaultJwtFile = config["Vault:JwtTokenFile"];
         if (string.IsNullOrWhiteSpace(vaultRole) || string.IsNullOrWhiteSpace(vaultJwtFile))

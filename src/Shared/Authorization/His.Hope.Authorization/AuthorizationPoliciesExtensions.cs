@@ -18,6 +18,7 @@ public static class AuthorizationPoliciesExtensions
             client.Timeout = TimeSpan.FromMilliseconds(500);
         });
         services.AddSingleton<IOpenFgaClient>(serviceProvider => serviceProvider.GetRequiredService<OpenFgaClient>());
+        services.AddSingleton<OpenFgaCanaryAuthorizer>();
         services.AddSingleton<IAuthorizationDecisionSink, LoggingAuthorizationDecisionSink>();
         services.AddSingleton<IAuthorizationShadowProbe, LoggingAuthorizationShadowProbe>();
         services.AddScoped<IResourceAuthorizationEvaluator, AuthorizationEvaluator>();

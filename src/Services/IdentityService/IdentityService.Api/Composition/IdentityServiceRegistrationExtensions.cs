@@ -25,6 +25,7 @@ using His.Hope.IdentityService.Api.Handlers;
 using His.Hope.IdentityService.Application;
 using His.Hope.IdentityService.Application.OpenIddict;
 using His.Hope.IdentityService.Application.DTOs;
+using His.Hope.IdentityService.Application.Assurance;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
@@ -116,7 +117,7 @@ public static class IdentityServiceRegistrationExtensions
                 return handler;
             });
         builder.Services.AddScoped<SamlRuntimeConfigurationService>();
-        builder.Services.AddScoped<IEmailSender, NoOpEmailSender>();
+        builder.Services.AddScoped<His.Hope.IdentityService.Application.Interfaces.IEmailSender, NoOpEmailSender>();
         builder.Services.AddScoped<IPushDeliveryService, PushDeliveryService>();
         builder.Services.AddScoped<OidcLoginCompletionService>();
         if (!builder.Environment.IsEnvironment("Testing"))
@@ -558,6 +559,11 @@ public static class IdentityServiceRegistrationExtensions
             .PersistKeysToStackExchangeRedis(
                 RedisConnectionFactory.Connect(dataProtectionRedis, builder.Configuration),
                 dataProtectionKeyName);
+        builder.Services.AddSingleton<AssurancePolicyService>(sp =>
+            new AssurancePolicyService(AssurancePolicyService.LoadConfiguredPolicy(
+                sp.GetRequiredService<IConfiguration>(),
+                sp.GetRequiredService<IHostEnvironment>())));
+
         builder.Services.AddSingleton<SessionTokenProtector>();
 
         // MFA Secret Encryption: Vault transit (prod) or DataProtection (dev)
@@ -565,6 +571,10 @@ public static class IdentityServiceRegistrationExtensions
         if (vaultTransitEnabled)
         {
             builder.Services.AddSingleton<IMfaSecretEncryptor, VaultMfaSecretEncryptor>();
+        }
+        else if (builder.Environment.IsProduction())
+        {
+            throw new InvalidOperationException("Vault:EnableTransit must be true in production for MFA secret encryption.");
         }
         else
         {
@@ -711,7 +721,10 @@ public static class IdentityServiceRegistrationExtensions
             sd => sd.ServiceType == typeof(IAuditSink));
         if (defaultObservabilityAuditSink != null)
             builder.Services.Remove(defaultObservabilityAuditSink);
-        builder.Services.AddSingleton<IAuditSink, IdentityObservabilityAuditSink>();
+        builder.Services.AddSingleton<IdentityObservabilityAuditSink>();
+        builder.Services.AddHttpClient<SiemWormAuditForwarder>();
+        builder.Services.AddSingleton<SiemWormAuditForwarder>();
+        builder.Services.AddSingleton<IAuditSink, IdentityDurableAuditSink>();
 
         if (!builder.Environment.IsEnvironment("Testing"))
         {

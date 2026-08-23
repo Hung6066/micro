@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../prod
+
+commonLabels:
+  dr.his-hope.io/region-role: passive
+
+patches:
+  - target:
+      kind: Deployment
+      name: api-gateway
+    patch: |-
+      - op: add
+        path: /spec/template/metadata/labels/dr.his-hope.io~1region-role
+        value: passive
+  - target:
+      kind: Deployment
+      name: identityservice
+    patch: |-
+      - op: add
+        path: /spec/replicas
+        value: 1
+
+configMapGenerator:
+  - name: multi-region-dr-contract
+    literals:
+      - DR_MODE=active-passive
+      - DR_PRIMARY_REGION=primary
+      - DR_PASSIVE_REGION=secondary
+      - DR_RPO_MINUTES=15
+      - DR_RTO_MINUTES=60

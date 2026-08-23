@@ -14,6 +14,7 @@ $resourcePrograms = @(
     'src/Services/AppointmentService/AppointmentService.Api/Program.cs',
     'src/Services/BillingService/BillingService.Api/Program.cs',
     'src/Services/ClinicalService/ClinicalService.Api/Program.cs',
+    'src/Services/DatabaseContinuityService/DatabaseContinuityService.Api/Program.cs',
     'src/Services/FhirGateway/FhirGateway.Api/Program.cs',
     'src/Services/LabService/LabService.Api/Program.cs',
     'src/Services/PatientService/PatientService.Api/Program.cs',

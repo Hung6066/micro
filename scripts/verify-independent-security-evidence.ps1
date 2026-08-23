@@ -33,10 +33,14 @@ foreach ($relative in $required) {
         throw "Security evidence lacks independent assessor metadata: $path"
     }
     $reportUri = $null
-    $completedAt = $null
     if (-not [Uri]::TryCreate([string]$document.reportUri, [UriKind]::Absolute, [ref]$reportUri) -or
-        $reportUri.Scheme -ne "https" -or
-        -not [DateTimeOffset]::TryParse([string]$document.completedAt, [ref]$completedAt)) {
+        $reportUri.Scheme -ne "https") {
+        throw "Security evidence metadata is malformed: $path"
+    }
+
+    try {
+        [void][DateTimeOffset]::Parse([string]$document.completedAt, [Globalization.CultureInfo]::InvariantCulture)
+    } catch {
         throw "Security evidence metadata is malformed: $path"
     }
 }

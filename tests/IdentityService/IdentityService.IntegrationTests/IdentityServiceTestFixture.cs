@@ -149,6 +149,8 @@ public class IdentityServiceTestFixture : IAsyncLifetime
             ["Identity:BootstrapAdmin:Password"] = IdentityTestData.DefaultPassword
             , ["Authentication:Google:ClientId"] = "integration-google-client"
             , ["Authentication:Google:ClientSecret"] = "integration-google-secret"
+            , ["Authentication:LegacyAuthSunset"] = "Sat, 01 Jan 2028 00:00:00 GMT"
+            , ["Assurance:PolicyPath"] = ResolveAssurancePolicyPath()
         });
         builder.AddIdentityService();
         // AddIdentityService loads the API appsettings after the test overlay;
@@ -353,6 +355,19 @@ public class IdentityServiceTestFixture : IAsyncLifetime
                 await session.LoginAsync("test-user@test.test", IdentityTestCredentials.Password);
         }
         return session;
+    }
+
+    private static string ResolveAssurancePolicyPath()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var depth = 0; depth < 10 && current is not null; depth++, current = current.Parent)
+        {
+            var candidate = Path.Combine(current.FullName, "config", "assurance-policy.v1.json");
+            if (File.Exists(candidate))
+                return candidate;
+        }
+
+        throw new InvalidOperationException("config/assurance-policy.v1.json was not found for integration tests.");
     }
 }
 

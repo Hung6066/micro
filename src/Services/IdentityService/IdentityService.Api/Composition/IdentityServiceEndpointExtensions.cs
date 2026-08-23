@@ -499,34 +499,13 @@ public static class IdentityServiceEndpointExtensions
             IConfiguration configuration,
             CancellationToken ct) =>
         {
-            var sessionId = httpContext.Request.Cookies["hishop_sid"];
-            if (string.IsNullOrEmpty(sessionId))
-                return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.SessionCookieRequired });
+            var guardResult = await His.Hope.IdentityService.Api.Security.BffSessionGuard.ValidateMutatingSessionAsync(
+                httpContext, redis, tokenProtector, requireAuthenticatedPrincipal: true);
+            if (guardResult is not null)
+                return guardResult;
 
-            var db = redis.GetDatabase();
-            var sessionJson = await db.StringGetAsync($"session:{sessionId}");
-            if (!sessionJson.HasValue)
-                return Results.Unauthorized();
-
-            SessionData? session;
-            try
-            {
-                session = JsonSerializer.Deserialize<SessionData>(sessionJson!);
-                if (session is not null)
-                {
-                    session = session with
-                    {
-                        Jwt = tokenProtector.Unprotect(session.Jwt),
-                        RefreshToken = tokenProtector.UnprotectOptional(session.RefreshToken)
-                    };
-                }
-            }
-            catch (System.Security.Cryptography.CryptographicException)
-            {
-                return Results.Unauthorized();
-            }
-            if (session is null || session.IsExpired)
-                return Results.Unauthorized();
+            var sessionId = (string)httpContext.Items["BffSessionId"]!;
+            var session = (SessionData)httpContext.Items["BffSession"]!;
 
             var refreshResult = await identityService.RefreshTokenAsync(
                 new RefreshTokenRequest(session.Jwt, session.RefreshToken ?? ""), ct);
@@ -541,7 +520,7 @@ public static class IdentityServiceEndpointExtensions
                 IssuedAt = DateTimeOffset.UtcNow
             };
 
-            await db.StringSetAsync(
+            await redis.GetDatabase().StringSetAsync(
                 $"session:{sessionId}",
                 JsonSerializer.Serialize(session),
                 TimeSpan.FromHours(1));
@@ -569,7 +548,8 @@ public static class IdentityServiceEndpointExtensions
         })
         .WithDeprecationNotice()
         .WithOpenApi()
-        .AllowAnonymous();
+        .RequireRateLimiting("auth")
+        .RequireAuthorization();
 
         auth.MapGet("/verify", async (HttpContext httpContext) =>
         {
@@ -685,8 +665,8 @@ public static class IdentityServiceEndpointExtensions
             var returnUrl = result.Properties?.Items.TryGetValue("returnUrl", out var storedReturnUrl) == true
                 ? storedReturnUrl
                 : httpContext.Request.Query["returnUrl"].FirstOrDefault() ?? "/";
-            if (!returnUrl.StartsWith("/", StringComparison.Ordinal) || returnUrl.StartsWith("//", StringComparison.Ordinal))
-                returnUrl = "/";
+            returnUrl = His.Hope.IdentityService.Application.Security.AuthenticationRedirectValidator
+                .ResolveSafeReturnUrl(returnUrl, configuration);
             var completed = await completion.CompletePrimaryAsync(httpContext, user, returnUrl, [provider], ct);
             return Results.Redirect(completed.RedirectUrl);
         })

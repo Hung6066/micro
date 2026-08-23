@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "approvedBy": ["Security", "Compliance", "Clinical Safety"],
+  "journeys": [
+    {
+      "id": "admin-read",
+      "minimumAssurance": "aal1",
+      "allowedFactors": ["password", "passkey"],
+      "stepUpRequired": false
+    },
+    {
+      "id": "admin-write",
+      "minimumAssurance": "aal2",
+      "allowedFactors": ["passkey", "mfa"],
+      "stepUpRequired": true
+    },
+    {
+      "id": "clinical-read",
+      "minimumAssurance": "aal2",
+      "allowedFactors": ["passkey", "mfa"],
+      "stepUpRequired": true,
+      "requireFreshDevicePosture": true
+    },
+    {
+      "id": "clinical-write",
+      "minimumAssurance": "aal3",
+      "allowedFactors": ["passkey", "mtls"],
+      "stepUpRequired": true,
+      "requireFreshDevicePosture": true
+    },
+    {
+      "id": "break-glass",
+      "minimumAssurance": "aal2",
+      "allowedFactors": ["mfa", "passkey"],
+      "stepUpRequired": true,
+      "allowBreakGlass": true,
+      "maxDurationMinutes": 60
+    }
+  ],
+  "recovery": {
+    "forbidWeakFallbackForHighRisk": true,
+    "allowedRecoveryMethods": ["passkey", "admin-assisted"],
+    "forbiddenRecoveryMethods": ["security-question-only", "email-only"]
+  }
+}

@@ -76,6 +76,9 @@ jobs:
       - name: DPoP resource coverage gate
         shell: pwsh
         run: ./scripts/validate-dpop-coverage.ps1
+      - name: Enterprise production phase gates
+        shell: pwsh
+        run: ./scripts/validate-enterprise-production-phases.ps1 -SkipIntegrationTests
       - name: Install Buf
         uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
         with:

@@ -252,6 +252,7 @@ public static class IdentityServicePipelineExtensions
         app.UseFacilityResolution();
 
         app.UseAuthorization();
+        app.UseAssurancePolicyEnforcement();
         app.MapControllers();
         app.UsePhiAudit();
 
