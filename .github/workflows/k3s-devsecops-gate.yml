@@ -186,7 +186,9 @@ jobs:
       - name: Validate migration artifact and startup isolation
         if: matrix.environment == 'prod'
         shell: pwsh
-        run: ./scripts/validate-database-migration-contract.ps1 -OutputPath artifacts/evidence/database-migration-contract.json
+        run: |
+          ./scripts/generate-database-migration-scripts.ps1 -OutputDirectory artifacts/database-migrations-current
+          ./scripts/validate-database-migration-contract.ps1 -MigrationDirectory artifacts/database-migrations-current -OutputPath artifacts/evidence/database-migration-contract.json
 
       - name: Validate container build contract
         if: matrix.environment == 'prod'
