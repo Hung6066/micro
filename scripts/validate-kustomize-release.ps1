@@ -33,7 +33,8 @@ $output = if ([string]::IsNullOrWhiteSpace($OutputPath)) {
 
 $outputDirectory = Split-Path -Parent $output
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
-[System.IO.File]::WriteAllText((Resolve-Path $outputDirectory).Path + "\" + (Split-Path -Leaf $output), $yaml, [System.Text.UTF8Encoding]::new($false))
+$outputFile = Join-Path (Resolve-Path $outputDirectory).Path (Split-Path -Leaf $output)
+[System.IO.File]::WriteAllText($outputFile, $yaml, [System.Text.UTF8Encoding]::new($false))
 
 $documentCount = ([regex]::Matches($yaml, '(?m)^---\s*$')).Count + 1
 Write-Output "Kustomize render PASS: environment=$Environment documents=$documentCount output=$output"
