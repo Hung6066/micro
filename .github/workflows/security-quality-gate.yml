@@ -41,7 +41,7 @@ jobs:
         with:
           node-version: '22.22.3'
           cache: npm
-      - run: npm ci --ignore-scripts
+      - run: npm ci --ignore-scripts --legacy-peer-deps --no-audit --no-fund
       - name: Audit production dependencies
         shell: bash
         run: |

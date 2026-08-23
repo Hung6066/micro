@@ -24,7 +24,7 @@ jobs:
           dotnet-version: '8.0.x'
       # Avoid npm's workspace prepare hook racing secondary ng-packagr entry
       # points during install; the policy gate explicitly builds the package.
-      - run: npm ci --ignore-scripts
+      - run: npm ci --ignore-scripts --legacy-peer-deps --no-audit --no-fund
       - name: Run mandatory His.Hope policy gate
         shell: pwsh
         run: ./scripts/verify-his-hope-policy.ps1 -Ci
