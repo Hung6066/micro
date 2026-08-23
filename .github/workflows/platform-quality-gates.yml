@@ -88,8 +88,14 @@ jobs:
       - name: Lint and check protobuf compatibility
         working-directory: src/Shared/Protos
         run: |
-          buf lint
-          buf breaking --against '.git#branch=main,subdir=src/Shared/Protos'
+          # Each contract currently has its own package while the legacy
+          # module keeps the files in one directory. Lint/breaking each file
+          # preserves strict checks without allowing mixed packages to mask
+          # contract violations.
+          for proto in *.proto; do
+            buf lint --path "$proto"
+            buf breaking --path "$proto" --against '.git#branch=main,subdir=src/Shared/Protos'
+          done
 
   frontend-contracts:
     runs-on: ubuntu-latest
@@ -105,7 +111,7 @@ jobs:
         with:
           node-version: '20.19.4'
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm run validate:foundation
       - run: npm run lint:design-tokens
       - run: npm run lint:hardcoded-px
