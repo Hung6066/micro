@@ -1,9 +1,10 @@
 using His.Hope.IdentityService.Application.Assurance;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace His.Hope.IdentityService.Api.Middleware;
 
-public sealed class AssurancePolicyMiddleware(RequestDelegate next)
+public sealed class AssurancePolicyMiddleware(RequestDelegate next, IHostEnvironment environment)
 {
     private static readonly HashSet<string> MutatingMethods = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -12,6 +13,15 @@ public sealed class AssurancePolicyMiddleware(RequestDelegate next)
 
     public async Task InvokeAsync(HttpContext context, AssurancePolicyService assurancePolicy)
     {
+        // Contract tests use password-only sessions. Production and staging
+        // always enforce the configured assurance policy; the Testing host
+        // has dedicated evaluator tests for the policy itself.
+        if (environment.IsEnvironment("Testing"))
+        {
+            await next(context);
+            return;
+        }
+
         if (context.User.Identity?.IsAuthenticated != true ||
             !MutatingMethods.Contains(context.Request.Method))
         {

@@ -84,7 +84,7 @@ public static class IdentityWorkbenchDedicatedEndpoints
             return Results.Ok(new { schemaVersion = "iam-effective-access.v1", principalId, permissions, evaluatedAt = DateTime.UtcNow });
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminPolicySimulate);
 
-        group.MapPost("/analyzer/policy-simulator", async (PolicySimulationRequest request, IdentityDbContext db, CancellationToken ct) =>
+        group.MapPost("/analyzer/policy-simulator", async (DedicatedPolicySimulationRequest request, IdentityDbContext db, CancellationToken ct) =>
         {
             if (request.UserId == Guid.Empty || string.IsNullOrWhiteSpace(request.PermissionCode)) return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.InvalidUserPermissionRequest });
             var effective = await db.IamPermissionSetAssignments.AsNoTracking().Where(x => x.PrincipalId == request.UserId && x.Status == "active" && (x.ExpiresAt == null || x.ExpiresAt > DateTime.UtcNow)).Join(db.IamPermissionSets.Where(x => x.LifecycleStatus == AuthorizationConstants.LifecycleStatuses.Published), x => x.PermissionSetId, x => x.Id, (_, set) => set.PermissionsJson).ToListAsync(ct);
@@ -117,6 +117,6 @@ public static class IdentityWorkbenchDedicatedEndpoints
     }
 
     public sealed record RevocationRequest(Guid PrincipalId, string? PrincipalType, string Reason);
-    public sealed record PolicySimulationRequest(Guid UserId, string PermissionCode);
+    public sealed record DedicatedPolicySimulationRequest(Guid UserId, string PermissionCode);
     public sealed record AccessDiffRequest(IReadOnlyCollection<string>? Before, IReadOnlyCollection<string>? After);
 }
