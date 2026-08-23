@@ -101,13 +101,13 @@ data:
   ADAPTER_RABBITMQ_HOST: rabbitmq.his-hope.svc.cluster.local
   ADAPTER_JAEGER_TRACES_ENDPOINT: http://jaeger.his-hope.svc.cluster.local:14278/api/traces
   ADAPTER_CONSUL_ADDRESS: http://consul.his-hope.svc.cluster.local:8500
-  ADAPTER_CONNECTIONSTRINGS_APPOINTMENTDB: Host=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=appointmentdb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_BILLINGDB: Host=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=billingdb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_CLINICALDB: Host=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=clinicaldb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_IDENTITYDB: Host=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=identitydb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_LABDB: Host=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=labdb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_PATIENTDB: Host=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=patientdb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_PHARMACYDB: Host=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=pharmacydb;Username=his_hope;Password=
+  ADAPTER_CONNECTIONSTRINGS_APPOINTMENTDB: Server=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=appointmentdb;Username=his_hope;Password=
+  ADAPTER_CONNECTIONSTRINGS_BILLINGDB: Server=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=billingdb;Username=his_hope;Password=
+  ADAPTER_CONNECTIONSTRINGS_CLINICALDB: Server=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=clinicaldb;Username=his_hope;Password=
+  ADAPTER_CONNECTIONSTRINGS_IDENTITYDB: Server=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=identitydb;Username=his_hope;Password=
+  ADAPTER_CONNECTIONSTRINGS_LABDB: Server=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=labdb;Username=his_hope;Password=
+  ADAPTER_CONNECTIONSTRINGS_PATIENTDB: Server=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=patientdb;Username=his_hope;Password=
+  ADAPTER_CONNECTIONSTRINGS_PHARMACYDB: Server=his-hope-postgres.his-hope.svc.cluster.local;Port=5432;Database=pharmacydb;Username=his_hope;Password=
   ADAPTER_SERVICE_IDENTITY_HTTP: http://identity-service.his-hope.svc.cluster.local:5003
   ADAPTER_SERVICE_PATIENT_HTTP: http://patient-service.his-hope.svc.cluster.local:5002
   ADAPTER_SERVICE_APPOINTMENT_HTTP: http://appointment-service.his-hope.svc.cluster.local:5004
