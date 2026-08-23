@@ -11,7 +11,7 @@ spec:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: identity-service-secrets
+              secretProviderClass: his-hope-identity-service-secrets
       containers:
         - name: identity-service
           env:
