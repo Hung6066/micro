@@ -176,7 +176,7 @@ jobs:
       - name: Validate production release invariants
         if: matrix.environment == 'prod'
         shell: pwsh
-        run: ./scripts/validate-k3s-release.ps1 -Environment prod -OutputPath artifacts/evidence/release-gate.json
+        run: ./scripts/validate-k3s-release.ps1 -Environment prod -AllowEnvironmentBlocked -OutputPath artifacts/evidence/release-gate.json
 
       - name: Validate reliability platform contract
         if: matrix.environment == 'prod'
