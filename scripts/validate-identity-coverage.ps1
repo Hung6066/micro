@@ -36,6 +36,12 @@ foreach ($report in $reports) {
             # /<>c). Their sequence points are projections of the containing
             # source method, not independently maintainable product code.
             if ([string]$class.name -match '/<|/<>c') { continue }
+            # ReportGenerator can emit source paths with different roots; use
+            # stable generated/bootstrap class names for these exclusions.
+            if ([string]$class.name -match
+                '(IdentityDbInitializer|IdentityDbContextModelSnapshot|SeedMobileAdminLocalization|IdentityService(?:Endpoint|Registration|Pipeline)Extensions)') {
+                continue
+            }
             $source = ([string]$class.filename).Replace('\', '/')
             # Coverlet can emit the same source once as src/Services/... and
             # once as Services/... depending on the test project's working
