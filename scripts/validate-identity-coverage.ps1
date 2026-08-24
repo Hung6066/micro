@@ -29,11 +29,11 @@ foreach ($report in $reports) {
         # Measure production Identity assemblies only. Test helpers (for
         # example IdentityService.Testing) are not product code and must not
         # dilute or inflate the service coverage gate.
-        $packageName = $package.GetAttribute('name')
+        $packageName = [string]$package.Attributes['name'].Value
         if ($packageName -notmatch '^IdentityService\.(Api|Application|Domain|Infrastructure)$') { continue }
         foreach ($class in @($package.classes.class)) {
-            $className = $class.GetAttribute('name')
-            $classSource = $class.GetAttribute('filename')
+            $className = [string]$class.Attributes['name'].Value
+            $classSource = [string]$class.Attributes['filename'].Value
             # Coverlet reports async state machines and compiler-generated
             # closures as separate classes (for example /<Method>d__12 or
             # /<>c). Their sequence points are projections of the containing
