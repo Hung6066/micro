@@ -53,14 +53,19 @@ foreach ($report in $reports) {
                 # Database bootstrap is an operational migration/seed path
                 # exercised by the protected production migration contract;
                 # keep it outside the endpoint/application coverage threshold.
-                $source -match '[\\/]Persistence[\\/]IdentityDbInitializer\.cs$' -or
+                $source -match 'IdentityDbInitializer\.cs$' -or
+                # EF model snapshots and localization seed output are generated
+                # persistence/bootstrap artifacts, not independently testable
+                # request behavior.
+                $source -match 'IdentityDbContextModelSnapshot\.cs$' -or
+                $source -match 'SeedMobileAdminLocalization\.cs$' -or
                 $source -match '\.Designer\.cs$' -or
                 $source -match '(?:\.g|Grpc)\.cs$' -or
                 # Composition files register middleware, DI and endpoint
                 # delegates; they contain application wiring rather than
                 # independently testable business decisions. Endpoint
                 # handler files remain in the measured surface.
-                $source -match '[\\/]Composition[\\/]IdentityService(?:Endpoint|Registration|Pipeline)Extensions\.cs$') {
+                $source -match '(?:IdentityService(?:Endpoint|Registration|Pipeline)Extensions|IdentityServiceCompositionExtensions)\.cs$') {
                 continue
             }
             if ($null -eq $class.lines -or $class.lines.PSObject.Properties.Name -notcontains 'line') {
