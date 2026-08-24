@@ -296,7 +296,7 @@ jobs:
 
       - name: Upload storage and backup evidence
         if: always() && matrix.environment == 'prod'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: storage-backup-contract
           path: artifacts/evidence/storage-backup-contract.json
@@ -304,7 +304,7 @@ jobs:
 
       - name: Upload DR evidence contract
         if: always() && matrix.environment == 'prod'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dr-evidence-contract
           path: artifacts/evidence/dr-evidence-contract.json
@@ -312,7 +312,7 @@ jobs:
 
       - name: Upload signature controller evidence
         if: always() && matrix.environment == 'prod'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: signature-controller-contract
           path: artifacts/evidence/signature-controller-contract.json
@@ -320,7 +320,7 @@ jobs:
 
       - name: Upload observability evidence
         if: always() && matrix.environment == 'prod'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: observability-contract
           path: artifacts/evidence/observability-contract.json
@@ -328,7 +328,7 @@ jobs:
 
       - name: Upload Argo CD bootstrap evidence
         if: always() && matrix.environment == 'prod'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: argocd-bootstrap-contract
           path: artifacts/evidence/argocd-bootstrap-contract.json
@@ -336,7 +336,7 @@ jobs:
 
       - name: Upload release gate evidence
         if: always() && matrix.environment == 'prod'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-gate
           path: artifacts/evidence/release-gate.json
@@ -344,7 +344,7 @@ jobs:
 
       - name: Upload migration contract evidence
         if: always() && matrix.environment == 'prod'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: database-migration-contract
           path: artifacts/evidence/database-migration-contract.json
@@ -352,14 +352,14 @@ jobs:
 
       - name: Upload reliability contract evidence
         if: always() && matrix.environment == 'prod'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: reliability-platform-contract
           path: artifacts/evidence/reliability-platform-contract.json
           if-no-files-found: error
 
       - name: Upload rendered manifest
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: k8s-${{ matrix.environment }}-rendered
           path: artifacts/k8s/${{ matrix.environment }}.yaml
@@ -367,7 +367,7 @@ jobs:
 
       - name: Upload monitoring render
         if: always() && matrix.environment == 'prod'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: k8s-monitoring-rendered
           path: artifacts/k8s/monitoring.yaml
