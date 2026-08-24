@@ -50,22 +50,17 @@ foreach ($report in $reports) {
                 $source -match '[\\/]obj[\\/]' -or
                 $source -match '[\\/]Program\.cs$' -or
                 $source -match '[\\/]LocalizationSeedData\.cs$' -or
+                # Database bootstrap is an operational migration/seed path
+                # exercised by the protected production migration contract;
+                # keep it outside the endpoint/application coverage threshold.
+                $source -match '[\\/]Persistence[\\/]IdentityDbInitializer\.cs$' -or
                 $source -match '\.Designer\.cs$' -or
                 $source -match '(?:\.g|Grpc)\.cs$' -or
                 # Composition files register middleware, DI and endpoint
                 # delegates; they contain application wiring rather than
                 # independently testable business decisions. Endpoint
                 # handler files remain in the measured surface.
-                $source -match '[\\/]Composition[\\/]IdentityService(?:Endpoint|Registration|Pipeline)Extensions\.cs$' -or
-                # Host orchestration is exercised by the production startup,
-                # migration and worker smoke gates rather than deterministic
-                # request/business tests. Keep endpoint, policy and service
-                # logic measured while excluding only these lifecycle hosts.
-                $source -like '*IdentityDbInitializer.cs' -or
-                $source -like '*IdentityRetentionWorker.cs' -or
-                $source -like '*DatabaseAuditBackgroundService.cs' -or
-                $source -like '*LdapBackgroundService.cs' -or
-                $source -like '*AdminJobWorker.cs') {
+                $source -match '[\\/]Composition[\\/]IdentityService(?:Endpoint|Registration|Pipeline)Extensions\.cs$') {
                 continue
             }
             if ($null -eq $class.lines -or $class.lines.PSObject.Properties.Name -notcontains 'line') {
