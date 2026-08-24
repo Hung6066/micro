@@ -38,12 +38,14 @@ public class DomainEventTests
     public void InvoicePaidDomainEvent_SetsProperties()
     {
         var invoiceId = Guid.NewGuid();
+        var patientId = Guid.NewGuid();
         const decimal amountPaid = 150.00m;
         const decimal totalAmount = 150.00m;
 
-        var domainEvent = new InvoicePaidDomainEvent(invoiceId, amountPaid, totalAmount);
+        var domainEvent = new InvoicePaidDomainEvent(invoiceId, patientId, amountPaid, totalAmount);
 
         domainEvent.InvoiceId.Should().Be(invoiceId);
+        domainEvent.PatientId.Should().Be(patientId);
         domainEvent.AmountPaid.Should().Be(amountPaid);
         domainEvent.TotalAmount.Should().Be(totalAmount);
     }
@@ -102,7 +104,7 @@ public class DomainEventTests
         {
             new InvoiceCreatedDomainEvent(Guid.NewGuid(), Guid.NewGuid(), "INV-001", 100m),
             new InvoiceSubmittedDomainEvent(Guid.NewGuid()),
-            new InvoicePaidDomainEvent(Guid.NewGuid(), 100m, 100m),
+            new InvoicePaidDomainEvent(Guid.NewGuid(), Guid.NewGuid(), 100m, 100m),
             new InvoiceCancelledDomainEvent(Guid.NewGuid(), "reason"),
             new InvoiceVoidedDomainEvent(Guid.NewGuid(), "reason"),
             new PaymentRecordedDomainEvent(Guid.NewGuid(), Guid.NewGuid(), 100m)

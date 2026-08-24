@@ -6,10 +6,10 @@ data:
   DATABASE_POSTGRES_URL: postgresql://his_hope_app@his-hope-postgres.his-hope-data.svc.cluster.local:5432/hishope
   REDIS_URL: redis://his-hope-redis.his-hope-data.svc.cluster.local:6379
   ADAPTER_REDIS_CONNECTION_STRING: his-hope-redis.his-hope-data.svc.cluster.local:6379
-  ADAPTER_CONNECTIONSTRINGS_APPOINTMENTDB: Host=his-hope-postgres.his-hope-data.svc.cluster.local;Port=5432;Database=appointmentdb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_BILLINGDB: Host=his-hope-postgres.his-hope-data.svc.cluster.local;Port=5432;Database=billingdb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_CLINICALDB: Host=his-hope-postgres.his-hope-data.svc.cluster.local;Port=5432;Database=clinicaldb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_IDENTITYDB: Host=his-hope-postgres.his-hope-data.svc.cluster.local;Port=5432;Database=identitydb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_LABDB: Host=his-hope-postgres.his-hope-data.svc.cluster.local;Port=5432;Database=labdb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_PATIENTDB: Host=his-hope-postgres.his-hope-data.svc.cluster.local;Port=5432;Database=patientdb;Username=his_hope;Password=
-  ADAPTER_CONNECTIONSTRINGS_PHARMACYDB: Host=his-hope-postgres.his-hope-data.svc.cluster.local;Port=5432;Database=pharmacydb;Username=his_hope;Password=
+  ADAPTER_CONNECTIONSTRINGS_APPOINTMENTDB: postgresql://his_hope_app@his-hope-postgres.his-hope-data.svc.cluster.local:5432/appointmentdb
+  ADAPTER_CONNECTIONSTRINGS_BILLINGDB: postgresql://his_hope_app@his-hope-postgres.his-hope-data.svc.cluster.local:5432/billingdb
+  ADAPTER_CONNECTIONSTRINGS_CLINICALDB: postgresql://his_hope_app@his-hope-postgres.his-hope-data.svc.cluster.local:5432/clinicaldb
+  ADAPTER_CONNECTIONSTRINGS_IDENTITYDB: postgresql://his_hope_app@his-hope-postgres.his-hope-data.svc.cluster.local:5432/identitydb
+  ADAPTER_CONNECTIONSTRINGS_LABDB: postgresql://his_hope_app@his-hope-postgres.his-hope-data.svc.cluster.local:5432/labdb
+  ADAPTER_CONNECTIONSTRINGS_PATIENTDB: postgresql://his_hope_app@his-hope-postgres.his-hope-data.svc.cluster.local:5432/patientdb
+  ADAPTER_CONNECTIONSTRINGS_PHARMACYDB: postgresql://his_hope_app@his-hope-postgres.his-hope-data.svc.cluster.local:5432/pharmacydb

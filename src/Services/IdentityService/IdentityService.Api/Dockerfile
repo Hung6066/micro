@@ -34,7 +34,7 @@ COPY ["src/Shared/Observability/His.Hope.Observability.OpenTelemetry/*.csproj", 
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBus/*.csproj", "Shared/EventBus/Src/His.Hope.EventBus/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/*.csproj", "Shared/EventBus/Src/His.Hope.EventBusRabbitMQ/"]
 COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/*.csproj", "Shared/EventBus/Src/His.Hope.IntegrationEvents/"]
-RUN --mount=type=cache,target=/root/.nuget/packages \
+RUN --mount=type=cache,id=his-hope-identity-api-nuget,target=/root/.nuget/packages \
     dotnet restore "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj"
 
 # --- Copy source and publish ---
@@ -67,7 +67,7 @@ COPY ["src/Shared/EventBus/Src/His.Hope.IntegrationEvents/", "Shared/EventBus/Sr
 COPY ["src/Shared/Protos/", "Shared/Protos/"]
 COPY ["config/assurance-policy.v1.json", "Services/IdentityService/IdentityService.Api/config/assurance-policy.v1.json"]
 
-RUN --mount=type=cache,target=/root/.nuget/packages \
+RUN --mount=type=cache,id=his-hope-identity-api-nuget,target=/root/.nuget/packages \
     dotnet publish "Services/IdentityService/IdentityService.Api/IdentityService.Api.csproj" \
     -c Release \
     -o /app/publish
@@ -75,7 +75,7 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
 # ============================================================
 # RUNTIME STAGE (distroless chiseled)
 # ============================================================
-FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy@sha256:e297e0c11c7b60b4a6f424cd42981fba04e25b8e88a9b45bfe5f4a3f11c15a74 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-jammy@sha256:5cf54628c4787d69758be84a0644e74f404b93ee343e2e82c4c33e558b7a10e4 AS final
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 5012

@@ -13,13 +13,18 @@ public class DomainEventTests
         var providerId = Guid.NewGuid();
 
         var @event = new PrescriptionCreatedDomainEvent(
-            prescriptionId, patientId, providerId, "Amoxicillin", 30);
+            prescriptionId, patientId, providerId, "Amoxicillin", "500mg",
+            "Capsule", "Take one capsule twice daily", 30, 2, DateTime.UtcNow);
 
         @event.PrescriptionId.Should().Be(prescriptionId);
         @event.PatientId.Should().Be(patientId);
         @event.ProviderId.Should().Be(providerId);
         @event.MedicationName.Should().Be("Amoxicillin");
+        @event.Strength.Should().Be("500mg");
+        @event.DosageForm.Should().Be("Capsule");
+        @event.DosageInstructions.Should().Be("Take one capsule twice daily");
         @event.Quantity.Should().Be(30);
+        @event.Refills.Should().Be(2);
         @event.OccurredOn.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
     }
 

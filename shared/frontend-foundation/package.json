@@ -58,7 +58,6 @@
     "storybook": "ng run frontend-foundation:storybook",
     "build-storybook": "ng run frontend-foundation:build-storybook",
     "build": "ng-packagr -p ng-package.json",
-    "prepare": "npm run build",
     "pack:check": "npm pack --dry-run",
     "test": "ng test",
     "lint": "ng lint",

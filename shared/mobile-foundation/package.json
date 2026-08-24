@@ -37,7 +37,7 @@
     "build:contracts": "tsc -p tsconfig.json",
     "build:angular": "ng-packagr -p angular/ng-package.json",
     "prepare": "npm run build",
-    "test": "tsc -p tsconfig.test.json && node scripts/write-test-dist-package.cjs && node --test \"test-dist/**/*.spec.js\"",
+    "test": "tsc -p tsconfig.test.json && node scripts/write-test-dist-package.cjs && node scripts/run-test-dist.cjs",
     "lint": "eslint ."
   },
   "files": ["dist", "README.md", "CHANGELOG.md", "LICENSE"],

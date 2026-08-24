@@ -110,7 +110,14 @@ else {
             }
         }
         elseif ($key -in @('REDIS_URL', 'RABBITMQ_URL')) {
-            Add-Error -Errors $errors -Message "Missing Service for runtime target [$key] host [$serviceHost]."
+            # Production keeps the cache/message data plane in the dedicated
+            # his-hope-data namespace. A fully-qualified cross-namespace
+            # service target is valid even though its Service is not rendered
+            # in the application namespace; reject only unresolved short or
+            # wrong-namespace aliases.
+            if ($uri.Host -notmatch '\.his-hope-data\.svc\.cluster\.local$') {
+                Add-Error -Errors $errors -Message "Missing Service for runtime target [$key] host [$serviceHost]."
+            }
         }
 
         if ($Overlay -eq 'prod' -and $value -match 'localhost') {

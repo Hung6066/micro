@@ -113,7 +113,7 @@ public static class PasskeyEndpoints
             var credential = await db.PasskeyCredentials.AsNoTracking()
                 .FirstOrDefaultAsync(item => item.UserId == requestedUserId);
             if (credential is null)
-                return Results.UnprocessableEntity(new { errorCode = "passkey_not_enrolled" });
+                return Results.UnprocessableEntity(new { errorCode = "passkey_not_enrolled", message = "Passkey not enrolled." });
             var credentialId = credential.CredentialId;
             var redisDb = redis.GetDatabase();
             var options = fido2.GetAssertionOptions(new GetAssertionOptionsParams
@@ -174,7 +174,7 @@ public static class PasskeyEndpoints
             var credential = await db.PasskeyCredentials.AsNoTracking()
                 .FirstOrDefaultAsync(item => item.UserId == userId.ToString());
             if (credential is null)
-                return Results.UnprocessableEntity(new { errorCode = "mfa_passkey_not_enrolled" });
+                return Results.UnprocessableEntity(new { errorCode = "mfa_passkey_not_enrolled", message = "MFA passkey not enrolled." });
 
             var options = fido2.GetAssertionOptions(new GetAssertionOptionsParams
             {
@@ -332,7 +332,7 @@ public static class PasskeyEndpoints
             var credential = await db.PasskeyCredentials.AsNoTracking()
                 .FirstOrDefaultAsync(item => item.UserId == state.UserId.ToString());
             if (credential is null)
-                return Results.UnprocessableEntity(new { errorCode = "mfa_passkey_not_enrolled" });
+                return Results.UnprocessableEntity(new { errorCode = "mfa_passkey_not_enrolled", message = "MFA passkey not enrolled." });
 
             var options = fido2.GetAssertionOptions(new GetAssertionOptionsParams
             {

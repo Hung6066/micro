@@ -17,7 +17,6 @@ commonAnnotations:
 
 resources:
   - release-metadata.yaml
-  - cache-service-aliases.yaml
   # Argo PreSync migration hooks run before application Deployments. The
   # hooks are digest-transformed by the production image component below.
   - ../../jobs/production-migration-job.yaml
@@ -29,6 +28,9 @@ resources:
   # PgBouncer configuration is non-secret and is owned by the production
   # overlay. Authentication material remains provisioned out-of-band.
   - pgbouncer-configmap.yaml
+  # Identity Service mounts its Vault-backed CSI class from the shared Vault
+  # provider manifest; keep the class in the rendered production contract.
+  - ../../vault/vault-csi-provider.yaml
   - runtime-secret-provider-class.yaml
   - resource-governance.yaml
   - ../../policies/namespace-security-exceptions.yaml
@@ -304,6 +306,7 @@ patches:
         value:
           runAsNonRoot: true
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           seccompProfile:
             type: RuntimeDefault
   - target:
@@ -317,6 +320,7 @@ patches:
         value:
           runAsNonRoot: true
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           seccompProfile:
             type: RuntimeDefault
       - op: add
@@ -339,6 +343,7 @@ patches:
         value:
           runAsNonRoot: true
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           seccompProfile:
             type: RuntimeDefault
   # Migration hooks share the service image contract but need explicit bounded
@@ -441,7 +446,7 @@ patches:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: identity-service-secrets
+              secretProviderClass: his-hope-identity-service-secrets
 
 patchesStrategicMerge:
   - runtime-data-plane-patch.yaml
@@ -467,9 +472,16 @@ patchesStrategicMerge:
   - api-gateway-health-probe-patch.yaml
   - redis-tls-runtime-patch.yaml
   - workload-spiffe-patches.yaml
-  - workload-readonly-root-patches.yaml
+  - spire-fetcher-readonly-patch.yaml
   - database-continuity-storage-patch.yaml
   - k3s-local-capacity-patch.yaml
+  # Apply the final filesystem policy after workload-specific patches, which
+  # may otherwise replace the container securityContext map.
+  - workload-readonly-root-patches.yaml
+  # FHIR Gateway is still WIP and is not part of the signed production image
+  # set. Keep it available to non-production overlays until a release digest
+  # and attestation are published.
+  - fhir-gateway-production-disable.yaml
 
 components:
   - image-digests

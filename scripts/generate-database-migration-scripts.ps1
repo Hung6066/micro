@@ -22,7 +22,16 @@ $contexts = @(
 $manifest = [System.Collections.Generic.List[object]]::new()
 foreach ($item in $contexts) {
     $file = Join-Path $output "$($item.Name)-idempotent.sql"
-    dotnet ef migrations script --idempotent --project (Join-Path $RepositoryRoot $item.Project) --startup-project (Join-Path $RepositoryRoot $item.Project) --context $item.Context --no-build --no-color --output $file
+    $projectPath = Join-Path $RepositoryRoot $item.Project
+    $releaseDeps = Join-Path (Split-Path -Parent $projectPath) 'bin/Release/net8.0'
+    if (-not (Test-Path (Join-Path $releaseDeps '*.deps.json'))) {
+        # The solution does not contain every service infrastructure project.
+        # Build missing projects explicitly so EF never falls back to Debug or
+        # fails on a missing project.assets/deps file.
+        dotnet build $projectPath --configuration Release --nologo --verbosity minimal
+        if ($LASTEXITCODE -ne 0) { throw "Release build failed for $($item.Context)." }
+    }
+    dotnet ef migrations script --idempotent --project $projectPath --startup-project $projectPath --context $item.Context --configuration Release --no-build --no-color --output $file
     if ($LASTEXITCODE -ne 0) { throw "Migration script generation failed for $($item.Context)." }
     $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
     $manifest.Add([pscustomobject]@{ name = $item.Name; context = $item.Context; script = (Split-Path -Leaf $file); sha256 = $hash })

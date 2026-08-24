@@ -68,7 +68,7 @@ def main() -> int:
 
     if not re.search(r"\^sha256:\[0-9a-f\]\{64\}\$", raw):
         fail("workflow must validate lowercase immutable sha256 input")
-    if not re.search(r"\^https://github\.com/\$\{GITHUB_REPOSITORY\}/\.github/workflows/container-release\.yml", raw):
+    if not re.search(r"\^https://github\.com/\$\{(?:GITHUB_REPOSITORY|env:GITHUB_REPOSITORY)\}/\.github/workflows/container-release\.yml", raw):
         fail("workflow must bind verification to the container-release workflow identity")
     if re.search(r"kubectl\s+(?:apply|create|patch|label)|helm\s+upgrade|ansible-playbook", raw):
         fail("promotion workflow must open a PR and not mutate a cluster")
