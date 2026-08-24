@@ -49,7 +49,7 @@ jobs:
           ./scripts/generate-database-migration-scripts.ps1 -OutputDirectory artifacts/database-migrations-current
           ./scripts/validate-database-migration-contract.ps1 -MigrationDirectory artifacts/database-migrations-current -RenderedProductionManifest artifacts/k8s/prod.yaml -OutputPath artifacts/evidence/database-migration-contract.json
       - name: Upload migration evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: database-migration-contract
           path: |
@@ -75,7 +75,7 @@ jobs:
         shell: pwsh
         run: ./scripts/validate-authorization-endpoint-coverage.ps1 -Strict -OutputPath artifacts/evidence/authorization-endpoint-inventory.json
       - name: Upload authorization coverage evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: authorization-endpoint-inventory
           path: artifacts/evidence/authorization-endpoint-inventory.json
@@ -194,7 +194,7 @@ jobs:
         run: |
           set -o pipefail
           npm audit --json > npm-audit-full.json || true
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: npm-audit-full
           path: npm-audit-full.json
@@ -212,7 +212,7 @@ jobs:
           set -euo pipefail
           test -s his-hope-platform-sbom.cdx.json
           node -e "const fs=require('fs'); const bom=JSON.parse(fs.readFileSync('his-hope-platform-sbom.cdx.json','utf8')); if (bom.bomFormat !== 'CycloneDX' || !Array.isArray(bom.components)) process.exit(1);"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: his-hope-platform-sbom
           path: his-hope-platform-sbom.cdx.json
