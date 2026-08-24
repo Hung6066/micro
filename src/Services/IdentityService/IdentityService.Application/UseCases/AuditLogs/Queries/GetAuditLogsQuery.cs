@@ -15,7 +15,8 @@ public record GetAuditLogsQuery(
     string? ResourceId = null,
     DateTime? DateFrom = null,
     DateTime? DateTo = null,
-    string? Sort = null)
+    string? Sort = null,
+    IReadOnlyList<string>? TenantMembershipKeys = null)
     : IRequest<PagedResult<AuditLogDto>>;
 
 public class GetAuditLogsQueryHandler
@@ -51,6 +52,22 @@ public class GetAuditLogsQueryHandler
 
         if (request.DateTo.HasValue)
             query = query.Where(al => al.Timestamp <= request.DateTo.Value);
+
+        if (request.TenantMembershipKeys is { Count: > 0 } tenantKeys)
+        {
+            var normalizedKeys = tenantKeys
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Select(key => key.Trim().ToLowerInvariant())
+                .Distinct()
+                .ToArray();
+            query = query.Where(al =>
+                _context.Users.Any(user =>
+                    user.Id.ToString() == al.UserId &&
+                    _context.UserClaims.Any(claim =>
+                        claim.UserId == user.Id &&
+                        claim.ClaimType == "tenant_membership" &&
+                        normalizedKeys.Contains(claim.ClaimValue.ToLower()))));
+        }
 
         var totalCount = await query.CountAsync(cancellationToken);
 

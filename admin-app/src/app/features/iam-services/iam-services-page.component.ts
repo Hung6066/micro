@@ -19,9 +19,11 @@ import {
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { IamServiceDefinition } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { IamServiceEditDialogComponent } from "./iam-service-edit-dialog.component";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
@@ -84,6 +86,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class IamServicesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -134,6 +137,7 @@ export class IamServicesPageComponent implements OnInit {
   }
   ngOnInit(): void {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   constructor() {
     effect(() => {

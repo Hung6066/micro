@@ -149,6 +149,7 @@ form.dialog-form textarea:focus {
 
 /* Shared application shell used by the admin and operations workspaces. */
 .app-toolbar {
+  position: relative;
   height: var(--shell-header-height) !important;
   min-height: var(--shell-header-height) !important;
   padding-inline: var(--toolbar-padding-inline) !important;
@@ -179,6 +180,37 @@ form.dialog-form textarea:focus {
 }
 .app-toolbar .mat-mdc-icon-button:hover {
   background: rgba(255, 255, 255, 0.1) !important;
+}
+.user-menu {
+  position: absolute;
+  top: calc(100% - var(--space-2xs));
+  right: var(--space-md);
+  z-index: 20;
+  min-width: 150px;
+  padding: var(--space-2xs);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-white);
+  box-shadow: var(--shadow-dropdown);
+}
+.user-menu button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: var(--space-sm);
+  min-height: var(--control-height);
+  padding: 0 var(--space-md);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.user-menu button:hover,
+.user-menu button:focus-visible {
+  background: var(--surface-subtle);
 }
 .app-title {
   font-size: var(--font-size-toolbar, 16px) !important;

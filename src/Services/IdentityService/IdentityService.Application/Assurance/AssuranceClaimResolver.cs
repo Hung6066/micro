@@ -13,9 +13,13 @@ public static class AssuranceClaimResolver
 
         if (methods.Any(method => method.Equals("mtls", StringComparison.OrdinalIgnoreCase)))
             return "aal3";
-        if (methods.Any(method => method is "passkey" or "mfa" or "totp" or "webauthn"))
+        if (methods.Any(method => method.Equals("passkey", StringComparison.OrdinalIgnoreCase) ||
+            method.Equals("mfa", StringComparison.OrdinalIgnoreCase) ||
+            method.Equals("totp", StringComparison.OrdinalIgnoreCase) ||
+            method.Equals("webauthn", StringComparison.OrdinalIgnoreCase)))
             return "aal2";
-        if (methods.Any(method => method is "pwd" or "password"))
+        if (methods.Any(method => method.Equals("pwd", StringComparison.OrdinalIgnoreCase) ||
+            method.Equals("password", StringComparison.OrdinalIgnoreCase)))
             return "aal1";
         return "standard";
     }

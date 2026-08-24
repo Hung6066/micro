@@ -38,6 +38,17 @@ var reverseProxyClusters = new Dictionary<string, string?>
     // never falls back to localhost inside its own container.
     ["ReverseProxy:Clusters:database-continuity:Destinations:database-continuity/dest:Address"] = runtimeEndpoints.GetRequired("database-continuity").ToString()
 };
+
+// Manufacturing is an optional vertical slice during the rollout. Keep the
+// gateway bootable in environments that have not deployed it yet, while
+// enabling the buyer app route whenever SERVICE_MANUFACTURING_URL is present.
+var manufacturingEndpoint = runtimeEndpoints.GetOptional("manufacturing");
+if (manufacturingEndpoint is not null)
+{
+    reverseProxyClusters["ReverseProxy:Clusters:manufacturing:Destinations:dest:Address"] = manufacturingEndpoint.ToString();
+    reverseProxyClusters["ReverseProxy:Routes:manufacturing:ClusterId"] = "manufacturing";
+    reverseProxyClusters["ReverseProxy:Routes:manufacturing:Match:Path"] = "/api/v1/manufacturing/{**catch-all}";
+}
 builder.Configuration.AddInMemoryCollection(reverseProxyClusters);
 builder.Services.AddHisHopeAspNetCore();
 builder.Services.AddObservability(options => options.ServiceName = "ApiGateway");

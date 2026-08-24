@@ -11,6 +11,18 @@
     "app.admin.title" | hhTranslate: "His.Hope Admin"
   }}</span>
   <span class="toolbar-spacer"></span>
+  @if (isAuthenticated$ | async) {
+    @if (tenantOptions$ | async; as tenantOptions) {
+      @if (tenantOptions.length > 0) {
+        <app-tenant-switcher
+          class="tenant-selector"
+          [tenants]="tenantOptions"
+          [activeKey]="activeTenantKey"
+          (tenantChange)="onTenantChange($event)"
+        />
+      }
+    }
+  }
   <hh-language-switcher></hh-language-switcher>
   <button
     mat-icon-button

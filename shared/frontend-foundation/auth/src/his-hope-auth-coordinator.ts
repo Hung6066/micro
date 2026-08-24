@@ -59,7 +59,7 @@ export class HisHopeAuthCoordinator {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     this.sessionStatusUrl =
       options.sessionStatusUrl ??
-      (origin ? `${window.location.protocol}//${window.location.hostname}:5000/api/v1/auth/session-status` : '/api/v1/auth/session-status');
+      (origin ? `${origin}/api/v1/auth/session-status` : '/api/v1/auth/session-status');
     this.sessionExchangeUrl = options.sessionExchangeUrl ?? this.sessionStatusUrl.replace(/\/session-status$/, '/session/exchange');
     this.mfaStatusUrl = options.mfaStatusUrl ?? this.sessionStatusUrl.replace(/\/session-status$/, '/mfa/status');
     this.logoutUrl = options.logoutUrl ?? this.sessionStatusUrl.replace(/\/session-status$/, '/logout');
@@ -113,11 +113,13 @@ export class HisHopeAuthCoordinator {
       this.markSsoLoginInProgress();
       const authorityOrigin = new URL(this.sessionStatusUrl, window.location.origin).origin;
       const target = safeReturnUrl ?? this.defaultReturnUrl;
-      // Return through the SPA login route after Identity authentication so
-      // the coordinator can exchange the Identity cookie for the BFF session
-      // before a protected route guard evaluates the target page.
-      const callbackRoute = `${this.loginRoute}?returnUrl=${encodeURIComponent(target)}`;
-      window.location.assign(`${authorityOrigin}/Account/Login?returnUrl=${encodeURIComponent(callbackRoute)}`);
+      // Return through the SPA origin so Identity redirects back to the Angular app,
+      // not to a non-existent /auth/login route on the Identity host.
+      const callbackRoute = `${window.location.origin}${this.loginRoute}?returnUrl=${encodeURIComponent(target)}`;
+      const loginUrl = new URL(`${authorityOrigin}/Account/Login`);
+      loginUrl.searchParams.set('returnUrl', callbackRoute);
+      loginUrl.searchParams.set('spaOrigin', window.location.origin);
+      window.location.assign(loginUrl.toString());
       return;
     }
     this.oidcLogin();

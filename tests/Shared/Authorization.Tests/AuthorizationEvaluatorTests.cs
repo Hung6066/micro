@@ -154,7 +154,7 @@ public sealed class AuthorizationEvaluatorTests
         var evaluator = new AuthorizationEvaluator(sink);
 
         await evaluator.EvaluateAsync(new AuthorizationContext(
-            Principal("patients.view", "facility-a"),
+            Principal("patients.view", "facility-a", "tenant-a"),
             "patients.view",
             new AuthorizationResource("patient", "patient-1", TenantId: "tenant-a", FacilityId: "facility-a"),
             RequireResource: true));
@@ -213,12 +213,68 @@ public sealed class AuthorizationEvaluatorTests
         decision.ReasonCode.Should().Be("facility_scope_denied");
     }
 
-    private static ClaimsPrincipal Principal(string permission, string facility) => new(new ClaimsIdentity(
+    [Fact]
+    public async Task Denies_cross_tenant_resource_access_by_default()
+    {
+        var evaluator = new AuthorizationEvaluator();
+        var decision = await evaluator.EvaluateAsync(new AuthorizationContext(
+            Principal("patients.view", "facility-a", "tech-vendor"),
+            "patients.view",
+            new AuthorizationResource("patient", "patient-1", TenantId: "manufacturing", FacilityId: "facility-a"),
+            RequireResource: true));
+
+        decision.Allowed.Should().BeFalse();
+        decision.ReasonCode.Should().Be("tenant_scope_denied");
+    }
+
+    [Fact]
+    public async Task Allows_group_hq_cross_tenant_audit_read_when_policy_permits()
+    {
+        var policy = new ConfigurableCrossTenantAccessPolicy(
         [
-            new Claim("sub", "user-1"),
-            new Claim("permissions", permission),
-            new Claim("facility_id", facility)
-        ], "test"));
+            new CrossTenantAllowedPair("group-hq", "manufacturing", "group-audit-read", ["admin.audit.read"])
+        ]);
+        var evaluator = new AuthorizationEvaluator(crossTenantPolicy: policy);
+        var decision = await evaluator.EvaluateAsync(new AuthorizationContext(
+            Principal("admin.audit.read", "facility-a", "group-hq"),
+            "admin.audit.read",
+            new AuthorizationResource("audit-log", "entry-1", TenantId: "manufacturing", FacilityId: "facility-a"),
+            RequireResource: true));
+
+        decision.Allowed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Denies_cross_tenant_when_policy_does_not_cover_action()
+    {
+        var policy = new ConfigurableCrossTenantAccessPolicy(
+        [
+            new CrossTenantAllowedPair("group-hq", "manufacturing", "group-audit-read", ["admin.audit.read"])
+        ]);
+        var evaluator = new AuthorizationEvaluator(crossTenantPolicy: policy);
+        var decision = await evaluator.EvaluateAsync(new AuthorizationContext(
+            Principal("patients.view", "facility-a", "group-hq"),
+            "patients.view",
+            new AuthorizationResource("patient", "patient-1", TenantId: "manufacturing", FacilityId: "facility-a"),
+            RequireResource: true));
+
+        decision.Allowed.Should().BeFalse();
+        decision.ReasonCode.Should().Be("tenant_scope_denied");
+    }
+
+    private static ClaimsPrincipal Principal(string permission, string facility, string? tenantId = null)
+    {
+        var claims = new List<Claim>
+        {
+            new("sub", "user-1"),
+            new("permissions", permission),
+            new("facility_id", facility)
+        };
+        if (!string.IsNullOrWhiteSpace(tenantId))
+            claims.Add(new Claim("tenant_id", tenantId));
+
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, "test"));
+    }
 
     private sealed class RecordingSink : IAuthorizationDecisionSink
     {

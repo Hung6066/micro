@@ -1,0 +1,27 @@
+{
+  "/api/v1/commerce": {
+    "target": "http://127.0.0.1:5015",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/api": {
+    "target": "http://127.0.0.1:5001",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/connect": {
+    "target": "http://127.0.0.1:5001",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/Account": {
+    "target": "http://127.0.0.1:5001",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/.well-known": {
+    "target": "http://127.0.0.1:5001",
+    "secure": false,
+    "changeOrigin": true
+  }
+}

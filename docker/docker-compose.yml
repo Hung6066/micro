@@ -540,8 +540,30 @@ services:
       Authentication__ExternalSources__0__Authority: ${EXTERNAL_SOURCE_0_AUTHORITY:-}
       Authentication__ExternalSources__0__ClientId: ${EXTERNAL_SOURCE_0_CLIENT_ID:-}
       Authentication__ExternalSources__0__ClientSecret: ${EXTERNAL_SOURCE_0_CLIENT_SECRET:-}
+      Conglomerate__Enabled: ${CONGLOMERATE_ENABLED:-true}
+      Conglomerate__SkipDemoHospitalScope: ${CONGLOMERATE_SKIP_DEMO_HOSPITAL:-true}
+      Conglomerate__SeedPilotMemberships: ${CONGLOMERATE_SEED_PILOT_MEMBERSHIPS:-true}
+      Conglomerate__SeedPilotUsers: ${CONGLOMERATE_SEED_PILOT_USERS:-true}
+      Conglomerate__ResetPilotPasswords: ${CONGLOMERATE_RESET_PILOT_PASSWORDS:-true}
+      Conglomerate__PilotUserPassword: "${CONGLOMERATE_PILOT_PASSWORD:-ConglomeratePilot@Dev1}"
+      Conglomerate__SeedDataPath: config/conglomerate/seed-data.v1.json
+      Conglomerate__Organization__Key: abc-group
+      Conglomerate__Organization__DisplayName: ABC Group
+      Conglomerate__Tenants__0__Key: manufacturing
+      Conglomerate__Tenants__0__DisplayName: Manufacturing Co
+      Conglomerate__Tenants__1__Key: tech-vendor
+      Conglomerate__Tenants__1__DisplayName: Technology Co
+      Conglomerate__Tenants__2__Key: group-hq
+      Conglomerate__Tenants__2__DisplayName: Group HQ
+      Conglomerate__OidcClientTenants__group-hq-admin: group-hq
+      Conglomerate__OidcClientTenants__his-hope-dashboard: group-hq
+      Conglomerate__OidcClientTenants__his-hope-spa: group-hq
+      Conglomerate__OidcClientTenants__his-hope-mobile: group-hq
+      Conglomerate__OidcClientTenants__manufacturing-app: manufacturing
+      Conglomerate__OidcClientTenants__tech-console: tech-vendor
     volumes:
       - ../.runtime/identity-keys:/etc/hishop/certs:ro
+      - ../config/conglomerate:/app/config/conglomerate:ro
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -1010,6 +1032,7 @@ services:
       SERVICE_DASHBOARD_BFF_URL: http://dashboard-bff:5600
       SERVICE_SYSTEMDASHBOARD_BFF_URL: http://systemdashboard-bff:5700
       SERVICE_DATABASE_CONTINUITY_URL: http://database-continuity-service:5800
+      SERVICE_MANUFACTURING_URL: http://manufacturingservice:5050
       Vault__Address: ${VAULT_ADDR:-http://vault:8200}
       Vault__Token: ${VAULT_TOKEN:-}
       Vault__RequireVault: ${VAULT_REQUIRE:-false}
@@ -1018,7 +1041,7 @@ services:
       # Docker Compose uses the service DNS name; Kubernetes overrides this
       # destination from the production manifest/service configuration.
       "ReverseProxy__Clusters__dashboard-bff__Destinations__dashboard-bff/dest__Address": ${SERVICE_DASHBOARD_BFF_URL:-http://dashboard-bff:5600}/
-      CORS__AllowedOrigins: "http://localhost,http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4300,http://localhost:8081,http://localhost:8082,http://localhost:8083,http://frontend:8080,https://app.his-hope.internal,https://localhost,capacitor://localhost"
+      CORS__AllowedOrigins: "http://localhost,http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4205,http://localhost:4300,http://localhost:8081,http://localhost:8082,http://localhost:8083,http://frontend:8080,https://app.his-hope.internal,https://localhost,capacitor://localhost"
     depends_on:
       identityservice: { condition: service_healthy }
       database-continuity-service: { condition: service_healthy }
@@ -1026,6 +1049,7 @@ services:
       appointmentservice: { condition: service_healthy }
       clinicalservice: { condition: service_healthy }
       dashboard-bff: { condition: service_healthy }
+      manufacturingservice: { condition: service_healthy }
       redis: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
@@ -1034,6 +1058,27 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
+
+  # Nacoms manufacturing traceability vertical slice.
+  # The first slice is intentionally in-memory; persistence/outbox is the next
+  # migration step after the API contract is validated.
+  manufacturingservice:
+    build:
+      context: ../src/Services/ManufacturingService/ManufacturingService.Api
+      dockerfile: Dockerfile
+    container_name: his-hope-manufacturing
+    ports:
+      - "5050:5050"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5050
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
 
   frontend:
     build:

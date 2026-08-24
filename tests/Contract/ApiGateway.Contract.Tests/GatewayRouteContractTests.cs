@@ -51,6 +51,21 @@ public class GatewayRouteContractTests
         routes.Should().ContainEquivalentOf(new GatewayRoute("patient-invoices", "billing", "/api/v1/patients/{patientId}/invoices", null));
     }
 
+    [Fact]
+    public void GatewayConfig_ShouldAllowBuyerAppOrigin_ForOidcTokenPreflight()
+    {
+        using var stream = File.OpenRead(GatewayConfigPath);
+        using var document = JsonDocument.Parse(stream);
+
+        var allowedOrigins = document.RootElement
+            .GetProperty("CORS")
+            .GetProperty("AllowedOrigins")
+            .GetString()!
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        allowedOrigins.Should().Contain("http://localhost:4205");
+    }
+
     private static IReadOnlyList<GatewayRoute> LoadGatewayRoutes()
     {
         using var stream = File.OpenRead(GatewayConfigPath);

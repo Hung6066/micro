@@ -10,6 +10,8 @@ export interface AdminPermissionSnapshot {
   permissions: string[];
   scopes?: string[];
   facilityIds?: string[];
+  tenantId?: string;
+  tenantMemberships?: string[];
   authzVersion?: string;
 }
 

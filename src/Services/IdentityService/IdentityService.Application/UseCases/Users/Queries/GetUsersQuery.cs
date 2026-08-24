@@ -15,7 +15,8 @@ public record GetUsersQuery(
     string? Search = null,
     string? Role = null,
     bool? IsActive = null,
-    string? Sort = null)
+    string? Sort = null,
+    IReadOnlyList<string>? TenantMembershipKeys = null)
     : IRequest<PagedResult<UserDetailDto>>;
 
 public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, PagedResult<UserDetailDto>>
@@ -59,6 +60,19 @@ public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, PagedResult<U
                 .Where(userRole => userRole.UserId == user.Id)
                 .Join(_context.Roles, userRole => userRole.RoleId, role => role.Id, (_, role) => role.Name)
                 .Any(name => name == roleName));
+        }
+
+        if (request.TenantMembershipKeys is { Count: > 0 } tenantKeys)
+        {
+            var normalizedKeys = tenantKeys
+                .Where(key => !string.IsNullOrWhiteSpace(key))
+                .Select(key => key.Trim().ToLowerInvariant())
+                .Distinct()
+                .ToArray();
+            query = query.Where(user => _context.UserClaims.Any(claim =>
+                claim.UserId == user.Id &&
+                claim.ClaimType == "tenant_membership" &&
+                normalizedKeys.Contains(claim.ClaimValue.ToLower())));
         }
 
         // Get total count before pagination

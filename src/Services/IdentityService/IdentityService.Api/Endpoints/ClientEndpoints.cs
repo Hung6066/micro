@@ -9,19 +9,37 @@ using OpenIddict.Abstractions;
 using His.Hope.Infrastructure.Audit;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Cryptography;
+using System.Security.Claims;
+using His.Hope.Authorization;
+using His.Hope.IdentityService.Api.Authorization;
+using His.Hope.IdentityService.Application.Conglomerate;
 namespace His.Hope.IdentityService.Api.Endpoints;
 
 public static class ClientEndpoints
 {
     public static RouteGroupBuilder MapClientEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet("/", GetClients).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsRead);
-        group.MapGet("/{id}", GetClientById).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsRead);
-        group.MapPost("/", CreateClient).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite);
-        group.MapPut("/{id}", UpdateClient).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite);
-        group.MapDelete("/{id}", DeleteClient).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite);
-        group.MapPost("/{id}/rotate-secret", RotateSecret).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite);
-        group.MapGet("/{id}/onboarding", GetOnboarding).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsRead);
+        group.MapGet("/", GetClients)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.ClientsRead);
+        group.MapGet("/{id}", GetClientById)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.ClientsRead);
+        group.MapPost("/", CreateClient)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite)
+            .WithTenantMutationScope();
+        group.MapPut("/{id}", UpdateClient)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite)
+            .WithTenantMutationScope();
+        group.MapDelete("/{id}", DeleteClient)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite)
+            .WithTenantMutationScope();
+        group.MapPost("/{id}/rotate-secret", RotateSecret)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite)
+            .WithTenantMutationScope();
+        group.MapGet("/{id}/onboarding", GetOnboarding)
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.ClientsRead);
         return group;
     }
 
@@ -33,12 +51,14 @@ public static class ClientEndpoints
         return app;
     }
 
-    private static async Task<Results<Ok<PagedResult<ClientResponse>>, ValidationProblem>> GetClients(
+    private static async Task<Results<Ok<PagedResult<ClientResponse>>, ValidationProblem, ForbidHttpResult>> GetClients(
         int page = 1,
         int pageSize = 20,
         string? search = null,
         string? sort = null,
         IdentityDbContext db = null!,
+        IConglomerateTenantRegistry tenantRegistry = null!,
+        HttpContext http = null!,
         CancellationToken ct = default)
     {
         if (page < 1 || pageSize is < 1 or > 100)
@@ -46,7 +66,13 @@ public static class ClientEndpoints
         if (search?.Length > 100)
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["search"] = ["Search must be 100 characters or fewer."] });
 
+        var filter = IamTenantHttpContext.RequireFilter(http);
+
         var query = db.OpenIddictApplications.AsNoTracking();
+        var allowedClientIds = IamTenantQueryExtensions.ResolveAllowedClientIds(tenantRegistry, filter);
+        if (allowedClientIds is not null)
+            query = query.Where(application => allowedClientIds.Contains(application.ClientId ?? ""));
+
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
@@ -88,13 +114,22 @@ public static class ClientEndpoints
         return TypedResults.Ok(new PagedResult<ClientResponse>(response, totalCount, page, pageSize));
     }
 
-    private static async Task<Results<Ok<ClientResponse>, NotFound>> GetClientById(
-        string id, IdentityDbContext db, CancellationToken ct)
+    private static async Task<Results<Ok<ClientResponse>, NotFound, ForbidHttpResult>> GetClientById(
+        string id,
+        IdentityDbContext db,
+        IConglomerateTenantRegistry tenantRegistry,
+        HttpContext http,
+        CancellationToken ct)
     {
+        var filter = IamTenantHttpContext.RequireFilter(http);
+
         var client = await db.OpenIddictApplications
             .FirstOrDefaultAsync(a => a.Id == id, ct);
 
         if (client is null) return TypedResults.NotFound();
+
+        if (IamTenantAccessGuard.EnsureClientAccess(client.ClientId, tenantRegistry, filter) is not null)
+            return TypedResults.NotFound();
 
         return TypedResults.Ok(new ClientResponse(
             Id: client.Id.ToString(),
@@ -113,14 +148,20 @@ public static class ClientEndpoints
         ));
     }
 
-    private static async Task<Results<Created<ClientSecretResponse>, ProblemHttpResult>> CreateClient(
+    private static async Task<Results<Created<ClientSecretResponse>, ProblemHttpResult, ForbidHttpResult, NotFound>> CreateClient(
         CreateClientRequest request,
+        IdentityDbContext db,
+        IConglomerateTenantRegistry tenantRegistry,
         IOpenIddictApplicationManager appManager,
         VaultClientSecretStore vaultStore,
         IAuditService audit,
         HttpContext http,
         CancellationToken ct)
     {
+        var filter = IamTenantHttpContext.RequireFilter(http);
+        if (IamTenantAccessGuard.EnsureClientAccess(request.ClientId, tenantRegistry, filter) is not null)
+            return TypedResults.NotFound();
+
         if (await appManager.FindByClientIdAsync(request.ClientId, ct) is not null)
             return TypedResults.Problem(statusCode: 409, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.Conflict });
 
@@ -169,15 +210,21 @@ public static class ClientEndpoints
                 secret is not null ? "client_secret_basic" : "none"));
     }
 
-    private static async Task<Results<Ok<ClientResponse>, NotFound, ProblemHttpResult>> UpdateClient(
+    private static async Task<Results<Ok<ClientResponse>, NotFound, ProblemHttpResult, ForbidHttpResult>> UpdateClient(
         string id, UpdateClientRequest request,
-        IdentityDbContext db, IOpenIddictApplicationManager appManager, HttpRequest httpRequest,
+        IdentityDbContext db, IConglomerateTenantRegistry tenantRegistry,
+        IOpenIddictApplicationManager appManager, HttpRequest httpRequest,
         IAuditService audit, HttpContext http, CancellationToken ct)
     {
+        var filter = IamTenantHttpContext.RequireFilter(http);
+
         var client = await db.OpenIddictApplications
             .FirstOrDefaultAsync(a => a.Id == id, ct);
 
         if (client is null) return TypedResults.NotFound();
+
+        if (IamTenantAccessGuard.EnsureClientAccess(client.ClientId, tenantRegistry, filter) is not null)
+            return TypedResults.NotFound();
 
         var expectedToken = request.ConcurrencyToken
             ?? httpRequest.Headers.IfMatch.FirstOrDefault()?.Trim('"');
@@ -210,14 +257,20 @@ public static class ClientEndpoints
         ));
     }
 
-    private static async Task<Results<NoContent, NotFound>> DeleteClient(
-        string id, IdentityDbContext db, IOpenIddictApplicationManager appManager,
+    private static async Task<Results<NoContent, NotFound, ForbidHttpResult>> DeleteClient(
+        string id, IdentityDbContext db, IConglomerateTenantRegistry tenantRegistry,
+        IOpenIddictApplicationManager appManager,
         VaultClientSecretStore vaultStore, IAuditService audit, HttpContext http, CancellationToken ct)
     {
+        var filter = IamTenantHttpContext.RequireFilter(http);
+
         var client = await db.OpenIddictApplications
             .FirstOrDefaultAsync(a => a.Id == id, ct);
 
         if (client is null) return TypedResults.NotFound();
+
+        if (IamTenantAccessGuard.EnsureClientAccess(client.ClientId, tenantRegistry, filter) is not null)
+            return TypedResults.NotFound();
 
         if (client.ClientType == OpenIddictConstants.ClientTypes.Confidential)
             await vaultStore.RevokeSecretAsync(client.ClientId ?? "", ct);
@@ -227,14 +280,19 @@ public static class ClientEndpoints
         return TypedResults.NoContent();
     }
 
-    private static async Task<Results<Ok<ClientSecretResponse>, NotFound>> RotateSecret(
-        string id, IdentityDbContext db, IOpenIddictApplicationManager appManager,
+    private static async Task<Results<Ok<ClientSecretResponse>, NotFound, ForbidHttpResult>> RotateSecret(
+        string id, IdentityDbContext db, IConglomerateTenantRegistry tenantRegistry,
+        IOpenIddictApplicationManager appManager,
         VaultClientSecretStore vaultStore, IAuditService audit, HttpContext http, CancellationToken ct)
     {
+        var filter = IamTenantHttpContext.RequireFilter(http);
+
         var client = await db.OpenIddictApplications
             .FirstOrDefaultAsync(a => a.Id == id, ct);
 
         if (client is null) return TypedResults.NotFound();
+        if (IamTenantAccessGuard.EnsureClientAccess(client.ClientId, tenantRegistry, filter) is not null)
+            return TypedResults.NotFound();
         if (client.ClientType != OpenIddictConstants.ClientTypes.Confidential)
             return TypedResults.NotFound();
 
@@ -247,11 +305,16 @@ public static class ClientEndpoints
             "Client secret rotated. Store it securely - it will not be shown again.", "client_secret_basic"));
     }
 
-    private static async Task<Results<Ok<ClientOnboardingResponse>, NotFound>> GetOnboarding(
-        string id, IdentityDbContext db, IConfiguration configuration, CancellationToken ct)
+    private static async Task<Results<Ok<ClientOnboardingResponse>, NotFound, ForbidHttpResult>> GetOnboarding(
+        string id, IdentityDbContext db, IConglomerateTenantRegistry tenantRegistry,
+        HttpContext http, IConfiguration configuration, CancellationToken ct)
     {
+        var filter = IamTenantHttpContext.RequireFilter(http);
+
         var client = await db.OpenIddictApplications.AsNoTracking().FirstOrDefaultAsync(a => a.Id == id, ct);
         if (client is null) return TypedResults.NotFound();
+        if (IamTenantAccessGuard.EnsureClientAccess(client.ClientId, tenantRegistry, filter) is not null)
+            return TypedResults.NotFound();
 
         var issuer = (configuration["OpenIddict:Issuer"] ?? configuration["Oidc:Issuer"] ?? "http://localhost:8081").TrimEnd('/');
         return TypedResults.Ok(new ClientOnboardingResponse(

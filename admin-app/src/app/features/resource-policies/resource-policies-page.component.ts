@@ -9,7 +9,8 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
-import { forkJoin } from "rxjs";
+import { forkJoin, map } from "rxjs";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
   HisHopeDataTableColumn,
   HisHopeResourceListPageComponent,
@@ -26,6 +27,7 @@ import {
   IamServiceDefinition,
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { ResourcePolicyEditDialogComponent } from "./resource-policy-edit-dialog.component";
 
@@ -71,6 +73,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class ResourcePoliciesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -126,6 +129,7 @@ export class ResourcePoliciesPageComponent implements OnInit {
   }
   ngOnInit(): void {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   constructor() {
     effect(() => {
@@ -143,7 +147,9 @@ export class ResourcePoliciesPageComponent implements OnInit {
     this.state.load(
       forkJoin({
         policies: this.api.getIamResourcePolicies(),
-        scopes: this.api.getIamScopes(),
+        scopes: this.api.getIamScopes().pipe(
+          map((scopes) => this.tenantContext.filterScopes(scopes)),
+        ),
         services: this.api.getIamServices(),
       }),
     );

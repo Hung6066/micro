@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using His.Hope.IdentityService.Application.Interfaces;
+using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.Infrastructure.Audit;
 using His.Hope.Infrastructure.Security;
@@ -27,15 +28,27 @@ public static class AccessGovernanceEndpoints
 {
     public static RouteGroupBuilder MapAccessGovernanceEndpoints(this RouteGroupBuilder group)
     {
-        group.MapGet("/policies", async (IApplicationDbContext db, CancellationToken ct) =>
+        group.MapGet("/policies", async (
+            IApplicationDbContext db,
+            IdentityDbContext identityDb,
+            HttpContext http,
+            CancellationToken ct) =>
         {
-            var policies = await db.AuthorizationPolicies.AsNoTracking()
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+
+            var policyOwners = await IamTenantQueryExtensions.ResolveTenantPolicyOwnersAsync(db, tenantFilter, ct);
+            var policyQuery = db.AuthorizationPolicies.AsNoTracking();
+            if (policyOwners is not null)
+                policyQuery = policyQuery.Where(item => policyOwners.Contains(item.Owner));
+
+            var policies = await policyQuery
                 .OrderBy(item => item.Key).ThenByDescending(item => item.Version)
                 .Take(500)
                 .Select(item => new AuthorizationPolicyDto(item.Id, item.Key, item.Description, item.Owner, item.Version, item.LifecycleStatus, item.RulesJson, item.CreatedBy, item.CreatedAt, item.PublishedAt, item.PublishedBy))
                 .ToListAsync(ct);
             return Results.Ok(policies);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminPolicySimulate);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminPolicySimulate)
+            .WithTenantReadScope(HisHopePermissions.Admin.PolicySimulate);
 
         // Consumers receive a deterministic, signed snapshot rather than
         // reading mutable draft rows. The private signing key remains behind
@@ -251,10 +264,17 @@ public static class AccessGovernanceEndpoints
 
         group.MapGet("/authorization-changes", async (
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
+            HttpContext http,
             CancellationToken ct) =>
         {
-            var changes = await db.AuditLogs.AsNoTracking()
-                .Where(item => item.Source == "authorization-control-plane")
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+
+            var changeQuery = db.AuditLogs.AsNoTracking()
+                .Where(item => item.Source == "authorization-control-plane");
+            changeQuery = changeQuery.WhereTenantActor(db, tenantFilter.AllowedTenantKeys);
+
+            var changes = await changeQuery
                 .OrderByDescending(item => item.Timestamp)
                 .Take(200)
                 .Select(item => new
@@ -272,13 +292,26 @@ public static class AccessGovernanceEndpoints
                 })
                 .ToListAsync(ct);
             return Results.Ok(changes);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.AuditRead);
 
         group.MapGet("/access-requests", async (
-            IApplicationDbContext db,
+            IdentityDbContext db,
+            HttpContext http,
             CancellationToken ct) =>
         {
-            var requests = await db.AccessRequests.AsNoTracking()
+            var filter = IamTenantHttpContext.RequireFilter(http);
+
+            var query = db.AccessRequests.AsNoTracking();
+            if (filter.AllowedTenantKeys is { Count: > 0 } allowedTenantKeys)
+            {
+                query = query.Where(item => db.UserClaims.Any(claim =>
+                    claim.UserId == item.SubjectUserId &&
+                    claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
+                    allowedTenantKeys.Contains(claim.ClaimValue)));
+            }
+
+            var requests = await query
                 .OrderByDescending(item => item.RequestedAt)
                 .Take(200)
                 .Select(item => new AccessRequestDto(item.Id, item.SubjectUserId, item.RequestedBy,
@@ -286,17 +319,23 @@ public static class AccessGovernanceEndpoints
                     item.RequestedAt, item.DecidedAt, item.ExpiresAt))
                 .ToListAsync(ct);
             return Results.Ok(requests);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.RolesRead);
 
         group.MapPost("/access-requests", async (
             AccessRequestCreateRequest request,
             HttpContext http,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
             RoleManager<Role> roleManager,
             CancellationToken ct) =>
         {
             if (request.SubjectUserId == Guid.Empty || request.RoleIds is not { Length: > 0 } || request.Reason.Trim().Length < 10)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = ["subjectUserId, at least one role and a reason of at least 10 characters are required."] });
+
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, request.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
 
             var roleNames = new List<string>();
             foreach (var roleId in request.RoleIds)
@@ -322,26 +361,46 @@ public static class AccessGovernanceEndpoints
             db.AccessRequests.Add(item);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/v1/admin/access-requests/{item.Id}", new { item.Id, item.Status, item.ExpiresAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
-        group.MapGet("/access-reviews", async (IApplicationDbContext db, CancellationToken ct) =>
+        group.MapGet("/access-reviews", async (
+            IdentityDbContext db,
+            HttpContext http,
+            CancellationToken ct) =>
         {
-            var reviews = await db.AccessReviews.AsNoTracking()
+            var filter = IamTenantHttpContext.RequireFilter(http);
+
+            var query = db.AccessReviews.AsNoTracking();
+            if (filter.AllowedTenantKeys is { Count: > 0 } allowedTenantKeys)
+            {
+                query = query.Where(item => db.UserClaims.Any(claim =>
+                    claim.UserId == item.SubjectUserId &&
+                    claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
+                    allowedTenantKeys.Contains(claim.ClaimValue)));
+            }
+
+            var reviews = await query
                 .OrderBy(item => item.DueAt).Take(200)
                 .Select(item => new AccessReviewDto(item.Id, item.SubjectUserId, item.Reviewer, item.RoleIdsJson,
                     item.Status, item.DecisionReason, item.CreatedAt, item.DueAt, item.DecidedAt))
                 .ToListAsync(ct);
             return Results.Ok(reviews);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.AuditRead);
 
         group.MapPost("/access-reviews", async (
             AccessReviewCreateRequest request,
             HttpContext http,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
             CancellationToken ct) =>
         {
             if (request.SubjectUserId == Guid.Empty || request.RoleIds is not { Length: > 0 })
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["request"] = ["subjectUserId and roleIds are required."] });
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, request.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
             var reviewer = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
             var review = new AccessReview
             {
@@ -353,15 +412,20 @@ public static class AccessGovernanceEndpoints
             db.AccessReviews.Add(review);
             await db.SaveChangesAsync(ct);
             return Results.Created($"/api/v1/admin/access-reviews/{review.Id}", new { review.Id, review.Status, review.DueAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         group.MapPost("/access-reviews/{id:guid}/certify", async (
-            Guid id, HttpContext http, IApplicationDbContext db, IAuditService audit, CancellationToken ct) =>
+            Guid id, HttpContext http, IApplicationDbContext db,
+            IdentityDbContext identityDb, IAuditService audit, CancellationToken ct) =>
         {
             if (!http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
                 return Results.Forbid();
             var review = await db.AccessReviews.FirstOrDefaultAsync(item => item.Id == id, ct);
             if (review is null) return Results.NotFound();
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, review.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
             var reviewer = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
             if (review.Reviewer == reviewer || review.Status != "pending") return Results.Conflict(new { errorCode = "review_not_actionable" });
             review.Status = "certified";
@@ -371,16 +435,21 @@ public static class AccessGovernanceEndpoints
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "REVIEW_CERTIFY", "AccessReview", id.ToString(), review.DecisionReason, null, review.RoleIdsJson, ct);
             await AdminAudit.LogAsync(audit, http, "REVIEW_CERTIFY", "AccessReview", id.ToString(), ct);
             return Results.Ok(new { review.Id, review.Status, review.DecidedAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         group.MapPost("/access-reviews/{id:guid}/revoke", async (
-            Guid id, HttpContext http, IApplicationDbContext db, UserManager<User> userManager,
+            Guid id, HttpContext http, IApplicationDbContext db,
+            IdentityDbContext identityDb, UserManager<User> userManager,
             RoleManager<Role> roleManager, ITokenBlacklistService tokenBlacklist, IAuditService audit, CancellationToken ct) =>
         {
             if (!http.User.FindAll("amr").Any(claim => claim.Value.Equals("mfa", StringComparison.OrdinalIgnoreCase)))
                 return Results.Forbid();
             var review = await db.AccessReviews.FirstOrDefaultAsync(item => item.Id == id, ct);
             if (review is null) return Results.NotFound();
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, review.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
             if (review.Status != "pending") return Results.Conflict(new { errorCode = "review_not_actionable" });
             var subject = await userManager.FindByIdAsync(review.SubjectUserId.ToString());
             if (subject is null) return Results.NotFound(new { errorCode = "user_not_found" });
@@ -400,12 +469,14 @@ public static class AccessGovernanceEndpoints
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "REVIEW_REVOKE", "AccessReview", id.ToString(), review.DecisionReason, review.RoleIdsJson, null, ct);
             await AdminAudit.LogAsync(audit, http, "REVIEW_REVOKE", "AccessReview", id.ToString(), ct);
             return Results.Ok(new { review.Id, review.Status, review.DecidedAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         group.MapPost("/access-requests/{id:guid}/approve", async (
             Guid id,
             HttpContext http,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
             UserManager<User> userManager,
             RoleManager<Role> roleManager,
             ITokenBlacklistService tokenBlacklist,
@@ -416,6 +487,9 @@ public static class AccessGovernanceEndpoints
                 return Results.Forbid();
             var item = await db.AccessRequests.FirstOrDefaultAsync(request => request.Id == id, ct);
             if (item is null) return Results.NotFound();
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, item.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
             var approver = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
             if (string.Equals(item.RequestedBy, approver, StringComparison.OrdinalIgnoreCase))
                 return Results.Conflict(new { errorCode = "maker_checker_conflict" });
@@ -450,17 +524,22 @@ public static class AccessGovernanceEndpoints
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "ACCESS_APPROVE", "AccessRequest", id.ToString(), item.Reason, null, item.RoleIdsJson, ct);
             await AdminAudit.LogAsync(audit, http, "ACCESS_APPROVE", "AccessRequest", id.ToString(), ct);
             return Results.Ok(new { item.Id, item.Status, item.ApprovedBy, item.DecidedAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         group.MapPost("/access-requests/{id:guid}/reject", async (
             Guid id,
             HttpContext http,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
             IAuditService audit,
             CancellationToken ct) =>
         {
             var item = await db.AccessRequests.FirstOrDefaultAsync(request => request.Id == id, ct);
             if (item is null) return Results.NotFound();
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, item.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
             if (item.Status != "pending") return Results.Conflict(new { errorCode = "request_not_pending" });
             item.Status = "rejected";
             item.ApprovedBy = http.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? http.User.FindFirstValue("sub") ?? "unknown";
@@ -469,27 +548,47 @@ public static class AccessGovernanceEndpoints
             await AdminAudit.LogAuthorizationChangeAsync(db, http, "ACCESS_REJECT", "AccessRequest", id.ToString(), item.Reason, item.RoleIdsJson, null, ct);
             await AdminAudit.LogAsync(audit, http, "ACCESS_REJECT", "AccessRequest", id.ToString(), ct);
             return Results.Ok(new { item.Id, item.Status, item.ApprovedBy, item.DecidedAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         group.MapGet("/users/{id:guid}/effective-access", async (
             Guid id,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
+            HttpContext http,
             CancellationToken ct) =>
         {
-            var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct);
-            if (user is null) return Results.NotFound();
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, id, filter, ct) is { } accessError)
+                return accessError;
+
+            var userEntity = await db.Users.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct);
+            if (userEntity is null) return Results.NotFound();
             var roleIds = await db.UserRoles.AsNoTracking().Where(link => link.UserId == id).Select(link => link.RoleId).ToArrayAsync(ct);
             var roles = await db.Roles.AsNoTracking().Where(role => roleIds.Contains(role.Id)).Select(role => role.Name!).ToArrayAsync(ct);
             var permissions = await db.RolePermissions.AsNoTracking().Where(link => roleIds.Contains(link.RoleId)).Select(link => link.PermissionCode).Distinct().OrderBy(code => code).ToArrayAsync(ct);
             var facilities = await db.UserFacilities.AsNoTracking().Where(item => item.UserId == id && item.IsActive).Select(item => item.FacilityId).OrderBy(facility => facility).ToArrayAsync(ct);
-            return Results.Ok(new { userId = id, isActive = user.IsActive, roles, permissions, facilityIds = facilities, evaluatedAt = DateTime.UtcNow });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead);
+            return Results.Ok(new { userId = id, isActive = userEntity.IsActive, roles, permissions, facilityIds = facilities, evaluatedAt = DateTime.UtcNow });
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminUsersRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.UsersRead);
 
         group.MapGet("/break-glass/requests", async (
-            IApplicationDbContext db,
+            IdentityDbContext db,
+            HttpContext http,
             CancellationToken ct) =>
         {
-            var requests = await db.BreakGlassRequests.AsNoTracking()
+            var filter = IamTenantHttpContext.RequireFilter(http);
+
+            var query = db.BreakGlassRequests.AsNoTracking();
+            if (filter.AllowedTenantKeys is { Count: > 0 } allowedTenantKeys)
+            {
+                query = query.Where(item => db.UserClaims.Any(claim =>
+                    claim.UserId == item.SubjectUserId &&
+                    claim.ClaimType == IamTenantScopeResolver.TenantMembershipClaimType &&
+                    allowedTenantKeys.Contains(claim.ClaimValue)));
+            }
+
+            var requests = await query
                 .OrderByDescending(item => item.RequestedAt)
                 .Take(200)
                 .Select(item => new BreakGlassRequestDto(
@@ -499,12 +598,14 @@ public static class AccessGovernanceEndpoints
                     item.ApprovedAt, item.ExpiresAt, item.RevokedAt))
                 .ToListAsync(ct);
             return Results.Ok(requests);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassRead);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.BreakGlassRead);
 
         group.MapPost("/break-glass/requests", async (
             BreakGlassCreateRequest request,
             HttpContext http,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
             IAuditService audit,
             CancellationToken ct) =>
         {
@@ -514,6 +615,10 @@ public static class AccessGovernanceEndpoints
                 {
                     ["request"] = ["subjectUserId, facilityId, permissionCode and a reason of at least 10 characters are required."]
                 });
+
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, request.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
 
             var registeredPrefixes = await db.IamServiceDefinitions.AsNoTracking()
                 .Select(service => service.PermissionPrefix)
@@ -547,18 +652,23 @@ public static class AccessGovernanceEndpoints
             await AdminAudit.LogAsync(audit, http, "BREAK_GLASS_REQUEST", "BreakGlassRequest", item.Id.ToString(), ct);
             return Results.Created($"/api/v1/admin/break-glass/requests/{item.Id}",
                 new { item.Id, item.Status, item.ExpiresAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassWrite)
+            .WithTenantMutationScope();
 
         group.MapPost("/break-glass/requests/{id:guid}/revoke", async (
             Guid id,
             HttpContext http,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
             IAuditService audit,
             ITokenBlacklistService tokenBlacklist,
             CancellationToken ct) =>
         {
             var item = await db.BreakGlassRequests.FirstOrDefaultAsync(request => request.Id == id, ct);
             if (item is null) return Results.NotFound();
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, item.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
             if (item.Status is "revoked" or "expired") return Results.Conflict(new { errorCode = "request_closed" });
             item.Status = "revoked";
             item.RevokedAt = DateTime.UtcNow;
@@ -566,12 +676,14 @@ public static class AccessGovernanceEndpoints
             await tokenBlacklist.RevokeAllUserTokensAsync(item.SubjectUserId.ToString(), ct);
             await AdminAudit.LogAsync(audit, http, "BREAK_GLASS_REVOKE", "BreakGlassRequest", id.ToString(), ct);
             return Results.NoContent();
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassWrite)
+            .WithTenantMutationScope();
 
         group.MapPost("/break-glass/requests/{id:guid}/approve", async (
             Guid id,
             HttpContext http,
             IApplicationDbContext db,
+            IdentityDbContext identityDb,
             IAuditService audit,
             ITokenBlacklistService tokenBlacklist,
             CancellationToken ct) =>
@@ -580,6 +692,9 @@ public static class AccessGovernanceEndpoints
                 return Results.Forbid();
             var item = await db.BreakGlassRequests.FirstOrDefaultAsync(request => request.Id == id, ct);
             if (item is null) return Results.NotFound();
+            var filter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureUserAccessAsync(identityDb, item.SubjectUserId, filter, ct) is { } accessError)
+                return accessError;
             if (item.Status != "pending" || item.ExpiresAt <= DateTime.UtcNow)
                 return Results.Conflict(new { errorCode = "request_not_pending" });
             item.Status = "approved";
@@ -589,7 +704,8 @@ public static class AccessGovernanceEndpoints
             await tokenBlacklist.RevokeAllUserTokensAsync(item.SubjectUserId.ToString(), ct);
             await AdminAudit.LogAsync(audit, http, "BREAK_GLASS_APPROVE", "BreakGlassRequest", id.ToString(), ct);
             return Results.Ok(new { item.Id, item.Status, item.ExpiresAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminBreakGlassWrite)
+            .WithTenantMutationScope();
 
         group.MapPost("/policy/simulate", async (
             PolicySimulationRequest request,

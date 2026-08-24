@@ -22,6 +22,7 @@ public class SecurityHeadersMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var headers = context.Response.Headers;
+        var isCrossOriginApi = context.Request.Path.StartsWithSegments("/api");
 
         // === Anti-MIME-Sniffing ===
         // Prevents browser from MIME-sniffing responses away from declared Content-Type
@@ -42,10 +43,18 @@ public class SecurityHeadersMiddleware
         headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
 
         // === Cross-Origin Isolation ===
-        // Prevents cross-origin reads of embedded resources
-        headers["Cross-Origin-Embedder-Policy"] = "require-corp";
-        headers["Cross-Origin-Opener-Policy"] = "same-origin";
-        headers["Cross-Origin-Resource-Policy"] = "same-origin";
+        // Browser SPAs on another localhost port call Identity /api with credentials.
+        // same-origin CORP blocks those CORS responses even when Allow-Origin is set.
+        if (isCrossOriginApi)
+        {
+            headers["Cross-Origin-Resource-Policy"] = "cross-origin";
+        }
+        else
+        {
+            headers["Cross-Origin-Embedder-Policy"] = "require-corp";
+            headers["Cross-Origin-Opener-Policy"] = "same-origin";
+            headers["Cross-Origin-Resource-Policy"] = "same-origin";
+        }
 
         // === HTTP Strict Transport Security (HSTS) ===
         // FIXED: Previously only added HSTS on HTTP (inverted logic - security bug).
