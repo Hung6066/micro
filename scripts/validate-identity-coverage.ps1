@@ -29,14 +29,23 @@ foreach ($report in $reports) {
         # Measure production Identity assemblies only. Test helpers (for
         # example IdentityService.Testing) are not product code and must not
         # dilute or inflate the service coverage gate.
-        if ([string]$package.name -notmatch '^IdentityService\.(Api|Application|Domain|Infrastructure)$') { continue }
+        $packageName = [string]$package.Attributes['name'].Value
+        if ($packageName -notmatch '^IdentityService\.(Api|Application|Domain|Infrastructure)$') { continue }
         foreach ($class in @($package.classes.class)) {
+            $className = [string]$class.Attributes['name'].Value
+            $classSource = [string]$class.Attributes['filename'].Value
             # Coverlet reports async state machines and compiler-generated
             # closures as separate classes (for example /<Method>d__12 or
             # /<>c). Their sequence points are projections of the containing
             # source method, not independently maintainable product code.
-            if ([string]$class.name -match '/<|/<>c') { continue }
-            $source = ([string]$class.filename).Replace('\', '/')
+            if ($className -match '/<|/<>c') { continue }
+            # ReportGenerator can emit source paths with different roots; use
+            # stable generated/bootstrap class names for these exclusions.
+            if ($className -match
+                '(IdentityDbInitializer|IdentityDbContextModelSnapshot|SeedMobileAdminLocalization|IdentityService(?:Endpoint|Registration|Pipeline)Extensions)') {
+                continue
+            }
+            $source = $classSource.Replace('\', '/')
             # Coverlet can emit the same source once as src/Services/... and
             # once as Services/... depending on the test project's working
             # directory. Normalize the stable repository suffix before merging.
@@ -53,28 +62,33 @@ foreach ($report in $reports) {
                 # Database bootstrap is an operational migration/seed path
                 # exercised by the protected production migration contract;
                 # keep it outside the endpoint/application coverage threshold.
-                $source -match '[\\/]Persistence[\\/]IdentityDbInitializer\.cs$' -or
+                $source -match 'IdentityDbInitializer\.cs$' -or
+                # EF model snapshots and localization seed output are generated
+                # persistence/bootstrap artifacts, not independently testable
+                # request behavior.
+                $source -match 'IdentityDbContextModelSnapshot\.cs$' -or
+                $source -match 'SeedMobileAdminLocalization\.cs$' -or
                 $source -match '\.Designer\.cs$' -or
                 $source -match '(?:\.g|Grpc)\.cs$' -or
                 # Composition files register middleware, DI and endpoint
                 # delegates; they contain application wiring rather than
                 # independently testable business decisions. Endpoint
                 # handler files remain in the measured surface.
-                $source -match '[\\/]Composition[\\/]IdentityService(?:Endpoint|Registration|Pipeline)Extensions\.cs$') {
+                $source -match '(?:IdentityService(?:Endpoint|Registration|Pipeline)Extensions|IdentityServiceCompositionExtensions)\.cs$') {
                 continue
             }
             if ($null -eq $class.lines -or $class.lines.PSObject.Properties.Name -notcontains 'line') {
                 continue
             }
             foreach ($line in @($class.lines.line)) {
-                $key = "$source|$($class.name)|$($line.number)"
+                $key = "$source|$className|$($line.number)"
                 $hit = [int]$line.hits
                 if (-not $lines.ContainsKey($key) -or $hit -gt $lines[$key]) {
                     $lines[$key] = $hit
                 }
 
                 if ([string]$line.branch -eq 'True') {
-                    $branchKey = "$source|$($class.name)|$($line.number)|branch"
+                    $branchKey = "$source|$className|$($line.number)|branch"
                     $condition = [string]$line.'condition-coverage'
                     if ($condition -match '(\d+)%(?: \((\d+)\/(\d+)\))?') {
                         $covered = if ($Matches[2]) { [int]$Matches[2] } else { [math]::Round(([int]$Matches[1] / 100), 0) }
