@@ -1,6 +1,11 @@
 {
+  "/api/v1/content": {
+    "target": "http://127.0.0.1:5000",
+    "secure": false,
+    "changeOrigin": true
+  },
   "/api/v1/commerce": {
-    "target": "http://127.0.0.1:5015",
+    "target": "http://127.0.0.1:5000",
     "secure": false,
     "changeOrigin": true
   },

@@ -120,6 +120,23 @@
   min-height: 3.2em;
 }
 
+.product-card__meta {
+  margin: 0 1.1rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.product-card__price {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.product-card__price small {
+  font-size: 0.75rem;
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
 .product-card__footer {
   display: flex;
   align-items: center;

@@ -98,16 +98,20 @@ export const BLOG_POSTS = [
 
 export type ProductSort = "default" | "price-asc" | "price-desc" | "name";
 
-export function sortProducts<T extends { name: string; unitPrice: number }>(
+function catalogPrice(item: { unitPrice?: number; effectiveUnitPrice?: number }): number {
+  return item.effectiveUnitPrice ?? item.unitPrice ?? 0;
+}
+
+export function sortProducts<T extends { name: string; unitPrice?: number; effectiveUnitPrice?: number }>(
   items: T[],
   sort: ProductSort,
 ): T[] {
   const copy = [...items];
   switch (sort) {
     case "price-asc":
-      return copy.sort((a, b) => a.unitPrice - b.unitPrice);
+      return copy.sort((a, b) => catalogPrice(a) - catalogPrice(b));
     case "price-desc":
-      return copy.sort((a, b) => b.unitPrice - a.unitPrice);
+      return copy.sort((a, b) => catalogPrice(b) - catalogPrice(a));
     case "name":
       return copy.sort((a, b) => a.name.localeCompare(b.name, "vi"));
     default:

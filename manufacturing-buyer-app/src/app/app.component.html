@@ -1,27 +1,28 @@
-<hh-offline-banner />
-
-<header class="site-header">
-  <div class="header-top">
-    <div class="fx-container header-top__inner">
-      <a class="brand" routerLink="/home">
-        <span class="brand__mark">N</span>
-        <span class="brand__text">
-          <strong>Nacoms</strong>
+<hh-offline-banner />
+
+<header class="site-header">
+  <div class="header-top">
+    <div class="fx-container header-top__inner">
+      <a class="brand" routerLink="/home">
+        <span class="brand__mark">N</span>
+        <span class="brand__text">
+          <strong>Nacoms</strong>
           <small>{{ 'buyer.brand.tagline' | hhTranslate }}</small>
-        </span>
-      </a>
-
-      <form class="search" (submit)="$event.preventDefault(); submitSearch()">
-        <mat-icon>search</mat-icon>
-        <input
-          type="search"
+        </span>
+      </a>
+
+      <form class="search" (submit)="$event.preventDefault(); submitSearch()">
+        <mat-icon>search</mat-icon>
+        <input
+          type="search"
+          name="searchQuery"
           [placeholder]="'buyer.search.placeholder' | hhTranslate"
-          [ngModel]="searchQuery()"
-          (ngModelChange)="searchQuery.set($event)"
-        />
+          [ngModel]="searchQuery()"
+          (ngModelChange)="searchQuery.set($event)"
+        />
         <button type="submit" class="search__btn">{{ 'buyer.search.submit' | hhTranslate }}</button>
-      </form>
-
+      </form>
+
       <div class="header-actions">
         <hh-language-switcher />
         <button
@@ -33,112 +34,117 @@
           <mat-icon>{{ theme.resolvedTheme() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
         </button>
         @if (isAuthenticated$ | async) {
-          <a class="action-link" routerLink="/cart">
-            <mat-icon>shopping_cart</mat-icon>
+          <a class="action-link" routerLink="/cart">
+            <mat-icon>shopping_cart</mat-icon>
             <span>{{ 'buyer.cart' | hhTranslate }}</span>
-          </a>
-          <a class="action-link" routerLink="/notifications">
-            <mat-icon>notifications</mat-icon>
-          </a>
-          <button type="button" class="action-link account" (click)="toggleUserMenu()">
-            <mat-icon>account_circle</mat-icon>
+          </a>
+          <a class="action-link" routerLink="/notifications">
+            <mat-icon>notifications</mat-icon>
+          </a>
+          <button type="button" class="action-link account" (click)="toggleUserMenu()">
+            <mat-icon>account_circle</mat-icon>
             <span>{{ 'buyer.account' | hhTranslate }}</span>
-          </button>
-          @if (userMenuOpen()) {
-            <div class="user-menu">
+          </button>
+          @if (userMenuOpen()) {
+            <div class="user-menu">
               <a routerLink="/profile">{{ 'buyer.profile' | hhTranslate }}</a>
               <a routerLink="/orders">{{ 'buyer.nav.orders' | hhTranslate }}</a>
               <button type="button" (click)="onLogout()">{{ 'buyer.logout' | hhTranslate }}</button>
-            </div>
-          }
-        } @else {
-          <button type="button" class="fx-btn-primary header-login" (click)="onLogin('/catalog')">
+            </div>
+          }
+        } @else {
+          <button type="button" class="fx-btn-primary header-login" (click)="onLogin('/catalog')">
             {{ 'buyer.login.order' | hhTranslate }}
-          </button>
-        }
+          </button>
+        }
         <button type="button" class="mobile-toggle" (click)="toggleMobileMenu()" [attr.aria-label]="'buyer.menu' | hhTranslate">
-          <mat-icon>{{ mobileMenuOpen() ? "close" : "menu" }}</mat-icon>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <nav class="header-nav" [class.header-nav--open]="mobileMenuOpen()">
-    <div class="fx-container header-nav__inner">
-      @for (item of navItems; track item.route) {
-        <a
-          [routerLink]="item.route"
-          routerLinkActive="active"
-          [routerLinkActiveOptions]="{ exact: item.route === '/home' }"
-        >
+          <mat-icon>{{ mobileMenuOpen() ? "close" : "menu" }}</mat-icon>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <nav class="header-nav" [class.header-nav--open]="mobileMenuOpen()">
+    <div class="fx-container header-nav__inner">
+      @for (item of navItems; track item.route) {
+        <a
+          [routerLink]="item.route"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: item.route === '/home' }"
+        >
           {{ item.label | hhTranslate }}
-        </a>
-      }
+        </a>
+      }
+      <a routerLink="/blog">{{ 'buyer.nav.blog' | hhTranslate }}</a>
       <a routerLink="/home" fragment="cau-chuyen">{{ 'buyer.nav.story' | hhTranslate }}</a>
-      <a routerLink="/home" fragment="hop-tac">{{ 'buyer.nav.cooperation' | hhTranslate }}</a>
-    </div>
-  </nav>
-
-  @if (isHome()) {
-    <div class="category-strip">
-      <div class="fx-container category-strip__inner">
-        @for (cat of categoryLinks; track cat.id) {
-          <button type="button" class="category-chip" (click)="scrollToCategory(cat.anchor)">
-            <mat-icon>{{ cat.icon }}</mat-icon>
+      <a routerLink="/cooperation">{{ 'buyer.nav.cooperation' | hhTranslate }}</a>
+      <a routerLink="/rfq">{{ 'buyer.nav.rfq' | hhTranslate }}</a>
+    </div>
+  </nav>
+
+  @if (isHome()) {
+    <div class="category-strip">
+      <div class="fx-container category-strip__inner">
+        @for (cat of categoryLinks; track cat.id) {
+          <button type="button" class="category-chip" (click)="scrollToCategory(cat.anchor)">
+            <mat-icon>{{ cat.icon }}</mat-icon>
             <span>{{ cat.label | hhTranslate }}</span>
-          </button>
-        }
-      </div>
-    </div>
-  }
-</header>
-
-<main class="main-content">
-  <router-outlet />
-</main>
-
-<footer class="site-footer">
-  <div class="fx-container footer-grid">
-    <div>
-      <div class="brand brand--footer">
-        <span class="brand__mark">N</span>
-        <span class="brand__text">
-          <strong>Nacoms</strong>
+          </button>
+        }
+      </div>
+    </div>
+  }
+</header>
+
+<main class="main-content">
+  <router-outlet />
+</main>
+
+<footer class="site-footer">
+  <div class="fx-container footer-grid">
+    <div>
+      <div class="brand brand--footer">
+        <span class="brand__mark">N</span>
+        <span class="brand__text">
+          <strong>Nacoms</strong>
           <small>{{ 'buyer.brand.region' | hhTranslate }}</small>
-        </span>
-      </div>
+        </span>
+      </div>
       <p class="footer-copy">{{ 'buyer.footer.copy' | hhTranslate }}</p>
-    </div>
-    <div>
+    </div>
+    <div>
       <h4>{{ 'buyer.footer.products' | hhTranslate }}</h4>
-      <ul>
+      <ul>
         <li><a routerLink="/catalog">{{ 'buyer.footer.product.mango' | hhTranslate }}</a></li>
         <li><a routerLink="/catalog">{{ 'buyer.footer.product.pineapple' | hhTranslate }}</a></li>
         <li><a routerLink="/catalog">{{ 'buyer.footer.product.passionFruit' | hhTranslate }}</a></li>
         <li><a routerLink="/catalog">{{ 'buyer.footer.product.mix' | hhTranslate }}</a></li>
-      </ul>
-    </div>
-    <div>
+      </ul>
+    </div>
+    <div>
       <h4>{{ 'buyer.footer.cooperation' | hhTranslate }}</h4>
-      <ul>
-        <li>{{ 'buyer.footer.partner.distributor' | hhTranslate }}</li>
+      <ul>
+        <li><a routerLink="/cooperation">{{ 'buyer.footer.partner.distributor' | hhTranslate }}</a></li>
         <li>{{ 'buyer.footer.partner.gifts' | hhTranslate }}</li>
         <li>{{ 'buyer.footer.partner.oem' | hhTranslate }}</li>
         <li>{{ 'buyer.footer.partner.export' | hhTranslate }}</li>
-      </ul>
-    </div>
-    <div id="hop-tac">
+      </ul>
+    </div>
+    <div>
+      <app-newsletter-signup />
+    </div>
+    <div id="hop-tac">
       <h4>{{ 'buyer.footer.contact' | hhTranslate }}</h4>
-      <p>Hotline: <strong>1900 6366</strong></p>
-      <p>Email: <strong>sales@nacoms.example</strong></p>
-      <button type="button" class="fx-btn-primary" (click)="onLogin('/catalog')">
+      <p>Hotline: <strong>1900 6366</strong></p>
+      <p>Email: <strong>sales@nacoms.example</strong></p>
+      <button type="button" class="fx-btn-primary" (click)="onLogin('/catalog')">
         {{ 'buyer.login.portal' | hhTranslate }}
-      </button>
-    </div>
-  </div>
-  <div class="footer-bottom">
+      </button>
+    </div>
+  </div>
+  <div class="footer-bottom">
     <div class="fx-container">{{ 'buyer.footer.copyright' | hhTranslate }}</div>
-  </div>
-</footer>
-
-<hh-toast-outlet />
+  </div>
+</footer>
+
+<hh-toast-outlet />

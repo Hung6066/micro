@@ -26,6 +26,8 @@ public static class AuthorizationPoliciesExtensions
 
         services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
         services.AddSingleton<IAuthorizationHandler, ScopeHandler>();
+        services.AddSingleton<IAuthorizationHandler, PortalClassHandler>();
+        services.AddSingleton<IAuthorizationHandler, CommerceScopeOrPermissionHandler>();
         services.AddSingleton<IAuthorizationHandler, PrincipalTypeHandler>();
         var builder = services.AddAuthorizationBuilder();
         builder.AddFallbackPolicy("default", new AuthorizationPolicyBuilder()

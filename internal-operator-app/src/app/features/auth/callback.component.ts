@@ -10,7 +10,7 @@ import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
   template: `
     <hh-state
       kind="loading"
-      [message]="'customerPortal.completingSignIn' | hhTranslate"
+      [message]="'customerPortal.completingSignIn' | hhTranslate: 'Completing sign-in…'"
     />
   `,
 })

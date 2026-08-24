@@ -9,6 +9,7 @@ import {
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { RouterLink } from "@angular/router";
 import { CommerceApiService, Order } from "../../core/services/commerce-api.service";
+import { HisHopeApiErrorMessageService as ApiErrorMessageService } from "@his-hope/frontend-foundation/i18n";
 import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
 @Component({
@@ -27,6 +28,8 @@ import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-fou
 
         @if (loading) {
           <div class="state">{{ 'buyer.orders.loading' | hhTranslate }}</div>
+        } @else if (error) {
+          <div class="state state--error">{{ error }}</div>
         } @else if (!orders.length) {
           <div class="state fx-card">{{ 'buyer.orders.empty' | hhTranslate }} <a routerLink="/catalog">{{ 'buyer.checkout' | hhTranslate }}</a></div>
         } @else {
@@ -73,10 +76,12 @@ export class OrdersPageComponent implements OnInit {
   private readonly api = inject(CommerceApiService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly errors = inject(ApiErrorMessageService);
   readonly i18n = inject(HisHopeI18nService);
 
   loading = true;
   orders: Order[] = [];
+  error = "";
 
   ngOnInit(): void {
     this.api.getOrders().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -85,7 +90,8 @@ export class OrdersPageComponent implements OnInit {
         this.loading = false;
         this.cdr.markForCheck();
       },
-      error: () => {
+      error: (error) => {
+        this.error = this.errors.message(error, "buyer.orders.error");
         this.loading = false;
         this.cdr.markForCheck();
       },

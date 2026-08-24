@@ -1,7 +1,6 @@
 @use "@angular/material" as mat;
 @use "@his-hope/frontend-foundation/styles" as his;
 @import "material-icons/iconfont/material-icons.css";
-@import "@fontsource/inter/latin.css";
 
 @include his.theme(-2);
 @include his.theme(-2, true, 'html[data-theme="dark"]');

@@ -12,6 +12,8 @@ const runtime = new RuntimeConfigService(
 export const environment = {
   production: false,
   commerceApiUrl: `${runtime.apiOrigin}/api/v1/commerce`,
+  contentApiUrl: `${runtime.apiOrigin}/api/v1/content`,
+  manufacturingApiUrl: `${runtime.apiOrigin}/api/v1/manufacturing`,
   authApiUrl: `${runtime.apiOrigin}/api/v1/auth`,
   oidc: {
     authority: runtime.oidcAuthority,
@@ -19,9 +21,9 @@ export const environment = {
     redirectUrl: "http://localhost:4205/auth/callback",
     postLogoutRedirectUri: "http://localhost:4205/auth/login",
     silentRenewUrl: "http://localhost:4205/auth/silent-refresh",
-    scope: "openid profile email roles hishop:permissions",
+    scope: "openid profile email roles hishop:permissions commerce.read commerce.write",
     responseType: "code" as const,
-    secureRoutes: ["/api/v1/commerce/"],
+    secureRoutes: ["/api/v1/commerce/", "/api/v1/manufacturing/"],
     maxIdTokenIatOffsetInSeconds: 600,
   },
 };

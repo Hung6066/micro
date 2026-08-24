@@ -36,8 +36,6 @@ using His.Hope.Infrastructure.Observability;
 using His.Hope.Infrastructure.Locking;
 using His.Hope.Infrastructure.Security;
 using His.Hope.Contracts.Identity;
-using His.Hope.Authorization;
-using His.Hope.Authorization.Handlers;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -55,6 +53,7 @@ namespace His.Hope.IdentityService.Api.Composition;
 
 public static class IdentityServiceEndpointExtensions
 {
+    private sealed record BffSessionExchangeRequest(string? ClientId);
     public static void MapIdentityServiceEndpoints(this WebApplication app)
     {
         app.MapGet("/api/v1/localization", async (
@@ -407,7 +406,8 @@ public static class IdentityServiceEndpointExtensions
             return Results.Ok(new
             {
                 authenticated = result.Succeeded,
-                userName = result.Principal?.Identity?.Name
+                userName = result.Principal?.Identity?.Name,
+                portalClass = result.Principal?.FindFirst("portal_class")?.Value
             });
         })
         .WithOpenApi()
@@ -418,8 +418,10 @@ public static class IdentityServiceEndpointExtensions
         // service-to-service HMAC session once so downstream APIs use one contract.
         auth.MapPost(IdentityApiRoutes.SessionExchangeSegment, async (
             HttpContext httpContext,
+            BffSessionExchangeRequest? request,
             UserManager<User> userManager,
             IIdentityService identityService,
+            IConglomerateTenantRegistry tenantRegistry,
             JwtTokenGenerator tokenGenerator,
             SessionTokenProtector tokenProtector,
             IConnectionMultiplexer redis,
@@ -453,6 +455,24 @@ public static class IdentityServiceEndpointExtensions
                 identityService,
                 user,
                 ct);
+            if (!string.IsNullOrWhiteSpace(request?.ClientId))
+            {
+                var clientTenant = tenantRegistry.GetClientTenant(request.ClientId);
+                if (clientTenant is null || !tenantRegistry.IsConglomerateClient(request.ClientId))
+                    return Results.BadRequest(new { errorCode = "invalid_client", error = "Unknown BFF client." });
+
+                var memberships = tenantClaims
+                    .Where(claim => claim.Type == "tenant_membership")
+                    .Select(claim => claim.Value)
+                    .ToArray();
+                if (!memberships.Contains(clientTenant, StringComparer.OrdinalIgnoreCase))
+                    return Results.Forbid();
+
+                tenantClaims = tenantClaims
+                    .Append(new Claim(ConglomerateConstants.ClaimPortalClass, tenantRegistry.GetPortalClass(request.ClientId)))
+                    .Append(new Claim("tenant_class", tenantRegistry.GetTenantClass(clientTenant)))
+                    .ToArray();
+            }
             var permissionList = permissions.ToList();
             var (jwt, expiresAt) = tokenGenerator.GenerateAccessToken(
                 user,

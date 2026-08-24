@@ -23,6 +23,7 @@ import {
 } from "@his-hope/frontend-foundation/i18n";
 import { environment } from "../../../environments/environment";
 import { TenantContextService } from "../../core/services/tenant-context.service";
+import { HisHopeApiErrorMessageService as ApiErrorMessageService } from "@his-hope/frontend-foundation/i18n";
 
 interface PortalUser {
   id: string;
@@ -47,23 +48,23 @@ interface PortalUser {
     <hh-page-layout>
       <hh-page-header
         hhPageHeader
-        [title]="'customerPortal.usersTitle' | hhTranslate"
-        [subtitle]="'customerPortal.usersSubtitle' | hhTranslate"
+        [title]="'customerPortal.usersTitle' | hhTranslate: 'Users'"
+        [subtitle]="'customerPortal.usersSubtitle' | hhTranslate: 'Manage users in your tenant'"
       />
-      <hh-toolbar hhPageToolbar [label]="'customerPortal.users' | hhTranslate">
+      <hh-toolbar hhPageToolbar [label]="'customerPortal.users' | hhTranslate: 'Users'">
         <span hhToolbarTitle
-          >{{ users.length }} {{ "customerPortal.users" | hhTranslate }}</span
+          >{{ users.length }} {{ "customerPortal.users" | hhTranslate: "Users" }}</span
         >
         <hh-action-button
           hh-toolbar-actions
           kind="secondary"
           icon="refresh"
-          [label]="'customerPortal.refresh' | hhTranslate"
+          [label]="'customerPortal.refresh' | hhTranslate: 'Refresh'"
           (pressed)="loadUsers()"
         />
       </hh-toolbar>
       <hh-data-table
-        [label]="'customerPortal.users' | hhTranslate"
+        [label]="'customerPortal.users' | hhTranslate: 'Users'"
         [columns]="columns"
         [rows]="tableRows"
         [loading]="loading"
@@ -77,8 +78,8 @@ interface PortalUser {
         <ng-template hhDataTableCell="isActive" let-row>
           {{
             row.isActive
-              ? ("admin.active" | hhTranslate)
-              : ("admin.inactive" | hhTranslate)
+              ? ("admin.active" | hhTranslate: "Active")
+              : ("admin.inactive" | hhTranslate: "Inactive")
           }}
         </ng-template>
       </hh-data-table>
@@ -90,6 +91,7 @@ export class UsersPageComponent implements OnInit {
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
   private readonly i18n = inject(HisHopeI18nService);
+  private readonly errors = inject(ApiErrorMessageService);
   private readonly tenantContext = inject(TenantContextService);
 
   users: PortalUser[] = [];
@@ -143,13 +145,10 @@ export class UsersPageComponent implements OnInit {
           this.loading = false;
           this.cdr.markForCheck();
         },
-        error: () => {
+        error: (error) => {
           this.users = [];
           this.loading = false;
-          this.error = this.i18n.t(
-            "customerPortal.usersLoadFailed",
-            "Unable to load users.",
-          );
+          this.error = this.errors.message(error, "customerPortal.usersLoadFailed");
           this.cdr.markForCheck();
         },
       });

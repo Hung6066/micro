@@ -25,7 +25,11 @@ import { routes } from "./app.routes";
 import { authInterceptor } from "./core/services/auth-interceptor.service";
 import { tenantScopeInterceptor } from "./core/interceptors/tenant-scope.interceptor";
 import { commerceTenantInterceptor } from "./core/interceptors/commerce-tenant.interceptor";
+import { contentTenantInterceptor } from "./core/interceptors/content-tenant.interceptor";
+import { manufacturingTenantInterceptor } from "./core/interceptors/manufacturing-tenant.interceptor";
 import { environment } from "../environments/environment";
+import { operatorContentTranslations } from "./core/i18n/operator-content-translations";
+import { operatorCommerceTranslations } from "./core/i18n/operator-commerce-translations";
 
 function defaultRuntimeSource() {
   const browserDefault =
@@ -65,8 +69,16 @@ export const appConfig: ApplicationConfig = {
   providers: [
     {
       provide: HisHopeI18nService,
-      useFactory: (document: Document, platformId: object) =>
-        new HisHopeI18nService(document, platformId),
+      useFactory: (document: Document, platformId: object) => {
+        const i18n = new HisHopeI18nService(document, platformId);
+        for (const [locale, translations] of Object.entries(operatorContentTranslations)) {
+          i18n.registerTranslations(locale, translations);
+        }
+        for (const [locale, translations] of Object.entries(operatorCommerceTranslations)) {
+          i18n.registerTranslations(locale, translations);
+        }
+        return i18n;
+      },
       deps: [DOCUMENT, PLATFORM_ID],
     },
     {
@@ -91,6 +103,8 @@ export const appConfig: ApplicationConfig = {
         hisHopeCookieSessionInterceptor,
         tenantScopeInterceptor,
         commerceTenantInterceptor,
+        contentTenantInterceptor,
+        manufacturingTenantInterceptor,
         authInterceptor,
         hisHopeErrorInterceptor,
       ]),
@@ -104,7 +118,11 @@ export const appConfig: ApplicationConfig = {
         clientId: runtime.clientId,
         scope: runtime.scope,
         responseType: runtime.responseType,
-        silentRenew: true,
+        // Manufacturing operator uses the BFF HttpOnly session contract. Do not
+        // start the OIDC silent-renew iframe, which has no browser access token
+        // in this mode and otherwise validates an empty token on every load.
+        silentRenew: false,
+        startCheckSession: false,
         useRefreshToken: false,
         silentRenewUrl: runtime.silentRenewUrl,
         renewTimeBeforeTokenExpiresInSeconds: 120,

@@ -55,7 +55,10 @@ export class HisHopeLanguageSwitcherComponent {
   readonly open = signal(false);
   readonly triggerId = `hh-language-trigger-${Math.random().toString(36).slice(2, 9)}`;
   readonly menuId = `hh-language-menu-${Math.random().toString(36).slice(2, 9)}`;
-  readonly menuLabel = 'Language options';
+  get menuLabel(): string {
+    this.i18n.locale();
+    return this.i18n.t("customerPortal.languageOptions", "Language options");
+  }
   @Output() readonly localeChange = new EventEmitter<HisHopeLocale>();
   @ViewChildren('option') private readonly optionButtons!: QueryList<ElementRef<HTMLButtonElement>>;
   @ViewChildren('trigger') private readonly triggerButtons!: QueryList<ElementRef<HTMLButtonElement>>;

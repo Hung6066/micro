@@ -49,3 +49,11 @@ R&D draft/submit; QA approve quality limits; Planner read/select; Production ch�
 - Một production order luôn render được snapshot recipe dù bản mới đã có.
 - Audit nêu author, approver, effective time, before/after và reason.
 - Test: stale ETag bị reject; author không tự approve; recipe retire không ảnh hưởng batch lịch sử.
+
+### Deviation đã triển khai
+
+Batch đang chạy có thể tạo `Deviation` với type, mô tả và impact bắt buộc. Deviation đi qua `Requested → Approved/Rejected → Closed`; người tạo không được tự approve/reject. Mỗi chuyển trạng thái lưu actor/thời gian và outbox event `Manufacturing.DeviationRaised/Approved/Rejected/Closed.v1`. Batch đã `Completed`, `Cancelled` hoặc `Closed` không nhận deviation mới; recipe snapshot không bị thay đổi.
+
+### ProductSpecification đã triển khai
+
+`ProductSpecification` lưu target moisture, packaging, shelf-life và QC specification. Lifecycle là `Draft → Approved → Retired`; chỉ một specification `Approved` cho mỗi tenant/SKU tại một thời điểm. Mọi lifecycle event được ghi outbox, và dữ liệu không hợp lệ (moisture ngoài 0–100%, shelf-life không dương, thiếu QC spec) bị từ chối ngay tại API.

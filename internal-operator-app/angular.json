@@ -12,14 +12,33 @@
           "builder": "@angular-devkit/build-angular:application",
           "options": {
             "outputPath": "dist/internal-operator-app",
-            "index": "src/index.manufacturing.html",
+            "index": { "input": "src/index.manufacturing.html", "output": "index.html" },
             "browser": "src/main.ts",
             "polyfills": ["zone.js"],
             "tsConfig": "tsconfig.app.json",
-            "assets": [{ "glob": "**/*", "input": "public" }],
+          "assets": [{ "glob": "**/*", "input": "public" }],
             "styles": ["src/styles.scss"]
           },
           "configurations": {
+            "production": {
+              "optimization": {
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": false
+                },
+                "fonts": true
+              },
+              "sourceMap": false,
+              "extractLicenses": true,
+              "index": { "input": "src/index.manufacturing.html", "output": "index.html" },
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.manufacturing.ts"
+                }
+              ]
+            },
             "development": {
               "optimization": false,
               "sourceMap": true
@@ -27,7 +46,7 @@
             "manufacturing": {
               "optimization": false,
               "sourceMap": true,
-              "index": "src/index.manufacturing.html",
+              "index": { "input": "src/index.manufacturing.html", "output": "index.html" },
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",
@@ -38,7 +57,7 @@
             "tech": {
               "optimization": false,
               "sourceMap": true,
-              "index": "src/index.tech.html",
+              "index": { "input": "src/index.tech.html", "output": "index.html" },
               "fileReplacements": [
                 {
                   "replace": "src/environments/environment.ts",

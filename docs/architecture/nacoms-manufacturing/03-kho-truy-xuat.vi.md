@@ -13,7 +13,7 @@ Tạo single source of truth cho tồn theo lot/location và truy xuất nhanh k
 1. Nhận/produce tạo stock theo lot và disposition.
 2. Reservation giữ lượng cho order/batch; FEFO chỉ chọn lot Released, unexpired.
 3. Issue/produce tạo `LotTransformation` ở operation; transfer không tạo lot mới.
-4. Hold loại lot khỏi ATP/reservation; recall query duyệt genealogy ngược/xuôi.
+4. Hold loại lot khỏi ATP/reservation; recall query duyệt genealogy ngược/xuôi. Khi lot chuyển `Hold`, `Quarantined` hoặc `Rejected`, mọi reservation đang `Reserved` trên lot được chuyển sang `Cancelled`, ghi `Unreserve` vào ledger và phát `Manufacturing.InventoryReservationCancelled.v1`; thao tác lặp lại cùng disposition là no-op.
 
 ## API/event
 

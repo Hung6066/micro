@@ -1,21 +1,14 @@
 import { inject } from "@angular/core";
 import { CanActivateFn, Router } from "@angular/router";
-import { OidcSecurityService } from "angular-auth-oidc-client";
 import { map, take } from "rxjs";
+import { AuthService } from "../services/auth.service";
 
-/** ADR 017: buyer app accepts only end_user portal tokens. */
+/** ADR 017: buyer shell uses BFF cookies; CommerceService enforces portal_class=end_user. */
 export const endUserPortalGuard: CanActivateFn = () => {
-  const oidc = inject(OidcSecurityService);
+  const authService = inject(AuthService);
   const router = inject(Router);
-  return oidc.getPayloadFromAccessToken().pipe(
+  return authService.isAuthenticated$.pipe(
     take(1),
-    map((payload) => {
-      const portalClass =
-        (payload as { portal_class?: string } | null)?.portal_class ?? "";
-      if (portalClass === "end_user" || portalClass === "") {
-        return true;
-      }
-      return router.parseUrl("/auth/login");
-    }),
+    map((isAuthenticated) => (isAuthenticated ? true : router.parseUrl("/auth/login"))),
   );
 };

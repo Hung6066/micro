@@ -32,6 +32,172 @@ interface PortalNavItem {
   fallback: string;
 }
 
+interface PortalNavSection {
+  id: string;
+  labelKey: string;
+  fallback: string;
+  items: readonly PortalNavItem[];
+}
+
+const BASE_NAV: readonly PortalNavItem[] = [
+  {
+    id: "dashboard",
+    route: "/dashboard",
+    icon: "dashboard",
+    labelKey: "customerPortal.dashboard",
+    fallback: "Dashboard",
+  },
+  {
+    id: "users",
+    route: "/users",
+    icon: "people",
+    labelKey: "customerPortal.users",
+    fallback: "Users",
+  },
+  {
+    id: "orders",
+    route: "/orders",
+    icon: "receipt_long",
+    labelKey: "customerPortal.orders",
+    fallback: "Orders",
+  },
+  {
+    id: "content",
+    route: "/content",
+    icon: "article",
+    labelKey: "operator.content.nav",
+    fallback: "Web content",
+  },
+  {
+    id: "rfqs",
+    route: "/rfqs",
+    icon: "request_quote",
+    labelKey: "operator.rfq.nav",
+    fallback: "B2B RFQs",
+  },
+];
+
+const MANUFACTURING_NAV: readonly PortalNavItem[] = [
+  {
+    id: "inventory",
+    route: "/inventory/lots",
+    icon: "inventory_2",
+    labelKey: "customerPortal.inventory",
+    fallback: "Inventory",
+  },
+  {
+    id: "production",
+    route: "/production",
+    icon: "precision_manufacturing",
+    labelKey: "customerPortal.production",
+    fallback: "Production",
+  },
+  {
+    id: "procurement",
+    route: "/procurement",
+    icon: "local_shipping",
+    labelKey: "customerPortal.procurement",
+    fallback: "Procurement",
+  },
+  {
+    id: "recipes",
+    route: "/recipes",
+    icon: "menu_book",
+    labelKey: "customerPortal.recipes",
+    fallback: "Recipes",
+  },
+  {
+    id: "product-specifications",
+    route: "/product-specifications",
+    icon: "fact_check",
+    labelKey: "customerPortal.specifications",
+    fallback: "Product specifications",
+  },
+  {
+    id: "quality-inspections",
+    route: "/quality-inspections",
+    icon: "fact_check",
+    labelKey: "customerPortal.inspections",
+    fallback: "Quality inspections",
+  },
+  {
+    id: "deviations",
+    route: "/deviations",
+    icon: "report_problem",
+    labelKey: "customerPortal.deviations",
+    fallback: "Deviations",
+  },
+  {
+    id: "capas",
+    route: "/capas",
+    icon: "rule",
+    labelKey: "customerPortal.capas",
+    fallback: "CAPA & supplier evaluation",
+  },
+  {
+    id: "forecast",
+    route: "/forecast",
+    icon: "query_stats",
+    labelKey: "customerPortal.forecast",
+    fallback: "Forecast & planning",
+  },
+  {
+    id: "sales-allocation",
+    route: "/sales-allocation",
+    icon: "shopping_cart_checkout",
+    labelKey: "customerPortal.salesAllocation",
+    fallback: "Sales allocation",
+  },
+  {
+    id: "maintenance",
+    route: "/maintenance",
+    icon: "build_circle",
+    labelKey: "customerPortal.maintenance",
+    fallback: "Maintenance",
+  },
+];
+
+function buildNavItems(): readonly PortalNavItem[] {
+  const hasManufacturing =
+    "manufacturingApiUrl" in environment && !!environment.manufacturingApiUrl;
+  if (!hasManufacturing) {
+    return BASE_NAV;
+  }
+
+  const [dashboard, users, orders] = BASE_NAV;
+  return [dashboard, ...MANUFACTURING_NAV, users, orders];
+}
+
+function buildNavSections(items: readonly PortalNavItem[]): readonly PortalNavSection[] {
+  const manufacturingIds = new Set(MANUFACTURING_NAV.map((item) => item.id));
+  const overview = items.filter((item) => item.id === "dashboard");
+  const manufacturing = items.filter((item) => manufacturingIds.has(item.id));
+  const workspace = items.filter(
+    (item) => item.id !== "dashboard" && !manufacturingIds.has(item.id),
+  );
+
+  return [
+    {
+      id: "overview",
+      labelKey: "admin.menuOverview",
+      fallback: "Overview",
+      items: overview,
+    },
+    {
+      id: "manufacturing",
+      labelKey: "customerPortal.manufacturingSection",
+      fallback: "Manufacturing",
+      items: manufacturing,
+    },
+    {
+      id: "workspace",
+      labelKey: "customerPortal.identityAdministration",
+      fallback: "Workspace",
+      items: workspace,
+    },
+  ].filter((section) => section.items.length > 0);
+}
+
 @Component({
   selector: "app-root",
   standalone: true,
@@ -66,29 +232,8 @@ export class AppComponent implements OnInit {
   userMenuOpen = false;
   activeTenantKey: string | null = this.tenantContext.getActiveTenantKey();
 
-  readonly navItems: readonly PortalNavItem[] = [
-    {
-      id: "dashboard",
-      route: "/dashboard",
-      icon: "dashboard",
-      labelKey: "customerPortal.dashboard",
-      fallback: "Dashboard",
-    },
-    {
-      id: "users",
-      route: "/users",
-      icon: "people",
-      labelKey: "customerPortal.users",
-      fallback: "Users",
-    },
-    {
-      id: "orders",
-      route: "/orders",
-      icon: "receipt_long",
-      labelKey: "customerPortal.orders",
-      fallback: "Orders",
-    },
-  ];
+  readonly navItems = buildNavItems();
+  readonly navSections = buildNavSections(this.navItems);
 
   private readonly i18n = inject(HisHopeI18nService);
   private readonly router = inject(Router);
@@ -96,6 +241,14 @@ export class AppComponent implements OnInit {
   private readonly isMobileSubject = new BehaviorSubject<boolean>(
     window.innerWidth <= 768,
   );
+
+  get localizedShellTitle(): string {
+    this.i18n.locale();
+    return this.i18n.t(
+      "customerPortal.shellTitleManufacturing",
+      this.shellTitle,
+    );
+  }
 
   get commands() {
     this.i18n.locale();

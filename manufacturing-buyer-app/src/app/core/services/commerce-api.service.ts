@@ -1,15 +1,15 @@
 import { Injectable, inject } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
+import {
+  HisHopeCommerceProductCatalogItemDto,
+  HisHopeCommerceProductListResponse,
+  HisHopeCommerceRfqDto,
+  HisHopeCommerceRfqListResponse,
+  HisHopeCreateCommerceRfqRequest,
+} from "@his-hope/frontend-foundation/contracts";
 import { environment } from "../../../environments/environment";
 
-export interface Product {
-  id: string;
-  sku: string;
-  name: string;
-  description: string;
-  unitPrice: number;
-  tenantKey: string;
-}
+export type ProductCatalogItem = HisHopeCommerceProductCatalogItemDto;
 
 export interface CartLine {
   productId: string;
@@ -41,6 +41,7 @@ export interface Profile {
   email: string;
   phone: string;
   companyName: string;
+  priceTier?: string;
 }
 
 export interface NotificationItem {
@@ -51,13 +52,24 @@ export interface NotificationItem {
   isRead: boolean;
 }
 
+export interface Availability {
+  tenantKey: string;
+  sku: string;
+  releasedQuantity: number;
+  uom: string;
+  asOf: string;
+}
+
+export type Rfq = HisHopeCommerceRfqDto;
+
 @Injectable({ providedIn: "root" })
 export class CommerceApiService {
   private readonly http = inject(HttpClient);
   private readonly base = environment.commerceApiUrl;
+  private readonly manufacturingBase = environment.manufacturingApiUrl;
 
   getProducts() {
-    return this.http.get<{ items: Product[] }>(`${this.base}/products`);
+    return this.http.get<HisHopeCommerceProductListResponse>(`${this.base}/products`);
   }
 
   getCart() {
@@ -86,5 +98,17 @@ export class CommerceApiService {
 
   getNotifications() {
     return this.http.get<{ items: NotificationItem[] }>(`${this.base}/notifications`);
+  }
+
+  getAvailability(sku: string) {
+    return this.http.get<Availability>(`${this.manufacturingBase}/products/${encodeURIComponent(sku)}/availability`);
+  }
+
+  getRfqs() {
+    return this.http.get<HisHopeCommerceRfqListResponse>(`${this.base}/rfqs`);
+  }
+
+  createRfq(body: HisHopeCreateCommerceRfqRequest) {
+    return this.http.post<Rfq>(`${this.base}/rfqs`, body);
   }
 }

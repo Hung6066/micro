@@ -9,6 +9,7 @@ import {
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { Router, RouterLink } from "@angular/router";
 import { CommerceApiService } from "../../core/services/commerce-api.service";
+import { HisHopeApiErrorMessageService as ApiErrorMessageService } from "@his-hope/frontend-foundation/i18n";
 import { forkJoin } from "rxjs";
 import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
@@ -28,6 +29,8 @@ import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-fou
 
         @if (loading) {
           <div class="state">{{ 'buyer.cart.loading' | hhTranslate }}</div>
+        } @else if (error) {
+          <div class="state state--error">{{ error }}</div>
         } @else if (!lines.length) {
           <div class="state fx-card">
             {{ 'buyer.cart.empty' | hhTranslate }} <a routerLink="/catalog">{{ 'buyer.catalog.back' | hhTranslate }}</a>
@@ -72,12 +75,14 @@ export class CartPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly errors = inject(ApiErrorMessageService);
   readonly i18n = inject(HisHopeI18nService);
 
   loading = true;
   checkingOut = false;
   lines: Array<{ productId: string; name: string; quantity: number; unitPrice: number }> = [];
   total = 0;
+  error = "";
 
   ngOnInit(): void {
     forkJoin({ cart: this.api.getCart(), products: this.api.getProducts() })
@@ -93,7 +98,7 @@ export class CartPageComponent implements OnInit {
                 productId: line.productId,
                 name: product.name,
                 quantity: line.quantity,
-                unitPrice: product.unitPrice,
+                unitPrice: product.effectiveUnitPrice,
               };
             })
             .filter((line): line is NonNullable<typeof line> => line !== null);
@@ -101,7 +106,8 @@ export class CartPageComponent implements OnInit {
           this.loading = false;
           this.cdr.markForCheck();
         },
-        error: () => {
+        error: (error) => {
+          this.error = this.errors.message(error, "buyer.cart.error");
           this.loading = false;
           this.cdr.markForCheck();
         },
@@ -112,7 +118,8 @@ export class CartPageComponent implements OnInit {
     this.checkingOut = true;
     this.api.checkout().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => void this.router.navigateByUrl("/orders"),
-      error: () => {
+      error: (error) => {
+        this.error = this.errors.message(error, "buyer.checkout.error");
         this.checkingOut = false;
         this.cdr.markForCheck();
       },

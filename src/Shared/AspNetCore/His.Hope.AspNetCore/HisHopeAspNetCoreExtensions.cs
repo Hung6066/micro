@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using His.Hope.Contracts;
+using His.Hope.AspNetCore.ProblemDetails;
 
 namespace His.Hope.AspNetCore;
 
@@ -53,6 +54,7 @@ public static class HisHopeAspNetCoreExtensions
     public static IApplicationBuilder UseHisHopeAspNetCore(this IApplicationBuilder app)
     {
         app.UseMiddleware<CorrelationIdMiddleware>();
+        app.UseMiddleware<ErrorContractMiddleware>();
         app.UseStatusCodePages(async statusContext =>
         {
             var httpContext = statusContext.HttpContext;

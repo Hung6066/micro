@@ -9,6 +9,7 @@ import {
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
 import { CommerceApiService, Profile } from "../../core/services/commerce-api.service";
+import { HisHopeApiErrorMessageService as ApiErrorMessageService } from "@his-hope/frontend-foundation/i18n";
 import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
 @Component({
@@ -27,6 +28,8 @@ import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
         @if (loading) {
           <div class="state">{{ 'buyer.profile.loading' | hhTranslate }}</div>
+        } @else if (error) {
+          <div class="state state--error">{{ error }}</div>
         } @else if (profile) {
           <form class="profile fx-card" (submit)="$event.preventDefault(); save()">
             <label>{{ 'buyer.profile.name' | hhTranslate }}<input [(ngModel)]="profile.displayName" name="displayName" /></label>
@@ -59,10 +62,12 @@ export class ProfilePageComponent implements OnInit {
   private readonly api = inject(CommerceApiService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly errors = inject(ApiErrorMessageService);
 
   loading = true;
   saving = false;
   profile: Profile | null = null;
+  error = "";
 
   ngOnInit(): void {
     this.api.getProfile().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -71,7 +76,8 @@ export class ProfilePageComponent implements OnInit {
         this.loading = false;
         this.cdr.markForCheck();
       },
-      error: () => {
+      error: (error) => {
+        this.error = this.errors.message(error, "buyer.profile.error");
         this.loading = false;
         this.cdr.markForCheck();
       },
@@ -94,7 +100,8 @@ export class ProfilePageComponent implements OnInit {
           this.saving = false;
           this.cdr.markForCheck();
         },
-        error: () => {
+        error: (error) => {
+          this.error = this.errors.message(error, "buyer.profile.saveError");
           this.saving = false;
           this.cdr.markForCheck();
         },

@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "npx playwright test --config=playwright.config.js --project=chromium",
+    "test:content-commerce": "npx playwright test --config=manufacturing-content-commerce.playwright.config.mjs --workers=1",
     "test:shared-foundation": "npx playwright test --config=playwright.config.js --grep @shared-foundation",
     "test:headed": "npx playwright test --config=playwright.config.js --project=chromium --headed",
     "test:firefox": "npx playwright test --config=playwright.config.js --project=firefox",

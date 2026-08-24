@@ -439,25 +439,3 @@ static X509Certificate2 LoadServerCertificate(IConfiguration config)
     return cert;
 }
 
-// Request Records
-public record CreateLabOrderRequest(
-    Guid PatientId,
-    Guid ProviderId,
-    Guid? EncounterId,
-    string PriorityCode,
-    string? Notes,
-    IReadOnlyList<CreateTestItemRequest> Tests);
-
-public record CreateTestItemRequest(
-    string TestCode,
-    string TestName,
-    string? SpecimenType);
-
-public record RecordLabResultRequest(
-    Guid TestId,
-    string Value,
-    string? AbnormalFlagCode,
-    string? Notes);
-
-public record CancelLabOrderRequest(string Reason);
-

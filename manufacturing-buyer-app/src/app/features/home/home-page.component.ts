@@ -6,11 +6,14 @@ import {
   signal,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
-import { Router } from "@angular/router";
-import { take } from "rxjs";
+import { Router, RouterLink } from "@angular/router";
+import { DatePipe } from "@angular/common";
+import { catchError, of, take } from "rxjs";
 import { MatIconModule } from "@angular/material/icon";
 import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
+import { HisHopeContentArticleDto } from "@his-hope/frontend-foundation/contracts";
 import { AuthService } from "../../core/services/auth.service";
+import { ContentApiService } from "../../core/services/content-api.service";
 import {
   BLOG_POSTS,
   FEATURED_PRODUCTS,
@@ -33,9 +36,26 @@ interface StoryBlock {
   image: string;
 }
 
+interface HeroSlideView {
+  id: string;
+  image: string;
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  translateEyebrow: boolean;
+  translateTitle: boolean;
+  translateSubtitle: boolean;
+}
+
+interface FounderStoryView {
+  title: string;
+  body: string;
+  image: string;
+}
+
 @Component({
   standalone: true,
-  imports: [MatIconModule, HisHopeTranslatePipe],
+  imports: [MatIconModule, RouterLink, DatePipe, HisHopeTranslatePipe],
   templateUrl: "./home-page.component.html",
   styleUrls: ["./home-page.component.scss"],
 })
@@ -43,12 +63,28 @@ export class HomePageComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly contentApi = inject(ContentApiService);
   readonly i18n = inject(HisHopeI18nService);
 
-  readonly heroSlides = HERO_SLIDES;
-  readonly founderStory = FOUNDER_STORY;
+  readonly heroSlides = signal<HeroSlideView[]>(
+    HERO_SLIDES.map((slide) => ({
+      id: slide.id,
+      image: slide.image,
+      eyebrow: slide.eyebrow,
+      title: slide.title,
+      subtitle: slide.subtitle,
+      translateEyebrow: true,
+      translateTitle: true,
+      translateSubtitle: true,
+    })),
+  );
+  readonly founderStory = signal<FounderStoryView>({
+    title: FOUNDER_STORY.title,
+    body: FOUNDER_STORY.body,
+    image: FOUNDER_STORY.image,
+  });
   readonly featuredProducts = FEATURED_PRODUCTS;
-  readonly blogPosts = BLOG_POSTS;
+  readonly blogPosts = signal<HisHopeContentArticleDto[]>([]);
   readonly activeSlide = signal(0);
 
   readonly stats: readonly StatItem[] = [
@@ -106,6 +142,46 @@ export class HomePageComponent implements OnInit {
   ngOnInit(): void {
     const timerId = window.setInterval(() => this.nextSlide(), 6000);
     this.destroyRef.onDestroy(() => window.clearInterval(timerId));
+
+    this.contentApi
+      .getHome()
+      .pipe(
+        catchError(() => of(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((home) => {
+        if (!home) {
+          this.blogPosts.set(this.fallbackArticles());
+          return;
+        }
+
+        if (home.banners.length) {
+          this.heroSlides.set(
+            home.banners.map((banner) => ({
+              id: banner.slideKey,
+              image: banner.imageUrl,
+              eyebrow: banner.eyebrowKey,
+              title: banner.titleKey,
+              subtitle: banner.subtitleKey,
+              translateEyebrow: true,
+              translateTitle: true,
+              translateSubtitle: true,
+            })),
+          );
+        }
+
+        if (home.founderStory) {
+          this.founderStory.set({
+            title: home.founderStory.title,
+            body: home.founderStory.excerpt,
+            image: home.founderStory.imageUrl,
+          });
+        }
+
+        this.blogPosts.set(
+          home.articles.length ? home.articles : this.fallbackArticles(),
+        );
+      });
   }
 
   productImage(sku: string): string {
@@ -113,12 +189,15 @@ export class HomePageComponent implements OnInit {
   }
 
   nextSlide(): void {
-    this.activeSlide.update((index) => (index + 1) % this.heroSlides.length);
+    this.activeSlide.update(
+      (index) => (index + 1) % this.heroSlides().length,
+    );
   }
 
   prevSlide(): void {
     this.activeSlide.update(
-      (index) => (index - 1 + this.heroSlides.length) % this.heroSlides.length,
+      (index) =>
+        (index - 1 + this.heroSlides().length) % this.heroSlides().length,
     );
   }
 
@@ -138,11 +217,28 @@ export class HomePageComponent implements OnInit {
       });
   }
 
-  scrollToCooperation(): void {
-    document.getElementById("hop-tac")?.scrollIntoView({ behavior: "smooth" });
+  goToCooperation(): void {
+    void this.router.navigateByUrl("/cooperation");
   }
 
   scrollToStory(): void {
     document.getElementById("cau-chuyen")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  private fallbackArticles(): HisHopeContentArticleDto[] {
+    return BLOG_POSTS.map((post, index) => ({
+      id: `fallback-${index}`,
+      tenantKey: "customer-factory-x",
+      slug: post.title.toLowerCase().replace(/\s+/g, "-"),
+      title: post.title,
+      excerpt: post.excerpt,
+      bodyHtml: `<p>${post.excerpt}</p>`,
+      category: post.category,
+      imageUrl: post.image,
+      locale: "vi-VN",
+      status: "published",
+      publishedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }));
   }
 }

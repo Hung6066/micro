@@ -4,6 +4,13 @@
   font-family: var(--font-sans) !important;
 }
 
+.auth-shell {
+  min-height: calc(100dvh - var(--shell-header-height));
+  display: grid;
+  place-items: center;
+  padding: var(--space-xl);
+}
+
 .app-brand-mark {
   display: inline-grid;
   place-items: center;
@@ -39,8 +46,18 @@ hh-brand {
   overflow-x: hidden;
 }
 
+.nav-section-label {
+  padding: var(--space-lg) var(--space-lg) var(--space-sm);
+  color: var(--text-muted);
+  font-size: var(--font-size-overline, 0.68rem);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
 .tenant-selector {
-  margin-inline-end: var(--space-sm);
+  margin-right: var(--space-sm);
 }
 
 @media (max-width: 768px) {
@@ -57,7 +74,8 @@ hh-brand {
   }
   .app-toolbar .app-title,
   .app-toolbar hh-language-switcher,
-  .app-toolbar .toolbar-spacer {
+  .app-toolbar .toolbar-spacer,
+  .app-toolbar .tenant-selector {
     display: none;
   }
 }

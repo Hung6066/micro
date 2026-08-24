@@ -27,3 +27,7 @@ Alert: hold ảnh hưởng đơn, expiry risk, yield below target, downtime prol
 - CEO KPI có timestamp freshness và link đến source batch/lot; thiếu data phải nêu thiếu.
 - Forecast change replay không nhân đôi MRP suggestion.
 - Test lot hold after allocation, expiry FEFO, stale projection và role denial.
+
+### Sales forecast đã triển khai
+
+`SalesForecast` là input versioned theo tenant, SKU và kỳ bán hàng. Mỗi phiên bản được ghi unique theo `(tenant, SKU, period, version)` và phát event `Manufacturing.SalesForecastChanged.v1`; replay cùng version bị từ chối để không nhân đôi tác động Planner. Endpoint forecast-material-requirements chọn recipe Approved/Active mới nhất, tính nhu cầu nguyên liệu, tồn Released, reservation và shortage; forecast không tự tạo PO hoặc lệnh sản xuất.

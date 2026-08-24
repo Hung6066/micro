@@ -26,7 +26,7 @@ import { environment } from "../../../environments/environment";
             <div class="logo">{{ "app.name" | hhTranslate: "His.Hope" }}</div>
             <h2>{{ shellTitle }}</h2>
             <p class="subtitle">
-              {{ "customerPortal.signInSubtitle" | hhTranslate }}
+              {{ "customerPortal.signInSubtitle" | hhTranslate: "Sign in with your customer administrator account." }}
             </p>
           </div>
           <div class="login-buttons">
@@ -35,7 +35,7 @@ import { environment } from "../../../environments/environment";
               (pressed)="startLogin()"
               kind="primary"
               icon="login"
-              [label]="'customerPortal.signInHisHope' | hhTranslate"
+              [label]="'customerPortal.signInHisHope' | hhTranslate: 'Sign in with His.Hope'"
             />
           </div>
         </mat-card-content>

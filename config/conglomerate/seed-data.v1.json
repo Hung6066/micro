@@ -74,6 +74,10 @@
           "permissions": [
             "commerce.orders.view",
             "commerce.orders.update",
+            "commerce.rfq.view",
+            "commerce.rfq.respond",
+            "content.manage",
+            "content.inquiries.view",
             "dashboard.view"
           ]
         }
@@ -109,7 +113,11 @@
             "admin.roles.read",
             "admin.clients.read",
             "commerce.orders.view",
-            "commerce.orders.update"
+            "commerce.orders.update",
+            "commerce.rfq.view",
+            "commerce.rfq.respond",
+            "content.manage",
+            "content.inquiries.view"
           ],
           "tenantKey": "manufacturing"
         }
@@ -304,7 +312,11 @@
             "admin.users.read",
             "admin.users.write",
             "admin.roles.read",
-            "dashboard.view"
+            "dashboard.view",
+            "content.manage",
+            "content.inquiries.view",
+            "commerce.rfq.view",
+            "commerce.rfq.respond"
           ]
         },
         {
@@ -315,7 +327,9 @@
             "commerce.orders.create",
             "commerce.orders.view",
             "commerce.profile.manage",
-            "commerce.notifications.view"
+            "commerce.notifications.view",
+            "commerce.rfq.create",
+            "commerce.rfq.view"
           ]
         }
       ],
@@ -352,7 +366,11 @@
             "admin.users.read",
             "admin.users.write",
             "admin.roles.read",
-            "dashboard.view"
+            "dashboard.view",
+            "content.manage",
+            "content.inquiries.view",
+            "commerce.rfq.view",
+            "commerce.rfq.respond"
           ],
           "tenantKey": "customer-factory-x"
         },
@@ -363,7 +381,9 @@
             "commerce.orders.create",
             "commerce.orders.view",
             "commerce.profile.manage",
-            "commerce.notifications.view"
+            "commerce.notifications.view",
+            "commerce.rfq.create",
+            "commerce.rfq.view"
           ],
           "tenantKey": "customer-factory-x"
         }

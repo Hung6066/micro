@@ -5,11 +5,13 @@ import {
   HostListener,
   QueryList,
   ViewChildren,
+  inject,
   input,
   output,
   signal,
 } from "@angular/core";
 import { MatIconModule } from "@angular/material/icon";
+import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
 import { TenantOption } from "../services/tenant-context.service";
 
 @Component({
@@ -48,7 +50,7 @@ import { TenantOption } from "../services/tenant-context.service";
           [id]="menuId"
           class="hh-tenant-menu"
           role="listbox"
-          aria-label="Tenant options"
+          [attr.aria-label]="tenantOptionsLabel()"
           (keydown)="onMenuKeydown($event)"
         >
           @for (tenant of tenants(); track tenant.key) {
@@ -225,21 +227,32 @@ export class TenantSwitcherComponent {
   readonly open = signal(false);
   readonly menuId = `hh-tenant-menu-${Math.random().toString(36).slice(2, 9)}`;
 
+  private readonly i18n = inject(HisHopeI18nService);
+
   @ViewChildren("option")
   private readonly optionButtons!: QueryList<ElementRef<HTMLButtonElement>>;
   @ViewChildren("trigger")
   private readonly triggerButtons!: QueryList<ElementRef<HTMLButtonElement>>;
 
   activeLabel(): string {
+    this.i18n.locale();
     const key = this.activeKey();
-    if (!key) return "Tenant";
+    if (!key) return this.i18n.t("customerPortal.tenant", "Tenant");
     return (
       this.tenants().find((tenant) => tenant.key === key)?.label ?? key
     );
   }
 
   triggerLabel(): string {
-    return `Tenant: ${this.activeLabel()}`;
+    this.i18n.locale();
+    return this.i18n.t("customerPortal.tenantScope", "Tenant: {{tenant}}", {
+      tenant: this.activeLabel(),
+    });
+  }
+
+  tenantOptionsLabel(): string {
+    this.i18n.locale();
+    return this.i18n.t("customerPortal.tenantOptions", "Tenant options");
   }
 
   shortCode(key: string | null, tenants: TenantOption[] = []): string {

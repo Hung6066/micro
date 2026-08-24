@@ -2,6 +2,8 @@ using FluentAssertions;
 using His.Hope.Contracts;
 using His.Hope.Contracts.Pagination;
 using His.Hope.Contracts.Query;
+using His.Hope.Contracts.Commerce;
+using System.Text.Json;
 using Xunit;
 
 namespace His.Hope.Core.Contract.Tests;
@@ -66,5 +68,32 @@ public sealed class ContractNormalizationTests
         ApiErrorCodes.PasswordResetRejected.Should().Be("password_reset_rejected");
         ApiProblemExtensions.CorrelationId.Should().Be("correlationId");
         ApiProblemExtensions.ErrorCode.Should().Be("errorCode");
+    }
+
+    [Fact]
+    public void Commerce_order_placed_contract_preserves_event_and_line_identity()
+    {
+        var eventId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+        var contract = new CommerceOrderPlacedV1(
+            eventId,
+            SchemaVersion: 1,
+            OccurredAt: DateTimeOffset.UtcNow,
+            OrderId: orderId,
+            TenantKey: "tenant-a",
+            BuyerUserId: "buyer-a",
+            TotalAmount: 125.50m,
+            Lines: [new CommerceOrderLineV1("product-1", "FG-MANGO", 10m, 12.55m)],
+            CorrelationId: "corr-1");
+
+        var json = JsonSerializer.Serialize(contract);
+        var roundTrip = JsonSerializer.Deserialize<CommerceOrderPlacedV1>(json);
+
+        roundTrip.Should().NotBeNull();
+        roundTrip!.EventId.Should().Be(eventId);
+        roundTrip.OrderId.Should().Be(orderId);
+        roundTrip.Lines.Should().ContainSingle()
+            .Which.Sku.Should().Be("FG-MANGO");
+        roundTrip.CorrelationId.Should().Be("corr-1");
     }
 }

@@ -1,17 +1,21 @@
 import { inject } from "@angular/core";
+import { HttpClient } from "@angular/common/http";
 import { CanActivateFn, Router } from "@angular/router";
-import { OidcSecurityService } from "angular-auth-oidc-client";
-import { map, take } from "rxjs";
+import { catchError, map, of, take } from "rxjs";
+
+interface BffSessionStatus {
+  authenticated: boolean;
+  portalClass?: string;
+}
 
 /** Internal operator shells accept only portal_class=operator (ADR 017). */
 export const operatorPortalGuard: CanActivateFn = () => {
-  const oidc = inject(OidcSecurityService);
+  const http = inject(HttpClient);
   const router = inject(Router);
-  return oidc.getPayloadFromAccessToken().pipe(
+  return http.get<BffSessionStatus>("/api/v1/auth/session-status", { withCredentials: true }).pipe(
     take(1),
-    map((payload) => {
-      const portalClass =
-        (payload as { portal_class?: string } | null)?.portal_class ?? "operator";
+    map((session) => {
+      const portalClass = session.portalClass ?? "operator";
       if (
         portalClass === "customer_operator" ||
         portalClass === "end_user"
@@ -20,5 +24,6 @@ export const operatorPortalGuard: CanActivateFn = () => {
       }
       return true;
     }),
+    catchError(() => of(router.parseUrl("/auth/login"))),
   );
 };

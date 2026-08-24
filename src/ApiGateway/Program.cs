@@ -49,6 +49,22 @@ if (manufacturingEndpoint is not null)
     reverseProxyClusters["ReverseProxy:Routes:manufacturing:ClusterId"] = "manufacturing";
     reverseProxyClusters["ReverseProxy:Routes:manufacturing:Match:Path"] = "/api/v1/manufacturing/{**catch-all}";
 }
+
+var commerceEndpoint = runtimeEndpoints.GetOptional("commerce");
+if (commerceEndpoint is not null)
+{
+    reverseProxyClusters["ReverseProxy:Clusters:commerce:Destinations:dest:Address"] = commerceEndpoint.ToString();
+    reverseProxyClusters["ReverseProxy:Routes:commerce:ClusterId"] = "commerce";
+    reverseProxyClusters["ReverseProxy:Routes:commerce:Match:Path"] = "/api/v1/commerce/{**catch-all}";
+}
+
+var contentEndpoint = runtimeEndpoints.GetOptional("content");
+if (contentEndpoint is not null)
+{
+    reverseProxyClusters["ReverseProxy:Clusters:content:Destinations:dest:Address"] = contentEndpoint.ToString();
+    reverseProxyClusters["ReverseProxy:Routes:content:ClusterId"] = "content";
+    reverseProxyClusters["ReverseProxy:Routes:content:Match:Path"] = "/api/v1/content/{**catch-all}";
+}
 builder.Configuration.AddInMemoryCollection(reverseProxyClusters);
 builder.Services.AddHisHopeAspNetCore();
 builder.Services.AddObservability(options => options.ServiceName = "ApiGateway");

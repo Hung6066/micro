@@ -32,6 +32,24 @@ describe("HisHopeI18nService", () => {
     expect(service.t("nope.missing")).toBe("nope.missing");
   });
 
+  it("ignores remote translations whose value equals the key and uses the bundled dictionary", () => {
+    service.setLocale("en");
+    service.registerTranslations("en-US", {
+      "customerPortal.manufacturingLots": "customerPortal.manufacturingLots",
+    });
+    expect(service.t("customerPortal.manufacturingLots", "Lots")).toBe("Lots");
+  });
+
+  it("prefers bundled locale text when remote echoes the English dictionary", () => {
+    service.setLocale("vi-VN");
+    service.registerTranslations("vi-VN", {
+      "customerPortal.dashboardTitle": "Dashboard",
+    });
+    expect(service.t("customerPortal.dashboardTitle", "Dashboard")).toBe(
+      "Bảng điều khiển",
+    );
+  });
+
   it("interpolates {{param}} placeholders", () => {
     service.registerLocale("test-locale", { greeting: "Hello {{name}}" });
     service.setLocale("test-locale");

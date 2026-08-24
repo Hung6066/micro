@@ -134,6 +134,68 @@ jobs:
           E2E_AUTH_PROBE_URL: ${{ secrets.E2E_AUTH_PROBE_URL }}
           E2E_AUTH_TOKEN: ${{ secrets.E2E_AUTH_TOKEN }}
 
+  commerce-manufacturing-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Start Commerce and Manufacturing runtime
+        run: >-
+          docker compose -f docker/docker-compose.yml up -d --build
+          postgres redis rabbitmq identityservice commerceservice manufacturingservice
+      - name: Smoke Commerce.OrderPlaced.v1 allocation and replay
+        shell: pwsh
+        run: ./scripts/config/smoke-commerce-manufacturing.ps1
+      - name: Collect runtime diagnostics
+        if: always()
+        run: |
+          docker compose -f docker/docker-compose.yml ps
+          docker compose -f docker/docker-compose.yml logs --no-color --tail=200 commerceservice manufacturingservice rabbitmq
+      - name: Stop Commerce and Manufacturing runtime
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down --volumes
+
+  manufacturing-frontend-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Build buyer and operator production images
+        run: |
+          docker build -f manufacturing-buyer-app/Dockerfile -t his-hope-manufacturing-buyer:ci .
+          docker build -f internal-operator-app/Dockerfile -t his-hope-manufacturing-operator:ci .
+      - name: Run frontend containers
+        run: |
+          docker run -d --name his-hope-manufacturing-buyer-ci -p 4205:8080 --add-host api-gateway:127.0.0.1 --add-host identityservice:127.0.0.1 his-hope-manufacturing-buyer:ci
+          docker run -d --name his-hope-manufacturing-operator-ci -p 4300:8080 --add-host api-gateway:127.0.0.1 his-hope-manufacturing-operator:ci
+      - name: Smoke frontend health and SPA roots
+        run: |
+          for url in http://127.0.0.1:4205/health http://127.0.0.1:4205/home http://127.0.0.1:4300/health http://127.0.0.1:4300/dashboard; do
+            for attempt in $(seq 1 20); do
+              if curl --fail --silent --show-error "$url" >/dev/null; then break; fi
+              if [ "$attempt" -eq 20 ]; then exit 1; fi
+              sleep 2
+            done
+          done
+      - name: Run public buyer UI contracts
+        working-directory: tests/e2e
+        env:
+          BUYER_APP_URL: http://127.0.0.1:4205
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test --config=manufacturing-buyer.playwright.config.mjs --workers=1
+          OPERATOR_APP_URL=http://127.0.0.1:4300 npx playwright test --config=manufacturing-operator-public.playwright.config.mjs --workers=1
+      - name: Collect frontend diagnostics
+        if: always()
+        run: |
+          docker ps -a --filter name=his-hope-manufacturing-buyer-ci --filter name=his-hope-manufacturing-operator-ci
+          docker logs his-hope-manufacturing-buyer-ci || true
+          docker logs his-hope-manufacturing-operator-ci || true
+      - name: Stop frontend containers
+        if: always()
+        run: docker rm -f his-hope-manufacturing-buyer-ci his-hope-manufacturing-operator-ci || true
+
   supply-chain:
     runs-on: ubuntu-latest
     steps:

@@ -107,7 +107,11 @@ export const appConfig: ApplicationConfig = {
         clientId: runtime.clientId,
         scope: runtime.scope,
         responseType: runtime.responseType,
-        silentRenew: true,
+        // Buyer uses the BFF HttpOnly session contract. A silent-renew iframe
+        // has no browser access token in this mode and causes empty-token
+        // validation errors ("token '' is not valid").
+        silentRenew: false,
+        startCheckSession: false,
         useRefreshToken: false,
         silentRenewUrl: runtime.silentRenewUrl,
         renewTimeBeforeTokenExpiresInSeconds: 120,

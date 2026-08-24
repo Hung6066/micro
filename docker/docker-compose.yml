@@ -13,7 +13,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_MULTIPLE_DATABASES: identitydb,patientdb,appointmentdb,clinicaldb,labdb,billingdb,pharmacydb,harnessdb
+      POSTGRES_MULTIPLE_DATABASES: identitydb,patientdb,appointmentdb,clinicaldb,labdb,billingdb,pharmacydb,harnessdb,manufacturingdb,commercedb,contentdb
     command:
       - postgres
       - -c
@@ -98,6 +98,8 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -545,7 +547,7 @@ services:
       Conglomerate__SeedPilotMemberships: ${CONGLOMERATE_SEED_PILOT_MEMBERSHIPS:-true}
       Conglomerate__SeedPilotUsers: ${CONGLOMERATE_SEED_PILOT_USERS:-true}
       Conglomerate__ResetPilotPasswords: ${CONGLOMERATE_RESET_PILOT_PASSWORDS:-true}
-      Conglomerate__PilotUserPassword: "${CONGLOMERATE_PILOT_PASSWORD:-ConglomeratePilot@Dev1}"
+      Conglomerate__PilotUserPassword: "${CONGLOMERATE_PILOT_PASSWORD:-}"
       Conglomerate__SeedDataPath: config/conglomerate/seed-data.v1.json
       Conglomerate__Organization__Key: abc-group
       Conglomerate__Organization__DisplayName: ABC Group
@@ -1033,6 +1035,8 @@ services:
       SERVICE_SYSTEMDASHBOARD_BFF_URL: http://systemdashboard-bff:5700
       SERVICE_DATABASE_CONTINUITY_URL: http://database-continuity-service:5800
       SERVICE_MANUFACTURING_URL: http://manufacturingservice:5050
+      SERVICE_COMMERCE_URL: http://commerceservice:5015
+      SERVICE_CONTENT_URL: http://contentservice:5016
       Vault__Address: ${VAULT_ADDR:-http://vault:8200}
       Vault__Token: ${VAULT_TOKEN:-}
       Vault__RequireVault: ${VAULT_REQUIRE:-false}
@@ -1050,6 +1054,8 @@ services:
       clinicalservice: { condition: service_healthy }
       dashboard-bff: { condition: service_healthy }
       manufacturingservice: { condition: service_healthy }
+      commerceservice: { condition: service_healthy }
+      contentservice: { condition: service_healthy }
       redis: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
@@ -1059,26 +1065,132 @@ services:
       retries: 5
       start_period: 30s
 
-  # Nacoms manufacturing traceability vertical slice.
-  # The first slice is intentionally in-memory; persistence/outbox is the next
-  # migration step after the API contract is validated.
+  # Nacoms manufacturing traceability vertical slice backed by PostgreSQL.
+  # The outbox publishes durable domain events; the analytics consumer records receipts idempotently.
   manufacturingservice:
     build:
-      context: ../src/Services/ManufacturingService/ManufacturingService.Api
-      dockerfile: Dockerfile
+      context: ../src
+      dockerfile: Services/ManufacturingService/ManufacturingService.Api/Dockerfile
     container_name: his-hope-manufacturing
     ports:
       - "5050:5050"
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
       ASPNETCORE_URLS: http://+:5050
+      ConnectionStrings__ManufacturingDb: ${DATABASE_MANUFACTURING_URL:-Host=postgres;Database=manufacturingdb;Username=postgres;Password=postgres}
+      Jwt__Authority: http://identityservice:5003
+      Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
+      Jwt__RequireHttpsMetadata: "false"
+      Jwt__AllowHttp: "true"
+      Jwt__Issuer: http://localhost:5000/
+      Jwt__ValidIssuers__0: http://localhost:5000/
+      Jwt__ValidIssuers__1: his-hope-identity
+      Jwt__Audience: http://localhost:5000/
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+      Outbox__Enabled: "true"
+      Consumers__AnalyticsEnabled: "true"
+      Consumers__CommerceOrdersEnabled: "true"
+      EventBus__HostName: rabbitmq
+      EventBus__Port: "5672"
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+    volumes:
+      - ../.runtime/identity-keys:/etc/hishop/certs:ro
     restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "dotnet", "--list-runtimes"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 10s
+
+  commerceservice:
+    build:
+      context: ../src
+      dockerfile: Services/CommerceService/CommerceService.Api/Dockerfile
+    container_name: his-hope-commerce
+    ports:
+      - "5015:5015"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5015
+      REDIS_URL: redis://redis:6379
+      ConnectionStrings__CommerceDb: ${DATABASE_COMMERCE_URL:-Host=postgres;Database=commercedb;Username=postgres;Password=postgres}
+      Outbox__Enabled: "true"
+      EventBus__HostName: rabbitmq
+      EventBus__Port: "5672"
+      EventBus__UserName: ${RABBITMQ_USER:-admin}
+      EventBus__Password: ${RABBITMQ_PASSWORD:-admin}
+      SERVICE_IDENTITY_URL: http://identityservice:5003
+      Jwt__Authority: http://identityservice:5003
+      Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
+      Jwt__RequireHttpsMetadata: "false"
+      Jwt__Issuer: http://localhost:5000/
+      Jwt__ValidIssuers__0: http://localhost:5000/
+      Jwt__ValidIssuers__1: his-hope-identity
+      Jwt__Audience: commerce-api
+      Jwt__AdditionalAudiences__0: His.Hope
+      Jwt__AdditionalAudiences__1: his-hope-services
+      Jwt__AdditionalAudiences__2: http://localhost:5000/
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+    volumes:
+      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+    restart: unless-stopped
+    depends_on:
+      identityservice: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  contentservice:
+    build:
+      context: ../src
+      dockerfile: Services/ContentService/ContentService.Api/Dockerfile
+    container_name: his-hope-content
+    ports:
+      - "5016:5016"
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ASPNETCORE_URLS: http://+:5016
+      ConnectionStrings__ContentDb: ${DATABASE_CONTENT_URL:-Host=postgres;Database=contentdb;Username=postgres;Password=postgres}
+      REDIS_URL: redis://redis:6379
+      SERVICE_IDENTITY_URL: http://identityservice:5003
+      Jwt__Authority: http://identityservice:5003
+      Jwt__MetadataAddress: http://identityservice:5003/.well-known/openid-configuration
+      Jwt__RequireHttpsMetadata: "false"
+      Jwt__Issuer: http://localhost:5000/
+      Jwt__ValidIssuers__0: http://localhost:5000/
+      Jwt__ValidIssuers__1: his-hope-identity
+      Jwt__Audience: content-api
+      Jwt__AdditionalAudiences__0: His.Hope
+      Jwt__AdditionalAudiences__1: his-hope-services
+      Jwt__AdditionalAudiences__2: http://localhost:5000/
+      Jwt__RsaPublicKeyPath: /etc/hishop/certs/jwt-public-key.pem
+      Jwt__RsaEncryptionPrivateKeyPath: /etc/hishop/certs/jwt-encryption-private-key.pem
+    volumes:
+      - ../.runtime/identity-keys:/etc/hishop/certs:ro
+    restart: unless-stopped
+    depends_on:
+      identityservice: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "dotnet", "--list-runtimes"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
 
   frontend:
     build:
@@ -1096,6 +1208,44 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  # Nacoms buyer portal, served as a static Angular image.
+  manufacturing-buyer-app:
+    build:
+      context: ..
+      dockerfile: manufacturing-buyer-app/Dockerfile
+    container_name: his-hope-manufacturing-buyer
+    ports:
+      - "4205:8080"
+    depends_on:
+      api-gateway: { condition: service_healthy }
+      manufacturingservice: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  # Nacoms manufacturing operator console, served as a static Angular image.
+  internal-operator-app:
+    build:
+      context: ..
+      dockerfile: internal-operator-app/Dockerfile
+    container_name: his-hope-manufacturing-operator
+    ports:
+      - "4300:8080"
+    depends_on:
+      api-gateway: { condition: service_healthy }
+      manufacturingservice: { condition: service_healthy }
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 5

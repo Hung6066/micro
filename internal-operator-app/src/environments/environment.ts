@@ -15,6 +15,7 @@ export const environment = {
   homeTenantKey: "manufacturing",
   adminApiUrl: `${runtime.apiOrigin}/api/v1/admin`,
   commerceApiUrl: `${runtime.apiOrigin}/api/v1/commerce`,
+  contentApiUrl: `${runtime.apiOrigin}/api/v1/content`,
   authApiUrl: `${runtime.apiOrigin}/api/v1/auth`,
   oidc: {
     authority: runtime.oidcAuthority,
@@ -24,7 +25,7 @@ export const environment = {
     silentRenewUrl: "http://localhost:4200/auth/silent-refresh",
     scope: "openid profile email roles hishop:permissions hishop:admin",
     responseType: "code" as const,
-    secureRoutes: ["/api/v1/admin/", "/api/v1/commerce/"],
+    secureRoutes: ["/api/v1/admin/", "/api/v1/commerce/", "/api/v1/content/"],
     maxIdTokenIatOffsetInSeconds: 600,
   },
 };

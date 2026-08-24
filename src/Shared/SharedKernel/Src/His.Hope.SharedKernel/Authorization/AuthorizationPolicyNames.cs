@@ -79,5 +79,11 @@ public static class AuthorizationPolicyNames
         public const string CommerceOrdersUpdate = "Permission:commerce.orders.update";
         public const string CommerceProfileManage = "Permission:commerce.profile.manage";
         public const string CommerceNotificationsView = "Permission:commerce.notifications.view";
+        public const string CommerceRfqCreate = "Permission:commerce.rfq.create";
+        public const string CommerceRfqView = "Permission:commerce.rfq.view";
+        public const string CommerceRfqRespond = "Permission:commerce.rfq.respond";
+        public const string ContentRead = "Permission:content.read";
+        public const string ContentManage = "Permission:content.manage";
+        public const string ContentInquiriesView = "Permission:content.inquiries.view";
     }
 }

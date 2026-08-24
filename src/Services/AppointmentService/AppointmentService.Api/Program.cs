@@ -240,7 +240,7 @@ grp.MapPost("/", async (
 
 grp.MapPut("/{id:guid}/cancel", async (
     Guid id,
-    CancelRequest request,
+    CancelAppointmentRequest request,
     IMediator mediator,
     AppointmentDbContext db,
     IResourceAuthorizationEvaluator authorization,
@@ -393,6 +393,3 @@ static X509Certificate2 CreateDevCert(string cn)
     return cert;
 }
 
-public record ScheduleAppointmentRequest(Guid PatientId, Guid ProviderId, DateTime ScheduledDate,
-    TimeSpan StartTime, int DurationMinutes, string TypeCode, string? Reason, string? Location);
-public record CancelRequest(string? Reason);

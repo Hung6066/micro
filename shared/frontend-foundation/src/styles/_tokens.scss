@@ -19,6 +19,7 @@
   --font-size-subhead: 17px;
   --font-size-icon-sm: 18px;
   --font-size-section: 20px;
+  --font-size-title-sm: var(--font-size-section);
   --font-size-icon-md: 20px;
   --font-size-headline: 22px;
   --font-size-title: 24px;
@@ -51,6 +52,7 @@
   --space-hairline: 2px;
   --space-xxs: 3px;
   --space-snug: 5px;
+  --space-compact: var(--space-sm);
   --space-nudge: 9px;
   --space-list-item: 13px;
   --page-padding-block: 28px;
@@ -69,6 +71,9 @@
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --bg-warm: #f6f8f6;
   --surface-white: #ffffff;
+  /* Compatibility aliases used by operational feature pages. */
+  --surface: var(--surface-white);
+  --surface-raised: var(--surface-white);
   --surface-muted: #f0f4f1;
   --surface-subtle: #e8efea;
   --skeleton-base: #e8efea;
@@ -79,6 +84,7 @@
   --text-secondary: #5f6d65;
   --text-muted: #5e6f65;
   --border-default: #dde6df;
+  --border-subtle: var(--border-default);
   --border-light: #eaf0eb;
   --border-strong: #b8c9bd;
   --color-primary: #1f6b4a;
@@ -86,6 +92,7 @@
   --color-primary-hover: #18563b;
   --color-primary-soft: #e4f1e9;
   --color-success: #207a4b;
+  --color-success-subtle: var(--surface-success);
   --color-info: #23669b;
   --color-warning: #9a6200;
   --color-danger: #b42318;
@@ -116,6 +123,7 @@
   --shell-header-bg: #123b29;
   --shell-header-bg-hover: #18563b;
   --shell-header-height: 64px;
+  --toolbar-height: var(--shell-header-height);
   --mobile-toolbar-height: 56px;
   --dialog-footer-min-height: 72px;
   --workspace-header-min-height: 78px;
@@ -123,6 +131,7 @@
   --size-upload-dropzone-min: 160px;
   --size-status-dot: 8px;
   --size-timeline-dot: 14px;
+  --size-timeline-rail: var(--size-timeline-dot);
   --radius-glass-nav: 22px;
   --size-nav-icon-track: 30px;
   --size-config-nav-indicator: 22px;
@@ -161,15 +170,18 @@
   --radius-panel: 16px;
   --radius-mobile-sheet: 24px;
   --radius-card: 8px;
+  --radius-md: var(--radius-card);
   --radius-control: 12px;
   --radius-button: 6px;
   --radius-input: 4px;
+  --radius-sm: var(--radius-input);
   --radius-badge: 4px;
   --radius-sheet: 20px;
   --radius-pill: 999px;
   --radius-full: 50%;
   --max-width-container: 1200px;
   --control-height: 40px;
+  --control-height-sm: 32px;
   --control-height-touch: 44px;
   --control-height-comfort: 52px;
   --form-label-gap: var(--space-sm);

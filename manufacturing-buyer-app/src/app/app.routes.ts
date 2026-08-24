@@ -51,5 +51,28 @@ export const routes: Routes = [
         (m) => m.NotificationsPageComponent,
       ),
   },
+  {
+    path: "blog",
+    loadComponent: () =>
+      import("./features/blog/blog-list-page.component").then((m) => m.BlogListPageComponent),
+  },
+  {
+    path: "blog/:slug",
+    loadComponent: () =>
+      import("./features/blog/blog-detail-page.component").then((m) => m.BlogDetailPageComponent),
+  },
+  {
+    path: "cooperation",
+    loadComponent: () =>
+      import("./features/cooperation/cooperation-page.component").then(
+        (m) => m.CooperationPageComponent,
+      ),
+  },
+  {
+    path: "rfq",
+    canActivate: [authGuard, endUserPortalGuard],
+    loadComponent: () =>
+      import("./features/rfq/rfq-page.component").then((m) => m.RfqPageComponent),
+  },
   { path: "**", redirectTo: "home" },
 ];

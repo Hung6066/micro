@@ -15,6 +15,7 @@ import {
   HisHopeLanguageSwitcherComponent,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
+import { NewsletterSignupComponent } from "./core/components/newsletter-signup.component";
 
 interface NavItem {
   route: string;
@@ -42,6 +43,7 @@ interface CategoryLink {
     HisHopeToastComponent,
     HisHopeLanguageSwitcherComponent,
     HisHopeTranslatePipe,
+    NewsletterSignupComponent,
   ],
   templateUrl: "./app.component.html",
   styleUrls: ["./app.component.scss"],
@@ -67,6 +69,7 @@ export class AppComponent {
   readonly navItems: readonly NavItem[] = [
     { route: "/home", label: "buyer.nav.home" },
     { route: "/catalog", label: "buyer.nav.catalog", authRequired: true },
+    { route: "/rfq", label: "buyer.nav.rfq", authRequired: true },
     { route: "/orders", label: "buyer.nav.orders", authRequired: true },
     { route: "/profile", label: "buyer.nav.account", authRequired: true },
   ];

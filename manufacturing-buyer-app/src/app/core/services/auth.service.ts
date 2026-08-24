@@ -4,6 +4,7 @@ import { Router } from "@angular/router";
 import { Observable } from "rxjs";
 import { OidcSecurityService } from "angular-auth-oidc-client";
 import { HisHopeAuthCoordinator } from "@his-hope/frontend-foundation/auth";
+import { environment } from "../../../environments/environment";
 
 @Injectable({ providedIn: "root" })
 export class AuthService {
@@ -15,8 +16,8 @@ export class AuthService {
     {
       defaultReturnUrl: "/catalog",
       sessionStatusUrl: "/api/v1/auth/session-status",
-      // CommerceService (5015) validates JWT Bearer tokens, not BFF cookies.
-      bffOnly: false,
+      bffClientId: environment.oidc.clientId,
+      bffOnly: true,
     },
   );
 

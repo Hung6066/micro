@@ -8,6 +8,7 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { CommerceApiService, NotificationItem } from "../../core/services/commerce-api.service";
+import { HisHopeApiErrorMessageService as ApiErrorMessageService } from "@his-hope/frontend-foundation/i18n";
 import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
 @Component({
@@ -26,6 +27,8 @@ import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-fou
 
         @if (loading) {
           <div class="state">{{ 'buyer.notifications.loading' | hhTranslate }}</div>
+        } @else if (error) {
+          <div class="state state--error">{{ error }}</div>
         } @else if (!items.length) {
           <div class="state fx-card">{{ 'buyer.notifications.empty' | hhTranslate }}</div>
         } @else {
@@ -58,10 +61,12 @@ export class NotificationsPageComponent implements OnInit {
   private readonly api = inject(CommerceApiService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly errors = inject(ApiErrorMessageService);
   readonly i18n = inject(HisHopeI18nService);
 
   loading = true;
   items: NotificationItem[] = [];
+  error = "";
 
   ngOnInit(): void {
     this.api.getNotifications().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -70,7 +75,8 @@ export class NotificationsPageComponent implements OnInit {
         this.loading = false;
         this.cdr.markForCheck();
       },
-      error: () => {
+      error: (error) => {
+        this.error = this.errors.message(error, "buyer.notifications.error");
         this.loading = false;
         this.cdr.markForCheck();
       },

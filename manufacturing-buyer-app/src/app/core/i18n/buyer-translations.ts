@@ -24,6 +24,7 @@ export const buyerTranslations = {
     "buyer.footer.copy": "Trái cây sấy dẻo chất lượng cao — thu mua tươi, chế biến trong ngày, mang hương vị miền Tây đến mọi nhà.",
     "buyer.login.title": "Đăng nhập để đặt hàng",
     "buyer.login.description": "Trái cây sấy dẻo B2B — tài khoản pilot: {{account}}",
+    "buyer.pilot": "tài khoản thử nghiệm buyer",
     "buyer.login.action": "Đăng nhập với His.Hope",
     "buyer.back.home": "← Quay về trang chủ",
     "buyer.cart.title": "Xác nhận đơn hàng",
@@ -60,8 +61,15 @@ export const buyerTranslations = {
     "buyer.catalog.sort.name": "Tên A → Z",
     "buyer.catalog.loading": "Đang tải sản phẩm...",
     "buyer.catalog.error": "Không tải được danh mục sản phẩm. Vui lòng đăng nhập buyer portal.",
+    "buyer.cart.error": "Không thể tải giỏ hàng.",
+    "buyer.checkout.error": "Không thể đặt hàng.",
+    "buyer.orders.error": "Không thể tải lịch sử đơn hàng.",
+    "buyer.profile.error": "Không thể tải hồ sơ.",
+    "buyer.profile.saveError": "Không thể lưu hồ sơ.",
+    "buyer.notifications.error": "Không thể tải thông báo.",
     "buyer.catalog.empty": "Không tìm thấy sản phẩm phù hợp.",
     "buyer.catalog.addToCart": "Thêm vào giỏ",
+    "buyer.catalog.available": "Có sẵn",
     "buyer.home.orderNow": "Mua ngay",
     "buyer.home.story": "Câu chuyện Nacoms",
     "buyer.home.previousSlide": "Slide trước",
@@ -131,6 +139,66 @@ export const buyerTranslations = {
     ,"buyer.home.hero.process.eyebrow": "Nhà máy Nacoms"
     ,"buyer.home.hero.process.title": "Thu mua tươi — chế biến trong ngày"
     ,"buyer.home.hero.process.subtitle": "Hợp tác nông dân địa phương, sấy lạnh hiện đại. Đặt hàng B2B trực tiếp trên portal buyer."
+    ,"buyer.nav.blog": "Blog"
+    ,"buyer.blog.eyebrow": "Tin tức Nacoms"
+    ,"buyer.blog.title": "Tin tức & Blog"
+    ,"buyer.blog.subtitle": "Câu chuyện sản phẩm, quy trình sấy lạnh và hợp tác kinh doanh."
+    ,"buyer.blog.loading": "Đang tải bài viết..."
+    ,"buyer.blog.empty": "Chưa có bài viết."
+    ,"buyer.blog.error": "Không thể tải blog. Vui lòng thử lại sau."
+    ,"buyer.blog.notFound": "Không tìm thấy bài viết."
+    ,"buyer.blog.back": "← Quay lại blog"
+    ,"buyer.blog.readMore": "Đọc tiếp →"
+    ,"buyer.blog.viewAll": "Xem tất cả bài viết"
+    ,"buyer.cooperation.eyebrow": "Hợp tác kinh doanh"
+    ,"buyer.cooperation.title": "Hợp tác kinh doanh"
+    ,"buyer.cooperation.subtitle": "OEM, phân phối, quà tặng doanh nghiệp và xuất khẩu."
+    ,"buyer.cooperation.company": "Công ty"
+    ,"buyer.cooperation.contact": "Người liên hệ"
+    ,"buyer.cooperation.email": "Email"
+    ,"buyer.cooperation.phone": "Điện thoại"
+    ,"buyer.cooperation.type": "Loại hợp tác"
+    ,"buyer.cooperation.type.distributor": "Đại lý phân phối"
+    ,"buyer.cooperation.type.oem": "Private label / OEM"
+    ,"buyer.cooperation.type.export": "Xuất khẩu"
+    ,"buyer.cooperation.message": "Nội dung trao đổi"
+    ,"buyer.cooperation.submit": "Gửi yêu cầu hợp tác"
+    ,"buyer.cooperation.success": "Đã gửi yêu cầu. Đội ngũ Nacoms sẽ liên hệ sớm."
+    ,"buyer.cooperation.error": "Không gửi được yêu cầu. Vui lòng thử lại."
+    ,"buyer.home.cooperationCta": "Gửi yêu cầu hợp tác"
+    ,"buyer.nav.rfq": "Báo giá sỉ"
+    ,"buyer.catalog.minOrder": "Đơn tối thiểu"
+    ,"buyer.catalog.tier.wholesale": "Giá sỉ"
+    ,"buyer.catalog.tier.distributor": "Giá đại lý"
+    ,"buyer.catalog.tier.retail": "Giá lẻ"
+    ,"buyer.rfq.eyebrow": "B2B Nacoms"
+    ,"buyer.rfq.title": "Yêu cầu báo giá"
+    ,"buyer.rfq.subtitle": "Gửi RFQ cho đơn sỉ, OEM hoặc xuất khẩu — đội ngũ Nacoms sẽ phản hồi."
+    ,"buyer.rfq.loading": "Đang tải sản phẩm..."
+    ,"buyer.rfq.errorLoad": "Không tải được danh mục. Vui lòng đăng nhập buyer portal."
+    ,"buyer.rfq.errorSubmit": "Không gửi được RFQ. Vui lòng thử lại."
+    ,"buyer.rfq.success": "Đã gửi yêu cầu báo giá. Nacoms sẽ liên hệ sớm."
+    ,"buyer.rfq.message": "Nội dung trao đổi"
+    ,"buyer.rfq.lines": "Sản phẩm cần báo giá"
+    ,"buyer.rfq.addLine": "Thêm dòng"
+    ,"buyer.rfq.removeLine": "Xóa"
+    ,"buyer.rfq.product": "Sản phẩm"
+    ,"buyer.rfq.quantity": "Số lượng"
+    ,"buyer.rfq.notes": "Ghi chú"
+    ,"buyer.rfq.submit": "Gửi RFQ"
+    ,"buyer.rfq.history": "RFQ đã gửi"
+    ,"buyer.rfq.historyEmpty": "Chưa có yêu cầu báo giá."
+    ,"buyer.rfq.quotedTotal": "Báo giá"
+    ,"buyer.rfq.status.pending": "Chờ xử lý"
+    ,"buyer.rfq.status.quoted": "Đã báo giá"
+    ,"buyer.rfq.status.accepted": "Đã chấp nhận"
+    ,"buyer.rfq.status.declined": "Từ chối"
+    ,"buyer.newsletter.title": "Nhận tin Nacoms"
+    ,"buyer.newsletter.subtitle": "Cập nhật sản phẩm mới, khuyến mãi và câu chuyện nông sản miền Tây."
+    ,"buyer.newsletter.placeholder": "Email của bạn"
+    ,"buyer.newsletter.submit": "Đăng ký"
+    ,"buyer.newsletter.success": "Đã đăng ký nhận tin. Cảm ơn bạn!"
+    ,"buyer.newsletter.error": "Không đăng ký được. Vui lòng thử lại."
   },
   "en-US": {
     "buyer.search.placeholder": "Search mango, pineapple, passion fruit...",
@@ -157,6 +225,7 @@ export const buyerTranslations = {
     "buyer.footer.copy": "High-quality dried fruit, sourced fresh and processed the same day to bring Mekong flavours to every home.",
     "buyer.login.title": "Sign in to place an order",
     "buyer.login.description": "B2B dried fruit — pilot account: {{account}}",
+    "buyer.pilot": "buyer pilot account",
     "buyer.login.action": "Sign in with His.Hope",
     "buyer.back.home": "← Back to home",
     "buyer.cart.title": "Confirm your order",
@@ -193,8 +262,15 @@ export const buyerTranslations = {
     "buyer.catalog.sort.name": "Name: A to Z",
     "buyer.catalog.loading": "Loading products...",
     "buyer.catalog.error": "We could not load the product catalog. Please sign in to the buyer portal.",
+    "buyer.cart.error": "We could not load your cart.",
+    "buyer.checkout.error": "We could not place the order.",
+    "buyer.orders.error": "We could not load your order history.",
+    "buyer.profile.error": "We could not load your profile.",
+    "buyer.profile.saveError": "We could not save your profile.",
+    "buyer.notifications.error": "We could not load notifications.",
     "buyer.catalog.empty": "No matching products found.",
     "buyer.catalog.addToCart": "Add to cart",
+    "buyer.catalog.available": "Available",
     "buyer.home.orderNow": "Order now",
     "buyer.home.story": "Nacoms story",
     "buyer.home.previousSlide": "Previous slide",
@@ -264,5 +340,65 @@ export const buyerTranslations = {
     ,"buyer.home.hero.process.eyebrow": "Nacoms factory"
     ,"buyer.home.hero.process.title": "Sourced fresh, processed the same day"
     ,"buyer.home.hero.process.subtitle": "Partnering with local farmers and using modern cold drying, with direct B2B ordering."
+    ,"buyer.nav.blog": "Blog"
+    ,"buyer.blog.eyebrow": "Nacoms news"
+    ,"buyer.blog.title": "News & blog"
+    ,"buyer.blog.subtitle": "Product stories, cold-drying process, and partnership opportunities."
+    ,"buyer.blog.loading": "Loading articles..."
+    ,"buyer.blog.empty": "No articles yet."
+    ,"buyer.blog.error": "We could not load the blog. Please try again later."
+    ,"buyer.blog.notFound": "Article not found."
+    ,"buyer.blog.back": "← Back to blog"
+    ,"buyer.blog.readMore": "Read more →"
+    ,"buyer.blog.viewAll": "View all articles"
+    ,"buyer.cooperation.eyebrow": "Business partnerships"
+    ,"buyer.cooperation.title": "Business cooperation"
+    ,"buyer.cooperation.subtitle": "OEM, distribution, corporate gifts, and export."
+    ,"buyer.cooperation.company": "Company"
+    ,"buyer.cooperation.contact": "Contact name"
+    ,"buyer.cooperation.email": "Email"
+    ,"buyer.cooperation.phone": "Phone"
+    ,"buyer.cooperation.type": "Partnership type"
+    ,"buyer.cooperation.type.distributor": "Distribution partner"
+    ,"buyer.cooperation.type.oem": "Private label / OEM"
+    ,"buyer.cooperation.type.export": "Export"
+    ,"buyer.cooperation.message": "Message"
+    ,"buyer.cooperation.submit": "Send inquiry"
+    ,"buyer.cooperation.success": "Inquiry sent. The Nacoms team will contact you soon."
+    ,"buyer.cooperation.error": "We could not submit your inquiry. Please try again."
+    ,"buyer.home.cooperationCta": "Send partnership inquiry"
+    ,"buyer.nav.rfq": "Wholesale RFQ"
+    ,"buyer.catalog.minOrder": "Minimum order"
+    ,"buyer.catalog.tier.wholesale": "Wholesale price"
+    ,"buyer.catalog.tier.distributor": "Distributor price"
+    ,"buyer.catalog.tier.retail": "Retail price"
+    ,"buyer.rfq.eyebrow": "Nacoms B2B"
+    ,"buyer.rfq.title": "Request a quote"
+    ,"buyer.rfq.subtitle": "Send an RFQ for wholesale, OEM, or export — the Nacoms team will respond."
+    ,"buyer.rfq.loading": "Loading products..."
+    ,"buyer.rfq.errorLoad": "We could not load the catalog. Please sign in to the buyer portal."
+    ,"buyer.rfq.errorSubmit": "We could not submit your RFQ. Please try again."
+    ,"buyer.rfq.success": "Quote request sent. Nacoms will contact you soon."
+    ,"buyer.rfq.message": "Message"
+    ,"buyer.rfq.lines": "Products to quote"
+    ,"buyer.rfq.addLine": "Add line"
+    ,"buyer.rfq.removeLine": "Remove"
+    ,"buyer.rfq.product": "Product"
+    ,"buyer.rfq.quantity": "Quantity"
+    ,"buyer.rfq.notes": "Notes"
+    ,"buyer.rfq.submit": "Submit RFQ"
+    ,"buyer.rfq.history": "Submitted RFQs"
+    ,"buyer.rfq.historyEmpty": "No quote requests yet."
+    ,"buyer.rfq.quotedTotal": "Quoted total"
+    ,"buyer.rfq.status.pending": "Pending"
+    ,"buyer.rfq.status.quoted": "Quoted"
+    ,"buyer.rfq.status.accepted": "Accepted"
+    ,"buyer.rfq.status.declined": "Declined"
+    ,"buyer.newsletter.title": "Nacoms newsletter"
+    ,"buyer.newsletter.subtitle": "Product launches, offers, and Mekong farm stories."
+    ,"buyer.newsletter.placeholder": "Your email"
+    ,"buyer.newsletter.submit": "Subscribe"
+    ,"buyer.newsletter.success": "Subscribed. Thank you!"
+    ,"buyer.newsletter.error": "We could not subscribe you. Please try again."
   }
 } as const;

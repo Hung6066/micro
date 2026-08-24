@@ -20,6 +20,11 @@
             "styles": ["src/styles.scss"]
           },
           "configurations": {
+            "production": {
+              "optimization": true,
+              "sourceMap": false,
+              "extractLicenses": true
+            },
             "development": {
               "optimization": false,
               "sourceMap": true
