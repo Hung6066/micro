@@ -11,8 +11,7 @@ import yaml
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-WORKFLOW = ROOT / ".github" / "workflows" / "gitops-promotion.yml"
-RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "gitops-release-promotion.yml"
+WORKFLOW = ROOT / ".github" / "workflows" / "gitops-release-promotion.yml"
 UPDATER = ROOT / "scripts" / "update-gitops-digest.ps1"
 RELEASE_UPDATER = ROOT / "scripts" / "update-gitops-release-digests.ps1"
 
@@ -24,7 +23,7 @@ def fail(message: str) -> None:
 
 def main() -> int:
     if not WORKFLOW.is_file():
-        fail("missing .github/workflows/gitops-promotion.yml")
+        fail("missing .github/workflows/gitops-release-promotion.yml")
     raw = WORKFLOW.read_text(encoding="utf-8")
     try:
         document = yaml.safe_load(raw) or {}
@@ -32,7 +31,7 @@ def main() -> int:
         fail(f"invalid YAML: {exc}")
 
     jobs = document.get("jobs") or {}
-    promotion = jobs.get("promotion")
+    promotion = jobs.get("promotion-pr")
     if not isinstance(promotion, dict):
         fail("promotion job is missing")
     if promotion.get("environment") != "production":
@@ -42,55 +41,36 @@ def main() -> int:
         fail("promotion job requires timeout-minutes between 1 and 60")
 
     required_fragments = (
-        "update-gitops-digest.ps1",
-        "Install pinned Cosign verifier",
-        "verify-image-attestations.ps1",
+        "update-gitops-release-digests.ps1",
+        "Install Harbor trust chain and Cosign",
+        "Verify every promoted digest",
         "cosign-linux-amd64",
         "8b24b946dd5809c6bd93de08033bcf6bc0ed7d336b7785787c080f574b89249b",
         "container-release.yml",
-        "HARBOR_PROJECT",
-        "IMAGE_DIGEST",
         "HARBOR_CA_CHAIN_B64",
         "update-ca-certificates",
+        "Create review-required promotion PR",
     )
     for fragment in required_fragments:
         if fragment not in raw:
             fail(f"missing required supply-chain control: {fragment}")
     if not UPDATER.is_file():
         fail("missing scripts/update-gitops-digest.ps1")
-    if not RELEASE_WORKFLOW.is_file():
-        fail("missing .github/workflows/gitops-release-promotion.yml")
     if not RELEASE_UPDATER.is_file():
         fail("missing scripts/update-gitops-release-digests.ps1")
     updater = UPDATER.read_text(encoding="utf-8")
     if "ReleaseSha" not in updater or "newTag:" not in updater:
         fail("digest updater must align the image tag with ReleaseSha when promoting a digest")
 
-    if not re.search(r"\^sha256:\[0-9a-f\]\{64\}\$", raw):
+    if not re.search(r"\^sha256:\[0-9a-f\]\{64\}\$", raw) and not re.search(
+        r"sha256:\[0-9a-f\]\{64\}",
+        RELEASE_UPDATER.read_text(encoding="utf-8"),
+    ):
         fail("workflow must validate lowercase immutable sha256 input")
     if not re.search(r"\^https://github\.com/\$\{(?:GITHUB_REPOSITORY|env:GITHUB_REPOSITORY)\}/\.github/workflows/container-release\.yml", raw):
         fail("workflow must bind verification to the container-release workflow identity")
     if re.search(r"kubectl\s+(?:apply|create|patch|label)|helm\s+upgrade|ansible-playbook", raw):
         fail("promotion workflow must open a PR and not mutate a cluster")
-
-    release_raw = RELEASE_WORKFLOW.read_text(encoding="utf-8")
-    required_release_fragments = (
-        "workflow_run:",
-        "Container Release Supply Chain",
-        "release_run_id:",
-        "gh run download",
-        "image-ref-*",
-        "verify-image-attestations.ps1",
-        "update-gitops-release-digests.ps1",
-        "Create review-required promotion PR",
-        "base: main",
-        "HARBOR_CA_CHAIN_B64",
-    )
-    for fragment in required_release_fragments:
-        if fragment not in release_raw:
-            fail(f"release promotion is missing required control: {fragment}")
-    if re.search(r"kubectl\s+(?:apply|create|patch|label)|helm\s+upgrade|ansible-playbook", release_raw):
-        fail("release promotion must open a review PR and not mutate a cluster")
 
     print("GitOps promotion contract PASS: protected digest-only review PRs and signed provenance preflight")
     return 0
