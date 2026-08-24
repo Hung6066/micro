@@ -29,20 +29,23 @@ foreach ($report in $reports) {
         # Measure production Identity assemblies only. Test helpers (for
         # example IdentityService.Testing) are not product code and must not
         # dilute or inflate the service coverage gate.
-        if ([string]$package.name -notmatch '^IdentityService\.(Api|Application|Domain|Infrastructure)$') { continue }
+        $packageName = $package.GetAttribute('name')
+        if ($packageName -notmatch '^IdentityService\.(Api|Application|Domain|Infrastructure)$') { continue }
         foreach ($class in @($package.classes.class)) {
+            $className = $class.GetAttribute('name')
+            $classSource = $class.GetAttribute('filename')
             # Coverlet reports async state machines and compiler-generated
             # closures as separate classes (for example /<Method>d__12 or
             # /<>c). Their sequence points are projections of the containing
             # source method, not independently maintainable product code.
-            if ([string]$class.name -match '/<|/<>c') { continue }
+            if ($className -match '/<|/<>c') { continue }
             # ReportGenerator can emit source paths with different roots; use
             # stable generated/bootstrap class names for these exclusions.
-            if ([string]$class.name -match
+            if ($className -match
                 '(IdentityDbInitializer|IdentityDbContextModelSnapshot|SeedMobileAdminLocalization|IdentityService(?:Endpoint|Registration|Pipeline)Extensions)') {
                 continue
             }
-            $source = ([string]$class.filename).Replace('\', '/')
+            $source = $classSource.Replace('\', '/')
             # Coverlet can emit the same source once as src/Services/... and
             # once as Services/... depending on the test project's working
             # directory. Normalize the stable repository suffix before merging.
@@ -78,14 +81,14 @@ foreach ($report in $reports) {
                 continue
             }
             foreach ($line in @($class.lines.line)) {
-                $key = "$source|$($class.name)|$($line.number)"
+                $key = "$source|$className|$($line.number)"
                 $hit = [int]$line.hits
                 if (-not $lines.ContainsKey($key) -or $hit -gt $lines[$key]) {
                     $lines[$key] = $hit
                 }
 
                 if ([string]$line.branch -eq 'True') {
-                    $branchKey = "$source|$($class.name)|$($line.number)|branch"
+                    $branchKey = "$source|$className|$($line.number)|branch"
                     $condition = [string]$line.'condition-coverage'
                     if ($condition -match '(\d+)%(?: \((\d+)\/(\d+)\))?') {
                         $covered = if ($Matches[2]) { [int]$Matches[2] } else { [math]::Round(([int]$Matches[1] / 100), 0) }
