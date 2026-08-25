@@ -24,7 +24,9 @@ import {
   Role,
   User,
 } from "../../core/services/access-governance-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { HisHopeResourceState } from "@his-hope/frontend-foundation/query";
 import {
   HisHopePageHeaderComponent,
@@ -114,6 +116,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class AccessGovernancePageComponent implements OnInit {
   private readonly api = inject(AccessGovernanceApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly route = inject(ActivatedRoute);
   private readonly permissionService = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -161,6 +164,7 @@ export class AccessGovernancePageComponent implements OnInit {
       this.cdr.markForCheck();
     });
     this.reload();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.reload());
   }
   reload(): void {
     this.error = "";

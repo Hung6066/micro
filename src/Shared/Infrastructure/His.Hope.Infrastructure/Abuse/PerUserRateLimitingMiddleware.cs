@@ -66,7 +66,8 @@ public sealed class PerUserRateLimitingMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         // Always allow health checks to prevent rate limiting from causing cascading failures
-        if (context.Request.Path.StartsWithSegments("/health"))
+        if (context.Request.Path.StartsWithSegments("/health") ||
+            HttpMethods.IsOptions(context.Request.Method))
         {
             await _next(context);
             return;

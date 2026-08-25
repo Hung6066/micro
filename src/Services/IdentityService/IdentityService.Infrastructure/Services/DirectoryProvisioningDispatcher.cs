@@ -55,6 +55,10 @@ public sealed class DirectoryProvisioningDispatcher(
                     .SetProperty(item => item.LeaseId, _leaseId)
                     .SetProperty(item => item.LeaseUntil, leaseUntil), ct);
         }
+        // ExecuteUpdateAsync bypasses EF tracking while the candidate query
+        // above tracked the same rows. Reload the claimed rows so the worker
+        // observes the lease it just acquired and can release it reliably.
+        db.ChangeTracker.Clear();
         var entries = await db.DirectoryProvisioningOutbox
             .Where(item => item.LeaseId == _leaseId && item.LeaseUntil == leaseUntil)
             .OrderBy(item => item.CreatedAt).ToListAsync(ct);

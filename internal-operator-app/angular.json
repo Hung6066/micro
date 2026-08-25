@@ -1,0 +1,73 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "projects": {
+    "internal-operator-app": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": "src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-angular:application",
+          "options": {
+            "outputPath": "dist/internal-operator-app",
+            "index": "src/index.manufacturing.html",
+            "browser": "src/main.ts",
+            "polyfills": ["zone.js"],
+            "tsConfig": "tsconfig.app.json",
+            "assets": [{ "glob": "**/*", "input": "public" }],
+            "styles": ["src/styles.scss"]
+          },
+          "configurations": {
+            "development": {
+              "optimization": false,
+              "sourceMap": true
+            },
+            "manufacturing": {
+              "optimization": false,
+              "sourceMap": true,
+              "index": "src/index.manufacturing.html",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.manufacturing.ts"
+                }
+              ]
+            },
+            "tech": {
+              "optimization": false,
+              "sourceMap": true,
+              "index": "src/index.tech.html",
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.tech.ts"
+                }
+              ]
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "serve": {
+          "builder": "@angular-devkit/build-angular:dev-server",
+          "options": { "proxyConfig": "proxy.conf.json" },
+          "configurations": {
+            "manufacturing": {
+              "buildTarget": "internal-operator-app:build:manufacturing",
+              "port": 4200
+            },
+            "tech": {
+              "buildTarget": "internal-operator-app:build:tech",
+              "port": 4201
+            }
+          },
+          "defaultConfiguration": "manufacturing"
+        }
+      }
+    }
+  },
+  "cli": {
+    "analytics": "2cf95c58-4991-4716-917f-4d0fe2a4c909"
+  }
+}

@@ -8,4 +8,5 @@ window.__HISHOPE_CONFIG__ = window.__HISHOPE_CONFIG__ || {
   apiOrigin: window.__HISHOPE_RUNTIME_CONFIG__.apiOrigin,
   oidcAuthority: window.__HISHOPE_RUNTIME_CONFIG__.oidcAuthority,
   production: window.__HISHOPE_RUNTIME_CONFIG__.environment === "production",
+  clientId: "his-hope-admin",
 };

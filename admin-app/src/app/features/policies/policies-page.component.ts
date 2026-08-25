@@ -21,8 +21,10 @@ import {
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { AuthorizationPolicy } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { PolicyEditDialogComponent } from "./policy-edit-dialog.component";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
@@ -90,6 +92,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class PoliciesPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -137,9 +140,6 @@ export class PoliciesPageComponent implements OnInit {
       },
     ];
   }
-  ngOnInit(): void {
-    this.load();
-  }
   constructor() {
     effect(() => {
       const policies = this.state.resource.data();
@@ -149,6 +149,10 @@ export class PoliciesPageComponent implements OnInit {
         this.cdr.markForCheck();
       }
     });
+  }
+  ngOnInit(): void {
+    this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   load(): void {
     this.state.load(this.api.getAuthorizationPolicies());

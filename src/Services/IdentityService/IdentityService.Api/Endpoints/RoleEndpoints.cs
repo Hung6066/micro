@@ -12,6 +12,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
+using His.Hope.Authorization;
 using His.Hope.IdentityService.Api.Authorization;
 using His.Hope.Contracts.Identity;
 using His.Hope.SharedKernel.Authorization;
@@ -33,6 +34,7 @@ public static class RoleEndpoints
             string? search = null,
             string? sort = null,
             IMediator mediator = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
             QueryRequest normalized;
@@ -46,20 +48,40 @@ public static class RoleEndpoints
             catch (ArgumentException ex) { return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = [ex.Message] }); }
             if (normalized.Search?.Length > 100)
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["search"] = ["Search must be 100 characters or fewer."] });
+
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
             var roles = await mediator.Send(
-                new GetRolesQuery(normalized.Page, normalized.PageSize, normalized.Search, normalized.Sort), ct);
+                new GetRolesQuery(
+                    normalized.Page,
+                    normalized.PageSize,
+                    normalized.Search,
+                    normalized.Sort,
+                    tenantFilter.AllowedTenantKeys?.ToArray()), ct);
             return Results.Ok(roles);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.RolesRead);
 
         // GET /api/v1/auth/roles/{id} - Get role with permissions
         group.MapGet(IdentityApiRoutes.RolesSegment + "/{id:guid}", async (
             Guid id,
             IMediator mediator = null!,
+            IdentityDbContext db = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
             var role = await mediator.Send(new GetRoleByIdQuery(id), ct);
-            return role is null ? Results.NotFound() : Results.Ok(role);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead);
+            if (role is null)
+                return Results.NotFound();
+
+            if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(db, id, tenantFilter, ct) is { } visibilityError)
+                return visibilityError;
+
+            return Results.Ok(role);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.RolesRead);
 
         // POST /api/v1/auth/roles - Create role
         group.MapPost(IdentityApiRoutes.RolesSegment, async (
@@ -68,8 +90,10 @@ public static class RoleEndpoints
             IAuditService audit = null!,
             HttpContext http = null!,
             IApplicationDbContext db = null!,
+            IdentityDbContext identityDb = null!,
             CancellationToken ct = default) =>
         {
+            _ = IamTenantHttpContext.RequireFilter(http);
             try
             {
                 if (!IsKnownRoleOwner(request.Owner))
@@ -91,7 +115,8 @@ public static class RoleEndpoints
                 return Results.Problem(statusCode: 400, detail: ex.Message,
                     extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.RoleRequestRejected });
             }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         // PUT /api/v1/auth/roles/{id} - Update role
         group.MapPut(IdentityApiRoutes.RolesSegment + "/{id:guid}", async (
@@ -105,6 +130,10 @@ public static class RoleEndpoints
             ITokenBlacklistService tokenBlacklist = null!,
             CancellationToken ct = default) =>
         {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(db, id, tenantFilter, ct) is { } visibilityError)
+                return visibilityError;
+
             try
             {
                 if (!IsKnownRoleOwner(request.Owner))
@@ -132,14 +161,21 @@ public static class RoleEndpoints
                     detail: ex.Message,
                     extensions: new Dictionary<string, object?> { ["errorCode"] = ex.Message.StartsWith("CONCURRENCY_CONFLICT:", StringComparison.Ordinal) ? ApiErrorCodes.ConcurrencyConflict : ApiErrorCodes.RoleRequestRejected });
             }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         // GET /api/v1/auth/roles/{id}/versions - immutable role template history
         group.MapGet(IdentityApiRoutes.RolesSegment + "/{id:guid}/versions", async (
             Guid id,
             IApplicationDbContext db = null!,
+            IdentityDbContext identityDb = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(identityDb, id, tenantFilter, ct) is { } visibilityError)
+                return visibilityError;
+
             var exists = await db.Roles.AsNoTracking().AnyAsync(role => role.Id == id, ct);
             if (!exists) return Results.NotFound();
             var versions = await db.RoleTemplateVersions.AsNoTracking()
@@ -153,16 +189,23 @@ public static class RoleEndpoints
                     version.PublishedAt, version.PublishedBy))
                 .ToListAsync(ct);
             return Results.Ok(versions);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.RolesRead);
 
         // POST /api/v1/auth/roles/{id}/publish - explicit control-plane publish
         group.MapPost(IdentityApiRoutes.RolesSegment + "/{id:guid}/publish", async (
             Guid id,
             IApplicationDbContext db = null!,
+            IdentityDbContext identityDb = null!,
             IAuditService audit = null!,
             HttpContext http = null!,
             CancellationToken ct = default) =>
         {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(identityDb, id, tenantFilter, ct) is { } visibilityError)
+                return visibilityError;
+
             var role = await db.Roles.Include(item => item.RolePermissions)
                 .FirstOrDefaultAsync(item => item.Id == id, ct);
             if (role is null) return Results.NotFound();
@@ -186,7 +229,8 @@ public static class RoleEndpoints
                 JsonSerializer.Serialize(new { role.LifecycleStatus, role.AuthorizationVersion }), ct);
             await AdminAudit.LogAsync(audit, http, "PUBLISH", "Role", id.ToString(), ct);
             return Results.Ok(new { role.Id, role.AuthorizationVersion, role.LifecycleStatus, role.PublishedAt });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         // POST /api/v1/auth/roles/{id}/rollback - restore the previous published template
         group.MapPost(IdentityApiRoutes.RolesSegment + "/{id:guid}/rollback", async (
@@ -198,6 +242,10 @@ public static class RoleEndpoints
             HttpContext http = null!,
             CancellationToken ct = default) =>
         {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(identityDb, id, tenantFilter, ct) is { } visibilityError)
+                return visibilityError;
+
             var role = await db.Roles.Include(item => item.RolePermissions)
                 .FirstOrDefaultAsync(item => item.Id == id, ct);
             if (role is null) return Results.NotFound();
@@ -241,7 +289,8 @@ public static class RoleEndpoints
                 JsonSerializer.Serialize(new { role.Name, role.AuthorizationVersion, permissions = validPermissions }), ct);
             await AdminAudit.LogAsync(audit, http, "ROLLBACK", "Role", id.ToString(), ct);
             return Results.Ok(new { role.Id, role.AuthorizationVersion, role.LifecycleStatus, restoredFromVersion = target.Version });
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         // DELETE /api/v1/auth/roles/{id} - Delete role (only if no users assigned)
         group.MapDelete(IdentityApiRoutes.RolesSegment + "/{id:guid}", async (
@@ -250,8 +299,13 @@ public static class RoleEndpoints
             IAuditService audit = null!,
             HttpContext http = null!,
             IApplicationDbContext db = null!,
+            IdentityDbContext identityDb = null!,
             CancellationToken ct = default) =>
         {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+            if (await IamTenantAccessGuard.EnsureRoleVisibleAsync(identityDb, id, tenantFilter, ct) is { } visibilityError)
+                return visibilityError;
+
             try
             {
                 var existingRole = await db.Roles.AsNoTracking().FirstOrDefaultAsync(item => item.Id == id, ct);
@@ -273,7 +327,8 @@ public static class RoleEndpoints
                 return Results.Problem(statusCode: 400, detail: ex.Message,
                     extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.RoleRequestRejected });
             }
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite);
+        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminRolesWrite)
+            .WithTenantMutationScope();
 
         // GET /api/v1/auth/permissions - List all permissions
         group.MapGet(IdentityApiRoutes.PermissionsSegment, async (

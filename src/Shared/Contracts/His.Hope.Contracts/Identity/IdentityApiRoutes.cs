@@ -153,6 +153,11 @@ public static class IdentityApiRoutes
     public const string MobilePushTokens = Mobile + "/push-tokens";
     public const string AuditEvents = ApiV1 + "/audit/events";
     public const string FederationSamlLogin = ApiV1 + "/federation/saml/login";
+    public const string MtlsLogin = Auth + "/mtls/login";
+    public const string AdminMtls = Admin + "/mtls";
+    public const string AdminMtlsBindings = AdminMtls + "/bindings";
+    public const string RadiusEapTls = Auth + "/radius/eap-tls";
+    public const string AdminRadiusEapTlsStatus = Admin + "/radius/eap-tls/status";
     public const string DevicePosture = ApiV1 + "/device-posture";
     public const string DevicePostureDecision = DevicePosture + "/decision";
     public const string AdminDevicePosture = Admin + "/device-posture";

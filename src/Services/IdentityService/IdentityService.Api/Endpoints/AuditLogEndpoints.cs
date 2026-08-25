@@ -1,9 +1,12 @@
 using His.Hope.IdentityService.Application.UseCases.AuditLogs.Queries;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
+using His.Hope.Authorization;
+using His.Hope.IdentityService.Api.Authorization;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using His.Hope.SharedKernel.Authorization;
 using System.Text;
@@ -128,6 +131,7 @@ public static class AuditLogEndpoints
             DateTime? dateTo = null,
             string? sort = null,
             [FromServices] IMediator mediator = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
             try { new QueryRequest(page, pageSize, Sort: sort).Validate(); SortContract.Parse(sort, new HashSet<string>(["action", "resourcetype", "timestamp"], StringComparer.OrdinalIgnoreCase)); }
@@ -135,21 +139,39 @@ public static class AuditLogEndpoints
             if (new[] { userId, action, resourceType, resourceId }.Any(value => value?.Length > 100))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["filter"] = ["Audit filters must be 100 characters or fewer."] });
 
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+
             var result = await mediator.Send(
                 new GetAuditLogsQuery(page, pageSize, userId, action,
-                    resourceType, resourceId, dateFrom, dateTo, sort), ct);
+                    resourceType, resourceId, dateFrom, dateTo, sort,
+                    tenantFilter.AllowedTenantKeys?.ToArray()), ct);
             return Results.Ok(result);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.AuditRead);
 
         // GET /api/v1/audit-logs/{id} - Audit log detail
         group.MapGet("/audit-logs/{id:guid}", async (
             Guid id,
             [FromServices] IMediator mediator = null!,
+            IdentityDbContext db = null!,
+            HttpContext http = null!,
             CancellationToken ct = default) =>
         {
+            var tenantFilter = IamTenantHttpContext.RequireFilter(http);
+
+            if (tenantFilter.AllowedTenantKeys is not null &&
+                !await db.AuditLogs.AsNoTracking()
+                    .Where(item => item.Id == id)
+                    .WhereTenantActor(db, tenantFilter.AllowedTenantKeys)
+                    .AnyAsync(ct))
+                return Results.NotFound();
+
             var log = await mediator.Send(new GetAuditLogByIdQuery(id), ct);
             return log is null ? Results.NotFound() : Results.Ok(log);
-        }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead);
+        })
+            .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminAuditRead)
+            .WithTenantReadScope(HisHopePermissions.Admin.AuditRead);
 
         return group;
     }

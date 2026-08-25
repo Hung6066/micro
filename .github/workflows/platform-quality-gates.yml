@@ -110,9 +110,30 @@ jobs:
             buf breaking --against '.git#branch=main,subdir=src/Shared/Protos'
           fi
 
+  manufacturing-runtime:
+    name: Manufacturing Docker runtime smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 1
+      - name: Start manufacturing dependencies and service
+        run: docker compose -f docker/docker-compose.yml up -d --build postgres rabbitmq manufacturingservice
+      - name: Run manufacturing smoke validation
+        shell: pwsh
+        run: ./scripts/config/smoke-manufacturing.ps1 -SkipBuyerIntegration
+      - name: Capture manufacturing logs
+        if: always()
+        run: docker compose -f docker/docker-compose.yml logs --no-color --tail=250 manufacturingservice postgres rabbitmq
+      - name: Stop manufacturing stack
+        if: always()
+        run: docker compose -f docker/docker-compose.yml down --volumes --remove-orphans
+
   frontend-contracts:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: production
     env:
       # Secrets are intentionally reduced to an availability flag for step
       # conditions; the values themselves are passed only to the E2E step.

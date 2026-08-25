@@ -21,6 +21,7 @@ public static class AuthorizationPoliciesExtensions
         services.AddSingleton<OpenFgaCanaryAuthorizer>();
         services.AddSingleton<IAuthorizationDecisionSink, LoggingAuthorizationDecisionSink>();
         services.AddSingleton<IAuthorizationShadowProbe, LoggingAuthorizationShadowProbe>();
+        services.AddSingleton<ICrossTenantAccessPolicy, DefaultDenyCrossTenantAccessPolicy>();
         services.AddScoped<IResourceAuthorizationEvaluator, AuthorizationEvaluator>();
 
         services.AddSingleton<IAuthorizationHandler, PermissionHandler>();

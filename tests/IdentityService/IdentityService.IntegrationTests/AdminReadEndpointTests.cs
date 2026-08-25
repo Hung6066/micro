@@ -22,6 +22,27 @@ public sealed class AdminReadEndpointTests
     }
 
     [Fact]
+    public async Task Admin_session_exposes_effective_permission_catalog()
+    {
+        using var session = await LoginAsync();
+
+        var response = await session.GetWithCookiesAsync("/api/v1/admin/me/permissions");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var permissions = body.GetProperty("permissions");
+        Assert.Equal(JsonValueKind.Array, permissions.ValueKind);
+        Assert.Contains(permissions.EnumerateArray(), item =>
+            string.Equals(item.GetString(), "admin.users.read", StringComparison.OrdinalIgnoreCase));
+
+        using var permissionResponse = await session.PostWithCookiesAsync(
+            IdentityApiRoutes.CheckPermission,
+            new { permission = "admin.users.read" });
+        Assert.Equal(HttpStatusCode.OK, permissionResponse.StatusCode);
+        var permissionBody = await permissionResponse.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(permissionBody.GetProperty("granted").GetBoolean());
+    }
+
+    [Fact]
     public async Task Admin_session_can_read_users_and_unknown_user_is_not_found()
     {
         using var session = await LoginAsync();

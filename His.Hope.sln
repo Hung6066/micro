@@ -169,6 +169,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IdentityService.Domain.Test
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IdentityService.Application.Tests", "tests\Services\IdentityService\IdentityService.Application.Tests\IdentityService.Application.Tests.csproj", "{4C3C678D-8D7B-4857-8642-FBDE418E605E}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "CommerceService", "CommerceService", "{6603A182-835B-4DF2-931D-071382591E74}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ManufacturingService", "ManufacturingService", "{2E032EF4-299C-423D-BA17-C039B8250444}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -804,6 +808,8 @@ Global
 		{93B0A289-A7EC-4BBC-99C9-3481DD2756E2} = {F8ABF552-F471-4572-9634-9D1FFEA16084}
 		{186CF956-06C0-499D-9A79-D8EDCE712749} = {271E951F-AB9B-3695-587B-F1CDC16A0E7A}
 		{4C3C678D-8D7B-4857-8642-FBDE418E605E} = {271E951F-AB9B-3695-587B-F1CDC16A0E7A}
+		{6603A182-835B-4DF2-931D-071382591E74} = {984BB9B3-3FA3-BE33-9484-CAC21695A33C}
+		{2E032EF4-299C-423D-BA17-C039B8250444} = {984BB9B3-3FA3-BE33-9484-CAC21695A33C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2AC67956-C903-4CB8-B7A7-1F0FEE2E620E}

@@ -14,7 +14,12 @@ internal static class BffSessionGuard
     {
         var sessionId = httpContext.Request.Cookies["hishop_sid"];
         if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            if (requireAuthenticatedPrincipal)
+                return Results.Unauthorized();
+
             return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { ["errorCode"] = "session_cookie_required" });
+        }
 
         if (requireAuthenticatedPrincipal && httpContext.User.Identity?.IsAuthenticated != true)
             return Results.Unauthorized();

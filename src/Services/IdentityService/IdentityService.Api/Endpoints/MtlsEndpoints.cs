@@ -4,6 +4,7 @@ using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Infrastructure.Facility;
 using His.Hope.IdentityService.Api.Services;
+using His.Hope.Contracts.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,7 +14,7 @@ public static class MtlsEndpoints
 {
     public static void MapMtlsEndpoints(this WebApplication app)
     {
-        app.MapGet("/api/v1/auth/mtls/login", async (
+        app.MapGet(IdentityApiRoutes.MtlsLogin, async (
             HttpContext http,
             IdentityDbContext db,
             UserManager<User> users,
@@ -39,7 +40,7 @@ public static class MtlsEndpoints
             return Results.Redirect(result.RedirectUrl);
         }).AllowAnonymous();
 
-        var admin = app.MapGroup("/api/v1/admin/mtls")
+        var admin = app.MapGroup(IdentityApiRoutes.AdminMtls)
             .RequireAuthorization(AuthorizationConstants.Policies.HumanAdmin)
             .RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsRead);
         admin.MapGet("/bindings", async (IdentityDbContext db, FacilityContext facilityContext, CancellationToken ct) =>
@@ -73,6 +74,9 @@ public static class MtlsEndpoints
         {
             if (!Guid.TryParse(request.UserId, out var userId) || string.IsNullOrWhiteSpace(request.Thumbprint))
                 return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.Validation });
+            // Do not rely on the FK to reject unknown identities: that would surface as
+            // a 500 and leak persistence details instead of a policy decision.
+            if (!await db.Users.AnyAsync(user => user.Id == userId, ct)) return Results.Forbid();
             if (!await HasFacilityAccessAsync(db, facilityContext, userId, ct)) return Results.Forbid();
             var thumbprint = Normalize(request.Thumbprint);
             if (await db.UserClientCertificates.AnyAsync(item => item.Thumbprint == thumbprint && item.RevokedAt == null, ct))
@@ -86,7 +90,7 @@ public static class MtlsEndpoints
             };
             db.UserClientCertificates.Add(binding);
             await db.SaveChangesAsync(ct);
-            return Results.Created($"/api/v1/admin/mtls/bindings/{binding.Id}", new { binding.Id, binding.Thumbprint, binding.NotAfter });
+            return Results.Created($"{IdentityApiRoutes.AdminMtlsBindings}/{binding.Id}", new { binding.Id, binding.Thumbprint, binding.NotAfter });
         }).RequireAuthorization(AuthorizationPolicyNames.Permissions.AdminClientsWrite);
         admin.MapDelete("/bindings/{id:guid}", async (Guid id, IdentityDbContext db, FacilityContext facilityContext, CancellationToken ct) =>
         {

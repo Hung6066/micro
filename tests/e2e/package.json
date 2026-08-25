@@ -10,6 +10,7 @@
     "test:firefox": "npx playwright test --config=playwright.config.js --project=firefox",
     "test:debug": "npx playwright test --config=playwright.config.js --project=chromium --debug",
     "test:security": "npx playwright test --config=playwright.config.js --grep @security --project=chromium",
+    "test:manufacturing-buyer": "npx playwright test --config=manufacturing-buyer.playwright.config.mjs --workers=1",
     "report": "npx playwright show-report test-results/html-report"
   },
   "keywords": [],

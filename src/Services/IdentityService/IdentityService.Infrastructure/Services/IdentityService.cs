@@ -145,6 +145,18 @@ public class IdentityService : IIdentityService
         return permissions;
     }
 
+    public async Task<IReadOnlyList<string>> GetEffectivePermissionsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return [];
+
+        var roles = await _userManager.GetRolesAsync(user);
+        return await GetPermissionsForRolesAsync(roles, userId, cancellationToken);
+    }
+
     public async Task<TokenResponse> LoginAsync(LoginRequest request,
         CancellationToken cancellationToken = default)
     {

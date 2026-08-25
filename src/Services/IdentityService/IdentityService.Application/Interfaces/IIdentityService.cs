@@ -18,4 +18,7 @@ public interface IIdentityService
     // Email verification
     Task<string> GenerateEmailConfirmationTokenAsync(Guid userId);
     Task ConfirmEmailAsync(string email, string token);
+
+    /// <summary>Role, IAM permission-set, break-glass, and boundary-resolved permissions.</summary>
+    Task<IReadOnlyList<string>> GetEffectivePermissionsAsync(Guid userId, CancellationToken cancellationToken = default);
 }

@@ -1,0 +1,14 @@
+node_modules/
+.angular/
+.storybook/
+storybook-static/
+src/
+auth/src/
+contracts/src/
+domain/src/
+forms/src/
+i18n/src/
+query/src/
+ui/src/
+**/*.md
+documentation.json

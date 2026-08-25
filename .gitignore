@@ -144,4 +144,29 @@ test-grpc.csx
 /artifacts/
 docs/design-references/open-design
 
+coverage-*/
+coverage-*.zip
+feature-tree/
+trivy-archive/
+ci-coverage/
+ci-artifacts/
+ci-k3s-*/
+ci-platform/
+ci-security/
+*-extracted/
+tmpcov/
 
+# Local diagnostic and workflow artifacts
+audit-artifact/
+audit-artifact.zip
+.tmp/
+**/__pycache__/
+*.pyc
+backend-diag*.zip
+diag-*.zip
+*-logs.zip
+k3s-new*.zip
+feature.tar.gz
+audit-local.json
+security-log.txt
+treebody.json

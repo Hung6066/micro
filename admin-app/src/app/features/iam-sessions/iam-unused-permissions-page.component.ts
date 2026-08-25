@@ -13,8 +13,10 @@ import {
   HisHopeResourceListPageComponent,
 } from "@his-hope/frontend-foundation/ui";
 import { HisHopeI18nService } from "@his-hope/frontend-foundation/i18n";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 
 @Component({
   selector: "app-iam-unused-permissions-page",
@@ -40,6 +42,7 @@ export class IamUnusedPermissionsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
+  private readonly tenantContext = inject(TenantContextService);
   rows: Record<string, unknown>[] = [];
   private readonly destroyRef = inject(DestroyRef);
   readonly state = new AdminResourceStateController<{
@@ -80,19 +83,20 @@ export class IamUnusedPermissionsPageComponent implements OnInit {
   }
   ngOnInit(): void {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   load(): void {
     this.error = "";
     this.state.load(
       this.api.analyzeIamUnusedPermissions().pipe(
-        catchError(() => {
-          this.error = this.i18n.t(
-            "admin.iamAnalyzerFailed",
-            "Analyzer failed.",
-          );
-          return of({ unusedPermissions: [] });
-        }),
-      ),
+          catchError(() => {
+            this.error = this.i18n.t(
+              "admin.iamAnalyzerFailed",
+              "Analyzer failed.",
+            );
+            return of({ unusedPermissions: [] });
+          }),
+        ),
     );
   }
 }

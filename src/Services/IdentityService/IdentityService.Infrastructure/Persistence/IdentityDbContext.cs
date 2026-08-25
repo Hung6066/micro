@@ -29,6 +29,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<BreakGlassRequest> BreakGlassRequests => Set<BreakGlassRequest>();
     public DbSet<AccessRequest> AccessRequests => Set<AccessRequest>();
     public DbSet<AccessReview> AccessReviews => Set<AccessReview>();
+    public DbSet<SupportElevation> SupportElevations => Set<SupportElevation>();
     public DbSet<RoleTemplateVersion> RoleTemplateVersions => Set<RoleTemplateVersion>();
     public DbSet<AuthorizationPolicyDefinition> AuthorizationPolicies => Set<AuthorizationPolicyDefinition>();
     public DbSet<UserPasswordHistory> UserPasswordHistories => Set<UserPasswordHistory>();
@@ -48,6 +49,7 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
     public DbSet<IamResourcePolicy> IamResourcePolicies => Set<IamResourcePolicy>();
     public DbSet<IamGroup> IamGroups => Set<IamGroup>();
     public DbSet<IamGroupMembership> IamGroupMemberships => Set<IamGroupMembership>();
+    public DbSet<IdentityUserClaim<Guid>> UserClaims => Set<IdentityUserClaim<Guid>>();
 
     // OpenIddict entity sets — need BOTH non-generic (store uses these) and generic <Guid> (EF model)
     // Non-generic sets are for OpenIddict 5.7.0 EF Core store access
@@ -656,6 +658,20 @@ public class IdentityDbContext : IdentityDbContext<User, Role, Guid>, IApplicati
             entity.Property(item => item.Status).HasMaxLength(32).IsRequired();
             entity.Property(item => item.DecisionReason).HasMaxLength(2000);
             entity.HasIndex(item => new { item.SubjectUserId, item.Status, item.DueAt });
+        });
+
+        builder.Entity<SupportElevation>(entity =>
+        {
+            entity.ToTable("support_elevations");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.SourceTenant).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.TargetTenant).HasMaxLength(128).IsRequired();
+            entity.Property(item => item.PermissionsJson).HasMaxLength(4000).IsRequired();
+            entity.Property(item => item.Status).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.RequestedBy).HasMaxLength(256);
+            entity.Property(item => item.ApprovedBy).HasMaxLength(256);
+            entity.Property(item => item.Reason).HasMaxLength(2000).IsRequired();
+            entity.HasIndex(item => new { item.OperatorUserId, item.TargetTenant, item.Status, item.ExpiresAt });
         });
 
         builder.Entity<InAppNotification>(entity =>

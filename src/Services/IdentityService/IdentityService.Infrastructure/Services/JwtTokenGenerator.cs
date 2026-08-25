@@ -124,7 +124,8 @@ public class JwtTokenGenerator
         User user,
         IList<string> roles,
         IList<string>? permissions = null,
-        IList<string>? amrValues = null)
+        IList<string>? amrValues = null,
+        IEnumerable<Claim>? additionalClaims = null)
     {
         var claims = new List<Claim>
         {
@@ -156,6 +157,20 @@ public class JwtTokenGenerator
         if (permissions is { Count: > 0 })
         {
             claims.Add(new Claim("permissions", string.Join(",", permissions)));
+        }
+
+        if (additionalClaims is not null)
+        {
+            foreach (var claim in additionalClaims)
+            {
+                if (string.IsNullOrWhiteSpace(claim.Type) || string.IsNullOrWhiteSpace(claim.Value))
+                    continue;
+                if (claims.Any(existing =>
+                        string.Equals(existing.Type, claim.Type, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(existing.Value, claim.Value, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+                claims.Add(claim);
+            }
         }
 
         var expiresAt = DateTime.UtcNow.Add(

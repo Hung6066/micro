@@ -92,7 +92,8 @@ public class AuditMiddleware
                 ?? context.User?.FindFirst("role")?.Value
                 ?? "unknown";
             var correlationId = Activity.Current?.Id ?? context.TraceIdentifier;
-            var tenantId = context.User?.FindFirst("tenant")?.Value;
+            var tenantId = context.User?.FindFirst("tenant_id")?.Value
+                ?? context.User?.FindFirst("tenant")?.Value;
 
             // SECURITY: Extract client IP from trusted proxy headers
             var clientIp = GetClientIp(context);

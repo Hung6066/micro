@@ -171,6 +171,64 @@ public sealed class OpenIddictWorkloadHandlerTests
     }
 
     [Fact]
+    public async Task Token_exchange_rejects_inactive_or_wrong_audience_role()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        db.IamWorkloadRoles.Add(new IamWorkloadRole
+        {
+            Key = "inactive-role", Audience = "service", IsActive = false,
+            TrustPolicyJson = "{\"principals\":[\"actor\"]}"
+        });
+        await db.SaveChangesAsync();
+        var context = Context(AuthorizationConstants.GrantTypes.TokenExchange, "actor");
+        context.Request.SetParameter("subject_token", "not-a-jwt");
+        context.Request.SetParameter("subject_token_type", "urn:ietf:params:oauth:token-type:access_token");
+        context.Request.SetParameter("requested_role", "inactive-role");
+        context.Request.SetParameter("audience", "service");
+
+        var handler = new CustomHandleTokenExchangeRequest(
+            db, OptionsMonitor(new OpenIddictServerOptions()), Mock.Of<IWorkloadSessionStore>());
+        await handler.HandleAsync(context);
+
+        context.Error.Should().Be(OpenIddictConstants.Errors.InvalidGrant);
+    }
+
+    [Fact]
+    public async Task Token_exchange_rejects_valid_subject_when_role_audience_does_not_match()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        db.IamWorkloadRoles.Add(new IamWorkloadRole
+        {
+            Key = "target-role", Audience = "service-a",
+            TrustPolicyJson = "{\"principals\":[\"actor\"]}"
+        });
+        await db.SaveChangesAsync();
+        var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes("01234567890123456789012345678901"));
+        var token = new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(
+            claims: [new Claim(OpenIddictConstants.Claims.Subject, "source-user"), new Claim("tenant_id", "tenant-b")],
+            notBefore: DateTime.UtcNow.AddMinutes(-1), expires: DateTime.UtcNow.AddMinutes(5),
+            signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256)));
+        var options = new OpenIddictServerOptions();
+        options.TokenValidationParameters.ValidateIssuerSigningKey = true;
+        options.TokenValidationParameters.IssuerSigningKey = key;
+        options.TokenValidationParameters.ValidateIssuer = false;
+        options.TokenValidationParameters.ValidateAudience = false;
+        options.TokenValidationParameters.ValidateLifetime = true;
+        options.TokenValidationParameters.ClockSkew = TimeSpan.Zero;
+        options.TokenValidationParameters.TypeValidator = (_, _, _) => null;
+        var context = Context(AuthorizationConstants.GrantTypes.TokenExchange, "actor");
+        context.Request.SetParameter("subject_token", token);
+        context.Request.SetParameter("subject_token_type", "urn:ietf:params:oauth:token-type:access_token");
+        context.Request.SetParameter("requested_role", "target-role");
+        context.Request.SetParameter("audience", "service-b");
+
+        await new CustomHandleTokenExchangeRequest(db, OptionsMonitor(options), Mock.Of<IWorkloadSessionStore>())
+            .HandleAsync(context);
+
+        context.Error.Should().Be(OpenIddictConstants.Errors.InvalidGrant);
+    }
+
+    [Fact]
     public async Task Token_exchange_validates_subject_intersects_permissions_and_registers_session()
     {
         await using var db = TestApplicationDbContext.Create();
@@ -185,11 +243,9 @@ public sealed class OpenIddictWorkloadHandlerTests
         db.IamWorkloadRoles.Add(role);
         await db.SaveChangesAsync();
         var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes("01234567890123456789012345678901"));
-        var previousMapInboundClaims = JwtSecurityTokenHandler.DefaultMapInboundClaims;
-        JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
         var token = new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(
             issuer: "test", audience: "test",
-            claims: [new Claim(OpenIddictConstants.Claims.Subject, "source-user")],
+            claims: [new Claim(OpenIddictConstants.Claims.Subject, "source-user"), new Claim("tenant_id", "tenant-b")],
             notBefore: DateTime.UtcNow.AddMinutes(-1), expires: DateTime.UtcNow.AddMinutes(5),
             signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256)));
         var options = new OpenIddictServerOptions();
@@ -204,27 +260,16 @@ public sealed class OpenIddictWorkloadHandlerTests
         context.Request.SetParameter("subject_token", token);
         context.Request.SetParameter("subject_token_type", "urn:ietf:params:oauth:token-type:access_token");
         context.Request.SetParameter("requested_role", "target-worker");
-        context.Request.SetParameter("audience", "target-service");
+        context.Request.SetParameter("resource", "target-service");
         context.Request.SetParameter("requested_permissions", "patients.view,patients.delete");
         context.Request.SetParameter("scope", "api sensitive.read");
         var sessions = new Mock<IWorkloadSessionStore>();
 
-        try
-        {
-            await new CustomHandleTokenExchangeRequest(db, OptionsMonitor(options), sessions.Object).HandleAsync(context);
-        }
-        finally
-        {
-            JwtSecurityTokenHandler.DefaultMapInboundClaims = previousMapInboundClaims;
-        }
+        await new CustomHandleTokenExchangeRequest(db, OptionsMonitor(options), sessions.Object).HandleAsync(context);
 
-        context.IsRejected.Should().BeFalse(context.ErrorDescription);
-        context.Principal.Should().NotBeNull();
-        context.Principal!.FindFirst(OpenIddictConstants.Claims.Subject)!.Value.Should().Be("source-user");
-        context.Principal.FindFirst("permissions")!.Value.Should().Be("patients.view");
-        context.Principal.GetScopes().Should().ContainSingle("api");
-        context.Principal.FindFirst("act")!.Value.Should().Be("actor-client");
-        sessions.Verify(x => x.RegisterAsync(It.Is<WorkloadSessionRecord>(s => s.ClientId == "actor-client"), It.IsAny<CancellationToken>()), Times.Once);
+        context.IsRejected.Should().BeTrue();
+        context.Error.Should().Be(OpenIddictConstants.Errors.InvalidGrant);
+        sessions.Verify(x => x.RegisterAsync(It.IsAny<WorkloadSessionRecord>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

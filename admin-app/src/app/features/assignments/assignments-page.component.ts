@@ -9,7 +9,8 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
-import { catchError, forkJoin, of } from "rxjs";
+import { catchError, forkJoin, map, of } from "rxjs";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
   HisHopeDataTableColumn,
   HisHopeResourceListPageComponent,
@@ -29,6 +30,7 @@ import {
   User,
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { iamPrincipalLabel } from "../../core/utils/iam-display.util";
 import { AssignmentEditDialogComponent } from "./assignment-edit-dialog.component";
@@ -75,6 +77,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class AssignmentsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -172,6 +175,7 @@ export class AssignmentsPageComponent implements OnInit {
   }
   ngOnInit(): void {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   openCreate(): void {
     if (!this.canWrite) return;
@@ -192,15 +196,22 @@ export class AssignmentsPageComponent implements OnInit {
       });
   }
   load(): void {
+    const environmentScopeId = this.tenantContext.getActiveEnvironmentScopeId();
     this.state.load(
       forkJoin({
-        assignments: this.api.getIamAssignments(),
-        sets: this.api.getIamPermissionSets(),
+        assignments: this.api.getIamAssignments(
+          environmentScopeId ? { scopeId: environmentScopeId } : {},
+        ),
+        sets: this.api.getIamPermissionSets(environmentScopeId),
         scopes: this.api.getIamScopes(),
         users: this.api.getUsers(),
         groups: this.api.getIamGroups(),
         workloadRoles: this.api.getIamWorkloadRoles(),
       }).pipe(
+        map((result) => ({
+          ...result,
+          scopes: this.tenantContext.filterScopes(result.scopes),
+        })),
         catchError(() => {
           this.error = this.i18n.t(
             "admin.iamLoadFailed",
