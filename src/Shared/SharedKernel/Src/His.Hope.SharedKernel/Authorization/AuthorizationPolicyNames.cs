@@ -73,5 +73,11 @@ public static class AuthorizationPolicyNames
         public const string AdminCredentialsReset = "Permission:admin.credentials.reset";
         public const string AdminProvisioningManage = "Permission:admin.provisioning.manage";
         public const string AdminSecuritySignalsManage = "Permission:admin.security-signals.manage";
+        public const string CommerceCatalogView = "Permission:commerce.catalog.view";
+        public const string CommerceOrdersCreate = "Permission:commerce.orders.create";
+        public const string CommerceOrdersView = "Permission:commerce.orders.view";
+        public const string CommerceOrdersUpdate = "Permission:commerce.orders.update";
+        public const string CommerceProfileManage = "Permission:commerce.profile.manage";
+        public const string CommerceNotificationsView = "Permission:commerce.notifications.view";
     }
 }

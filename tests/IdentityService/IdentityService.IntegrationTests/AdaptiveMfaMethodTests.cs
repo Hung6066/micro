@@ -489,6 +489,7 @@ internal sealed class AdaptiveMfaServiceHarness : IAsyncDisposable
             CreateSignInManager().Object,
             CreateUserManager().Object,
             db,
+            Mock.Of<IIdentityService>(),
             Mock.Of<IMfaSecretEncryptor>(),
             new TotpService(),
             DataProtectionProvider.Create(new DirectoryInfo(Path.Combine(Path.GetTempPath(), $"adaptive-mfa-tests-{Guid.NewGuid():N}"))),

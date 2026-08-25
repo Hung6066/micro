@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FluentAssertions;
+using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Application.OpenIddict;
 using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Application.Interfaces;
@@ -74,7 +75,7 @@ public sealed class OpenIddictPopulateTokenClaimsTests
         identity.AddClaim(new Claim(OpenIddictConstants.Claims.Subject, user.Id.ToString("D")));
         var context = Context(OpenIddictConstants.GrantTypes.Password, new ClaimsPrincipal(identity));
 
-        await new CustomPopulateTokenClaims(manager.Object, db, NullLogger<CustomPopulateTokenClaims>.Instance).HandleAsync(context);
+        await Handler(db, new DisabledConglomerateTenantRegistry(), manager.Object).HandleAsync(context);
 
         identity.FindFirst(AuthorizationConstants.Claims.PrincipalType)!.Value.Should().Be(AuthorizationConstants.PrincipalTypes.Human);
         identity.FindFirst("fullName")!.Value.Should().Be("Nguyen An");
@@ -84,8 +85,321 @@ public sealed class OpenIddictPopulateTokenClaimsTests
         identity.FindFirst("scope")!.Value.Should().Be("hishop:permissions");
     }
 
+    [Fact]
+    public async Task Conglomerate_human_principal_gets_tenant_id_from_client_binding()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Pilot",
+            LastName = "Operator",
+            Email = "pilot@example.test",
+            UserName = "pilot@example.test"
+        };
+        var manager = new Mock<UserManager<User>>(
+            new Mock<IUserStore<User>>().Object, null!, null!, null!, null!, null!, null!, null!, null!);
+        manager.Setup(x => x.FindByIdAsync(user.Id.ToString("D"))).ReturnsAsync(user);
+        manager.Setup(x => x.GetRolesAsync(user)).ReturnsAsync(["Admin"]);
+        manager.Setup(x => x.GetClaimsAsync(user)).ReturnsAsync(
+        [
+            new Claim("tenant_membership", "manufacturing"),
+            new Claim("tenant_membership", "group-hq")
+        ]);
+        var registry = new TestConglomerateTenantRegistry(
+            enabled: true,
+            clientTenants: new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["manufacturing-app"] = "manufacturing"
+            });
+        var identity = new ClaimsIdentity();
+        identity.AddClaim(new Claim(OpenIddictConstants.Claims.Subject, user.Id.ToString("D")));
+        var context = Context(OpenIddictConstants.GrantTypes.AuthorizationCode, new ClaimsPrincipal(identity));
+        context.Transaction.Request.ClientId = "manufacturing-app";
+
+        await Handler(db, registry, manager.Object).HandleAsync(context);
+
+        identity.FindFirst("tenant_id")!.Value.Should().Be("manufacturing");
+        identity.FindFirst("tenant_memberships")!.Value.Should().Contain("group-hq");
+    }
+
+    [Fact]
+    public async Task Human_principal_prefers_active_primary_facility_and_falls_back_to_legacy_claim()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), FirstName = "Facility", LastName = "User", UserName = "facility@example.test" };
+        db.UserFacilities.AddRange(
+            new UserFacility { UserId = user.Id, FacilityId = "inactive", IsPrimary = true, IsActive = false },
+            new UserFacility { UserId = user.Id, FacilityId = "facility-b", IsPrimary = false, IsActive = true },
+            new UserFacility { UserId = user.Id, FacilityId = "facility-a", IsPrimary = true, IsActive = true });
+        await db.SaveChangesAsync();
+        var manager = MockManager(user, claims: [new Claim("facility_id", "legacy")]);
+        var identity = SubjectIdentity(user.Id);
+
+        await Handler(db, new DisabledConglomerateTenantRegistry(), manager.Object)
+            .HandleAsync(Context(OpenIddictConstants.GrantTypes.Password, new ClaimsPrincipal(identity)));
+
+        identity.FindFirst("facility_id")!.Value.Should().Be("facility-a");
+        identity.FindFirst("facility_ids")!.Value.Should().Be("facility-a,facility-b");
+    }
+
+    [Fact]
+    public async Task Human_principal_preserves_existing_authentication_method_claim()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), UserName = "mfa@example.test" };
+        var manager = MockManager(user, claims: []);
+        var identity = SubjectIdentity(user.Id);
+        identity.AddClaim(new Claim("amr", "otp"));
+
+        await Handler(db, new DisabledConglomerateTenantRegistry(), manager.Object)
+            .HandleAsync(Context(OpenIddictConstants.GrantTypes.Password, new ClaimsPrincipal(identity)));
+
+        identity.FindAll("amr").Select(claim => claim.Value).Should().ContainSingle().Which.Should().Be("otp");
+    }
+
+    [Fact]
+    public async Task Client_credentials_fallback_resolves_role_and_intersects_boundary_permissions()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var scope = new IamScope { Key = "tenant-a", Kind = "tenant" };
+        var role = new IamWorkloadRole
+        {
+            Key = "legacy-worker",
+            Audience = "legacy-client",
+            ScopeId = scope.Id,
+            PermissionsJson = "[\"patients.view\",\"patients.create\"]"
+        };
+        db.IamScopes.Add(scope);
+        db.IamWorkloadRoles.Add(role);
+        db.IamPermissionBoundaries.Add(new IamPermissionBoundary
+        {
+            PrincipalId = role.Id,
+            PrincipalType = AuthorizationConstants.PrincipalTypes.Workload,
+            ScopeId = scope.Id,
+            AllowedPermissionsJson = "[\"patients.view\"]"
+        });
+        await db.SaveChangesAsync();
+
+        var identity = new ClaimsIdentity();
+        identity.AddClaim(new Claim(OpenIddictConstants.Claims.Subject, role.Key));
+        var context = Context(OpenIddictConstants.GrantTypes.ClientCredentials, new ClaimsPrincipal(identity));
+
+        await Handler(db).HandleAsync(context);
+
+        identity.FindFirst(AuthorizationConstants.Claims.PrincipalType)!.Value
+            .Should().Be(AuthorizationConstants.PrincipalTypes.Workload);
+        identity.FindFirst("permissions")!.Value.Should().Be("patients.view");
+        identity.FindFirst("workload_role_id")!.Value.Should().Be(role.Id.ToString("D"));
+        identity.FindFirst("workload_audience")!.Value.Should().Be("legacy-client");
+    }
+
+    [Fact]
+    public async Task Human_principal_filters_assigned_sets_break_glass_and_malformed_boundary_json()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), UserName = "permissions@example.test" };
+        var scope = new IamScope { Key = "tenant-a", Kind = "tenant" };
+        var published = new IamPermissionSet
+        {
+            ScopeId = scope.Id,
+            LifecycleStatus = AuthorizationConstants.LifecycleStatuses.Published,
+            PermissionsJson = "[\"patients.view\",\"patients.create\"]"
+        };
+        db.IamScopes.Add(scope);
+        db.IamPermissionSets.Add(published);
+        db.IamPermissionSetAssignments.Add(new IamPermissionSetAssignment
+        {
+            PermissionSetId = published.Id, PrincipalId = user.Id,
+            PrincipalType = AuthorizationConstants.PrincipalTypes.Human,
+            ScopeId = scope.Id, Status = AuthorizationConstants.LifecycleStatuses.Active
+        });
+        db.BreakGlassRequests.Add(new BreakGlassRequest
+        {
+            Id = Guid.NewGuid(), SubjectUserId = user.Id, PermissionCode = "patients.view",
+            Status = "approved", ExpiresAt = DateTime.UtcNow.AddMinutes(5)
+        });
+        db.IamPermissionBoundaries.Add(new IamPermissionBoundary
+        {
+            PrincipalId = user.Id,
+            PrincipalType = AuthorizationConstants.PrincipalTypes.Human,
+            ScopeId = scope.Id,
+            AllowedPermissionsJson = "not-json",
+            ResourceConstraintsJson = "{\"facility\":\"A\"}"
+        });
+        db.IamPermissionBoundaries.Add(new IamPermissionBoundary
+        {
+            PrincipalId = user.Id,
+            PrincipalType = AuthorizationConstants.PrincipalTypes.Human,
+            ScopeId = scope.Id,
+            AllowedPermissionsJson = "[\"patients.view\"]",
+            ResourceConstraintsJson = "{\"facility\":\"B\"}"
+        });
+        db.IamServiceDefinitions.Add(new IamServiceDefinition { Key = "patients", PermissionPrefix = "patients" });
+        await db.SaveChangesAsync();
+        var manager = MockManager(user, claims: []);
+        var identity = SubjectIdentity(user.Id);
+
+        await Handler(db, new DisabledConglomerateTenantRegistry(), manager.Object)
+            .HandleAsync(Context(OpenIddictConstants.GrantTypes.Password, new ClaimsPrincipal(identity)));
+
+        identity.FindFirst("permissions").Should().BeNull();
+        identity.FindFirst("authorization_constraints")!.Value.Should().Contain("facility");
+    }
+
+    [Fact]
+    public async Task Human_principal_ignores_expired_and_malformed_assigned_permission_sets()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), UserName = "assigned@example.test" };
+        var expiredSet = new IamPermissionSet
+        {
+            LifecycleStatus = AuthorizationConstants.LifecycleStatuses.Published,
+            PermissionsJson = "[\"patients.view\"]"
+        };
+        db.IamPermissionSets.Add(expiredSet);
+        db.IamPermissionSetAssignments.Add(new IamPermissionSetAssignment
+        {
+            PermissionSetId = expiredSet.Id, PrincipalId = user.Id,
+            PrincipalType = AuthorizationConstants.PrincipalTypes.Human,
+            Status = AuthorizationConstants.LifecycleStatuses.Active,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(-1)
+        });
+        db.IamServiceDefinitions.Add(new IamServiceDefinition { Key = "patients", PermissionPrefix = "patients" });
+        await db.SaveChangesAsync();
+        var manager = MockManager(user, claims: []);
+        var identity = SubjectIdentity(user.Id);
+
+        await Handler(db, new DisabledConglomerateTenantRegistry(), manager.Object)
+            .HandleAsync(Context(OpenIddictConstants.GrantTypes.Password, new ClaimsPrincipal(identity)));
+
+        identity.FindFirst("permissions").Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Enabled_registry_adds_membership_claims_for_non_conglomerate_client()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), UserName = "tenant@example.test" };
+        var manager = MockManager(user,
+            claims: [new Claim("tenant_membership", "tenant-a"), new Claim("tenant_membership", "tenant-b")]);
+        var registry = new TestConglomerateTenantRegistry(enabled: true, clientTenants: []);
+        var identity = SubjectIdentity(user.Id);
+        var context = Context(OpenIddictConstants.GrantTypes.Password, new ClaimsPrincipal(identity));
+        context.Transaction.Request.ClientId = "public-client";
+
+        await Handler(db, registry, manager.Object).HandleAsync(context);
+
+        context.Error.Should().BeNull();
+        identity.FindFirst("tenant_id")!.Value.Should().Be("tenant-a");
+        identity.FindAll("tenant_membership").Select(claim => claim.Value).Should().BeEquivalentTo("tenant-a", "tenant-b");
+        identity.FindFirst("tenant_memberships")!.Value.Should().Be("tenant-a,tenant-b");
+    }
+
+    [Fact]
+    public async Task Conglomerate_client_without_binding_rejects_human_token()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), UserName = "unbound@example.test" };
+        var manager = MockManager(user, claims: [new Claim("tenant_membership", "tenant-a")]);
+        var registry = new TestConglomerateTenantRegistry(
+            enabled: true,
+            clientTenants: new Dictionary<string, string> { ["unbound-client"] = string.Empty });
+        var identity = SubjectIdentity(user.Id);
+        var context = Context(OpenIddictConstants.GrantTypes.Password, new ClaimsPrincipal(identity));
+        context.Transaction.Request.ClientId = "unbound-client";
+
+        await Handler(db, registry, manager.Object).HandleAsync(context);
+
+        context.Error.Should().Be(OpenIddictConstants.Errors.InvalidClient);
+        identity.FindFirst("tenant_id").Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Conglomerate_client_rejects_user_without_required_tenant_membership()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var user = new User { Id = Guid.NewGuid(), UserName = "wrong-tenant@example.test" };
+        var manager = MockManager(user, claims: [new Claim("tenant_membership", "tenant-b")]);
+        var registry = new TestConglomerateTenantRegistry(
+            enabled: true,
+            clientTenants: new Dictionary<string, string> { ["tenant-client"] = "tenant-a" });
+        var identity = SubjectIdentity(user.Id);
+        var context = Context(OpenIddictConstants.GrantTypes.Password, new ClaimsPrincipal(identity));
+        context.Transaction.Request.ClientId = "tenant-client";
+
+        await Handler(db, registry, manager.Object).HandleAsync(context);
+
+        context.Error.Should().Be(OpenIddictConstants.Errors.InvalidGrant);
+        context.ErrorDescription.Should().Contain("not authorized for this tenant");
+    }
+
+    private sealed class TestConglomerateTenantRegistry : IConglomerateTenantRegistry
+    {
+        private readonly Dictionary<string, string> _clientTenants;
+
+        public TestConglomerateTenantRegistry(bool enabled, Dictionary<string, string> clientTenants)
+        {
+            IsEnabled = enabled;
+            _clientTenants = clientTenants;
+        }
+
+        public bool IsEnabled { get; }
+
+        public string HqCustomerVisibility => ConglomerateConstants.HqCustomerVisibilityNone;
+
+        public bool IsConglomerateClient(string? clientId) =>
+            !string.IsNullOrWhiteSpace(clientId) && _clientTenants.ContainsKey(clientId);
+
+        public string? GetClientTenant(string? clientId) =>
+            clientId is not null && _clientTenants.TryGetValue(clientId, out var tenant) ? tenant : null;
+
+        public string GetPortalClass(string? clientId) => ConglomerateConstants.PortalClassOperator;
+
+        public string GetTenantClass(string tenantKey) => ConglomerateConstants.TenantClassInternal;
+
+        public string? GetOperatorHome(string tenantKey) => null;
+
+        public IReadOnlyList<string> GetClientIdsForTenant(string tenantKey) =>
+            _clientTenants
+                .Where(pair => string.Equals(pair.Value, tenantKey, StringComparison.OrdinalIgnoreCase))
+                .Select(pair => pair.Key)
+                .ToList();
+
+        public IReadOnlyList<string> GetCustomerTenantsForOperator(string operatorTenantKey) => [];
+
+        public bool IsCustomerTenant(string tenantKey) => false;
+
+        public ConglomerateTenantOptions? GetTenantProfile(string tenantKey) => null;
+
+        public IReadOnlyList<CrossTenantAllowedPairOptions> AllowedCrossTenantPairs { get; } = [];
+    }
+
     private static CustomPopulateTokenClaims Handler(IApplicationDbContext db) =>
-        new(CreateUserManager(), db, NullLogger<CustomPopulateTokenClaims>.Instance);
+        new(CreateUserManager(), db, new DisabledConglomerateTenantRegistry(), NullLogger<CustomPopulateTokenClaims>.Instance);
+
+    private static CustomPopulateTokenClaims Handler(
+        IApplicationDbContext db,
+        IConglomerateTenantRegistry tenantRegistry,
+        UserManager<User>? userManager = null) =>
+        new(userManager ?? CreateUserManager(), db, tenantRegistry, NullLogger<CustomPopulateTokenClaims>.Instance);
+
+    private static Mock<UserManager<User>> MockManager(User user, IEnumerable<Claim> claims)
+    {
+        var manager = new Mock<UserManager<User>>(
+            new Mock<IUserStore<User>>().Object, null!, null!, null!, null!, null!, null!, null!, null!);
+        manager.Setup(x => x.FindByIdAsync(user.Id.ToString("D"))).ReturnsAsync(user);
+        manager.Setup(x => x.GetRolesAsync(user)).ReturnsAsync([]);
+        manager.Setup(x => x.GetClaimsAsync(user)).ReturnsAsync(claims.ToList());
+        return manager;
+    }
+
+    private static ClaimsIdentity SubjectIdentity(Guid userId)
+    {
+        var identity = new ClaimsIdentity();
+        identity.AddClaim(new Claim(OpenIddictConstants.Claims.Subject, userId.ToString("D")));
+        return identity;
+    }
 
     private static OpenIddictServerEvents.HandleTokenRequestContext Context(string grantType, ClaimsPrincipal? principal)
     {

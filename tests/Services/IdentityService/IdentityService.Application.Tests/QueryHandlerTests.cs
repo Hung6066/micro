@@ -113,6 +113,55 @@ public sealed class QueryHandlerTests
     }
 
     [Fact]
+    public async Task Settings_queries_prefer_scope_value_and_keep_global_fallback()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        db.SystemSettings.AddRange(
+            new SystemSetting { Key = "security.mfa", Value = "global", Category = "security", ScopeId = IdentityScope.Global },
+            new SystemSetting { Key = "security.mfa", Value = "tenant", Category = "security", ScopeId = "tenant-a" },
+            new SystemSetting { Key = "security.session", Value = "global-only", Category = "security", ScopeId = IdentityScope.Global });
+        await db.SaveChangesAsync();
+
+        var list = await new GetSettingsQueryHandler(db)
+            .Handle(new GetSettingsQuery("tenant-a"), CancellationToken.None);
+        var scoped = await new GetSettingByKeyQueryHandler(db)
+            .Handle(new GetSettingByKeyQuery("security.mfa", "tenant-a"), CancellationToken.None);
+
+        list.Should().HaveCount(2);
+        list.Single(x => x.Key == "security.mfa").Value.Should().Be("tenant");
+        list.Single(x => x.Key == "security.session").Value.Should().Be("global-only");
+        scoped.Should().NotBeNull();
+        scoped!.Value.Should().Be("tenant");
+        scoped.ScopeId.Should().Be("tenant-a");
+    }
+
+    [Fact]
+    public async Task UpdateSetting_and_bulk_update_are_isolated_by_scope()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        db.SystemSettings.Add(new SystemSetting
+        {
+            Key = "security.mfa", Value = "global", Description = "global description",
+            ScopeId = IdentityScope.Global
+        });
+        await db.SaveChangesAsync();
+
+        var update = await new UpdateSettingCommandHandler(db).Handle(
+            new UpdateSettingCommand("security.mfa", "tenant", "tenant description", "operator", "tenant-a"),
+            CancellationToken.None);
+        var bulk = await new BulkUpdateSettingsCommandHandler(db).Handle(
+            new BulkUpdateSettingsCommand([new BulkUpdateSettingItem("security.session", "short")], "operator", "tenant-a"),
+            CancellationToken.None);
+
+        update.Value.Should().Be("tenant");
+        update.ScopeId.Should().Be("tenant-a");
+        bulk.Should().ContainSingle().Which.ScopeId.Should().Be("tenant-a");
+        db.SystemSettings.Should().HaveCount(3);
+        db.SystemSettings.Single(x => x.Key == "security.mfa" && x.ScopeId == IdentityScope.Global)
+            .Value.Should().Be("global");
+    }
+
+    [Fact]
     public async Task GetSettingByKey_maps_all_setting_fields()
     {
         await using var db = TestApplicationDbContext.Create();
@@ -246,6 +295,52 @@ public sealed class QueryHandlerTests
         result!.UserId.Should().Be("user-1");
         result.ResourceId.Should().Be("patient-1");
     }
+
+    [Fact]
+    public async Task GetRoles_applies_tenant_membership_filter_and_descending_sort()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        var matchingUser = IdentityTestData.User("tenant-user", "tenant@example.test");
+        var otherUser = IdentityTestData.User("other-user", "other@example.test");
+        var matchingRole = IdentityTestData.Role("TenantRole", "Tenant role");
+        var otherRole = IdentityTestData.Role("OtherRole", "Other role");
+        db.Users.AddRange(matchingUser, otherUser);
+        db.Roles.AddRange(matchingRole, otherRole);
+        db.UserRoles.AddRange(
+            new IdentityUserRole<Guid> { UserId = matchingUser.Id, RoleId = matchingRole.Id },
+            new IdentityUserRole<Guid> { UserId = otherUser.Id, RoleId = otherRole.Id });
+        db.UserClaims.Add(new IdentityUserClaim<Guid>
+        {
+            UserId = matchingUser.Id, ClaimType = "tenant_membership", ClaimValue = "Group-HQ"
+        });
+        await db.SaveChangesAsync();
+
+        var result = await new GetRolesQueryHandler(db).Handle(
+            new GetRolesQuery(Search: null, Sort: "name:desc", TenantMembershipKeys: [" group-hq "]),
+            CancellationToken.None);
+
+        result.TotalCount.Should().Be(1);
+        result.Items.Should().ContainSingle().Which.Name.Should().Be("TenantRole");
+    }
+
+    [Fact]
+    public async Task GetRoles_supports_description_and_created_at_sorting_and_paging()
+    {
+        await using var db = TestApplicationDbContext.Create();
+        db.Roles.AddRange(
+            IdentityTestData.Role("Alpha", "Z description"),
+            IdentityTestData.Role("Beta", "A description"));
+        await db.SaveChangesAsync();
+
+        var byDescription = await new GetRolesQueryHandler(db).Handle(
+            new GetRolesQuery(Page: 1, PageSize: 1, Sort: "description:asc"), CancellationToken.None);
+        var byCreatedAt = await new GetRolesQueryHandler(db).Handle(
+            new GetRolesQuery(Page: 1, PageSize: 20, Sort: "createdAt:desc"), CancellationToken.None);
+
+        byDescription.TotalCount.Should().Be(2);
+        byDescription.Items.Should().ContainSingle().Which.Name.Should().Be("Beta");
+        byCreatedAt.Items.Should().HaveCount(2);
+    }
 }
 
 internal sealed class TestApplicationDbContext : DbContext, IApplicationDbContext
@@ -260,7 +355,10 @@ internal sealed class TestApplicationDbContext : DbContext, IApplicationDbContex
         modelBuilder.Entity<RolePermission>()
             .HasOne(x => x.Permission).WithMany(x => x.RolePermissions).HasForeignKey(x => x.PermissionCode);
         modelBuilder.Entity<IdentityUserRole<Guid>>().HasKey(x => new { x.UserId, x.RoleId });
-        modelBuilder.Entity<SystemSetting>().HasKey(x => x.Key);
+        // Scope-aware settings use the composite identity that the production
+        // store uses; otherwise global and tenant overrides cannot coexist in
+        // the test context and scope precedence is untestable.
+        modelBuilder.Entity<SystemSetting>().HasKey(x => new { x.Key, x.ScopeId });
         modelBuilder.Entity<UserMfa>().HasKey(x => x.UserId);
         modelBuilder.Entity<UserFacility>().HasKey(x => new { x.UserId, x.FacilityId });
     }
@@ -273,6 +371,7 @@ internal sealed class TestApplicationDbContext : DbContext, IApplicationDbContex
     public DbSet<User> Users => Set<User>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<IdentityUserRole<Guid>> UserRoles => Set<IdentityUserRole<Guid>>();
+    public DbSet<IdentityUserClaim<Guid>> UserClaims => Set<IdentityUserClaim<Guid>>();
     public DbSet<TableView> TableViews => Set<TableView>();
     public DbSet<MobileDeviceRegistration> MobileDeviceRegistrations => Set<MobileDeviceRegistration>();
     public DbSet<MobileTelemetryEvent> MobileTelemetryEvents => Set<MobileTelemetryEvent>();

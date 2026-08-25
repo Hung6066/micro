@@ -13,9 +13,9 @@ public sealed class AssurancePolicyMiddleware(RequestDelegate next, IHostEnviron
 
     public async Task InvokeAsync(HttpContext context, AssurancePolicyService assurancePolicy)
     {
-        // Contract tests use password-only sessions. Production and staging
-        // always enforce the configured assurance policy; the Testing host
-        // has dedicated evaluator tests for the policy itself.
+        // Integration tests exercise endpoint contracts with a password-only
+        // session. Production and staging always enforce the configured
+        // assurance policy; the Testing host has dedicated evaluator tests.
         if (environment.IsEnvironment("Testing"))
         {
             await next(context);

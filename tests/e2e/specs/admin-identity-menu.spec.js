@@ -32,9 +32,14 @@ test.describe('Admin Identity menu coverage', () => {
     if (!(await page.locator('mat-nav-list a').first().isVisible().catch(() => false)) && await mobileMenu.isVisible().catch(() => false)) {
       await mobileMenu.click();
     }
-    await expect(page.locator('mat-nav-list a').first()).toBeVisible({ timeout: 15000 });
+    const menuLinks = page.locator('mat-nav-list a');
+    await expect(menuLinks.first()).toBeVisible({ timeout: 15000 });
+    await expect.poll(() => menuLinks.count(), {
+      timeout: 15000,
+      message: 'Identity admin menu should finish hydrating before traversal',
+    }).toBeGreaterThan(10);
 
-    const links = await page.locator('mat-nav-list a').evaluateAll(elements => elements.map(element => ({
+    const links = await menuLinks.evaluateAll(elements => elements.map(element => ({
       label: element.textContent?.trim() ?? '',
       href: element.getAttribute('href') ?? '',
     })));

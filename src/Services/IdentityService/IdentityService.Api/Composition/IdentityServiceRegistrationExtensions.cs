@@ -23,6 +23,7 @@ using His.Hope.SharedKernel.Authorization;
 using His.Hope.IdentityService.Api.Configuration;
 using His.Hope.IdentityService.Api.Handlers;
 using His.Hope.IdentityService.Application;
+using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Application.OpenIddict;
 using His.Hope.IdentityService.Application.DTOs;
 using His.Hope.IdentityService.Application.Assurance;
@@ -221,6 +222,11 @@ public static class IdentityServiceRegistrationExtensions
                  if (context.Request.Path.StartsWithSegments("/connect") ||
                      context.Request.Path.StartsWithSegments("/Account"))
                      return IdentityConstants.ApplicationScheme;
+                 // Browser SSO probes must stay on the Identity cookie even when
+                 // a stale hishop_sid injects a failing Authorization header.
+                 if (context.Request.Path.StartsWithSegments("/api/v1/auth/session-status") ||
+                     context.Request.Path.StartsWithSegments("/api/v1/auth/session/exchange"))
+                     return IdentityConstants.ApplicationScheme;
                  // API bearer tokens use the shared RSA/JWS/JWE validator. This
                  // handles both OpenIddict access tokens and the BFF session
                  // token without relying on a proxy-specific header surviving
@@ -368,6 +374,13 @@ public static class IdentityServiceRegistrationExtensions
 
         // SECURITY: Register permission-based authorization policies
         builder.Services.AddHisHopeAuthorization();
+        builder.Services.PostConfigure<Microsoft.AspNetCore.Authorization.AuthorizationOptions>(options =>
+        {
+            // Identity registers explicit authorization on secured routes. The
+            // shared fallback policy rejects anonymous browser probes such as
+            // /session-status whenever a stale BFF cookie injects bearer auth.
+            options.FallbackPolicy = null;
+        });
         builder.Services.AddAuthorizationBuilder()
             .AddPolicy("ScimM2M", policy => policy
                 .RequireAuthenticatedUser()
@@ -418,28 +431,48 @@ public static class IdentityServiceRegistrationExtensions
         builder.Services.AddScoped<IdentityBrokerService>();
         builder.Services.AddScoped<BulkUserImportService>();
 
-        // CORS for dashboard app (separate origin)
+        // CORS for browser SPAs on separate localhost ports (BFF cookie + session exchange).
         builder.Services.AddCors(options =>
         {
             options.AddDefaultPolicy(policy =>
             {
                 var configuredOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-                var developmentOrigins = new[]
-                {
-                    "http://localhost:8081", "http://localhost:8082", "http://localhost:8083",
-                    "http://localhost:4200", "http://localhost:4201", "http://localhost:4202", "http://localhost:4300",
-                    "https://localhost", "http://localhost", "capacitor://localhost",
-                    "http://app.his-hope.local:9080", "http://dashboard.his-hope.local:9080", "http://admin.his-hope.local:9080"
-                };
-                var origins = configuredOrigins.Length > 0
+                var productionOrigins = configuredOrigins.Length > 0
                     ? configuredOrigins
-                    : builder.Environment.IsProduction()
-                        ? new[] { "https://app.his-hope.vn", "https://dashboard.his-hope.vn", "https://admin.his-hope.vn" }
-                        : developmentOrigins;
-                policy.WithOrigins(origins)
-                    .WithHeaders("Authorization", "DPoP", "Content-Type", "X-CSRF-Token", "X-Correlation-ID", "Accept-Language", "X-Timezone", "X-Currency")
-                    .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                    .AllowCredentials();
+                    : new[] { "https://app.his-hope.vn", "https://dashboard.his-hope.vn", "https://admin.his-hope.vn" };
+
+                policy
+                    .AllowCredentials()
+                    .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
+
+                if (builder.Environment.IsProduction())
+                {
+                    policy.WithOrigins(productionOrigins)
+                        .WithHeaders(
+                            "Authorization", "DPoP", "Content-Type", "X-CSRF-Token",
+                            "X-Correlation-ID", "Accept-Language", "X-Timezone", "X-Currency");
+                }
+                else
+                {
+                    // Dev/staging: allow any localhost port so new SPA apps (e.g. 4203)
+                    // do not require a CORS whitelist edit for every preflight POST.
+                    policy
+                        .SetIsOriginAllowed(origin =>
+                        {
+                            if (string.IsNullOrWhiteSpace(origin))
+                                return false;
+                            if (origin.Equals("capacitor://localhost", StringComparison.OrdinalIgnoreCase))
+                                return true;
+                            if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
+                                return false;
+                            if (uri.Host is "localhost" or "127.0.0.1")
+                                return true;
+                            if (uri.Host.EndsWith(".his-hope.local", StringComparison.OrdinalIgnoreCase))
+                                return true;
+                            return configuredOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase);
+                        })
+                        .AllowAnyHeader();
+                }
             });
         });
 
@@ -510,6 +543,8 @@ public static class IdentityServiceRegistrationExtensions
         // SECURITY: Binds tokens to (user_id, ip_hash, client_id) to prevent cross-IP replay attacks
         builder.Services.AddSingleton<TokenBindingService>();
 
+        builder.Services.Configure<ConglomerateOptions>(
+            builder.Configuration.GetSection(ConglomerateOptions.SectionName));
         builder.Services.AddIdentityApplication();
         builder.Services.AddSingleton<His.Hope.IdentityService.Application.DevicePosture.DevicePosturePolicyEvaluator>();
 
@@ -669,6 +704,7 @@ public static class IdentityServiceRegistrationExtensions
                 options.AddEventHandler(FixDiscoveryBaseUriHandler.Descriptor);
                 options.AddEventHandler(DpopTokenBindingHandler.Descriptor);
                 options.AddEventHandler(DpopTokenResponseHandler.Descriptor);
+                options.AddEventHandler(CustomValidateAuthorizationRequest.Descriptor);
                 options.AddEventHandler(CustomPopulateTokenClaims.Descriptor);
                 options.AddEventHandler(CustomHandleClientCredentialsRequest.Descriptor);
                 options.AddEventHandler(CustomHandleTokenExchangeRequest.Descriptor);

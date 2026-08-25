@@ -11,7 +11,8 @@ namespace His.Hope.Authorization;
 public sealed class AuthorizationEvaluator(
     IAuthorizationDecisionSink? decisionSink = null,
     IHttpContextAccessor? httpContextAccessor = null,
-    IAuthorizationShadowProbe? shadowProbe = null) : IResourceAuthorizationEvaluator
+    IAuthorizationShadowProbe? shadowProbe = null,
+    ICrossTenantAccessPolicy? crossTenantPolicy = null) : IResourceAuthorizationEvaluator
 {
     public async ValueTask<AuthorizationDecision> EvaluateAsync(
         AuthorizationContext context,
@@ -43,6 +44,11 @@ public sealed class AuthorizationEvaluator(
         else if (context.Resource is not null && !HasFacilityAccess(context.Principal, context.Resource.FacilityId))
         {
             decision = AuthorizationDecision.Deny(context.Action, "facility_scope_denied", resourceType);
+        }
+        else if (context.Resource is not null &&
+                 TenantAccessEvaluator.Evaluate(context.Principal, context.Resource, context.Action, crossTenantPolicy) is { } tenantReason)
+        {
+            decision = AuthorizationDecision.Deny(context.Action, tenantReason, resourceType);
         }
         else if (context.Resource is not null &&
                  AuthorizationConstraintEvaluator.Evaluate(context.Principal, context.Resource) is { } constraintReason)

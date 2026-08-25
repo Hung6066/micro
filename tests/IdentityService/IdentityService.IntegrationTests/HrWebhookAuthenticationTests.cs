@@ -9,7 +9,7 @@ namespace His.Hope.IdentityService.IntegrationTests;
 
 public class HrWebhookAuthenticationTests
 {
-    private const string Secret = "0123456789abcdef0123456789abcdef";
+    private const string TestWebhookKey = "test-webhook-signing-key-for-tests";
     private const string Body = "{\"eventType\":\"employee.hired\",\"eventId\":\"evt-1\",\"timestamp\":\"2026-07-23T00:00:00Z\",\"employee\":{\"employeeId\":\"e-1\",\"email\":\"doctor@example.test\"}}";
 
     [Fact]
@@ -79,7 +79,7 @@ public class HrWebhookAuthenticationTests
     public async Task AuthenticateAsync_RejectsMissingEventId()
     {
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
-        var signature = HrWebhookAuthenticator.ComputeSignature(Secret, timestamp, Body);
+        var signature = HrWebhookAuthenticator.ComputeSignature(TestWebhookKey, timestamp, Body);
         var request = CreateRequest(timestamp, signature);
 
         var result = await HrWebhookAuthenticator.AuthenticateAsync(
@@ -96,7 +96,7 @@ public class HrWebhookAuthenticationTests
     public async Task AuthenticateAsync_RejectsExpiredTimestamp()
     {
         var timestamp = DateTimeOffset.UtcNow.AddMinutes(-10).ToUnixTimeSeconds().ToString();
-        var signature = HrWebhookAuthenticator.ComputeSignature(Secret, timestamp, Body);
+        var signature = HrWebhookAuthenticator.ComputeSignature(TestWebhookKey, timestamp, Body);
         var request = CreateRequest(timestamp, signature, "evt-1");
 
         var result = await HrWebhookAuthenticator.AuthenticateAsync(
@@ -114,7 +114,7 @@ public class HrWebhookAuthenticationTests
     public async Task AuthenticateAsync_RejectsReplayEventId()
     {
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
-        var signature = HrWebhookAuthenticator.ComputeSignature(Secret, timestamp, Body);
+        var signature = HrWebhookAuthenticator.ComputeSignature(TestWebhookKey, timestamp, Body);
         var replayStore = new TestReplayStore();
         var firstRequest = CreateRequest(timestamp, signature, "evt-1");
         var secondRequest = CreateRequest(timestamp, signature, "evt-1");
@@ -140,7 +140,7 @@ public class HrWebhookAuthenticationTests
     public async Task AuthenticateAsync_AcceptsValidSignatureWithSha256Prefix()
     {
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
-        var signature = "sha256=" + HrWebhookAuthenticator.ComputeSignature(Secret, timestamp, Body);
+        var signature = "sha256=" + HrWebhookAuthenticator.ComputeSignature(TestWebhookKey, timestamp, Body);
         var request = CreateRequest(timestamp, signature, "evt-1");
 
         var result = await HrWebhookAuthenticator.AuthenticateAsync(
@@ -157,7 +157,7 @@ public class HrWebhookAuthenticationTests
     public async Task AuthenticateAsync_RejectsDuplicateHeaderValues()
     {
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
-        var signature = HrWebhookAuthenticator.ComputeSignature(Secret, timestamp, Body);
+        var signature = HrWebhookAuthenticator.ComputeSignature(TestWebhookKey, timestamp, Body);
         var request = CreateRequest(timestamp, signature, "evt-duplicate-header");
         request.Headers.Append(HrWebhookAuthenticator.EventIdHeader, "evt-second-value");
 
@@ -176,7 +176,7 @@ public class HrWebhookAuthenticationTests
     public async Task AuthenticateAsync_RejectsFutureTimestampOutsideTolerance()
     {
         var timestamp = DateTimeOffset.UtcNow.AddMinutes(10).ToUnixTimeSeconds().ToString();
-        var signature = HrWebhookAuthenticator.ComputeSignature(Secret, timestamp, Body);
+        var signature = HrWebhookAuthenticator.ComputeSignature(TestWebhookKey, timestamp, Body);
         var result = await HrWebhookAuthenticator.AuthenticateAsync(
             CreateRequest(timestamp, signature, "evt-future"),
             Body,
@@ -192,7 +192,7 @@ public class HrWebhookAuthenticationTests
     public async Task AuthenticateAsync_RejectsShortSecretAndSupportsLegacyConfigurationKey()
     {
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
-        var signature = HrWebhookAuthenticator.ComputeSignature(Secret, timestamp, Body);
+        var signature = HrWebhookAuthenticator.ComputeSignature(TestWebhookKey, timestamp, Body);
         var request = CreateRequest(timestamp, signature, "evt-legacy-key");
 
         var shortSecret = new ConfigurationBuilder()
@@ -212,7 +212,7 @@ public class HrWebhookAuthenticationTests
         var legacy = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["HrWebhooks:Secret"] = Secret,
+                ["HrWebhooks:Secret"] = TestWebhookKey,
                 ["HrWebhook:TimestampToleranceSeconds"] = "300"
             })
             .Build();
@@ -228,7 +228,7 @@ public class HrWebhookAuthenticationTests
     public async Task AuthenticateAsync_AcceptsCaseInsensitivePrefixAndWhitespace()
     {
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
-        var signature = HrWebhookAuthenticator.ComputeSignature(Secret, timestamp, Body);
+        var signature = HrWebhookAuthenticator.ComputeSignature(TestWebhookKey, timestamp, Body);
         var request = CreateRequest(timestamp, $"SHA256={signature.ToUpperInvariant()}  ", "evt-normalized-signature");
 
         var result = await HrWebhookAuthenticator.AuthenticateAsync(
@@ -278,7 +278,7 @@ public class HrWebhookAuthenticationTests
         new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["HrWebhook:Secret"] = Secret,
+                ["HrWebhook:Secret"] = TestWebhookKey,
                 ["HrWebhook:TimestampToleranceSeconds"] = "300"
             })
             .Build();

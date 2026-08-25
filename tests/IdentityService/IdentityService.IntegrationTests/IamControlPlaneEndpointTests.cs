@@ -2,10 +2,12 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using His.Hope.Contracts.Identity;
+using His.Hope.IdentityService.Domain.Entities;
 using His.Hope.IdentityService.Infrastructure.Persistence;
 using His.Hope.IdentityService.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace His.Hope.IdentityService.IntegrationTests;
@@ -69,8 +71,24 @@ public sealed class IamControlPlaneEndpointTests
             {
                 key = $"environment-{suffix}", displayName = "Invalid environment", kind = "environment", parentId = organizationId
             })).StatusCode);
+        var account = await session.PostWithCookiesAsync($"{root}/scopes", new
+        {
+            key = $"account-{suffix}", displayName = "Account", kind = "account", parentId = tenantId
+        });
+        Assert.Equal(HttpStatusCode.Created, account.StatusCode);
+        var accountId = (await account.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        var environment = await session.PostWithCookiesAsync($"{root}/scopes", new
+            {
+                key = $"environment-valid-{suffix}", displayName = "Environment", kind = "environment", parentId = accountId
+            });
+        Assert.Equal(HttpStatusCode.Created, environment.StatusCode);
+        var environmentId = (await environment.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
         Assert.Equal(HttpStatusCode.Conflict,
             (await session.PostWithCookiesAsync($"{root}/scopes/{organizationId:D}/deactivate")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await session.PostWithCookiesAsync($"{root}/scopes/{environmentId:D}/deactivate")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await session.PostWithCookiesAsync($"{root}/scopes/{accountId:D}/deactivate")).StatusCode);
         Assert.Equal(HttpStatusCode.OK,
             (await session.PostWithCookiesAsync($"{root}/scopes/{tenantId:D}/deactivate")).StatusCode);
         Assert.Equal(HttpStatusCode.OK,
@@ -146,6 +164,55 @@ public sealed class IamControlPlaneEndpointTests
         Assert.Contains("iam-overview.v1", body, StringComparison.Ordinal);
         Assert.Contains("publishedPermissionSets", body, StringComparison.Ordinal);
         Assert.Contains("pendingBreakGlass", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Admin_external_identity_catalog_only_publishes_valid_configured_providers()
+    {
+        var configuration = _fixture.Services.GetRequiredService<IConfiguration>();
+        var keys = new[]
+        {
+            "Authentication:Google:ClientId", "Authentication:Microsoft:ClientId",
+            "Authentication:Entra:ClientId", "Authentication:Entra:Authority",
+            "Authentication:ExternalSources:0:Name", "Authentication:ExternalSources:0:DisplayName",
+            "Authentication:ExternalSources:0:Authority"
+        };
+        var previous = keys.ToDictionary(key => key, key => configuration[key]);
+        try
+        {
+            configuration["Authentication:Google:ClientId"] = "google-client";
+            configuration["Authentication:Microsoft:ClientId"] = "microsoft-client";
+            configuration["Authentication:Entra:ClientId"] = "entra-client";
+            configuration["Authentication:Entra:Authority"] = "https://login.example.test/tenant";
+            configuration["Authentication:ExternalSources:0:Name"] = "partner";
+            configuration["Authentication:ExternalSources:0:DisplayName"] = "Partner SSO";
+            configuration["Authentication:ExternalSources:0:Authority"] = "https://partner.example.test";
+
+            using var session = await _fixture.CreateAuthenticatedSessionAsync();
+            var response = await session.GetWithCookiesAsync(IdentityApiRoutes.IdentityWorkbench.ExternalIdentities);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var providers = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("providers");
+            Assert.Contains(providers.EnumerateArray(), item => item.GetProperty("provider").GetString() == "Google");
+            Assert.Contains(providers.EnumerateArray(), item => item.GetProperty("provider").GetString() == "Microsoft");
+            Assert.Contains(providers.EnumerateArray(), item => item.GetProperty("provider").GetString() == "Entra");
+            Assert.Contains(providers.EnumerateArray(), item => item.GetProperty("provider").GetString() == "partner");
+        }
+        finally
+        {
+            foreach (var pair in previous) configuration[pair.Key] = pair.Value;
+        }
+    }
+
+    [Fact]
+    public async Task Admin_iam_read_models_expose_service_scope_audience_and_issuer_contracts()
+    {
+        using var session = await _fixture.CreateAuthenticatedSessionAsync();
+        var root = IdentityApiRoutes.AdminIam;
+        foreach (var suffix in new[] { "service-principals", "scopes", "services", "api-audiences", "trusted-issuers" })
+        {
+            var response = await session.GetWithCookiesAsync($"{root}/{suffix}");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
     }
 
     [Fact]
@@ -261,6 +328,22 @@ public sealed class IamControlPlaneEndpointTests
         Assert.Equal(HttpStatusCode.Created, scopeResponse.StatusCode);
         var scopeId = (await scopeResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
 
+        await using (var seed = _fixture.Services.CreateAsyncScope())
+        {
+            var db = seed.ServiceProvider.GetRequiredService<IdentityDbContext>();
+            db.IamPermissionSets.Add(new IamPermissionSet
+            {
+                Key = $"wildcard-{suffix}", DisplayName = "Wildcard", ScopeId = scopeId,
+                PermissionsJson = "[\"*\"]"
+            });
+            db.IamWorkloadRoles.Add(new IamWorkloadRole
+            {
+                Key = $"long-session-{suffix}", DisplayName = "Long session", ScopeId = scopeId,
+                Audience = "", MaxSessionSeconds = 3600
+            });
+            await db.SaveChangesAsync();
+        }
+
         var group = await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/groups", new { key = $"finance-{suffix}", displayName = "Finance group", scopeId });
         Assert.Equal(HttpStatusCode.Created, group.StatusCode);
         var groupId = (await group.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
@@ -283,6 +366,12 @@ public sealed class IamControlPlaneEndpointTests
         Assert.Equal(HttpStatusCode.OK, (await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/resource-policies/{policyId:D}/publish")).StatusCode);
         var diff = await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/analyzer/new-access-diff", new { before = new[] { "billing.view" }, after = new[] { "billing.view", "billing.pay" } });
         Assert.Equal(HttpStatusCode.OK, diff.StatusCode);
+        var analyzer = await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/analyzer", new { });
+        Assert.Equal(HttpStatusCode.OK, analyzer.StatusCode);
+        var findings = (await analyzer.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("findings");
+        Assert.Contains(findings.EnumerateArray(), item => item.GetProperty("code").GetString() == "WILDCARD_PERMISSION");
+        Assert.Contains(findings.EnumerateArray(), item => item.GetProperty("code").GetString() == "LONG_SESSION");
+        Assert.Contains(findings.EnumerateArray(), item => item.GetProperty("code").GetString() == "MISSING_AUDIENCE");
         var unused = await session.GetWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/analyzer/unused");
         Assert.Equal(HttpStatusCode.OK, unused.StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await session.PostWithCookiesAsync($"{IdentityApiRoutes.AdminIam}/services/{serviceId:D}/deactivate")).StatusCode);

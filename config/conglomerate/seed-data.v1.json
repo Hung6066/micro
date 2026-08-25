@@ -1,0 +1,417 @@
+{
+  "version": "1",
+  "devLoginHints": {
+    "password": "<set via CONGLOMERATE_PILOT_PASSWORD>",
+    "note": "Admin app (8083) uses his-hope-admin and accepts any tenant pilot with admin read permissions. HQ-only OAuth client: group-hq-admin.",
+    "users": [
+      {
+        "userName": "manufacturing.pilot",
+        "email": "manufacturing.pilot@abc-group.example",
+        "clientId": "manufacturing-app",
+        "localPort": 4200
+      },
+      {
+        "userName": "tech.pilot",
+        "email": "tech.pilot@abc-group.example",
+        "clientId": "tech-console",
+        "localPort": 4201
+      },
+      {
+        "userName": "hq.pilot",
+        "email": "hq.pilot@abc-group.example",
+        "clientId": "group-hq-admin",
+        "localPort": 4202
+      },
+      {
+        "userName": "acme.pilot",
+        "email": "acme.pilot@acme-health.example",
+        "clientId": "customer-acme-portal",
+        "localPort": 4203
+      },
+      {
+        "userName": "factory.pilot",
+        "email": "factory.pilot@factory-x.example",
+        "clientId": "customer-factory-x-portal",
+        "localPort": 4204
+      },
+      {
+        "userName": "buyer.pilot",
+        "email": "buyer.pilot@factory-x.example",
+        "clientId": "customer-factory-x-app",
+        "localPort": 4205
+      }
+    ]
+  },
+  "tenants": [
+    {
+      "key": "manufacturing",
+      "groups": [
+        {
+          "key": "manufacturing-operators",
+          "displayName": "Manufacturing operators"
+        }
+      ],
+      "permissionSets": [
+        {
+          "key": "manufacturing-readonly",
+          "displayName": "Manufacturing read-only",
+          "permissions": ["patients.view", "appointments.view", "dashboard.view", "admin.users.read"]
+        },
+        {
+          "key": "manufacturing-administrator",
+          "displayName": "Manufacturing administrator",
+          "permissions": [
+            "patients.view",
+            "patients.update",
+            "appointments.view",
+            "admin.users.read",
+            "admin.roles.read"
+          ]
+        },
+        {
+          "key": "manufacturing-commerce-ops",
+          "displayName": "Manufacturing commerce operations",
+          "permissions": [
+            "commerce.orders.view",
+            "commerce.orders.update",
+            "dashboard.view"
+          ]
+        }
+      ],
+      "assignments": [
+        {
+          "permissionSetKey": "manufacturing-administrator",
+          "principalType": "group",
+          "groupKey": "manufacturing-operators"
+        },
+        {
+          "permissionSetKey": "manufacturing-readonly",
+          "principalType": "human",
+          "userName": "manufacturing.pilot"
+        },
+        {
+          "permissionSetKey": "manufacturing-commerce-ops",
+          "principalType": "group",
+          "groupKey": "manufacturing-operators"
+        }
+      ],
+      "groupMemberships": [
+        { "groupKey": "manufacturing-operators", "userName": "manufacturing.pilot" }
+      ],
+      "boundaries": [
+        {
+          "userName": "manufacturing.pilot",
+          "allowedPermissions": [
+            "patients.view",
+            "appointments.view",
+            "dashboard.view",
+            "admin.users.read",
+            "admin.roles.read",
+            "admin.clients.read",
+            "commerce.orders.view",
+            "commerce.orders.update"
+          ],
+          "tenantKey": "manufacturing"
+        }
+      ]
+    },
+    {
+      "key": "tech-vendor",
+      "groups": [
+        {
+          "key": "tech-console-operators",
+          "displayName": "Tech console operators"
+        }
+      ],
+      "permissionSets": [
+        {
+          "key": "tech-vendor-administrator",
+          "displayName": "Tech vendor administrator",
+          "permissions": [
+            "admin.users.read",
+            "admin.roles.read",
+            "admin.roles.write",
+            "identity.view"
+          ]
+        }
+      ],
+      "assignments": [
+        {
+          "permissionSetKey": "tech-vendor-administrator",
+          "principalType": "group",
+          "groupKey": "tech-console-operators"
+        },
+        {
+          "permissionSetKey": "tech-vendor-administrator",
+          "principalType": "human",
+          "userName": "tech.pilot"
+        }
+      ],
+      "groupMemberships": [
+        { "groupKey": "tech-console-operators", "userName": "tech.pilot" }
+      ],
+      "boundaries": [
+        {
+          "userName": "tech.pilot",
+          "allowedPermissions": [
+            "admin.users.read",
+            "admin.roles.read",
+            "admin.roles.write",
+            "identity.view"
+          ],
+          "tenantKey": "tech-vendor"
+        }
+      ]
+    },
+    {
+      "key": "group-hq",
+      "groups": [
+        {
+          "key": "group-auditors",
+          "displayName": "Group auditors"
+        },
+        {
+          "key": "group-iam-administrators",
+          "displayName": "Group IAM administrators"
+        }
+      ],
+      "permissionSets": [
+        {
+          "key": "group-audit-readonly",
+          "displayName": "Group audit read-only",
+          "permissions": ["admin.audit.read", "audit.read", "dashboard.view"]
+        },
+        {
+          "key": "group-iam-administrator",
+          "displayName": "Group IAM administrator",
+          "permissions": [
+            "admin.users.read",
+            "admin.users.write",
+            "admin.roles.read",
+            "admin.roles.write",
+            "identity.view",
+            "identity.update"
+          ]
+        }
+      ],
+      "assignments": [
+        {
+          "permissionSetKey": "group-iam-administrator",
+          "principalType": "group",
+          "groupKey": "group-iam-administrators"
+        },
+        {
+          "permissionSetKey": "group-audit-readonly",
+          "principalType": "group",
+          "groupKey": "group-auditors"
+        },
+        {
+          "permissionSetKey": "group-iam-administrator",
+          "principalType": "human",
+          "userName": "admin"
+        },
+        {
+          "permissionSetKey": "group-iam-administrator",
+          "principalType": "human",
+          "userName": "hq.pilot"
+        }
+      ],
+      "groupMemberships": [
+        { "groupKey": "group-iam-administrators", "userName": "admin" },
+        { "groupKey": "group-iam-administrators", "userName": "hq.pilot" },
+        { "groupKey": "group-auditors", "userName": "admin" }
+      ],
+      "boundaries": [
+        {
+          "userName": "hq.pilot",
+          "allowedPermissions": [
+            "admin.users.read",
+            "admin.users.write",
+            "admin.roles.read",
+            "admin.roles.write",
+            "identity.view",
+            "identity.update"
+          ],
+          "tenantKey": "group-hq"
+        }
+      ]
+    },
+    {
+      "key": "customer-acme",
+      "groups": [
+        {
+          "key": "customer-acme-admins",
+          "displayName": "Acme tenant administrators"
+        }
+      ],
+      "permissionSets": [
+        {
+          "key": "customer-acme-administrator",
+          "displayName": "Acme customer administrator",
+          "permissions": [
+            "admin.users.read",
+            "admin.users.write",
+            "admin.roles.read",
+            "dashboard.view"
+          ]
+        }
+      ],
+      "assignments": [
+        {
+          "permissionSetKey": "customer-acme-administrator",
+          "principalType": "group",
+          "groupKey": "customer-acme-admins"
+        },
+        {
+          "permissionSetKey": "customer-acme-administrator",
+          "principalType": "human",
+          "userName": "acme.pilot"
+        }
+      ],
+      "groupMemberships": [
+        { "groupKey": "customer-acme-admins", "userName": "acme.pilot" }
+      ],
+      "boundaries": [
+        {
+          "userName": "acme.pilot",
+          "allowedPermissions": [
+            "admin.users.read",
+            "admin.users.write",
+            "admin.roles.read",
+            "dashboard.view"
+          ],
+          "tenantKey": "customer-acme"
+        }
+      ]
+    },
+    {
+      "key": "customer-factory-x",
+      "groups": [
+        {
+          "key": "customer-factory-x-admins",
+          "displayName": "Factory X tenant administrators"
+        },
+        {
+          "key": "customer-factory-x-buyers",
+          "displayName": "Factory X buyers"
+        }
+      ],
+      "permissionSets": [
+        {
+          "key": "customer-factory-x-administrator",
+          "displayName": "Factory X customer administrator",
+          "permissions": [
+            "admin.users.read",
+            "admin.users.write",
+            "admin.roles.read",
+            "dashboard.view"
+          ]
+        },
+        {
+          "key": "customer-factory-x-buyer",
+          "displayName": "Factory X buyer (end_user)",
+          "permissions": [
+            "commerce.catalog.view",
+            "commerce.orders.create",
+            "commerce.orders.view",
+            "commerce.profile.manage",
+            "commerce.notifications.view"
+          ]
+        }
+      ],
+      "assignments": [
+        {
+          "permissionSetKey": "customer-factory-x-administrator",
+          "principalType": "group",
+          "groupKey": "customer-factory-x-admins"
+        },
+        {
+          "permissionSetKey": "customer-factory-x-administrator",
+          "principalType": "human",
+          "userName": "factory.pilot"
+        },
+        {
+          "permissionSetKey": "customer-factory-x-buyer",
+          "principalType": "group",
+          "groupKey": "customer-factory-x-buyers"
+        },
+        {
+          "permissionSetKey": "customer-factory-x-buyer",
+          "principalType": "human",
+          "userName": "buyer.pilot"
+        }
+      ],
+      "groupMemberships": [
+        { "groupKey": "customer-factory-x-admins", "userName": "factory.pilot" },
+        { "groupKey": "customer-factory-x-buyers", "userName": "buyer.pilot" }
+      ],
+      "boundaries": [
+        {
+          "userName": "factory.pilot",
+          "allowedPermissions": [
+            "admin.users.read",
+            "admin.users.write",
+            "admin.roles.read",
+            "dashboard.view"
+          ],
+          "tenantKey": "customer-factory-x"
+        },
+        {
+          "userName": "buyer.pilot",
+          "allowedPermissions": [
+            "commerce.catalog.view",
+            "commerce.orders.create",
+            "commerce.orders.view",
+            "commerce.profile.manage",
+            "commerce.notifications.view"
+          ],
+          "tenantKey": "customer-factory-x"
+        }
+      ]
+    }
+  ],
+  "pilotUsers": [
+    {
+      "userName": "manufacturing.pilot",
+      "email": "manufacturing.pilot@abc-group.example",
+      "firstName": "Manufacturing",
+      "lastName": "Pilot",
+      "tenantKey": "manufacturing"
+    },
+    {
+      "userName": "tech.pilot",
+      "email": "tech.pilot@abc-group.example",
+      "firstName": "Tech",
+      "lastName": "Pilot",
+      "tenantKey": "tech-vendor"
+    },
+    {
+      "userName": "hq.pilot",
+      "email": "hq.pilot@abc-group.example",
+      "firstName": "Group",
+      "lastName": "HQ",
+      "tenantKey": "group-hq"
+    },
+    {
+      "userName": "acme.pilot",
+      "email": "acme.pilot@acme-health.example",
+      "firstName": "Acme",
+      "lastName": "Admin",
+      "tenantKey": "customer-acme"
+    },
+    {
+      "userName": "factory.pilot",
+      "email": "factory.pilot@factory-x.example",
+      "firstName": "Factory",
+      "lastName": "Admin",
+      "tenantKey": "customer-factory-x"
+    },
+    {
+      "userName": "buyer.pilot",
+      "email": "buyer.pilot@factory-x.example",
+      "firstName": "Factory",
+      "lastName": "Buyer",
+      "tenantKey": "customer-factory-x"
+    }
+  ]
+}

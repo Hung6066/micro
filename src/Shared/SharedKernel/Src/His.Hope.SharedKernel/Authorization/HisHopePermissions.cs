@@ -142,6 +142,19 @@ public static class HisHopePermissions
     }
 
     // ──────────────────────────────────────────────
+    // Commerce / B2B ordering module
+    // ──────────────────────────────────────────────
+    public static class Commerce
+    {
+        public const string CatalogView = "commerce.catalog.view";
+        public const string OrdersCreate = "commerce.orders.create";
+        public const string OrdersView = "commerce.orders.view";
+        public const string OrdersUpdate = "commerce.orders.update";
+        public const string ProfileManage = "commerce.profile.manage";
+        public const string NotificationsView = "commerce.notifications.view";
+    }
+
+    // ──────────────────────────────────────────────
     // All Permissions - for enumeration and seeding
     // ──────────────────────────────────────────────
 
@@ -191,6 +204,10 @@ public static class HisHopePermissions
 
         // Dashboard
         Dashboard.View, Dashboard.Manage,
+
+        // Commerce
+        Commerce.CatalogView, Commerce.OrdersCreate, Commerce.OrdersView,
+        Commerce.OrdersUpdate, Commerce.ProfileManage, Commerce.NotificationsView,
     }.ToFrozenSet();
 
     /// <summary>
@@ -280,6 +297,14 @@ public static class HisHopePermissions
         // Dashboard
         new(Dashboard.View, "Xem dashboard vận hành", "Dashboard", "Xem log, metric, trace và trạng thái dịch vụ"),
         new(Dashboard.Manage, "Quản lý dashboard vận hành", "Dashboard", "Khởi động, dừng hoặc khởi động lại dịch vụ"),
+
+        // Commerce
+        new(Commerce.CatalogView, "Xem catalog", "Commerce", "Xem danh mục sản phẩm B2B"),
+        new(Commerce.OrdersCreate, "Tạo đơn hàng", "Commerce", "Đặt hàng từ catalog"),
+        new(Commerce.OrdersView, "Xem đơn hàng", "Commerce", "Xem đơn hàng trong tenant"),
+        new(Commerce.OrdersUpdate, "Cập nhật đơn hàng", "Commerce", "Fulfill hoặc cập nhật trạng thái đơn"),
+        new(Commerce.ProfileManage, "Quản lý hồ sơ buyer", "Commerce", "Cập nhật thông tin liên hệ buyer"),
+        new(Commerce.NotificationsView, "Xem thông báo", "Commerce", "Xem thông báo đơn hàng"),
     }.ToFrozenSet();
 
     /// <summary>

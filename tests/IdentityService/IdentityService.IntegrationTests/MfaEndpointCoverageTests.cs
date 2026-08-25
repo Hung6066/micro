@@ -106,7 +106,7 @@ public sealed class MfaEndpointCoverageTests
         var response = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaEnroll);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("already enabled", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"errorCode\":\"invalid_mfa_state\"", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -119,7 +119,7 @@ public sealed class MfaEndpointCoverageTests
             new { recoveryCode = "unused-code" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("not enrolled", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"errorCode\":\"invalid_mfa_state\"", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public sealed class MfaEndpointCoverageTests
         var response = await session.PostWithCookiesAsync(IdentityApiRoutes.MfaVerify, new { code = "000000" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("not enrolled", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"errorCode\":\"invalid_mfa_state\"", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ public sealed class MfaEndpointCoverageTests
             new { recoveryCode = "wrong-recovery-code" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("Invalid recovery", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"errorCode\":\"invalid_recovery_code\"", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

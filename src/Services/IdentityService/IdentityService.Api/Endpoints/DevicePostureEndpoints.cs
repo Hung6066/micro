@@ -78,7 +78,16 @@ public static class DevicePostureEndpoints
         {
             var scopeId = ResolveScope(facilityContext, request.FacilityId);
             var policy = await GetPolicyAsync(db, configuration, scopeId, ct);
-            var normalized = DevicePostureEvidenceNormalizer.Normalize(request);
+            (string Provider, string DeviceId, Dictionary<string, bool> Signals, string Hash) normalized;
+            try
+            {
+                normalized = DevicePostureEvidenceNormalizer.Normalize(request);
+            }
+            catch (ArgumentException ex)
+            {
+                return Results.Problem(statusCode: 400, detail: ex.Message,
+                    extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = "invalid_request" });
+            }
             if (!JsonSerializer.Deserialize<string[]>(policy.ProvidersJson)!.Contains(normalized.Provider, StringComparer.OrdinalIgnoreCase)) return Results.Problem(statusCode: 400, extensions: new Dictionary<string, object?> { [ApiProblemExtensions.ErrorCode] = ApiErrorCodes.ProviderNotEnabled });
             var existing = await db.DevicePostureAssessments.AnyAsync(item => item.ScopeId == scopeId && item.Provider == normalized.Provider && item.EvidenceHash == normalized.Hash, ct);
             if (existing) return Results.Conflict(new { errorCode = "replayed_evidence" });

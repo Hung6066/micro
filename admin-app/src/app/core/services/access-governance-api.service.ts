@@ -131,17 +131,16 @@ export class AccessGovernanceApiService {
     page: number;
     pageSize: number;
   }> {
+    const params: Record<string, string> = {
+      page: String(query.page ?? 1),
+      pageSize: String(query.pageSize ?? 50),
+    };
     return this.http.get<{
       items: AuditLogRow[];
       totalCount: number;
       page: number;
       pageSize: number;
-    }>(`${this.baseUrl.replace(/\/admin$/, "")}/audit-logs`, {
-      params: {
-        page: String(query.page ?? 1),
-        pageSize: String(query.pageSize ?? 50),
-      },
-    });
+    }>(`${this.baseUrl.replace(/\/admin$/, "")}/audit-logs`, { params });
   }
 
   getBreakGlassRequests(): Observable<BreakGlassRequest[]> {

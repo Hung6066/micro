@@ -133,6 +133,11 @@ jobs:
           set -euo pipefail
           test -s his-hope-sbom.cdx.json
           node -e "const fs=require('fs'); const bom=JSON.parse(fs.readFileSync('his-hope-sbom.cdx.json','utf8')); if (bom.bomFormat !== 'CycloneDX' || !Array.isArray(bom.components)) process.exit(1);"
+      - name: Prime Trivy vulnerability databases
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=30s 5m trivy image --download-db-only
       - name: Build and scan every repository container
         shell: bash
         run: |

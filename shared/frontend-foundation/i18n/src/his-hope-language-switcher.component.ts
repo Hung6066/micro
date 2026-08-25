@@ -7,7 +7,7 @@ import { HisHopeLocalizationApiService } from './his-hope-localization-api.servi
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="hh-language-switcher" (mouseenter)="open.set(true)" (mouseleave)="closeOnPointerLeave()">
+    <div class="hh-language-switcher" (mouseleave)="closeOnPointerLeave()">
       <button #trigger type="button" class="hh-language-trigger" [attr.aria-expanded]="open()" aria-haspopup="listbox" [attr.aria-controls]="menuId" [attr.aria-label]="label(i18n.locale())" [attr.title]="label(i18n.locale())" (click)="toggle()" (keydown)="onTriggerKeydown($event)">
         <span class="hh-language-icon" [attr.aria-label]="label(i18n.locale())">
           @if (flagSource(i18n.locale()); as flag) { <img class="hh-language-flag" [src]="flag" alt="" aria-hidden="true" /> } @else { <span aria-hidden="true">{{ icon(i18n.locale()) }}</span> }

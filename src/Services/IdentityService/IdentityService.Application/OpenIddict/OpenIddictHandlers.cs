@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.Json;
 using His.Hope.SharedKernel.Authorization;
+using His.Hope.IdentityService.Application.Conglomerate;
 using His.Hope.IdentityService.Application.Interfaces;
 using His.Hope.IdentityService.Application.Authorization;
 using His.Hope.IdentityService.Domain.Entities;
@@ -188,7 +189,11 @@ public sealed class CustomHandleTokenExchangeRequest :
         ClaimsPrincipal source;
         try
         {
-            var handler = new JwtSecurityTokenHandler();
+            // Keep claim names stable for RFC 8693 processing.  Relying on the
+            // process-wide JwtSecurityTokenHandler.DefaultMapInboundClaims
+            // makes concurrent token requests (and tests) race on a mutable
+            // global and can hide the standard `sub` claim.
+            var handler = new JwtSecurityTokenHandler { MapInboundClaims = false };
             source = handler.ValidateToken(subjectToken, _serverOptions.CurrentValue.TokenValidationParameters, out _);
         }
         catch (Exception)
@@ -253,6 +258,9 @@ public sealed class CustomHandleTokenExchangeRequest :
         identity.SetClaim("session_id", exchangedSessionId);
         identity.SetClaim("authorization_version", role.CreatedAt.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
         identity.SetClaim("permissions", string.Join(',', permissions));
+        var sourceTenant = source.FindFirst("tenant_id")?.Value;
+        if (!string.IsNullOrWhiteSpace(sourceTenant))
+            identity.SetClaim("tenant_id", sourceTenant);
         var exchangedPolicies = await ResourcePolicyClaimBuilder.BuildAsync(
             _dbContext, role.ScopeId, [role.Key, role.Audience, clientId], context.CancellationToken);
         if (exchangedPolicies is not null)
@@ -381,14 +389,14 @@ internal sealed record ResourcePolicyClaim(
 public class CustomValidateAuthorizationRequest :
     IOpenIddictServerHandler<OpenIddictServerEvents.ValidateAuthorizationRequestContext>
 {
-    private readonly UserManager<User> _userManager;
+    private readonly IConglomerateTenantRegistry _tenantRegistry;
     private readonly ILogger<CustomValidateAuthorizationRequest> _logger;
 
     public CustomValidateAuthorizationRequest(
-        UserManager<User> userManager,
+        IConglomerateTenantRegistry tenantRegistry,
         ILogger<CustomValidateAuthorizationRequest> logger)
     {
-        _userManager = userManager;
+        _tenantRegistry = tenantRegistry;
         _logger = logger;
     }
 
@@ -401,6 +409,21 @@ public class CustomValidateAuthorizationRequest :
 
     public ValueTask HandleAsync(OpenIddictServerEvents.ValidateAuthorizationRequestContext context)
     {
+        if (!_tenantRegistry.IsEnabled || string.IsNullOrWhiteSpace(context.ClientId))
+            return default;
+
+        if (!_tenantRegistry.IsConglomerateClient(context.ClientId))
+            return default;
+
+        if (string.IsNullOrWhiteSpace(_tenantRegistry.GetClientTenant(context.ClientId)))
+        {
+            _logger.LogWarning("Rejecting authorization for unbound conglomerate client {ClientId}.", context.ClientId);
+            context.Reject(
+                OpenIddictConstants.Errors.InvalidClient,
+                "The OAuth client is not bound to a tenant.",
+                null);
+        }
+
         return default;
     }
 }
@@ -410,15 +433,18 @@ public class CustomPopulateTokenClaims :
 {
     private readonly UserManager<User> _userManager;
     private readonly IApplicationDbContext _dbContext;
+    private readonly IConglomerateTenantRegistry _tenantRegistry;
     private readonly ILogger<CustomPopulateTokenClaims> _logger;
 
     public CustomPopulateTokenClaims(
         UserManager<User> userManager,
         IApplicationDbContext dbContext,
+        IConglomerateTenantRegistry tenantRegistry,
         ILogger<CustomPopulateTokenClaims> logger)
     {
         _userManager = userManager;
         _dbContext = dbContext;
+        _tenantRegistry = tenantRegistry;
         _logger = logger;
     }
 
@@ -646,5 +672,119 @@ public class CustomPopulateTokenClaims :
             permissionsClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
             identity.AddClaim(permissionsClaim);
         }
+
+        if (!await TryIssueTenantClaimsAsync(context, identity, user, context.CancellationToken))
+            return;
+    }
+
+    private async Task IssueUserMembershipTenantClaimsAsync(
+        ClaimsIdentity identity,
+        User user,
+        CancellationToken cancellationToken)
+    {
+        var memberships = (await _userManager.GetClaimsAsync(user))
+            .Where(claim => claim.Type == "tenant_membership")
+            .Select(claim => claim.Value)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (memberships.Count == 0)
+            return;
+
+        var primaryTenant = memberships[0];
+        var tenantClaim = new Claim("tenant_id", primaryTenant);
+        tenantClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+        identity.AddClaim(tenantClaim);
+
+        foreach (var membership in memberships)
+        {
+            var membershipClaim = new Claim("tenant_membership", membership);
+            membershipClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+            identity.AddClaim(membershipClaim);
+        }
+
+        if (memberships.Count > 1)
+        {
+            var membershipsClaim = new Claim("tenant_memberships", string.Join(",", memberships));
+            membershipsClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+            identity.AddClaim(membershipsClaim);
+        }
+    }
+
+    private async Task<bool> TryIssueTenantClaimsAsync(
+        OpenIddictServerEvents.HandleTokenRequestContext context,
+        ClaimsIdentity identity,
+        User user,
+        CancellationToken cancellationToken)
+    {
+        if (!_tenantRegistry.IsEnabled)
+            return true;
+
+        var clientId = context.Request.ClientId;
+        if (!_tenantRegistry.IsConglomerateClient(clientId))
+        {
+            if (_tenantRegistry.IsEnabled)
+                await IssueUserMembershipTenantClaimsAsync(identity, user, cancellationToken);
+            return true;
+        }
+
+        var clientTenant = _tenantRegistry.GetClientTenant(clientId);
+        if (string.IsNullOrWhiteSpace(clientTenant))
+        {
+            _logger.LogWarning("Conglomerate client {ClientId} is missing a tenant binding.", clientId);
+            context.Reject(OpenIddictConstants.Errors.InvalidClient, "The OAuth client is not bound to a tenant.", null);
+            return false;
+        }
+
+        var memberships = (await _userManager.GetClaimsAsync(user))
+            .Where(claim => claim.Type == "tenant_membership")
+            .Select(claim => claim.Value)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (!memberships.Any(tenant => string.Equals(tenant, clientTenant, StringComparison.OrdinalIgnoreCase)))
+        {
+            _logger.LogWarning(
+                "User {UserId} is not a member of tenant {TenantKey} required by client {ClientId}.",
+                user.Id,
+                clientTenant,
+                clientId);
+            context.Reject(
+                OpenIddictConstants.Errors.InvalidGrant,
+                "The user is not authorized for this tenant.",
+                null);
+            return false;
+        }
+
+        var tenantClaim = new Claim("tenant_id", clientTenant);
+        tenantClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+        identity.AddClaim(tenantClaim);
+
+        IssuePortalClaims(identity, clientId, clientTenant);
+
+        if (memberships.Count > 1)
+        {
+            var membershipsClaim = new Claim("tenant_memberships", string.Join(",", memberships));
+            membershipsClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+            identity.AddClaim(membershipsClaim);
+        }
+
+        return true;
+    }
+
+    private void IssuePortalClaims(ClaimsIdentity identity, string? clientId, string clientTenant)
+    {
+        var portalClass = _tenantRegistry.GetPortalClass(clientId);
+        var tenantClass = _tenantRegistry.GetTenantClass(clientTenant);
+
+        var portalClaim = new Claim(ConglomerateConstants.ClaimPortalClass, portalClass);
+        portalClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+        identity.AddClaim(portalClaim);
+
+        var tenantClassClaim = new Claim(ConglomerateConstants.ClaimTenantClass, tenantClass);
+        tenantClassClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+        identity.AddClaim(tenantClassClaim);
     }
 }

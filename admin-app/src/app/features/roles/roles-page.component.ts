@@ -33,7 +33,9 @@ import {
 import { AdminPageQuery, Role } from "../../core/contracts/admin.contracts";
 import { AdminTableApiService } from "../../core/services/admin-table-api.service";
 import { RolesApiService } from "../../core/services/roles-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { RoleEditDialogComponent } from "./role-edit-dialog.component";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { AdminResourceTableController } from "../../core/services/admin-resource-table.controller";
 import { AdminConfirmState } from "../../core/services/admin-confirm-state";
 import { downloadAdminTableExport } from "../../core/services/admin-query.util";
@@ -152,6 +154,7 @@ import { downloadAdminTableExport } from "../../core/services/admin-query.util";
 })
 export class RolesPageComponent implements OnInit {
   private readonly api = inject(RolesApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly tableApi = inject(AdminTableApiService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -225,6 +228,7 @@ export class RolesPageComponent implements OnInit {
   ngOnInit(): void {
     this.table.loadServerView(() => this.tableApi.getViews("roles"));
     this.loadRoles();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.loadRoles());
   }
 
   openCreateRole(): void {

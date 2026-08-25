@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Security.Claims;
 using System.Threading.Channels;
 using His.Hope.IdentityService.Api.Composition;
 using His.Hope.IdentityService.Domain.Entities;
@@ -253,6 +254,38 @@ public class IdentityServiceTestFixture : IAsyncLifetime
 
             if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
                 await userManager.AddToRoleAsync(adminUser, "Admin");
+
+            // Tenant-aware admin endpoints require an explicit HQ membership;
+            // production bootstrap supplies this claim, while integration
+            // tests intentionally skip the production initializer.
+            var adminClaims = await userManager.GetClaimsAsync(adminUser);
+            if (!adminClaims.Any(claim => claim.Type == "tenant_membership" &&
+                string.Equals(claim.Value, "group-hq", StringComparison.OrdinalIgnoreCase)))
+            {
+                await userManager.AddClaimAsync(adminUser, new Claim("tenant_membership", "group-hq"));
+            }
+
+            // Keep the bootstrap invariant explicit even when a pre-existing
+            // database contains a stale Identity role mapping. This makes the
+            // fixture deterministic across reused PostgreSQL volumes.
+            if (!await db.UserRoles.AnyAsync(link => link.UserId == adminUser.Id && link.RoleId == adminRole.Id))
+            {
+                db.UserRoles.Add(new IdentityUserRole<Guid>
+                {
+                    UserId = adminUser.Id,
+                    RoleId = adminRole.Id
+                });
+                await db.SaveChangesAsync();
+            }
+
+            var seededRoleNames = await userManager.GetRolesAsync(adminUser);
+            var seededPermissionCount = await db.RolePermissions
+                .CountAsync(link => link.RoleId == adminRole.Id);
+            if (!seededRoleNames.Contains("Admin", StringComparer.OrdinalIgnoreCase) || seededPermissionCount == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Identity test bootstrap invariant failed: roles=[{string.Join(',', seededRoleNames)}], permissions={seededPermissionCount}.");
+            }
         }
 
         await _app.StartAsync();

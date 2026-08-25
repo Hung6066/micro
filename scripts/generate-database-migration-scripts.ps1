@@ -25,9 +25,6 @@ foreach ($item in $contexts) {
     $projectPath = Join-Path $RepositoryRoot $item.Project
     $releaseDeps = Join-Path (Split-Path -Parent $projectPath) 'bin/Release/net8.0'
     if (-not (Test-Path (Join-Path $releaseDeps '*.deps.json'))) {
-        # The solution does not contain every service infrastructure project.
-        # Build missing projects explicitly so EF never falls back to Debug or
-        # fails on a missing project.assets/deps file.
         dotnet build $projectPath --configuration Release --nologo --verbosity minimal
         if ($LASTEXITCODE -ne 0) { throw "Release build failed for $($item.Context)." }
     }

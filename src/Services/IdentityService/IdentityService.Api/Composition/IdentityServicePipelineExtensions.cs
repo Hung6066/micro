@@ -121,8 +121,8 @@ public static class IdentityServicePipelineExtensions
         app.UseMiddleware<His.Hope.IdentityService.Api.Metrics.SloMiddleware>();
         app.UseSerilogRequestLogging();
         app.UseHisHopePrometheus();
-        app.UseCors();
         app.UseRouting();
+        app.UseCors();
         app.UseRateLimiter();
         app.UseDpopAuthorizationSchemeNormalization();
 
@@ -137,7 +137,9 @@ public static class IdentityServicePipelineExtensions
                 context.Request.Cookies.TryGetValue("hishop_sid", out var sessionId) &&
                 !string.IsNullOrWhiteSpace(sessionId) &&
                 !context.Request.Path.StartsWithSegments("/connect") &&
-                !context.Request.Path.StartsWithSegments("/Account"))
+                !context.Request.Path.StartsWithSegments("/Account") &&
+                !context.Request.Path.StartsWithSegments("/api/v1/auth/session-status") &&
+                !context.Request.Path.StartsWithSegments("/api/v1/auth/session/exchange"))
             {
                 var redis = context.RequestServices.GetRequiredService<StackExchange.Redis.IConnectionMultiplexer>();
                 var protector = context.RequestServices.GetRequiredService<SessionTokenProtector>();
@@ -187,26 +189,21 @@ public static class IdentityServicePipelineExtensions
                                 Guid.TryParse(root.GetProperty("UserId").GetString(), out var sessionUserId))
                             {
                                 var userManager = context.RequestServices.GetRequiredService<Microsoft.AspNetCore.Identity.UserManager<User>>();
-                                var db = context.RequestServices.GetRequiredService<IdentityDbContext>();
+                                var identityService = context.RequestServices.GetRequiredService<IIdentityService>();
                                 var user = await userManager.FindByIdAsync(sessionUserId.ToString());
                                 if (user is not null)
                                 {
                                     var roles = await userManager.GetRolesAsync(user);
-                                    var permissions = await db.RolePermissions
-                                        .Where(mapping => roles.Contains(mapping.Role.Name!))
-                                        .Select(mapping => mapping.PermissionCode)
-                                        .Concat(db.BreakGlassRequests
-                                            .Where(request => request.SubjectUserId == user.Id &&
-                                                request.Status == "approved" &&
-                                                request.RevokedAt == null &&
-                                                request.ExpiresAt > DateTime.UtcNow)
-                                            .Select(request => request.PermissionCode))
-                                        .Distinct()
-                                        .ToListAsync();
+                                    var (permissions, tenantClaims) = await HumanSessionAuthClaims.ResolveAsync(
+                                        userManager,
+                                        identityService,
+                                        user);
+                                    var permissionList = permissions.ToList();
                                     var (migratedJwt, migratedExpiry) = tokenGenerator.GenerateAccessToken(
                                         user,
                                         roles,
-                                        permissions);
+                                        permissionList,
+                                        additionalClaims: tenantClaims);
                                     jwt = migratedJwt;
                                     if (sessionData is not null)
                                     {
@@ -214,7 +211,7 @@ public static class IdentityServicePipelineExtensions
                                         {
                                             Jwt = protector.Protect(migratedJwt),
                                             PrincipalType = AuthorizationConstants.PrincipalTypes.Human,
-                                            Permissions = permissions.ToArray(),
+                                            Permissions = permissionList.ToArray(),
                                             ExpiresAt = migratedExpiry < sessionData.ExpiresAt ? migratedExpiry : sessionData.ExpiresAt
                                         };
                                         await redis.GetDatabase().StringSetAsync(

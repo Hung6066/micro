@@ -9,31 +9,15 @@ public partial class AddSecuritySignalOutboxLeaseColumns : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.AddColumn<Guid>(
-            name: "lease_id",
-            table: "security_signal_outbox",
-            type: "uuid",
-            nullable: true);
-
-        migrationBuilder.AddColumn<DateTime>(
-            name: "lease_until",
-            table: "security_signal_outbox",
-            type: "timestamp with time zone",
-            nullable: true);
-
-        migrationBuilder.CreateIndex(
-            name: "ix_security_signal_outbox_dispatched_at_lease_until_available_at",
-            table: "security_signal_outbox",
-            columns: new[] { "dispatched_at", "lease_until", "available_at" });
+        migrationBuilder.Sql("ALTER TABLE security_signal_outbox ADD COLUMN IF NOT EXISTS lease_id uuid;");
+        migrationBuilder.Sql("ALTER TABLE security_signal_outbox ADD COLUMN IF NOT EXISTS lease_until timestamp with time zone;");
+        migrationBuilder.Sql("CREATE INDEX IF NOT EXISTS ix_security_signal_outbox_dispatched_at_lease_until_available_at ON security_signal_outbox (dispatched_at, lease_until, available_at);");
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.DropIndex(
-            name: "ix_security_signal_outbox_dispatched_at_lease_until_available_at",
-            table: "security_signal_outbox");
-
-        migrationBuilder.DropColumn(name: "lease_id", table: "security_signal_outbox");
-        migrationBuilder.DropColumn(name: "lease_until", table: "security_signal_outbox");
+        migrationBuilder.Sql("DROP INDEX IF EXISTS ix_security_signal_outbox_dispatched_at_lease_until_available_at;");
+        migrationBuilder.Sql("ALTER TABLE security_signal_outbox DROP COLUMN IF EXISTS lease_id;");
+        migrationBuilder.Sql("ALTER TABLE security_signal_outbox DROP COLUMN IF EXISTS lease_until;");
     }
 }

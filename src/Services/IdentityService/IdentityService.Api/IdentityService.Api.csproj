@@ -40,5 +40,7 @@
   <ItemGroup>
     <Content Update="config\assurance-policy.v1.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('config\assurance-policy.v1.json')" />
     <Content Include="..\..\..\..\config\assurance-policy.v1.json" Link="config\assurance-policy.v1.json" CopyToOutputDirectory="PreserveNewest" Condition="!Exists('config\assurance-policy.v1.json')" />
+    <Content Update="config\conglomerate\**\*" CopyToOutputDirectory="PreserveNewest" Condition="Exists('config\conglomerate')" />
+    <Content Include="..\..\..\..\config\conglomerate\**\*" Link="config\conglomerate\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Condition="!Exists('config\conglomerate')" />
   </ItemGroup>
 </Project>
