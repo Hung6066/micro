@@ -12,7 +12,7 @@ namespace His.Hope.IdentityService.IntegrationTests;
 [Collection("IdentityServiceIntegration")]
 public sealed class HrWebhookEndpointTests(IdentityServiceTestFixture fixture)
 {
-    private const string TestWebhookKey = "test-webhook-key";
+    private const string TestWebhookKey = "test-webhook-signing-key-for-tests";
     private const string Route = "/api/v1/webhook/hr";
 
     [Fact]

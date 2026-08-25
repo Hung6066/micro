@@ -29,7 +29,7 @@ ORDER BY user_name;
         $parts = $line -split '\|', 3
         [pscustomobject]@{
             UserName = $parts[0]
-            Email = $parts[1]
+            Email    = $parts[1]
             IsActive = $parts[2]
         }
     }

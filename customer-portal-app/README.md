@@ -30,7 +30,7 @@ Open http://localhost:4204 — sign in as `factory.pilot` using the configured `
 
 ## OIDC pilots
 
-| Tenant | Client | Local port |
-|--------|--------|------------|
-| customer-acme | customer-acme-portal | 4203 |
-| customer-factory-x | customer-factory-x-portal | 4204 |
+| Tenant             | Client                    | Local port |
+| ------------------ | ------------------------- | ---------- |
+| customer-acme      | customer-acme-portal      | 4203       |
+| customer-factory-x | customer-factory-x-portal | 4204       |

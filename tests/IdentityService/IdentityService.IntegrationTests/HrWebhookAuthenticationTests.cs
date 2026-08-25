@@ -9,7 +9,7 @@ namespace His.Hope.IdentityService.IntegrationTests;
 
 public class HrWebhookAuthenticationTests
 {
-    private const string TestWebhookKey = "test-webhook-key";
+    private const string TestWebhookKey = "test-webhook-signing-key-for-tests";
     private const string Body = "{\"eventType\":\"employee.hired\",\"eventId\":\"evt-1\",\"timestamp\":\"2026-07-23T00:00:00Z\",\"employee\":{\"employeeId\":\"e-1\",\"email\":\"doctor@example.test\"}}";
 
     [Fact]

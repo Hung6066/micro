@@ -24,12 +24,12 @@ Sign in as `tech.pilot`. Tenant switcher: `tech-vendor` + `customer-acme`.
 
 ## Isolation
 
-| App | Port | Client | Must NOT login |
-|-----|------|--------|----------------|
-| internal-operator-app (mfg) | 4200 | manufacturing-app | group-hq-admin, customer portals |
-| internal-operator-app (tech) | 4201 | tech-console | manufacturing-app, customer portals |
-| admin-app | 4202 | group-hq-admin / his-hope-admin | — |
-| customer-portal-app | 4203/4204 | customer-*-portal | operator tokens |
+| App                          | Port      | Client                          | Must NOT login                      |
+| ---------------------------- | --------- | ------------------------------- | ----------------------------------- |
+| internal-operator-app (mfg)  | 4200      | manufacturing-app               | group-hq-admin, customer portals    |
+| internal-operator-app (tech) | 4201      | tech-console                    | manufacturing-app, customer portals |
+| admin-app                    | 4202      | group-hq-admin / his-hope-admin | —                                   |
+| customer-portal-app          | 4203/4204 | customer-\*-portal              | operator tokens                     |
 
 Cross-tenant reads use `?scopeId=` injected by `tenantScopeInterceptor` when a customer tenant is selected in the switcher.
 

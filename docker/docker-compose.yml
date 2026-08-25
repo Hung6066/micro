@@ -2,7 +2,12 @@ services:
   postgres-wal-archive-init:
     image: alpine:3.20
     container_name: his-hope-postgres-wal-archive-init
-    command: ["/bin/sh", "-c", "mkdir -p /var/lib/postgresql/wal-archive && chown -R 999:999 /var/lib/postgresql/wal-archive"]
+    command:
+      [
+        "/bin/sh",
+        "-c",
+        "mkdir -p /var/lib/postgresql/wal-archive && chown -R 999:999 /var/lib/postgresql/wal-archive",
+      ]
     volumes:
       - postgres_wal_archive:/var/lib/postgresql/wal-archive
     restart: "no"
@@ -137,7 +142,11 @@ services:
       - es_data:/usr/share/elasticsearch/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl --silent --fail http://localhost:9200/_cluster/health || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl --silent --fail http://localhost:9200/_cluster/health || exit 1",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -187,7 +196,15 @@ services:
       - jaeger_data:/badger
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:16686/"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:16686/",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -268,15 +285,23 @@ services:
       - ./rules:/etc/prometheus/rules
       - prometheus_data:/prometheus
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=30d'
-      - '--web.enable-lifecycle'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:9090/-/healthy",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -294,7 +319,15 @@ services:
       - loki_data:/loki
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3100/ready",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -316,7 +349,11 @@ services:
       - ./vault/vault.hcl:/vault/config/vault.hcl:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "VAULT_ADDR=http://127.0.0.1:8200 vault status -format=json >/dev/null 2>&1; code=$$?; test $$code -le 2"]
+      test:
+        [
+          "CMD-SHELL",
+          "VAULT_ADDR=http://127.0.0.1:8200 vault status -format=json >/dev/null 2>&1; code=$$?; test $$code -le 2",
+        ]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -375,13 +412,21 @@ services:
     ports:
       - "9093:9093"
     command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--storage.path=/alertmanager'
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
     volumes:
       - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:9093/-/healthy",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -400,7 +445,15 @@ services:
       prometheus: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000/api/health",
+        ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -1154,7 +1207,8 @@ services:
       api-gateway: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:8080/"]
+      test:
+        ["CMD", "curl", "-f", "-s", "-o", "/dev/null", "http://localhost:8080/"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -1175,7 +1229,8 @@ services:
       manufacturingservice: { condition: service_healthy }
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      test:
+        ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 5

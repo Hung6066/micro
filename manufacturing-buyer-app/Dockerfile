@@ -2,7 +2,10 @@ FROM node:22-alpine AS build
 WORKDIR /workspace
 
 COPY . /workspace/manufacturing-buyer-app
-COPY --from=shared . /workspace/shared/frontend-foundation
+COPY shared/frontend-foundation /workspace/shared/frontend-foundation
+
+WORKDIR /workspace/shared/frontend-foundation
+RUN npm install --no-audit --no-fund && npm run build
 
 WORKDIR /workspace/manufacturing-buyer-app
 RUN npm install --no-audit --no-fund

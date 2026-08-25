@@ -31,7 +31,7 @@ public sealed class SecurityGuardLowCoverageTests
 
         var result = await InvokeBffGuardAsync(context, Mock.Of<IConnectionMultiplexer>(), CreateProtector());
 
-        result.Should().BeOfType<ProblemHttpResult>().Which.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+        result.Should().BeOfType<UnauthorizedHttpResult>();
     }
 
     [Fact]
@@ -204,13 +204,23 @@ public sealed class SecurityGuardLowCoverageTests
         db.SupportElevations.AddRange(
             new SupportElevation
             {
-                Id = expiredId, OperatorUserId = operatorId, SourceTenant = "source", TargetTenant = "target",
-                Status = "approved", ExpiresAt = DateTime.UtcNow.AddMinutes(-1), PermissionsJson = "[]"
+                Id = expiredId,
+                OperatorUserId = operatorId,
+                SourceTenant = "source",
+                TargetTenant = "target",
+                Status = "approved",
+                ExpiresAt = DateTime.UtcNow.AddMinutes(-1),
+                PermissionsJson = "[]"
             },
             new SupportElevation
             {
-                Id = mismatchedId, OperatorUserId = operatorId, SourceTenant = "other", TargetTenant = "target",
-                Status = "approved", ExpiresAt = DateTime.UtcNow.AddMinutes(10), PermissionsJson = "[]"
+                Id = mismatchedId,
+                OperatorUserId = operatorId,
+                SourceTenant = "other",
+                TargetTenant = "target",
+                Status = "approved",
+                ExpiresAt = DateTime.UtcNow.AddMinutes(10),
+                PermissionsJson = "[]"
             });
         await db.SaveChangesAsync();
 
