@@ -2,6 +2,8 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0@sha256:e2f26f26169fd10d6f1b426e01c97397717
 WORKDIR /src
 COPY ["src/Services/CommerceService/CommerceService.Api/CommerceService.Api.csproj", "Services/CommerceService/CommerceService.Api/"]
 COPY . .
+COPY src/Services/CommerceService/ Services/CommerceService/
+COPY src/Shared/ Shared/
 RUN dotnet restore "Services/CommerceService/CommerceService.Api/CommerceService.Api.csproj"
 RUN dotnet publish "Services/CommerceService/CommerceService.Api/CommerceService.Api.csproj" -c Release -o /app/publish --no-restore
 

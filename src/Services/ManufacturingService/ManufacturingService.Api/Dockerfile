@@ -5,6 +5,8 @@ COPY ["src/Services/ManufacturingService/ManufacturingService.Domain/Manufacturi
 COPY ["src/Services/ManufacturingService/ManufacturingService.Application/ManufacturingService.Application.csproj", "Services/ManufacturingService/ManufacturingService.Application/"]
 COPY ["src/Services/ManufacturingService/ManufacturingService.Infrastructure/ManufacturingService.Infrastructure.csproj", "Services/ManufacturingService/ManufacturingService.Infrastructure/"]
 COPY . .
+COPY src/Services/ManufacturingService/ Services/ManufacturingService/
+COPY src/Shared/ Shared/
 RUN dotnet restore "Services/ManufacturingService/ManufacturingService.Api/ManufacturingService.Api.csproj"
 RUN dotnet publish "Services/ManufacturingService/ManufacturingService.Api/ManufacturingService.Api.csproj" -c Release -o /app/publish --no-restore
 
