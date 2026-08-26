@@ -1,11 +1,11 @@
 <section class="work-page">
   <p class="eyebrow">{{ "mobile.operatorProduction" | hhTranslate: "TODAY'S SHIFT" }}</p>
   <h2>{{ "mobile.operatorProductionTitle" | hhTranslate: "Production work" }}</h2>
-  <p class="lede">{{ "mobile.operatorProductionDescription" | hhTranslate }}</p>
+  <p class="lede">{{ "mobile.operatorProductionDescription" | hhTranslate: "Record output at the point of work. Offline entries remain queued until synchronised." }}</p>
   <article class="work-card">
-    <label>{{ "mobile.operatorBatch" | hhTranslate }}<select [(ngModel)]="selectedBatch"><option [ngValue]="null">{{ "mobile.operatorChooseBatch" | hhTranslate }}</option>@for (batch of batches; track batch.id) { <option [ngValue]="batch">{{ batch.batchNumber }} · {{ batch.status }}</option> }</select></label>
-    <label>{{ "mobile.operatorOutputQuantity" | hhTranslate }}<input type="number" min="0" step=".01" [(ngModel)]="outputQuantity" /></label>
-    <button type="button" (click)="recordOperation()">{{ "mobile.operatorRecordOperation" | hhTranslate }}</button>
+    <label>{{ "mobile.operatorBatch" | hhTranslate: "Batch" }}<select [(ngModel)]="selectedBatch"><option [ngValue]="null">{{ "mobile.operatorChooseBatch" | hhTranslate: "Choose a started batch" }}</option>@for (batch of batches; track batch.id) { <option [ngValue]="batch">{{ batch.batchNumber }} · {{ batch.status }}</option> }</select></label>
+    <label>{{ "mobile.operatorOutputQuantity" | hhTranslate: "Output quantity" }}<input type="number" min="0" step=".01" [(ngModel)]="outputQuantity" /></label>
+    <button type="button" (click)="recordOperation()">{{ "mobile.operatorRecordOperation" | hhTranslate: "Record operation" }}</button>
     @if (message) { <p class="work-card__message" role="status">{{ message }}</p> }
   </article>
 </section>

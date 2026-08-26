@@ -2,6 +2,7 @@ using His.Hope.AspNetCore.Authentication;
 using His.Hope.ServiceDefaults;
 using His.Hope.ManufacturingService.Application.Ports;
 using His.Hope.Authorization;
+using His.Hope.Infrastructure.Security;
 using His.Hope.SharedKernel.Authorization;
 var builder = WebApplication.CreateBuilder(args);
 var manufacturingConnection = builder.Configuration.GetConnectionString("ManufacturingDb")
@@ -11,12 +12,15 @@ builder.Services.AddHealthChecks()
     .AddDbContextCheck<ManufacturingDbContext>("manufacturing-db");
 builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "ManufacturingService");
 builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
+builder.Services.AddHisHopeDpopValidation();
 builder.Services.AddHisHopeAuthorization();
 
 var app = builder.Build();
 app.UseExceptionHandler();
 app.UseHisHopeServiceDefaults();
+app.UseDpopAuthorizationSchemeNormalization();
 app.UseAuthentication();
+app.UseDpopAccessTokenValidation();
 app.UseAuthorization();
 
 app.Services.MigrateManufacturingDatabase();
