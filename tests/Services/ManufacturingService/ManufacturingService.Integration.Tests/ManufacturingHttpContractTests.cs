@@ -103,6 +103,16 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         (await ReadJson(listResponse)).GetArrayLength().Should().Be(1);
     }
 
+    [Fact]
+    public async Task Operator_tenant_selector_accepts_only_claimed_membership()
+    {
+        var selected = await client.GetAsync("/api/v1/manufacturing/production-batches?tenantKey=selector-tenant");
+        selected.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var denied = await client.GetAsync("/api/v1/manufacturing/production-batches?tenantKey=unclaimed-tenant");
+        denied.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
     public async Task DisposeAsync()
     {
         client.Dispose();
@@ -714,6 +724,8 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
             {
                 new Claim("sub", "manufacturing-http-test"),
                 new Claim("tenant_id", "http-integration-tenant"),
+                new Claim("tenant_membership", "http-integration-tenant"),
+                new Claim("tenant_membership", "selector-tenant"),
                 new Claim("portal_class", "operator"),
                 new Claim("permissions", HisHopePermissions.Manufacturing.ProductionExecute),
                 new Claim("permissions", HisHopePermissions.Manufacturing.QualityInspect),
