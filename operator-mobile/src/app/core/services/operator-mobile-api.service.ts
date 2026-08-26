@@ -13,8 +13,9 @@ export interface ProductionBatch {
   version?: string;
 }
 
-export interface LotSummary { id: string; sku: string; quantity: number; disposition: string; }
+export interface LotSummary { id: string; lotCode?: string; sku: string; quantity: number; uom?: string; disposition: string; }
 export interface MaintenanceWorkOrder { id: string; machineId: string; status: string; maintenanceType?: string; notes?: string; }
+export interface Machine { id: string; code: string; name: string; status: string; active: boolean; }
 
 @Injectable({ providedIn: "root" })
 export class OperatorMobileApiService {
@@ -38,6 +39,13 @@ export class OperatorMobileApiService {
 
   getMaintenanceWorkOrders(status = "Open"): Observable<MaintenanceWorkOrder[]> {
     return this.http.get<MaintenanceWorkOrder[]>(`${this.baseUrl}/maintenance-work-orders`, { params: { status, tenantKey: this.tenant.activeTenantKey() ?? "" } });
+  }
+
+  getMachines(status?: string): Observable<Machine[]> {
+    let params = new HttpParams();
+    if (status) params = params.set("status", status);
+    if (this.tenant.activeTenantKey()) params = params.set("tenantKey", this.tenant.activeTenantKey()!);
+    return this.http.get<Machine[]>(`${this.baseUrl}/machines`, { params });
   }
 
   recordProductionOperation(operation: QueuedOperation): Promise<OperationTransportResult> {

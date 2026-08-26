@@ -1,7 +1,8 @@
-import { Component, inject } from "@angular/core";
+import { Component, effect, inject } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { OperationQueueService } from "../../core/offline/operation-queue.service";
-import { OperatorMobileApiService } from "../../core/services/operator-mobile-api.service";
+import { OperatorMobileApiService, type Machine, type MaintenanceWorkOrder } from "../../core/services/operator-mobile-api.service";
+import { catchError, of } from "rxjs";
 import { OperatorMobileTenantContextService } from "../../core/operator-mobile-tenant-context.service";
 import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
@@ -16,6 +17,23 @@ export class MaintenanceWorkPageComponent {
   workOrderId = "";
   technician = "";
   message = "";
+  machines: Machine[] = [];
+  workOrders: MaintenanceWorkOrder[] = [];
+
+  constructor() {
+    effect(() => {
+      const tenantKey = this.tenant.activeTenantKey?.();
+      if (!tenantKey) { this.machines = []; this.workOrders = []; return; }
+      this.api.getMachines("Available").pipe(catchError(() => of([]))).subscribe((machines) => {
+        this.machines = machines;
+        if (this.machineId && !machines.some((machine) => machine.id === this.machineId)) this.machineId = "";
+      });
+      this.api.getMaintenanceWorkOrders("Open").pipe(catchError(() => of([]))).subscribe((orders) => {
+        this.workOrders = orders;
+        if (this.workOrderId && !orders.some((order) => order.id === this.workOrderId)) this.workOrderId = "";
+      });
+    });
+  }
 
   async completeWorkOrder(): Promise<void> {
     if (!this.checklistComplete) {
