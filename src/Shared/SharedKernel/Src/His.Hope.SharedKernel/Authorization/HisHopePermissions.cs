@@ -168,6 +168,16 @@ public static class HisHopePermissions
     }
 
     // ──────────────────────────────────────────────
+    // Manufacturing field operations module
+    // ──────────────────────────────────────────────
+    public static class Manufacturing
+    {
+        public const string ProductionExecute = "manufacturing.production.execute";
+        public const string QualityInspect = "manufacturing.quality.inspect";
+        public const string MaintenanceComplete = "manufacturing.maintenance.complete";
+    }
+
+    // ──────────────────────────────────────────────
     // All Permissions - for enumeration and seeding
     // ──────────────────────────────────────────────
 
@@ -225,6 +235,10 @@ public static class HisHopePermissions
 
         // Content
         Content.Read, Content.Manage, Content.InquiriesView,
+
+        // Manufacturing field operations
+        Manufacturing.ProductionExecute, Manufacturing.QualityInspect,
+        Manufacturing.MaintenanceComplete,
     }.ToFrozenSet();
 
     /// <summary>
@@ -330,6 +344,11 @@ public static class HisHopePermissions
         new(Content.Read, "Xem nội dung", "Content", "Xem nội dung công khai đã publish"),
         new(Content.Manage, "Quản lý nội dung", "Content", "CMS banners, bài viết, story blocks"),
         new(Content.InquiriesView, "Xem hỏi hợp tác", "Content", "Xem form hợp tác kinh doanh"),
+
+        // Manufacturing field operations
+        new(Manufacturing.ProductionExecute, "Thực thi sản xuất", "Manufacturing", "Ghi nhận công đoạn và sản lượng tại hiện trường"),
+        new(Manufacturing.QualityInspect, "Kiểm tra chất lượng", "Manufacturing", "Ghi nhận kiểm tra chất lượng và sai lệch"),
+        new(Manufacturing.MaintenanceComplete, "Hoàn tất bảo trì", "Manufacturing", "Hoàn tất work order và bằng chứng bảo trì"),
     }.ToFrozenSet();
 
     /// <summary>

@@ -1,0 +1,9 @@
+.work-page { display: grid; gap: 1rem; }
+.eyebrow { margin: 0; color: #68756d; font-size: .7rem; font-weight: 800; letter-spacing: .12em; }
+h2 { margin: 0; font-size: 1.9rem; }
+.lede { margin: 0; color: #68756d; line-height: 1.5; }
+.work-card { padding: 1.1rem; border: 1px solid #dedbd3; border-radius: 1rem; background: #fff; }
+.work-card__status { color: #18733b; font-size: .75rem; font-weight: 800; }
+.work-card h3 { margin: .5rem 0; }
+.work-card p { color: #68756d; line-height: 1.45; }
+button { min-height: 2.75rem; padding: 0 1rem; border: 0; border-radius: .75rem; background: #006b4f; color: white; font: inherit; font-weight: 700; }

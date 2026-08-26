@@ -1,0 +1,17 @@
+<main class="operator-shell">
+  <header class="operator-shell__header">
+    <div>
+      <p class="operator-shell__eyebrow">HIS.HOPE OPERATIONS</p>
+      <h1>Field operations</h1>
+    </div>
+    <span class="operator-shell__status" aria-label="Sync status">Online</span>
+  </header>
+  <section class="operator-shell__content"><router-outlet /></section>
+  <nav class="operator-shell__nav" aria-label="Operational areas">
+    <a routerLink="production" routerLinkActive="active">Production</a>
+    <a routerLink="traceability" routerLinkActive="active">Traceability</a>
+    <a routerLink="quality" routerLinkActive="active">Quality</a>
+    <a routerLink="maintenance" routerLinkActive="active">Maintenance</a>
+    <a routerLink="sync" routerLinkActive="active">Sync</a>
+  </nav>
+</main>
