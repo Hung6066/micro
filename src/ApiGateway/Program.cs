@@ -439,9 +439,14 @@ void MapDirectProxy(
                 request.Content.Headers.TryAddWithoutValidation("Content-Type", ct.ToArray());
         }
 
+        // Preserve sender-constrained authentication and the public origin
+        // used by downstream DPoP htu validation. The direct proxy path must
+        // carry the same security headers as the YARP path.
+        ctx.Request.Headers["X-Forwarded-Proto"] = ctx.Request.Scheme;
+        ctx.Request.Headers["X-Forwarded-Host"] = ctx.Request.Host.Value;
         foreach (var h in ctx.Request.Headers)
         {
-            if (h.Key is "Authorization" or "X-HisHope-Session" or "Accept" or "Accept-Language"
+            if (h.Key is "Authorization" or "DPoP" or "X-Forwarded-Proto" or "X-Forwarded-Host" or "X-HisHope-Session" or "Accept" or "Accept-Language"
                 or "X-Correlation-ID" or "X-Timezone" or "X-Currency" or "Content-Type")
                 try { request.Headers.TryAddWithoutValidation(h.Key, h.Value.ToArray()); } catch { }
         }
