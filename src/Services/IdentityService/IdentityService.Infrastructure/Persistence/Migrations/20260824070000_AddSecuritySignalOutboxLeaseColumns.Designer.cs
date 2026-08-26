@@ -7,7 +7,7 @@ using His.Hope.IdentityService.Infrastructure.Persistence;
 namespace His.Hope.IdentityService.Infrastructure.Persistence.Migrations;
 
 [DbContext(typeof(IdentityDbContext))]
-partial class AddSecuritySignalOutboxLeaseColumns
+partial class AddSecuritySignalOutboxLeaseColumnsFollowUp
 {
     // The migration operations are defined in the companion migration file.
     // Keeping the generated metadata type ensures EF discovers this migration

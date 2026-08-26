@@ -7,7 +7,7 @@ namespace His.Hope.IdentityService.Infrastructure.Persistence.Migrations;
 
 /// <summary>Adds the lease fields mapped by SecuritySignalOutbox to databases created from the original outbox migration.</summary>
 [Migration("20260824070000_AddSecuritySignalOutboxLeaseColumns")]
-public partial class AddSecuritySignalOutboxLeaseColumns : Migration
+public partial class AddSecuritySignalOutboxLeaseColumnsFollowUp : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
