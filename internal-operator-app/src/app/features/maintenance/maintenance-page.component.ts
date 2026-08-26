@@ -8,6 +8,7 @@ import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeStateComponent,
+  HisHopeTabsComponent,
 } from "@his-hope/frontend-foundation/ui";
 import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import { HisHopeMaintenanceWorkOrderDto, HisHopeMachineTelemetryDto, HisHopeManufacturingMachineDto, HisHopeManufacturingDowntimeDto } from "@his-hope/frontend-foundation/contracts";
@@ -18,16 +19,17 @@ import { TenantContextService } from "../../core/services/tenant-context.service
 @Component({
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, FormsModule, HisHopeActionButtonComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTranslatePipe],
+  imports: [DatePipe, FormsModule, HisHopeActionButtonComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTabsComponent, HisHopeTranslatePipe],
   template: `
     <hh-page-layout>
       <hh-page-header hhPageHeader [title]="'customerPortal.maintenanceTitle' | hhTranslate: 'Machine maintenance'" [subtitle]="pageSubtitle" />
+      <hh-tabs label="Maintenance sections"><button role="tab" type="button" [attr.aria-selected]="activeTab === 'work-orders'" [class.active]="activeTab === 'work-orders'" (click)="selectTab('work-orders')">{{ 'customerPortal.maintenanceQueue' | hhTranslate: 'Work orders' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'machines'" [class.active]="activeTab === 'machines'" (click)="selectTab('machines')">{{ 'customerPortal.machine' | hhTranslate: 'Machines' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'downtime'" [class.active]="activeTab === 'downtime'" (click)="selectTab('downtime')">{{ 'customerPortal.downtimeControl' | hhTranslate: 'Downtime control' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'history'" [class.active]="activeTab === 'history'" (click)="selectTab('history')">{{ 'customerPortal.maintenance' | hhTranslate: 'Maintenance history' }}</button></hh-tabs>
       @if (loading) {
         <hh-state kind="loading" [message]="'customerPortal.loadingMaintenance' | hhTranslate: 'Loading maintenance…'" />
       } @else if (error) {
         <hh-state kind="error" [message]="error" />
       } @else {
-        <section class="section form-section">
+        <section class="section form-section" [class.tab-panel--hidden]="activeTab !== 'work-orders'">
           <div class="section-heading">
             <div>
               <p class="eyebrow">{{ 'customerPortal.preventiveMaintenance' | hhTranslate: 'Preventive maintenance' }}</p>
@@ -61,7 +63,7 @@ import { TenantContextService } from "../../core/services/tenant-context.service
           @if (actionError) { <p class="action-error" role="alert">{{ actionError }}</p> }
         </section>
 
-        <section class="section">
+        <section class="section" [class.tab-panel--hidden]="activeTab !== 'machines'">
           <div class="section-heading">
             <div>
               <p class="eyebrow">{{ 'customerPortal.machineCondition' | hhTranslate: 'Machine condition' }}</p>
@@ -107,7 +109,7 @@ import { TenantContextService } from "../../core/services/tenant-context.service
           }
         </section>
 
-        <section class="section form-section">
+        <section class="section form-section" [class.tab-panel--hidden]="activeTab !== 'downtime'">
           <div class="section-heading"><div><p class="eyebrow">{{ 'customerPortal.downtimeControl' | hhTranslate: 'Downtime control' }}</p><h2>{{ 'customerPortal.recordDowntime' | hhTranslate: 'Record machine downtime' }}</h2></div><span class="count">{{ openDowntimes.length }}</span></div>
           <form class="work-order-form" (ngSubmit)="openDowntime()">
             <label>{{ 'customerPortal.machine' | hhTranslate: 'Machine' }}<select name="downtimeMachineId" [(ngModel)]="downtimeDraft.machineId" required><option value="">{{ 'customerPortal.selectMachine' | hhTranslate: 'Select machine' }}</option>@for (machine of machines; track machine.id) { <option [value]="machine.id">{{ machine.code }} · {{ machine.name }}</option> }</select></label>
@@ -119,15 +121,13 @@ import { TenantContextService } from "../../core/services/tenant-context.service
           @if (openDowntimes.length) { <div class="cards">@for (downtime of openDowntimes; track downtime.id) { <article class="card"><header><div><strong>{{ machineLabel(downtime.machineId) }}</strong><p class="meta">{{ downtime.reason }} · {{ downtime.startedAt | date:'medium' }}</p></div><span class="status fault">{{ downtime.status }}</span></header><p class="meta">{{ downtime.notes }}</p><hh-action-button kind="secondary" icon="play_circle" [label]="'customerPortal.resolveDowntime' | hhTranslate: 'Resolve downtime'" [disabled]="savingDowntime" (pressed)="resolveDowntime(downtime)" /></article> }</div> } @else { <p class="empty">{{ 'customerPortal.noOpenDowntime' | hhTranslate: 'No open downtime.' }}</p> }
         </section>
 
-        <section class="section">
+        <section class="section" [class.tab-panel--hidden]="activeTab !== 'work-orders' && activeTab !== 'history'">
           <div class="section-heading">
             <div>
               <p class="eyebrow">{{ 'customerPortal.maintenanceQueue' | hhTranslate: 'Maintenance queue' }}</p>
               <h2>{{ 'customerPortal.workOrders' | hhTranslate: 'Work orders' }}</h2>
             </div>
-            <button class="filter" type="button" [class.active]="showOpenOnly" (click)="toggleOpenFilter()">
-              {{ 'customerPortal.openOnly' | hhTranslate: 'Open only' }}
-            </button>
+            <hh-action-button [kind]="showOpenOnly ? 'primary' : 'secondary'" [pressedState]="showOpenOnly" icon="filter_alt" [label]="'customerPortal.openOnly' | hhTranslate: 'Open only'" (pressed)="toggleOpenFilter()" />
           </div>
           @if (!visibleWorkOrders.length) {
             <p class="empty">{{ 'customerPortal.noMaintenanceWorkOrders' | hhTranslate: 'No maintenance work orders.' }}</p>
@@ -168,6 +168,7 @@ import { TenantContextService } from "../../core/services/tenant-context.service
   styles: [`
     :host { display: block; }
     .section { display: grid; gap: var(--space-md); }
+    .tab-panel--hidden { display: none !important; }
     .form-section { padding: var(--space-md); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-white); }
     .section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); }
     .heading-actions { display: flex; align-items: center; gap: var(--space-sm); }
@@ -191,13 +192,14 @@ import { TenantContextService } from "../../core/services/tenant-context.service
     .telemetry-list { display: grid; gap: var(--space-xs); margin: 0; padding: 0; list-style: none; }
     .telemetry-list li { display: flex; justify-content: space-between; gap: var(--space-sm); color: var(--text-primary); font-size: var(--font-size-caption); }
     .telemetry-value { color: var(--text-secondary); text-align: right; }
-    .filter { border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: var(--space-xs) var(--space-sm); color: var(--text-primary); background: var(--surface-white); cursor: pointer; }
-    .filter.active { border-color: var(--color-primary); background: var(--surface-subtle); }
     .action-error { margin: 0; color: var(--color-danger); font-size: var(--font-size-caption); }
     .empty { color: var(--text-secondary); }
   `],
 })
 export class MaintenancePageComponent implements OnInit {
+  activeTab = "work-orders";
+  selectTab(tab: string): void { this.activeTab = tab; this.applyTabVisibility(); this.cdr.markForCheck(); }
+  private applyTabVisibility(): void { /* tab panel visibility is controlled by Angular bindings */ }
   private readonly api = inject(ManufacturingApiService);
   private readonly tenantContext = inject(TenantContextService);
   private readonly i18n = inject(HisHopeI18nService);

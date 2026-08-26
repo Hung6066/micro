@@ -42,13 +42,12 @@ test.describe('manufacturing operator completeness @operator-app', () => {
         await expect(page.getByRole('heading', { name: /Products|Sản phẩm/i })).toBeVisible();
       }
       if (route === 'traceability') {
+        await page.getByRole('button', { name: /Reservations|Phiếu giữ hàng/i }).click();
         await expect(page.getByRole('heading', { name: /Reservations|Phiếu giữ hàng/i })).toBeVisible();
       }
       if (route === 'procurement') {
         await expect(page.locator('.procurement-nav')).toBeVisible();
-        for (const anchor of ['requirements', 'master-data', 'facilities', 'suppliers', 'rfqs', 'purchase-orders', 'inbound-receipts']) {
-          await expect(page.locator(`a[href="#${anchor}"]`)).toBeVisible();
-        }
+        for (const label of ['Material requirements', 'Facilities', 'Material and UOM master data', 'Suppliers', 'Supplier RFQs', 'Purchase orders', 'Inbound receipt history']) await expect(page.locator('.procurement-nav button').filter({ hasText: new RegExp(label, 'i') })).toBeVisible();
       }
       if (route === 'production') {
         await expect(page.getByRole('heading', { name: /Production orders|Đơn sản xuất/i })).toBeVisible();
@@ -83,6 +82,7 @@ test.describe('manufacturing operator completeness @operator-app', () => {
     test.skip(!email || !password, 'Set E2E_EMAIL and E2E_PASSWORD for authenticated operator coverage.');
     await login(page);
     await page.goto(`${operatorUrl}/traceability`);
+    await page.getByRole('button', { name: /Reservations|Phiếu giữ hàng/i }).click();
     await expect(page.getByRole('heading', { name: /Reservations|Phiếu giữ hàng/i })).toBeVisible();
     const lotsResponse = await page.request.get(`${operatorUrl}/api/v1/manufacturing/lots?disposition=Released&limit=1`);
     expect(lotsResponse.ok()).toBeTruthy();

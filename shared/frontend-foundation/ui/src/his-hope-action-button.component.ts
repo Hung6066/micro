@@ -23,6 +23,7 @@ export type HisHopeActionMode = "label" | "icon-only";
       [class]="classes()"
       [disabled]="disabled() || loading()"
       [attr.aria-label]="mode() === 'icon-only' ? label() : null"
+      [attr.aria-pressed]="pressedState() === null ? null : pressedState()"
       [attr.aria-busy]="loading() || null"
       [attr.data-hh-action]="kind()"
       (click)="pressed.emit()"
@@ -36,7 +37,8 @@ export type HisHopeActionMode = "label" | "icon-only";
   styles: [
     `
       :host {
-        display: inline-block;
+        display: inline-flex;
+        vertical-align: middle;
       }
       button {
         display: inline-flex;
@@ -51,40 +53,61 @@ export type HisHopeActionMode = "label" | "icon-only";
         font-weight: var(--font-weight-semibold);
         cursor: pointer;
         transition:
-          background-color 0.15s ease,
-          border-color 0.15s ease,
-          opacity 0.15s ease;
+          background-color var(--motion-fast) var(--ease-standard),
+          border-color var(--motion-fast) var(--ease-standard),
+          color var(--motion-fast) var(--ease-standard),
+          opacity var(--motion-fast) var(--ease-standard);
       }
       button:disabled {
         cursor: not-allowed;
         opacity: 0.62;
       }
       .hh-action--primary {
-        background: var(--color-primary);
+        background: var(--button-primary-bg, var(--color-primary));
         color: var(--color-on-primary);
       }
       .hh-action--secondary,
       .hh-action--diagnostic {
-        border-color: var(--border-default);
-        background: var(--surface-white);
-        color: var(--text-primary);
+        border-color: var(--button-secondary-border, var(--border-default));
+        background: var(--button-secondary-bg, var(--surface-white));
+        color: var(--button-secondary-text, var(--text-primary));
       }
       .hh-action--diagnostic {
         border-style: dashed;
       }
       .hh-action--danger {
-        background: var(--color-danger);
+        background: var(--button-danger-bg, var(--color-danger));
         color: var(--color-on-danger);
       }
+      .hh-action--icon-only {
+        width: var(--touch-target);
+        min-width: var(--touch-target);
+        padding: 0;
+      }
       .hh-action--row {
-        width: var(--control-height);
-        min-height: var(--control-height);
+        width: var(--touch-target);
+        min-width: var(--touch-target);
+        min-height: var(--touch-target);
         padding: 0;
         background: transparent;
         color: var(--text-secondary);
       }
       button:hover:not(:disabled) {
-        filter: brightness(0.97);
+        border-color: var(--border-strong);
+      }
+      .hh-action--primary:hover:not(:disabled) {
+        background: var(--button-primary-hover, var(--color-primary-hover));
+      }
+      .hh-action--secondary:hover:not(:disabled),
+      .hh-action--diagnostic:hover:not(:disabled) {
+        background: var(--button-secondary-hover, var(--surface-muted));
+      }
+      .hh-action--danger:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--button-danger-bg, var(--color-danger)) 88%, black);
+      }
+      button:focus-visible {
+        outline: var(--focus-ring-width) solid var(--color-focus);
+        outline-offset: var(--focus-ring-offset);
       }
       .hh-action--row:hover:not(:disabled) {
         background: var(--surface-muted);
@@ -101,6 +124,7 @@ export class HisHopeActionButtonComponent {
   readonly disabled = input(false);
   readonly loading = input(false);
   readonly type = input<"button" | "submit" | "reset">("button");
+  readonly pressedState = input<boolean | null>(null);
   readonly pressed = output<void>();
 
   classes(): string {

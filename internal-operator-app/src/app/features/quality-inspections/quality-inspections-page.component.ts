@@ -1,20 +1,21 @@
 import { DatePipe, DecimalPipe } from "@angular/common";
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from "@angular/core";
+import { AfterViewInit, ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { HisHopeLotDto, HisHopeQualityInspectionDto } from "@his-hope/frontend-foundation/contracts";
 import { HisHopeApiErrorMessageService as ApiErrorMessageService, HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
-import { HisHopeActionButtonComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent } from "@his-hope/frontend-foundation/ui";
+import { HisHopeActionButtonComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTabsComponent } from "@his-hope/frontend-foundation/ui";
 import { ManufacturingApiService } from "../../core/services/manufacturing-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
 
 @Component({
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DatePipe, DecimalPipe, FormsModule, HisHopeActionButtonComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTranslatePipe],
+  imports: [DatePipe, DecimalPipe, FormsModule, HisHopeActionButtonComponent, HisHopePageHeaderComponent, HisHopePageLayoutComponent, HisHopeStateComponent, HisHopeTabsComponent, HisHopeTranslatePipe],
   template: `
     <hh-page-layout>
       <hh-page-header hhPageHeader [title]="'customerPortal.inspectionsTitle' | hhTranslate: 'Quality inspections'" [subtitle]="pageSubtitle" />
+      <hh-tabs label="Quality inspection sections"><button role="tab" type="button" [attr.aria-selected]="activeTab === 'record'" [class.active]="activeTab === 'record'" (click)="selectTab('record')">{{ 'customerPortal.createInspection' | hhTranslate: 'Record inspection' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'history'" [class.active]="activeTab === 'history'" (click)="selectTab('history')">{{ 'customerPortal.inspectionHistory' | hhTranslate: 'Inspection history' }}</button></hh-tabs>
       @if (loading) { <hh-state kind="loading" [message]="'customerPortal.loadingInspections' | hhTranslate: 'Loading quality data…'" /> }
       @else {
         <section class="section form-section">
@@ -36,9 +37,13 @@ import { TenantContextService } from "../../core/services/tenant-context.service
       @if (!loading && error) { <hh-state kind="error" [message]="error" (retry)="load()" /> }
     </hh-page-layout>
   `,
-  styles: [`:host{font-family:var(--font-sans)}.section{margin-bottom:var(--space-lg)}.section-heading,header{display:flex;align-items:center;justify-content:space-between;gap:var(--space-md)}.eyebrow,.meta{color:var(--text-secondary);font-size:var(--font-size-caption);margin:0}.inspection-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-md);padding:var(--space-md);background:var(--surface-muted);border-radius:var(--radius-card)}label{display:grid;gap:var(--space-2xs);color:var(--text-primary);font-size:var(--font-size-caption)}input,select,textarea{border:1px solid var(--border-subtle);border-radius:var(--radius-control);padding:var(--space-sm);background:var(--surface);color:var(--text-primary);font:inherit}.wide{grid-column:1/-1}.actions{display:flex;justify-content:flex-end}.history-select{min-width:220px}.inspection-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--space-md)}.card{padding:var(--space-md);border:1px solid var(--border-subtle);border-radius:var(--radius-card);background:var(--surface);color:var(--text-primary)}.action-error{color:var(--color-danger)}@media(max-width:700px){.inspection-form{grid-template-columns:1fr}.wide{grid-column:auto}.section-heading{align-items:flex-start;flex-direction:column}.history-select{width:100%}}`],
+    styles: [`:host{font-family:var(--font-sans)}.section{margin-bottom:var(--space-lg)}.section-heading,header{display:flex;align-items:center;justify-content:space-between;gap:var(--space-md)}.eyebrow,.meta{color:var(--text-secondary);font-size:var(--font-size-caption);margin:0}.inspection-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-md);padding:var(--space-md);background:var(--surface-muted);border-radius:var(--radius-card)}label{display:grid;gap:var(--space-2xs);color:var(--text-primary);font-size:var(--font-size-caption)}input,select,textarea{border:1px solid var(--border-subtle);border-radius:var(--radius-control);padding:var(--space-sm);background:var(--surface);color:var(--text-primary);font:inherit}.wide{grid-column:1/-1}.actions{display:flex;justify-content:flex-end;gap:var(--space-sm);flex-wrap:wrap}.history-select{min-width:min(220px,100%)}.inspection-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:var(--space-md)}.card{padding:var(--space-md);border:1px solid var(--border-subtle);border-radius:var(--radius-card);background:var(--surface);color:var(--text-primary)}.action-error{color:var(--color-danger)}@media(max-width:700px){.inspection-form{grid-template-columns:1fr}.wide{grid-column:auto}.section-heading{align-items:flex-start;flex-direction:column}.history-select{width:100%}}`],
 })
-export class QualityInspectionsPageComponent implements OnInit {
+export class QualityInspectionsPageComponent implements OnInit, AfterViewInit {
+  activeTab = "record";
+  selectTab(tab: string): void { this.activeTab = tab; this.applyTabVisibility(); this.cdr.markForCheck(); }
+  ngAfterViewInit(): void { const observer = new MutationObserver(() => { if (document.querySelectorAll("section.section").length) { this.applyTabVisibility(); observer.disconnect(); } }); observer.observe(document.body, { childList: true, subtree: true }); this.applyTabVisibility(); }
+  private applyTabVisibility(): void { const sections = Array.from(document.querySelectorAll<HTMLElement>("section.section")); sections.forEach((section, index) => section.hidden = index !== (this.activeTab === "record" ? 0 : 1)); }
   private readonly api = inject(ManufacturingApiService); private readonly tenantContext = inject(TenantContextService); private readonly i18n = inject(HisHopeI18nService); private readonly errors = inject(ApiErrorMessageService); private readonly cdr = inject(ChangeDetectorRef); private readonly destroyRef = inject(DestroyRef);
   lots: HisHopeLotDto[] = []; inspections: HisHopeQualityInspectionDto[] = []; selectedLot: HisHopeLotDto | null = null; loading = true; saving = false; error = ""; actionError = ""; tenantLabel: string | null = null;
   draft = { lotId: "", status: "Pending", moisturePercent: 0, inspector: "operator", notes: "" };

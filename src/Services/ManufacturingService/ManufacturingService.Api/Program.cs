@@ -19,7 +19,9 @@ var redis = RedisConnectionFactory.Connect(
         ?? "localhost:6379",
     builder.Configuration);
 builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
-builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
+His.Hope.AspNetCore.Authentication.JwtAuthenticationExtensions.AddHisHopeJwtAuthentication(
+    builder.Services,
+    builder.Configuration);
 builder.Services.AddHisHopeDpopValidation();
 builder.Services.AddHisHopeAuthorization();
 

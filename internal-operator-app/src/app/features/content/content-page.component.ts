@@ -10,13 +10,12 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
-import { MatButtonModule } from "@angular/material/button";
-import { MatSelectModule } from "@angular/material/select";
-import { MatTabsModule } from "@angular/material/tabs";
 import {
+  HisHopeActionButtonComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeStateComponent,
+  HisHopeTabsComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -33,18 +32,19 @@ import { ContentApiService, UpsertArticleRequest } from "../../core/services/con
     DatePipe,
     DecimalPipe,
     FormsModule,
-    MatButtonModule,
-    MatSelectModule,
-    MatTabsModule,
+    HisHopeActionButtonComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeStateComponent,
+    HisHopeTabsComponent,
     HisHopeTranslatePipe,
   ],
   templateUrl: "./content-page.component.html",
   styleUrls: ["./content-page.component.scss"],
 })
 export class ContentPageComponent implements OnInit {
+  readonly activeTab = signal<"articles" | "inquiries" | "media">("articles");
+  selectTab(tab: "articles" | "inquiries" | "media"): void { this.activeTab.set(tab); }
   private readonly api = inject(ContentApiService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly cdr = inject(ChangeDetectorRef);

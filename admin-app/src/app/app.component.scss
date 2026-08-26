@@ -29,16 +29,6 @@ hh-brand {
   font-family: var(--font-sans) !important;
 }
 
-.nav-section-label {
-  padding: var(--space-lg) var(--space-lg) var(--space-sm);
-  color: var(--text-muted);
-  font-size: var(--font-size-overline, 0.68rem);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.08em;
-  line-height: 1.2;
-  text-transform: uppercase;
-}
-
 .sidenav-container {
   max-width: 100vw;
   overflow-x: hidden;
@@ -71,3 +61,7 @@ hh-brand {
 .tenant-selector {
   margin-right: var(--space-sm);
 }
+
+.shell-icon-button { display:grid; place-items:center; width:var(--touch-target); height:var(--touch-target); border:0; border-radius:var(--radius-button); background:transparent; color:var(--color-on-primary); cursor:pointer; }
+.shell-icon-button:hover { background:color-mix(in srgb, currentColor 14%, transparent); }
+.shell-icon-button:focus-visible { outline:var(--focus-ring-width) solid var(--color-on-primary); outline-offset:var(--focus-ring-offset); }

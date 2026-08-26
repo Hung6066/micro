@@ -120,7 +120,7 @@ export class RecipesPageComponent implements OnInit {
   }
   openCreate(): void {
     this.actionError = "";
-    this.dialog.open(RecipeCreateDialogComponent, { width: "720px" }).afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe((saved) => { if (saved) this.load(); });
+    this.dialog.open(RecipeCreateDialogComponent, { width: "min(720px, calc(100vw - 2 * var(--space-lg)))", maxWidth: "calc(100vw - 2 * var(--space-lg))" }).afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe((saved) => { if (saved) this.load(); });
   }
   transition(row: Record<string, unknown>, action: "submit" | "approve" | "retire"): void {
     const recipe = this.recipes.find((item) => item.id === String(row["id"] ?? ""));

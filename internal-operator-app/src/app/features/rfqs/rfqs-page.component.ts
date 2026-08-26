@@ -10,9 +10,8 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
-import { MatButtonModule } from "@angular/material/button";
-import { MatSelectModule } from "@angular/material/select";
 import {
+  HisHopeActionButtonComponent,
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeStateComponent,
@@ -32,8 +31,7 @@ import { TenantContextService } from "../../core/services/tenant-context.service
   imports: [
     DatePipe,
     FormsModule,
-    MatButtonModule,
-    MatSelectModule,
+    HisHopeActionButtonComponent,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeStateComponent,

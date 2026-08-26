@@ -14,6 +14,7 @@ import {
   HisHopePageLayoutComponent,
   HisHopeStateComponent,
   HisHopeActionButtonComponent,
+  HisHopeTabsComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -48,6 +49,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
     HisHopePageLayoutComponent,
     HisHopeStateComponent,
     HisHopeActionButtonComponent,
+    HisHopeTabsComponent,
     HisHopeTranslatePipe,
   ],
   template: `
@@ -57,18 +59,19 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
         [title]="'customerPortal.procurementTitle' | hhTranslate: 'Procurement'"
         [subtitle]="pageSubtitle"
       />
-      <nav
+      <hh-tabs
         class="procurement-nav"
+        [attr.data-active-tab]="activeTab"
         [attr.aria-label]="'customerPortal.procurementWorkflow' | hhTranslate: 'Procurement workflow'"
       >
-        <a href="#requirements">{{ "customerPortal.materialRequirements" | hhTranslate: "Material requirements" }}</a>
-        <a href="#facilities">{{ "customerPortal.facilities" | hhTranslate: "Facilities" }}</a>
-        <a href="#master-data">{{ "customerPortal.masterData" | hhTranslate: "Material and UOM master data" }}</a>
-        <a href="#suppliers">{{ "customerPortal.suppliers" | hhTranslate: "Suppliers" }}</a>
-        <a href="#rfqs">{{ "customerPortal.supplierRfqs" | hhTranslate: "Supplier RFQs" }}</a>
-        <a href="#purchase-orders">{{ "customerPortal.purchaseOrders" | hhTranslate: "Purchase orders" }}</a>
-        <a href="#inbound-receipts">{{ "customerPortal.inboundReceiptHistory" | hhTranslate: "Inbound receipt history" }}</a>
-      </nav>
+        <button role="tab" type="button" [attr.aria-selected]="activeTab === 'requirements'" [class.active]="activeTab === 'requirements'" (click)="selectTab('requirements')">{{ "customerPortal.materialRequirements" | hhTranslate: "Material requirements" }}</button>
+        <button role="tab" type="button" [attr.aria-selected]="activeTab === 'facilities'" [class.active]="activeTab === 'facilities'" (click)="selectTab('facilities')">{{ "customerPortal.facilities" | hhTranslate: "Facilities" }}</button>
+        <button role="tab" type="button" [attr.aria-selected]="activeTab === 'master-data'" [class.active]="activeTab === 'master-data'" (click)="selectTab('master-data')">{{ "customerPortal.masterData" | hhTranslate: "Material and UOM master data" }}</button>
+        <button role="tab" type="button" [attr.aria-selected]="activeTab === 'suppliers'" [class.active]="activeTab === 'suppliers'" (click)="selectTab('suppliers')">{{ "customerPortal.suppliers" | hhTranslate: "Suppliers" }}</button>
+        <button role="tab" type="button" [attr.aria-selected]="activeTab === 'rfqs'" [class.active]="activeTab === 'rfqs'" (click)="selectTab('rfqs')">{{ "customerPortal.supplierRfqs" | hhTranslate: "Supplier RFQs" }}</button>
+        <button role="tab" type="button" [attr.aria-selected]="activeTab === 'purchase-orders'" [class.active]="activeTab === 'purchase-orders'" (click)="selectTab('purchase-orders')">{{ "customerPortal.purchaseOrders" | hhTranslate: "Purchase orders" }}</button>
+        <button role="tab" type="button" [attr.aria-selected]="activeTab === 'inbound-receipts'" [class.active]="activeTab === 'inbound-receipts'" (click)="selectTab('inbound-receipts')">{{ "customerPortal.inboundReceiptHistory" | hhTranslate: "Inbound receipt history" }}</button>
+      </hh-tabs>
       @if (loading) {
         <hh-state
           kind="loading"
@@ -162,7 +165,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
           <div class="section-heading"><h2>{{ "customerPortal.supplierRfqs" | hhTranslate: "Supplier RFQs" }}</h2><hh-action-button kind="secondary" icon="request_quote" [label]="'customerPortal.addSupplierRfq' | hhTranslate: 'Create RFQ'" (pressed)="startSupplierRfq()" /></div>
           @if (supplierRfqDraft) { <form class="supplier-form" (ngSubmit)="saveSupplierRfq()"><label>{{ "customerPortal.rfqNumber" | hhTranslate: "RFQ number" }}<input name="rfqNumber" [(ngModel)]="supplierRfqDraft.rfqNumber" required /></label><label>{{ "customerPortal.materialSku" | hhTranslate: "Material SKU" }}<input name="rfqMaterialSku" [(ngModel)]="supplierRfqDraft.materialSku" required /></label><label>{{ "customerPortal.forecastQuantity" | hhTranslate: "Quantity" }}<input name="rfqQuantity" type="number" min="0.001" [(ngModel)]="supplierRfqDraft.quantity" required /></label><label>{{ "customerPortal.forecastUom" | hhTranslate: "UOM" }}<input name="rfqUom" [(ngModel)]="supplierRfqDraft.uom" required /></label><div class="receipt-actions"><hh-action-button kind="primary" icon="save" type="submit" [label]="'common.save' | hhTranslate: 'Save'" [disabled]="supplierRfqBusy" /></div></form> }
           @if (supplierRfqError) { <p class="error">{{ supplierRfqError }}</p> }
-          @if (!supplierRfqs.length) { <p class="empty">{{ "customerPortal.noSupplierRfqs" | hhTranslate: "No supplier RFQs." }}</p> } @else { <ul class="list">@for (rfq of supplierRfqs; track rfq.id) { <li><strong>{{ rfq.rfqNumber }}</strong> — {{ rfq.materialSku }} · {{ rfq.quantity }} {{ rfq.uom }} <span class="status">{{ rfq.status }}</span> <button type="button" class="link-button" (click)="startSupplierQuotation(rfq.id)">+ {{ "customerPortal.addQuotation" | hhTranslate: "quotation" }}</button> <button type="button" class="link-button" (click)="loadQuotations(rfq.id)">{{ "customerPortal.viewQuotations" | hhTranslate: "View quotations" }}</button></li> }</ul> }
+@if (!supplierRfqs.length) { <p class="empty">{{ "customerPortal.noSupplierRfqs" | hhTranslate: "No supplier RFQs." }}</p> } @else { <ul class="list">@for (rfq of supplierRfqs; track rfq.id) { <li><strong>{{ rfq.rfqNumber }}</strong> — {{ rfq.materialSku }} · {{ rfq.quantity }} {{ rfq.uom }} <span class="status">{{ rfq.status }}</span> <hh-action-button kind="secondary" icon="add" [label]="'customerPortal.addQuotation' | hhTranslate: 'quotation'" (pressed)="startSupplierQuotation(rfq.id)" /> <hh-action-button kind="secondary" icon="visibility" [label]="'customerPortal.viewQuotations' | hhTranslate: 'View quotations'" (pressed)="loadQuotations(rfq.id)" /></li> }</ul> }
           @if (supplierQuotationDraft) { <form class="supplier-form" (ngSubmit)="saveSupplierQuotation()"><label>{{ "customerPortal.supplier" | hhTranslate: "Supplier" }}<select name="quotationSupplier" [(ngModel)]="supplierQuotationDraft.supplierId" required><option value="">{{ "customerPortal.selectSupplier" | hhTranslate: "Select supplier" }}</option>@for (supplier of suppliers; track supplier.id) { <option [value]="supplier.id">{{ supplier.code }} · {{ supplier.name }}</option> }</select></label><label>{{ "customerPortal.unitPrice" | hhTranslate: "Unit price" }}<input name="quotationPrice" type="number" min="0" [(ngModel)]="supplierQuotationDraft.unitPrice" required /></label><label>{{ "customerPortal.leadTimeDays" | hhTranslate: "Lead time (days)" }}<input name="quotationLeadTime" type="number" min="0" [(ngModel)]="supplierQuotationDraft.leadTimeDays" required /></label><div class="receipt-actions"><hh-action-button kind="primary" icon="save" type="submit" [label]="'common.save' | hhTranslate: 'Save'" [disabled]="supplierQuotationBusy" /></div></form> }
           @if (quotationRfqId) { <div class="quotation-list"><h3>{{ "customerPortal.quotationHistory" | hhTranslate: "Quotation history" }}</h3>@if (!quotations.length) { <p class="empty">{{ "customerPortal.noQuotations" | hhTranslate: "No quotations." }}</p> } @else { @for (quotation of quotations; track quotation.id) { <div class="quotation-row"><strong>{{ supplierName(quotation.supplierId) }}</strong><span>{{ quotation.unitPrice | currency: quotation.currency }} · {{ quotation.leadTimeDays }}d</span><span class="status">{{ quotation.status }}</span>@if (quotation.status === 'Submitted') { <hh-action-button kind="primary" icon="check" [label]="'customerPortal.selectQuotation' | hhTranslate: 'Select'" [disabled]="supplierQuotationBusy" (pressed)="setQuotationStatus(quotation, 'Selected')" /><hh-action-button kind="secondary" icon="close" [label]="'customerPortal.rejectQuotation' | hhTranslate: 'Reject'" [disabled]="supplierQuotationBusy" (pressed)="setQuotationStatus(quotation, 'Rejected')" /> } </div> } }</div> }
         </section>
@@ -180,14 +183,14 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
             <label>{{ "customerPortal.expectedAt" | hhTranslate: "Expected delivery" }}<input name="expectedAt" type="date" [(ngModel)]="purchaseOrderDraft.expectedAt" /></label>
             <label>{{ "customerPortal.currency" | hhTranslate: "Currency" }}<input name="currency" [(ngModel)]="purchaseOrderDraft.currency" required /></label>
             <div class="line-editor wide">
-              <div class="line-editor-heading"><strong>{{ "customerPortal.purchaseOrderLines" | hhTranslate: "Purchase order lines" }}</strong><button type="button" class="link-button" (click)="addPurchaseOrderLine()">+ {{ "customerPortal.addLine" | hhTranslate: "Add line" }}</button></div>
+              <div class="line-editor-heading"><strong>{{ "customerPortal.purchaseOrderLines" | hhTranslate: "Purchase order lines" }}</strong><hh-action-button kind="secondary" icon="add" [label]="'customerPortal.addLine' | hhTranslate: 'Add line'" (pressed)="addPurchaseOrderLine()" /></div>
               @for (line of purchaseOrderLines; track $index; let index = $index) {
                 <div class="line-row">
                   <input [name]="'materialSku' + index" [placeholder]="'customerPortal.materialSku' | hhTranslate: 'Material SKU'" [(ngModel)]="line.materialSku" required />
                   <input [name]="'orderedQuantity' + index" type="number" min="0.001" step="0.001" [placeholder]="'customerPortal.orderedQuantity' | hhTranslate: 'Quantity'" [(ngModel)]="line.orderedQuantity" required />
                   <input [name]="'uom' + index" [placeholder]="'customerPortal.uom' | hhTranslate: 'UOM'" [(ngModel)]="line.uom" required />
                   <input [name]="'unitPrice' + index" type="number" min="0" step="0.01" [placeholder]="'customerPortal.unitPrice' | hhTranslate: 'Unit price'" [(ngModel)]="line.unitPrice" required />
-                  @if (purchaseOrderLines.length > 1) { <button type="button" class="link-button danger" (click)="removePurchaseOrderLine(index)">×</button> }
+                  @if (purchaseOrderLines.length > 1) { <hh-action-button kind="danger" mode="icon-only" icon="close" [label]="'customerPortal.removeLine' | hhTranslate: 'Remove line'" (pressed)="removePurchaseOrderLine(index)" /> }
                 </div>
               }
             </div>
@@ -316,24 +319,19 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
         font-family: var(--font-sans);
       }
       .procurement-nav {
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        display: flex;
-        flex-wrap: wrap;
-        gap: var(--space-xs);
-        margin: calc(var(--space-md) * -1) 0 var(--space-xl);
-        padding: var(--space-sm);
-        background: var(--surface);
-        border: 1px solid var(--border-subtle);
-        border-radius: var(--radius-card);
+        position: relative;
       }
-      .procurement-nav a { color: var(--color-primary); padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-pill); text-decoration: none; }
-      .procurement-nav a:hover { background: var(--surface-hover); }
-      .procurement-nav a:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus); outline-offset: var(--focus-ring-offset); }
       .section {
         margin-bottom: var(--space-xl);
       }
+      .procurement-nav[data-active-tab] ~ .section { display: none; }
+      .procurement-nav[data-active-tab="requirements"] ~ #requirements,
+      .procurement-nav[data-active-tab="facilities"] ~ #facilities,
+      .procurement-nav[data-active-tab="master-data"] ~ #master-data,
+      .procurement-nav[data-active-tab="suppliers"] ~ #suppliers,
+      .procurement-nav[data-active-tab="rfqs"] ~ #rfqs,
+      .procurement-nav[data-active-tab="purchase-orders"] ~ #purchase-orders,
+      .procurement-nav[data-active-tab="inbound-receipts"] ~ #inbound-receipts { display: block; }
       h2 {
         font-size: var(--font-size-section);
         font-weight: var(--font-weight-semibold);
@@ -399,8 +397,6 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
       .line-editor { display: grid; gap: var(--space-sm); }
       .line-editor-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); }
       .line-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: var(--space-sm); align-items: center; }
-      .link-button { border: 0; background: transparent; color: var(--color-primary); cursor: pointer; font: inherit; padding: var(--space-2xs); }
-      .link-button.danger { color: var(--color-danger); font-size: var(--font-size-icon-md); }
       .received { color: var(--text-secondary); font-size: var(--font-size-caption); }
       .po-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: var(--space-sm); }
       .error { color: var(--color-danger); }
@@ -419,6 +415,7 @@ export class ProcurementPageComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   loading = true;
+  activeTab = "requirements";
   error = "";
   suppliers: HisHopeSupplierDto[] = [];
   supplierDraft: { id?: string; code: string; name: string; active: boolean } | null = null;
@@ -457,6 +454,11 @@ export class ProcurementPageComponent implements OnInit {
   purchaseOrderError = "";
   purchaseOrderDraft = { supplierId: "", orderNumber: "", expectedAt: "", currency: "VND" };
   purchaseOrderLines = [{ materialSku: "", orderedQuantity: 0, uom: "kg", unitPrice: 0 }];
+
+  selectTab(tab: string): void {
+    this.activeTab = tab;
+    this.cdr.markForCheck();
+  }
 
   get visiblePurchaseOrders(): HisHopePurchaseOrderDto[] {
     const search = this.purchaseOrderSearch.trim().toLowerCase();

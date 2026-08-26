@@ -9,7 +9,6 @@ import {
   inject,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
-import { MatButtonModule } from "@angular/material/button";
 import { FormsModule } from "@angular/forms";
 import { forkJoin, of } from "rxjs";
 import { catchError } from "rxjs/operators";
@@ -50,7 +49,6 @@ interface DashboardStats {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    MatButtonModule,
     FormsModule,
     DecimalPipe,
     HisHopeActionButtonComponent,

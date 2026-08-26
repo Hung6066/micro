@@ -1,8 +1,9 @@
 import { Component, OnInit, inject } from "@angular/core";
 import { OperationQueueService } from "../../core/offline/operation-queue.service";
 import type { QueuedOperation } from "../../core/offline/operation-queue.models";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
-@Component({ standalone: true, templateUrl: "./sync-page.component.html", styleUrls: ["./sync-page.component.scss"] })
+@Component({ standalone: true, imports: [HisHopeTranslatePipe], templateUrl: "./sync-page.component.html", styleUrls: ["./sync-page.component.scss"] })
 export class SyncPageComponent implements OnInit {
   private readonly queue = inject(OperationQueueService);
   entries: QueuedOperation[] = [];

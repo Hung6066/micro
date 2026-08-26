@@ -53,18 +53,13 @@
             </label>
             <label>
               {{ "operator.rfq.statusLabel" | hhTranslate }}
-              <mat-select
-                [value]="draftFor(rfq).status"
-                (selectionChange)="updateDraft(rfq.id, { status: $event.value })"
-              >
-                <mat-option value="quoted">{{ "operator.rfq.status.quoted" | hhTranslate }}</mat-option>
-                <mat-option value="accepted">{{ "operator.rfq.status.accepted" | hhTranslate }}</mat-option>
-                <mat-option value="declined">{{ "operator.rfq.status.declined" | hhTranslate }}</mat-option>
-              </mat-select>
+              <select [value]="draftFor(rfq).status" (change)="updateDraft(rfq.id, { status: $any($event.target).value })">
+                <option value="quoted">{{ "operator.rfq.status.quoted" | hhTranslate }}</option>
+                <option value="accepted">{{ "operator.rfq.status.accepted" | hhTranslate }}</option>
+                <option value="declined">{{ "operator.rfq.status.declined" | hhTranslate }}</option>
+              </select>
             </label>
-            <button mat-flat-button color="primary" type="submit">
-              {{ "operator.rfq.respond" | hhTranslate }}
-            </button>
+            <hh-action-button kind="primary" icon="reply" type="submit" [label]="'operator.rfq.respond' | hhTranslate" />
           </form>
         </article>
       }

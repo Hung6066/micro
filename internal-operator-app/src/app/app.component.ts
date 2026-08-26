@@ -1,17 +1,13 @@
-import { Component, OnInit, inject } from "@angular/core";
+import { Component, OnInit, computed, inject, signal } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { Router, RouterModule } from "@angular/router";
-import { MatSidenavModule } from "@angular/material/sidenav";
-import { MatToolbarModule } from "@angular/material/toolbar";
-import { MatListModule } from "@angular/material/list";
-import { MatIconModule } from "@angular/material/icon";
-import { MatButtonModule } from "@angular/material/button";
 import { BehaviorSubject, Observable, filter, switchMap } from "rxjs";
 import { AuthService } from "./core/services/auth.service";
 import { TenantContextService } from "./core/services/tenant-context.service";
 import { TenantSwitcherComponent } from "./core/components/tenant-switcher.component";
 import {
   HisHopeBrandComponent,
+  HisHopeAppShellComponent,
   HisHopeCommandPaletteComponent,
   HisHopeOfflineBannerComponent,
   HisHopeToastComponent,
@@ -101,62 +97,6 @@ const MANUFACTURING_NAV: readonly PortalNavItem[] = [
     fallback: "Procurement",
   },
   {
-    id: "procurement-requirements",
-    route: "/procurement",
-    fragment: "requirements",
-    icon: "inventory",
-    labelKey: "customerPortal.materialRequirements",
-    fallback: "Material requirements",
-  },
-  {
-    id: "procurement-master-data",
-    route: "/procurement",
-    fragment: "master-data",
-    icon: "dataset",
-    labelKey: "customerPortal.masterData",
-    fallback: "Material and UOM master data",
-  },
-  {
-    id: "procurement-facilities",
-    route: "/procurement",
-    fragment: "facilities",
-    icon: "factory",
-    labelKey: "customerPortal.facilities",
-    fallback: "Facilities",
-  },
-  {
-    id: "procurement-suppliers",
-    route: "/procurement",
-    fragment: "suppliers",
-    icon: "business",
-    labelKey: "customerPortal.suppliers",
-    fallback: "Suppliers",
-  },
-  {
-    id: "procurement-rfqs",
-    route: "/procurement",
-    fragment: "rfqs",
-    icon: "request_quote",
-    labelKey: "customerPortal.supplierRfqs",
-    fallback: "Supplier RFQs",
-  },
-  {
-    id: "procurement-orders",
-    route: "/procurement",
-    fragment: "purchase-orders",
-    icon: "shopping_cart",
-    labelKey: "customerPortal.purchaseOrders",
-    fallback: "Purchase orders",
-  },
-  {
-    id: "procurement-receipts",
-    route: "/procurement",
-    fragment: "inbound-receipts",
-    icon: "move_to_inbox",
-    labelKey: "customerPortal.inboundReceiptHistory",
-    fallback: "Inbound receipt history",
-  },
-  {
     id: "master-data",
     route: "/master-data",
     icon: "dataset",
@@ -228,23 +168,34 @@ const MANUFACTURING_NAV: readonly PortalNavItem[] = [
   },
 ];
 
-function buildNavItems(): readonly PortalNavItem[] {
+function buildNavItems(workspace: OperatorWorkspace): readonly PortalNavItem[] {
   const hasManufacturing =
     "manufacturingApiUrl" in environment && !!environment.manufacturingApiUrl;
-  if (!hasManufacturing) {
-    return BASE_NAV;
+  const byId = (ids: readonly string[]) =>
+    [...BASE_NAV, ...MANUFACTURING_NAV].filter((item) => ids.includes(item.id));
+  if (workspace === "buyer") {
+    return byId(["dashboard", "master-data", "content", "rfqs", "orders", "users"]);
   }
-
-  const [dashboard, users, orders] = BASE_NAV;
-  return [dashboard, ...MANUFACTURING_NAV, users, orders];
+  return hasManufacturing
+    ? byId(["dashboard", "inventory", "production", "procurement", "traceability", "recipes", "product-specifications", "quality-inspections", "deviations", "capas", "forecast", "sales-allocation", "maintenance"])
+    : byId(["dashboard", "users", "orders", "content", "rfqs"]);
 }
 
-function buildNavSections(items: readonly PortalNavItem[]): readonly PortalNavSection[] {
+function buildNavSections(items: readonly PortalNavItem[], workspace: OperatorWorkspace): readonly PortalNavSection[] {
   const byId = (ids: readonly string[]) => items.filter((item) => ids.includes(item.id));
+  if (workspace === "buyer") {
+    return [
+      { id: "overview", labelKey: "admin.menuOverview", fallback: "Overview", items: byId(["dashboard"]) },
+      { id: "catalog", labelKey: "buyer.nav.catalog", fallback: "Catalog & pricing", items: byId(["master-data"]) },
+      { id: "content", labelKey: "operator.content.nav", fallback: "Content", items: byId(["content"]) },
+      { id: "sales", labelKey: "customerPortal.salesSection", fallback: "Sales", items: byId(["rfqs", "orders"]) },
+      { id: "workspace", labelKey: "customerPortal.identityAdministration", fallback: "Workspace", items: byId(["users"]) },
+    ].filter((section) => section.items.length > 0);
+  }
   return [
     { id: "overview", labelKey: "admin.menuOverview", fallback: "Overview", items: byId(["dashboard"]) },
     { id: "planning", labelKey: "customerPortal.planningSection", fallback: "Planning", items: byId(["forecast"]) },
-    { id: "procurement", labelKey: "customerPortal.procurementSection", fallback: "Procurement", items: byId(["procurement", "procurement-requirements", "procurement-facilities", "procurement-master-data", "procurement-suppliers", "procurement-rfqs", "procurement-orders", "procurement-receipts"]) },
+    { id: "procurement", labelKey: "customerPortal.procurementSection", fallback: "Procurement", items: byId(["procurement"]) },
     { id: "inventory", labelKey: "customerPortal.inventorySection", fallback: "Inventory", items: byId(["inventory", "traceability"]) },
     { id: "production", labelKey: "customerPortal.productionSection", fallback: "Production", items: byId(["production", "recipes", "product-specifications"]) },
     { id: "quality", labelKey: "customerPortal.qualitySection", fallback: "Quality", items: byId(["quality-inspections", "deviations", "capas"]) },
@@ -255,17 +206,28 @@ function buildNavSections(items: readonly PortalNavItem[]): readonly PortalNavSe
   ].filter((section) => section.items.length > 0);
 }
 
+type OperatorWorkspace = "buyer" | "manufacturing";
+
+interface WorkspaceOption {
+  id: OperatorWorkspace;
+  labelKey: string;
+  fallback: string;
+  icon: string;
+}
+
+const WORKSPACE_STORAGE_KEY = "his-hope.operator.workspace";
+const WORKSPACE_OPTIONS: readonly WorkspaceOption[] = [
+  { id: "buyer", labelKey: "customerPortal.buyerCommerceSection", fallback: "Buyer Commerce", icon: "storefront" },
+  { id: "manufacturing", labelKey: "customerPortal.manufacturingSection", fallback: "Manufacturing Operations", icon: "precision_manufacturing" },
+];
+
 @Component({
   selector: "app-root",
   standalone: true,
   imports: [
     CommonModule,
     RouterModule,
-    MatSidenavModule,
-    MatToolbarModule,
-    MatListModule,
-    MatIconModule,
-    MatButtonModule,
+    HisHopeAppShellComponent,
     HisHopeBrandComponent,
     HisHopeCommandPaletteComponent,
     HisHopeOfflineBannerComponent,
@@ -289,8 +251,10 @@ export class AppComponent implements OnInit {
   userMenuOpen = false;
   activeTenantKey: string | null = this.tenantContext.getActiveTenantKey();
 
-  readonly navItems = buildNavItems();
-  readonly navSections = buildNavSections(this.navItems);
+  readonly workspaceOptions = WORKSPACE_OPTIONS;
+  readonly workspace = signal<OperatorWorkspace>(readWorkspace());
+  readonly navItems = computed(() => buildNavItems(this.workspace()));
+  readonly navSections = computed(() => buildNavSections(this.navItems(), this.workspace()));
 
   private readonly i18n = inject(HisHopeI18nService);
   private readonly router = inject(Router);
@@ -309,7 +273,7 @@ export class AppComponent implements OnInit {
 
   get commands() {
     this.i18n.locale();
-    return this.navItems.map((item) => ({
+    return this.navItems().map((item) => ({
       id: item.id,
       label: this.i18n.t(item.labelKey, item.fallback),
       keywords: item.id === "dashboard" ? ["overview"] : ["people", "accounts"],
@@ -371,11 +335,28 @@ export class AppComponent implements OnInit {
   }
 
   onCommand(id: string): void {
-    const item = this.navItems.find((candidate) => candidate.id === id);
+    const item = this.navItems().find((candidate) => candidate.id === id);
     void this.router.navigateByUrl(item?.route ?? "/dashboard");
+  }
+
+  get activeWorkspaceIcon(): string {
+    return this.workspaceOptions.find((option) => option.id === this.workspace())?.icon ?? "dashboard";
+  }
+
+  onWorkspaceChange(workspace: OperatorWorkspace): void {
+    this.workspace.set(workspace);
+    localStorage.setItem(WORKSPACE_STORAGE_KEY, workspace);
+    if (!this.navItems().some((item) => this.router.url.startsWith(item.route))) {
+      void this.router.navigateByUrl("/dashboard");
+    }
   }
 
   onTenantChange(tenantKey: string): void {
     this.tenantContext.setActiveTenant(tenantKey);
   }
+}
+
+function readWorkspace(): OperatorWorkspace {
+  const stored = localStorage.getItem(WORKSPACE_STORAGE_KEY);
+  return stored === "buyer" || stored === "manufacturing" ? stored : "manufacturing";
 }

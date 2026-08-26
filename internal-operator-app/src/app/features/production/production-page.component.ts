@@ -1,7 +1,7 @@
 import { DatePipe, DecimalPipe } from "@angular/common";
 import { FormsModule } from "@angular/forms";
 import {
-  ChangeDetectionStrategy,
+  AfterViewInit, ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
   DestroyRef,
@@ -14,6 +14,7 @@ import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
   HisHopeStateComponent,
+  HisHopeTabsComponent,
 } from "@his-hope/frontend-foundation/ui";
 import {
   HisHopeI18nService,
@@ -43,6 +44,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeStateComponent,
+    HisHopeTabsComponent,
     HisHopeTranslatePipe,
   ],
   template: `
@@ -52,6 +54,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
         [title]="'customerPortal.productionTitle' | hhTranslate: 'Production'"
         [subtitle]="pageSubtitle"
       />
+      <hh-tabs label="Production sections"><button role="tab" type="button" [attr.aria-selected]="activeTab === 'orders'" [class.active]="activeTab === 'orders'" (click)="selectTab('orders')">{{ 'customerPortal.productionOrders' | hhTranslate: 'Production orders' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'batches'" [class.active]="activeTab === 'batches'" (click)="selectTab('batches')">{{ 'customerPortal.productionBatches' | hhTranslate: 'Production batches' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'operations'" [class.active]="activeTab === 'operations'" (click)="selectTab('operations')">{{ 'customerPortal.operations' | hhTranslate: 'Operations' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'recipes'" [class.active]="activeTab === 'recipes'" (click)="selectTab('recipes')">{{ 'customerPortal.recipes' | hhTranslate: 'Recipes' }}</button></hh-tabs>
       @if (loading) {
         <hh-state
           kind="loading"
@@ -394,7 +397,11 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
     `,
   ],
 })
-export class ProductionPageComponent implements OnInit {
+export class ProductionPageComponent implements OnInit, AfterViewInit {
+  activeTab = "orders";
+  selectTab(tab: string): void { this.activeTab = tab; this.applyTabVisibility(); this.cdr.markForCheck(); }
+  ngAfterViewInit(): void { const observer = new MutationObserver(() => { if (document.querySelectorAll("section.section").length) { this.applyTabVisibility(); observer.disconnect(); } }); observer.observe(document.body, { childList: true, subtree: true }); this.applyTabVisibility(); }
+  private applyTabVisibility(): void { const sections = Array.from(document.querySelectorAll<HTMLElement>("section.section")); const index = this.activeTab === "orders" ? 0 : this.activeTab === "batches" ? 1 : this.activeTab === "operations" ? 2 : 3; sections.forEach((section, i) => section.hidden = i !== index); }
   private readonly manufacturingApi = inject(ManufacturingApiService);
   private readonly tenantContext = inject(TenantContextService);
   private readonly i18n = inject(HisHopeI18nService);

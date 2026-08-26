@@ -1298,6 +1298,35 @@ html[data-theme="dark"] .cdk-overlay-pane.hh-dialog-cdk-panel {
   letter-spacing: 0.02em;
 }
 
+/* Shared action layout contract. Legacy page classes remain aliases while pages migrate. */
+.hh-action-group,
+.actions,
+.review-actions,
+.receipt-actions,
+.po-actions,
+.heading-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.hh-action-group--end,
+.actions--end {
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .hh-action-group,
+  .actions,
+  .review-actions,
+  .receipt-actions,
+  .po-actions,
+  .heading-actions {
+    align-items: stretch;
+  }
+}
+
 @media (max-width: 768px) {
   .page-header {
     flex-direction: column;

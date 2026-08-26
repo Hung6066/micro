@@ -9,7 +9,6 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { HttpClient } from "@angular/common/http";
-import { MatSelectModule } from "@angular/material/select";
 import {
   HisHopePageHeaderComponent,
   HisHopePageLayoutComponent,
@@ -34,7 +33,6 @@ import { AdminDirectoryService, OperatorDirectoryUser } from "../../core/service
   imports: [
     CurrencyPipe,
     DatePipe,
-    MatSelectModule,
     HisHopePageHeaderComponent,
     HisHopePageLayoutComponent,
     HisHopeStateComponent,
@@ -65,23 +63,12 @@ import { AdminDirectoryService, OperatorDirectoryUser } from "../../core/service
                   <strong>{{ order.id.slice(0, 8) }}</strong>
                   <span>{{ order.createdAt | date: "medium" }}</span>
                 </div>
-                <mat-select
-                  [value]="order.status"
-                  (selectionChange)="updateStatus(order, $event.value)"
-                >
-                  <mat-option value="pending">{{
-                    "customerPortal.orderStatusPending" | hhTranslate: "pending"
-                  }}</mat-option>
-                  <mat-option value="confirmed">{{
-                    "customerPortal.orderStatusConfirmed" | hhTranslate: "confirmed"
-                  }}</mat-option>
-                  <mat-option value="shipped">{{
-                    "customerPortal.orderStatusShipped" | hhTranslate: "shipped"
-                  }}</mat-option>
-                  <mat-option value="cancelled">{{
-                    "customerPortal.orderStatusCancelled" | hhTranslate: "cancelled"
-                  }}</mat-option>
-                </mat-select>
+                <select [value]="order.status" (change)="updateStatus(order, $any($event.target).value)">
+                  <option value="pending">{{ "customerPortal.orderStatusPending" | hhTranslate: "pending" }}</option>
+                  <option value="confirmed">{{ "customerPortal.orderStatusConfirmed" | hhTranslate: "confirmed" }}</option>
+                  <option value="shipped">{{ "customerPortal.orderStatusShipped" | hhTranslate: "shipped" }}</option>
+                  <option value="cancelled">{{ "customerPortal.orderStatusCancelled" | hhTranslate: "cancelled" }}</option>
+                </select>
               </header>
               <p>
                 {{

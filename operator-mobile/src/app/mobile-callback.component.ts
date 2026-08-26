@@ -4,22 +4,23 @@ import { HisHopeStateComponent } from "@his-hope/frontend-foundation/ui";
 import { catchError, of, take } from "rxjs";
 import { MobileAuthService } from "./core/auth.service";
 import { NativeCapabilityService } from "./core/native-capability.service";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
 @Component({
   standalone: true,
-  imports: [HisHopeStateComponent],
+  imports: [HisHopeStateComponent, HisHopeTranslatePipe],
   template: `
     @if (status() === "loading") {
-      <hh-state kind="loading" message="Completing secure sign-in..." />
+      <hh-state kind="loading" [message]="'mobile.completingSignIn' | hhTranslate: 'Completing secure sign-in...'" />
     } @else if (status() === "success") {
       <section class="callback-success" role="status" aria-live="polite">
         <span aria-hidden="true">&#10003;</span>
-        <p>Signed in successfully. Opening operations...</p>
+        <p>{{ "mobile.signedInOpeningOperations" | hhTranslate: "Signed in successfully. Opening operations..." }}</p>
       </section>
     } @else {
       <hh-state
         kind="error"
-        message="Sign-in could not be completed. Please try again."
+        [message]="'mobile.signInCouldNotComplete' | hhTranslate: 'Sign-in could not be completed. Please try again.'"
       />
     }
   `,

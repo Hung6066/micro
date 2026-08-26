@@ -1,11 +1,6 @@
 import { Component, inject } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { Router, RouterModule } from "@angular/router";
-import { MatSidenavModule } from "@angular/material/sidenav";
-import { MatToolbarModule } from "@angular/material/toolbar";
-import { MatListModule } from "@angular/material/list";
-import { MatIconModule } from "@angular/material/icon";
-import { MatButtonModule } from "@angular/material/button";
 import { BehaviorSubject, Observable, of } from "rxjs";
 import { catchError, switchMap, tap } from "rxjs/operators";
 import { AuthService } from "./core/services/auth.service";
@@ -14,6 +9,7 @@ import { TenantSwitcherComponent } from "./core/components/tenant-switcher.compo
 import { AdminPermissionsApiService } from "./core/services/admin-permissions-api.service";
 import {
   HisHopeBrandComponent,
+  HisHopeAppShellComponent,
   HisHopeCommandPaletteComponent,
   HisHopeToastComponent,
 } from "@his-hope/frontend-foundation/ui";
@@ -50,11 +46,7 @@ interface AdminNavSection {
   imports: [
     CommonModule,
     RouterModule,
-    MatSidenavModule,
-    MatToolbarModule,
-    MatListModule,
-    MatIconModule,
-    MatButtonModule,
+    HisHopeAppShellComponent,
     HisHopeBrandComponent,
     HisHopeCommandPaletteComponent,
     HisHopeOfflineBannerComponent,

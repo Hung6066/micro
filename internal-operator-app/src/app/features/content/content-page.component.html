@@ -10,15 +10,17 @@
   } @else if (error()) {
     <hh-state kind="error" [message]="error() | hhTranslate" />
   } @else {
-    <mat-tab-group class="content-tabs" data-testid="content-tabs">
-      <mat-tab [label]="'operator.content.tab.articles' | hhTranslate">
+    <hh-tabs class="content-tabs" label="Content sections" data-testid="content-tabs">
+      <button role="tab" type="button" [attr.aria-selected]="activeTab() === 'articles'" [class.active]="activeTab() === 'articles'" (click)="selectTab('articles')">{{ 'operator.content.tab.articles' | hhTranslate }}</button>
+      <button role="tab" type="button" [attr.aria-selected]="activeTab() === 'inquiries'" [class.active]="activeTab() === 'inquiries'" (click)="selectTab('inquiries')">{{ 'operator.content.tab.inquiries' | hhTranslate }}</button>
+      <button role="tab" type="button" [attr.aria-selected]="activeTab() === 'media'" [class.active]="activeTab() === 'media'" (click)="selectTab('media')">{{ 'operator.content.tab.media' | hhTranslate }}</button>
+    </hh-tabs>
+    @if (activeTab() === 'articles') {
         <div class="content-grid">
           <section class="content-list">
             <div class="content-list__head">
               <h2>{{ "operator.content.tab.articles" | hhTranslate }}</h2>
-              <button mat-flat-button color="primary" type="button" (click)="startNew()">
-                {{ "operator.content.newArticle" | hhTranslate }}
-              </button>
+              <hh-action-button kind="primary" icon="add" [label]="'operator.content.newArticle' | hhTranslate" (pressed)="startNew()" />
             </div>
 
             @if (!articles().length) {
@@ -32,12 +34,8 @@
                   </header>
                   <p>{{ article.excerpt }}</p>
                   <div class="content-card__actions">
-                    <button mat-button type="button" (click)="editArticle(article)">
-                      {{ "operator.content.editArticle" | hhTranslate }}
-                    </button>
-                    <button mat-button color="warn" type="button" (click)="deleteArticle(article.id)">
-                      {{ "operator.content.delete" | hhTranslate }}
-                    </button>
+                    <hh-action-button kind="secondary" icon="edit" [label]="'operator.content.editArticle' | hhTranslate" (pressed)="editArticle(article)" />
+                    <hh-action-button kind="danger" icon="delete" [label]="'operator.content.delete' | hhTranslate" (pressed)="deleteArticle(article.id)" />
                   </div>
                 </article>
               }
@@ -96,14 +94,11 @@
               <p class="content-status">{{ statusKey() | hhTranslate }}</p>
             }
 
-            <button mat-flat-button color="primary" type="submit" [disabled]="saving()">
-              {{ "operator.content.save" | hhTranslate }}
-            </button>
+            <hh-action-button kind="primary" icon="save" type="submit" [label]="'operator.content.save' | hhTranslate" [disabled]="saving()" />
           </form>
         </div>
-      </mat-tab>
-
-      <mat-tab [label]="'operator.content.tab.inquiries' | hhTranslate">
+    }
+    @if (activeTab() === 'inquiries') {
         @if (!inquiries().length) {
           <hh-state kind="empty" [message]="'operator.content.emptyInquiries' | hhTranslate" />
         } @else {
@@ -120,28 +115,18 @@
                 <p>{{ inquiry.partnershipType }} — {{ inquiry.message }}</p>
                 <label>
                   {{ "operator.content.inquiry.status" | hhTranslate }}
-                  <mat-select
-                    [value]="inquiry.status"
-                    (selectionChange)="updateInquiryStatus(inquiry, $event.value)"
-                  >
-                    <mat-option value="new">
-                      {{ "operator.content.inquiry.status.new" | hhTranslate }}
-                    </mat-option>
-                    <mat-option value="in_progress">
-                      {{ "operator.content.inquiry.status.in_progress" | hhTranslate }}
-                    </mat-option>
-                    <mat-option value="closed">
-                      {{ "operator.content.inquiry.status.closed" | hhTranslate }}
-                    </mat-option>
-                  </mat-select>
+                  <select [value]="inquiry.status" (change)="updateInquiryStatus(inquiry, $any($event.target).value)">
+                    <option value="new">{{ "operator.content.inquiry.status.new" | hhTranslate }}</option>
+                    <option value="in_progress">{{ "operator.content.inquiry.status.in_progress" | hhTranslate }}</option>
+                    <option value="closed">{{ "operator.content.inquiry.status.closed" | hhTranslate }}</option>
+                  </select>
                 </label>
               </article>
             }
           </div>
         }
-      </mat-tab>
-
-      <mat-tab [label]="'operator.content.tab.media' | hhTranslate">
+    }
+    @if (activeTab() === 'media') {
         <div class="media-panel">
           <div class="media-panel__head">
             <div>
@@ -156,18 +141,7 @@
               (change)="onMediaSelected($event)"
               [disabled]="uploading()"
             />
-            <button
-              mat-flat-button
-              color="primary"
-              type="button"
-              (click)="mediaInput.click()"
-              [disabled]="uploading()"
-            >
-              {{
-                (uploading() ? "operator.content.media.uploading" : "operator.content.media.upload")
-                  | hhTranslate
-              }}
-            </button>
+            <hh-action-button kind="primary" icon="upload" [label]="(uploading() ? 'operator.content.media.uploading' : 'operator.content.media.upload') | hhTranslate" (pressed)="mediaInput.click()" [disabled]="uploading()" />
           </div>
 
           @if (mediaStatusKey()) {
@@ -189,19 +163,14 @@
                   </header>
                   <p class="media-card__url">{{ asset.publicUrl }}</p>
                   <div class="content-card__actions">
-                    <button mat-button type="button" (click)="copyMediaUrl(asset.publicUrl)">
-                      {{ "operator.content.media.copy" | hhTranslate }}
-                    </button>
-                    <button mat-button type="button" (click)="useMediaUrl(asset.publicUrl)">
-                      {{ "operator.content.media.useInArticle" | hhTranslate }}
-                    </button>
+                    <hh-action-button kind="secondary" icon="content_copy" [label]="'operator.content.media.copy' | hhTranslate" (pressed)="copyMediaUrl(asset.publicUrl)" />
+                    <hh-action-button kind="secondary" icon="link" [label]="'operator.content.media.useInArticle' | hhTranslate" (pressed)="useMediaUrl(asset.publicUrl)" />
                   </div>
                 </article>
               }
             </div>
           }
         </div>
-      </mat-tab>
-    </mat-tab-group>
+    }
   }
 </hh-page-layout>

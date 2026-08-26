@@ -9,7 +9,6 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
-import { MatSelectModule } from "@angular/material/select";
 import {
   HisHopeDataTableCellDirective,
   HisHopeDataTableColumn,
@@ -35,7 +34,6 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
     DatePipe,
     DecimalPipe,
     FormsModule,
-    MatSelectModule,
     HisHopeActionButtonComponent,
     HisHopeDataTableCellDirective,
     HisHopeDataTableComponent,
@@ -51,23 +49,12 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
         [subtitle]="pageSubtitle"
       />
       <div class="filters">
-        <mat-select
-          [value]="dispositionFilter"
-          (selectionChange)="onDispositionChange($event.value)"
-        >
-          <mat-option value="">{{
-            "customerPortal.dispositionAll" | hhTranslate: "All dispositions"
-          }}</mat-option>
-          <mat-option value="Released">{{
-            "customerPortal.dispositionReleased" | hhTranslate: "Released"
-          }}</mat-option>
-          <mat-option value="Quarantined">{{
-            "customerPortal.dispositionQuarantined" | hhTranslate: "Quarantined"
-          }}</mat-option>
-          <mat-option value="Consumed">{{
-            "customerPortal.dispositionConsumed" | hhTranslate: "Consumed"
-          }}</mat-option>
-        </mat-select>
+        <select [value]="dispositionFilter" (change)="onDispositionChange($any($event.target).value)">
+          <option value="">{{ "customerPortal.dispositionAll" | hhTranslate: "All dispositions" }}</option>
+          <option value="Released">{{ "customerPortal.dispositionReleased" | hhTranslate: "Released" }}</option>
+          <option value="Quarantined">{{ "customerPortal.dispositionQuarantined" | hhTranslate: "Quarantined" }}</option>
+          <option value="Consumed">{{ "customerPortal.dispositionConsumed" | hhTranslate: "Consumed" }}</option>
+        </select>
       </div>
       <hh-data-table
         [label]="'customerPortal.inventoryLotsTitle' | hhTranslate: 'Inventory lots'"
@@ -133,7 +120,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
       .lot-actions { margin-top: var(--space-lg); padding: var(--space-md); border: 1px solid var(--border-subtle); border-radius: var(--radius-card); background: var(--surface); color: var(--text-primary); }
       .lot-action-form { display: flex; flex-wrap: wrap; align-items: end; gap: var(--space-md); }
       label { display: grid; gap: var(--space-2xs); color: var(--text-primary); font-size: var(--font-size-caption); }
-      select { min-height: var(--control-height); min-width: 180px; border: 1px solid var(--border-subtle); border-radius: var(--radius-control); padding: 0 var(--space-sm); background: var(--surface); color: var(--text-primary); font: inherit; }
+      select { min-height: var(--control-height); min-width: min(180px, 100%); max-width: 100%; border: 1px solid var(--border-subtle); border-radius: var(--radius-control); padding: 0 var(--space-sm); background: var(--surface); color: var(--text-primary); font: inherit; }
       .actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); }
       .action-error { color: var(--color-danger); }
       .genealogy { margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--border-subtle); }

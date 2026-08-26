@@ -1,4 +1,5 @@
 export * from "./his-hope-page-header.component";
+export * from "./his-hope-app-shell.component";
 export * from "./his-hope-page-layout.component";
 export * from "./his-hope-command-palette.component";
 export * from "./his-hope-offline-banner.component";
