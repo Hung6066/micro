@@ -2390,6 +2390,17 @@ export const hisHopeViVN: HisHopeTranslationDictionary = {
     useDesktopForCreate:
       "Tạo và chỉnh sửa bản ghi trong workspace admin trên máy tính.",
     useDeviceMfa: "Dùng thiết bị này cho MFA",
+    operatorFieldOperations: "Vận hành hiện trường",
+    operatorOnline: "Trực tuyến",
+    operatorTenant: "Tenant",
+    operatorNoTenantClaim: "Chưa có tenant claim",
+    operatorIdentity: "Operator",
+    operatorProduction: "Sản xuất",
+    operatorTraceability: "Truy xuất",
+    operatorQuality: "Chất lượng",
+    operatorMaintenance: "Bảo trì",
+    operatorSync: "Đồng bộ",
+    operatorAccountMenu: "Menu tài khoản",
   },
   navigation: {
     administration: "Quản trị",

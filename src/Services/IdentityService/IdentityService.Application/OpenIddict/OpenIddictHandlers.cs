@@ -534,6 +534,14 @@ public class CustomPopulateTokenClaims :
         securityVersionClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
         identity.AddClaim(securityVersionClaim);
 
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            var emailClaim = new Claim(OpenIddictConstants.Claims.Email, user.Email);
+            emailClaim.SetDestinations(
+                OpenIddictConstants.Destinations.AccessToken,
+                OpenIddictConstants.Destinations.IdentityToken);
+            identity.AddClaim(emailClaim);
+        }
         identity.AddClaim(new Claim("fullName", user.FullName ?? ""));
         identity.AddClaim(new Claim("licenseNumber", user.LicenseNumber ?? ""));
         identity.AddClaim(new Claim("license_number", user.LicenseNumber ?? ""));
@@ -694,20 +702,20 @@ public class CustomPopulateTokenClaims :
 
         var primaryTenant = memberships[0];
         var tenantClaim = new Claim("tenant_id", primaryTenant);
-        tenantClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+        tenantClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
         identity.AddClaim(tenantClaim);
 
         foreach (var membership in memberships)
         {
             var membershipClaim = new Claim("tenant_membership", membership);
-            membershipClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+            membershipClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
             identity.AddClaim(membershipClaim);
         }
 
         if (memberships.Count > 1)
         {
             var membershipsClaim = new Claim("tenant_memberships", string.Join(",", memberships));
-            membershipsClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+            membershipsClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
             identity.AddClaim(membershipsClaim);
         }
     }
@@ -759,7 +767,7 @@ public class CustomPopulateTokenClaims :
         }
 
         var tenantClaim = new Claim("tenant_id", clientTenant);
-        tenantClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+        tenantClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
         identity.AddClaim(tenantClaim);
 
         IssuePortalClaims(identity, clientId, clientTenant);
@@ -767,7 +775,7 @@ public class CustomPopulateTokenClaims :
         if (memberships.Count > 1)
         {
             var membershipsClaim = new Claim("tenant_memberships", string.Join(",", memberships));
-            membershipsClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken);
+            membershipsClaim.SetDestinations(OpenIddictConstants.Destinations.AccessToken, OpenIddictConstants.Destinations.IdentityToken);
             identity.AddClaim(membershipsClaim);
         }
 

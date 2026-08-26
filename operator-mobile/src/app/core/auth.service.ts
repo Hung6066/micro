@@ -7,6 +7,12 @@ import { DpopProofService } from './dpop-proof.service';
 import { environment } from '../../environments/environment';
 import { rewriteHisHopeNativeOidcUrl } from './mobile-runtime';
 
+export interface MobileCurrentUserProfile {
+  id: string;
+  username: string;
+  email: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class MobileAuthService {
   private readonly oidc = inject(OidcSecurityService);
@@ -20,6 +26,10 @@ export class MobileAuthService {
   readonly loginInProgress = signal(false);
   private readonly authState = new BehaviorSubject<boolean | null>(null);
   private callbackInProgress = false;
+
+  getCurrentUserProfile(): Observable<MobileCurrentUserProfile> {
+    return this.http.get<MobileCurrentUserProfile>(`${environment.oidc.authority}/api/v1/auth/me`).pipe(take(1));
+  }
 
   checkAuth(): Observable<boolean> {
     return this.oidc.checkAuth().pipe(

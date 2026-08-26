@@ -4,6 +4,12 @@
 .operator-shell__eyebrow { margin: 0 0 .25rem; font-size: .68rem; letter-spacing: .12em; font-weight: 700; color: #68756d; }
 h1 { margin: 0; font-size: 1.25rem; }
 .operator-shell__tools { display: flex; align-items: center; gap: .45rem; }
+.operator-shell__menu { position: relative; }
+.operator-shell__icon-button { display: grid; place-items: center; width: 2.25rem; height: 2.25rem; border: 1px solid #c7d1cb; border-radius: .6rem; background: #fff; color: #1f4b3b; cursor: pointer; }
+.operator-shell__icon-button hh-mobile-icon { width: 1.25rem; height: 1.25rem; }
+.operator-shell__menu-panel { position: absolute; top: calc(100% + .4rem); right: 0; z-index: 10; min-width: 9rem; padding: .35rem; border: 1px solid #c7d1cb; border-radius: .7rem; background: #fff; box-shadow: 0 .5rem 1.5rem rgb(20 45 35 / 15%); }
+.operator-shell__menu-panel button { display: flex; align-items: center; gap: .5rem; width: 100%; min-height: 2.5rem; border: 0; border-radius: .45rem; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.operator-shell__menu-panel button:hover, .operator-shell__menu-panel button:focus-visible { background: #e6f4ea; outline: 0; }
 .operator-shell__status { border-radius: 999px; padding: .35rem .65rem; background: #e6f4ea; color: #18733b; font-size: .75rem; font-weight: 700; }
 .operator-shell__context { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .4rem .5rem; padding: .55rem 1.25rem; border-bottom: 1px solid var(--border-light, #dedbd3); background: #f8fbf9; font-size: .82rem; }
 .operator-shell__context label { white-space: nowrap; font-weight: 700; }

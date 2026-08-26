@@ -2380,6 +2380,17 @@ export const hisHopeEn: HisHopeTranslationDictionary = {
     useDesktopForCreate:
       "Create and edit records in the desktop admin workspace.",
     useDeviceMfa: "Use this device for MFA",
+    operatorFieldOperations: "Field operations",
+    operatorOnline: "Online",
+    operatorTenant: "Tenant",
+    operatorNoTenantClaim: "No tenant claim",
+    operatorIdentity: "Operator",
+    operatorProduction: "Production",
+    operatorTraceability: "Traceability",
+    operatorQuality: "Quality",
+    operatorMaintenance: "Maintenance",
+    operatorSync: "Sync",
+    operatorAccountMenu: "Account menu",
   },
   navigation: {
     administration: "Administration",

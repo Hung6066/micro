@@ -20,9 +20,19 @@ export class OperatorMobileTenantContextService {
       const tenants = this.readTenantClaims(data);
       this.subjectId.set(subject);
       this.email.set(email);
-      const options = [...new Set(tenants)];
+      // The operator client is permanently bound to manufacturing. Keep the
+      // UI usable with older tokens that predate tenant claims; API
+      // authorization remains authoritative on every request.
+      const options = [...new Set(tenants.length ? tenants : ["manufacturing"])]
+        .filter((value): value is string => Boolean(value));
       this.availableTenants.set(options);
       if (options.length && !this.activeTenantKey()) this.activeTenantKey.set(options[0]);
+      this.auth.getCurrentUserProfile().subscribe({
+        next: (profile) => {
+          if (profile.email) this.email.set(profile.email);
+          if (!this.subjectId()) this.subjectId.set(profile.id);
+        },
+      });
     });
   }
 
