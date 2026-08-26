@@ -97,7 +97,11 @@ export const appConfig: ApplicationConfig = {
         silentRenew: false,
         useRefreshToken: true,
         secureRoutes: environment.oidc.secureRoutes,
-        autoUserInfo: true,
+        // Operator Mobile resolves the operator profile through the BFF
+        // endpoint (/api/v1/auth/me). The local endpoint override intentionally
+        // omits userinfo_endpoint, so angular-auth-oidc-client must not attempt
+        // an automatic userinfo request during session initialization.
+        autoUserInfo: false,
         logLevel: environment.production ? 0 : 1,
       },
     }),
