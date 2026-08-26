@@ -2,6 +2,7 @@ import {
   Component,
   DestroyRef,
   OnInit,
+  effect,
   inject,
   signal,
 } from "@angular/core";
@@ -65,6 +66,9 @@ export class HomePageComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly contentApi = inject(ContentApiService);
   readonly i18n = inject(HisHopeI18nService);
+  private readonly localeEffect = effect(() => {
+    this.loadHome(this.i18n.locale());
+  });
 
   readonly heroSlides = signal<HeroSlideView[]>(
     HERO_SLIDES.map((slide) => ({
@@ -143,8 +147,11 @@ export class HomePageComponent implements OnInit {
     const timerId = window.setInterval(() => this.nextSlide(), 6000);
     this.destroyRef.onDestroy(() => window.clearInterval(timerId));
 
+  }
+
+  private loadHome(locale: string): void {
     this.contentApi
-      .getHome()
+      .getHome(locale)
       .pipe(
         catchError(() => of(null)),
         takeUntilDestroyed(this.destroyRef),
@@ -235,7 +242,7 @@ export class HomePageComponent implements OnInit {
       bodyHtml: `<p>${post.excerpt}</p>`,
       category: post.category,
       imageUrl: post.image,
-      locale: "vi-VN",
+      locale: this.i18n.locale(),
       status: "published",
       publishedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

@@ -107,6 +107,10 @@ export class AppComponent {
     this.theme.setTheme(this.theme.resolvedTheme() === "dark" ? "light" : "dark");
   }
 
+  toggleContrast(): void {
+    this.theme.setHighContrast(!this.theme.highContrast());
+  }
+
   submitSearch(): void {
     const query = this.searchQuery().trim();
     if (!query) {

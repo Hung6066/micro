@@ -114,6 +114,14 @@ public sealed class CommerceStore
             .ToArray();
     }
 
+    public ProductCatalogItemDto? GetProductForBuyer(
+        string tenantKey,
+        string? priceTier,
+        Guid productId,
+        IReadOnlyList<ProductDto>? persistedProducts = null) =>
+        GetProductsForBuyer(tenantKey, priceTier, persistedProducts)
+            .FirstOrDefault(product => product.Id == productId);
+
     public IReadOnlyList<ProductDto> GetProducts(string tenantKey, IReadOnlyList<ProductDto>? persistedProducts = null) =>
         (persistedProducts ?? _products.Values.ToArray())
             .Where(product => string.Equals(product.TenantKey, tenantKey, StringComparison.OrdinalIgnoreCase))

@@ -51,7 +51,7 @@ hh-brand {
   color: var(--text-muted);
   font-size: var(--font-size-overline, 0.68rem);
   font-weight: var(--font-weight-bold);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--tracking-overline);
   line-height: 1.2;
   text-transform: uppercase;
 }

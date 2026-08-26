@@ -27,6 +27,7 @@ import { environment } from "../environments/environment";
 interface PortalNavItem {
   id: string;
   route: string;
+  fragment?: string;
   icon: string;
   labelKey: string;
   fallback: string;
@@ -100,6 +101,76 @@ const MANUFACTURING_NAV: readonly PortalNavItem[] = [
     fallback: "Procurement",
   },
   {
+    id: "procurement-requirements",
+    route: "/procurement",
+    fragment: "requirements",
+    icon: "inventory",
+    labelKey: "customerPortal.materialRequirements",
+    fallback: "Material requirements",
+  },
+  {
+    id: "procurement-master-data",
+    route: "/procurement",
+    fragment: "master-data",
+    icon: "dataset",
+    labelKey: "customerPortal.masterData",
+    fallback: "Material and UOM master data",
+  },
+  {
+    id: "procurement-facilities",
+    route: "/procurement",
+    fragment: "facilities",
+    icon: "factory",
+    labelKey: "customerPortal.facilities",
+    fallback: "Facilities",
+  },
+  {
+    id: "procurement-suppliers",
+    route: "/procurement",
+    fragment: "suppliers",
+    icon: "business",
+    labelKey: "customerPortal.suppliers",
+    fallback: "Suppliers",
+  },
+  {
+    id: "procurement-rfqs",
+    route: "/procurement",
+    fragment: "rfqs",
+    icon: "request_quote",
+    labelKey: "customerPortal.supplierRfqs",
+    fallback: "Supplier RFQs",
+  },
+  {
+    id: "procurement-orders",
+    route: "/procurement",
+    fragment: "purchase-orders",
+    icon: "shopping_cart",
+    labelKey: "customerPortal.purchaseOrders",
+    fallback: "Purchase orders",
+  },
+  {
+    id: "procurement-receipts",
+    route: "/procurement",
+    fragment: "inbound-receipts",
+    icon: "move_to_inbox",
+    labelKey: "customerPortal.inboundReceiptHistory",
+    fallback: "Inbound receipt history",
+  },
+  {
+    id: "master-data",
+    route: "/master-data",
+    icon: "dataset",
+    labelKey: "customerPortal.masterDataTitle",
+    fallback: "Master data",
+  },
+  {
+    id: "traceability",
+    route: "/traceability",
+    icon: "account_tree",
+    labelKey: "customerPortal.traceabilityTitle",
+    fallback: "Traceability",
+  },
+  {
     id: "recipes",
     route: "/recipes",
     icon: "menu_book",
@@ -169,32 +240,18 @@ function buildNavItems(): readonly PortalNavItem[] {
 }
 
 function buildNavSections(items: readonly PortalNavItem[]): readonly PortalNavSection[] {
-  const manufacturingIds = new Set(MANUFACTURING_NAV.map((item) => item.id));
-  const overview = items.filter((item) => item.id === "dashboard");
-  const manufacturing = items.filter((item) => manufacturingIds.has(item.id));
-  const workspace = items.filter(
-    (item) => item.id !== "dashboard" && !manufacturingIds.has(item.id),
-  );
-
+  const byId = (ids: readonly string[]) => items.filter((item) => ids.includes(item.id));
   return [
-    {
-      id: "overview",
-      labelKey: "admin.menuOverview",
-      fallback: "Overview",
-      items: overview,
-    },
-    {
-      id: "manufacturing",
-      labelKey: "customerPortal.manufacturingSection",
-      fallback: "Manufacturing",
-      items: manufacturing,
-    },
-    {
-      id: "workspace",
-      labelKey: "customerPortal.identityAdministration",
-      fallback: "Workspace",
-      items: workspace,
-    },
+    { id: "overview", labelKey: "admin.menuOverview", fallback: "Overview", items: byId(["dashboard"]) },
+    { id: "planning", labelKey: "customerPortal.planningSection", fallback: "Planning", items: byId(["forecast"]) },
+    { id: "procurement", labelKey: "customerPortal.procurementSection", fallback: "Procurement", items: byId(["procurement", "procurement-requirements", "procurement-facilities", "procurement-master-data", "procurement-suppliers", "procurement-rfqs", "procurement-orders", "procurement-receipts"]) },
+    { id: "inventory", labelKey: "customerPortal.inventorySection", fallback: "Inventory", items: byId(["inventory", "traceability"]) },
+    { id: "production", labelKey: "customerPortal.productionSection", fallback: "Production", items: byId(["production", "recipes", "product-specifications"]) },
+    { id: "quality", labelKey: "customerPortal.qualitySection", fallback: "Quality", items: byId(["quality-inspections", "deviations", "capas"]) },
+    { id: "assets", labelKey: "customerPortal.assetsSection", fallback: "Assets", items: byId(["maintenance"]) },
+    { id: "master-data", labelKey: "customerPortal.masterDataSection", fallback: "Master data", items: byId(["master-data"]) },
+    { id: "sales", labelKey: "customerPortal.salesSection", fallback: "Sales", items: byId(["sales-allocation"]) },
+    { id: "workspace", labelKey: "customerPortal.identityAdministration", fallback: "Workspace", items: byId(["users", "orders"]) },
   ].filter((section) => section.items.length > 0);
 }
 

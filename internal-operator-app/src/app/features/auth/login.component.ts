@@ -48,12 +48,12 @@ import { environment } from "../../../environments/environment";
         display: flex;
         justify-content: center;
         align-items: center;
-        min-height: calc(100dvh - var(--toolbar-height, 64px));
+        min-height: calc(100dvh - var(--shell-header-height));
         background: var(--bg-warm);
         padding: var(--space-2xl);
       }
       .login-card {
-        max-width: 400px;
+        max-width: var(--max-width-auth-card);
         width: 100%;
       }
       .login-header {
@@ -62,8 +62,8 @@ import { environment } from "../../../environments/environment";
       }
       .logo {
         font-size: var(--font-size-label);
-        font-weight: 700;
-        letter-spacing: 0.08em;
+        font-weight: var(--font-weight-bold);
+        letter-spacing: var(--tracking-overline);
         text-transform: uppercase;
         color: var(--text-secondary);
         margin-bottom: var(--space-sm);
@@ -71,7 +71,7 @@ import { environment } from "../../../environments/environment";
       .login-header h2 {
         font-size: var(--font-size-title);
         line-height: 1.25;
-        font-weight: 700;
+        font-weight: var(--font-weight-bold);
         color: var(--text-primary);
         margin: 0 0 var(--space-2xs);
       }

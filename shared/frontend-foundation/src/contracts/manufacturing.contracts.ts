@@ -52,6 +52,62 @@ export interface HisHopeGenealogyDto {
   relations: HisHopeLotRelationDto[];
 }
 
+export interface HisHopeFefoLotDto {
+  lotId: string;
+  sku: string;
+  quantity: number;
+  reservedQuantity: number;
+  availableQuantity: number;
+  uom: string;
+  bestBefore: string | null;
+  createdAt: string;
+}
+
+export interface HisHopeInventoryTransactionDto {
+  id: string;
+  tenantKey: string;
+  lotId: string;
+  transactionType: string;
+  quantity: number;
+  uom: string;
+  facilityId: string;
+  stockStatus: string;
+  correlationId: string;
+  occurredAt: string;
+}
+
+export interface HisHopeEventReceiptDto {
+  id: string;
+  eventType: string;
+  aggregateId: string;
+  receivedAt: string;
+}
+
+export interface HisHopeCostProjectionComponentDto {
+  ingredientSku: string;
+  uom: string;
+  requiredInputQuantity: number;
+  estimatedUnitPrice: number;
+  estimatedCost: number;
+  hasPrice: boolean;
+}
+
+export interface HisHopeCostProjectionDto {
+  tenantKey: string;
+  recipeId: string;
+  productSku: string;
+  recipeVersion: number;
+  outputUom: string;
+  plannedOutputQuantity: number;
+  targetYieldPercent: number;
+  projectedLossQuantity: number;
+  estimatedMaterialCost: number;
+  estimatedMaterialCostPerOutputUnit: number;
+  components: HisHopeCostProjectionComponentDto[];
+  missingPriceSkus: string[];
+  generatedAt: string;
+}
+
 export interface HisHopeQualityInspectionDto {
   id: string;
   lotId: string;
@@ -414,6 +470,8 @@ export interface HisHopeFacilityDto {
   active: boolean;
   createdAt: string;
 }
+export interface HisHopeWarehouseDto { id: string; tenantKey: string; facilityId: string; code: string; name: string; active: boolean; createdAt: string; }
+export interface HisHopeStorageLocationDto { id: string; tenantKey: string; warehouseId: string; code: string; name: string; active: boolean; createdAt: string; }
 export interface HisHopeUomDto { id: string; code: string; name: string; dimension: string; active: boolean; createdAt: string; }
 export interface HisHopeUomConversionDto { id: string; fromCode: string; toCode: string; factor: number; active: boolean; createdAt: string; }
 export interface HisHopeMaterialDto { id: string; tenantKey: string; sku: string; name: string; baseUomCode: string; materialType: string; active: boolean; createdAt: string; }

@@ -47,6 +47,16 @@ export const routes: Routes = [
       ),
   },
   {
+    path: "master-data",
+    canActivate: [authGuard, operatorPortalGuard],
+    loadComponent: () => import("./features/master-data/master-data-page.component").then((m) => m.MasterDataPageComponent),
+  },
+  {
+    path: "traceability",
+    canActivate: [authGuard, operatorPortalGuard],
+    loadComponent: () => import("./features/traceability/traceability-page.component").then((m) => m.TraceabilityPageComponent),
+  },
+  {
     path: "recipes",
     canActivate: [authGuard, operatorPortalGuard],
     loadComponent: () =>

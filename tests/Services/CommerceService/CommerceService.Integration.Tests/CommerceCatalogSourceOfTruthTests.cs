@@ -21,6 +21,10 @@ public sealed class CommerceCatalogSourceOfTruthTests
 
         var catalog = store.GetProductsForBuyer("tenant-b", "standard", [persisted]);
         catalog.Should().ContainSingle().Which.Name.Should().Be("Tenant B mango");
+        var detail = store.GetProductForBuyer("tenant-b", "standard", persisted.Id, [persisted]);
+        detail.Should().NotBeNull();
+        detail!.Name.Should().Be("Tenant B mango");
+        store.GetProductForBuyer("tenant-a", "standard", persisted.Id, [persisted]).Should().BeNull();
 
         var order = store.CreateOrder(
             "tenant-b",

@@ -1,4 +1,5 @@
 import { HttpClient } from "@angular/common/http";
+import { DecimalPipe } from "@angular/common";
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -9,6 +10,7 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { MatButtonModule } from "@angular/material/button";
+import { FormsModule } from "@angular/forms";
 import { forkJoin, of } from "rxjs";
 import { catchError } from "rxjs/operators";
 import {
@@ -29,6 +31,7 @@ import {
   HisHopeManufacturingProductionCostDto,
   HisHopeManufacturingOeeDto,
   HisHopeManufacturingExecutiveExceptionDto,
+  HisHopeCostProjectionDto,
 } from "@his-hope/frontend-foundation/contracts";
 import { environment } from "../../../environments/environment";
 import { ManufacturingApiService } from "../../core/services/manufacturing-api.service";
@@ -48,6 +51,8 @@ interface DashboardStats {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     MatButtonModule,
+    FormsModule,
+    DecimalPipe,
     HisHopeActionButtonComponent,
     HisHopeMetricCardComponent,
     HisHopePageHeaderComponent,
@@ -230,6 +235,16 @@ interface DashboardStats {
               />
             </div>
           }
+          <section class="projection-panel">
+            <div class="section-heading"><h2>{{ "customerPortal.costProjection" | hhTranslate: "Cost projection" }}</h2></div>
+            <form class="projection-form" (ngSubmit)="projectCost()">
+              <input name="projectionSku" [(ngModel)]="projectionSku" [placeholder]="'customerPortal.productSku' | hhTranslate: 'Product SKU'" required />
+              <input name="projectionQuantity" type="number" min="0.001" step="0.001" [(ngModel)]="projectionQuantity" [placeholder]="'customerPortal.plannedQuantity' | hhTranslate: 'Planned output quantity'" required />
+              <hh-action-button kind="secondary" icon="calculate" type="submit" [label]="'customerPortal.calculateProjection' | hhTranslate: 'Calculate'" [disabled]="projectionBusy" />
+            </form>
+            @if (projectionError) { <p class="error">{{ projectionError }}</p> }
+            @if (projection) { <div class="projection-result"><strong>{{ projection.productSku }}</strong><span>{{ projection.estimatedMaterialCost | number:'1.0-2' }} · {{ projection.estimatedMaterialCostPerOutputUnit | number:'1.0-4' }} / {{ projection.outputUom }}</span><small>{{ "customerPortal.projectedLoss" | hhTranslate: "Projected loss" }}: {{ projection.projectedLossQuantity | number:'1.0-2' }}</small></div> }
+          </section>
           @if (mfgExceptions) {
             <div class="stats-grid mfg-grid">
               <hh-metric-card
@@ -265,6 +280,12 @@ interface DashboardStats {
         grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: var(--space-lg);
       }
+      .projection-panel { margin-top: var(--space-lg); padding: var(--space-md); border: 1px solid var(--border-subtle); border-radius: var(--radius-card); }
+      .section-heading { display:flex; justify-content:space-between; align-items:center; }
+      .projection-form { display:flex; gap:var(--space-sm); flex-wrap:wrap; align-items:center; }
+      .projection-form input { min-height:var(--control-height); padding:0 var(--space-sm); border:1px solid var(--border-subtle); border-radius:var(--radius-control); background:var(--surface-raised); color:var(--text-primary); font:inherit; }
+      .projection-result { display:grid; gap:var(--space-xs); margin-top:var(--space-md); color:var(--text-primary); }
+      .projection-result small,.error { color:var(--text-secondary); }
       @media (max-width: 900px) {
         .stats-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -330,11 +351,29 @@ export class DashboardPageComponent implements OnInit {
   mfgOee: HisHopeManufacturingOeeDto | null = null;
   mfgCost: HisHopeManufacturingProductionCostDto | null = null;
   mfgExceptions: HisHopeManufacturingExecutiveExceptionDto[] | null = null;
+  projectionSku = "";
+  projectionQuantity = 0;
+  projectionBusy = false;
+  projectionError = "";
+  projection: HisHopeCostProjectionDto | null = null;
   loading = true;
   error = "";
 
   severityLabel(severity: string): string {
     return portalEnumLabel(this.i18n, "severity", severity);
+  }
+
+  projectCost(): void {
+    if (!this.projectionSku.trim() || this.projectionQuantity <= 0) {
+      this.projectionError = this.i18n.t("customerPortal.projectionFormInvalid", "Product SKU and a positive quantity are required.");
+      return;
+    }
+    this.projectionBusy = true;
+    this.projectionError = "";
+    this.manufacturingApi.getCostProjection(this.projectionSku.trim(), this.projectionQuantity).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (result) => { this.projection = result; this.projectionBusy = false; this.cdr.markForCheck(); },
+      error: (error) => { this.projectionError = this.errors.message(error, "customerPortal.projectionLoadFailed"); this.projectionBusy = false; this.cdr.markForCheck(); },
+    });
   }
 
   ngOnInit(): void {

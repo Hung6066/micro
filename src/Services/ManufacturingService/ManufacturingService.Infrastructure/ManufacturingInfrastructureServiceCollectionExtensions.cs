@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using His.Hope.ManufacturingService.Application.Ports;
 
 public static class ManufacturingInfrastructureServiceCollectionExtensions
@@ -11,6 +12,7 @@ public static class ManufacturingInfrastructureServiceCollectionExtensions
         services.AddDbContextFactory<ManufacturingDbContext>(options =>
             options.UseNpgsql(connectionString));
         services.AddSingleton<PostgresManufacturingStore>();
+        services.AddSingleton<ManufacturingMobileOperationReplayStore>();
         services.AddSingleton<IManufacturingProductionStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<IManufacturingCapaStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
         services.AddSingleton<IManufacturingMaintenanceStore>(sp => sp.GetRequiredService<PostgresManufacturingStore>());
@@ -38,5 +40,7 @@ public static class ManufacturingInfrastructureServiceCollectionExtensions
         using var db = dbFactory.CreateDbContext();
         db.Database.Migrate();
         scope.ServiceProvider.GetRequiredService<PostgresManufacturingStore>().Initialize();
+        if (scope.ServiceProvider.GetRequiredService<IConfiguration>().GetValue<bool>("Manufacturing:SeedDemoData"))
+            ManufacturingDemoSeeder.Seed(dbFactory);
     }
 }

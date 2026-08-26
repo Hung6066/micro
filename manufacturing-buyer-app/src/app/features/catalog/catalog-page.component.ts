@@ -9,13 +9,13 @@ import {
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { catchError, forkJoin, of } from "rxjs";
 import { FormsModule } from "@angular/forms";
-import { ActivatedRoute, Router } from "@angular/router";
+import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { MatButtonModule } from "@angular/material/button";
 import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import { CommerceApiService, Product } from "../../core/services/commerce-api.service";
 import {
-  ProductSort,
-  productCategoryLabel,
+  ProductSort,
+  productCategoryKey,
   productImageUrl,
   sortProducts,
 } from "../../core/utils/product-media.util";
@@ -23,7 +23,7 @@ import {
 @Component({
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatButtonModule, FormsModule, HisHopeTranslatePipe],
+  imports: [MatButtonModule, FormsModule, RouterLink, HisHopeTranslatePipe],
   templateUrl: "./catalog-page.component.html",
   styleUrls: ["./catalog-page.component.scss"],
 })
@@ -95,8 +95,8 @@ export class CatalogPageComponent implements OnInit {
     this.cdr.markForCheck();
   }
 
-  categoryLabel(product: Product): string {
-    return productCategoryLabel(product.sku);
+  categoryLabel(product: Product): string {
+    return productCategoryKey(product.sku);
   }
 
   imageUrl(product: Product): string {
@@ -112,11 +112,11 @@ export class CatalogPageComponent implements OnInit {
     this.api.getCart().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (cart) => {
         const lines = [...(cart.lines ?? [])];
-        const existing = lines.find((line) => line.productId === product.id);
-        if (existing) {
-          existing.quantity += 1;
-        } else {
-          lines.push({ productId: product.id, quantity: 1 });
+        const existing = lines.find((line) => line.productId === product.id);
+        if (existing) {
+          existing.quantity += Math.max(product.minOrderQty, 1);
+        } else {
+          lines.push({ productId: product.id, quantity: Math.max(product.minOrderQty, 1) });
         }
         this.api.updateCart(lines).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
           next: () => void this.router.navigateByUrl("/cart"),

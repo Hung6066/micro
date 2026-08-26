@@ -1,10 +1,11 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, effect, inject, signal } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { DatePipe } from "@angular/common";
 import { RouterLink } from "@angular/router";
 import { catchError, of } from "rxjs";
 import {
   HisHopeApiErrorMessageService,
+  HisHopeI18nService,
   HisHopeTranslatePipe,
 } from "@his-hope/frontend-foundation/i18n";
 import { HisHopeContentArticleDto } from "@his-hope/frontend-foundation/contracts";
@@ -22,13 +23,21 @@ export class BlogListPageComponent implements OnInit {
   private readonly api = inject(ContentApiService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly errors = inject(HisHopeApiErrorMessageService);
+  private readonly i18n = inject(HisHopeI18nService);
+  private readonly localeEffect = effect(() => {
+    this.loadArticles(this.i18n.locale());
+  });
   readonly loading = signal(true);
   readonly error = signal("");
   readonly articles = signal<HisHopeContentArticleDto[]>([]);
 
   ngOnInit(): void {
+  }
+
+  private loadArticles(locale: string): void {
+    this.loading.set(true);
     this.api
-      .getArticles()
+      .getArticles(locale)
       .pipe(
         catchError((error) => {
           this.error.set(this.errors.message(error, "buyer.blog.error"));
@@ -55,7 +64,7 @@ export class BlogListPageComponent implements OnInit {
       bodyHtml: `<p>${post.excerpt}</p>`,
       category: post.category,
       imageUrl: post.image,
-      locale: "vi-VN",
+      locale: this.i18n.locale(),
       status: "published",
       publishedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

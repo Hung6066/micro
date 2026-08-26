@@ -142,12 +142,12 @@ import { TenantOption } from "../services/tenant-context.service";
         height: var(--size-nav-icon-track);
         flex: 0 0 var(--size-nav-icon-track);
         border: 1px solid var(--border-default);
-        border-radius: 50%;
+        border-radius: var(--radius-full);
         background: var(--surface-white);
         color: var(--color-primary-deep);
         font-size: var(--font-size-caption);
         font-weight: var(--font-weight-semibold);
-        letter-spacing: 0.04em;
+        letter-spacing: var(--tracking-icon);
         line-height: 1;
       }
 
@@ -157,16 +157,16 @@ import { TenantOption } from "../services/tenant-context.service";
         overflow: hidden;
         font-size: var(--font-size-label);
         font-weight: var(--font-weight-semibold);
-        letter-spacing: 0.01em;
+        letter-spacing: var(--tracking-label);
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
       .hh-tenant-chevron {
-        width: 1.125rem;
-        height: 1.125rem;
-        flex: 0 0 1.125rem;
-        font-size: 1.125rem;
+        width: var(--font-size-icon-sm);
+        height: var(--font-size-icon-sm);
+        flex: 0 0 var(--font-size-icon-sm);
+        font-size: var(--font-size-subhead);
         opacity: 0.88;
       }
 

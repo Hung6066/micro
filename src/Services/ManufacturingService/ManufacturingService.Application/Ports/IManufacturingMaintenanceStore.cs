@@ -5,6 +5,7 @@ namespace His.Hope.ManufacturingService.Application.Ports;
 public interface IManufacturingMaintenanceStore
 {
     MachineDto CreateMachine(CreateMachineRequest request);
+    (MachineDto? Machine, string? Error) UpdateMachine(Guid machineId, UpdateMachineRequest request, string tenantKey);
     IReadOnlyList<MachineDto> GetMachines(string? tenantKey, string? status, int limit);
     (MachineTelemetryDto? Telemetry, string? Error, bool Duplicate) RecordMachineTelemetry(Guid machineId, RecordMachineTelemetryRequest request, string tenantKey);
     IReadOnlyList<MachineTelemetryDto> GetMachineTelemetry(Guid machineId, string tenantKey, int limit);

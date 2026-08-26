@@ -1,15 +1,17 @@
 import { Injectable, inject } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
+import { map } from "rxjs";
+import {
+  HisHopeCommerceProductCatalogItemDto,
+  HisHopeCommerceRfqDto,
+  HisHopeCommerceRfqListResponse,
+  HisHopeCreateCommerceRfqRequest,
+} from "@his-hope/frontend-foundation/contracts";
 import { environment } from "../../../environments/environment";
 
-export interface Product {
-  id: string;
-  sku: string;
-  name: string;
-  description: string;
-  unitPrice: number;
-  tenantKey: string;
-}
+export type ProductCatalogItem = HisHopeCommerceProductCatalogItemDto;
+export type Product = ProductCatalogItem & { unitPrice: number };
+export type Rfq = HisHopeCommerceRfqDto;
 
 export interface CartLine {
   productId: string;
@@ -66,7 +68,19 @@ export class CommerceApiService {
   private readonly manufacturingBase = environment.manufacturingApiUrl;
 
   getProducts() {
-    return this.http.get<{ items: Product[] }>(`${this.base}/products`);
+    return this.http
+      .get<{ items: ProductCatalogItem[] }>(`${this.base}/products`)
+      .pipe(
+        map((response) => ({
+          items: response.items.map((item) => ({ ...item, unitPrice: item.effectiveUnitPrice })),
+        })),
+      );
+  }
+
+  getProduct(productId: string) {
+    return this.http
+      .get<ProductCatalogItem>(`${this.base}/products/${encodeURIComponent(productId)}`)
+      .pipe(map((item) => ({ ...item, unitPrice: item.effectiveUnitPrice })));
   }
 
   getCart() {
@@ -85,6 +99,10 @@ export class CommerceApiService {
     return this.http.get<{ items: Order[] }>(`${this.base}/orders`);
   }
 
+  getOrder(orderId: string) {
+    return this.http.get<Order>(`${this.base}/orders/${encodeURIComponent(orderId)}`);
+  }
+
   getProfile() {
     return this.http.get<Profile>(`${this.base}/profile`);
   }
@@ -95,6 +113,25 @@ export class CommerceApiService {
 
   getNotifications() {
     return this.http.get<{ items: NotificationItem[] }>(`${this.base}/notifications`);
+  }
+
+  markNotificationRead(notificationId: string) {
+    return this.http.patch<void>(
+      `${this.base}/notifications/${encodeURIComponent(notificationId)}/read`,
+      {},
+    );
+  }
+
+  getRfqs() {
+    return this.http.get<HisHopeCommerceRfqListResponse>(`${this.base}/rfqs`);
+  }
+
+  getRfq(rfqId: string) {
+    return this.http.get<Rfq>(`${this.base}/rfqs/${encodeURIComponent(rfqId)}`);
+  }
+
+  createRfq(body: HisHopeCreateCommerceRfqRequest) {
+    return this.http.post<Rfq>(`${this.base}/rfqs`, body);
   }
 
   getAvailability(sku: string) {

@@ -20,9 +20,11 @@ export class ContentApiService {
     return new HttpParams().set("tenantKey", TENANT_KEY);
   }
 
-  getHome() {
+  getHome(locale?: string) {
+    let params = this.tenantParams();
+    if (locale) params = params.set("locale", locale);
     return this.http.get<HisHopeContentHomeDto>(`${this.base}/public/home`, {
-      params: this.tenantParams(),
+      params,
     });
   }
 

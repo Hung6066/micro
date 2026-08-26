@@ -76,6 +76,14 @@ public sealed class ManufacturingReservationStore(IDbContextFactory<Manufacturin
         return (ToDto(entity), null);
     }
 
+    public IReadOnlyList<LotReservationDto> GetReservations(string tenantKey, Guid lotId, string? status, int limit)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var query = db.LotReservations.AsNoTracking().Where(x => x.TenantKey == tenantKey && x.LotId == lotId);
+        if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.Status == status.Trim());
+        return query.OrderByDescending(x => x.CreatedAt).Take(Math.Clamp(limit, 1, 200)).ToList().Select(ToDto).ToList();
+    }
+
     public IReadOnlyList<FefoLotDto> GetFefo(string tenantKey, string sku, int limit)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);

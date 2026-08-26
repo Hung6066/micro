@@ -4,6 +4,8 @@
 
 :root {
   --font-sans: Aptos, "Segoe UI Variable", "Segoe UI", "Noto Sans", Arial, sans-serif;
+  --font-body: var(--font-sans);
+  --font-display: var(--font-sans);
   --buyer-container: min(var(--max-width-container), calc(100% - 2 * var(--space-lg)));
   --buyer-inverse-surface: var(--shell-header-bg);
   --buyer-on-inverse: var(--color-on-primary);

@@ -5,6 +5,10 @@ import {
   HisHopeLotDto,
   HisHopeLotReservationDto,
   HisHopeGenealogyDto,
+  HisHopeFefoLotDto,
+  HisHopeInventoryTransactionDto,
+  HisHopeEventReceiptDto,
+  HisHopeCostProjectionDto,
   HisHopeManufacturingDashboardSummaryDto,
   HisHopeManufacturingProductionKpiDto,
   HisHopeManufacturingMachineHealthDto,
@@ -36,6 +40,8 @@ import {
   HisHopeSupplierQuotationDto,
   HisHopeUomConversionDto,
   HisHopeFacilityDto,
+  HisHopeWarehouseDto,
+  HisHopeStorageLocationDto,
   HisHopeUomDto,
   HisHopeMaterialDto,
   HisHopeProductDto,
@@ -94,6 +100,12 @@ export class ManufacturingApiService {
     );
   }
 
+  getCostProjection(productSku: string, plannedQuantity: number, recipeVersion?: number): Observable<HisHopeCostProjectionDto> {
+    let params = new HttpParams().set("productSku", productSku).set("plannedQuantity", String(plannedQuantity));
+    if (recipeVersion !== undefined) params = params.set("recipeVersion", String(recipeVersion));
+    return this.http.get<HisHopeCostProjectionDto>(`${this.base()}/dashboard/cost-projection`, { params });
+  }
+
   getExecutiveExceptions(): Observable<HisHopeManufacturingExecutiveExceptionDto[]> {
     return this.http.get<HisHopeManufacturingExecutiveExceptionDto[]>(`${this.base()}/dashboard/exceptions`);
   }
@@ -126,6 +138,24 @@ export class ManufacturingApiService {
     return this.http.get<HisHopeManufacturingAvailabilityDto>(
       `${this.base()}/products/${encodeURIComponent(sku)}/availability`,
     );
+  }
+
+  getFefoLots(sku: string, limit = 50): Observable<HisHopeFefoLotDto[]> {
+    return this.http.get<HisHopeFefoLotDto[]>(`${this.base()}/products/${encodeURIComponent(sku)}/fefo`, { params: { limit } });
+  }
+
+  releaseReservation(reservationId: string): Observable<HisHopeLotReservationDto> {
+    return this.http.post<HisHopeLotReservationDto>(`${this.base()}/reservations/${reservationId}/release`, {});
+  }
+
+  getInventoryTransactions(lotId: string, limit = 50): Observable<HisHopeInventoryTransactionDto[]> {
+    return this.http.get<HisHopeInventoryTransactionDto[]>(`${this.base()}/lots/${lotId}/inventory-transactions`, { params: { limit } });
+  }
+
+  getEventReceipts(eventType?: string, limit = 50): Observable<HisHopeEventReceiptDto[]> {
+    let params = new HttpParams().set("limit", String(limit));
+    if (eventType) params = params.set("eventType", eventType);
+    return this.http.get<HisHopeEventReceiptDto[]>(`${this.base()}/events/receipts`, { params });
   }
 
   getMachineDowntimes(machineId?: string, status?: string): Observable<HisHopeManufacturingDowntimeDto[]> {
@@ -251,6 +281,12 @@ export class ManufacturingApiService {
     return this.http.post<HisHopeLotReservationDto>(`${this.base()}/lots/${lotId}/reservations`, request);
   }
 
+  getLotReservations(lotId: string, status?: string, limit = 100): Observable<HisHopeLotReservationDto[]> {
+    let params = new HttpParams().set("limit", String(limit));
+    if (status) params = params.set("status", status);
+    return this.http.get<HisHopeLotReservationDto[]>(`${this.base()}/lots/${lotId}/reservations`, { params });
+  }
+
   getProductionOrders(status?: string): Observable<HisHopeProductionOrderDto[]> {
     let params = new HttpParams();
     if (status) params = params.set("status", status);
@@ -289,6 +325,10 @@ export class ManufacturingApiService {
 
   createProductionOrder(request: { orderNumber: string; productSku: string; recipeId: string; targetQuantity: number; outputUom: string }): Observable<HisHopeProductionOrderDto> {
     return this.http.post<HisHopeProductionOrderDto>(`${this.base()}/production-orders`, request);
+  }
+
+  cancelProductionOrder(orderId: string): Observable<HisHopeProductionOrderDto> {
+    return this.http.post<HisHopeProductionOrderDto>(`${this.base()}/production-orders/${orderId}/cancel`, {});
   }
 
   pauseProductionBatch(batchId: string): Observable<HisHopeProductionBatchDto> {
@@ -356,15 +396,26 @@ export class ManufacturingApiService {
   createFacility(request: { tenantKey: string; code: string; name: string; active?: boolean }): Observable<HisHopeFacilityDto> {
     return this.http.post<HisHopeFacilityDto>(`${this.base()}/facilities`, request);
   }
+  updateFacility(id: string, request: { code: string; name: string; active: boolean }): Observable<HisHopeFacilityDto> { return this.http.patch<HisHopeFacilityDto>(`${this.base()}/facilities/${id}`, request); }
+  getWarehouses(facilityId?: string, active = true): Observable<HisHopeWarehouseDto[]> { let params = new HttpParams().set("active", String(active)); if (facilityId) params = params.set("facilityId", facilityId); return this.http.get<HisHopeWarehouseDto[]>(`${this.base()}/warehouses`, { params }); }
+  createWarehouse(request: { tenantKey: string; facilityId: string; code: string; name: string; active?: boolean }): Observable<HisHopeWarehouseDto> { return this.http.post<HisHopeWarehouseDto>(`${this.base()}/warehouses`, request); }
+  updateWarehouse(id: string, request: { facilityId: string; code: string; name: string; active: boolean }): Observable<HisHopeWarehouseDto> { return this.http.patch<HisHopeWarehouseDto>(`${this.base()}/warehouses/${id}`, request); }
+  getStorageLocations(warehouseId?: string, active = true): Observable<HisHopeStorageLocationDto[]> { let params = new HttpParams().set("active", String(active)); if (warehouseId) params = params.set("warehouseId", warehouseId); return this.http.get<HisHopeStorageLocationDto[]>(`${this.base()}/storage-locations`, { params }); }
+  createStorageLocation(request: { tenantKey: string; warehouseId: string; code: string; name: string; active?: boolean }): Observable<HisHopeStorageLocationDto> { return this.http.post<HisHopeStorageLocationDto>(`${this.base()}/storage-locations`, request); }
+  updateStorageLocation(id: string, request: { warehouseId: string; code: string; name: string; active: boolean }): Observable<HisHopeStorageLocationDto> { return this.http.patch<HisHopeStorageLocationDto>(`${this.base()}/storage-locations/${id}`, request); }
 
   getUoms(active = true): Observable<HisHopeUomDto[]> { return this.http.get<HisHopeUomDto[]>(`${this.base()}/uoms`, { params: { active: String(active) } }); }
   getMaterials(materialType?: string, active = true): Observable<HisHopeMaterialDto[]> { let params = new HttpParams().set("active", String(active)); if (materialType) params = params.set("materialType", materialType); return this.http.get<HisHopeMaterialDto[]>(`${this.base()}/materials`, { params }); }
   createUom(request: { code: string; name: string; dimension: string; active?: boolean }): Observable<HisHopeUomDto> { return this.http.post<HisHopeUomDto>(`${this.base()}/uoms`, request); }
+  updateUom(id: string, request: { code: string; name: string; dimension: string; active: boolean }): Observable<HisHopeUomDto> { return this.http.patch<HisHopeUomDto>(`${this.base()}/uoms/${id}`, request); }
   getUomConversions(active = true): Observable<HisHopeUomConversionDto[]> { return this.http.get<HisHopeUomConversionDto[]>(`${this.base()}/uom-conversions`, { params: { active: String(active) } }); }
   createUomConversion(request: { fromCode: string; toCode: string; factor: number; active?: boolean }): Observable<HisHopeUomConversionDto> { return this.http.post<HisHopeUomConversionDto>(`${this.base()}/uom-conversions`, request); }
+  updateUomConversion(id: string, request: { fromCode: string; toCode: string; factor: number; active: boolean }): Observable<HisHopeUomConversionDto> { return this.http.patch<HisHopeUomConversionDto>(`${this.base()}/uom-conversions/${id}`, request); }
   createMaterial(request: { tenantKey: string; sku: string; name: string; baseUomCode: string; materialType?: string; active?: boolean }): Observable<HisHopeMaterialDto> { return this.http.post<HisHopeMaterialDto>(`${this.base()}/materials`, request); }
+  updateMaterial(id: string, request: { name: string; baseUomCode: string; materialType: string; active: boolean }): Observable<HisHopeMaterialDto> { return this.http.patch<HisHopeMaterialDto>(`${this.base()}/materials/${id}`, request); }
   getProducts(active = true): Observable<HisHopeProductDto[]> { return this.http.get<HisHopeProductDto[]>(`${this.base()}/products`, { params: { active: String(active) } }); }
   createProduct(request: { tenantKey: string; sku: string; name: string; baseUomCode: string; active?: boolean }): Observable<HisHopeProductDto> { return this.http.post<HisHopeProductDto>(`${this.base()}/products`, request); }
+  updateProduct(id: string, request: { name: string; baseUomCode: string; active: boolean }): Observable<HisHopeProductDto> { return this.http.patch<HisHopeProductDto>(`${this.base()}/products/${id}`, request); }
 
   createSupplier(request: { tenantKey: string; code: string; name: string; active?: boolean }): Observable<HisHopeSupplierDto> {
     return this.http.post<HisHopeSupplierDto>(`${this.base()}/suppliers`, request);
@@ -377,7 +428,10 @@ export class ManufacturingApiService {
   getSupplierRfqs(status?: string): Observable<HisHopeSupplierRfqDto[]> { let params = new HttpParams(); if (status) params = params.set("status", status); return this.http.get<HisHopeSupplierRfqDto[]>(`${this.base()}/supplier-rfqs`, { params }); }
   createSupplierRfq(request: { tenantKey: string; rfqNumber: string; materialSku: string; quantity: number; uom: string; neededBy?: string }): Observable<HisHopeSupplierRfqDto> { return this.http.post<HisHopeSupplierRfqDto>(`${this.base()}/supplier-rfqs`, request); }
   createSupplierQuotation(rfqId: string, request: { supplierRfqId: string; supplierId: string; unitPrice: number; currency: string; leadTimeDays: number; notes?: string }): Observable<HisHopeSupplierQuotationDto> { return this.http.post<HisHopeSupplierQuotationDto>(`${this.base()}/supplier-rfqs/${rfqId}/quotations`, request); }
+  cancelProductionBatch(batchId: string): Observable<HisHopeProductionBatchDto> { return this.http.post<HisHopeProductionBatchDto>(`${this.base()}/production-batches/${batchId}/cancel`, {}); }
   getSupplierQuotations(rfqId: string): Observable<HisHopeSupplierQuotationDto[]> { return this.http.get<HisHopeSupplierQuotationDto[]>(`${this.base()}/supplier-rfqs/${rfqId}/quotations`); }
+  updateSupplierQuotationStatus(quotationId: string, status: string): Observable<HisHopeSupplierQuotationDto> { return this.http.post<HisHopeSupplierQuotationDto>(`${this.base()}/supplier-quotations/${quotationId}/status`, { status, actor: "operator" }); }
+  updateMachine(machineId: string, request: { code: string; name: string; status: string; nextMaintenanceAt?: string; active: boolean }): Observable<HisHopeManufacturingMachineDto> { return this.http.patch<HisHopeManufacturingMachineDto>(`${this.base()}/machines/${machineId}`, request); }
   getCapas(status?: string): Observable<HisHopeCapaDto[]> { let params = new HttpParams(); if (status) params = params.set("status", status); return this.http.get<HisHopeCapaDto[]>(`${this.base()}/capas`, { params }); }
   createCapa(request: { deviationId?: string; supplierId?: string; title: string; problemDescription: string; rootCause: string; correctiveAction: string; preventiveAction: string; owner: string; dueAt?: string }): Observable<HisHopeCapaDto> { return this.http.post<HisHopeCapaDto>(`${this.base()}/capas`, request); }
   updateCapaStatus(capaId: string, status: string, actor: string, notes?: string): Observable<HisHopeCapaDto> { return this.http.post<HisHopeCapaDto>(`${this.base()}/capas/${capaId}/status`, { status, actor, notes }); }

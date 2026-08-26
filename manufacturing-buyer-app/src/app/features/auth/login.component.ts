@@ -13,7 +13,7 @@ import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
   template: `
     <section class="login-page">
       <div class="login-card fx-card">
-        <p class="eyebrow">Nacoms Buyer Portal</p>
+<p class="eyebrow">{{ 'buyer.login.eyebrow' | hhTranslate }}</p>
         <h1>{{ 'buyer.login.title' | hhTranslate }}</h1>
         <p>{{ 'buyer.login.description' | hhTranslate: 'B2B dried fruit — pilot account: {{account}}' : { account: 'buyer.pilot' } }}</p>
         <button type="button" class="fx-btn-primary" [disabled]="checkingAuth" (click)="startLogin()">
@@ -39,15 +39,15 @@ import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
       .eyebrow {
         margin: 0 0 0.5rem;
         color: var(--color-primary);
-        font-weight: 800;
+        font-weight: var(--font-weight-extrabold);
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        font-size: 0.78rem;
+        font-size: var(--font-size-caption);
       }
-      h1 { margin: 0 0 0.75rem; font-size: 1.6rem; }
+      h1 { margin: 0 0 0.75rem; font-size: var(--font-size-display); }
       p { margin: 0 0 1.25rem; color: var(--text-secondary); line-height: 1.6; }
       code { background: var(--color-primary-soft); padding: 0.1rem 0.35rem; border-radius: 4px; }
-      a { display: inline-block; margin-top: 1rem; color: var(--color-primary); font-weight: 700; }
+      a { display: inline-block; margin-top: 1rem; color: var(--color-primary); font-weight: var(--font-weight-bold); }
     `,
   ],
 })

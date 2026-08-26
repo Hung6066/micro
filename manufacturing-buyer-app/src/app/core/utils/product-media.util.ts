@@ -128,3 +128,13 @@ export function productCategoryLabel(sku: string): string {
   if (sku === "FX-RAMBUTAN") return "Chôm chôm";
   return "Trái cây sấy";
 }
+
+export function productCategoryKey(sku: string): string {
+  if (sku.startsWith("FX-MANGO")) return "buyer.category.xoai";
+  if (sku.startsWith("FX-PINE")) return "buyer.category.thom";
+  if (sku === "FX-PASSION") return "buyer.category.chanh-day";
+  if (sku === "FX-MIX") return "buyer.category.mix";
+  if (sku === "FX-KUMQUAT") return "buyer.category.tac";
+  if (sku === "FX-RAMBUTAN") return "buyer.category.chom";
+  return "buyer.category.mix";
+}

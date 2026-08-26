@@ -791,6 +791,48 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_materials", (string)null);
                 });
 
+            modelBuilder.Entity("ManufacturingMobileOperationReplayEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("OperationId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("SubjectId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TenantKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantKey", "SubjectId", "Method", "Path", "OperationId")
+                        .IsUnique();
+
+                    b.ToTable("manufacturing_mobile_operation_replays", (string)null);
+                });
+
             modelBuilder.Entity("ManufacturingOperationExecutionEntity", b =>
                 {
                     b.Property<Guid>("Id")

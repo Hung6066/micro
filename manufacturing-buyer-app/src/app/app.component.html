@@ -33,6 +33,14 @@
         >
           <mat-icon>{{ theme.resolvedTheme() === 'dark' ? 'light_mode' : 'dark_mode' }}</mat-icon>
         </button>
+        <button
+          type="button"
+          class="theme-toggle"
+          (click)="toggleContrast()"
+          [attr.aria-label]="(theme.highContrast() ? 'buyer.theme.contrastOff' : 'buyer.theme.contrastOn') | hhTranslate"
+        >
+          <mat-icon>{{ theme.highContrast() ? 'contrast' : 'tonality' }}</mat-icon>
+        </button>
         @if (isAuthenticated$ | async) {
           <a class="action-link" routerLink="/cart">
             <mat-icon>shopping_cart</mat-icon>
@@ -135,8 +143,8 @@
     </div>
     <div id="hop-tac">
       <h4>{{ 'buyer.footer.contact' | hhTranslate }}</h4>
-      <p>Hotline: <strong>1900 6366</strong></p>
-      <p>Email: <strong>sales@nacoms.example</strong></p>
+      <p>{{ 'buyer.footer.hotline' | hhTranslate }}: <strong>1900 6366</strong></p>
+      <p>{{ 'buyer.footer.email' | hhTranslate }}: <strong>sales@nacoms.example</strong></p>
       <button type="button" class="fx-btn-primary" (click)="onLogin('/catalog')">
         {{ 'buyer.login.portal' | hhTranslate }}
       </button>

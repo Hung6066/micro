@@ -26,6 +26,14 @@ export const routes: Routes = [
       import("./features/catalog/catalog-page.component").then((m) => m.CatalogPageComponent),
   },
   {
+    path: "catalog/:productId",
+    canActivate: [authGuard, endUserPortalGuard],
+    loadComponent: () =>
+      import("./features/catalog/product-detail-page.component").then(
+        (m) => m.ProductDetailPageComponent,
+      ),
+  },
+  {
     path: "cart",
     canActivate: [authGuard, endUserPortalGuard],
     loadComponent: () =>
@@ -36,6 +44,14 @@ export const routes: Routes = [
     canActivate: [authGuard, endUserPortalGuard],
     loadComponent: () =>
       import("./features/orders/orders-page.component").then((m) => m.OrdersPageComponent),
+  },
+  {
+    path: "orders/:orderId",
+    canActivate: [authGuard, endUserPortalGuard],
+    loadComponent: () =>
+      import("./features/orders/order-detail-page.component").then(
+        (m) => m.OrderDetailPageComponent,
+      ),
   },
   {
     path: "profile",

@@ -19,7 +19,7 @@ export type HisHopeActionMode = "label" | "icon-only";
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <button
-      type="button"
+      [type]="type()"
       [class]="classes()"
       [disabled]="disabled() || loading()"
       [attr.aria-label]="mode() === 'icon-only' ? label() : null"
@@ -100,6 +100,7 @@ export class HisHopeActionButtonComponent {
   readonly label = input.required<string>();
   readonly disabled = input(false);
   readonly loading = input(false);
+  readonly type = input<"button" | "submit" | "reset">("button");
   readonly pressed = output<void>();
 
   classes(): string {

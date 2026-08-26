@@ -1,6 +1,8 @@
 using His.Hope.AspNetCore.Authentication;
 using His.Hope.ServiceDefaults;
 using His.Hope.ManufacturingService.Application.Ports;
+using His.Hope.Authorization;
+using His.Hope.SharedKernel.Authorization;
 var builder = WebApplication.CreateBuilder(args);
 var manufacturingConnection = builder.Configuration.GetConnectionString("ManufacturingDb")
     ?? "Host=localhost;Database=manufacturingdb;Username=postgres;Password=postgres";
@@ -9,7 +11,7 @@ builder.Services.AddHealthChecks()
     .AddDbContextCheck<ManufacturingDbContext>("manufacturing-db");
 builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "ManufacturingService");
 builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
-builder.Services.AddAuthorization();
+builder.Services.AddHisHopeAuthorization();
 
 var app = builder.Build();
 app.UseExceptionHandler();
@@ -161,7 +163,8 @@ api.MapPost("/quality-inspections", (CreateQualityInspectionRequest request, Htt
         "invalid_inspection_status" or "invalid_moisture_percent" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!),
         _ => Results.Created("/api/v1/manufacturing/quality-inspections", result.Inspection)
     };
-});
+}).RequireAuthorization(AuthorizationPolicyNames.Permission(HisHopePermissions.Manufacturing.QualityInspect))
+  .AddEndpointFilter<MobileOperationReplayFilter>();
 
 api.MapGet("/product-specifications", (string? productSku, string? status, int? limit, HttpContext context, IManufacturingLegacyStore store) =>
 {
@@ -437,7 +440,8 @@ api.MapPost("/machines/{machineId:guid}/maintenance-work-orders/{workOrderId:gui
         _ when result.WorkOrder is not null => Results.Ok(result.WorkOrder),
         _ => ManufacturingProblem(StatusCodes.Status404NotFound, "machine_not_found")
     };
-});
+}).RequireAuthorization(AuthorizationPolicyNames.Permission(HisHopePermissions.Manufacturing.MaintenanceComplete))
+  .AddEndpointFilter<MobileOperationReplayFilter>();
 
 api.MapGet("/machine-downtimes", (Guid? machineId, string? status, int? limit, HttpContext context, IManufacturingMaintenanceStore store) =>
 {
@@ -594,6 +598,24 @@ api.MapPost("/facilities", (CreateFacilityRequest request, HttpContext context, 
     return result.Error is null ? Results.Created("/api/v1/manufacturing/facilities", result.Facility) : ManufacturingProblem(StatusCodes.Status409Conflict, result.Error);
 });
 
+api.MapGet("/lots/{lotId:guid}/reservations", (Guid lotId, string? status, int? limit, HttpContext context, IManufacturingReservationStore store) =>
+{
+    var tenantKey = TenantClaim(context);
+    return string.IsNullOrWhiteSpace(tenantKey)
+        ? Results.Forbid()
+        : Results.Ok(store.GetReservations(tenantKey, lotId, status, limit ?? 100));
+});
+api.MapPatch("/machines/{machineId:guid}", (Guid machineId, UpdateMachineRequest request, HttpContext context, IManufacturingMaintenanceStore store) =>
+{
+    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.UpdateMachine(machineId, request, tenantKey);
+    return result.Error switch { "machine_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "machine_code_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Ok(result.Machine) };
+});
+api.MapPatch("/facilities/{facilityId:guid}", (Guid facilityId, UpdateFacilityRequest request, HttpContext context, IManufacturingMasterDataStore store) =>
+{
+    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.UpdateFacility(tenantKey, facilityId, request);
+    return result.Error switch { "facility_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "facility_code_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Ok(result.Facility) };
+});
+
 api.MapGet("/warehouses", (string? tenantKey, Guid? facilityId, bool? active, int? limit, HttpContext context, IManufacturingMasterDataStore store) =>
 {
     if (!TryResolveTenant(context, tenantKey, out var scopedTenant)) return Results.Forbid();
@@ -606,6 +628,11 @@ api.MapPost("/warehouses", (CreateWarehouseRequest request, HttpContext context,
     if (!TenantMatches(context, request.TenantKey)) return Results.Forbid();
     var result = store.CreateWarehouse(request);
     return result.Error switch { "facility_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "warehouse_code_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Created("/api/v1/manufacturing/warehouses", result.Warehouse) };
+});
+api.MapPatch("/warehouses/{warehouseId:guid}", (Guid warehouseId, UpdateWarehouseRequest request, HttpContext context, IManufacturingMasterDataStore store) =>
+{
+    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.UpdateWarehouse(tenantKey, warehouseId, request);
+    return result.Error switch { "warehouse_not_found" or "facility_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "warehouse_code_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Ok(result.Warehouse) };
 });
 
 api.MapGet("/storage-locations", (string? tenantKey, Guid? warehouseId, bool? active, int? limit, HttpContext context, IManufacturingMasterDataStore store) =>
@@ -621,6 +648,11 @@ api.MapPost("/storage-locations", (CreateStorageLocationRequest request, HttpCon
     var result = store.CreateStorageLocation(request);
     return result.Error switch { "warehouse_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "location_code_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Created("/api/v1/manufacturing/storage-locations", result.Location) };
 });
+api.MapPatch("/storage-locations/{locationId:guid}", (Guid locationId, UpdateStorageLocationRequest request, HttpContext context, IManufacturingMasterDataStore store) =>
+{
+    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.UpdateStorageLocation(tenantKey, locationId, request);
+    return result.Error switch { "storage_location_not_found" or "warehouse_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "location_code_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Ok(result.Location) };
+});
 
 api.MapGet("/uoms", (bool? active, IManufacturingMasterDataStore store) => Results.Ok(store.GetUoms(active, 200)));
 api.MapPost("/uoms", (CreateUomRequest request, IManufacturingMasterDataStore store) =>
@@ -629,11 +661,19 @@ api.MapPost("/uoms", (CreateUomRequest request, IManufacturingMasterDataStore st
     var result = store.CreateUom(request);
     return result.Error is null ? Results.Created("/api/v1/manufacturing/uoms", result.Uom) : ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!);
 });
+api.MapPatch("/uoms/{uomId:guid}", (Guid uomId, UpdateUomRequest request, IManufacturingMasterDataStore store) =>
+{
+    var result = store.UpdateUom(uomId, request); return result.Error switch { "uom_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "uom_code_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Ok(result.Uom) };
+});
 api.MapGet("/uom-conversions", (bool? active, IManufacturingMasterDataStore store) => Results.Ok(store.GetUomConversions(active, 500)));
 api.MapPost("/uom-conversions", (CreateUomConversionRequest request, IManufacturingMasterDataStore store) =>
 {
     var result = store.CreateUomConversion(request);
     return result.Error switch { "invalid_uom_conversion" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!), "uom_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "uom_conversion_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Created("/api/v1/manufacturing/uom-conversions", result.Conversion) };
+});
+api.MapPatch("/uom-conversions/{conversionId:guid}", (Guid conversionId, UpdateUomConversionRequest request, IManufacturingMasterDataStore store) =>
+{
+    var result = store.UpdateUomConversion(conversionId, request); return result.Error switch { "uom_conversion_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "uom_conversion_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Ok(result.Conversion) };
 });
 
 api.MapGet("/materials", (string? tenantKey, string? materialType, bool? active, int? limit, HttpContext context, IManufacturingMasterDataStore store) =>
@@ -644,6 +684,11 @@ api.MapPost("/materials", (CreateMaterialRequest request, HttpContext context, I
 {
     if (string.IsNullOrWhiteSpace(request.TenantKey) || string.IsNullOrWhiteSpace(request.Sku) || string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.BaseUomCode)) return ManufacturingProblem(StatusCodes.Status400BadRequest, "invalid_material"); if (!TenantMatches(context, request.TenantKey)) return Results.Forbid(); var result = store.CreateMaterial(request); return result.Error switch { "uom_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "material_sku_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Created("/api/v1/manufacturing/materials", result.Material) };
 });
+api.MapPatch("/materials/{materialId:guid}", (Guid materialId, UpdateMaterialRequest request, HttpContext context, IManufacturingMasterDataStore store) =>
+{
+    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.UpdateMaterial(tenantKey, materialId, request);
+    return result.Error switch { "material_not_found" or "uom_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), _ => Results.Ok(result.Material) };
+});
 api.MapGet("/products", (string? tenantKey, bool? active, int? limit, HttpContext context, IManufacturingMasterDataStore store) =>
 {
     if (!TryResolveTenant(context, tenantKey, out var scopedTenant)) return Results.Forbid(); return Results.Ok(store.GetProducts(scopedTenant, active, limit ?? 500));
@@ -651,6 +696,11 @@ api.MapGet("/products", (string? tenantKey, bool? active, int? limit, HttpContex
 api.MapPost("/products", (CreateProductRequest request, HttpContext context, IManufacturingMasterDataStore store) =>
 {
     if (string.IsNullOrWhiteSpace(request.TenantKey) || string.IsNullOrWhiteSpace(request.Sku) || string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.BaseUomCode)) return ManufacturingProblem(StatusCodes.Status400BadRequest, "invalid_product"); if (!TenantMatches(context, request.TenantKey)) return Results.Forbid(); var result = store.CreateProduct(request); return result.Error switch { "uom_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "product_sku_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Created("/api/v1/manufacturing/products", result.Product) };
+});
+api.MapPatch("/products/{productId:guid}", (Guid productId, UpdateProductRequest request, HttpContext context, IManufacturingMasterDataStore store) =>
+{
+    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.UpdateProduct(tenantKey, productId, request);
+    return result.Error switch { "product_not_found" or "uom_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), _ => Results.Ok(result.Product) };
 });
 
 api.MapGet("/supplier-rfqs", (string? status, int? limit, HttpContext context, IManufacturingMasterDataStore store) =>
@@ -795,6 +845,16 @@ api.MapPost("/production-orders/{orderId:guid}/release", (Guid orderId, HttpCont
         _ => Results.Ok(result.Order)
     };
 });
+api.MapPost("/supplier-quotations/{quotationId:guid}/status", (Guid quotationId, UpdateSupplierQuotationStatusRequest request, HttpContext context, IManufacturingMasterDataStore store) =>
+{
+    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.UpdateSupplierQuotationStatus(tenantKey, quotationId, request.Status);
+    return result.Error switch { "supplier_quotation_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "invalid_supplier_quotation_status" => ManufacturingProblem(StatusCodes.Status400BadRequest, result.Error!), _ => Results.Ok(result.Quotation) };
+});
+api.MapPost("/production-orders/{orderId:guid}/cancel", (Guid orderId, HttpContext context, IManufacturingProductionOrderStore store) =>
+{
+    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.CancelOrder(tenantKey, orderId);
+    return result.Error switch { "production_order_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "production_order_not_cancellable" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Ok(result.Order) };
+});
 
 api.MapGet("/production-batches", (string? tenantKey, string? status, int? limit, HttpContext context, IManufacturingProductionOrderStore store) =>
 {
@@ -820,10 +880,17 @@ api.MapPost("/production-batches", (CreateProductionBatchRequest request, HttpCo
     };
 });
 
-api.MapPost("/production-batches/{batchId:guid}/start", (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) => BatchStatusResult(batchId, "Started", context, store));
+api.MapPost("/production-batches/{batchId:guid}/start", (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) => BatchStatusResult(batchId, "Started", context, store))
+    .RequireAuthorization(AuthorizationPolicyNames.Permission(HisHopePermissions.Manufacturing.ProductionExecute))
+    .AddEndpointFilter<MobileOperationReplayFilter>();
 api.MapPost("/production-batches/{batchId:guid}/pause", (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) => BatchStatusResult(batchId, "Paused", context, store));
 api.MapPost("/production-batches/{batchId:guid}/resume", (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) => BatchStatusResult(batchId, "Started", context, store));
 api.MapPost("/production-batches/{batchId:guid}/complete", (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) => BatchStatusResult(batchId, "Completed", context, store));
+api.MapPost("/production-batches/{batchId:guid}/cancel", (Guid batchId, HttpContext context, IManufacturingProductionOrderStore store) =>
+{
+    var tenantKey = TenantClaim(context); if (string.IsNullOrWhiteSpace(tenantKey)) return Results.Forbid(); var result = store.CancelBatch(tenantKey, batchId);
+    return result.Error switch { "production_batch_not_found" => ManufacturingProblem(StatusCodes.Status404NotFound, result.Error!), "production_batch_not_cancellable" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!), _ => Results.Ok(result.Batch) };
+});
 
 api.MapPost("/production-batches/{batchId:guid}/operations", (Guid batchId, RecordOperationRequest request, HttpContext context, IManufacturingProductionOrderStore store) =>
 {
@@ -840,7 +907,8 @@ api.MapPost("/production-batches/{batchId:guid}/operations", (Guid batchId, Reco
         "operation_sequence_exists" => ManufacturingProblem(StatusCodes.Status409Conflict, result.Error!),
         _ => Results.Created($"/api/v1/manufacturing/production-batches/{batchId}/operations", result.Operation)
     };
-});
+}).RequireAuthorization(AuthorizationPolicyNames.Permission(HisHopePermissions.Manufacturing.ProductionExecute))
+  .AddEndpointFilter<MobileOperationReplayFilter>();
 
 api.MapPost("/purchase-orders/{purchaseOrderId:guid}/receipts/batch", (Guid purchaseOrderId, ReceiveInboundBatchRequest request, HttpContext context, IManufacturingProcurementStore store) =>
 {

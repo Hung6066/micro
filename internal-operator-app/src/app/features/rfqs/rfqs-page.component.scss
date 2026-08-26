@@ -64,7 +64,7 @@
 
 .rfq-respond input,
 .rfq-respond textarea {
-  padding: 0.65rem 0.85rem;
+  padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-input, var(--radius-button));
   background: var(--surface-white);

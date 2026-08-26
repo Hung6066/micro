@@ -47,10 +47,10 @@
 
 .hero-slide__eyebrow {
   margin: 0 0 0.65rem;
-  color: #f6c85f;
-  font-weight: 800;
+  color: var(--color-warning);
+  font-weight: var(--font-weight-extrabold);
   text-transform: uppercase;
-  font-size: 0.75rem;
+  font-size: var(--font-size-caption);
   letter-spacing: 0.12em;
 }
 
@@ -163,7 +163,7 @@
 
 .stats__grid span {
   color: var(--buyer-on-inverse-muted);
-  font-size: 0.92rem;
+  font-size: var(--font-size-body-emphasis);
 }
 
 .stats__grid article {
@@ -184,9 +184,9 @@
 .featured__eyebrow {
   margin: 0 0 0.35rem;
   color: var(--color-warning);
-  font-weight: 800;
+  font-weight: var(--font-weight-extrabold);
   text-transform: uppercase;
-  font-size: 0.78rem;
+  font-size: var(--font-size-caption);
 }
 
 .featured__grid {
@@ -201,7 +201,7 @@
 
 .featured-card:first-child { grid-column: span 2; grid-row: span 2; }
 .featured-card:first-child .featured-card__media { aspect-ratio: 1 / 1.08; }
-.featured-card:first-child h3 { font-size: 1.35rem; }
+.featured-card:first-child h3 { font-size: var(--font-size-display); }
 
 .featured-card__media {
   aspect-ratio: 1;
@@ -227,7 +227,7 @@
 
 .featured-card h3 {
   margin: 0 0 0.35rem;
-  font-size: 0.95rem;
+  font-size: var(--font-size-body-emphasis);
   line-height: 1.3;
 }
 
@@ -267,9 +267,9 @@
 .founder__eyebrow {
   margin: 0 0 0.35rem;
   color: var(--color-warning);
-  font-weight: 800;
+  font-weight: var(--font-weight-extrabold);
   text-transform: uppercase;
-  font-size: 0.78rem;
+  font-size: var(--font-size-caption);
 }
 
 .founder__body p {
@@ -327,8 +327,8 @@
   display: inline-block;
   margin-bottom: 0.65rem;
   color: var(--color-primary);
-  font-size: 0.78rem;
-  font-weight: 800;
+  font-size: var(--font-size-caption);
+  font-weight: var(--font-weight-extrabold);
   text-transform: uppercase;
 }
 
@@ -349,7 +349,7 @@
   display: block;
   margin-bottom: 0.5rem;
   color: var(--text-secondary);
-  font-size: 0.85rem;
+  font-size: var(--font-size-label);
 }
 
 .news-card__link {
@@ -374,7 +374,7 @@
   border: 0;
   background: transparent;
   color: var(--color-primary);
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   cursor: pointer;
   padding: 0;
 }

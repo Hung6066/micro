@@ -34,8 +34,15 @@ import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-fou
         } @else {
           <div class="list">
             @for (item of items; track item.id) {
-              <article class="item fx-card">
-                <strong>{{ item.title }}</strong>
+              <article class="item fx-card" [class.item--read]="item.isRead">
+                <div class="item__head">
+                  <strong>{{ item.title }}</strong>
+                  @if (!item.isRead) {
+                    <button type="button" class="read-button" (click)="markAsRead(item)">
+                      {{ 'buyer.notifications.markRead' | hhTranslate }}
+                    </button>
+                  }
+                </div>
                 <p>{{ item.message }}</p>
                 <small>{{ i18n.formatDateTime(item.createdAt) }}</small>
               </article>
@@ -47,10 +54,13 @@ import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-fou
   `,
   styles: [
     `
-      .page-head__eyebrow { margin: 0 0 0.35rem; color: var(--color-primary); font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.78rem; }
+      .page-head__eyebrow { margin: 0 0 0.35rem; color: var(--color-primary); font-weight: var(--font-weight-extrabold); text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--font-size-caption); }
       .page-head h1 { margin: 0 0 1.5rem; }
       .list { display: grid; gap: 0.85rem; }
       .item { padding: 1rem; }
+      .item--read { opacity: 0.78; }
+      .item__head { display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+      .read-button { border: 0; background: transparent; color: var(--color-primary); cursor: pointer; font-weight: var(--font-weight-bold); }
       .item p { margin: 0.35rem 0; color: var(--text-secondary); line-height: 1.6; }
       .item small { color: var(--text-secondary); }
       .state { padding: 2rem; text-align: center; color: var(--text-secondary); }
@@ -78,6 +88,20 @@ export class NotificationsPageComponent implements OnInit {
       error: (error) => {
         this.error = this.errors.message(error, "buyer.notifications.error");
         this.loading = false;
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  markAsRead(item: NotificationItem): void {
+    if (item.isRead) return;
+    this.api.markNotificationRead(item.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: () => {
+        item.isRead = true;
+        this.cdr.markForCheck();
+      },
+      error: (error) => {
+        this.error = this.errors.message(error, "buyer.notifications.error");
         this.cdr.markForCheck();
       },
     });

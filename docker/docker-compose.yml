@@ -1091,6 +1091,8 @@ services:
       Outbox__Enabled: "true"
       Consumers__AnalyticsEnabled: "true"
       Consumers__CommerceOrdersEnabled: "true"
+      # Local/demo only. Production deployments must set this to false.
+      Manufacturing__SeedDemoData: ${MANUFACTURING_SEED_DEMO_DATA:-true}
       EventBus__HostName: rabbitmq
       EventBus__Port: "5672"
       EventBus__UserName: ${RABBITMQ_USER:-admin}

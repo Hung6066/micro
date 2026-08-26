@@ -38,7 +38,7 @@ import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-fou
               <article class="order fx-card">
                 <header>
                   <div>
-                    <strong>#{{ order.id.slice(0, 8) }}</strong>
+                    <a [routerLink]="['/orders', order.id]"><strong>#{{ order.id.slice(0, 8) }}</strong></a>
                     <span>{{ i18n.formatDateTime(order.createdAt) }}</span>
                   </div>
                   <span class="status">{{ order.status }}</span>
@@ -58,17 +58,18 @@ import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-fou
   `,
   styles: [
     `
-      .page-head__eyebrow { margin: 0 0 0.35rem; color: var(--color-primary); font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.78rem; }
+      .page-head__eyebrow { margin: 0 0 0.35rem; color: var(--color-primary); font-weight: var(--font-weight-extrabold); text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--font-size-caption); }
       .page-head h1 { margin: 0 0 1.5rem; }
       .orders { display: grid; gap: 1rem; }
       .order { padding: 1.1rem; }
       header { display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
-      header span { display: block; color: var(--text-secondary); font-size: 0.85rem; }
-      .status { text-transform: uppercase; color: var(--color-primary); font-weight: 800; font-size: 0.78rem; }
-      .amount { margin: 0.5rem 0; font-size: 1.1rem; font-weight: 700; }
+      header span { display: block; color: var(--text-secondary); font-size: var(--font-size-label); }
+      .status { text-transform: uppercase; color: var(--color-primary); font-weight: var(--font-weight-extrabold); font-size: var(--font-size-caption); }
+      header a { color: inherit; }
+      .amount { margin: 0.5rem 0; font-size: var(--font-size-title-sm); font-weight: var(--font-weight-bold); }
       ul { margin: 0; padding-left: 1rem; color: var(--text-secondary); }
       .state { padding: 2rem; text-align: center; }
-      .state a { color: var(--color-primary); font-weight: 700; }
+      .state a { color: var(--color-primary); font-weight: var(--font-weight-bold); }
     `,
   ],
 })

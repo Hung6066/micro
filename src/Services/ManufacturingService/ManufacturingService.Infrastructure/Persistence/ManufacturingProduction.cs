@@ -45,6 +45,14 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
         return (ToDto(entity, db.Recipes.Single(x => x.Id == entity.RecipeId)), null);
     }
 
+    public (ProductionOrderDto? Order, string? Error) CancelOrder(string tenantKey, Guid orderId)
+    {
+        using var db = dbFactory.CreateDbContext(); var entity = db.ProductionOrders.SingleOrDefault(x => x.Id == orderId && x.TenantKey == tenantKey);
+        if (entity is null) return (null, "production_order_not_found");
+        if (entity.Status is "Completed" or "Cancelled") return (null, "production_order_not_cancellable");
+        entity.Status = "Cancelled"; db.SaveChanges(); return (ToDto(entity, db.Recipes.Single(x => x.Id == entity.RecipeId)), null);
+    }
+
     public IReadOnlyList<ProductionOrderDto> GetOrders(string tenantKey, string? status, int limit)
     {
         using var db = dbFactory.CreateDbContext();
@@ -241,6 +249,14 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
         });
         db.SaveChanges();
         return (ToDto(entity, db.OperationExecutions.AsNoTracking().Where(x => x.ProductionBatchId == entity.Id).ToList(), db.ProductionBatchInputs.AsNoTracking().Where(x => x.ProductionBatchId == entity.Id).ToList()), null);
+    }
+
+    public (ProductionBatchDto? Batch, string? Error) CancelBatch(string tenantKey, Guid batchId)
+    {
+        using var db = dbFactory.CreateDbContext(); var entity = db.ProductionBatches.SingleOrDefault(x => x.Id == batchId && x.TenantKey == tenantKey);
+        if (entity is null) return (null, "production_batch_not_found");
+        if (entity.Status is "Completed" or "Cancelled") return (null, "production_batch_not_cancellable");
+        entity.Status = "Cancelled"; db.SaveChanges(); var operations = db.OperationExecutions.Where(x => x.ProductionBatchId == entity.Id).ToList(); var inputs = db.ProductionBatchInputs.Where(x => x.ProductionBatchId == entity.Id).ToList(); return (ToDto(entity, operations, inputs), null);
     }
 
     public (OperationExecutionDto? Operation, string? Error) RecordOperation(string tenantKey, Guid batchId, RecordOperationRequest request)

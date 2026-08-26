@@ -59,14 +59,14 @@ import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-fou
   `,
   styles: [
     `
-      .page-head__eyebrow { margin: 0 0 0.35rem; color: var(--color-primary); font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.78rem; }
+      .page-head__eyebrow { margin: 0 0 0.35rem; color: var(--color-primary); font-weight: var(--font-weight-extrabold); text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--font-size-caption); }
       .page-head h1 { margin: 0 0 1.5rem; }
       .cart-panel { padding: 1.25rem; }
       .lines { list-style: none; padding: 0; margin: 0 0 1rem; }
       .lines li { display: flex; justify-content: space-between; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border-default); }
-      .total { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; font-size: 1.1rem; }
+      .total { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; font-size: var(--font-size-title-sm); }
       .state { padding: 2rem; text-align: center; color: var(--text-secondary); }
-      .state a { color: var(--color-primary); font-weight: 700; }
+      .state a { color: var(--color-primary); font-weight: var(--font-weight-bold); }
     `,
   ],
 })

@@ -83,6 +83,9 @@ import { TenantContextService } from "../../core/services/tenant-context.service
                       {{ latestTelemetry(machine.id)?.state || machine.status }}
                     </span>
                   </header>
+                  @if (machineEdit.id === machine.id) {
+                    <form class="work-order-form" (ngSubmit)="saveMachine()"><label>{{ 'customerPortal.machineCode' | hhTranslate: 'Machine code' }}<input name="machineCode" [(ngModel)]="machineEdit.code" required /></label><label>{{ 'common.name' | hhTranslate: 'Name' }}<input name="machineName" [(ngModel)]="machineEdit.name" required /></label><label>{{ 'customerPortal.status' | hhTranslate: 'Status' }}<input name="machineStatus" [(ngModel)]="machineEdit.status" required /></label><label><input name="machineActive" type="checkbox" [(ngModel)]="machineEdit.active" /> {{ 'common.active' | hhTranslate: 'Active' }}</label><hh-action-button kind="primary" icon="save" type="submit" [label]="'common.save' | hhTranslate: 'Save'" [disabled]="savingMachine" /></form>
+                  } @else { <hh-action-button kind="secondary" icon="edit" [label]="'common.edit' | hhTranslate: 'Edit'" (pressed)="editMachine(machine)" /> }
                   @if (!machineTelemetry(machine.id).length) {
                     <p class="meta">{{ 'customerPortal.noTelemetry' | hhTranslate: 'No telemetry received.' }}</p>
                   } @else {
@@ -169,8 +172,8 @@ import { TenantContextService } from "../../core/services/tenant-context.service
     .section-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); }
     .heading-actions { display: flex; align-items: center; gap: var(--space-sm); }
     .section-heading h2 { margin: 0; color: var(--text-primary); }
-    .eyebrow { margin: 0 0 var(--space-2xs); color: var(--text-secondary); font-size: var(--font-size-caption); text-transform: uppercase; letter-spacing: .08em; }
-    .count { min-width: 2rem; padding: var(--space-xs) var(--space-sm); border-radius: 999px; background: var(--surface-subtle); color: var(--text-primary); text-align: center; }
+    .eyebrow { margin: 0 0 var(--space-2xs); color: var(--text-secondary); font-size: var(--font-size-caption); text-transform: uppercase; letter-spacing: var(--tracking-overline); }
+    .count { min-width: var(--control-height-sm); padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-pill); background: var(--surface-subtle); color: var(--text-primary); text-align: center; }
     .work-order-form, .completion-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: var(--space-sm); align-items: end; }
     label { display: grid; gap: var(--space-2xs); color: var(--text-secondary); font-size: var(--font-size-caption); }
     input, select { width: 100%; box-sizing: border-box; border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: var(--space-xs); color: var(--text-primary); background: var(--surface-white); font: inherit; }
@@ -218,6 +221,8 @@ export class MaintenancePageComponent implements OnInit {
   evidenceDrafts: Record<string, string> = {};
   savingDowntime = false;
   downtimeDraft = { machineId: "", reason: "", startedAt: new Date().toISOString().slice(0, 16), notes: "" };
+  machineEdit: { id: string; code: string; name: string; status: string; active: boolean } = { id: "", code: "", name: "", status: "", active: true };
+  savingMachine = false;
   draft = { machineId: "", dueAt: new Date(Date.now() + 86400000).toISOString().slice(0, 16), assignedTo: "", notes: "" };
 
   get pageSubtitle(): string { this.i18n.locale(); return this.i18n.t("customerPortal.tenantScope", "Tenant: {{tenant}}", { tenant: this.tenantLabel ?? this.i18n.t("customerPortal.tenantUnknown", "—") }); }
@@ -247,6 +252,8 @@ export class MaintenancePageComponent implements OnInit {
   machineLabel(machineId: string): string { const machine = this.machines.find((x) => x.id === machineId); return machine ? `${machine.code} · ${machine.name}` : machineId; }
   machineTelemetry(machineId: string): HisHopeMachineTelemetryDto[] { return this.telemetryByMachine[machineId] ?? []; }
   latestTelemetry(machineId: string): HisHopeMachineTelemetryDto | undefined { return this.machineTelemetry(machineId)[0]; }
+  editMachine(machine: HisHopeManufacturingMachineDto): void { this.machineEdit = { id: machine.id, code: machine.code, name: machine.name, status: machine.status, active: machine.active }; }
+  saveMachine(): void { const draft = this.machineEdit; if (!draft.id || !draft.code.trim() || !draft.name.trim()) return; this.savingMachine = true; this.api.updateMachine(draft.id, { code: draft.code.trim(), name: draft.name.trim(), status: draft.status.trim(), active: draft.active }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: (updated) => { this.machines = this.machines.map((item) => item.id === updated.id ? updated : item); this.machineEdit = { id: "", code: "", name: "", status: "", active: true }; this.savingMachine = false; this.cdr.markForCheck(); }, error: (error) => { this.actionError = this.errors.message(error, "customerPortal.machineSaveFailed"); this.savingMachine = false; this.cdr.markForCheck(); } }); }
   isOverdue(workOrder: HisHopeMaintenanceWorkOrderDto): boolean { return workOrder.status === "Open" && new Date(workOrder.dueAt).getTime() < Date.now(); }
   toggleOpenFilter(): void { this.showOpenOnly = !this.showOpenOnly; }
   generateDueWorkOrders(): void {

@@ -13,8 +13,19 @@ test.describe('manufacturing buyer localization and theme @buyer-app', () => {
     // public shell must still render its localized navigation before login.
     await expect(page.getByRole('link', { name: 'Home' }).first()).toBeVisible();
 
-    await page.getByRole('button', { name: /dark theme/i }).click();
-    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+await page.getByRole('button', { name: /dark theme/i }).click();
+await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+const languageTrigger = page.locator('hh-language-switcher .hh-language-trigger');
+await languageTrigger.focus();
+await page.keyboard.press('Enter');
+await page.getByRole('option', { name: /English/i }).click();
+await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+await expect(page.getByRole('link', { name: 'Home' }).first()).toBeVisible();
+
+const contrastToggle = page.getByRole('button', { name: /high contrast/i });
+await contrastToggle.click();
+await expect(page.locator('html')).toHaveAttribute('data-contrast', 'high');
 
     const search = page.locator('input[type="search"]');
     await expect(search).toHaveCSS('color', /rgb\(/);

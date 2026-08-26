@@ -43,9 +43,22 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
     public DbSet<ManufacturingCapaEntity> Capas => Set<ManufacturingCapaEntity>();
     public DbSet<ManufacturingSupplierEvaluationEntity> SupplierEvaluations => Set<ManufacturingSupplierEvaluationEntity>();
     public DbSet<ManufacturingAuditEventEntity> AuditEvents => Set<ManufacturingAuditEventEntity>();
+    public DbSet<ManufacturingMobileOperationReplayEntity> MobileOperationReplays => Set<ManufacturingMobileOperationReplayEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<ManufacturingMobileOperationReplayEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_mobile_operation_replays");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.SubjectId).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Method).HasMaxLength(16).IsRequired();
+            entity.Property(x => x.Path).HasMaxLength(500).IsRequired();
+            entity.Property(x => x.OperationId).HasMaxLength(200).IsRequired();
+            entity.HasIndex(x => new { x.TenantKey, x.SubjectId, x.Method, x.Path, x.OperationId }).IsUnique();
+        });
+
         modelBuilder.Entity<ManufacturingLotEntity>(entity =>
         {
             entity.ToTable("manufacturing_lots");
@@ -1022,6 +1035,15 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         db.Machines.Add(entity);
         db.SaveChanges();
         return ToDto(entity);
+    }
+
+    public (MachineDto? Machine, string? Error) UpdateMachine(Guid machineId, UpdateMachineRequest request, string tenantKey)
+    {
+        using var db = dbFactory.CreateDbContext(); var entity = db.Machines.SingleOrDefault(x => x.Id == machineId && x.TenantKey == tenantKey);
+        if (entity is null) return (null, "machine_not_found");
+        if (string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Status)) return (null, "invalid_machine");
+        if (db.Machines.Any(x => x.Id != machineId && x.TenantKey == tenantKey && x.Code == request.Code.Trim())) return (null, "machine_code_exists");
+        entity.Code = request.Code.Trim(); entity.Name = request.Name.Trim(); entity.Status = request.Status.Trim(); entity.NextMaintenanceAt = request.NextMaintenanceAt; entity.Active = request.Active; db.SaveChanges(); return (ToDto(entity), null);
     }
 
     public IReadOnlyList<MachineDto> GetMachines(string? tenantKey, string? status, int limit)

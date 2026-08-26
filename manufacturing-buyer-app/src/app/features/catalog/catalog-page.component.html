@@ -34,8 +34,10 @@
             <div class="product-card__media">
               <img [src]="imageUrl(product)" [alt]="product.name" loading="lazy" />
             </div>
-            <span class="product-card__category">{{ categoryLabel(product) }}</span>
-            <h3>{{ product.name }}</h3>
+            <a [routerLink]="['/catalog', product.id]" class="product-card__link">
+              <span class="product-card__category">{{ categoryLabel(product) | hhTranslate }}</span>
+              <h3>{{ product.name }}</h3>
+            </a>
             <p class="product-card__desc">{{ product.description }}</p>
             <p class="product-card__availability">
               <span>{{ 'buyer.catalog.available' | hhTranslate }}</span>

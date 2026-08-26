@@ -19,6 +19,12 @@ import { HisHopeActionButtonComponent } from "./his-hope-action-button.component
       icon="delete"
       label="Delete user"
     />
+    <hh-action-button
+      kind="primary"
+      icon="save"
+      label="Save"
+      type="submit"
+    />
   `,
 })
 class HostComponent {
@@ -50,5 +56,10 @@ describe("HisHopeActionButtonComponent", () => {
       .query(By.css("hh-action-button button"))
       .nativeElement.click();
     expect(host.pressed).toBeTrue();
+  });
+
+  it("forwards the native button type for form actions", () => {
+    const buttons = fixture.nativeElement.querySelectorAll("button");
+    expect(buttons[2].getAttribute("type")).toBe("submit");
   });
 });

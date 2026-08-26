@@ -13,6 +13,7 @@ export const environment = {
   production: false,
   commerceApiUrl: `${runtime.apiOrigin}/api/v1/commerce`,
   manufacturingApiUrl: `${runtime.apiOrigin}/api/v1/manufacturing`,
+  contentApiUrl: `${runtime.apiOrigin}/api/v1/content`,
   authApiUrl: `${runtime.apiOrigin}/api/v1/auth`,
   oidc: {
     authority: runtime.oidcAuthority,

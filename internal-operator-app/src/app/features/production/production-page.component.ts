@@ -137,6 +137,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
                       [label]="'customerPortal.releaseOrder' | hhTranslate: 'Release'"
                       (pressed)="releaseOrder(order)"
                     />
+                    <hh-action-button kind="secondary" icon="cancel" [label]="'customerPortal.cancelOrder' | hhTranslate: 'Cancel order'" (pressed)="cancelOrder(order)" />
                   }
                 </article>
               }
@@ -182,6 +183,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
                       [label]="'customerPortal.startBatch' | hhTranslate: 'Start batch'"
                       (pressed)="startBatch(batch)"
                     />
+                    <hh-action-button kind="secondary" icon="cancel" [label]="'customerPortal.cancelBatch' | hhTranslate: 'Cancel batch'" [disabled]="batchActionId === batch.id" (pressed)="cancelBatch(batch)" />
                   }
                   @if (batch.status === "Started") {
                     <hh-action-button kind="secondary" icon="pause" [label]="'customerPortal.pauseBatch' | hhTranslate: 'Pause batch'" [disabled]="batchActionId === batch.id" (pressed)="transitionBatch(batch, 'pause')" />
@@ -445,7 +447,7 @@ export class ProductionPageComponent implements OnInit {
 
   createProductionOrder(): void {
     const draft = this.productionOrderDraft;
-    const recipeIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const recipeIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!draft.orderNumber.trim() || !draft.productSku.trim() || !recipeIdPattern.test(draft.recipeId.trim()) || draft.targetQuantity <= 0 || !draft.outputUom.trim()) {
       this.productionOrderError = this.i18n.t("customerPortal.productionOrderFormInvalid", "Order number, SKU, valid recipe ID and positive quantity are required.");
       return;
@@ -460,7 +462,7 @@ export class ProductionPageComponent implements OnInit {
 
   createProductionBatch(): void {
     const draft = this.productionBatchDraft;
-    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuid.test(draft.productionOrderId) || !draft.batchNumber.trim() || draft.plannedQuantity <= 0 || !uuid.test(draft.inputLotId) || draft.inputQuantity <= 0 || (draft.machineId.trim() && !uuid.test(draft.machineId.trim()))) {
       this.productionBatchError = this.i18n.t("customerPortal.productionBatchFormInvalid", "A released order, batch number and positive quantity are required.");
       return;
@@ -535,6 +537,14 @@ export class ProductionPageComponent implements OnInit {
       });
   }
 
+  cancelOrder(order: HisHopeProductionOrderDto): void {
+    this.productionOrderBusy = true;
+    this.manufacturingApi.cancelProductionOrder(order.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (updated) => { this.orders = this.orders.map((item) => item.id === updated.id ? updated : item); this.productionOrderBusy = false; this.cdr.markForCheck(); },
+      error: (error) => { this.productionOrderError = this.errors.message(error, "customerPortal.cancelOrderFailed"); this.productionOrderBusy = false; this.cdr.markForCheck(); },
+    });
+  }
+
   startBatch(batch: HisHopeProductionBatchDto): void {
     this.batchActionId = batch.id;
     this.batchActionError = "";
@@ -560,6 +570,14 @@ export class ProductionPageComponent implements OnInit {
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (updated) => { this.batches = this.batches.map((candidate) => candidate.id === updated.id ? updated : candidate); this.batchActionId = null; this.cdr.markForCheck(); },
       error: (error) => { this.batchActionError = this.errors.message(error, "customerPortal.batchTransitionFailed"); this.batchActionId = null; this.cdr.markForCheck(); },
+    });
+  }
+
+  cancelBatch(batch: HisHopeProductionBatchDto): void {
+    this.batchActionId = batch.id;
+    this.manufacturingApi.cancelProductionBatch(batch.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (updated) => { this.batches = this.batches.map((item) => item.id === updated.id ? updated : item); this.batchActionId = null; this.cdr.markForCheck(); },
+      error: (error) => { this.batchActionError = this.errors.message(error, "customerPortal.cancelBatchFailed"); this.batchActionId = null; this.cdr.markForCheck(); },
     });
   }
 

@@ -53,7 +53,7 @@ static IResult ContentProblem(int statusCode, string errorCode) =>
         statusCode: statusCode,
         extensions: new Dictionary<string, object?> { ["errorCode"] = errorCode });
 
-var contentPublic = app.MapGroup("/api/v1/content/public");
+var contentPublic = app.MapGroup("/api/v1/content/public").AllowAnonymous();
 
 contentPublic.MapGet("/home", (HttpContext context, PostgresContentStore store) =>
 {
@@ -120,7 +120,7 @@ app.MapGet("/api/v1/content/sitemap.xml", (HttpContext context, PostgresContentS
     var baseUrl = context.Request.Query["baseUrl"].FirstOrDefault() ?? "http://localhost:4205";
     var xml = store.BuildSitemapXml(tenantKey, baseUrl);
     return Results.Content(xml, "application/xml", Encoding.UTF8);
-});
+}).AllowAnonymous();
 
 app.MapGet("/api/v1/content/rss.xml", (HttpContext context, PostgresContentStore store) =>
 {
@@ -129,7 +129,7 @@ app.MapGet("/api/v1/content/rss.xml", (HttpContext context, PostgresContentStore
     var title = context.Request.Query["title"].FirstOrDefault() ?? "Nacoms Blog";
     var xml = store.BuildRssXml(tenantKey, baseUrl, title);
     return Results.Content(xml, "application/rss+xml", Encoding.UTF8);
-});
+}).AllowAnonymous();
 
 var content = app.MapGroup("/api/v1/content").RequireAuthorization();
 

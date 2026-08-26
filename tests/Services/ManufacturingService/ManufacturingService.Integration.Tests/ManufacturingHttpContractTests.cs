@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Testcontainers.PostgreSql;
+using His.Hope.SharedKernel.Authorization;
 using Xunit;
 
 public sealed class ManufacturingHttpContractTests : IAsyncLifetime
@@ -54,6 +55,52 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
             });
         });
         client = factory.CreateClient();
+    }
+
+    [Fact]
+    public async Task DemoSeed_creates_relationship_complete_graph_for_operator_features()
+    {
+        using var scope = factory.Services.CreateScope();
+        var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ManufacturingDbContext>>();
+        ManufacturingDemoSeeder.Seed(dbFactory);
+        await using var db = await dbFactory.CreateDbContextAsync();
+        db.Products.Count(x => x.TenantKey == ManufacturingDemoSeeder.TenantKey).Should().Be(1);
+        var recipe = await db.Recipes.Include(x => x.Components).SingleAsync(x => x.TenantKey == ManufacturingDemoSeeder.TenantKey && x.ProductSku == "FG-MANGO-CHILI");
+        recipe.Status.Should().Be("Approved");
+        recipe.Components.Should().HaveCount(2);
+        var batch = await db.ProductionBatches.SingleAsync(x => x.TenantKey == ManufacturingDemoSeeder.TenantKey && x.BatchNumber == "BATCH-2026-001");
+        db.ProductionOrders.Any(x => x.Id == batch.ProductionOrderId && x.RecipeId == recipe.Id).Should().BeTrue();
+        db.ProductionBatchInputs.Any(x => x.ProductionBatchId == batch.Id && x.ReservationId != Guid.Empty).Should().BeTrue();
+        db.OperationExecutions.Any(x => x.ProductionBatchId == batch.Id && x.LossQuantity > 0).Should().BeTrue();
+        db.LossReviews.Any(x => x.ProductionBatchId == batch.Id).Should().BeTrue();
+        db.QualityInspections.Any(x => x.TenantKey == ManufacturingDemoSeeder.TenantKey && x.Status == "Approved").Should().BeTrue();
+        db.InboundReceipts.Any(x => x.TenantKey == ManufacturingDemoSeeder.TenantKey).Should().BeTrue();
+        db.SupplierQuotations.Any(x => x.TenantKey == ManufacturingDemoSeeder.TenantKey && x.Status == "Selected").Should().BeTrue();
+        db.Capas.Any(x => x.TenantKey == ManufacturingDemoSeeder.TenantKey && x.DeviationId != null).Should().BeTrue();
+        db.SalesForecasts.Any(x => x.TenantKey == ManufacturingDemoSeeder.TenantKey).Should().BeTrue();
+        db.AuditEvents.Count(x => x.TenantKey == ManufacturingDemoSeeder.TenantKey && x.EntityType == "DemoSeed").Should().Be(1);
+    }
+
+    [Fact]
+    public async Task PurchaseOrder_list_returns_orders_with_supplier_without_concurrent_database_reader()
+    {
+        var supplierResponse = await client.PostAsJsonAsync("/api/v1/manufacturing/suppliers", new
+        {
+            tenantKey = "http-integration-tenant", code = "SUP-LIST", name = "List supplier", active = true
+        });
+        supplierResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var supplierId = (await ReadJson(supplierResponse)).GetProperty("id").GetGuid();
+
+        var orderResponse = await client.PostAsJsonAsync("/api/v1/manufacturing/purchase-orders", new
+        {
+            tenantKey = "http-integration-tenant", orderNumber = "PO-LIST", supplierId, status = "Approved",
+            currency = "VND", lines = new[] { new { materialSku = "RM-LIST", orderedQuantity = 5m, uom = "kg", unitPrice = 100m } }
+        });
+        orderResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var listResponse = await client.GetAsync("/api/v1/manufacturing/purchase-orders?tenantKey=http-integration-tenant");
+        listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadJson(listResponse)).GetArrayLength().Should().Be(1);
     }
 
     public async Task DisposeAsync()
@@ -106,6 +153,9 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         });
         reservationResponse.StatusCode.Should().Be(HttpStatusCode.Created);
         var reservationId = (await ReadJson(reservationResponse)).GetProperty("id").GetGuid();
+        var reservationsResponse = await client.GetAsync($"/api/v1/manufacturing/lots/{lotId}/reservations?status=Reserved");
+        reservationsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadJson(reservationsResponse)).GetArrayLength().Should().Be(1);
 
         var batchResponse = await client.PostAsJsonAsync("/api/v1/manufacturing/production-batches", new
         {
@@ -140,12 +190,32 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         deviationClose.StatusCode.Should().Be(HttpStatusCode.OK);
         (await ReadJson(deviationClose)).GetProperty("status").GetString().Should().Be("Closed");
 
-        var operationResponse = await client.PostAsJsonAsync($"/api/v1/manufacturing/production-batches/{batchId}/operations", new
+        const string operationId = "f99a2b3e-1c5d-4c4e-8d0d-111111111111";
+        var operationPayload = JsonContent.Create(new
         {
             sequence = 1, processStep = "drying", @operator = "http-operator", inputQuantity = 60,
             outputQuantity = 48, required = true, qcStatus = "Pass"
         });
+        using var operationRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/manufacturing/production-batches/{batchId}/operations")
+        {
+            Content = operationPayload
+        };
+        operationRequest.Headers.Add("X-HisHope-Operation-Id", operationId);
+        var operationResponse = await client.SendAsync(operationRequest);
         operationResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        using var replayRequest = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/manufacturing/production-batches/{batchId}/operations")
+        {
+            Content = JsonContent.Create(new
+            {
+                sequence = 1, processStep = "drying", @operator = "http-operator", inputQuantity = 60,
+                outputQuantity = 48, required = true, qcStatus = "Pass"
+            })
+        };
+        replayRequest.Headers.Add("X-HisHope-Operation-Id", operationId);
+        var replayResponse = await client.SendAsync(replayRequest);
+          replayResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        replayResponse.Headers.GetValues("X-HisHope-Operation-Replay").Single().Should().Be("true");
 
         var completeResponse = await client.PostAsync($"/api/v1/manufacturing/production-batches/{batchId}/complete", null);
         completeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -644,7 +714,10 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
             {
                 new Claim("sub", "manufacturing-http-test"),
                 new Claim("tenant_id", "http-integration-tenant"),
-                new Claim("portal_class", "operator")
+                new Claim("portal_class", "operator"),
+                new Claim("permissions", HisHopePermissions.Manufacturing.ProductionExecute),
+                new Claim("permissions", HisHopePermissions.Manufacturing.QualityInspect),
+                new Claim("permissions", HisHopePermissions.Manufacturing.MaintenanceComplete)
             };
             var identity = new ClaimsIdentity(claims, TestScheme);
             return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), TestScheme)));

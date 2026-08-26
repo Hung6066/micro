@@ -131,6 +131,39 @@ commerce.MapGet("/products", async (
     CommerceAuthorizationPolicies.BuyerRead,
     AuthorizationPolicyNames.Permissions.CommerceCatalogView);
 
+commerce.MapGet("/products/{productId:guid}", async (
+    Guid productId,
+    HttpContext context,
+    CommerceStore store,
+    ICommerceProfilePersistence profilePersistence,
+    ICommerceCatalogPersistence catalogPersistence) =>
+{
+    var tenantKey = CommerceHttpExtensions.ResolveCommerceTenant(context);
+    var userId = context.User.GetUserId();
+    if (string.IsNullOrWhiteSpace(tenantKey))
+        return Results.Forbid();
+
+    var priceTier = "standard";
+    var portalClass = context.User.GetPortalClass();
+    if (string.Equals(portalClass, PortalClassConstants.EndUser, StringComparison.OrdinalIgnoreCase) &&
+        !string.IsNullOrWhiteSpace(userId))
+    {
+        var profile = await profilePersistence.GetProfileAsync(
+            tenantKey,
+            userId,
+            context.User.GetEmail(),
+            context.RequestAborted);
+        priceTier = profile.PriceTier;
+    }
+
+    var catalog = await LoadCatalogAsync(catalogPersistence, tenantKey, context.RequestAborted);
+    var product = store.GetProductForBuyer(tenantKey, priceTier, productId, catalog);
+    return product is null ? Results.NotFound() : Results.Ok(product);
+})
+.RequireAuthorization(
+    CommerceAuthorizationPolicies.BuyerRead,
+    AuthorizationPolicyNames.Permissions.CommerceCatalogView);
+
 commerce.MapGet("/cart", async (
     HttpContext context,
     ICommerceCartPersistence cartPersistence) =>
@@ -371,6 +404,27 @@ commerce.MapGet("/notifications", async (
 })
 .RequireAuthorization(
     CommerceAuthorizationPolicies.BuyerRead,
+    AuthorizationPolicyNames.Permissions.CommerceNotificationsView);
+
+commerce.MapPatch("/notifications/{notificationId:guid}/read", async (
+    Guid notificationId,
+    HttpContext context,
+    ICommerceNotificationPersistence notificationPersistence) =>
+{
+    var tenantKey = CommerceHttpExtensions.ResolveCommerceTenant(context, isMutation: true);
+    var userId = context.User.GetUserId();
+    if (string.IsNullOrWhiteSpace(tenantKey) || string.IsNullOrWhiteSpace(userId))
+        return Results.Forbid();
+
+    await notificationPersistence.MarkAsReadAsync(
+        notificationId,
+        tenantKey,
+        userId,
+        context.RequestAborted);
+    return Results.NoContent();
+})
+.RequireAuthorization(
+    CommerceAuthorizationPolicies.BuyerWrite,
     AuthorizationPolicyNames.Permissions.CommerceNotificationsView);
 
 var rfqs = commerce.MapGroup("/rfqs");

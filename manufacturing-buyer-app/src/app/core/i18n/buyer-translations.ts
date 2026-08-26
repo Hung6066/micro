@@ -18,6 +18,11 @@ export const buyerTranslations = {
     "buyer.menu": "Menu",
     "buyer.theme.toDark": "Bật giao diện tối",
     "buyer.theme.toLight": "Bật giao diện sáng",
+    "buyer.theme.contrastOn": "Bật tương phản cao",
+    "buyer.theme.contrastOff": "Tắt tương phản cao",
+    "buyer.login.eyebrow": "Cổng người mua Nacoms",
+    "buyer.footer.hotline": "Hotline",
+    "buyer.footer.email": "Email",
     "buyer.footer.products": "Sản phẩm",
     "buyer.footer.cooperation": "Hợp tác kinh doanh",
     "buyer.footer.contact": "Liên hệ đặt hàng",
@@ -38,6 +43,8 @@ export const buyerTranslations = {
     "buyer.orders.title": "Lịch sử đặt hàng",
     "buyer.orders.loading": "Đang tải đơn hàng...",
     "buyer.orders.empty": "Chưa có đơn hàng.",
+    "buyer.orders.back": "← Quay lại đơn hàng",
+    "buyer.orders.detailEyebrow": "Chi tiết đơn hàng",
     "buyer.profile.eyebrow": "Tài khoản buyer",
     "buyer.profile.title": "Thông tin liên hệ",
     "buyer.profile.loading": "Đang tải hồ sơ...",
@@ -50,6 +57,7 @@ export const buyerTranslations = {
     "buyer.notifications.title": "Cập nhật đơn hàng",
     "buyer.notifications.loading": "Đang tải thông báo...",
     "buyer.notifications.empty": "Chưa có thông báo mới.",
+    "buyer.notifications.markRead": "Đánh dấu đã đọc",
     "buyer.catalog.eyebrow": "Cửa hàng Nacoms",
     "buyer.catalog.title": "Sản phẩm",
     "buyer.catalog.subtitle": "Trái cây sấy dẻo — đặt hàng B2B trực tiếp trên portal buyer.",
@@ -70,6 +78,14 @@ export const buyerTranslations = {
     "buyer.catalog.empty": "Không tìm thấy sản phẩm phù hợp.",
     "buyer.catalog.addToCart": "Thêm vào giỏ",
     "buyer.catalog.available": "Có sẵn",
+    "buyer.catalog.detail": "Chi tiết sản phẩm",
+    "buyer.catalog.sku": "Mã sản phẩm",
+    "buyer.catalog.listPrice": "Giá niêm yết",
+    "buyer.catalog.priceTier": "Mức giá",
+    "buyer.catalog.privateLabel": "Hỗ trợ private label",
+    "buyer.catalog.export": "Hỗ trợ xuất khẩu",
+    "buyer.catalog.yes": "Có",
+    "buyer.catalog.no": "Không",
     "buyer.home.orderNow": "Mua ngay",
     "buyer.home.story": "Câu chuyện Nacoms",
     "buyer.home.previousSlide": "Slide trước",
@@ -189,6 +205,8 @@ export const buyerTranslations = {
     ,"buyer.rfq.history": "RFQ đã gửi"
     ,"buyer.rfq.historyEmpty": "Chưa có yêu cầu báo giá."
     ,"buyer.rfq.quotedTotal": "Báo giá"
+    ,"buyer.rfq.operatorNotes": "Ghi chú từ Nacoms"
+    ,"buyer.rfq.respondedAt": "Phản hồi lúc"
     ,"buyer.rfq.status.pending": "Chờ xử lý"
     ,"buyer.rfq.status.quoted": "Đã báo giá"
     ,"buyer.rfq.status.accepted": "Đã chấp nhận"
@@ -219,6 +237,11 @@ export const buyerTranslations = {
     "buyer.menu": "Menu",
     "buyer.theme.toDark": "Use dark theme",
     "buyer.theme.toLight": "Use light theme",
+    "buyer.theme.contrastOn": "Enable high contrast",
+    "buyer.theme.contrastOff": "Disable high contrast",
+    "buyer.login.eyebrow": "Nacoms Buyer Portal",
+    "buyer.footer.hotline": "Hotline",
+    "buyer.footer.email": "Email",
     "buyer.footer.products": "Products",
     "buyer.footer.cooperation": "Business partnerships",
     "buyer.footer.contact": "Order contact",
@@ -239,6 +262,8 @@ export const buyerTranslations = {
     "buyer.orders.title": "Order history",
     "buyer.orders.loading": "Loading orders...",
     "buyer.orders.empty": "You have no orders yet.",
+    "buyer.orders.back": "← Back to orders",
+    "buyer.orders.detailEyebrow": "Order detail",
     "buyer.profile.eyebrow": "Buyer account",
     "buyer.profile.title": "Contact details",
     "buyer.profile.loading": "Loading profile...",
@@ -251,6 +276,7 @@ export const buyerTranslations = {
     "buyer.notifications.title": "Order updates",
     "buyer.notifications.loading": "Loading notifications...",
     "buyer.notifications.empty": "No new notifications.",
+    "buyer.notifications.markRead": "Mark as read",
     "buyer.catalog.eyebrow": "Nacoms store",
     "buyer.catalog.title": "Products",
     "buyer.catalog.subtitle": "Dried fruit — order B2B directly from the buyer portal.",
@@ -271,6 +297,14 @@ export const buyerTranslations = {
     "buyer.catalog.empty": "No matching products found.",
     "buyer.catalog.addToCart": "Add to cart",
     "buyer.catalog.available": "Available",
+    "buyer.catalog.detail": "Product details",
+    "buyer.catalog.sku": "SKU",
+    "buyer.catalog.listPrice": "List price",
+    "buyer.catalog.priceTier": "Price tier",
+    "buyer.catalog.privateLabel": "Private label support",
+    "buyer.catalog.export": "Export support",
+    "buyer.catalog.yes": "Yes",
+    "buyer.catalog.no": "No",
     "buyer.home.orderNow": "Order now",
     "buyer.home.story": "Nacoms story",
     "buyer.home.previousSlide": "Previous slide",
@@ -390,6 +424,8 @@ export const buyerTranslations = {
     ,"buyer.rfq.history": "Submitted RFQs"
     ,"buyer.rfq.historyEmpty": "No quote requests yet."
     ,"buyer.rfq.quotedTotal": "Quoted total"
+    ,"buyer.rfq.operatorNotes": "Nacoms notes"
+    ,"buyer.rfq.respondedAt": "Responded at"
     ,"buyer.rfq.status.pending": "Pending"
     ,"buyer.rfq.status.quoted": "Quoted"
     ,"buyer.rfq.status.accepted": "Accepted"

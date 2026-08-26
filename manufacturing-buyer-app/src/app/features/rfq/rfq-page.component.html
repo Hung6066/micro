@@ -213,6 +213,12 @@
                   </p>
 
                 }
+                @if (rfq.operatorNotes) {
+                  <p class="rfq-notes">{{ "buyer.rfq.operatorNotes" | hhTranslate }}: {{ rfq.operatorNotes }}</p>
+                }
+                @if (rfq.respondedAt) {
+                  <small>{{ "buyer.rfq.respondedAt" | hhTranslate }}: {{ rfq.respondedAt | date: "medium" }}</small>
+                }
 
               </article>
 

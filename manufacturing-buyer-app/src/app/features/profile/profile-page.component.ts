@@ -46,10 +46,10 @@ import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
   `,
   styles: [
     `
-      .page-head__eyebrow { margin: 0 0 0.35rem; color: var(--color-primary); font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.78rem; }
+      .page-head__eyebrow { margin: 0 0 0.35rem; color: var(--color-primary); font-weight: var(--font-weight-extrabold); text-transform: uppercase; letter-spacing: 0.08em; font-size: var(--font-size-caption); }
       .page-head h1 { margin: 0 0 1.5rem; }
       .profile { padding: 1.25rem; display: grid; gap: 0.85rem; max-width: 520px; }
-      label { display: grid; gap: 0.35rem; font-weight: 600; }
+      label { display: grid; gap: 0.35rem; font-weight: var(--font-weight-semibold); }
       input { padding: 0.75rem 0.85rem; border: 1px solid var(--border-default); border-radius: var(--radius-control); background: var(--surface-white); color: var(--text-primary); font: inherit; }
       input::placeholder { color: var(--text-secondary); }
       input:disabled { background: var(--surface-muted); color: var(--text-secondary); }

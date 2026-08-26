@@ -73,8 +73,12 @@ public sealed class ManufacturingProcurementStore(IDbContextFactory<Manufacturin
         using var db = dbFactory.CreateDbContext();
         var query = db.PurchaseOrders.AsNoTracking().Include(x => x.Lines).Where(x => x.TenantKey == tenantKey);
         if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.Status == status);
-        return query.OrderByDescending(x => x.OrderedAt).Take(Math.Clamp(limit, 1, 200)).AsEnumerable()
-            .Select(x => ToDto(x, db.Suppliers.AsNoTracking().Single(s => s.Id == x.SupplierId))).ToList();
+        var orders = query.OrderByDescending(x => x.OrderedAt).Take(Math.Clamp(limit, 1, 200)).ToList();
+        var supplierIds = orders.Select(x => x.SupplierId).Distinct().ToList();
+        var suppliers = db.Suppliers.AsNoTracking()
+            .Where(x => supplierIds.Contains(x.Id))
+            .ToDictionary(x => x.Id);
+        return orders.Select(x => ToDto(x, suppliers[x.SupplierId])).ToList();
     }
 
     public (PurchaseOrderDto? Order, string? Error) UpdatePurchaseOrder(string tenantKey, Guid purchaseOrderId, UpdatePurchaseOrderRequest request)

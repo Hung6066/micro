@@ -28,7 +28,7 @@
   border-radius: calc(var(--radius-brand-mark) - 4px);
   background: var(--color-primary);
   color: var(--color-on-primary);
-  font-weight: 800;
+  font-weight: var(--font-weight-extrabold);
 }
 
 .brand__text {
@@ -38,12 +38,12 @@
 }
 
 .brand__text strong {
-  font-size: 1rem;
+  font-size: var(--font-size-input);
 }
 
 .brand__text small {
   color: var(--text-secondary);
-  font-size: 0.78rem;
+  font-size: var(--font-size-caption);
 }
 
 .search {
@@ -59,7 +59,7 @@
 
 .search mat-icon {
   color: var(--text-secondary);
-  font-size: 20px;
+  font-size: var(--font-size-icon-md);
   width: 20px;
   height: 20px;
 }
@@ -70,7 +70,7 @@
   background: transparent;
   outline: none;
   min-width: 0;
-  font-size: 0.95rem;
+  font-size: var(--font-size-body-emphasis);
   color: var(--text-primary);
 }
 
@@ -82,7 +82,7 @@
   padding: 0.55rem 1rem;
   background: var(--color-primary);
   color: var(--color-on-primary);
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   cursor: pointer;
 }
 
@@ -100,17 +100,17 @@
   border: 0;
   background: transparent;
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }
 
 .action-link mat-icon {
-  font-size: 20px;
+  font-size: var(--font-size-icon-md);
 }
 
 .header-login {
   white-space: nowrap;
-  font-size: 0.9rem;
+  font-size: var(--font-size-body);
   padding-inline: 1rem;
 }
 
@@ -182,7 +182,7 @@
 
 .header-nav a {
   white-space: nowrap;
-  font-weight: 700;
+  font-weight: var(--font-weight-bold);
   color: var(--text-secondary);
   padding-bottom: 0.15rem;
   border-bottom: 2px solid transparent;
@@ -218,14 +218,14 @@
   white-space: nowrap;
   cursor: pointer;
   font: inherit;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   transition: transform var(--motion-fast) var(--ease-standard), background var(--motion-base) var(--ease-standard);
 }
 
 .category-chip:hover { transform: translateY(-1px); background: color-mix(in srgb, var(--buyer-on-inverse) 16%, transparent); }
 
 .category-chip mat-icon {
-  font-size: 18px;
+  font-size: var(--font-size-icon-sm);
   width: 18px;
   height: 18px;
 }
@@ -250,7 +250,7 @@
 .footer-grid h4 {
   margin: 0 0 0.85rem;
   color: var(--buyer-on-inverse);
-  font-size: 0.85rem;
+  font-size: var(--font-size-label);
 }
 
 .footer-grid ul {
@@ -281,7 +281,7 @@
   border-top: 1px solid color-mix(in srgb, var(--buyer-on-inverse) 14%, transparent);
   padding: 1rem 0;
   color: var(--buyer-on-inverse-muted);
-  font-size: 0.85rem;
+  font-size: var(--font-size-label);
 }
 
 @media (max-width: 960px) {
