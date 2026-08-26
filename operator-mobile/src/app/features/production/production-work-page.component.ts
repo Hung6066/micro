@@ -4,8 +4,9 @@ import { catchError, of } from "rxjs";
 import { OperationQueueService } from "../../core/offline/operation-queue.service";
 import { OperatorMobileApiService, type ProductionBatch } from "../../core/services/operator-mobile-api.service";
 import { OperatorMobileTenantContextService } from "../../core/operator-mobile-tenant-context.service";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
-@Component({ standalone: true, imports: [FormsModule], templateUrl: "./production-work-page.component.html", styleUrls: ["./production-work-page.component.scss"] })
+@Component({ standalone: true, imports: [FormsModule, HisHopeTranslatePipe], templateUrl: "./production-work-page.component.html", styleUrls: ["./production-work-page.component.scss"] })
 export class ProductionWorkPageComponent {
   private readonly api = inject(OperatorMobileApiService);
   private readonly queue = inject(OperationQueueService);

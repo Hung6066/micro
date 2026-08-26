@@ -3,8 +3,9 @@ import { FormsModule } from "@angular/forms";
 import { OperationQueueService } from "../../core/offline/operation-queue.service";
 import { OperatorMobileApiService } from "../../core/services/operator-mobile-api.service";
 import { OperatorMobileTenantContextService } from "../../core/operator-mobile-tenant-context.service";
+import { HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 
-@Component({ standalone: true, imports: [FormsModule], templateUrl: "./maintenance-work-page.component.html", styleUrls: ["./maintenance-work-page.component.scss"] })
+@Component({ standalone: true, imports: [FormsModule, HisHopeTranslatePipe], templateUrl: "./maintenance-work-page.component.html", styleUrls: ["./maintenance-work-page.component.scss"] })
 export class MaintenanceWorkPageComponent {
   private readonly api = inject(OperatorMobileApiService);
   private readonly queue = inject(OperationQueueService);
