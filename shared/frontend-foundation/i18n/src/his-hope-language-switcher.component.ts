@@ -7,7 +7,7 @@ import { HisHopeLocalizationApiService } from './his-hope-localization-api.servi
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="hh-language-switcher" (mouseenter)="open.set(true)" (mouseleave)="closeOnPointerLeave()">
+    <div class="hh-language-switcher">
       <button #trigger type="button" class="hh-language-trigger" [attr.aria-expanded]="open()" aria-haspopup="listbox" [attr.aria-controls]="menuId" [attr.aria-label]="label(i18n.locale())" [attr.title]="label(i18n.locale())" (click)="toggle()" (keydown)="onTriggerKeydown($event)">
         <span class="hh-language-icon" [attr.aria-label]="label(i18n.locale())">
           @if (flagSource(i18n.locale()); as flag) { <img class="hh-language-flag" [src]="flag" alt="" aria-hidden="true" /> } @else { <span aria-hidden="true">{{ icon(i18n.locale()) }}</span> }
@@ -74,11 +74,16 @@ export class HisHopeLanguageSwitcherComponent {
 
   change(locale: HisHopeLocale): void {
     this.i18n.setLocale(locale);
-    this.localizationApi.load(locale).subscribe();
-    this.localizationApi.savePreferredLanguage(locale).subscribe();
     this.open.set(false);
     this.localeChange.emit(locale);
     this.focusTrigger();
+    // Let the signal-driven view update before starting network work. A slow
+    // preference/localization request must never make the language switch feel
+    // unresponsive or delay the newly selected dictionary on screen.
+    queueMicrotask(() => {
+      this.localizationApi.load(locale).subscribe();
+      this.localizationApi.savePreferredLanguage(locale).subscribe();
+    });
   }
 
   toggle(): void {
@@ -86,8 +91,6 @@ export class HisHopeLanguageSwitcherComponent {
     if (!this.open()) return;
     queueMicrotask(() => this.focusSelectedOption());
   }
-
-  closeOnPointerLeave(): void { this.open.set(false); }
 
   onTriggerKeydown(event: KeyboardEvent): void {
     if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
