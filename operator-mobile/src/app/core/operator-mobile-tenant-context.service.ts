@@ -8,6 +8,7 @@ export class OperatorMobileTenantContextService {
   private readonly auth = inject(MobileAuthService);
   readonly activeTenantKey = signal<string | null>(null);
   readonly subjectId = signal<string | null>(null);
+  readonly availableTenants = signal<string[]>([]);
 
   constructor() {
     this.auth.userData$.subscribe((result) => {
@@ -16,8 +17,14 @@ export class OperatorMobileTenantContextService {
       const tenant = typeof data?.["tenant_id"] === "string"
         ? data["tenant_id"]
         : typeof data?.["tenant"] === "string" ? data["tenant"] : null;
+      const tenantClaims = data?.["tenant_ids"] ?? data?.["tenants"];
+      const tenants = Array.isArray(tenantClaims)
+        ? tenantClaims.map((value) => typeof value === "string" ? value : typeof value === "object" && value !== null && typeof value["tenant_id"] === "string" ? value["tenant_id"] : null).filter((value): value is string => Boolean(value))
+        : [];
       this.subjectId.set(subject);
-      if (tenant && !this.activeTenantKey()) this.activeTenantKey.set(tenant);
+      const options = [...new Set([...(tenant ? [tenant] : []), ...tenants])];
+      this.availableTenants.set(options);
+      if (options.length && !this.activeTenantKey()) this.activeTenantKey.set(options[0]);
     });
   }
 

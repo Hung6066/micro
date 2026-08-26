@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject, signal } from '@angular/core';
 import { OidcSecurityService } from 'angular-auth-oidc-client';
-import { BehaviorSubject, Observable, catchError, filter, map, of, switchMap, take, tap } from 'rxjs';
+import { BehaviorSubject, Observable, catchError, map, of, switchMap, take, tap } from 'rxjs';
 import { NativeCapabilityService } from './native-capability.service';
 import { DpopProofService } from './dpop-proof.service';
 import { environment } from '../../environments/environment';
@@ -52,8 +52,8 @@ export class MobileAuthService {
 
   ensureAuthenticated(): Observable<boolean> {
     return this.authState.pipe(
-      filter((state): state is boolean => state !== null),
       take(1),
+      switchMap(state => state === null ? this.checkAuth() : of(state)),
     );
   }
 

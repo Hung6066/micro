@@ -1045,7 +1045,7 @@ services:
       # Docker Compose uses the service DNS name; Kubernetes overrides this
       # destination from the production manifest/service configuration.
       "ReverseProxy__Clusters__dashboard-bff__Destinations__dashboard-bff/dest__Address": ${SERVICE_DASHBOARD_BFF_URL:-http://dashboard-bff:5600}/
-      CORS__AllowedOrigins: "http://localhost,http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4205,http://localhost:4300,http://localhost:8081,http://localhost:8082,http://localhost:8083,http://frontend:8080,https://app.his-hope.internal,https://localhost,capacitor://localhost"
+      CORS__AllowedOrigins: "http://localhost,http://localhost:4200,http://localhost:4201,http://localhost:4202,http://localhost:4205,http://localhost:4300,http://localhost:4310,http://localhost:8081,http://localhost:8082,http://localhost:8083,http://frontend:8080,https://app.his-hope.internal,https://localhost,capacitor://localhost"
     depends_on:
       identityservice: { condition: service_healthy }
       database-continuity-service: { condition: service_healthy }

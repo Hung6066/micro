@@ -33,7 +33,9 @@ export function createMobileRuntimeConfig(
         ? (Capacitor.getPlatform() as "android" | "ios")
         : "web",
     },
-    clientId: "his-hope-operator-mobile",
+    // Reuse the registered public mobile client until the operator-specific
+    // client is provisioned in the Identity Service deployment.
+    clientId: "his-hope-mobile",
     scope: "openid profile email roles hishop:permissions offline_access",
     secureRoutes: ["/api/v1/"],
     redirectPath: "/auth/callback",

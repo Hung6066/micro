@@ -6,6 +6,14 @@
     </div>
     <span class="operator-shell__status" aria-label="Sync status">Online</span>
   </header>
+  <section class="operator-shell__context" aria-label="Operational tenant context">
+    <label for="operator-tenant">Tenant</label>
+    <select id="operator-tenant" [value]="tenant.activeTenantKey() ?? ''" (change)="selectTenant($event)" [disabled]="!tenant.availableTenants().length">
+      @if (!tenant.availableTenants().length) { <option value="">Claim tenant unavailable</option> }
+      @for (tenantKey of tenant.availableTenants(); track tenantKey) { <option [value]="tenantKey">{{ tenantKey }}</option> }
+    </select>
+    <small>Operator: {{ tenant.subjectId() ?? "not resolved" }}</small>
+  </section>
   <section class="operator-shell__content"><router-outlet /></section>
   <nav class="operator-shell__nav" aria-label="Operational areas">
     <a routerLink="production" routerLinkActive="active">Production</a>

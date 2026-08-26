@@ -1,5 +1,6 @@
-import { Component } from "@angular/core";
+import { Component, inject } from "@angular/core";
 import { RouterLink, RouterLinkActive, RouterOutlet } from "@angular/router";
+import { OperatorMobileTenantContextService } from "./core/operator-mobile-tenant-context.service";
 
 @Component({
   standalone: true,
@@ -7,4 +8,10 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from "@angular/router";
   templateUrl: "./operator-mobile-app.component.html",
   styleUrls: ["./operator-mobile-app.component.scss"],
 })
-export class OperatorMobileAppComponent {}
+export class OperatorMobileAppComponent {
+  readonly tenant = inject(OperatorMobileTenantContextService);
+
+  async selectTenant(event: Event): Promise<void> {
+    await this.tenant.setActiveTenant((event.target as HTMLSelectElement).value);
+  }
+}
