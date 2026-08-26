@@ -14,7 +14,7 @@ import { NativeCapabilityService } from "./core/native-capability.service";
     } @else if (status() === "success") {
       <section class="callback-success" role="status" aria-live="polite">
         <span aria-hidden="true">&#10003;</span>
-        <p>Signed in successfully. Opening dashboard...</p>
+        <p>Signed in successfully. Opening operations...</p>
       </section>
     } @else {
       <hh-state
@@ -60,7 +60,7 @@ export class MobileCallbackComponent implements OnInit {
         this.status.set("success");
         setTimeout(
           () =>
-            void this.router.navigateByUrl("/admin/dashboard", {
+            void this.router.navigateByUrl("/operations", {
               replaceUrl: true,
             }),
           450,

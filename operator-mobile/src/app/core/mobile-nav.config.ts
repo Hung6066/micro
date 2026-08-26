@@ -7,7 +7,7 @@ import {
 /** Bottom navigation entries, ordered as they appear in the shell. */
 export const MOBILE_NAV_ITEMS: readonly HisHopeMobileNavItem[] = [
   {
-    route: "/admin/dashboard",
+    route: "/operations",
     icon: "home",
     labelKey: "admin.dashboard",
     labelFallback: "Dashboard",
