@@ -16,6 +16,6 @@ describe("QualityInspectionPageComponent", () => {
     component.lotId = "";
     component.inspector = "";
     await component.submitInspection();
-    expect(component.message).toContain("required");
+    expect(component.message).toContain("mã lô");
   });
 });
