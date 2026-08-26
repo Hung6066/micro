@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from "@angular/core";
+import { Component, effect, inject } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { catchError, of } from "rxjs";
 import { OperationQueueService } from "../../core/offline/operation-queue.service";
@@ -6,7 +6,7 @@ import { OperatorMobileApiService, type ProductionBatch } from "../../core/servi
 import { OperatorMobileTenantContextService } from "../../core/operator-mobile-tenant-context.service";
 
 @Component({ standalone: true, imports: [FormsModule], templateUrl: "./production-work-page.component.html", styleUrls: ["./production-work-page.component.scss"] })
-export class ProductionWorkPageComponent implements OnInit {
+export class ProductionWorkPageComponent {
   private readonly api = inject(OperatorMobileApiService);
   private readonly queue = inject(OperationQueueService);
   private readonly tenant = inject(OperatorMobileTenantContextService);
@@ -15,8 +15,20 @@ export class ProductionWorkPageComponent implements OnInit {
   outputQuantity = 0;
   message = "";
 
-  ngOnInit(): void {
-    this.api.getProductionBatches("Started").pipe(catchError(() => of([]))).subscribe((batches) => (this.batches = batches));
+  constructor() {
+    effect(() => {
+      if (!this.tenant.activeTenantKey()) {
+        this.batches = [];
+        this.selectedBatch = null;
+        return;
+      }
+      this.api.getProductionBatches("Started").pipe(catchError(() => of([]))).subscribe((batches) => {
+        this.batches = batches;
+        if (this.selectedBatch && !batches.some((batch) => batch.id === this.selectedBatch?.id)) {
+          this.selectedBatch = null;
+        }
+      });
+    });
   }
 
   async recordOperation(): Promise<void> {

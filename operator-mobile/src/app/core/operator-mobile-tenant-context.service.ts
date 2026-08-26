@@ -14,18 +14,34 @@ export class OperatorMobileTenantContextService {
     this.auth.userData$.subscribe((result) => {
       const data = (result as { userData?: Record<string, unknown> } | null)?.userData;
       const subject = typeof data?.["sub"] === "string" ? data["sub"] : null;
-      const tenant = typeof data?.["tenant_id"] === "string"
-        ? data["tenant_id"]
-        : typeof data?.["tenant"] === "string" ? data["tenant"] : null;
-      const tenantClaims = data?.["tenant_ids"] ?? data?.["tenants"];
-      const tenants = Array.isArray(tenantClaims)
-        ? tenantClaims.map((value) => typeof value === "string" ? value : typeof value === "object" && value !== null && typeof value["tenant_id"] === "string" ? value["tenant_id"] : null).filter((value): value is string => Boolean(value))
-        : [];
+      const tenants = this.readTenantClaims(data);
       this.subjectId.set(subject);
-      const options = [...new Set([...(tenant ? [tenant] : []), ...tenants])];
+      const options = [...new Set(tenants)];
       this.availableTenants.set(options);
       if (options.length && !this.activeTenantKey()) this.activeTenantKey.set(options[0]);
     });
+  }
+
+  private readTenantClaims(data: Record<string, unknown> | undefined): string[] {
+    if (!data) return [];
+    const values = [
+      data["tenant_id"],
+      data["tenant"],
+      data["tenant_membership"],
+      data["tenant_memberships"],
+      data["tenant_ids"],
+      data["tenants"],
+    ];
+    return values
+      .flatMap((value) => {
+        if (typeof value === "string") return value.split(",");
+        if (Array.isArray(value)) return value;
+        if (value && typeof value === "object" && "tenant_id" in value) return [value.tenant_id];
+        return [];
+      })
+      .filter((value): value is string => typeof value === "string")
+      .map((value) => value.trim())
+      .filter(Boolean);
   }
 
   async setActiveTenant(tenantKey: string): Promise<void> {

@@ -9,17 +9,17 @@
   <section class="operator-shell__context" aria-label="Operational tenant context">
     <label for="operator-tenant">Tenant</label>
     <select id="operator-tenant" [value]="tenant.activeTenantKey() ?? ''" (change)="selectTenant($event)" [disabled]="!tenant.availableTenants().length">
-      @if (!tenant.availableTenants().length) { <option value="">Claim tenant unavailable</option> }
+      @if (!tenant.availableTenants().length) { <option value="">No tenant claim</option> }
       @for (tenantKey of tenant.availableTenants(); track tenantKey) { <option [value]="tenantKey">{{ tenantKey }}</option> }
     </select>
-    <small>Operator: {{ tenant.subjectId() ?? "not resolved" }}</small>
+    <small>Operator: <span>{{ tenant.subjectId() ?? "not resolved" }}</span></small>
   </section>
   <section class="operator-shell__content"><router-outlet /></section>
   <nav class="operator-shell__nav" aria-label="Operational areas">
-    <a routerLink="production" routerLinkActive="active">Production</a>
-    <a routerLink="traceability" routerLinkActive="active">Traceability</a>
-    <a routerLink="quality" routerLinkActive="active">Quality</a>
-    <a routerLink="maintenance" routerLinkActive="active">Maintenance</a>
-    <a routerLink="sync" routerLinkActive="active">Sync</a>
+    <a routerLink="production" routerLinkActive="active"><span class="material-symbols-rounded" aria-hidden="true">precision_manufacturing</span><span>Production</span></a>
+    <a routerLink="traceability" routerLinkActive="active"><span class="material-symbols-rounded" aria-hidden="true">qr_code_scanner</span><span>Traceability</span></a>
+    <a routerLink="quality" routerLinkActive="active"><span class="material-symbols-rounded" aria-hidden="true">fact_check</span><span>Quality</span></a>
+    <a routerLink="maintenance" routerLinkActive="active"><span class="material-symbols-rounded" aria-hidden="true">build</span><span>Maintenance</span></a>
+    <a routerLink="sync" routerLinkActive="active"><span class="material-symbols-rounded" aria-hidden="true">sync</span><span>Sync</span></a>
   </nav>
 </main>

@@ -7,3 +7,6 @@ h2 { margin: 0; font-size: 1.9rem; }
 .work-card h3 { margin: .5rem 0; }
 .work-card p { color: #68756d; line-height: 1.45; }
 button { min-height: 2.75rem; padding: 0 1rem; border: 0; border-radius: .75rem; background: #006b4f; color: white; font: inherit; font-weight: 700; }
+.work-card label { display: grid; gap: .4rem; color: #34483d; font-weight: 700; }
+.work-card select, .work-card input { width: 100%; min-height: 2.75rem; box-sizing: border-box; padding: .55rem .65rem; border: 1px solid #c7d1cb; border-radius: .6rem; background: #fff; color: inherit; font: inherit; }
+.work-card { display: grid; gap: .85rem; }
