@@ -70,8 +70,9 @@ export class HisHopeI18nService {
     locale: string,
     translations: Record<string, string>,
   ): void {
-    this.remoteDictionaries[locale] = {
-      ...this.remoteDictionaries[locale],
+    const apiLocale = locale === "en" ? "en-US" : locale;
+    this.remoteDictionaries[apiLocale] = {
+      ...this.remoteDictionaries[apiLocale],
       ...translations,
     };
   }

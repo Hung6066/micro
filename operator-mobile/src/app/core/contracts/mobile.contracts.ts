@@ -1,5 +1,6 @@
 import type {
   HisHopePageQuery,
+  HisHopeCursorPageResult,
   HisHopePageResult,
   HisHopeBulkActionResult,
 } from "@his-hope/frontend-foundation/contracts";
@@ -96,7 +97,7 @@ export interface DashboardStats {
 }
 
 export type MobilePageQuery = HisHopePageQuery;
-export type MobilePageResult<T> = HisHopePageResult<T>;
+export type MobilePageResult<T> = HisHopePageResult<T> | HisHopeCursorPageResult<T>;
 export type MobileBulkActionResponse = HisHopeBulkActionResult;
 
 export type MobileResource = "clients" | "users" | "roles" | "consents";

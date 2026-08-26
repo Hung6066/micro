@@ -1,5 +1,13 @@
 import { TestBed } from "@angular/core/testing";
 import { HisHopeI18nService } from "./his-hope-i18n.service";
+import { hisHopeEn, hisHopeViVN } from "./dictionaries";
+
+function leafKeys(value: unknown, prefix = ""): string[] {
+  if (!value || typeof value !== "object") return prefix ? [prefix] : [];
+  return Object.entries(value).flatMap(([key, child]) =>
+    leafKeys(child, prefix ? `${prefix}.${key}` : key),
+  );
+}
 
 describe("HisHopeI18nService", () => {
   let service: HisHopeI18nService;
@@ -47,6 +55,20 @@ describe("HisHopeI18nService", () => {
     });
     expect(service.t("customerPortal.dashboardTitle", "Dashboard")).toBe(
       "Bảng điều khiển",
+    );
+  });
+
+  it("keeps English and Vietnamese dictionaries structurally in sync", () => {
+    expect(leafKeys(hisHopeViVN).sort()).toEqual(leafKeys(hisHopeEn).sort());
+  });
+
+  it("canonicalizes direct English remote registrations to the API locale", () => {
+    service.setLocale("en");
+    service.registerTranslations("en", {
+      "customerPortal.manufacturingLots": "Manufacturing lots",
+    });
+    expect(service.t("customerPortal.manufacturingLots")).toBe(
+      "Manufacturing lots",
     );
   });
 

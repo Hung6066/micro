@@ -1134,6 +1134,12 @@ export const hisHopeViVN: HisHopeTranslationDictionary = {
     admin: { title: "His.Hope Quản trị" },
     clinical: { title: "His.Hope Lâm sàng" },
     customerPortal: { title: "His.Hope Cổng khách hàng" },
+    domain: {
+      available: "Khả dụng",
+      changes: "Thay đổi",
+      moveSelected: "Di chuyển mục đã chọn",
+      selected: "Đã chọn",
+    },
     dashboard: {
       login: "Đăng nhập",
       logout: "Đăng xuất",
