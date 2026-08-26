@@ -1,0 +1,207 @@
+<hh-page-layout data-testid="operator-content">
+  <hh-page-header
+    hhPageHeader
+    [title]="'operator.content.title' | hhTranslate"
+    [subtitle]="'operator.content.subtitle' | hhTranslate"
+  />
+
+  @if (loading()) {
+    <hh-state kind="loading" [message]="'operator.content.loading' | hhTranslate" />
+  } @else if (error()) {
+    <hh-state kind="error" [message]="error() | hhTranslate" />
+  } @else {
+    <mat-tab-group class="content-tabs" data-testid="content-tabs">
+      <mat-tab [label]="'operator.content.tab.articles' | hhTranslate">
+        <div class="content-grid">
+          <section class="content-list">
+            <div class="content-list__head">
+              <h2>{{ "operator.content.tab.articles" | hhTranslate }}</h2>
+              <button mat-flat-button color="primary" type="button" (click)="startNew()">
+                {{ "operator.content.newArticle" | hhTranslate }}
+              </button>
+            </div>
+
+            @if (!articles().length) {
+              <hh-state kind="empty" [message]="'operator.content.emptyArticles' | hhTranslate" />
+            } @else {
+              @for (article of articles(); track article.id) {
+                <article class="content-card">
+                  <header>
+                    <strong>{{ article.title }}</strong>
+                    <span>{{ article.locale }} · {{ article.status }}</span>
+                  </header>
+                  <p>{{ article.excerpt }}</p>
+                  <div class="content-card__actions">
+                    <button mat-button type="button" (click)="editArticle(article)">
+                      {{ "operator.content.editArticle" | hhTranslate }}
+                    </button>
+                    <button mat-button color="warn" type="button" (click)="deleteArticle(article.id)">
+                      {{ "operator.content.delete" | hhTranslate }}
+                    </button>
+                  </div>
+                </article>
+              }
+            }
+          </section>
+
+          <form class="content-editor" (ngSubmit)="saveArticle()">
+            <h2>
+              {{
+                (editingId ? "operator.content.editArticle" : "operator.content.newArticle")
+                  | hhTranslate
+              }}
+            </h2>
+            <label>
+              {{ "operator.content.slug" | hhTranslate }}
+              <input [(ngModel)]="draft.slug" name="slug" required />
+            </label>
+            <label>
+              {{ "operator.content.articleTitle" | hhTranslate }}
+              <input [(ngModel)]="draft.title" name="title" required />
+            </label>
+            <label>
+              {{ "operator.content.excerpt" | hhTranslate }}
+              <textarea [(ngModel)]="draft.excerpt" name="excerpt" rows="2" required></textarea>
+            </label>
+            <label>
+              {{ "operator.content.body" | hhTranslate }}
+              <textarea [(ngModel)]="draft.bodyHtml" name="bodyHtml" rows="8" required></textarea>
+            </label>
+            <label>
+              {{ "operator.content.category" | hhTranslate }}
+              <input [(ngModel)]="draft.category" name="category" required />
+            </label>
+            <label>
+              {{ "operator.content.imageUrl" | hhTranslate }}
+              <input [(ngModel)]="draft.imageUrl" name="imageUrl" />
+            </label>
+            <label>
+              {{ "operator.content.locale" | hhTranslate }}
+              <select [(ngModel)]="draft.locale" name="locale">
+                <option value="vi-VN">vi-VN</option>
+                <option value="en-US">en-US</option>
+              </select>
+            </label>
+            <label>
+              {{ "operator.content.status" | hhTranslate }}
+              <select [(ngModel)]="draft.status" name="status">
+                <option value="draft">{{ "operator.content.status.draft" | hhTranslate }}</option>
+                <option value="published">
+                  {{ "operator.content.status.published" | hhTranslate }}
+                </option>
+              </select>
+            </label>
+
+            @if (statusKey()) {
+              <p class="content-status">{{ statusKey() | hhTranslate }}</p>
+            }
+
+            <button mat-flat-button color="primary" type="submit" [disabled]="saving()">
+              {{ "operator.content.save" | hhTranslate }}
+            </button>
+          </form>
+        </div>
+      </mat-tab>
+
+      <mat-tab [label]="'operator.content.tab.inquiries' | hhTranslate">
+        @if (!inquiries().length) {
+          <hh-state kind="empty" [message]="'operator.content.emptyInquiries' | hhTranslate" />
+        } @else {
+          <div class="inquiry-list">
+            @for (inquiry of inquiries(); track inquiry.id) {
+              <article class="content-card">
+                <header>
+                  <strong>{{ inquiry.companyName }}</strong>
+                  <span>{{ inquiry.createdAt | date: "medium" }}</span>
+                </header>
+                <p>
+                  {{ inquiry.contactName }} · {{ inquiry.email }} · {{ inquiry.phone }}
+                </p>
+                <p>{{ inquiry.partnershipType }} — {{ inquiry.message }}</p>
+                <label>
+                  {{ "operator.content.inquiry.status" | hhTranslate }}
+                  <mat-select
+                    [value]="inquiry.status"
+                    (selectionChange)="updateInquiryStatus(inquiry, $event.value)"
+                  >
+                    <mat-option value="new">
+                      {{ "operator.content.inquiry.status.new" | hhTranslate }}
+                    </mat-option>
+                    <mat-option value="in_progress">
+                      {{ "operator.content.inquiry.status.in_progress" | hhTranslate }}
+                    </mat-option>
+                    <mat-option value="closed">
+                      {{ "operator.content.inquiry.status.closed" | hhTranslate }}
+                    </mat-option>
+                  </mat-select>
+                </label>
+              </article>
+            }
+          </div>
+        }
+      </mat-tab>
+
+      <mat-tab [label]="'operator.content.tab.media' | hhTranslate">
+        <div class="media-panel">
+          <div class="media-panel__head">
+            <div>
+              <h2>{{ "operator.content.tab.media" | hhTranslate }}</h2>
+              <p>{{ "operator.content.media.hint" | hhTranslate }}</p>
+            </div>
+            <input
+              #mediaInput
+              type="file"
+              accept="image/*"
+              hidden
+              (change)="onMediaSelected($event)"
+              [disabled]="uploading()"
+            />
+            <button
+              mat-flat-button
+              color="primary"
+              type="button"
+              (click)="mediaInput.click()"
+              [disabled]="uploading()"
+            >
+              {{
+                (uploading() ? "operator.content.media.uploading" : "operator.content.media.upload")
+                  | hhTranslate
+              }}
+            </button>
+          </div>
+
+          @if (mediaStatusKey()) {
+            <p class="content-status">{{ mediaStatusKey() | hhTranslate }}</p>
+          }
+
+          @if (!media().length) {
+            <hh-state kind="empty" [message]="'operator.content.media.empty' | hhTranslate" />
+          } @else {
+            <div class="media-grid">
+              @for (asset of media(); track asset.id) {
+                <article class="content-card media-card">
+                  @if (asset.contentType.startsWith("image/")) {
+                    <img [src]="asset.publicUrl" [alt]="asset.fileName" class="media-card__preview" />
+                  }
+                  <header>
+                    <strong>{{ asset.fileName }}</strong>
+                    <span>{{ asset.sizeBytes | number }} B</span>
+                  </header>
+                  <p class="media-card__url">{{ asset.publicUrl }}</p>
+                  <div class="content-card__actions">
+                    <button mat-button type="button" (click)="copyMediaUrl(asset.publicUrl)">
+                      {{ "operator.content.media.copy" | hhTranslate }}
+                    </button>
+                    <button mat-button type="button" (click)="useMediaUrl(asset.publicUrl)">
+                      {{ "operator.content.media.useInArticle" | hhTranslate }}
+                    </button>
+                  </div>
+                </article>
+              }
+            </div>
+          }
+        </div>
+      </mat-tab>
+    </mat-tab-group>
+  }
+</hh-page-layout>

@@ -36,7 +36,9 @@ import {
 } from "../../core/contracts/admin.contracts";
 import { IdentityOperationsApiService } from "../../core/services/identity-operations-api.service";
 import { catchError, of, tap } from "rxjs";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { UsersApiService } from "../../core/services/users-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
@@ -353,6 +355,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 export class IdentityOperationsPageComponent {
   private readonly api = inject(IdentityOperationsApiService);
   private readonly usersApi = inject(UsersApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly toast = inject(HisHopeToastService);
@@ -418,16 +421,20 @@ export class IdentityOperationsPageComponent {
     ];
   }
   constructor() {
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.loadUsers());
+  }
+
+  private loadUsers(): void {
     this.usersApi.getUsers().subscribe({
-      next: (users) => {
-        this.users = users;
-        this.cdr.markForCheck();
-      },
-      error: () => {
-        this.users = [];
-        this.cdr.markForCheck();
-      },
-    });
+        next: (users) => {
+          this.users = users;
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.users = [];
+          this.cdr.markForCheck();
+        },
+      });
   }
 
   can(permission: string): boolean {

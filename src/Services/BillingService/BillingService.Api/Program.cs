@@ -276,7 +276,14 @@ invoices.MapPost("/", async (
     var command = new CreateInvoiceCommand(
         request.PatientId, request.EncounterId, request.InvoiceDate,
         request.DueDate, request.InvoiceNumber, request.Notes,
-        request.LineItems);
+        request.LineItems
+            .Select(item => new LineItemInput(
+                item.Description,
+                item.Quantity,
+                item.UnitPrice,
+                item.ItemCode,
+                item.ItemTypeCode))
+            .ToArray());
 
     var invoice = await mediator.Send(command, ct);
 
@@ -405,36 +412,4 @@ static X509Certificate2 LoadServerCertificate(IConfiguration config)
     return cert;
 }
 
-// Request Records
-public record CreateInvoiceRequest(
-    Guid PatientId,
-    Guid? EncounterId,
-    string InvoiceNumber,
-    DateTime InvoiceDate,
-    DateTime? DueDate,
-    string? Notes,
-    ICollection<LineItemInput> LineItems);
-
-public record AddInvoiceLineItemRequest(
-    string Description,
-    int Quantity,
-    decimal UnitPrice,
-    string? ItemCode,
-    string? ItemTypeCode);
-
-public record RecordPaymentRequest(
-    Guid PatientId,
-    decimal Amount,
-    DateTime PaymentDate,
-    string MethodCode,
-    string? ReferenceNumber,
-    string? Notes);
-
-public record CancelInvoiceRequest(string Reason);
-
-public record VoidInvoiceRequest(string Reason);
-
-public record ApplyDiscountRequest(decimal Amount);
-
-public record ApplyTaxRequest(decimal Amount);
 

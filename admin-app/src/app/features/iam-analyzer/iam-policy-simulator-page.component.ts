@@ -24,8 +24,10 @@ import {
   PermissionDefinition,
   User,
 } from "../../core/contracts/admin.contracts";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { IamApiService } from "../../core/services/iam-api.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
@@ -122,6 +124,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class IamPolicySimulatorPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
@@ -167,6 +170,7 @@ export class IamPolicySimulatorPageComponent implements OnInit {
   }
   ngOnInit(): void {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   load(): void {
     this.error = "";

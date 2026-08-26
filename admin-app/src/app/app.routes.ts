@@ -1,9 +1,11 @@
 import { Routes } from "@angular/router";
 import { authGuard } from "./core/guards/auth.guard";
 import { adminReadGuard } from "./core/guards/admin-read.guard";
+import { operatorPortalGuard } from "./core/guards/operator-portal.guard";
+import { hqOperatorGuard } from "./core/guards/hq-operator.guard";
 import { capabilityPermissionGuard } from "./core/guards/capability-permission.guard";
 
-const protectedRoute = [authGuard, adminReadGuard] as const;
+const protectedRoute = [authGuard, operatorPortalGuard, adminReadGuard] as const;
 
 const iamWorkbenchRoutes: Routes = [
   {
@@ -306,7 +308,7 @@ export const routes: Routes = [
   },
   {
     path: "identity-capabilities",
-    canActivate: [...protectedRoute, capabilityPermissionGuard],
+    canActivate: [...protectedRoute, hqOperatorGuard, capabilityPermissionGuard],
     loadComponent: () =>
       import("./features/identity-capabilities/identity-capabilities-page.component").then(
         (m) => m.IdentityCapabilitiesPageComponent,
@@ -322,7 +324,7 @@ export const routes: Routes = [
   },
   {
     path: "security/identity",
-    canActivate: [...protectedRoute, capabilityPermissionGuard],
+    canActivate: [...protectedRoute, hqOperatorGuard, capabilityPermissionGuard],
     loadComponent: () =>
       import("./features/identity-capabilities/identity-capabilities-page.component").then(
         (m) => m.IdentityCapabilitiesPageComponent,
@@ -337,7 +339,7 @@ export const routes: Routes = [
   },
   {
     path: "database-platform",
-    canActivate: [...protectedRoute],
+    canActivate: [...protectedRoute, hqOperatorGuard],
     loadComponent: () =>
       import("./features/database-platform/database-platform-page.component").then(
         (m) => m.DatabasePlatformPageComponent,
@@ -345,7 +347,7 @@ export const routes: Routes = [
   },
   {
     path: "mobile-operations",
-    canActivate: [...protectedRoute],
+    canActivate: [...protectedRoute, hqOperatorGuard],
     loadComponent: () =>
       import("./features/mobile-operations/mobile-operations-page.component").then(
         (m) => m.MobileOperationsPageComponent,

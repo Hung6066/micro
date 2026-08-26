@@ -1,0 +1,233 @@
+<section class="page-shell page-shell--wide" data-testid="buyer-rfq">
+
+  <div class="fx-container">
+
+    <div class="page-head">
+
+      <div>
+
+        <p class="page-head__eyebrow">{{ "buyer.rfq.eyebrow" | hhTranslate }}</p>
+
+        <h1>{{ "buyer.rfq.title" | hhTranslate }}</h1>
+
+        <p>{{ "buyer.rfq.subtitle" | hhTranslate }}</p>
+
+      </div>
+
+    </div>
+
+
+
+    @if (loading()) {
+
+      <div class="state">{{ "buyer.rfq.loading" | hhTranslate }}</div>
+
+    } @else if (error()) {
+
+      <div class="state state--error">{{ error() | hhTranslate }}</div>
+
+    } @else {
+
+      <form class="rfq-form fx-card form-grid" data-testid="rfq-form" (ngSubmit)="submit()">
+
+        <label>
+
+          {{ "buyer.rfq.message" | hhTranslate }}
+
+          <textarea [(ngModel)]="message" name="message" rows="4" required></textarea>
+
+        </label>
+
+
+
+        <div class="rfq-lines">
+
+          <div class="rfq-lines__head">
+
+            <h2>{{ "buyer.rfq.lines" | hhTranslate }}</h2>
+
+            <button type="button" class="fx-btn-secondary" (click)="addLine()">
+
+              {{ "buyer.rfq.addLine" | hhTranslate }}
+
+            </button>
+
+          </div>
+
+
+
+          @for (line of lines; track $index; let i = $index) {
+
+            <div class="rfq-line">
+
+              <label>
+
+                {{ "buyer.rfq.product" | hhTranslate }}
+
+                <select
+
+                  [(ngModel)]="line.productId"
+
+                  [name]="'product-' + i"
+
+                  (ngModelChange)="onProductChange(line)"
+
+                  required
+
+                >
+
+                  @for (product of products(); track product.id) {
+
+                    <option [ngValue]="product.id">{{ product.name }} ({{ product.sku }})</option>
+
+                  }
+
+                </select>
+
+              </label>
+
+              <label>
+
+                {{ "buyer.rfq.quantity" | hhTranslate }}
+
+                <input
+
+                  [(ngModel)]="line.quantity"
+
+                  [name]="'qty-' + i"
+
+                  type="number"
+
+                  min="1"
+
+                  required
+
+                />
+
+              </label>
+
+              <label>
+
+                {{ "buyer.rfq.notes" | hhTranslate }}
+
+                <input [(ngModel)]="line.notes" [name]="'notes-' + i" />
+
+              </label>
+
+              @if (lines.length > 1) {
+
+                <button type="button" class="rfq-line__remove" (click)="removeLine(i)">
+
+                  {{ "buyer.rfq.removeLine" | hhTranslate }}
+
+                </button>
+
+              }
+
+            </div>
+
+          }
+
+        </div>
+
+
+
+        @if (statusKey()) {
+
+          <p class="form-status" [class.form-status--success]="statusKey() === 'buyer.rfq.success'">
+
+            {{ statusKey() | hhTranslate }}
+
+          </p>
+
+        }
+
+
+
+        <button mat-flat-button color="primary" type="submit" [disabled]="submitting()">
+
+          {{ (submitting() ? "buyer.processing" : "buyer.rfq.submit") | hhTranslate }}
+
+        </button>
+
+      </form>
+
+
+
+      <section class="rfq-history">
+
+        <h2>{{ "buyer.rfq.history" | hhTranslate }}</h2>
+
+        @if (!rfqs().length) {
+
+          <div class="state">{{ "buyer.rfq.historyEmpty" | hhTranslate }}</div>
+
+        } @else {
+
+          <div class="rfq-list">
+
+            @for (rfq of rfqs(); track rfq.id) {
+
+              <article class="rfq-card fx-card">
+
+                <header>
+
+                  <strong>{{ rfq.id.slice(0, 8) }}</strong>
+
+                  <span>{{ rfq.createdAt | date: "medium" }}</span>
+
+                  <span class="rfq-status">{{ ("buyer.rfq.status." + rfq.status) | hhTranslate }}</span>
+
+                </header>
+
+                <p>{{ rfq.message }}</p>
+
+                <ul>
+
+                  @for (line of rfq.lines; track line.productId) {
+
+                    <li>
+
+                      {{ productName(line.productId) }} × {{ line.quantity }}
+
+                      @if (line.notes) {
+
+                        <span>— {{ line.notes }}</span>
+
+                      }
+
+                    </li>
+
+                  }
+
+                </ul>
+
+                @if (rfq.quotedTotal != null) {
+
+                  <p class="rfq-quote">
+
+                    {{ "buyer.rfq.quotedTotal" | hhTranslate }}:
+
+                    <strong>{{ i18n.formatCurrency(rfq.quotedTotal, "VND") }}</strong>
+
+                  </p>
+
+                }
+
+              </article>
+
+            }
+
+          </div>
+
+        }
+
+      </section>
+
+    }
+
+  </div>
+
+</section>
+
+

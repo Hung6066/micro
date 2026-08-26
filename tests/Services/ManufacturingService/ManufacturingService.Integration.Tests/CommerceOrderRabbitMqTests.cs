@@ -1,0 +1,183 @@
+using System.Text;
+using System.Text.Json;
+using DotNet.Testcontainers.Builders;
+using FluentAssertions;
+using His.Hope.Contracts.Commerce;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using RabbitMQ.Client;
+using Testcontainers.PostgreSql;
+using Xunit;
+
+public sealed class CommerceOrderRabbitMqTests : IAsyncLifetime
+{
+    private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder()
+        .WithImage("postgres:16-alpine")
+        .WithDatabase("manufacturingrabbit")
+        .WithUsername("testuser")
+        .WithPassword("testpass123!")
+        .WithCleanUp(true)
+        .Build();
+
+    private readonly DotNet.Testcontainers.Containers.IContainer rabbit = new ContainerBuilder()
+        .WithImage("rabbitmq:3-alpine")
+        .WithPortBinding(5672, assignRandomHostPort: true)
+        .WithEnvironment("RABBITMQ_DEFAULT_USER", "testuser")
+        .WithEnvironment("RABBITMQ_DEFAULT_PASS", "testpass123!")
+        .WithWaitStrategy(Wait.ForUnixContainer().UntilPortIsAvailable(5672))
+        .WithCleanUp(true)
+        .Build();
+
+    private ManufacturingDbContext db = null!;
+    private ServiceProvider services = null!;
+    private CancellationTokenSource consumerCancellation = null!;
+    private int rabbitPort;
+
+    public async Task InitializeAsync()
+    {
+        await postgres.StartAsync();
+        await rabbit.StartAsync();
+        rabbitPort = rabbit.GetMappedPublicPort(5672);
+
+        var factory = new TestDbContextFactory(postgres.GetConnectionString());
+        db = factory.CreateDbContext();
+        await db.Database.MigrateAsync();
+        db.Lots.Add(new ManufacturingLotEntity
+        {
+            Id = Guid.NewGuid(),
+            TenantKey = "tenant-rabbit",
+            Sku = "FG-RABBIT",
+            Quantity = 20,
+            Uom = "kg",
+            Disposition = "Released",
+            CreatedAt = DateTimeOffset.UtcNow,
+        });
+        await db.SaveChangesAsync();
+
+        var serviceCollection = new ServiceCollection();
+        serviceCollection.AddLogging(builder => builder.AddDebug());
+        serviceCollection.AddSingleton<IDbContextFactory<ManufacturingDbContext>>(factory);
+        serviceCollection.AddSingleton<ManufacturingReservationStore>();
+        services = serviceCollection.BuildServiceProvider();
+
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Consumers:CommerceOrdersEnabled"] = "true",
+                ["EventBus:HostName"] = "localhost",
+                ["EventBus:Port"] = rabbitPort.ToString(),
+                ["EventBus:UserName"] = "testuser",
+                ["EventBus:Password"] = "testpass123!",
+            })
+            .Build();
+        var consumer = new CommerceOrderConsumer(
+            services.GetRequiredService<IServiceScopeFactory>(),
+            configuration,
+            services.GetRequiredService<ILogger<CommerceOrderConsumer>>());
+        consumerCancellation = new CancellationTokenSource();
+        await consumer.StartAsync(consumerCancellation.Token);
+    }
+
+    public async Task DisposeAsync()
+    {
+        if (consumerCancellation is not null)
+        {
+            consumerCancellation.Cancel();
+            consumerCancellation.Dispose();
+        }
+        if (services is not null)
+            await services.DisposeAsync();
+        if (db is not null)
+            await db.DisposeAsync();
+        await rabbit.DisposeAsync();
+        await postgres.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task Publishes_order_to_rabbit_and_allocates_duplicate_idempotently()
+    {
+        var orderId = Guid.NewGuid();
+        Publish(new CommerceOrderPlacedV1(
+            Guid.NewGuid(),
+            1,
+            DateTimeOffset.UtcNow,
+            orderId,
+            "tenant-rabbit",
+            "buyer-rabbit",
+            50,
+            [new CommerceOrderLineV1(Guid.NewGuid().ToString(), "FG-RABBIT", 5, 10)]));
+
+        await EventuallyAsync(async () =>
+        {
+            await using var check = await new TestDbContextFactory(postgres.GetConnectionString()).CreateDbContextAsync();
+            return await check.LotReservations.CountAsync(x => x.ReferenceId == orderId) == 1 &&
+                await check.EventReceipts.CountAsync(x => x.AggregateId == orderId.ToString()) == 1;
+        });
+
+        Publish(new CommerceOrderPlacedV1(
+            Guid.NewGuid(),
+            1,
+            DateTimeOffset.UtcNow,
+            orderId,
+            "tenant-rabbit",
+            "buyer-rabbit",
+            50,
+            [new CommerceOrderLineV1(Guid.NewGuid().ToString(), "FG-RABBIT", 5, 10)]));
+        await Task.Delay(500);
+
+        await using var final = await new TestDbContextFactory(postgres.GetConnectionString()).CreateDbContextAsync();
+        (await final.LotReservations.CountAsync(x => x.ReferenceId == orderId)).Should().Be(1);
+        (await final.EventReceipts.CountAsync(x => x.AggregateId == orderId.ToString())).Should().Be(1);
+    }
+
+    private void Publish(CommerceOrderPlacedV1 order)
+    {
+        var factory = new ConnectionFactory
+        {
+            HostName = "localhost",
+            Port = rabbitPort,
+            UserName = "testuser",
+            Password = "testpass123!",
+        };
+        using var connection = factory.CreateConnection();
+        using var channel = connection.CreateModel();
+        channel.ExchangeDeclare("his-hope.manufacturing", ExchangeType.Topic, durable: true, autoDelete: false);
+        var properties = channel.CreateBasicProperties();
+        properties.Persistent = true;
+        properties.ContentType = "application/json";
+        properties.Type = "Commerce.OrderPlaced.v1";
+        channel.BasicPublish(
+            "his-hope.manufacturing",
+            "Commerce.OrderPlaced.v1",
+            properties,
+            Encoding.UTF8.GetBytes(JsonSerializer.Serialize(order)));
+    }
+
+    private static async Task EventuallyAsync(Func<Task<bool>> condition)
+    {
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            if (await condition())
+                return;
+            await Task.Delay(250);
+        }
+        throw new Xunit.Sdk.XunitException("Condition was not satisfied before timeout.");
+    }
+
+    private sealed class TestDbContextFactory(string connectionString)
+        : IDbContextFactory<ManufacturingDbContext>
+    {
+        public ManufacturingDbContext CreateDbContext()
+        {
+            var options = new DbContextOptionsBuilder<ManufacturingDbContext>()
+                .UseNpgsql(connectionString)
+                .Options;
+            return new ManufacturingDbContext(options);
+        }
+
+        public Task<ManufacturingDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(CreateDbContext());
+    }
+}

@@ -34,6 +34,8 @@ import {
   HisHopeToastService,
 } from "@his-hope/frontend-foundation/ui";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
+import { TenantContextService } from "../../core/services/tenant-context.service";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
@@ -178,6 +180,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class BreakGlassPageComponent implements OnInit {
   private readonly api = inject(AccessGovernanceApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly permissionsService = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
   private readonly toast = inject(HisHopeToastService);
@@ -257,6 +260,7 @@ export class BreakGlassPageComponent implements OnInit {
   }
   ngOnInit(): void {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   load(): void {
     this.error = "";

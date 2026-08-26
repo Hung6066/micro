@@ -1,0 +1,156 @@
+{
+  "version": "1",
+  "authority": "https://identity.staging.abc-group.example",
+  "clients": [
+    {
+      "clientId": "manufacturing-app",
+      "displayName": "Manufacturing Portal",
+      "tenantKey": "manufacturing",
+      "portalClass": "operator",
+      "redirectUris": [
+        "https://manufacturing.staging.abc-group.example/auth/callback"
+      ],
+      "postLogoutRedirectUris": [
+        "https://manufacturing.staging.abc-group.example/auth/login"
+      ],
+      "scopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles",
+        "offline_access",
+        "hishop:permissions"
+      ]
+    },
+    {
+      "clientId": "tech-console",
+      "displayName": "Tech Vendor Console",
+      "tenantKey": "tech-vendor",
+      "portalClass": "operator",
+      "redirectUris": [
+        "https://tech.staging.abc-group.example/auth/callback"
+      ],
+      "postLogoutRedirectUris": [
+        "https://tech.staging.abc-group.example/auth/login"
+      ],
+      "scopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles",
+        "offline_access",
+        "hishop:permissions",
+        "hishop:admin"
+      ]
+    },
+    {
+      "clientId": "group-hq-admin",
+      "displayName": "Group HQ Admin",
+      "tenantKey": "group-hq",
+      "portalClass": "operator",
+      "redirectUris": [
+        "https://admin.staging.abc-group.example/auth/callback"
+      ],
+      "postLogoutRedirectUris": [
+        "https://admin.staging.abc-group.example/auth/login"
+      ],
+      "scopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles",
+        "offline_access",
+        "hishop:permissions",
+        "hishop:admin"
+      ]
+    },
+    {
+      "clientId": "customer-acme-portal",
+      "displayName": "Acme Admin Portal",
+      "tenantKey": "customer-acme",
+      "portalClass": "customer_operator",
+      "redirectUris": [
+        "https://acme.staging.abc-group.example/auth/callback",
+        "http://localhost:4203/auth/callback"
+      ],
+      "postLogoutRedirectUris": [
+        "https://acme.staging.abc-group.example/auth/login",
+        "http://localhost:4203/auth/login"
+      ],
+      "scopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles",
+        "offline_access",
+        "hishop:permissions",
+        "hishop:admin"
+      ]
+    },
+    {
+      "clientId": "customer-acme-app",
+      "displayName": "Acme Clinical App",
+      "tenantKey": "customer-acme",
+      "portalClass": "end_user",
+      "redirectUris": [
+        "https://acme-app.staging.abc-group.example/auth/callback"
+      ],
+      "postLogoutRedirectUris": [
+        "https://acme-app.staging.abc-group.example/auth/login"
+      ],
+      "scopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles",
+        "offline_access",
+        "hishop:permissions"
+      ]
+    },
+    {
+      "clientId": "customer-factory-x-portal",
+      "displayName": "Factory X Admin Portal",
+      "tenantKey": "customer-factory-x",
+      "portalClass": "customer_operator",
+      "redirectUris": [
+        "https://factory-x.staging.abc-group.example/auth/callback",
+        "http://localhost:4204/auth/callback"
+      ],
+      "postLogoutRedirectUris": [
+        "https://factory-x.staging.abc-group.example/auth/login",
+        "http://localhost:4204/auth/login"
+      ],
+      "scopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles",
+        "offline_access",
+        "hishop:permissions",
+        "hishop:admin"
+      ]
+    },
+    {
+      "clientId": "customer-factory-x-app",
+      "displayName": "Factory X Operations App",
+      "tenantKey": "customer-factory-x",
+      "portalClass": "end_user",
+      "redirectUris": [
+        "https://factory-x-app.staging.abc-group.example/auth/callback",
+        "http://localhost:4205/auth/callback"
+      ],
+      "postLogoutRedirectUris": [
+        "https://factory-x-app.staging.abc-group.example/auth/login",
+        "http://localhost:4205/auth/login"
+      ],
+      "scopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles",
+        "offline_access",
+        "hishop:permissions"
+      ]
+    }
+  ]
+}

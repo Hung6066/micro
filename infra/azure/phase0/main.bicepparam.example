@@ -1,0 +1,9 @@
+using './main.bicep'
+
+param prefix = 'hishop'
+param location = 'southeastasia'
+// Generate a strong password locally; do not commit the real value.
+param postgresAdminPassword = '<REPLACE_WITH_STRONG_PASSWORD>'
+param postgresAdminUser = 'hishop_admin'
+// Optional: your office or CI runner egress IP for PostgreSQL firewall.
+param postgresClientIp = ''

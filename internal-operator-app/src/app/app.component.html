@@ -1,0 +1,117 @@
+@if (isAuthenticated$ | async) {
+<mat-toolbar color="primary" class="app-toolbar">
+  <button
+    mat-icon-button
+    (click)="toggleSidenav()"
+    [attr.aria-label]="'app.dashboard.toggleNav' | hhTranslate: 'Toggle navigation'"
+  >
+    <mat-icon>menu</mat-icon>
+  </button>
+  <span class="app-brand-mark" aria-hidden="true">+</span>
+  <span class="app-title">{{ localizedShellTitle }}</span>
+  <span class="toolbar-spacer"></span>
+  @if (isAuthenticated$ | async) {
+    @if (tenantOptions$ | async; as tenantOptions) {
+      @if (tenantOptions.length > 1) {
+        <app-tenant-switcher
+          class="tenant-selector"
+          [tenants]="tenantOptions"
+          [activeKey]="activeTenantKey"
+          (tenantChange)="onTenantChange($event)"
+        />
+      }
+    }
+  }
+  <hh-language-switcher></hh-language-switcher>
+  <button
+    mat-icon-button
+    type="button"
+    (click)="paletteOpen = true"
+    [attr.aria-label]="'customerPortal.openCommandPalette' | hhTranslate: 'Open command palette'"
+  >
+    <mat-icon>search</mat-icon>
+  </button>
+  <button
+    mat-icon-button
+    type="button"
+    (click)="toggleTheme()"
+    [attr.aria-label]="'customerPortal.toggleTheme' | hhTranslate: 'Toggle theme'"
+  >
+    <mat-icon>brightness_6</mat-icon>
+  </button>
+  <button
+    mat-icon-button
+    type="button"
+    (click)="toggleUserMenu()"
+    [attr.aria-expanded]="userMenuOpen"
+    [attr.aria-label]="'customerPortal.userMenu' | hhTranslate: 'User menu'"
+  >
+    <mat-icon>account_circle</mat-icon>
+  </button>
+  @if (userMenuOpen) {
+    <div class="user-menu" role="menu">
+      @if (isAuthenticated$ | async) {
+        <button type="button" role="menuitem" (click)="onLogout()">
+          <mat-icon>logout</mat-icon>
+          <span>{{ "customerPortal.logout" | hhTranslate: "Sign out" }}</span>
+        </button>
+      } @else {
+        <button type="button" role="menuitem" (click)="onLogin()">
+          <mat-icon>login</mat-icon>
+          <span>{{ "customerPortal.login" | hhTranslate: "Sign in" }}</span>
+        </button>
+      }
+    </div>
+  }
+</mat-toolbar>
+
+<hh-offline-banner></hh-offline-banner>
+<hh-command-palette
+  [open]="paletteOpen"
+  [commands]="commands"
+  (closed)="paletteOpen = false"
+  (selected)="onCommand($event.id)"
+/>
+
+<mat-sidenav-container class="sidenav-container">
+  <mat-sidenav
+    #sidenav
+    [mode]="(isMobile$ | async) ? 'over' : 'side'"
+    [opened]="sidenavOpened$ | async"
+    class="app-sidenav"
+  >
+    <hh-brand
+      [caption]="'customerPortal.identityAdministration' | hhTranslate: 'Tenant administration'"
+    ></hh-brand>
+    <mat-nav-list>
+      @for (section of navSections; track section.id) {
+        <div class="nav-section-label">
+          {{ section.labelKey | hhTranslate: section.fallback }}
+        </div>
+        @for (item of section.items; track item.id) {
+          <a
+            mat-list-item
+            [routerLink]="item.route"
+            routerLinkActive="active-link"
+          >
+            <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
+            <span matListItemTitle>{{
+              item.labelKey | hhTranslate: item.fallback
+            }}</span>
+          </a>
+        }
+      }
+    </mat-nav-list>
+  </mat-sidenav>
+  <mat-sidenav-content class="sidenav-content">
+    <main class="main-content">
+      <router-outlet></router-outlet>
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>
+} @else {
+  <main class="auth-shell">
+    <router-outlet></router-outlet>
+  </main>
+}
+<hh-toast-outlet />

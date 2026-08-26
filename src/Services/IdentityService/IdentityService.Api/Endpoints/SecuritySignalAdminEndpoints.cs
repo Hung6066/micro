@@ -59,7 +59,10 @@ public static class SecuritySignalAdminEndpoints
 
         group.MapPost("/outbox/{id:guid}/retry", async (Guid id, IdentityDbContext db, CancellationToken ct) =>
         {
-            var entry = await db.SecuritySignalOutbox.SingleOrDefaultAsync(item => item.Id == id, ct);
+            // A replay request for an unknown id is a normal client miss.
+            // FindAsync uses the primary-key lookup and returns null without
+            // materializing the full outbox row when the id is absent.
+            var entry = await db.SecuritySignalOutbox.FindAsync([id], ct);
             if (entry is null) return Results.NotFound();
             entry.DispatchedAt = null;
             entry.AvailableAt = DateTime.UtcNow;

@@ -20,8 +20,10 @@ import {
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import { IamGroup, IamScope } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
-import { finalize, forkJoin, take } from "rxjs";
+import { finalize, forkJoin, map, take } from "rxjs";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
@@ -87,6 +89,7 @@ import { GroupEditDialogComponent } from "./group-edit-dialog.component";
 })
 export class GroupsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -146,6 +149,7 @@ export class GroupsPageComponent implements OnInit {
   }
   ngOnInit(): void {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   constructor() {
     effect(() => {
@@ -162,7 +166,10 @@ export class GroupsPageComponent implements OnInit {
     this.state.load(
       forkJoin({
         groups: this.api.getIamGroups().pipe(take(1)),
-        scopes: this.api.getIamScopes().pipe(take(1)),
+        scopes: this.api.getIamScopes().pipe(
+          take(1),
+          map((scopes) => this.tenantContext.filterScopes(scopes)),
+        ),
       }),
     );
   }

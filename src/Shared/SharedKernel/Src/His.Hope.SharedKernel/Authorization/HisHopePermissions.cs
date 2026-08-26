@@ -142,6 +142,32 @@ public static class HisHopePermissions
     }
 
     // ──────────────────────────────────────────────
+    // Commerce / B2B ordering module
+    // ──────────────────────────────────────────────
+    public static class Commerce
+    {
+        public const string CatalogView = "commerce.catalog.view";
+        public const string OrdersCreate = "commerce.orders.create";
+        public const string OrdersView = "commerce.orders.view";
+        public const string OrdersUpdate = "commerce.orders.update";
+        public const string ProfileManage = "commerce.profile.manage";
+        public const string NotificationsView = "commerce.notifications.view";
+        public const string RfqCreate = "commerce.rfq.create";
+        public const string RfqView = "commerce.rfq.view";
+        public const string RfqRespond = "commerce.rfq.respond";
+    }
+
+    // ──────────────────────────────────────────────
+    // Content / CMS module
+    // ──────────────────────────────────────────────
+    public static class Content
+    {
+        public const string Read = "content.read";
+        public const string Manage = "content.manage";
+        public const string InquiriesView = "content.inquiries.view";
+    }
+
+    // ──────────────────────────────────────────────
     // All Permissions - for enumeration and seeding
     // ──────────────────────────────────────────────
 
@@ -191,6 +217,14 @@ public static class HisHopePermissions
 
         // Dashboard
         Dashboard.View, Dashboard.Manage,
+
+        // Commerce
+        Commerce.CatalogView, Commerce.OrdersCreate, Commerce.OrdersView,
+        Commerce.OrdersUpdate, Commerce.ProfileManage, Commerce.NotificationsView,
+        Commerce.RfqCreate, Commerce.RfqView, Commerce.RfqRespond,
+
+        // Content
+        Content.Read, Content.Manage, Content.InquiriesView,
     }.ToFrozenSet();
 
     /// <summary>
@@ -280,6 +314,22 @@ public static class HisHopePermissions
         // Dashboard
         new(Dashboard.View, "Xem dashboard vận hành", "Dashboard", "Xem log, metric, trace và trạng thái dịch vụ"),
         new(Dashboard.Manage, "Quản lý dashboard vận hành", "Dashboard", "Khởi động, dừng hoặc khởi động lại dịch vụ"),
+
+        // Commerce
+        new(Commerce.CatalogView, "Xem catalog", "Commerce", "Xem danh mục sản phẩm B2B"),
+        new(Commerce.OrdersCreate, "Tạo đơn hàng", "Commerce", "Đặt hàng từ catalog"),
+        new(Commerce.OrdersView, "Xem đơn hàng", "Commerce", "Xem đơn hàng trong tenant"),
+        new(Commerce.OrdersUpdate, "Cập nhật đơn hàng", "Commerce", "Fulfill hoặc cập nhật trạng thái đơn"),
+        new(Commerce.ProfileManage, "Quản lý hồ sơ buyer", "Commerce", "Cập nhật thông tin liên hệ buyer"),
+        new(Commerce.NotificationsView, "Xem thông báo", "Commerce", "Xem thông báo đơn hàng"),
+        new(Commerce.RfqCreate, "Tạo RFQ", "Commerce", "Gửi yêu cầu báo giá"),
+        new(Commerce.RfqView, "Xem RFQ", "Commerce", "Xem yêu cầu báo giá"),
+        new(Commerce.RfqRespond, "Phản hồi RFQ", "Commerce", "Trả lời báo giá cho buyer"),
+
+        // Content
+        new(Content.Read, "Xem nội dung", "Content", "Xem nội dung công khai đã publish"),
+        new(Content.Manage, "Quản lý nội dung", "Content", "CMS banners, bài viết, story blocks"),
+        new(Content.InquiriesView, "Xem hỏi hợp tác", "Content", "Xem form hợp tác kinh doanh"),
     }.ToFrozenSet();
 
     /// <summary>

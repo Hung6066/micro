@@ -39,7 +39,8 @@ public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, RoleD
             Description = request.Description,
             Owner = string.IsNullOrWhiteSpace(request.Owner) ? "identity-service" : request.Owner.Trim(),
             IsSystem = false,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            ConcurrencyStamp = Guid.NewGuid().ToString("N")
         };
 
         _context.Roles.Add(role);
@@ -90,7 +91,7 @@ public class CreateRoleCommandHandler : IRequestHandler<CreateRoleCommand, RoleD
                 rp.Permission.Description,
                 rp.Permission.IsSystem
             )).ToList(),
-            null,
+            savedRole.ConcurrencyStamp,
             savedRole.Owner,
             savedRole.AuthorizationVersion,
             savedRole.RiskTier,

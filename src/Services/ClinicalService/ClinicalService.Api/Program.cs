@@ -626,12 +626,6 @@ static X509Certificate2 LoadServerCertificate(IConfiguration config)
     return cert;
 }
 
-// Request Records
-public record StartEncounterRequest(Guid PatientId, Guid ProviderId, Guid? AppointmentId, string EncounterTypeCode);
-public record RecordVitalsRequest(decimal? Temperature, int? HeartRate, int? RespiratoryRate,
-    int? SystolicBP, int? DiastolicBP, decimal? OxygenSaturation, decimal? HeightCm, decimal? WeightKg, decimal? Bmi);
-public record AddDiagnosisRequest(string ConditionName, string Icd10Code, bool IsPrimary, string? Notes);
-
 // DTO for raw SQL query results
 public class EncounterTypeCount
 {

@@ -9,7 +9,6 @@ import {
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { HisHopeDialogService } from "@his-hope/frontend-foundation/ui";
-import { forkJoin } from "rxjs";
 import {
   HisHopeDataTableColumn,
   HisHopeResourceListPageComponent,
@@ -22,12 +21,15 @@ import {
 import { HisHopePermissionService } from "@his-hope/frontend-foundation/auth";
 import {
   IamScope,
-  IamWorkloadRole,
+  IamServicePrincipal,
   PermissionDefinition,
 } from "../../core/contracts/admin.contracts";
 import { IamApiService } from "../../core/services/iam-api.service";
+import { TenantContextService } from "../../core/services/tenant-context.service";
 import { AdminResourceStateController } from "../../core/services/admin-resource-state.controller";
 import { WorkloadRoleEditDialogComponent } from "../workload-roles/workload-role-edit-dialog.component";
+import { forkJoin, map } from "rxjs";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 
 import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 @Component({
@@ -87,6 +89,7 @@ import { HisHopeActionButtonComponent } from "@his-hope/frontend-foundation/ui";
 })
 export class ServicePrincipalsPageComponent implements OnInit {
   private readonly api = inject(IamApiService);
+  private readonly tenantContext = inject(TenantContextService);
   private readonly dialog = inject(HisHopeDialogService);
   private readonly permissions = inject(HisHopePermissionService);
   private readonly i18n = inject(HisHopeI18nService);
@@ -94,13 +97,13 @@ export class ServicePrincipalsPageComponent implements OnInit {
   get canWrite(): boolean {
     return this.permissions.has("admin.roles.write");
   }
-  roles: IamWorkloadRole[] = [];
+  roles: IamServicePrincipal[] = [];
   scopes: IamScope[] = [];
   permissionCatalog: PermissionDefinition[] = [];
   rows: Record<string, unknown>[] = [];
   private readonly destroyRef = inject(DestroyRef);
   readonly state = new AdminResourceStateController<{
-    roles: IamWorkloadRole[];
+    roles: IamServicePrincipal[];
     scopes: IamScope[];
     permissions: PermissionDefinition[];
   }>({
@@ -143,6 +146,7 @@ export class ServicePrincipalsPageComponent implements OnInit {
   }
   ngOnInit(): void {
     this.load();
+    this.tenantContext.bindTenantReload(this.destroyRef, () => this.load());
   }
   constructor() {
     effect(() => {
@@ -153,10 +157,8 @@ export class ServicePrincipalsPageComponent implements OnInit {
         this.permissionCatalog = x.permissions;
         this.rows = x.roles.map((item) => ({
           ...item,
-          isActive:
-            (item as IamWorkloadRole & { isActive?: boolean }).isActive !==
-            false,
-          principalType: "workload",
+          isActive: item.isActive !== false,
+          principalType: item.principalType ?? "workload",
         }));
         this.cdr.markForCheck();
       }
@@ -165,8 +167,10 @@ export class ServicePrincipalsPageComponent implements OnInit {
   load(): void {
     this.state.load(
       forkJoin({
-        roles: this.api.getIamWorkloadRoles(),
-        scopes: this.api.getIamScopes(),
+        roles: this.api.getIamServicePrincipals(),
+        scopes: this.api.getIamScopes().pipe(
+          map((scopes) => this.tenantContext.filterScopes(scopes)),
+        ),
         permissions: this.api.getPermissions(),
       }),
     );
@@ -190,22 +194,39 @@ export class ServicePrincipalsPageComponent implements OnInit {
   }
   edit(row: Record<string, unknown>): void {
     if (!this.canWrite) return;
-    const item = this.roles.find((x) => x.id === String(row["id"]));
-    if (!item) return;
-    this.dialog
-      .open(WorkloadRoleEditDialogComponent, {
-        width: "min(840px, calc(100vw - 32px))",
-        data: {
-          role: item,
-          scopes: this.scopes,
-          permissions: this.permissionCatalog,
-          servicePrincipal: true,
-        },
-      })
-      .afterClosed()
-      .subscribe((saved) => {
-        if (saved) this.load();
-      });
+    const id = String(row["id"] ?? "");
+    if (!id) return;
+    this.api.getIamWorkloadRoles().subscribe({
+      next: (roles) => {
+        const item = roles.find((role) => role.id === id);
+        if (!item) {
+          this.error = this.i18n.t(
+            "admin.iamLoadFailed",
+            "Unable to load service principal.",
+          );
+          return;
+        }
+        this.dialog
+          .open(WorkloadRoleEditDialogComponent, {
+            width: "min(840px, calc(100vw - 32px))",
+            data: {
+              role: item,
+              scopes: this.scopes,
+              permissions: this.permissionCatalog,
+              servicePrincipal: true,
+            },
+          })
+          .afterClosed()
+          .subscribe((saved) => {
+            if (saved) this.load();
+          });
+      },
+      error: () =>
+        (this.error = this.i18n.t(
+          "admin.iamLoadFailed",
+          "Unable to load service principal.",
+        )),
+    });
   }
 
   toggle(row: Record<string, unknown>): void {

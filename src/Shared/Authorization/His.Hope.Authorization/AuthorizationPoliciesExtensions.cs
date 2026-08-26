@@ -21,10 +21,13 @@ public static class AuthorizationPoliciesExtensions
         services.AddSingleton<OpenFgaCanaryAuthorizer>();
         services.AddSingleton<IAuthorizationDecisionSink, LoggingAuthorizationDecisionSink>();
         services.AddSingleton<IAuthorizationShadowProbe, LoggingAuthorizationShadowProbe>();
+        services.AddSingleton<ICrossTenantAccessPolicy, DefaultDenyCrossTenantAccessPolicy>();
         services.AddScoped<IResourceAuthorizationEvaluator, AuthorizationEvaluator>();
 
         services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
         services.AddSingleton<IAuthorizationHandler, ScopeHandler>();
+        services.AddSingleton<IAuthorizationHandler, PortalClassHandler>();
+        services.AddSingleton<IAuthorizationHandler, CommerceScopeOrPermissionHandler>();
         services.AddSingleton<IAuthorizationHandler, PrincipalTypeHandler>();
         var builder = services.AddAuthorizationBuilder();
         builder.AddFallbackPolicy("default", new AuthorizationPolicyBuilder()

@@ -100,6 +100,46 @@ public sealed class RoleEndpointLifecycleTests(IdentityServiceTestFixture fixtur
     }
 
     [Fact]
+    public async Task Role_update_rejects_a_stale_concurrency_token()
+    {
+        using var session = fixture.CreateSessionClient();
+        Assert.Equal(HttpStatusCode.OK, (await session.LoginAsAdminAsync()).StatusCode);
+
+        var name = $"integration-role-concurrency-{Guid.NewGuid():N}";
+        var create = await session.PostWithCookiesAsync(IdentityApiRoutes.Roles, new
+        {
+            name,
+            description = "Concurrency branch coverage",
+            permissions = Array.Empty<string>(),
+            owner = "identity-service"
+        });
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var created = await create.Content.ReadFromJsonAsync<JsonElement>();
+        var id = created.GetProperty("id").GetGuid();
+        var originalToken = created.GetProperty("concurrencyToken").GetString();
+
+        var firstUpdate = await session.PutWithCookiesAsync(IdentityApiRoutes.Role(id), new
+        {
+            name = name + "-first",
+            description = "First update wins",
+            permissions = Array.Empty<string>(),
+            concurrencyToken = originalToken,
+            owner = "identity-service"
+        });
+        Assert.Equal(HttpStatusCode.OK, firstUpdate.StatusCode);
+
+        var staleUpdate = await session.PutWithCookiesAsync(IdentityApiRoutes.Role(id), new
+        {
+            name = name + "-stale",
+            description = "Stale update must be rejected",
+            permissions = Array.Empty<string>(),
+            concurrencyToken = originalToken,
+            owner = "identity-service"
+        });
+        Assert.Equal(HttpStatusCode.Conflict, staleUpdate.StatusCode);
+    }
+
+    [Fact]
     public async Task Retired_and_system_roles_are_not_publishable_or_rollbackable()
     {
         using var session = fixture.CreateSessionClient();
