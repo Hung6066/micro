@@ -3,6 +3,8 @@ using His.Hope.ServiceDefaults;
 using His.Hope.ManufacturingService.Application.Ports;
 using His.Hope.Authorization;
 using His.Hope.Infrastructure.Security;
+using His.Hope.Infrastructure.Caching;
+using StackExchange.Redis;
 using His.Hope.SharedKernel.Authorization;
 var builder = WebApplication.CreateBuilder(args);
 var manufacturingConnection = builder.Configuration.GetConnectionString("ManufacturingDb")
@@ -11,6 +13,12 @@ builder.Services.AddManufacturingInfrastructure(manufacturingConnection);
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<ManufacturingDbContext>("manufacturing-db");
 builder.Services.AddHisHopeServiceDefaults(builder.Configuration, "ManufacturingService");
+var redis = RedisConnectionFactory.Connect(
+    builder.Configuration.GetConnectionString("Redis")
+        ?? builder.Configuration["Redis:ConnectionString"]
+        ?? "localhost:6379",
+    builder.Configuration);
+builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
 builder.Services.AddHisHopeJwtAuthentication(builder.Configuration);
 builder.Services.AddHisHopeDpopValidation();
 builder.Services.AddHisHopeAuthorization();
