@@ -33,9 +33,9 @@ export function createMobileRuntimeConfig(
         ? (Capacitor.getPlatform() as "android" | "ios")
         : "web",
     },
-    // Reuse the registered public mobile client until the operator-specific
-    // client is provisioned in the Identity Service deployment.
-    clientId: "his-hope-mobile",
+    // Operator Mobile is tenant-bound to manufacturing; keep it separate from
+    // the group-hq client used by the general mobile application.
+    clientId: "his-hope-operator-mobile",
     scope: "openid profile email roles hishop:permissions offline_access",
     secureRoutes: ["/api/v1/"],
     redirectPath: "/auth/callback",

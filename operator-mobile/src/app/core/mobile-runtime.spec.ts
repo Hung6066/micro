@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import {
+  createMobileRuntimeConfig,
   resolveMobileApiOrigin,
   resolveMobileRedirectUri,
   resolveMobileSentryDsn,
@@ -19,6 +20,18 @@ describe("mobile runtime", () => {
       oidcAuthority: "https://identity.example.test",
     };
     expect(resolveProductionApiOrigin()).toBe("https://api.example.test");
+    delete window.__HISHOPE_CONFIG__;
+  });
+
+  it("uses the manufacturing-bound operator mobile client", () => {
+    window.__HISHOPE_CONFIG__ = {
+      apiOrigin: "http://localhost:5000",
+      oidcAuthority: "http://localhost:5000",
+      production: false,
+    };
+    expect(createMobileRuntimeConfig(false).clientId).toBe(
+      "his-hope-operator-mobile",
+    );
     delete window.__HISHOPE_CONFIG__;
   });
 
@@ -87,9 +100,11 @@ describe("mobile runtime", () => {
   it("rewrites Docker Identity login URLs onto the public authority", () => {
     expect(
       rewriteHisHopeNativeOidcUrl(
-        "http://identityservice:5003/connect/authorize?client_id=his-hope-mobile",
+        "http://identityservice:5003/connect/authorize?client_id=his-hope-operator-mobile",
         "http://10.0.2.2:5000",
       ),
-    ).toBe("http://10.0.2.2:5000/connect/authorize?client_id=his-hope-mobile");
+    ).toBe(
+      "http://10.0.2.2:5000/connect/authorize?client_id=his-hope-operator-mobile",
+    );
   });
 });

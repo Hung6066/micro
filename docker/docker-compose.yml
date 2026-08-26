@@ -472,6 +472,8 @@ services:
       OpenIddict__AccessTokenLifetime: ${OIDC_ACCESS_TOKEN_LIFETIME:-01:00:00}
       OpenIddict__RefreshTokenLifetime: ${OIDC_REFRESH_TOKEN_LIFETIME:-7.00:00:00}
       OpenIddict__AuthorizationCodeLifetime: ${OIDC_CODE_LIFETIME:-00:01:00}
+      Dpop__RequiredClientIds__0: his-hope-mobile
+      Dpop__RequiredClientIds__1: his-hope-operator-mobile
       # WebAuthn origins used by the local identity login page and admin app.
       # Production deployments should override these with the public HTTPS origins.
       Passkeys__RpId: ${PASSKEYS_RP_ID:-}
@@ -561,6 +563,7 @@ services:
       Conglomerate__OidcClientTenants__his-hope-dashboard: group-hq
       Conglomerate__OidcClientTenants__his-hope-spa: group-hq
       Conglomerate__OidcClientTenants__his-hope-mobile: group-hq
+      Conglomerate__OidcClientTenants__his-hope-operator-mobile: manufacturing
       Conglomerate__OidcClientTenants__manufacturing-app: manufacturing
       Conglomerate__OidcClientTenants__tech-console: tech-vendor
     volumes:

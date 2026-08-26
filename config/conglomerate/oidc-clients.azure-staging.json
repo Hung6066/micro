@@ -3,6 +3,26 @@
   "authority": "https://identity.staging.abc-group.example",
   "clients": [
     {
+      "clientId": "his-hope-operator-mobile",
+      "displayName": "His Hope Operator Mobile",
+      "tenantKey": "manufacturing",
+      "portalClass": "operator",
+      "redirectUris": [
+        "hishope://auth/callback"
+      ],
+      "postLogoutRedirectUris": [
+        "hishope://auth/logout-callback"
+      ],
+      "scopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles",
+        "offline_access",
+        "hishop:permissions"
+      ]
+    },
+    {
       "clientId": "manufacturing-app",
       "displayName": "Manufacturing Portal",
       "tenantKey": "manufacturing",
