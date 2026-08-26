@@ -97,7 +97,7 @@ export const appConfig: ApplicationConfig = {
         silentRenew: false,
         useRefreshToken: true,
         secureRoutes: environment.oidc.secureRoutes,
-        autoUserInfo: false,
+        autoUserInfo: true,
         logLevel: environment.production ? 0 : 1,
       },
     }),

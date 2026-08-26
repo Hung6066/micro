@@ -3,6 +3,7 @@
 .operator-shell__header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-light, #dedbd3); background: color-mix(in srgb, #fff 94%, transparent); backdrop-filter: blur(12px); }
 .operator-shell__eyebrow { margin: 0 0 .25rem; font-size: .68rem; letter-spacing: .12em; font-weight: 700; color: #68756d; }
 h1 { margin: 0; font-size: 1.25rem; }
+.operator-shell__tools { display: flex; align-items: center; gap: .45rem; }
 .operator-shell__status { border-radius: 999px; padding: .35rem .65rem; background: #e6f4ea; color: #18733b; font-size: .75rem; font-weight: 700; }
 .operator-shell__context { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .4rem .5rem; padding: .55rem 1.25rem; border-bottom: 1px solid var(--border-light, #dedbd3); background: #f8fbf9; font-size: .82rem; }
 .operator-shell__context label { white-space: nowrap; font-weight: 700; }

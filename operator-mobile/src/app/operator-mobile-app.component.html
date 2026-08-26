@@ -4,7 +4,10 @@
       <p class="operator-shell__eyebrow">HIS.HOPE OPERATIONS</p>
       <h1>Field operations</h1>
     </div>
-    <span class="operator-shell__status" aria-label="Sync status">Online</span>
+    <div class="operator-shell__tools">
+      <hh-language-switcher aria-label="Language" />
+      <span class="operator-shell__status" aria-label="Sync status">Online</span>
+    </div>
   </header>
   <section class="operator-shell__context" aria-label="Operational tenant context">
     <label for="operator-tenant">Tenant</label>
@@ -12,7 +15,7 @@
       @if (!tenant.availableTenants().length) { <option value="">No tenant claim</option> }
       @for (tenantKey of tenant.availableTenants(); track tenantKey) { <option [value]="tenantKey">{{ tenantKey }}</option> }
     </select>
-    <small>Operator: <span>{{ tenant.subjectId() ?? "not resolved" }}</span></small>
+    <small>Operator: <span>{{ tenant.email() ?? tenant.subjectId() ?? "not resolved" }}</span></small>
   </section>
   <section class="operator-shell__content"><router-outlet /></section>
   <nav class="operator-shell__nav" aria-label="Operational areas">

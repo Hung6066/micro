@@ -1,10 +1,11 @@
 import { Component, inject } from "@angular/core";
 import { RouterLink, RouterLinkActive, RouterOutlet } from "@angular/router";
+import { HisHopeLanguageSwitcherComponent } from "@his-hope/frontend-foundation/i18n";
 import { OperatorMobileTenantContextService } from "./core/operator-mobile-tenant-context.service";
 
 @Component({
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, HisHopeLanguageSwitcherComponent],
   templateUrl: "./operator-mobile-app.component.html",
   styleUrls: ["./operator-mobile-app.component.scss"],
 })

@@ -8,14 +8,18 @@ export class OperatorMobileTenantContextService {
   private readonly auth = inject(MobileAuthService);
   readonly activeTenantKey = signal<string | null>(null);
   readonly subjectId = signal<string | null>(null);
+  readonly email = signal<string | null>(null);
   readonly availableTenants = signal<string[]>([]);
 
   constructor() {
     this.auth.userData$.subscribe((result) => {
       const data = (result as { userData?: Record<string, unknown> } | null)?.userData;
       const subject = typeof data?.["sub"] === "string" ? data["sub"] : null;
+      const email = [data?.["email"], data?.["preferred_username"], data?.["upn"]]
+        .find((value): value is string => typeof value === "string" && value.includes("@")) ?? null;
       const tenants = this.readTenantClaims(data);
       this.subjectId.set(subject);
+      this.email.set(email);
       const options = [...new Set(tenants)];
       this.availableTenants.set(options);
       if (options.length && !this.activeTenantKey()) this.activeTenantKey.set(options[0]);
