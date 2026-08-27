@@ -86,7 +86,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
           <label>{{ "customerPortal.selectLot" | hhTranslate: "Select a lot" }}
             <select [(ngModel)]="selectedLotId" (ngModelChange)="onLotSelected($event)">
               <option value="">{{ "customerPortal.selectLot" | hhTranslate: "Select a lot" }}</option>
-              @for (lot of lots; track lot.id) { <option [value]="lot.id">{{ lot.sku }} · {{ lot.quantity | number: '1.0-3' }} {{ lot.uom }} · {{ lot.disposition }}</option> }
+              @for (lot of lots; track lot.id) { <option [value]="lot.id">{{ lot.sku }} · {{ lot.quantity | number: '1.0-3' }} {{ lot.uom }} · {{ dispositionLabel(lot.disposition) }}</option> }
             </select>
           </label>
           <label>{{ "customerPortal.lotDisposition" | hhTranslate: "Disposition" }}

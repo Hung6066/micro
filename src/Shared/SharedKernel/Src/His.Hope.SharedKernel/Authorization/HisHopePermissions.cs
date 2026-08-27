@@ -174,7 +174,11 @@ public static class HisHopePermissions
     {
         public const string ProductionExecute = "manufacturing.production.execute";
         public const string QualityInspect = "manufacturing.quality.inspect";
+        public const string QualityApprove = "manufacturing.quality.approve";
+        public const string RecipeApprove = "manufacturing.recipe.approve";
+        public const string SpecificationApprove = "manufacturing.specification.approve";
         public const string MaintenanceComplete = "manufacturing.maintenance.complete";
+        public const string CostManage = "manufacturing.cost.manage";
     }
 
     // ──────────────────────────────────────────────
@@ -237,8 +241,10 @@ public static class HisHopePermissions
         Content.Read, Content.Manage, Content.InquiriesView,
 
         // Manufacturing field operations
-        Manufacturing.ProductionExecute, Manufacturing.QualityInspect,
+        Manufacturing.ProductionExecute, Manufacturing.QualityInspect, Manufacturing.QualityApprove,
+        Manufacturing.RecipeApprove, Manufacturing.SpecificationApprove,
         Manufacturing.MaintenanceComplete,
+        Manufacturing.CostManage,
     }.ToFrozenSet();
 
     /// <summary>
@@ -348,7 +354,11 @@ public static class HisHopePermissions
         // Manufacturing field operations
         new(Manufacturing.ProductionExecute, "Thực thi sản xuất", "Manufacturing", "Ghi nhận công đoạn và sản lượng tại hiện trường"),
         new(Manufacturing.QualityInspect, "Kiểm tra chất lượng", "Manufacturing", "Ghi nhận kiểm tra chất lượng và sai lệch"),
+        new(Manufacturing.QualityApprove, "Phê duyệt chất lượng", "Manufacturing", "Phê duyệt hoặc từ chối kết quả chất lượng"),
+        new(Manufacturing.RecipeApprove, "Phê duyệt công thức", "Manufacturing", "Phê duyệt vòng đời công thức sản xuất"),
+        new(Manufacturing.SpecificationApprove, "Phê duyệt đặc tả", "Manufacturing", "Phê duyệt đặc tả sản phẩm"),
         new(Manufacturing.MaintenanceComplete, "Hoàn tất bảo trì", "Manufacturing", "Hoàn tất work order và bằng chứng bảo trì"),
+        new(Manufacturing.CostManage, "Quản lý giá vốn", "Manufacturing", "Tính và điều chỉnh giá vốn theo batch"),
     }.ToFrozenSet();
 
     /// <summary>

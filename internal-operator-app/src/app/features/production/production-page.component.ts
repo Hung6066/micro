@@ -27,6 +27,7 @@ import {
   HisHopeLotDto,
   HisHopeRecipeDto,
   HisHopeManufacturingMachineDto,
+  HisHopeProductionBatchCostDto,
 } from "@his-hope/frontend-foundation/contracts";
 import { ManufacturingApiService } from "../../core/services/manufacturing-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
@@ -179,6 +180,14 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
                           : { date: (batch.createdAt | date: "medium") ?? "" }
                     }}
                   </p>
+                  <div class="batch-cost">
+                    @if (batchCosts[batch.id]; as cost) {
+                      <span>{{ "customerPortal.batchCost" | hhTranslate: "Cost {{total}} {{currency}} · {{unit}}/output unit" : { total: (cost.totalCost | number: "1.0-2") ?? "", currency: cost.currency, unit: (cost.costPerOutputUnit | number: "1.0-2") ?? "" } }}</span>
+                    } @else {
+                      <span class="meta">{{ "customerPortal.batchCostMissing" | hhTranslate: "No cost calculated" }}</span>
+                    }
+                    <hh-action-button kind="row" icon="calculate" [label]="'customerPortal.calculateBatchCost' | hhTranslate: 'Calculate cost'" (pressed)="calculateBatchCost(batch)" [disabled]="costActionId === batch.id" />
+                  </div>
                   @if (batch.status === "Created") {
                     <hh-action-button
                       kind="secondary"
@@ -324,6 +333,8 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
         color: var(--text-secondary);
         margin: var(--space-xs) 0 var(--space-sm);
       }
+      .batch-cost { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); margin: var(--space-sm) 0; padding: var(--space-xs) var(--space-sm); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); color: var(--text-secondary); font-size: var(--font-size-caption); }
+      .cost-action:disabled { opacity: .6; cursor: wait; }
       .empty {
         color: var(--text-secondary);
         font-size: var(--font-size-body);
@@ -434,6 +445,8 @@ export class ProductionPageComponent implements OnInit, AfterViewInit {
   machines: HisHopeManufacturingMachineDto[] = [];
   batchActionId: string | null = null;
   batchActionError = "";
+  batchCosts: Record<string, HisHopeProductionBatchCostDto | null> = {};
+  costActionId: string | null = null;
 
   get pageSubtitle(): string {
     this.i18n.locale();
@@ -516,6 +529,7 @@ export class ProductionPageComponent implements OnInit, AfterViewInit {
             .subscribe({
               next: (batches) => {
                 this.batches = batches ?? [];
+                this.loadBatchCosts(this.batches);
                 this.loading = false;
                 this.cdr.markForCheck();
               },
@@ -542,6 +556,22 @@ export class ProductionPageComponent implements OnInit, AfterViewInit {
           this.cdr.markForCheck();
         },
       });
+  }
+
+  private loadBatchCosts(batches: HisHopeProductionBatchDto[]): void {
+    for (const batch of batches) {
+      this.manufacturingApi.getProductionBatchCost(batch.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        next: (cost) => { this.batchCosts = { ...this.batchCosts, [batch.id]: cost }; this.cdr.markForCheck(); },
+      });
+    }
+  }
+
+  calculateBatchCost(batch: HisHopeProductionBatchDto): void {
+    this.costActionId = batch.id;
+    this.manufacturingApi.calculateProductionBatchCost(batch.id, { currency: "VND", actor: "operator" }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (cost) => { this.batchCosts = { ...this.batchCosts, [batch.id]: cost }; this.costActionId = null; this.cdr.markForCheck(); },
+      error: (error) => { this.batchActionError = this.errors.message(error, "customerPortal.batchCostFailed"); this.costActionId = null; this.cdr.markForCheck(); },
+    });
   }
 
   cancelOrder(order: HisHopeProductionOrderDto): void {

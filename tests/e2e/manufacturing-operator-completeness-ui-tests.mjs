@@ -42,18 +42,18 @@ test.describe('manufacturing operator completeness @operator-app', () => {
         await expect(page.getByRole('heading', { name: /Products|Sản phẩm/i })).toBeVisible();
       }
       if (route === 'traceability') {
-        await page.getByRole('button', { name: /Reservations|Phiếu giữ hàng/i }).click();
+        await page.getByRole('tab', { name: /Reservations|Phiếu giữ hàng/i }).click();
         await expect(page.getByRole('heading', { name: /Reservations|Phiếu giữ hàng/i })).toBeVisible();
       }
       if (route === 'procurement') {
         await expect(page.locator('.procurement-nav')).toBeVisible();
-        for (const label of ['Material requirements', 'Facilities', 'Material and UOM master data', 'Suppliers', 'Supplier RFQs', 'Purchase orders', 'Inbound receipt history']) await expect(page.locator('.procurement-nav button').filter({ hasText: new RegExp(label, 'i') })).toBeVisible();
+        for (const label of ['Material requirements', 'Facilities', 'Material and UOM master data', 'Suppliers', 'Supplier RFQs', 'Purchase orders', 'Inbound receipt history']) await expect(page.locator('.procurement-nav [role="tab"]').filter({ hasText: new RegExp(label, 'i') })).toBeVisible();
       }
       if (route === 'production') {
-        await expect(page.getByRole('heading', { name: /Production orders|Đơn sản xuất/i })).toBeVisible();
+        await expect(page.getByRole('heading', { name: /Create production order|Production orders|Đơn sản xuất/i })).toBeVisible();
       }
       if (route === 'quality-inspections') {
-        await expect(page.getByText(/Inspection history|Lịch sử kiểm tra/i, { exact: true })).toBeVisible();
+        await expect(page.getByRole('tab', { name: /Inspection history|Lịch sử kiểm tra/i })).toBeVisible();
       }
     }
 
@@ -82,7 +82,7 @@ test.describe('manufacturing operator completeness @operator-app', () => {
     test.skip(!email || !password, 'Set E2E_EMAIL and E2E_PASSWORD for authenticated operator coverage.');
     await login(page);
     await page.goto(`${operatorUrl}/traceability`);
-    await page.getByRole('button', { name: /Reservations|Phiếu giữ hàng/i }).click();
+    await page.getByRole('tab', { name: /Reservations|Phiếu giữ hàng/i }).click();
     await expect(page.getByRole('heading', { name: /Reservations|Phiếu giữ hàng/i })).toBeVisible();
     const lotsResponse = await page.request.get(`${operatorUrl}/api/v1/manufacturing/lots?disposition=Released&limit=1`);
     expect(lotsResponse.ok()).toBeTruthy();
@@ -102,6 +102,7 @@ test.describe('manufacturing operator completeness @operator-app', () => {
     await login(page);
     await page.goto(`${operatorUrl}/procurement`);
     await expect(page.locator('.procurement-nav')).toBeVisible();
+    await page.getByRole('tab', { name: /Suppliers|Nhà cung cấp/i }).click();
     await page.getByRole('button', { name: /Add supplier|Thêm nhà cung cấp/i }).click();
     const suffix = Date.now().toString(36).toUpperCase();
     const supplierCode = `E2E-${suffix}`;
@@ -116,7 +117,7 @@ test.describe('manufacturing operator completeness @operator-app', () => {
     test.skip(!email || !password, 'Set E2E_EMAIL and E2E_PASSWORD for authenticated operator coverage.');
     await login(page);
     await page.goto(`${operatorUrl}/production`);
-    await expect(page.getByRole('heading', { name: /Production orders|Đơn sản xuất/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /Create production order|Production orders|Đơn sản xuất/i })).toBeVisible();
     const recipeOption = page.locator('select[name="recipeId"] option').nth(1);
     const recipeId = await recipeOption.getAttribute('value');
     const recipeLabel = (await recipeOption.textContent()) ?? '';
@@ -138,10 +139,11 @@ test.describe('manufacturing operator completeness @operator-app', () => {
     test.skip(!email || !password, 'Set E2E_EMAIL and E2E_PASSWORD for authenticated operator coverage.');
     await login(page);
     await page.goto(`${operatorUrl}/quality-inspections`);
-    await expect(page.getByText(/Inspection history|Lịch sử kiểm tra/i, { exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: /Inspection history|Lịch sử kiểm tra/i })).toBeVisible();
     const inspector = `e2e-${Date.now().toString(36)}`;
     await page.getByRole('textbox', { name: /Inspector|Người kiểm tra/i }).fill(inspector);
     await page.getByRole('button', { name: /Record inspection|Ghi nhận kiểm tra/i }).click();
+    await page.getByRole('tab', { name: /Inspection history|Lịch sử kiểm tra/i }).click();
     await expect(page.getByText(new RegExp(inspector))).toBeVisible();
   });
 });

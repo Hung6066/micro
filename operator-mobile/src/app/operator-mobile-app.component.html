@@ -5,7 +5,7 @@
       <h1>{{ "mobile.operatorFieldOperations" | hhTranslate: "Field operations" }}</h1>
     </div>
     <div class="operator-shell__tools">
-      <hh-language-switcher aria-label="Language" />
+      <hh-language-switcher [attr.aria-label]="'mobile.operatorLanguage' | hhTranslate: 'Language'" />
       <div class="operator-shell__menu">
         <button type="button" class="operator-shell__icon-button" [attr.aria-expanded]="menuOpen" aria-haspopup="menu" [attr.aria-label]="'mobile.operatorAccountMenu' | hhTranslate: 'Account menu'" (click)="menuOpen = !menuOpen">
           <hh-mobile-icon name="more" />
@@ -16,19 +16,19 @@
           </div>
         }
       </div>
-      <span class="operator-shell__status" aria-label="Sync status">{{ "mobile.operatorOnline" | hhTranslate: "Online" }}</span>
+      <span class="operator-shell__status" [attr.aria-label]="'mobile.operatorSyncStatus' | hhTranslate: 'Sync status'">{{ "mobile.operatorOnline" | hhTranslate: "Online" }}</span>
     </div>
   </header>
-  <section class="operator-shell__context" aria-label="Operational tenant context">
+  <section class="operator-shell__context" [attr.aria-label]="'mobile.operatorTenantContext' | hhTranslate: 'Operational tenant context'">
     <label for="operator-tenant">{{ "mobile.operatorTenant" | hhTranslate: "Tenant" }}</label>
     <select id="operator-tenant" [value]="tenant.activeTenantKey() ?? ''" (change)="selectTenant($event)" [disabled]="!tenant.availableTenants().length">
       @if (!tenant.availableTenants().length) { <option value="">{{ "mobile.operatorNoTenantClaim" | hhTranslate: "No tenant claim" }}</option> }
       @for (tenantKey of tenant.availableTenants(); track tenantKey) { <option [value]="tenantKey">{{ tenantKey }}</option> }
     </select>
-    <small>{{ "mobile.operatorIdentity" | hhTranslate: "Operator" }}: <span>{{ tenant.email() ?? tenant.subjectId() ?? "not resolved" }}</span></small>
+    <small>{{ "mobile.operatorIdentity" | hhTranslate: "Operator" }}: <span>{{ tenant.email() ?? tenant.subjectId() ?? ("mobile.operatorIdentityUnavailable" | hhTranslate: "Not resolved") }}</span></small>
   </section>
   <section class="operator-shell__content"><router-outlet /></section>
-  <nav class="operator-shell__nav" aria-label="Operational areas">
+  <nav class="operator-shell__nav" [attr.aria-label]="'mobile.operatorOperationalAreas' | hhTranslate: 'Operational areas'">
     <a routerLink="production" routerLinkActive="active"><span class="material-symbols-rounded" aria-hidden="true">precision_manufacturing</span><span>{{ "mobile.operatorProduction" | hhTranslate: "Production" }}</span></a>
     <a routerLink="traceability" routerLinkActive="active"><span class="material-symbols-rounded" aria-hidden="true">qr_code_scanner</span><span>{{ "mobile.operatorTraceability" | hhTranslate: "Traceability" }}</span></a>
     <a routerLink="quality" routerLinkActive="active"><span class="material-symbols-rounded" aria-hidden="true">fact_check</span><span>{{ "mobile.operatorQuality" | hhTranslate: "Quality" }}</span></a>

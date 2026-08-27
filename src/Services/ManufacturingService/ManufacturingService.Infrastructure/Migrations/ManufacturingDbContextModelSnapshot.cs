@@ -274,6 +274,22 @@ namespace ManufacturingService.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<decimal>("AcceptedQuantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<string>("CarrierName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("CertificateOfAnalysisReference")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("DeliveryNoteNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("FacilityId")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -300,6 +316,18 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<DateTimeOffset>("ReceivedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("ReceivedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("RejectedQuantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("numeric(18,3)");
+
+                    b.Property<string>("StorageLocationCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<Guid>("SupplierId")
                         .HasColumnType("uuid");
 
@@ -307,6 +335,10 @@ namespace ManufacturingService.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<decimal?>("TemperatureOnReceiptC")
+                        .HasPrecision(6, 2)
+                        .HasColumnType("numeric(6,2)");
 
                     b.Property<string>("TenantKey")
                         .IsRequired()
@@ -316,6 +348,10 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<string>("Uom")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("VehicleReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.HasKey("Id");
 
@@ -333,7 +369,87 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TenantKey", "SupplierId", "SupplierLotCode")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_inbound_receipts", (string)null);
+                    b.ToTable("manufacturing_inbound_receipts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_manufacturing_inbound_receipts_quantity_balance", "\"AcceptedQuantity\" + \"RejectedQuantity\" = \"Quantity\"");
+                        });
+                });
+
+            modelBuilder.Entity("ManufacturingInspectionPlanVersionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AcceptanceCriteria")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset?>("EffectiveFrom")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("EffectiveTo")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PlanCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ProductSku")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("SamplingFrequency")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("SamplingMethod")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("TenantKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantKey", "PlanCode", "Version")
+                        .IsUnique();
+
+                    b.HasIndex("TenantKey", "ProductSku", "Status", "EffectiveFrom");
+
+                    b.ToTable("manufacturing_inspection_plan_versions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_manufacturing_inspection_plan_version_dates", "\"EffectiveTo\" IS NULL OR \"EffectiveFrom\" IS NULL OR \"EffectiveTo\" > \"EffectiveFrom\"");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingInventoryTransactionEntity", b =>
@@ -447,20 +563,66 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<DateOnly?>("BestBefore")
                         .HasColumnType("date");
 
+                    b.Property<string>("CertificateOfAnalysisReference")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Disposition")
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("FacilityCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("LotCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("LotType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateOnly?>("ManufacturedOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("OriginCountryCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
+                    b.Property<string>("QualityStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 3)
                         .HasColumnType("numeric(18,3)");
 
+                    b.Property<DateTimeOffset?>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Sku")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("SourceLotCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("StorageLocationCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<string>("TenantKey")
                         .IsRequired()
@@ -470,11 +632,20 @@ namespace ManufacturingService.Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantKey", "LotCode")
+                        .IsUnique();
 
                     b.HasIndex("TenantKey", "Sku", "Disposition");
 
-                    b.ToTable("manufacturing_lots", (string)null);
+                    b.ToTable("manufacturing_lots", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_manufacturing_lots_lot_type", "\"LotType\" IN ('RawMaterial', 'WorkInProgress', 'FinishedGood', 'Packaging', 'Unspecified')");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingLotReservationEntity", b =>
@@ -529,6 +700,127 @@ namespace ManufacturingService.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("manufacturing_lot_reservations", (string)null);
+                });
+
+            modelBuilder.Entity("ManufacturingLotStatusHistoryEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EvidenceReference")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("FromDisposition")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("LotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReasonCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("TenantKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("ToDisposition")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LotId");
+
+                    b.HasIndex("TenantKey", "LotId", "OccurredAt");
+
+                    b.ToTable("manufacturing_lot_status_history", (string)null);
+                });
+
+            modelBuilder.Entity("ManufacturingMachineCalibrationEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CalibratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CalibrationType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("CertificateNumber")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("EvidenceReference")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("MachineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("NextDueAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Provider")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("TenantKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MachineId");
+
+                    b.HasIndex("TenantKey", "MachineId", "CertificateNumber")
+                        .IsUnique();
+
+                    b.HasIndex("TenantKey", "MachineId", "NextDueAt");
+
+                    b.ToTable("manufacturing_machine_calibrations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_manufacturing_machine_calibration_dates", "\"NextDueAt\" > \"CalibratedAt\"");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingMachineDowntimeEntity", b =>
@@ -682,6 +974,72 @@ namespace ManufacturingService.Api.Migrations
                     b.HasIndex("TenantKey", "MachineId", "ObservedAt");
 
                     b.ToTable("manufacturing_machine_telemetry", (string)null);
+                });
+
+            modelBuilder.Entity("ManufacturingMaintenancePlanEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Active")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("AssignedTo")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Checklist")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("FrequencyDays")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("LastGeneratedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MachineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MaintenanceType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTimeOffset>("NextDueAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PlanCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("TenantKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MachineId");
+
+                    b.HasIndex("TenantKey", "Active", "NextDueAt");
+
+                    b.HasIndex("TenantKey", "MachineId", "PlanCode")
+                        .IsUnique();
+
+                    b.ToTable("manufacturing_maintenance_plans", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_manufacturing_maintenance_plan_frequency", "\"FrequencyDays\" > 0");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingMaintenanceWorkOrderEntity", b =>
@@ -1030,6 +1388,66 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_product_specifications", (string)null);
                 });
 
+            modelBuilder.Entity("ManufacturingProductionBatchCostEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CalculatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CalculatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<decimal>("CostPerOutputUnit")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<decimal>("LaborCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("LossCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("MaterialCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("OverheadCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("ProductionBatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TenantKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<decimal>("TotalCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductionBatchId");
+
+                    b.HasIndex("TenantKey", "ProductionBatchId")
+                        .IsUnique();
+
+                    b.ToTable("manufacturing_production_batch_costs", (string)null);
+                });
+
             modelBuilder.Entity("ManufacturingProductionBatchEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1272,6 +1690,9 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<DateTimeOffset>("InspectedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("InspectionPlanVersionId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Inspector")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1288,6 +1709,10 @@ namespace ManufacturingService.Api.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<string>("SpecificationReference")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -1300,6 +1725,8 @@ namespace ManufacturingService.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("InspectionPlanVersionId");
+
                     b.HasIndex("LotId");
 
                     b.HasIndex("TenantKey", "LotId", "InspectedAt");
@@ -1307,6 +1734,137 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_quality_inspections", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_quality_moisture_range", "\"MoisturePercent\" >= 0 AND \"MoisturePercent\" <= 100");
+                        });
+                });
+
+            modelBuilder.Entity("ManufacturingQualitySampleEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CollectedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CollectedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DisposedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisposedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Disposition")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("DispositionReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("InspectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("LotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("SampleCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("TenantKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InspectionId");
+
+                    b.HasIndex("LotId");
+
+                    b.HasIndex("TenantKey", "Disposition", "CollectedAt");
+
+                    b.HasIndex("TenantKey", "InspectionId", "SampleCode")
+                        .IsUnique();
+
+                    b.ToTable("manufacturing_quality_samples", (string)null);
+                });
+
+            modelBuilder.Entity("ManufacturingQualityTestResultEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EvidenceReference")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<decimal?>("LowerLimit")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<decimal>("MeasuredValue")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.Property<string>("Method")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("QualityInspectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("TestCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("TestName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Uom")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<decimal?>("UpperLimit")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QualityInspectionId", "TestCode")
+                        .IsUnique();
+
+                    b.ToTable("manufacturing_quality_test_results", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_manufacturing_quality_test_result_status", "\"Result\" IN ('Pass', 'Fail', 'NotApplicable')");
                         });
                 });
 
@@ -1506,6 +2064,71 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_storage_locations", (string)null);
                 });
 
+            modelBuilder.Entity("ManufacturingSupplierCertificateEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CertificateNumber")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("CertificateType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("EvidenceReference")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("IssuedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Issuer")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TenantKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SupplierId");
+
+                    b.HasIndex("TenantKey", "SupplierId", "CertificateNumber")
+                        .IsUnique();
+
+                    b.ToTable("manufacturing_supplier_certificates", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_manufacturing_supplier_certificate_dates", "\"ExpiresAt\" > \"IssuedAt\"");
+                        });
+                });
+
             modelBuilder.Entity("ManufacturingSupplierEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1515,30 +2138,92 @@ namespace ManufacturingService.Api.Migrations
                     b.Property<bool>("Active")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("Address")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ApprovalStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ApprovedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("ContactEmail")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<string>("ContactName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ContactPhone")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("CountryCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("character varying(2)");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset?>("LastReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LegalName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("RiskLevel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("TaxIdentificationNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<string>("TenantKey")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
                     b.HasIndex("TenantKey", "Code")
                         .IsUnique();
 
-                    b.ToTable("manufacturing_suppliers", (string)null);
+                    b.ToTable("manufacturing_suppliers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_manufacturing_supplier_approval_status", "\"ApprovalStatus\" IN ('Draft', 'PendingApproval', 'Approved', 'Suspended', 'Rejected')");
+
+                            t.HasCheckConstraint("CK_manufacturing_supplier_risk_level", "\"RiskLevel\" IN ('Low', 'Standard', 'High', 'Critical')");
+                        });
                 });
 
             modelBuilder.Entity("ManufacturingSupplierEvaluationEntity", b =>
@@ -1587,6 +2272,66 @@ namespace ManufacturingService.Api.Migrations
                     b.ToTable("manufacturing_supplier_evaluations", null, t =>
                         {
                             t.HasCheckConstraint("CK_manufacturing_supplier_evaluations_score", "\"Score\" >= 1 AND \"Score\" <= 5");
+                        });
+                });
+
+            modelBuilder.Entity("ManufacturingSupplierMaterialApprovalEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ApprovedUom")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("EffectiveFrom")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("EffectiveTo")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MaterialSku")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TenantKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SupplierId");
+
+                    b.HasIndex("TenantKey", "SupplierId", "MaterialSku")
+                        .IsUnique();
+
+                    b.ToTable("manufacturing_supplier_material_approvals", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_manufacturing_supplier_material_approval_dates", "\"EffectiveTo\" IS NULL OR \"EffectiveTo\" > \"EffectiveFrom\"");
                         });
                 });
 
@@ -1966,7 +2711,34 @@ namespace ManufacturingService.Api.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ManufacturingLotStatusHistoryEntity", b =>
+                {
+                    b.HasOne("ManufacturingLotEntity", null)
+                        .WithMany()
+                        .HasForeignKey("LotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ManufacturingMachineCalibrationEntity", b =>
+                {
+                    b.HasOne("ManufacturingMachineEntity", null)
+                        .WithMany()
+                        .HasForeignKey("MachineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ManufacturingMachineTelemetryEntity", b =>
+                {
+                    b.HasOne("ManufacturingMachineEntity", null)
+                        .WithMany()
+                        .HasForeignKey("MachineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ManufacturingMaintenancePlanEntity", b =>
                 {
                     b.HasOne("ManufacturingMachineEntity", null)
                         .WithMany()
@@ -2010,6 +2782,15 @@ namespace ManufacturingService.Api.Migrations
                         .HasForeignKey("BaseUomCode")
                         .HasPrincipalKey("Code")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ManufacturingProductionBatchCostEntity", b =>
+                {
+                    b.HasOne("ManufacturingProductionBatchEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ProductionBatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
@@ -2077,10 +2858,39 @@ namespace ManufacturingService.Api.Migrations
 
             modelBuilder.Entity("ManufacturingQualityInspectionEntity", b =>
                 {
+                    b.HasOne("ManufacturingInspectionPlanVersionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("InspectionPlanVersionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ManufacturingLotEntity", null)
                         .WithMany()
                         .HasForeignKey("LotId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ManufacturingQualitySampleEntity", b =>
+                {
+                    b.HasOne("ManufacturingQualityInspectionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("InspectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ManufacturingLotEntity", null)
+                        .WithMany()
+                        .HasForeignKey("LotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ManufacturingQualityTestResultEntity", b =>
+                {
+                    b.HasOne("ManufacturingQualityInspectionEntity", null)
+                        .WithMany()
+                        .HasForeignKey("QualityInspectionId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
@@ -2110,12 +2920,30 @@ namespace ManufacturingService.Api.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ManufacturingSupplierCertificateEntity", b =>
+                {
+                    b.HasOne("ManufacturingSupplierEntity", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ManufacturingSupplierEvaluationEntity", b =>
                 {
                     b.HasOne("ManufacturingSupplierEntity", null)
                         .WithMany()
                         .HasForeignKey("SupplierId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ManufacturingSupplierMaterialApprovalEntity", b =>
+                {
+                    b.HasOne("ManufacturingSupplierEntity", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 

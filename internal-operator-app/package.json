@@ -2,6 +2,7 @@
   "name": "internal-operator-app",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "start": "ng serve --configuration manufacturing",
     "start:tech": "ng serve --configuration tech",
@@ -31,6 +32,9 @@
     "@angular-devkit/build-angular": "^21.2.20",
     "@angular/cli": "^21.2.20",
     "@angular/compiler-cli": "^21.2.19",
+    "@angular-eslint/builder": "^21.4.0",
+    "angular-eslint": "^21.4.0",
+    "eslint": "^9.39.5",
     "typescript": "~5.9.2"
   }
 }

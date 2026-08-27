@@ -1,6 +1,6 @@
 .work-page { display: grid; gap: 1rem; }
-.eyebrow { margin: 0; color: var(--text-secondary); font-size: .7rem; font-weight: 800; letter-spacing: .12em; }
-h2 { margin: 0; font-size: 1.9rem; }
+.eyebrow { margin: 0; color: var(--text-secondary); font-size: var(--font-size-overline, .7rem); font-weight: 800; letter-spacing: .12em; }
+h2 { margin: 0; font-size: var(--font-size-headline, 1.9rem); }
 .lede { margin: 0; color: var(--text-secondary); line-height: 1.5; }
 .work-card { padding: 1.1rem; border: 1px solid var(--border-default); border-radius: 1rem; background: var(--surface-white); }
 .work-card__status { color: var(--color-success); font-size: .75rem; font-weight: 800; }
@@ -10,3 +10,9 @@ button { min-height: 2.75rem; padding: 0 1rem; border: 0; border-radius: .75rem;
 .work-card label { display: grid; gap: .4rem; color: var(--text-primary); font-weight: 700; }
 .work-card select, .work-card input { width: 100%; min-height: 2.75rem; box-sizing: border-box; padding: .55rem .65rem; border: 1px solid var(--border-default); border-radius: .6rem; background: var(--surface-white); color: var(--text-primary); font: inherit; }
 .work-card { display: grid; gap: .85rem; }
+.summary-card { display: grid; gap: .7rem; padding: .85rem 1rem; border: 1px solid var(--border-default); border-radius: 1rem; background: var(--surface-muted); }
+.summary-card h3 { margin: 0; font-size: 1rem; }
+.summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+.summary-grid span { display: grid; gap: .15rem; color: var(--text-secondary); font-size: .75rem; }
+.summary-grid strong { color: var(--text-primary); font-size: 1.25rem; }
+.load-error { margin: 0; padding: .7rem .8rem; border: 1px solid var(--color-danger, #b42318); border-radius: .7rem; background: var(--surface-danger, #fff1f0); color: var(--color-danger, #b42318); font-weight: 700; }

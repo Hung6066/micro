@@ -5,9 +5,17 @@ namespace His.Hope.ManufacturingService.Application.Ports;
 public interface IManufacturingLegacyStore
 {
     GenealogyDto GetGenealogy(Guid lotId, bool upstream, string tenantKey);
+    RecallImpactDto GetRecallImpact(Guid lotId, string tenantKey, int maxLots = 500);
+    EpcisDocumentDto GetEpcisEvents(string tenantKey, DateTimeOffset? from, DateTimeOffset? to, int limit = 500);
     bool LotBelongsToTenant(Guid lotId, string tenantKey);
     IReadOnlyList<InventoryTransactionDto> GetInventoryTransactions(Guid lotId, string tenantKey, int limit);
     (QualityInspectionDto? Inspection, string? Error) CreateQualityInspection(CreateQualityInspectionRequest request);
+    (QualitySampleDto? Sample, string? Error) CreateQualitySample(CreateQualitySampleRequest request, string tenantKey);
+    IReadOnlyList<QualitySampleDto> GetQualitySamples(string tenantKey, Guid? inspectionId, string? disposition, int limit);
+    (QualitySampleDto? Sample, string? Error) ChangeQualitySampleDisposition(Guid sampleId, string tenantKey, QualitySampleDispositionRequest request);
+    (InspectionPlanVersionDto? Plan, string? Error) CreateInspectionPlanVersion(CreateInspectionPlanVersionRequest request);
+    IReadOnlyList<InspectionPlanVersionDto> GetInspectionPlanVersions(string tenantKey, string? productSku, string? status, int limit);
+    (InspectionPlanVersionDto? Plan, string? Error) ChangeInspectionPlanLifecycle(Guid planId, string tenantKey, string targetStatus, InspectionPlanLifecycleRequest request);
     (ProductSpecificationDto? Specification, string? Error) CreateProductSpecification(CreateProductSpecificationRequest request);
     IReadOnlyList<ProductSpecificationDto> GetProductSpecifications(string tenantKey, string? productSku, string? status, int limit);
     (ProductSpecificationDto? Specification, string? Error) ChangeProductSpecificationLifecycle(Guid specificationId, string tenantKey, string targetStatus, ProductSpecificationLifecycleRequest request);

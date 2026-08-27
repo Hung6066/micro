@@ -31,6 +31,8 @@ import {
   HisHopeMaterialDto,
   HisHopeSupplierRfqDto,
   HisHopeSupplierQuotationDto,
+  HisHopeSupplierCertificateDto,
+  HisHopeSupplierMaterialApprovalDto,
 } from "@his-hope/frontend-foundation/contracts";
 import { ManufacturingApiService } from "../../core/services/manufacturing-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
@@ -137,6 +139,12 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
             <form class="supplier-form" (ngSubmit)="saveSupplier()">
               <label>{{ "customerPortal.supplierCode" | hhTranslate: "Code" }}<input name="supplierCode" [(ngModel)]="supplierDraft.code" required /></label>
               <label>{{ "customerPortal.supplierName" | hhTranslate: "Name" }}<input name="supplierName" [(ngModel)]="supplierDraft.name" required /></label>
+              <label>{{ "customerPortal.supplierLegalName" | hhTranslate: "Legal name" }}<input name="supplierLegalName" [(ngModel)]="supplierDraft.legalName" required /></label>
+              <label>{{ "customerPortal.supplierTaxId" | hhTranslate: "Tax ID" }}<input name="supplierTaxId" [(ngModel)]="supplierDraft.taxIdentificationNumber" /></label>
+              <label>{{ "customerPortal.supplierContactName" | hhTranslate: "Contact name" }}<input name="supplierContactName" [(ngModel)]="supplierDraft.contactName" /></label>
+              <label>{{ "customerPortal.supplierContactEmail" | hhTranslate: "Contact email" }}<input name="supplierContactEmail" type="email" [(ngModel)]="supplierDraft.contactEmail" /></label>
+              <label>{{ "customerPortal.supplierCountry" | hhTranslate: "Country (ISO 2)" }}<input name="supplierCountry" maxlength="2" [(ngModel)]="supplierDraft.countryCode" /></label>
+              <label>{{ "customerPortal.supplierRisk" | hhTranslate: "Risk level" }}<select name="supplierRisk" [(ngModel)]="supplierDraft.riskLevel"><option value="Low">Low</option><option value="Standard">Standard</option><option value="High">High</option><option value="Critical">Critical</option></select></label>
               <label class="checkbox"><input name="supplierActive" type="checkbox" [(ngModel)]="supplierDraft.active" /> {{ "customerPortal.supplierActive" | hhTranslate: "Active" }}</label>
               <div class="receipt-actions"><hh-action-button kind="primary" icon="save" type="submit" [label]="'common.save' | hhTranslate: 'Save'" [disabled]="supplierBusy" /><hh-action-button kind="secondary" icon="close" type="button" [label]="'common.cancel' | hhTranslate: 'Cancel'" [disabled]="supplierBusy" (pressed)="supplierDraft = null" /></div>
             </form>
@@ -149,7 +157,12 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
               @for (supplier of suppliers; track supplier.id) {
                 <li>
                   <strong>{{ supplier.code }}</strong> — {{ supplier.name }}
-                  <hh-action-button kind="row" mode="icon-only" icon="edit" [label]="'common.edit' | hhTranslate: 'Edit'" (pressed)="editSupplier(supplier)" />
+                  <span class="status">{{ supplierApprovalStatusLabel(supplier.approvalStatus) }} · {{ supplier.riskLevel }}</span>
+                  <hh-action-button kind="row" mode="icon-only" icon="edit" [label]="'common.edit' | hhTranslate: 'Edit'" (pressed)="editSupplier(supplier)" /><hh-action-button kind="row" icon="verified_user" [label]="'customerPortal.supplierGovernance' | hhTranslate: 'Governance'" (pressed)="selectSupplierGovernance(supplier)" />
+                  @if (supplier.approvalStatus === 'Draft') { <hh-action-button kind="secondary" icon="rate_review" [label]="'customerPortal.submitSupplierApproval' | hhTranslate: 'Submit for approval'" (pressed)="updateSupplierApproval(supplier, 'PendingApproval')" /> }
+                  @if (supplier.approvalStatus === 'PendingApproval') { <hh-action-button kind="primary" icon="verified" [label]="'customerPortal.approveSupplier' | hhTranslate: 'Approve supplier'" (pressed)="updateSupplierApproval(supplier, 'Approved')" /> }
+                  @if (supplier.approvalStatus === 'Approved') { <hh-action-button kind="secondary" icon="block" [label]="'customerPortal.suspendSupplier' | hhTranslate: 'Suspend supplier'" (pressed)="updateSupplierApproval(supplier, 'Suspended')" /> }
+                  @if (supplier.approvalStatus === 'Suspended') { <hh-action-button kind="secondary" icon="verified" [label]="'customerPortal.reapproveSupplier' | hhTranslate: 'Re-approve supplier'" (pressed)="updateSupplierApproval(supplier, 'Approved')" /> }
                   @if (!supplier.active) {
                     <span class="inactive">{{
                       "customerPortal.supplierInactive" | hhTranslate: "inactive"
@@ -158,6 +171,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
                 </li>
               }
             </ul>
+            @if (selectedSupplier) { <div class="supplier-governance"><div class="section-heading"><h3>{{ 'customerPortal.supplierGovernance' | hhTranslate: 'Supplier governance' }} · {{ selectedSupplier.code }}</h3></div><form class="supplier-form" (ngSubmit)="saveCertificate()"><label>{{ 'customerPortal.certificateType' | hhTranslate: 'Certificate type' }}<input name="certificateType" [(ngModel)]="certificateDraft.certificateType" required /></label><label>{{ 'customerPortal.certificateNumber' | hhTranslate: 'Certificate number' }}<input name="certificateNumber" [(ngModel)]="certificateDraft.certificateNumber" required /></label><label>{{ 'customerPortal.issuer' | hhTranslate: 'Issuer' }}<input name="certificateIssuer" [(ngModel)]="certificateDraft.issuer" required /></label><label>{{ 'customerPortal.expiresAt' | hhTranslate: 'Expires at' }}<input name="certificateExpires" type="date" [(ngModel)]="certificateDraft.expiresAt" required /></label><div class="receipt-actions"><hh-action-button kind="secondary" icon="verified" type="submit" [label]="'customerPortal.addCertificate' | hhTranslate: 'Add certificate'" [disabled]="governanceBusy" /></div></form>@if (certificates.length) { <ul class="list">@for (certificate of certificates; track certificate.id) { <li><strong>{{ certificate.certificateType }}</strong> — {{ certificate.certificateNumber }} <span class="status">{{ supplierApprovalStatusLabel(certificate.status) }} · {{ certificate.expiresAt | date:'mediumDate' }}</span></li> }</ul> } @else { <p class="empty">{{ 'customerPortal.noCertificates' | hhTranslate: 'No supplier certificates.' }}</p> }<form class="supplier-form" (ngSubmit)="saveMaterialApproval()"><label>{{ 'customerPortal.materialSku' | hhTranslate: 'Material SKU' }}<input name="approvalMaterialSku" [(ngModel)]="materialApprovalDraft.materialSku" required /></label><label>{{ 'customerPortal.approvedUom' | hhTranslate: 'Approved UOM' }}<input name="approvalUom" [(ngModel)]="materialApprovalDraft.approvedUom" required /></label><div class="receipt-actions"><hh-action-button kind="secondary" icon="fact_check" type="submit" [label]="'customerPortal.addMaterialApproval' | hhTranslate: 'Approve material'" [disabled]="governanceBusy" /></div></form>@if (materialApprovals.length) { <ul class="list">@for (approval of materialApprovals; track approval.id) { <li><strong>{{ approval.materialSku }}</strong> · {{ approval.approvedUom }} <span class="status">{{ supplierApprovalStatusLabel(approval.status) }}</span></li> }</ul> } @else { <p class="empty">{{ 'customerPortal.noMaterialApprovals' | hhTranslate: 'No material approvals.' }}</p> }</div> }
           }
         </section>
 
@@ -165,9 +179,9 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
           <div class="section-heading"><h2>{{ "customerPortal.supplierRfqs" | hhTranslate: "Supplier RFQs" }}</h2><hh-action-button kind="secondary" icon="request_quote" [label]="'customerPortal.addSupplierRfq' | hhTranslate: 'Create RFQ'" (pressed)="startSupplierRfq()" /></div>
           @if (supplierRfqDraft) { <form class="supplier-form" (ngSubmit)="saveSupplierRfq()"><label>{{ "customerPortal.rfqNumber" | hhTranslate: "RFQ number" }}<input name="rfqNumber" [(ngModel)]="supplierRfqDraft.rfqNumber" required /></label><label>{{ "customerPortal.materialSku" | hhTranslate: "Material SKU" }}<input name="rfqMaterialSku" [(ngModel)]="supplierRfqDraft.materialSku" required /></label><label>{{ "customerPortal.forecastQuantity" | hhTranslate: "Quantity" }}<input name="rfqQuantity" type="number" min="0.001" [(ngModel)]="supplierRfqDraft.quantity" required /></label><label>{{ "customerPortal.forecastUom" | hhTranslate: "UOM" }}<input name="rfqUom" [(ngModel)]="supplierRfqDraft.uom" required /></label><div class="receipt-actions"><hh-action-button kind="primary" icon="save" type="submit" [label]="'common.save' | hhTranslate: 'Save'" [disabled]="supplierRfqBusy" /></div></form> }
           @if (supplierRfqError) { <p class="error">{{ supplierRfqError }}</p> }
-@if (!supplierRfqs.length) { <p class="empty">{{ "customerPortal.noSupplierRfqs" | hhTranslate: "No supplier RFQs." }}</p> } @else { <ul class="list">@for (rfq of supplierRfqs; track rfq.id) { <li><strong>{{ rfq.rfqNumber }}</strong> — {{ rfq.materialSku }} · {{ rfq.quantity }} {{ rfq.uom }} <span class="status">{{ rfq.status }}</span> <hh-action-button kind="secondary" icon="add" [label]="'customerPortal.addQuotation' | hhTranslate: 'quotation'" (pressed)="startSupplierQuotation(rfq.id)" /> <hh-action-button kind="secondary" icon="visibility" [label]="'customerPortal.viewQuotations' | hhTranslate: 'View quotations'" (pressed)="loadQuotations(rfq.id)" /></li> }</ul> }
+@if (!supplierRfqs.length) { <p class="empty">{{ "customerPortal.noSupplierRfqs" | hhTranslate: "No supplier RFQs." }}</p> } @else { <ul class="list">@for (rfq of supplierRfqs; track rfq.id) { <li><strong>{{ rfq.rfqNumber }}</strong> — {{ rfq.materialSku }} · {{ rfq.quantity }} {{ rfq.uom }} <span class="status">{{ quotationStatusLabel(rfq.status) }}</span> <hh-action-button kind="secondary" icon="add" [label]="'customerPortal.addQuotation' | hhTranslate: 'quotation'" (pressed)="startSupplierQuotation(rfq.id)" /> <hh-action-button kind="secondary" icon="visibility" [label]="'customerPortal.viewQuotations' | hhTranslate: 'View quotations'" (pressed)="loadQuotations(rfq.id)" /></li> }</ul> }
           @if (supplierQuotationDraft) { <form class="supplier-form" (ngSubmit)="saveSupplierQuotation()"><label>{{ "customerPortal.supplier" | hhTranslate: "Supplier" }}<select name="quotationSupplier" [(ngModel)]="supplierQuotationDraft.supplierId" required><option value="">{{ "customerPortal.selectSupplier" | hhTranslate: "Select supplier" }}</option>@for (supplier of suppliers; track supplier.id) { <option [value]="supplier.id">{{ supplier.code }} · {{ supplier.name }}</option> }</select></label><label>{{ "customerPortal.unitPrice" | hhTranslate: "Unit price" }}<input name="quotationPrice" type="number" min="0" [(ngModel)]="supplierQuotationDraft.unitPrice" required /></label><label>{{ "customerPortal.leadTimeDays" | hhTranslate: "Lead time (days)" }}<input name="quotationLeadTime" type="number" min="0" [(ngModel)]="supplierQuotationDraft.leadTimeDays" required /></label><div class="receipt-actions"><hh-action-button kind="primary" icon="save" type="submit" [label]="'common.save' | hhTranslate: 'Save'" [disabled]="supplierQuotationBusy" /></div></form> }
-          @if (quotationRfqId) { <div class="quotation-list"><h3>{{ "customerPortal.quotationHistory" | hhTranslate: "Quotation history" }}</h3>@if (!quotations.length) { <p class="empty">{{ "customerPortal.noQuotations" | hhTranslate: "No quotations." }}</p> } @else { @for (quotation of quotations; track quotation.id) { <div class="quotation-row"><strong>{{ supplierName(quotation.supplierId) }}</strong><span>{{ quotation.unitPrice | currency: quotation.currency }} · {{ quotation.leadTimeDays }}d</span><span class="status">{{ quotation.status }}</span>@if (quotation.status === 'Submitted') { <hh-action-button kind="primary" icon="check" [label]="'customerPortal.selectQuotation' | hhTranslate: 'Select'" [disabled]="supplierQuotationBusy" (pressed)="setQuotationStatus(quotation, 'Selected')" /><hh-action-button kind="secondary" icon="close" [label]="'customerPortal.rejectQuotation' | hhTranslate: 'Reject'" [disabled]="supplierQuotationBusy" (pressed)="setQuotationStatus(quotation, 'Rejected')" /> } </div> } }</div> }
+          @if (quotationRfqId) { <div class="quotation-list"><h3>{{ "customerPortal.quotationHistory" | hhTranslate: "Quotation history" }}</h3>@if (!quotations.length) { <p class="empty">{{ "customerPortal.noQuotations" | hhTranslate: "No quotations." }}</p> } @else { @for (quotation of quotations; track quotation.id) { <div class="quotation-row"><strong>{{ supplierName(quotation.supplierId) }}</strong><span>{{ quotation.unitPrice | currency: quotation.currency }} · {{ quotation.leadTimeDays }}d</span><span class="status">{{ quotationStatusLabel(quotation.status) }}</span>@if (quotation.status === 'Submitted') { <hh-action-button kind="primary" icon="check" [label]="'customerPortal.selectQuotation' | hhTranslate: 'Select'" [disabled]="supplierQuotationBusy" (pressed)="setQuotationStatus(quotation, 'Selected')" /><hh-action-button kind="secondary" icon="close" [label]="'customerPortal.rejectQuotation' | hhTranslate: 'Reject'" [disabled]="supplierQuotationBusy" (pressed)="setQuotationStatus(quotation, 'Rejected')" /> } </div> } }</div> }
         </section>
 
         <section class="section create-po-panel">
@@ -277,7 +291,7 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
                   <strong>{{ receipt.receiptNumber }}</strong>
                   <span>{{ receipt.supplierLotCode }} · {{ receipt.quantity | number: "1.0-2" }} {{ receipt.uom }}</span>
                   <span>{{ receipt.facilityId }} · {{ receipt.receivedAt | date: "medium" }}</span>
-                  <span class="status">{{ receipt.disposition }}</span>
+                  <span class="status">{{ receiptDispositionLabel(receipt.disposition) }}</span>
                 </article>
               }
             </div>
@@ -296,11 +310,15 @@ import { portalEnumLabel } from "../../core/utils/portal-label.util";
               <label>{{ "customerPortal.facility" | hhTranslate: "Facility" }}
                 <select name="facilityId" [(ngModel)]="receiptDraft.facilityId" required>
                   <option value="">{{ "customerPortal.selectFacility" | hhTranslate: "Select facility" }}</option>
-                  @for (facility of facilities; track facility.id) { <option [value]="facility.id">{{ facility.name }}</option> }
+                  @for (facility of facilities; track facility.id) { <option [value]="facility.code">{{ facility.code }} · {{ facility.name }}</option> }
                 </select>
               </label>
               <label>{{ "customerPortal.receiptQuantity" | hhTranslate: "Quantity" }}<input name="quantity" type="number" min="0.001" step="0.001" [(ngModel)]="receiptDraft.quantity" required /></label>
               <label>{{ "customerPortal.expiryDate" | hhTranslate: "Expiry date" }}<input name="expiryDate" type="date" [(ngModel)]="receiptDraft.expiryDate" /></label>
+              <label>{{ "customerPortal.traceabilityLotCode" | hhTranslate: "Internal traceability lot" }}<input name="traceabilityLotCode" [(ngModel)]="receiptDraft.traceabilityLotCode" /></label>
+              <label>{{ "customerPortal.originCountryCode" | hhTranslate: "Origin country (ISO-2)" }}<input name="originCountryCode" maxlength="2" [(ngModel)]="receiptDraft.originCountryCode" /></label>
+              <label>{{ "customerPortal.deliveryNoteNumber" | hhTranslate: "Delivery note" }}<input name="deliveryNoteNumber" [(ngModel)]="receiptDraft.deliveryNoteNumber" /></label>
+              <label>{{ "customerPortal.coaReference" | hhTranslate: "Certificate of analysis reference" }}<input name="certificateOfAnalysisReference" [(ngModel)]="receiptDraft.certificateOfAnalysisReference" /></label>
               <div class="receipt-actions">
                 <hh-action-button kind="primary" icon="move_to_inbox" type="submit" [label]="'customerPortal.postReceipt' | hhTranslate: 'Post receipt'" [disabled]="receivingBusy" />
                 <hh-action-button kind="secondary" icon="playlist_add_check" type="button" [label]="'customerPortal.postBatchReceipt' | hhTranslate: 'Post batch receipt'" [disabled]="receivingBusy" (pressed)="receiveInboundBatch()" />
@@ -418,9 +436,15 @@ export class ProcurementPageComponent implements OnInit {
   activeTab = "requirements";
   error = "";
   suppliers: HisHopeSupplierDto[] = [];
-  supplierDraft: { id?: string; code: string; name: string; active: boolean } | null = null;
+  supplierDraft: { id?: string; code: string; name: string; legalName: string; taxIdentificationNumber: string; contactName: string; contactEmail: string; contactPhone: string; countryCode: string; address: string; riskLevel: string; active: boolean } | null = null;
   supplierBusy = false;
   supplierError = "";
+  selectedSupplier: HisHopeSupplierDto | null = null;
+  certificates: HisHopeSupplierCertificateDto[] = [];
+  materialApprovals: HisHopeSupplierMaterialApprovalDto[] = [];
+  governanceBusy = false;
+  certificateDraft = { certificateType: "", certificateNumber: "", issuer: "", expiresAt: "" };
+  materialApprovalDraft = { materialSku: "", approvedUom: "kg" };
   facilities: HisHopeFacilityDto[] = [];
   facilityDraft: { code: string; name: string } | null = null;
   facilityBusy = false;
@@ -449,7 +473,7 @@ export class ProcurementPageComponent implements OnInit {
   receiving: { purchaseOrderId: string; purchaseOrderLineId: string; materialSku: string; uom: string; orderedQuantity: number } | null = null;
   receivingBusy = false;
   receiptError = "";
-  receiptDraft = { receiptNumber: "", supplierLotCode: "", facilityId: "default", quantity: 0, expiryDate: "" };
+  receiptDraft = { receiptNumber: "", supplierLotCode: "", facilityId: "default", quantity: 0, expiryDate: "", traceabilityLotCode: "", originCountryCode: "", deliveryNoteNumber: "", certificateOfAnalysisReference: "" };
   purchaseOrderBusy = false;
   purchaseOrderError = "";
   purchaseOrderDraft = { supplierId: "", orderNumber: "", expectedAt: "", currency: "VND" };
@@ -484,7 +508,7 @@ export class ProcurementPageComponent implements OnInit {
     this.manufacturingApi.createFacility({ tenantKey, code: draft.code.trim(), name: draft.name.trim(), active: true }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.facilityDraft = null; this.facilityBusy = false; this.load(); }, error: (error) => { this.facilityError = this.errors.message(error, "customerPortal.facilitySaveFailed"); this.facilityBusy = false; this.cdr.markForCheck(); } });
   }
 
-  startSupplier(): void { this.supplierError = ""; this.supplierDraft = { code: "", name: "", active: true }; }
+  startSupplier(): void { this.supplierError = ""; this.supplierDraft = { code: "", name: "", legalName: "", taxIdentificationNumber: "", contactName: "", contactEmail: "", contactPhone: "", countryCode: "VN", address: "", riskLevel: "Standard", active: true }; }
   startSupplierRfq(): void { this.supplierRfqError = ""; this.supplierRfqDraft = { rfqNumber: `RFQ-${Date.now()}`, materialSku: "", quantity: 0, uom: "kg" }; }
   saveSupplierRfq(): void { const tenantKey = this.tenantContext.getActiveTenantKey(); const draft = this.supplierRfqDraft; if (!tenantKey || !draft || !draft.rfqNumber.trim() || !draft.materialSku.trim() || draft.quantity <= 0 || !draft.uom.trim()) { this.supplierRfqError = this.i18n.t("customerPortal.rfqFormInvalid", "RFQ fields are required."); return; } this.supplierRfqBusy = true; this.manufacturingApi.createSupplierRfq({ tenantKey, rfqNumber: draft.rfqNumber.trim(), materialSku: draft.materialSku.trim(), quantity: draft.quantity, uom: draft.uom.trim() }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: rfq => { this.supplierRfqs = [rfq, ...this.supplierRfqs]; this.supplierRfqDraft = null; this.supplierRfqBusy = false; this.cdr.markForCheck(); }, error: error => { this.supplierRfqError = this.errors.message(error, "customerPortal.supplierRfqSaveFailed"); this.supplierRfqBusy = false; this.cdr.markForCheck(); } }); }
   startSupplierQuotation(rfqId: string): void { this.supplierQuotationDraft = { rfqId, supplierId: "", unitPrice: 0, leadTimeDays: 0 }; }
@@ -492,15 +516,20 @@ export class ProcurementPageComponent implements OnInit {
   setQuotationStatus(quotation: HisHopeSupplierQuotationDto, status: string): void { this.supplierQuotationBusy = true; this.manufacturingApi.updateSupplierQuotationStatus(quotation.id, status).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.supplierQuotationBusy = false; if (this.quotationRfqId) this.loadQuotations(this.quotationRfqId); }, error: (error) => { this.supplierRfqError = this.errors.message(error, "customerPortal.supplierQuotationSaveFailed"); this.supplierQuotationBusy = false; this.cdr.markForCheck(); } }); }
   supplierName(id: string): string { return this.suppliers.find((item) => item.id === id)?.name ?? id; }
   saveSupplierQuotation(): void { const draft = this.supplierQuotationDraft; if (!draft?.supplierId || draft.unitPrice < 0 || draft.leadTimeDays < 0) return; this.supplierQuotationBusy = true; this.manufacturingApi.createSupplierQuotation(draft.rfqId, { supplierRfqId: draft.rfqId, supplierId: draft.supplierId, unitPrice: draft.unitPrice, currency: "VND", leadTimeDays: draft.leadTimeDays }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.supplierQuotationDraft = null; this.supplierQuotationBusy = false; this.cdr.markForCheck(); }, error: error => { this.supplierRfqError = this.errors.message(error, "customerPortal.supplierQuotationSaveFailed"); this.supplierQuotationBusy = false; this.cdr.markForCheck(); } }); }
-  editSupplier(supplier: HisHopeSupplierDto): void { this.supplierError = ""; this.supplierDraft = { id: supplier.id, code: supplier.code, name: supplier.name, active: supplier.active }; }
+  editSupplier(supplier: HisHopeSupplierDto): void { this.supplierError = ""; this.supplierDraft = { id: supplier.id, code: supplier.code, name: supplier.name, legalName: supplier.legalName || supplier.name, taxIdentificationNumber: supplier.taxIdentificationNumber ?? "", contactName: supplier.contactName ?? "", contactEmail: supplier.contactEmail ?? "", contactPhone: supplier.contactPhone ?? "", countryCode: supplier.countryCode ?? "", address: supplier.address ?? "", riskLevel: supplier.riskLevel || "Standard", active: supplier.active }; }
   saveSupplier(): void {
     const tenantKey = this.tenantContext.getActiveTenantKey();
     const draft = this.supplierDraft;
     if (!tenantKey || !draft || !draft.code.trim() || !draft.name.trim()) { this.supplierError = this.i18n.t("customerPortal.supplierFormInvalid", "Supplier code and name are required."); return; }
     this.supplierBusy = true; this.supplierError = "";
-    const request = draft.id ? this.manufacturingApi.updateSupplier(draft.id, { code: draft.code.trim(), name: draft.name.trim(), active: draft.active }) : this.manufacturingApi.createSupplier({ tenantKey, code: draft.code.trim(), name: draft.name.trim(), active: draft.active });
+    const profile = { code: draft.code.trim(), name: draft.name.trim(), active: draft.active, legalName: draft.legalName.trim(), taxIdentificationNumber: draft.taxIdentificationNumber.trim(), contactName: draft.contactName.trim(), contactEmail: draft.contactEmail.trim(), contactPhone: draft.contactPhone.trim(), countryCode: draft.countryCode.trim(), address: draft.address.trim(), riskLevel: draft.riskLevel };
+    const request = draft.id ? this.manufacturingApi.updateSupplier(draft.id, profile) : this.manufacturingApi.createSupplier({ tenantKey, ...profile });
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.supplierDraft = null; this.supplierBusy = false; this.load(); }, error: (error) => { this.supplierError = this.errors.message(error, "customerPortal.supplierSaveFailed"); this.supplierBusy = false; this.cdr.markForCheck(); } });
   }
+  updateSupplierApproval(supplier: HisHopeSupplierDto, status: string): void { this.supplierBusy = true; this.supplierError = ""; this.manufacturingApi.updateSupplierApproval(supplier.id, status).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.supplierBusy = false; this.load(); }, error: (error) => { this.supplierError = this.errors.message(error, "customerPortal.supplierApprovalSaveFailed"); this.supplierBusy = false; this.cdr.markForCheck(); } }); }
+  selectSupplierGovernance(supplier: HisHopeSupplierDto): void { this.selectedSupplier = supplier; this.governanceBusy = false; this.manufacturingApi.getSupplierCertificates(supplier.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: (items) => { this.certificates = items ?? []; this.cdr.markForCheck(); } }); this.manufacturingApi.getSupplierMaterialApprovals(supplier.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: (items) => { this.materialApprovals = items ?? []; this.cdr.markForCheck(); } }); }
+  saveCertificate(): void { const supplier = this.selectedSupplier; const draft = this.certificateDraft; if (!supplier || !draft.certificateType.trim() || !draft.certificateNumber.trim() || !draft.issuer.trim() || !draft.expiresAt) return; this.governanceBusy = true; this.manufacturingApi.createSupplierCertificate(supplier.id, { certificateType: draft.certificateType.trim(), certificateNumber: draft.certificateNumber.trim(), issuer: draft.issuer.trim(), issuedAt: new Date().toISOString(), expiresAt: new Date(draft.expiresAt).toISOString() }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: (item) => { this.certificates = [item, ...this.certificates]; this.governanceBusy = false; this.cdr.markForCheck(); }, error: (error) => { this.supplierError = this.errors.message(error, "customerPortal.supplierSaveFailed"); this.governanceBusy = false; this.cdr.markForCheck(); } }); }
+  saveMaterialApproval(): void { const supplier = this.selectedSupplier; const draft = this.materialApprovalDraft; if (!supplier || !draft.materialSku.trim() || !draft.approvedUom.trim()) return; this.governanceBusy = true; this.manufacturingApi.createSupplierMaterialApproval(supplier.id, { materialSku: draft.materialSku.trim(), approvedUom: draft.approvedUom.trim(), effectiveFrom: new Date().toISOString() }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: (item) => { this.materialApprovals = [item, ...this.materialApprovals]; this.governanceBusy = false; this.cdr.markForCheck(); }, error: (error) => { this.supplierError = this.errors.message(error, "customerPortal.supplierSaveFailed"); this.governanceBusy = false; this.cdr.markForCheck(); } }); }
 
   get pageSubtitle(): string {
     this.i18n.locale();
@@ -514,6 +543,9 @@ export class ProcurementPageComponent implements OnInit {
   purchaseOrderStatusLabel(status: string): string {
     return portalEnumLabel(this.i18n, "purchaseOrderStatus", status);
   }
+  supplierApprovalStatusLabel(status: string): string { return portalEnumLabel(this.i18n, "supplierApprovalStatus", status); }
+  quotationStatusLabel(status: string): string { return portalEnumLabel(this.i18n, "quotationStatus", status); }
+  receiptDispositionLabel(disposition: string): string { return portalEnumLabel(this.i18n, "disposition", disposition); }
 
   addPurchaseOrderLine(): void { this.purchaseOrderLines = [...this.purchaseOrderLines, { materialSku: "", orderedQuantity: 0, uom: "kg", unitPrice: 0 }]; }
   removePurchaseOrderLine(index: number): void { if (this.purchaseOrderLines.length > 1) this.purchaseOrderLines = this.purchaseOrderLines.filter((_, candidate) => candidate !== index); }
@@ -552,7 +584,7 @@ export class ProcurementPageComponent implements OnInit {
 
   startReceiving(purchaseOrderId: string, line: HisHopePurchaseOrderLineDto): void {
     this.receiving = { purchaseOrderId, purchaseOrderLineId: line.id, materialSku: line.materialSku, uom: line.uom, orderedQuantity: line.orderedQuantity - line.receivedQuantity };
-    this.receiptDraft = { receiptNumber: "", supplierLotCode: "", facilityId: "default", quantity: Math.max(0, line.orderedQuantity - line.receivedQuantity), expiryDate: "" };
+    this.receiptDraft = { receiptNumber: "", supplierLotCode: "", facilityId: "default", quantity: Math.max(0, line.orderedQuantity - line.receivedQuantity), expiryDate: "", traceabilityLotCode: "", originCountryCode: "", deliveryNoteNumber: "", certificateOfAnalysisReference: "" };
     this.receiptError = "";
     this.cdr.markForCheck();
   }
@@ -580,6 +612,12 @@ export class ProcurementPageComponent implements OnInit {
       facilityId: this.receiptDraft.facilityId.trim(),
       quantity: this.receiptDraft.quantity,
       expiryDate: this.receiptDraft.expiryDate || undefined,
+      traceabilityLotCode: this.receiptDraft.traceabilityLotCode.trim() || undefined,
+      originCountryCode: this.receiptDraft.originCountryCode.trim() || undefined,
+      deliveryNoteNumber: this.receiptDraft.deliveryNoteNumber.trim() || undefined,
+      certificateOfAnalysisReference: this.receiptDraft.certificateOfAnalysisReference.trim() || undefined,
+      acceptedQuantity: this.receiptDraft.quantity,
+      rejectedQuantity: 0,
     }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => { this.receivingBusy = false; this.receiving = null; this.load(); },
       error: (error) => { this.receiptError = this.errors.message(error, "customerPortal.receiptSaveFailed"); this.receivingBusy = false; this.cdr.markForCheck(); },
@@ -590,7 +628,7 @@ export class ProcurementPageComponent implements OnInit {
     if (!this.receiving) return;
     if (!this.receiptDraft.receiptNumber.trim() || !this.receiptDraft.supplierLotCode.trim() || !this.receiptDraft.facilityId.trim() || this.receiptDraft.quantity <= 0 || this.receiptDraft.quantity > this.receiving.orderedQuantity) { this.receiptError = this.i18n.t("customerPortal.receiptFormInvalid", "Receipt number, supplier lot, facility and a valid quantity are required."); return; }
     this.receivingBusy = true; this.receiptError = "";
-    this.manufacturingApi.receiveInboundBatch(this.receiving.purchaseOrderId, [{ purchaseOrderId: this.receiving.purchaseOrderId, purchaseOrderLineId: this.receiving.purchaseOrderLineId, materialSku: this.receiving.materialSku, receiptNumber: this.receiptDraft.receiptNumber.trim(), supplierLotCode: this.receiptDraft.supplierLotCode.trim(), facilityId: this.receiptDraft.facilityId.trim(), quantity: this.receiptDraft.quantity, expiryDate: this.receiptDraft.expiryDate || undefined }]).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.receivingBusy = false; this.receiving = null; this.load(); }, error: (error) => { this.receiptError = this.errors.message(error, "customerPortal.receiptSaveFailed"); this.receivingBusy = false; this.cdr.markForCheck(); } });
+    this.manufacturingApi.receiveInboundBatch(this.receiving.purchaseOrderId, [{ purchaseOrderId: this.receiving.purchaseOrderId, purchaseOrderLineId: this.receiving.purchaseOrderLineId, materialSku: this.receiving.materialSku, receiptNumber: this.receiptDraft.receiptNumber.trim(), supplierLotCode: this.receiptDraft.supplierLotCode.trim(), facilityId: this.receiptDraft.facilityId.trim(), quantity: this.receiptDraft.quantity, expiryDate: this.receiptDraft.expiryDate || undefined, traceabilityLotCode: this.receiptDraft.traceabilityLotCode.trim() || undefined, originCountryCode: this.receiptDraft.originCountryCode.trim() || undefined, deliveryNoteNumber: this.receiptDraft.deliveryNoteNumber.trim() || undefined, certificateOfAnalysisReference: this.receiptDraft.certificateOfAnalysisReference.trim() || undefined, acceptedQuantity: this.receiptDraft.quantity, rejectedQuantity: 0 }]).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.receivingBusy = false; this.receiving = null; this.load(); }, error: (error) => { this.receiptError = this.errors.message(error, "customerPortal.receiptSaveFailed"); this.receivingBusy = false; this.cdr.markForCheck(); } });
   }
 
   ngOnInit(): void {

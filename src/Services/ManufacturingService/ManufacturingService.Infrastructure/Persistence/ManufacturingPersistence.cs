@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using His.Hope.ManufacturingService.Application.Ports;
+using His.Hope.ManufacturingService.Domain;
 using System.Text.Json;
 using System.Data;
 
 public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbContext> options) : DbContext(options)
 {
     public DbSet<ManufacturingLotEntity> Lots => Set<ManufacturingLotEntity>();
+    public DbSet<ManufacturingLotStatusHistoryEntity> LotStatusHistory => Set<ManufacturingLotStatusHistoryEntity>();
     public DbSet<ManufacturingTransformationEntity> Transformations => Set<ManufacturingTransformationEntity>();
     public DbSet<ManufacturingTransformationInputEntity> TransformationInputs => Set<ManufacturingTransformationInputEntity>();
     public DbSet<ManufacturingOutboxMessageEntity> OutboxMessages => Set<ManufacturingOutboxMessageEntity>();
@@ -13,12 +15,19 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
     public DbSet<ManufacturingRecipeEntity> Recipes => Set<ManufacturingRecipeEntity>();
     public DbSet<ManufacturingRecipeComponentEntity> RecipeComponents => Set<ManufacturingRecipeComponentEntity>();
     public DbSet<ManufacturingMachineEntity> Machines => Set<ManufacturingMachineEntity>();
+    public DbSet<ManufacturingMachineCalibrationEntity> MachineCalibrations => Set<ManufacturingMachineCalibrationEntity>();
     public DbSet<ManufacturingMachineDowntimeEntity> MachineDowntimes => Set<ManufacturingMachineDowntimeEntity>();
     public DbSet<ManufacturingMaintenanceWorkOrderEntity> MaintenanceWorkOrders => Set<ManufacturingMaintenanceWorkOrderEntity>();
+    public DbSet<ManufacturingMaintenancePlanEntity> MaintenancePlans => Set<ManufacturingMaintenancePlanEntity>();
     public DbSet<ManufacturingMachineTelemetryEntity> MachineTelemetry => Set<ManufacturingMachineTelemetryEntity>();
     public DbSet<ManufacturingQualityInspectionEntity> QualityInspections => Set<ManufacturingQualityInspectionEntity>();
+    public DbSet<ManufacturingQualitySampleEntity> QualitySamples => Set<ManufacturingQualitySampleEntity>();
+    public DbSet<ManufacturingInspectionPlanVersionEntity> InspectionPlanVersions => Set<ManufacturingInspectionPlanVersionEntity>();
+    public DbSet<ManufacturingQualityTestResultEntity> QualityTestResults => Set<ManufacturingQualityTestResultEntity>();
     public DbSet<ManufacturingProductSpecificationEntity> ProductSpecifications => Set<ManufacturingProductSpecificationEntity>();
     public DbSet<ManufacturingSupplierEntity> Suppliers => Set<ManufacturingSupplierEntity>();
+    public DbSet<ManufacturingSupplierCertificateEntity> SupplierCertificates => Set<ManufacturingSupplierCertificateEntity>();
+    public DbSet<ManufacturingSupplierMaterialApprovalEntity> SupplierMaterialApprovals => Set<ManufacturingSupplierMaterialApprovalEntity>();
     public DbSet<ManufacturingPurchaseOrderEntity> PurchaseOrders => Set<ManufacturingPurchaseOrderEntity>();
     public DbSet<ManufacturingPurchaseOrderLineEntity> PurchaseOrderLines => Set<ManufacturingPurchaseOrderLineEntity>();
     public DbSet<ManufacturingInboundReceiptEntity> InboundReceipts => Set<ManufacturingInboundReceiptEntity>();
@@ -26,6 +35,7 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
     public DbSet<ManufacturingLotReservationEntity> LotReservations => Set<ManufacturingLotReservationEntity>();
     public DbSet<ManufacturingProductionOrderEntity> ProductionOrders => Set<ManufacturingProductionOrderEntity>();
     public DbSet<ManufacturingProductionBatchEntity> ProductionBatches => Set<ManufacturingProductionBatchEntity>();
+    public DbSet<ManufacturingProductionBatchCostEntity> ProductionBatchCosts => Set<ManufacturingProductionBatchCostEntity>();
     public DbSet<ManufacturingOperationExecutionEntity> OperationExecutions => Set<ManufacturingOperationExecutionEntity>();
     public DbSet<ManufacturingProductionBatchInputEntity> ProductionBatchInputs => Set<ManufacturingProductionBatchInputEntity>();
     public DbSet<ManufacturingLossReviewEntity> LossReviews => Set<ManufacturingLossReviewEntity>();
@@ -64,7 +74,32 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
             entity.ToTable("manufacturing_lots");
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => new { x.TenantKey, x.Sku, x.Disposition });
+            entity.HasIndex(x => new { x.TenantKey, x.LotCode }).IsUnique();
+            entity.Property(x => x.LotCode).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.LotType).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.OriginCountryCode).HasMaxLength(2);
+            entity.Property(x => x.FacilityCode).HasMaxLength(100);
+            entity.Property(x => x.StorageLocationCode).HasMaxLength(100);
+            entity.Property(x => x.CertificateOfAnalysisReference).HasMaxLength(1000);
+            entity.Property(x => x.SourceLotCode).HasMaxLength(100);
+            entity.Property(x => x.QualityStatus).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.CreatedBy).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Quantity).HasPrecision(18, 3);
+            entity.ToTable(t => t.HasCheckConstraint("CK_manufacturing_lots_lot_type", "\"LotType\" IN ('RawMaterial', 'WorkInProgress', 'FinishedGood', 'Packaging', 'Unspecified')"));
+        });
+
+        modelBuilder.Entity<ManufacturingLotStatusHistoryEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_lot_status_history");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.FromDisposition).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.ToDisposition).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Actor).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.ReasonCode).HasMaxLength(100);
+            entity.Property(x => x.EvidenceReference).HasMaxLength(1000);
+            entity.HasIndex(x => new { x.TenantKey, x.LotId, x.OccurredAt });
+            entity.HasOne<ManufacturingLotEntity>().WithMany().HasForeignKey(x => x.LotId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<ManufacturingTransformationEntity>(entity =>
@@ -152,6 +187,24 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
             entity.HasIndex(x => new { x.TenantKey, x.Code }).IsUnique();
         });
 
+        modelBuilder.Entity<ManufacturingMachineCalibrationEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_machine_calibrations");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.CalibrationType).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.CertificateNumber).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Result).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Provider).HasMaxLength(200);
+            entity.Property(x => x.EvidenceReference).HasMaxLength(1000);
+            entity.Property(x => x.Notes).HasMaxLength(2000);
+            entity.Property(x => x.CreatedBy).HasMaxLength(200);
+            entity.HasIndex(x => new { x.TenantKey, x.MachineId, x.CertificateNumber }).IsUnique();
+            entity.HasIndex(x => new { x.TenantKey, x.MachineId, x.NextDueAt });
+            entity.ToTable(t => t.HasCheckConstraint("CK_manufacturing_machine_calibration_dates", "\"NextDueAt\" > \"CalibratedAt\""));
+            entity.HasOne<ManufacturingMachineEntity>().WithMany().HasForeignKey(x => x.MachineId).OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<ManufacturingMachineDowntimeEntity>(entity =>
         {
             entity.ToTable("manufacturing_machine_downtimes");
@@ -180,6 +233,22 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
             entity.HasOne<ManufacturingMachineEntity>().WithMany().HasForeignKey(x => x.MachineId).OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<ManufacturingMaintenancePlanEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_maintenance_plans");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.PlanCode).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.MaintenanceType).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Checklist).HasMaxLength(4000);
+            entity.Property(x => x.AssignedTo).HasMaxLength(200);
+            entity.Property(x => x.CreatedBy).HasMaxLength(200);
+            entity.HasIndex(x => new { x.TenantKey, x.MachineId, x.PlanCode }).IsUnique();
+            entity.HasIndex(x => new { x.TenantKey, x.Active, x.NextDueAt });
+            entity.ToTable(t => t.HasCheckConstraint("CK_manufacturing_maintenance_plan_frequency", "\"FrequencyDays\" > 0"));
+            entity.HasOne<ManufacturingMachineEntity>().WithMany().HasForeignKey(x => x.MachineId).OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<ManufacturingMachineTelemetryEntity>(entity =>
         {
             entity.ToTable("manufacturing_machine_telemetry");
@@ -202,10 +271,48 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
             entity.Property(x => x.Status).HasMaxLength(30).IsRequired();
             entity.Property(x => x.Inspector).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Notes).HasMaxLength(2000);
+            entity.Property(x => x.SpecificationReference).HasMaxLength(200);
             entity.Property(x => x.MoisturePercent).HasPrecision(8, 2);
             entity.HasIndex(x => new { x.TenantKey, x.LotId, x.InspectedAt });
             entity.HasOne<ManufacturingLotEntity>().WithMany().HasForeignKey(x => x.LotId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<ManufacturingInspectionPlanVersionEntity>().WithMany().HasForeignKey(x => x.InspectionPlanVersionId).OnDelete(DeleteBehavior.Restrict);
             entity.ToTable(t => t.HasCheckConstraint("CK_manufacturing_quality_moisture_range", "\"MoisturePercent\" >= 0 AND \"MoisturePercent\" <= 100"));
+        });
+
+        modelBuilder.Entity<ManufacturingInspectionPlanVersionEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_inspection_plan_versions");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.PlanCode).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.ProductSku).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.SamplingMethod).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.SamplingFrequency).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.AcceptanceCriteria).HasMaxLength(4000).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.ApprovedBy).HasMaxLength(200);
+            entity.Property(x => x.CreatedBy).HasMaxLength(200);
+            entity.HasIndex(x => new { x.TenantKey, x.PlanCode, x.Version }).IsUnique();
+            entity.HasIndex(x => new { x.TenantKey, x.ProductSku, x.Status, x.EffectiveFrom });
+            entity.ToTable(t => t.HasCheckConstraint("CK_manufacturing_inspection_plan_version_dates", "\"EffectiveTo\" IS NULL OR \"EffectiveFrom\" IS NULL OR \"EffectiveTo\" > \"EffectiveFrom\""));
+        });
+
+        modelBuilder.Entity<ManufacturingQualitySampleEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_quality_samples");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.SampleCode).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.CollectedBy).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Disposition).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.DispositionReason).HasMaxLength(2000);
+            entity.Property(x => x.DisposedBy).HasMaxLength(200);
+            entity.Property(x => x.Location).HasMaxLength(200);
+            entity.Property(x => x.Notes).HasMaxLength(2000);
+            entity.HasIndex(x => new { x.TenantKey, x.InspectionId, x.SampleCode }).IsUnique();
+            entity.HasIndex(x => new { x.TenantKey, x.Disposition, x.CollectedAt });
+            entity.HasOne<ManufacturingQualityInspectionEntity>().WithMany().HasForeignKey(x => x.InspectionId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<ManufacturingLotEntity>().WithMany().HasForeignKey(x => x.LotId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<ManufacturingSupplierEntity>(entity =>
@@ -215,7 +322,41 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
             entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Code).HasMaxLength(100).IsRequired();
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.LegalName).HasMaxLength(300).IsRequired();
+            entity.Property(x => x.TaxIdentificationNumber).HasMaxLength(100);
+            entity.Property(x => x.ContactName).HasMaxLength(200);
+            entity.Property(x => x.ContactEmail).HasMaxLength(320);
+            entity.Property(x => x.ContactPhone).HasMaxLength(50);
+            entity.Property(x => x.CountryCode).HasMaxLength(2);
+            entity.Property(x => x.Address).HasMaxLength(1000);
+            entity.Property(x => x.RiskLevel).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.ApprovalStatus).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.ApprovedBy).HasMaxLength(200);
+            entity.Property(x => x.CreatedBy).HasMaxLength(200).IsRequired();
             entity.HasIndex(x => new { x.TenantKey, x.Code }).IsUnique();
+            entity.ToTable(t =>
+            {
+                t.HasCheckConstraint("CK_manufacturing_supplier_risk_level", "\"RiskLevel\" IN ('Low', 'Standard', 'High', 'Critical')");
+                t.HasCheckConstraint("CK_manufacturing_supplier_approval_status", "\"ApprovalStatus\" IN ('Draft', 'PendingApproval', 'Approved', 'Suspended', 'Rejected')");
+            });
+        });
+
+        modelBuilder.Entity<ManufacturingQualityTestResultEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_quality_test_results");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.TestCode).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.TestName).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Uom).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Result).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Method).HasMaxLength(200);
+            entity.Property(x => x.EvidenceReference).HasMaxLength(1000);
+            entity.Property(x => x.MeasuredValue).HasPrecision(18, 6);
+            entity.Property(x => x.LowerLimit).HasPrecision(18, 6);
+            entity.Property(x => x.UpperLimit).HasPrecision(18, 6);
+            entity.HasIndex(x => new { x.QualityInspectionId, x.TestCode }).IsUnique();
+            entity.HasOne<ManufacturingQualityInspectionEntity>().WithMany().HasForeignKey(x => x.QualityInspectionId).OnDelete(DeleteBehavior.Cascade);
+            entity.ToTable(t => t.HasCheckConstraint("CK_manufacturing_quality_test_result_status", "\"Result\" IN ('Pass', 'Fail', 'NotApplicable')"));
         });
 
         modelBuilder.Entity<ManufacturingPurchaseOrderEntity>(entity =>
@@ -251,7 +392,17 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
             entity.Property(x => x.ReceiptNumber).HasMaxLength(100).IsRequired();
             entity.Property(x => x.SupplierLotCode).HasMaxLength(100).IsRequired();
             entity.Property(x => x.FacilityId).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.StorageLocationCode).HasMaxLength(100);
+            entity.Property(x => x.DeliveryNoteNumber).HasMaxLength(100);
+            entity.Property(x => x.CarrierName).HasMaxLength(200);
+            entity.Property(x => x.VehicleReference).HasMaxLength(100);
+            entity.Property(x => x.CertificateOfAnalysisReference).HasMaxLength(1000);
+            entity.Property(x => x.ReceivedBy).HasMaxLength(200);
             entity.Property(x => x.Quantity).HasPrecision(18, 3);
+            entity.Property(x => x.TemperatureOnReceiptC).HasPrecision(6, 2);
+            entity.Property(x => x.AcceptedQuantity).HasPrecision(18, 3);
+            entity.Property(x => x.RejectedQuantity).HasPrecision(18, 3);
+            entity.ToTable(t => t.HasCheckConstraint("CK_manufacturing_inbound_receipts_quantity_balance", "\"AcceptedQuantity\" + \"RejectedQuantity\" = \"Quantity\""));
             entity.HasIndex(x => new { x.TenantKey, x.ReceiptNumber }).IsUnique();
             entity.HasIndex(x => new { x.TenantKey, x.SupplierId, x.SupplierLotCode }).IsUnique();
             entity.HasOne<ManufacturingPurchaseOrderEntity>().WithMany().HasForeignKey(x => x.PurchaseOrderId).OnDelete(DeleteBehavior.Restrict);
@@ -331,6 +482,30 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
             entity.ToTable("manufacturing_products"); entity.HasKey(x => x.Id);
             entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired(); entity.Property(x => x.Sku).HasMaxLength(100).IsRequired(); entity.Property(x => x.Name).HasMaxLength(200).IsRequired(); entity.Property(x => x.BaseUomCode).HasMaxLength(30).IsRequired();
             entity.HasIndex(x => new { x.TenantKey, x.Sku }).IsUnique(); entity.HasOne<ManufacturingUomEntity>().WithMany().HasForeignKey(x => x.BaseUomCode).HasPrincipalKey(x => x.Code).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<ManufacturingSupplierCertificateEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_supplier_certificates"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.CertificateType).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.CertificateNumber).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Issuer).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.EvidenceReference).HasMaxLength(1000);
+            entity.Property(x => x.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.HasIndex(x => new { x.TenantKey, x.SupplierId, x.CertificateNumber }).IsUnique();
+            entity.HasOne<ManufacturingSupplierEntity>().WithMany().HasForeignKey(x => x.SupplierId).OnDelete(DeleteBehavior.Cascade);
+            entity.ToTable(t => t.HasCheckConstraint("CK_manufacturing_supplier_certificate_dates", "\"ExpiresAt\" > \"IssuedAt\""));
+        });
+        modelBuilder.Entity<ManufacturingSupplierMaterialApprovalEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_supplier_material_approvals"); entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired(); entity.Property(x => x.MaterialSku).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.ApprovedUom).HasMaxLength(30).IsRequired(); entity.Property(x => x.Status).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Notes).HasMaxLength(2000); entity.Property(x => x.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.HasIndex(x => new { x.TenantKey, x.SupplierId, x.MaterialSku }).IsUnique();
+            entity.HasOne<ManufacturingSupplierEntity>().WithMany().HasForeignKey(x => x.SupplierId).OnDelete(DeleteBehavior.Cascade);
+            entity.ToTable(t => t.HasCheckConstraint("CK_manufacturing_supplier_material_approval_dates", "\"EffectiveTo\" IS NULL OR \"EffectiveTo\" > \"EffectiveFrom\""));
         });
         modelBuilder.Entity<ManufacturingSupplierRfqEntity>(entity =>
         {
@@ -430,6 +605,23 @@ public sealed class ManufacturingDbContext(DbContextOptions<ManufacturingDbConte
             entity.HasOne<ManufacturingMachineEntity>().WithMany().HasForeignKey(x => x.MachineId).OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<ManufacturingProductionBatchCostEntity>(entity =>
+        {
+            entity.ToTable("manufacturing_production_batch_costs");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.TenantKey).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.MaterialCost).HasPrecision(18, 2);
+            entity.Property(x => x.LaborCost).HasPrecision(18, 2);
+            entity.Property(x => x.OverheadCost).HasPrecision(18, 2);
+            entity.Property(x => x.LossCost).HasPrecision(18, 2);
+            entity.Property(x => x.TotalCost).HasPrecision(18, 2);
+            entity.Property(x => x.CostPerOutputUnit).HasPrecision(18, 4);
+            entity.Property(x => x.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(x => x.CalculatedBy).HasMaxLength(200);
+            entity.HasIndex(x => new { x.TenantKey, x.ProductionBatchId }).IsUnique();
+            entity.HasOne<ManufacturingProductionBatchEntity>().WithMany().HasForeignKey(x => x.ProductionBatchId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<ManufacturingOperationExecutionEntity>(entity =>
         {
             entity.ToTable("manufacturing_operation_executions");
@@ -496,7 +688,33 @@ public sealed class ManufacturingLotEntity
     public string Uom { get; set; } = "";
     public string Disposition { get; set; } = "Released";
     public DateOnly? BestBefore { get; set; }
+    public string LotCode { get; set; } = "";
+    public string LotType { get; set; } = "Unspecified";
+    public string? OriginCountryCode { get; set; }
+    public DateOnly? ManufacturedOn { get; set; }
+    public DateTimeOffset? ReceivedAt { get; set; }
+    public string? FacilityCode { get; set; }
+    public string? StorageLocationCode { get; set; }
+    public string? CertificateOfAnalysisReference { get; set; }
+    public string? SourceLotCode { get; set; }
+    public string QualityStatus { get; set; } = "Pending";
+    public string CreatedBy { get; set; } = "system";
+    public DateTimeOffset? UpdatedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class ManufacturingLotStatusHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid LotId { get; set; }
+    public string TenantKey { get; set; } = "";
+    public string FromDisposition { get; set; } = "";
+    public string ToDisposition { get; set; } = "";
+    public string Actor { get; set; } = "system";
+    public string? ReasonCode { get; set; }
+    public string? EvidenceReference { get; set; }
+    public Guid CorrelationId { get; set; }
+    public DateTimeOffset OccurredAt { get; set; }
 }
 
 public sealed class ManufacturingTransformationEntity
@@ -546,12 +764,14 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         var input = new ManufacturingLotEntity
         {
             Id = Guid.NewGuid(), TenantKey = "customer-factory-x", Sku = "RM-MANGO-001",
-            Quantity = 600, Uom = "kg", Disposition = "Released", CreatedAt = DateTimeOffset.UtcNow
+            Quantity = 600, Uom = "kg", Disposition = "Released", LotCode = "LOT-LEGACY-MANGO-001",
+            LotType = "RawMaterial", QualityStatus = "Passed", CreatedBy = "system", CreatedAt = DateTimeOffset.UtcNow
         };
         var output = new ManufacturingLotEntity
         {
             Id = Guid.NewGuid(), TenantKey = input.TenantKey, Sku = "FX-MANGO-SOFT",
-            Quantity = 320, Uom = "kg", Disposition = "Released", CreatedAt = DateTimeOffset.UtcNow
+            Quantity = 320, Uom = "kg", Disposition = "Released", LotCode = "LOT-LEGACY-FG-001",
+            LotType = "FinishedGood", QualityStatus = "Passed", CreatedBy = "system", CreatedAt = DateTimeOffset.UtcNow
         };
         db.Lots.AddRange(input, output);
         var seededTransformation = new ManufacturingTransformationEntity
@@ -587,11 +807,23 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
 
     public LotDto CreateLot(CreateLotRequest request)
     {
+        var lotCode = string.IsNullOrWhiteSpace(request.LotCode)
+            ? $"LOT-{DateTimeOffset.UtcNow:yyyyMMdd}-{Guid.NewGuid():N}"
+            : request.LotCode.Trim().ToUpperInvariant();
+        var traceabilityError = LotTraceabilityPolicy.Validate(new LotTraceabilityProfile(
+            lotCode, request.LotType.Trim(), request.OriginCountryCode?.Trim().ToUpperInvariant(), request.ManufacturedOn,
+            request.BestBefore, request.FacilityCode?.Trim(), request.StorageLocationCode?.Trim()));
+        if (traceabilityError is not null) throw new InvalidOperationException(traceabilityError);
         var entity = new ManufacturingLotEntity
         {
             Id = Guid.NewGuid(), TenantKey = request.TenantKey.Trim(), Sku = request.Sku.Trim(),
             Quantity = request.Quantity, Uom = request.Uom.Trim(), Disposition = request.Disposition.Trim(),
-            BestBefore = request.BestBefore, CreatedAt = DateTimeOffset.UtcNow
+            BestBefore = request.BestBefore, LotCode = lotCode, LotType = request.LotType.Trim(),
+            OriginCountryCode = request.OriginCountryCode?.Trim().ToUpperInvariant(), ManufacturedOn = request.ManufacturedOn,
+            FacilityCode = request.FacilityCode?.Trim(), StorageLocationCode = request.StorageLocationCode?.Trim(),
+            CertificateOfAnalysisReference = request.CertificateOfAnalysisReference?.Trim(), SourceLotCode = request.SourceLotCode?.Trim(),
+            QualityStatus = request.Disposition.Equals("Released", StringComparison.OrdinalIgnoreCase) ? "Passed" : "Pending",
+            CreatedBy = request.RecordedBy?.Trim() ?? "system", CreatedAt = DateTimeOffset.UtcNow
         };
         using var db = dbFactory.CreateDbContext();
         db.Lots.Add(entity);
@@ -661,7 +893,9 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         var output = new ManufacturingLotEntity
         {
             Id = Guid.NewGuid(), TenantKey = request.TenantKey.Trim(), Sku = request.OutputSku.Trim(),
-            Quantity = request.OutputQuantity, Uom = request.OutputUom.Trim(), Disposition = "Released", CreatedAt = DateTimeOffset.UtcNow
+            Quantity = request.OutputQuantity, Uom = request.OutputUom.Trim(), Disposition = "Released",
+            LotCode = $"LOT-{DateTimeOffset.UtcNow:yyyyMMdd}-{Guid.NewGuid():N}", LotType = "WorkInProgress",
+            QualityStatus = "Pending", CreatedBy = "system", CreatedAt = DateTimeOffset.UtcNow
         };
         var transformation = new ManufacturingTransformationEntity
         {
@@ -753,6 +987,53 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         return new GenealogyDto(ToDto(lot), relations);
     }
 
+    public RecallImpactDto GetRecallImpact(Guid lotId, string tenantKey, int maxLots = 500)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var root = db.Lots.AsNoTracking().Single(x => x.Id == lotId && x.TenantKey == tenantKey);
+        var transformations = db.Transformations.AsNoTracking().Include(x => x.Inputs)
+            .Where(x => x.TenantKey == tenantKey).ToList();
+        var impacted = new HashSet<Guid> { root.Id };
+        var frontier = new HashSet<Guid> { root.Id };
+        for (var depth = 0; depth < 20 && frontier.Count > 0 && impacted.Count < maxLots; depth++)
+        {
+            var next = transformations.Where(t => t.Inputs.Any(i => frontier.Contains(i.LotId)))
+                .Select(t => t.OutputLotId).Where(id => !impacted.Contains(id)).Take(maxLots - impacted.Count).ToHashSet();
+            if (next.Count == 0) break;
+            foreach (var id in next) impacted.Add(id);
+            frontier = next;
+        }
+        var lots = db.Lots.AsNoTracking().Where(x => impacted.Contains(x.Id) && x.TenantKey == tenantKey).ToList();
+        var batches = db.ProductionBatches.AsNoTracking().Where(x => x.TenantKey == tenantKey && x.OutputLotId.HasValue && impacted.Contains(x.OutputLotId.Value))
+            .ToDictionary(x => x.OutputLotId!.Value, x => x.BatchNumber);
+        var result = lots.OrderBy(x => x.Id == root.Id ? 0 : 1).ThenBy(x => x.LotCode)
+            .Select(x => new RecallImpactLotDto(x.Id, x.Sku, x.LotCode, x.Disposition, x.Quantity, x.Uom,
+                x.Id == root.Id ? "root" : "downstream", batches.GetValueOrDefault(x.Id))).ToList();
+        return new RecallImpactDto(root.Id, tenantKey, result.Count, batches.Keys.Count(id => impacted.Contains(id)), result, DateTimeOffset.UtcNow);
+    }
+
+    public EpcisDocumentDto GetEpcisEvents(string tenantKey, DateTimeOffset? from, DateTimeOffset? to, int limit = 500)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var start = from?.UtcDateTime ?? DateTime.UtcNow.AddDays(-30);
+        var end = to?.UtcDateTime ?? DateTime.UtcNow;
+        var events = db.OutboxMessages.AsNoTracking().Where(x => x.OccurredOn >= start && x.OccurredOn <= end)
+            .OrderBy(x => x.OccurredOn).Take(Math.Clamp(limit, 1, 5000)).AsEnumerable()
+            .Select(x =>
+            {
+                try
+                {
+                    using var json = JsonDocument.Parse(x.Content);
+                    if (!json.RootElement.TryGetProperty("tenantKey", out var tenant) || !string.Equals(tenant.GetString(), tenantKey, StringComparison.OrdinalIgnoreCase)) return null;
+                    var eventId = json.RootElement.TryGetProperty("eventId", out var id) && Guid.TryParse(id.GetString(), out var parsed) ? parsed : x.Id;
+                    var occurred = json.RootElement.TryGetProperty("occurredAt", out var at) && at.TryGetDateTimeOffset(out var parsedAt) ? parsedAt : new DateTimeOffset(x.OccurredOn, TimeSpan.Zero);
+                    return new EpcisEventDto(eventId, x.Type, occurred, x.Content);
+                }
+                catch (JsonException) { return null; }
+            }).Where(x => x is not null).Cast<EpcisEventDto>().ToList();
+        return new EpcisDocumentDto($"urn:his-hope:manufacturing:{Guid.NewGuid():N}", "2.0", "EPCISDocument", events, DateTimeOffset.UtcNow);
+    }
+
     public AvailabilityDto GetAvailability(string tenantKey, string sku)
     {
         using var db = dbFactory.CreateDbContext();
@@ -784,7 +1065,18 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
             .ToList();
     }
 
-    public (LotDto? Lot, string? Error) SetLotDisposition(Guid lotId, string disposition, string tenantKey)
+    public IReadOnlyList<LotStatusHistoryDto> GetLotStatusHistory(Guid lotId, string tenantKey, int limit)
+    {
+        using var db = dbFactory.CreateDbContext();
+        return db.LotStatusHistory.AsNoTracking()
+            .Where(x => x.LotId == lotId && x.TenantKey == tenantKey)
+            .OrderByDescending(x => x.OccurredAt).Take(Math.Clamp(limit, 1, 100))
+            .Select(x => new LotStatusHistoryDto(x.Id, x.LotId, x.TenantKey, x.FromDisposition, x.ToDisposition,
+                x.Actor, x.ReasonCode, x.EvidenceReference, x.CorrelationId, x.OccurredAt))
+            .ToList();
+    }
+
+    public (LotDto? Lot, string? Error) SetLotDisposition(Guid lotId, string disposition, string tenantKey, string? actor = null, string? reasonCode = null, string? evidenceReference = null, DateTimeOffset? expectedUpdatedAt = null)
     {
         var normalized = disposition.Trim();
         if (!AllowedLotDispositions.Contains(normalized, StringComparer.OrdinalIgnoreCase))
@@ -794,6 +1086,8 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         var lot = db.Lots.SingleOrDefault(x => x.Id == lotId);
         if (lot is null) return (null, "lot_not_found");
         if (!lot.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_scope_denied");
+        if (expectedUpdatedAt.HasValue && lot.UpdatedAt != expectedUpdatedAt)
+            return (ToDto(lot), "concurrency_conflict");
         if (lot.Disposition.Equals(normalized, StringComparison.OrdinalIgnoreCase))
             return (ToDto(lot), null);
 
@@ -802,8 +1096,17 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         var activeReservations = held
             ? db.LotReservations.Where(x => x.TenantKey == lot.TenantKey && x.LotId == lot.Id && x.Status == "Reserved").ToList()
             : [];
+        var previousDisposition = lot.Disposition;
         lot.Disposition = normalized;
+        lot.QualityStatus = normalized.Equals("Released", StringComparison.OrdinalIgnoreCase) ? "Passed" : lot.QualityStatus;
+        lot.UpdatedAt = now;
         var dispositionEventId = Guid.NewGuid();
+        db.LotStatusHistory.Add(new ManufacturingLotStatusHistoryEntity
+        {
+            Id = Guid.NewGuid(), LotId = lot.Id, TenantKey = lot.TenantKey, FromDisposition = previousDisposition,
+            ToDisposition = normalized, Actor = actor?.Trim() ?? "system", ReasonCode = reasonCode?.Trim(),
+            EvidenceReference = evidenceReference?.Trim(), CorrelationId = dispositionEventId, OccurredAt = now
+        });
         db.InventoryTransactions.Add(new ManufacturingInventoryTransactionEntity
         {
             Id = Guid.NewGuid(), TenantKey = lot.TenantKey, LotId = lot.Id,
@@ -855,10 +1158,23 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         var normalizedStatus = request.Status.Trim();
         if (!AllowedInspectionStatuses.Contains(normalizedStatus, StringComparer.OrdinalIgnoreCase)) return (null, "invalid_inspection_status");
         if (request.MoisturePercent is < 0 or > 100) return (null, "invalid_moisture_percent");
+        var testResultPolicyError = QualityInspectionPolicy.Validate(
+            request.Results?.Select(x => new QualityTestResultInput(x.TestCode, x.TestName, x.MeasuredValue, x.Uom, x.Result, x.LowerLimit, x.UpperLimit, x.Method, x.EvidenceReference)).ToList(),
+            normalizedStatus);
+        if (testResultPolicyError is not null) return (null, testResultPolicyError);
         using var db = dbFactory.CreateDbContext();
         var lot = db.Lots.SingleOrDefault(x => x.Id == request.LotId);
         if (lot is null) return (null, "lot_not_found");
         if (!lot.TenantKey.Equals(request.TenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_mismatch");
+        ManufacturingInspectionPlanVersionEntity? inspectionPlan = null;
+        if (request.InspectionPlanVersionId.HasValue)
+        {
+            var now = request.InspectedAt ?? DateTimeOffset.UtcNow;
+            inspectionPlan = db.InspectionPlanVersions.SingleOrDefault(x => x.Id == request.InspectionPlanVersionId.Value);
+            if (inspectionPlan is null) return (null, "inspection_plan_not_found");
+            if (!inspectionPlan.TenantKey.Equals(lot.TenantKey, StringComparison.OrdinalIgnoreCase) || !inspectionPlan.ProductSku.Equals(lot.Sku, StringComparison.OrdinalIgnoreCase)) return (null, "inspection_plan_mismatch");
+            if (!inspectionPlan.Status.Equals("Approved", StringComparison.OrdinalIgnoreCase) || (inspectionPlan.EffectiveFrom.HasValue && inspectionPlan.EffectiveFrom > now) || (inspectionPlan.EffectiveTo.HasValue && inspectionPlan.EffectiveTo <= now)) return (null, "inspection_plan_not_effective");
+        }
         var entity = db.QualityInspections
             .Where(x => x.LotId == lot.Id && x.TenantKey == lot.TenantKey && x.Status == "Pending")
             .OrderByDescending(x => x.InspectedAt)
@@ -876,8 +1192,23 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         entity.Inspector = request.Inspector.Trim();
         entity.Notes = request.Notes?.Trim();
         entity.InspectedAt = request.InspectedAt ?? DateTimeOffset.UtcNow;
+        entity.SpecificationReference = request.SpecificationReference?.Trim();
+        entity.InspectionPlanVersionId = inspectionPlan?.Id;
+        var testResults = request.Results?.Select(x => new ManufacturingQualityTestResultEntity
+        {
+            Id = Guid.NewGuid(), QualityInspectionId = entity.Id, TestCode = x.TestCode.Trim(), TestName = x.TestName.Trim(),
+            MeasuredValue = x.MeasuredValue, Uom = x.Uom.Trim(), Result = x.Result.Trim(), LowerLimit = x.LowerLimit,
+            UpperLimit = x.UpperLimit, Method = x.Method?.Trim(), EvidenceReference = x.EvidenceReference?.Trim()
+        }).ToList() ?? [];
+        var existingTestResults = db.QualityTestResults.Where(x => x.QualityInspectionId == entity.Id).ToList();
+        if (existingTestResults.Count > 0) db.QualityTestResults.RemoveRange(existingTestResults);
+        if (testResults.Count > 0) db.QualityTestResults.AddRange(testResults);
+        lot.QualityStatus = normalizedStatus.Equals("Pass", StringComparison.OrdinalIgnoreCase) ? "Passed" :
+            normalizedStatus.Equals("Fail", StringComparison.OrdinalIgnoreCase) ? "Failed" : "Pending";
+        lot.UpdatedAt = entity.InspectedAt;
         var dispositionChanged = false;
         var dispositionEventId = Guid.NewGuid();
+        var previousDisposition = lot.Disposition;
         if (normalizedStatus.Equals("Pass", StringComparison.OrdinalIgnoreCase) &&
             (lot.Disposition.Equals("Quarantined", StringComparison.OrdinalIgnoreCase) || lot.Disposition.Equals("Hold", StringComparison.OrdinalIgnoreCase)))
         {
@@ -892,6 +1223,12 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         }
         if (dispositionChanged)
         {
+            db.LotStatusHistory.Add(new ManufacturingLotStatusHistoryEntity
+            {
+                Id = Guid.NewGuid(), LotId = lot.Id, TenantKey = lot.TenantKey, FromDisposition = previousDisposition,
+                ToDisposition = lot.Disposition, Actor = entity.Inspector, ReasonCode = "quality_inspection",
+                CorrelationId = entity.Id, OccurredAt = entity.InspectedAt
+            });
             db.InventoryTransactions.Add(new ManufacturingInventoryTransactionEntity
             {
                 Id = Guid.NewGuid(), TenantKey = lot.TenantKey, LotId = lot.Id,
@@ -910,9 +1247,83 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         db.OutboxMessages.Add(new ManufacturingOutboxMessageEntity
         {
             Id = inspectionEventId, Type = "Manufacturing.QualityInspectionRecorded.v1",
-            Content = JsonSerializer.Serialize(new { eventId = inspectionEventId, schemaVersion = 1, occurredAt = DateTimeOffset.UtcNow, correlationId = inspectionEventId, facilityId = (string?)null, inspectionId = entity.Id, lotId = entity.LotId, tenantKey = entity.TenantKey, status = entity.Status, moisturePercent = entity.MoisturePercent }),
+            Content = JsonSerializer.Serialize(new { eventId = inspectionEventId, schemaVersion = 1, occurredAt = DateTimeOffset.UtcNow, correlationId = inspectionEventId, facilityId = (string?)null, inspectionId = entity.Id, lotId = entity.LotId, tenantKey = entity.TenantKey, status = entity.Status, moisturePercent = entity.MoisturePercent, specificationReference = entity.SpecificationReference, resultCount = testResults.Count, failedResultCount = testResults.Count(x => x.Result.Equals("Fail", StringComparison.OrdinalIgnoreCase)) }),
             OccurredOn = DateTime.UtcNow, Status = "Pending"
         });
+        db.SaveChanges();
+        return (ToDto(entity, testResults), null);
+    }
+
+    public (QualitySampleDto? Sample, string? Error) CreateQualitySample(CreateQualitySampleRequest request, string tenantKey)
+    {
+        if (request.InspectionId == Guid.Empty || string.IsNullOrWhiteSpace(request.SampleCode) || string.IsNullOrWhiteSpace(request.CollectedBy)) return (null, "invalid_quality_sample");
+        using var db = dbFactory.CreateDbContext();
+        var inspection = db.QualityInspections.SingleOrDefault(x => x.Id == request.InspectionId);
+        if (inspection is null) return (null, "quality_inspection_not_found");
+        if (!inspection.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_scope_denied");
+        if (db.QualitySamples.Any(x => x.TenantKey == tenantKey && x.InspectionId == request.InspectionId && x.SampleCode == request.SampleCode.Trim())) return (null, "quality_sample_exists");
+        var entity = new ManufacturingQualitySampleEntity { Id = Guid.NewGuid(), InspectionId = inspection.Id, LotId = inspection.LotId, TenantKey = tenantKey, SampleCode = request.SampleCode.Trim(), CollectedBy = request.CollectedBy.Trim(), CollectedAt = request.CollectedAt ?? DateTimeOffset.UtcNow, Location = string.IsNullOrWhiteSpace(request.Location) ? null : request.Location.Trim(), Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(), Disposition = "Pending", CreatedAt = DateTimeOffset.UtcNow };
+        db.QualitySamples.Add(entity); db.SaveChanges();
+        return (ToDto(entity), null);
+    }
+
+    public IReadOnlyList<QualitySampleDto> GetQualitySamples(string tenantKey, Guid? inspectionId, string? disposition, int limit)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var query = db.QualitySamples.AsNoTracking().Where(x => x.TenantKey == tenantKey);
+        if (inspectionId.HasValue) query = query.Where(x => x.InspectionId == inspectionId.Value);
+        if (!string.IsNullOrWhiteSpace(disposition)) query = query.Where(x => x.Disposition == disposition);
+        return query.OrderByDescending(x => x.CollectedAt).Take(Math.Clamp(limit, 1, 200)).AsEnumerable().Select(ToDto).ToList();
+    }
+
+    public (QualitySampleDto? Sample, string? Error) ChangeQualitySampleDisposition(Guid sampleId, string tenantKey, QualitySampleDispositionRequest request)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var entity = db.QualitySamples.SingleOrDefault(x => x.Id == sampleId);
+        if (entity is null) return (null, "quality_sample_not_found");
+        if (!entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_scope_denied");
+        if (string.IsNullOrWhiteSpace(request.Actor)) return (null, "invalid_quality_sample_actor");
+        var target = request.Disposition.Trim();
+        if (target is not ("Accepted" or "Rejected" or "Hold") || entity.Disposition != "Pending") return (null, "invalid_quality_sample_disposition");
+        entity.Disposition = target; entity.DispositionReason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim(); entity.DisposedBy = request.Actor.Trim(); entity.DisposedAt = DateTimeOffset.UtcNow;
+        db.SaveChanges();
+        return (ToDto(entity), null);
+    }
+
+    public (InspectionPlanVersionDto? Plan, string? Error) CreateInspectionPlanVersion(CreateInspectionPlanVersionRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.TenantKey) || string.IsNullOrWhiteSpace(request.PlanCode) || string.IsNullOrWhiteSpace(request.ProductSku) || request.Version <= 0 || string.IsNullOrWhiteSpace(request.SamplingMethod) || string.IsNullOrWhiteSpace(request.SamplingFrequency) || string.IsNullOrWhiteSpace(request.AcceptanceCriteria)) return (null, "invalid_inspection_plan");
+        var status = request.Status.Trim();
+        if (status is not ("Draft" or "Submitted")) return (null, "invalid_inspection_plan_status");
+        if (request.EffectiveTo is not null && request.EffectiveFrom is not null && request.EffectiveTo <= request.EffectiveFrom) return (null, "invalid_inspection_plan_dates");
+        using var db = dbFactory.CreateDbContext();
+        if (db.InspectionPlanVersions.Any(x => x.TenantKey == request.TenantKey.Trim() && x.PlanCode == request.PlanCode.Trim() && x.Version == request.Version)) return (null, "inspection_plan_exists");
+        var entity = new ManufacturingInspectionPlanVersionEntity { Id = Guid.NewGuid(), TenantKey = request.TenantKey.Trim(), PlanCode = request.PlanCode.Trim(), ProductSku = request.ProductSku.Trim(), Version = request.Version, SamplingMethod = request.SamplingMethod.Trim(), SamplingFrequency = request.SamplingFrequency.Trim(), AcceptanceCriteria = request.AcceptanceCriteria.Trim(), Status = status, EffectiveFrom = request.EffectiveFrom, EffectiveTo = request.EffectiveTo, CreatedBy = string.IsNullOrWhiteSpace(request.CreatedBy) ? null : request.CreatedBy.Trim(), CreatedAt = DateTimeOffset.UtcNow };
+        db.InspectionPlanVersions.Add(entity); db.SaveChanges();
+        return (ToDto(entity), null);
+    }
+
+    public IReadOnlyList<InspectionPlanVersionDto> GetInspectionPlanVersions(string tenantKey, string? productSku, string? status, int limit)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var query = db.InspectionPlanVersions.AsNoTracking().Where(x => x.TenantKey == tenantKey);
+        if (!string.IsNullOrWhiteSpace(productSku)) query = query.Where(x => x.ProductSku == productSku);
+        if (!string.IsNullOrWhiteSpace(status)) query = query.Where(x => x.Status == status);
+        return query.OrderByDescending(x => x.ProductSku).ThenByDescending(x => x.Version).Take(Math.Clamp(limit, 1, 200)).AsEnumerable().Select(ToDto).ToList();
+    }
+
+    public (InspectionPlanVersionDto? Plan, string? Error) ChangeInspectionPlanLifecycle(Guid planId, string tenantKey, string targetStatus, InspectionPlanLifecycleRequest request)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var entity = db.InspectionPlanVersions.SingleOrDefault(x => x.Id == planId);
+        if (entity is null) return (null, "inspection_plan_not_found");
+        if (!entity.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_scope_denied");
+        if (string.IsNullOrWhiteSpace(request.Actor)) return (null, "invalid_inspection_plan_actor");
+        var target = targetStatus.Trim();
+        var valid = (entity.Status, target) switch { ("Draft", "Submitted") => true, ("Submitted", "Approved") => true, ("Approved", "Retired") => true, _ => false };
+        if (!valid) return (null, "invalid_inspection_plan_transition");
+        entity.Status = target;
+        if (target == "Approved") { entity.ApprovedBy = request.Actor.Trim(); entity.ApprovedAt = DateTimeOffset.UtcNow; entity.EffectiveFrom = request.EffectiveFrom ?? entity.EffectiveFrom ?? DateTimeOffset.UtcNow; entity.EffectiveTo = request.EffectiveTo ?? entity.EffectiveTo; }
         db.SaveChanges();
         return (ToDto(entity), null);
     }
@@ -922,7 +1333,13 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         using var db = dbFactory.CreateDbContext();
         var query = db.QualityInspections.AsNoTracking().Where(x => x.LotId == lotId);
         if (!string.IsNullOrWhiteSpace(tenantKey)) query = query.Where(x => x.TenantKey == tenantKey);
-        return query.OrderByDescending(x => x.InspectedAt).Take(Math.Clamp(limit, 1, 100)).AsEnumerable().Select(ToDto).ToList();
+        var inspections = query.OrderByDescending(x => x.InspectedAt).Take(Math.Clamp(limit, 1, 100)).ToList();
+        var resultsByInspection = db.QualityTestResults.AsNoTracking()
+            .Where(x => inspections.Select(inspection => inspection.Id).Contains(x.QualityInspectionId))
+            .OrderBy(x => x.TestCode).ToList()
+            .GroupBy(x => x.QualityInspectionId)
+            .ToDictionary(group => group.Key, group => (IReadOnlyList<ManufacturingQualityTestResultEntity>)group.ToList());
+        return inspections.Select(inspection => ToDto(inspection, resultsByInspection.GetValueOrDefault(inspection.Id, []))).ToList();
     }
 
     private static readonly string[] AllowedInspectionStatuses = ["Pass", "Fail", "Pending"];
@@ -1055,6 +1472,37 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         return query.OrderBy(x => x.Code).Take(Math.Clamp(limit, 1, 200)).AsEnumerable().Select(ToDto).ToList();
     }
 
+    public (MachineCalibrationDto? Calibration, string? Error) CreateMachineCalibration(Guid machineId, CreateMachineCalibrationRequest request, string tenantKey)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var machine = db.Machines.SingleOrDefault(x => x.Id == machineId);
+        if (machine is null) return (null, "machine_not_found");
+        if (!machine.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_scope_denied");
+        if (string.IsNullOrWhiteSpace(request.CalibrationType) || string.IsNullOrWhiteSpace(request.CertificateNumber) || request.CalibratedAt == default || request.NextDueAt <= request.CalibratedAt || string.IsNullOrWhiteSpace(request.Result)) return (null, "invalid_machine_calibration");
+        if (db.MachineCalibrations.Any(x => x.TenantKey == tenantKey && x.MachineId == machineId && x.CertificateNumber == request.CertificateNumber.Trim())) return (null, "machine_calibration_exists");
+        var entity = new ManufacturingMachineCalibrationEntity
+        {
+            Id = Guid.NewGuid(), MachineId = machineId, TenantKey = tenantKey,
+            CalibrationType = request.CalibrationType.Trim(), CertificateNumber = request.CertificateNumber.Trim(),
+            CalibratedAt = request.CalibratedAt, NextDueAt = request.NextDueAt, Result = request.Result.Trim(),
+            Provider = string.IsNullOrWhiteSpace(request.Provider) ? null : request.Provider.Trim(),
+            EvidenceReference = string.IsNullOrWhiteSpace(request.EvidenceReference) ? null : request.EvidenceReference.Trim(),
+            Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(),
+            CreatedBy = string.IsNullOrWhiteSpace(request.CreatedBy) ? null : request.CreatedBy.Trim(), CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.MachineCalibrations.Add(entity);
+        if (machine.NextMaintenanceAt is null || machine.NextMaintenanceAt > entity.NextDueAt) machine.NextMaintenanceAt = entity.NextDueAt;
+        db.SaveChanges();
+        return (ToDto(entity), null);
+    }
+
+    public IReadOnlyList<MachineCalibrationDto> GetMachineCalibrations(Guid machineId, string tenantKey, int limit)
+    {
+        using var db = dbFactory.CreateDbContext();
+        return db.MachineCalibrations.AsNoTracking().Where(x => x.MachineId == machineId && x.TenantKey == tenantKey)
+            .OrderByDescending(x => x.CalibratedAt).Take(Math.Clamp(limit, 1, 200)).AsEnumerable().Select(ToDto).ToList();
+    }
+
     public (MachineTelemetryDto? Telemetry, string? Error, bool Duplicate) RecordMachineTelemetry(Guid machineId, RecordMachineTelemetryRequest request, string tenantKey)
     {
         using var db = dbFactory.CreateDbContext();
@@ -1173,6 +1621,28 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         return query.OrderBy(x => x.DueAt).Take(Math.Clamp(limit, 1, 200)).ToList().Select(ToDto).ToList();
     }
 
+    public (MaintenancePlanDto? Plan, string? Error) CreateMaintenancePlan(Guid machineId, CreateMaintenancePlanRequest request, string tenantKey)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var machine = db.Machines.SingleOrDefault(x => x.Id == machineId);
+        if (machine is null) return (null, "machine_not_found");
+        if (!machine.TenantKey.Equals(tenantKey, StringComparison.OrdinalIgnoreCase)) return (null, "tenant_scope_denied");
+        if (string.IsNullOrWhiteSpace(request.PlanCode) || string.IsNullOrWhiteSpace(request.MaintenanceType) || request.FrequencyDays <= 0 || request.NextDueAt == default) return (null, "invalid_maintenance_plan");
+        if (db.MaintenancePlans.Any(x => x.TenantKey == tenantKey && x.MachineId == machineId && x.PlanCode == request.PlanCode.Trim())) return (null, "maintenance_plan_exists");
+        var entity = new ManufacturingMaintenancePlanEntity { Id = Guid.NewGuid(), MachineId = machineId, TenantKey = tenantKey, PlanCode = request.PlanCode.Trim(), MaintenanceType = request.MaintenanceType.Trim(), FrequencyDays = request.FrequencyDays, NextDueAt = request.NextDueAt, Checklist = string.IsNullOrWhiteSpace(request.Checklist) ? null : request.Checklist.Trim(), AssignedTo = string.IsNullOrWhiteSpace(request.AssignedTo) ? null : request.AssignedTo.Trim(), Active = request.Active, CreatedBy = string.IsNullOrWhiteSpace(request.CreatedBy) ? null : request.CreatedBy.Trim(), CreatedAt = DateTimeOffset.UtcNow };
+        db.MaintenancePlans.Add(entity); db.SaveChanges();
+        return (ToDto(entity), null);
+    }
+
+    public IReadOnlyList<MaintenancePlanDto> GetMaintenancePlans(string tenantKey, Guid? machineId, bool? active, int limit)
+    {
+        using var db = dbFactory.CreateDbContext();
+        var query = db.MaintenancePlans.AsNoTracking().Where(x => x.TenantKey == tenantKey);
+        if (machineId.HasValue) query = query.Where(x => x.MachineId == machineId.Value);
+        if (active.HasValue) query = query.Where(x => x.Active == active.Value);
+        return query.OrderBy(x => x.NextDueAt).Take(Math.Clamp(limit, 1, 200)).AsEnumerable().Select(ToDto).ToList();
+    }
+
     public IReadOnlyList<MaintenanceWorkOrderDto> GenerateDueMaintenanceWorkOrders(string tenantKey, DateTimeOffset asOf)
     {
         using var db = dbFactory.CreateDbContext();
@@ -1180,7 +1650,25 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         var dueMachines = db.Machines
             .Where(x => x.TenantKey == tenantKey && x.Active && x.NextMaintenanceAt != null && x.NextMaintenanceAt <= asOf)
             .ToList();
+        var duePlans = db.MaintenancePlans
+            .Where(x => x.TenantKey == tenantKey && x.Active && x.NextDueAt <= asOf)
+            .ToList();
         var created = new List<ManufacturingMaintenanceWorkOrderEntity>();
+        foreach (var plan in duePlans)
+        {
+            if (db.MaintenanceWorkOrders.Any(x => x.TenantKey == tenantKey && x.MachineId == plan.MachineId && x.Status == "Open")) continue;
+            var entity = new ManufacturingMaintenanceWorkOrderEntity
+            {
+                Id = Guid.NewGuid(), MachineId = plan.MachineId, TenantKey = tenantKey, Status = "Open",
+                MaintenanceType = plan.MaintenanceType, DueAt = plan.NextDueAt,
+                AssignedTo = plan.AssignedTo, Notes = plan.Checklist, CreatedAt = asOf
+            };
+            db.MaintenanceWorkOrders.Add(entity);
+            plan.LastGeneratedAt = asOf;
+            plan.NextDueAt = plan.NextDueAt.AddDays(plan.FrequencyDays);
+            AddMaintenanceWorkOrderOutbox(db, entity, "Manufacturing.MaintenanceWorkOrderCreated.v1");
+            created.Add(entity);
+        }
         foreach (var machine in dueMachines)
         {
             if (db.MaintenanceWorkOrders.Any(x => x.TenantKey == tenantKey && x.MachineId == machine.Id && x.Status == "Open")) continue;
@@ -1322,7 +1810,7 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         using var db = dbFactory.CreateDbContext();
         var completed = db.ProductionBatches.AsNoTracking().Where(x => x.TenantKey == tenantKey && x.Status == "Completed").ToList();
         if (completed.Count == 0)
-            return new ManufacturingProductionKpiDto(tenantKey, 0, 0, 0, 0, 0, 0, 0, 0, DateTimeOffset.UtcNow);
+            return new ManufacturingProductionKpiDto(tenantKey, 0, 0, 0, 0, 0, 0, 0, 0, DateTimeOffset.UtcNow, "insufficient-data", ["Manufacturing.ProductionBatchCompleted.v1"]);
 
         var batchIds = completed.Select(x => x.Id).ToArray();
         var orderIds = completed.Select(x => x.ProductionOrderId).Distinct().ToArray();
@@ -1341,7 +1829,8 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         var averageYield = totalInput == 0 ? 0 : decimal.Round(actual / totalInput * 100, 2);
         return new ManufacturingProductionKpiDto(
             tenantKey, completed.Count, planned, actual, totalInput, totalInput - actual,
-            averageYield, decimal.Round(target, 2), decimal.Round(averageYield - target, 2), DateTimeOffset.UtcNow);
+            averageYield, decimal.Round(target, 2), decimal.Round(averageYield - target, 2), DateTimeOffset.UtcNow,
+            "complete", ["Manufacturing.ProductionBatchCompleted.v1", "Manufacturing.OperationRecorded.v1"]);
     }
 
     public ManufacturingMachineHealthDto GetMachineHealth(string tenantKey, int dueWithinDays)
@@ -1546,7 +2035,10 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
         return result;
     }
 
-    private static LotDto ToDto(ManufacturingLotEntity x) => new(x.Id, x.TenantKey, x.Sku, x.Quantity, x.Uom, x.Disposition, x.BestBefore, x.CreatedAt);
+    private static LotDto ToDto(ManufacturingLotEntity x) =>
+        new(x.Id, x.TenantKey, x.Sku, x.Quantity, x.Uom, x.Disposition, x.BestBefore, x.CreatedAt,
+            x.LotCode, x.LotType, x.OriginCountryCode, x.ManufacturedOn, x.ReceivedAt, x.FacilityCode,
+            x.StorageLocationCode, x.CertificateOfAnalysisReference, x.SourceLotCode, x.QualityStatus, x.CreatedBy, x.UpdatedAt);
     private static TransformationDto ToDto(ManufacturingTransformationEntity x, IReadOnlyList<TransformationInput> inputs, LotDto output) =>
         new(x.Id, x.TenantKey, x.ProcessStep, x.RecipeId, x.MachineId, inputs, output, x.InputQuantity, x.YieldPercent, x.LossQuantity, x.CreatedAt);
     private static RecipeDto ToDto(ManufacturingRecipeEntity x) =>
@@ -1555,14 +2047,24 @@ public sealed partial class PostgresManufacturingStore(IDbContextFactory<Manufac
             x.Components.Select(c => new RecipeComponentDto(c.IngredientSku, c.Quantity, c.Uom)).ToList(), x.CreatedAt, x.ProductSpecificationId);
     private static MachineDto ToDto(ManufacturingMachineEntity x) =>
         new(x.Id, x.TenantKey, x.Code, x.Name, x.Status, x.LastMaintenanceAt, x.NextMaintenanceAt, x.Active, x.CreatedAt);
+    private static MachineCalibrationDto ToDto(ManufacturingMachineCalibrationEntity x) =>
+        new(x.Id, x.MachineId, x.TenantKey, x.CalibrationType, x.CertificateNumber, x.CalibratedAt, x.NextDueAt, x.Result, x.Provider, x.EvidenceReference, x.Notes, x.CreatedBy, x.CreatedAt);
     private static MachineTelemetryDto ToDto(ManufacturingMachineTelemetryEntity x) =>
         new(x.Id, x.EventId, x.MachineId, x.TenantKey, x.Source, x.State, x.MeterName, x.MeterValue, x.Sequence, x.ObservedAt, x.ReceivedAt);
     private static DowntimeDto ToDto(ManufacturingMachineDowntimeEntity x) =>
         new(x.Id, x.MachineId, x.TenantKey, x.Reason, x.Status, x.ProductionBatchId, x.OperationExecutionId, x.StartedAt, x.EndedAt, x.Notes, x.CreatedAt);
     private static MaintenanceWorkOrderDto ToDto(ManufacturingMaintenanceWorkOrderEntity x) =>
         new(x.Id, x.MachineId, x.TenantKey, x.Status, x.MaintenanceType, x.DueAt, x.AssignedTo, x.Notes, x.Technician, x.CompletedAt, x.Evidence, x.CreatedAt);
-    private static QualityInspectionDto ToDto(ManufacturingQualityInspectionEntity x) =>
-        new(x.Id, x.LotId, x.TenantKey, x.Status, x.MoisturePercent, x.Inspector, x.Notes, x.InspectedAt);
+    private static MaintenancePlanDto ToDto(ManufacturingMaintenancePlanEntity x) =>
+        new(x.Id, x.MachineId, x.TenantKey, x.PlanCode, x.MaintenanceType, x.FrequencyDays, x.NextDueAt, x.Checklist, x.AssignedTo, x.Active, x.LastGeneratedAt, x.CreatedBy, x.CreatedAt);
+    private static QualityInspectionDto ToDto(ManufacturingQualityInspectionEntity x, IReadOnlyList<ManufacturingQualityTestResultEntity>? results = null) =>
+        new(x.Id, x.LotId, x.TenantKey, x.Status, x.MoisturePercent, x.Inspector, x.Notes, x.InspectedAt,
+            results?.Select(result => new QualityTestResultDto(result.Id, result.TestCode, result.TestName, result.MeasuredValue, result.Uom, result.Result, result.LowerLimit, result.UpperLimit, result.Method, result.EvidenceReference)).ToList(),
+            x.SpecificationReference, x.InspectionPlanVersionId);
+    private static InspectionPlanVersionDto ToDto(ManufacturingInspectionPlanVersionEntity x) =>
+        new(x.Id, x.TenantKey, x.PlanCode, x.ProductSku, x.Version, x.SamplingMethod, x.SamplingFrequency, x.AcceptanceCriteria, x.Status, x.EffectiveFrom, x.EffectiveTo, x.ApprovedBy, x.ApprovedAt, x.CreatedBy, x.CreatedAt);
+    private static QualitySampleDto ToDto(ManufacturingQualitySampleEntity x) =>
+        new(x.Id, x.InspectionId, x.LotId, x.TenantKey, x.SampleCode, x.CollectedBy, x.CollectedAt, x.Disposition, x.DispositionReason, x.DisposedBy, x.DisposedAt, x.Location, x.Notes, x.CreatedAt);
 }
 
 public sealed class ManufacturingOutboxMessageEntity
@@ -1627,6 +2129,23 @@ public sealed class ManufacturingMachineEntity
     public DateTimeOffset CreatedAt { get; set; }
 }
 
+public sealed class ManufacturingMachineCalibrationEntity
+{
+    public Guid Id { get; set; }
+    public Guid MachineId { get; set; }
+    public string TenantKey { get; set; } = "";
+    public string CalibrationType { get; set; } = "";
+    public string CertificateNumber { get; set; } = "";
+    public DateTimeOffset CalibratedAt { get; set; }
+    public DateTimeOffset NextDueAt { get; set; }
+    public string Result { get; set; } = "Pass";
+    public string? Provider { get; set; }
+    public string? EvidenceReference { get; set; }
+    public string? Notes { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
 public sealed class ManufacturingMachineTelemetryEntity
 {
     public Guid Id { get; set; }
@@ -1685,16 +2204,87 @@ public sealed class ManufacturingMaintenanceWorkOrderEntity
     public DateTimeOffset CreatedAt { get; set; }
 }
 
+public sealed class ManufacturingMaintenancePlanEntity
+{
+    public Guid Id { get; set; }
+    public Guid MachineId { get; set; }
+    public string TenantKey { get; set; } = "";
+    public string PlanCode { get; set; } = "";
+    public string MaintenanceType { get; set; } = "Preventive";
+    public int FrequencyDays { get; set; }
+    public DateTimeOffset NextDueAt { get; set; }
+    public string? Checklist { get; set; }
+    public string? AssignedTo { get; set; }
+    public bool Active { get; set; } = true;
+    public DateTimeOffset? LastGeneratedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class ManufacturingQualitySampleEntity
+{
+    public Guid Id { get; set; }
+    public Guid InspectionId { get; set; }
+    public Guid LotId { get; set; }
+    public string TenantKey { get; set; } = "";
+    public string SampleCode { get; set; } = "";
+    public string CollectedBy { get; set; } = "";
+    public DateTimeOffset CollectedAt { get; set; }
+    public string Disposition { get; set; } = "Pending";
+    public string? DispositionReason { get; set; }
+    public string? DisposedBy { get; set; }
+    public DateTimeOffset? DisposedAt { get; set; }
+    public string? Location { get; set; }
+    public string? Notes { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class ManufacturingInspectionPlanVersionEntity
+{
+    public Guid Id { get; set; }
+    public string TenantKey { get; set; } = "";
+    public string PlanCode { get; set; } = "";
+    public string ProductSku { get; set; } = "";
+    public int Version { get; set; }
+    public string SamplingMethod { get; set; } = "";
+    public string SamplingFrequency { get; set; } = "";
+    public string AcceptanceCriteria { get; set; } = "";
+    public string Status { get; set; } = "Draft";
+    public DateTimeOffset? EffectiveFrom { get; set; }
+    public DateTimeOffset? EffectiveTo { get; set; }
+    public string? ApprovedBy { get; set; }
+    public DateTimeOffset? ApprovedAt { get; set; }
+    public string? CreatedBy { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
 public sealed class ManufacturingQualityInspectionEntity
 {
     public Guid Id { get; set; }
     public Guid LotId { get; set; }
+    public Guid? InspectionPlanVersionId { get; set; }
     public string TenantKey { get; set; } = "";
     public string Status { get; set; } = "Pending";
     public decimal MoisturePercent { get; set; }
     public string Inspector { get; set; } = "";
     public string? Notes { get; set; }
+    public string? SpecificationReference { get; set; }
     public DateTimeOffset InspectedAt { get; set; }
+}
+
+public sealed class ManufacturingQualityTestResultEntity
+{
+    public Guid Id { get; set; }
+    public Guid QualityInspectionId { get; set; }
+    public string TestCode { get; set; } = "";
+    public string TestName { get; set; } = "";
+    public decimal MeasuredValue { get; set; }
+    public string Uom { get; set; } = "";
+    public string Result { get; set; } = "Pass";
+    public decimal? LowerLimit { get; set; }
+    public decimal? UpperLimit { get; set; }
+    public string? Method { get; set; }
+    public string? EvidenceReference { get; set; }
 }
 
 public sealed class ManufacturingProductSpecificationEntity

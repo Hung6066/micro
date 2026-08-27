@@ -55,6 +55,31 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
             });
         });
         client = factory.CreateClient();
+        using (var scope = factory.Services.CreateScope())
+        {
+            var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ManufacturingDbContext>>();
+            await using var db = await dbFactory.CreateDbContextAsync();
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO manufacturing_uoms ("Id", "Code", "Name", "Dimension", "Active", "CreatedAt")
+                VALUES ({Guid.NewGuid()}, {"kg-http"}, {"Kilogram (HTTP tests)"}, {"Mass"}, {true}, {DateTimeOffset.UtcNow})
+                ON CONFLICT ("Code") DO NOTHING
+                """);
+            var skus = new[] { "RM-LIST", "RM-RECEIPT", "RM-STATUS", "RM-BATCH-A", "RM-BATCH-B" };
+            var existing = await db.Materials
+                .Where(x => x.TenantKey == "http-integration-tenant" && skus.Contains(x.Sku))
+                .Select(x => x.Sku)
+                .ToListAsync();
+            foreach (var sku in skus.Where(x => !existing.Contains(x)))
+            {
+                db.Materials.Add(new ManufacturingMaterialEntity
+                {
+                    Id = Guid.NewGuid(), TenantKey = "http-integration-tenant", Sku = sku,
+                    Name = $"{sku} material", BaseUomCode = "kg-http", MaterialType = "RawMaterial", Active = true,
+                    CreatedAt = DateTimeOffset.UtcNow
+                });
+            }
+            await db.SaveChangesAsync();
+        }
     }
 
     [Fact]
@@ -72,6 +97,9 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         db.ProductionOrders.Any(x => x.Id == batch.ProductionOrderId && x.RecipeId == recipe.Id).Should().BeTrue();
         db.ProductionBatchInputs.Any(x => x.ProductionBatchId == batch.Id && x.ReservationId != Guid.Empty).Should().BeTrue();
         db.OperationExecutions.Any(x => x.ProductionBatchId == batch.Id && x.LossQuantity > 0).Should().BeTrue();
+        var batchCost = await db.ProductionBatchCosts.SingleAsync(x => x.ProductionBatchId == batch.Id && x.TenantKey == ManufacturingDemoSeeder.TenantKey);
+        batchCost.TotalCost.Should().Be(2_200_000m);
+        batchCost.CostPerOutputUnit.Should().Be(27_500m);
         db.LossReviews.Any(x => x.ProductionBatchId == batch.Id).Should().BeTrue();
         db.QualityInspections.Any(x => x.TenantKey == ManufacturingDemoSeeder.TenantKey && x.Status == "Approved").Should().BeTrue();
         db.InboundReceipts.Any(x => x.TenantKey == ManufacturingDemoSeeder.TenantKey).Should().BeTrue();
@@ -90,6 +118,17 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         });
         supplierResponse.StatusCode.Should().Be(HttpStatusCode.Created);
         var supplierId = (await ReadJson(supplierResponse)).GetProperty("id").GetGuid();
+        var unapprovedOrder = await client.PostAsJsonAsync("/api/v1/manufacturing/purchase-orders", new
+        {
+            tenantKey = "http-integration-tenant", orderNumber = "PO-LIST-UNAPPROVED", supplierId, status = "Approved",
+            currency = "VND", lines = new[] { new { materialSku = "RM-LIST", orderedQuantity = 5m, uom = "kg", unitPrice = 100m } }
+        });
+        unapprovedOrder.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await ReadJson(unapprovedOrder)).GetProperty("errorCode").GetString().Should().Be("supplier_not_approved");
+        var supplierApproved = await client.PostAsJsonAsync($"/api/v1/manufacturing/suppliers/{supplierId}/approval", new { status = "PendingApproval" });
+        supplierApproved.StatusCode.Should().Be(HttpStatusCode.OK);
+        supplierApproved = await client.PostAsJsonAsync($"/api/v1/manufacturing/suppliers/{supplierId}/approval", new { status = "Approved" });
+        supplierApproved.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var orderResponse = await client.PostAsJsonAsync("/api/v1/manufacturing/purchase-orders", new
         {
@@ -104,6 +143,72 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task PurchaseOrder_rejects_unknown_or_duplicate_material_lines()
+    {
+        var supplier = await client.PostAsJsonAsync("/api/v1/manufacturing/suppliers", new
+        {
+            tenantKey = "http-integration-tenant", code = "SUP-MATERIAL-GUARD", name = "Material guard supplier", active = true
+        });
+        var supplierId = (await ReadJson(supplier)).GetProperty("id").GetGuid();
+        (await client.PostAsJsonAsync($"/api/v1/manufacturing/suppliers/{supplierId}/approval", new { status = "PendingApproval" })).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.PostAsJsonAsync($"/api/v1/manufacturing/suppliers/{supplierId}/approval", new { status = "Approved" })).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var unknown = await client.PostAsJsonAsync("/api/v1/manufacturing/purchase-orders", new
+        {
+            tenantKey = "http-integration-tenant", orderNumber = "PO-UNKNOWN-MATERIAL", supplierId, status = "Draft", currency = "VND",
+            lines = new[] { new { materialSku = "RM-NOT-CATALOGUED", orderedQuantity = 1m, uom = "kg", unitPrice = 1m } }
+        });
+        unknown.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await ReadJson(unknown)).GetProperty("errorCode").GetString().Should().Be("material_not_found");
+
+    }
+
+    [Fact]
+    public async Task Supplier_certificate_is_tenant_scoped_and_validated()
+    {
+        var supplier = await client.PostAsJsonAsync("/api/v1/manufacturing/suppliers", new
+        {
+            tenantKey = "http-integration-tenant", code = "SUP-CERT", name = "Certified supplier", active = true
+        });
+        supplier.StatusCode.Should().Be(HttpStatusCode.Created);
+        var supplierId = (await ReadJson(supplier)).GetProperty("id").GetGuid();
+
+        var invalid = await client.PostAsJsonAsync($"/api/v1/manufacturing/suppliers/{supplierId}/certificates", new
+        {
+            certificateType = "HACCP", certificateNumber = "HACCP-INVALID", issuer = "Auditor",
+            issuedAt = "2026-08-01T00:00:00Z", expiresAt = "2026-07-01T00:00:00Z"
+        });
+        invalid.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var created = await client.PostAsJsonAsync($"/api/v1/manufacturing/suppliers/{supplierId}/certificates", new
+        {
+            certificateType = "HACCP", certificateNumber = "HACCP-001", issuer = "Auditor",
+            issuedAt = "2026-08-01T00:00:00Z", expiresAt = "2027-08-01T00:00:00Z", evidenceReference = "s3://evidence/haccp-001"
+        });
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await ReadJson(created)).GetProperty("status").GetString().Should().Be("Active");
+
+        var list = await client.GetAsync($"/api/v1/manufacturing/suppliers/{supplierId}/certificates");
+        list.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadJson(list)).GetArrayLength().Should().Be(1);
+
+        var missingMaterial = await client.PostAsJsonAsync($"/api/v1/manufacturing/suppliers/{supplierId}/material-approvals", new
+        {
+            materialSku = "RM-NOT-CATALOGUED", approvedUom = "kg", effectiveFrom = "2026-08-01T00:00:00Z"
+        });
+        missingMaterial.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var approval = await client.PostAsJsonAsync($"/api/v1/manufacturing/suppliers/{supplierId}/material-approvals", new
+        {
+            materialSku = "RM-LIST", approvedUom = "kg", effectiveFrom = "2026-08-01T00:00:00Z", notes = "Approved raw material"
+        });
+        approval.StatusCode.Should().Be(HttpStatusCode.Created);
+        var approvals = await client.GetAsync($"/api/v1/manufacturing/suppliers/{supplierId}/material-approvals");
+        approvals.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadJson(approvals)).GetArrayLength().Should().Be(1);
+    }
+
+    [Fact]
     public async Task Operator_tenant_selector_accepts_only_claimed_membership()
     {
         var selected = await client.GetAsync("/api/v1/manufacturing/production-batches?tenantKey=selector-tenant");
@@ -111,6 +216,13 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
 
         var denied = await client.GetAsync("/api/v1/manufacturing/production-batches?tenantKey=unclaimed-tenant");
         denied.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Batch_cost_recalculation_requires_cost_permission()
+    {
+        var response = await client.PostAsJsonAsync($"/api/v1/manufacturing/production-batches/{Guid.NewGuid()}/cost", new { laborCost = 1m, overheadCost = 1m, currency = "VND" });
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     public async Task DisposeAsync()
@@ -210,7 +322,7 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         {
             Content = operationPayload
         };
-        operationRequest.Headers.Add("X-HisHope-Operation-Id", operationId);
+        operationRequest.Headers.Add("Idempotency-Key", operationId);
         var operationResponse = await client.SendAsync(operationRequest);
         operationResponse.StatusCode.Should().Be(HttpStatusCode.Created);
 
@@ -222,10 +334,11 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
                 outputQuantity = 48, required = true, qcStatus = "Pass"
             })
         };
-        replayRequest.Headers.Add("X-HisHope-Operation-Id", operationId);
+        replayRequest.Headers.Add("Idempotency-Key", operationId);
         var replayResponse = await client.SendAsync(replayRequest);
           replayResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
         replayResponse.Headers.GetValues("X-HisHope-Operation-Replay").Single().Should().Be("true");
+        replayResponse.Headers.GetValues("Idempotency-Replayed").Single().Should().Be("true");
 
         var completeResponse = await client.PostAsync($"/api/v1/manufacturing/production-batches/{batchId}/complete", null);
         completeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -233,6 +346,17 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         completed.GetProperty("outputLotId").GetGuid().Should().NotBeEmpty();
         completed.GetProperty("inputs").GetArrayLength().Should().Be(1);
         var outputLotId = completed.GetProperty("outputLotId").GetGuid();
+        var recallImpact = await client.GetAsync($"/api/v1/manufacturing/lots/{outputLotId}/recall-impact");
+        recallImpact.StatusCode.Should().Be(HttpStatusCode.OK);
+        var recall = await ReadJson(recallImpact);
+        recall.GetProperty("rootLotId").GetGuid().Should().Be(outputLotId);
+        recall.GetProperty("impactedLotCount").GetInt32().Should().BeGreaterThanOrEqualTo(1);
+        var epcisResponse = await client.GetAsync("/api/v1/manufacturing/traceability/epcis?limit=100");
+        epcisResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var epcis = await ReadJson(epcisResponse);
+        epcis.GetProperty("type").GetString().Should().Be("EPCISDocument");
+        epcis.GetProperty("specVersion").GetString().Should().Be("2.0");
+        epcis.GetProperty("events").GetArrayLength().Should().BeGreaterThan(0);
         var quarantinedAvailability = await client.GetAsync("/api/v1/manufacturing/products/FG-HTTP-MANGO/availability");
         quarantinedAvailability.StatusCode.Should().Be(HttpStatusCode.OK);
         (await ReadJson(quarantinedAvailability)).GetProperty("releasedQuantity").GetDecimal().Should().Be(0m);
@@ -273,9 +397,13 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
 
         var inspectionResponse = await client.PostAsJsonAsync("/api/v1/manufacturing/quality-inspections", new
         {
-            lotId = outputLotId, tenantKey = tenant, status = "Pass", moisturePercent = 12.5m, inspector = "qc-http"
+            lotId = outputLotId, tenantKey = tenant, status = "Pass", moisturePercent = 12.5m, inspector = "qc-http", specificationReference = "SPEC-FG-001",
+            results = new[] { new { testCode = "MOISTURE", testName = "Moisture", measuredValue = 12.5m, uom = "%", result = "Pass", lowerLimit = 0m, upperLimit = 15m, method = "AOAC", evidenceReference = "coa://qc-http" } }
         });
         inspectionResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var inspectionJson = await ReadJson(inspectionResponse);
+        inspectionJson.GetProperty("specificationReference").GetString().Should().Be("SPEC-FG-001");
+        inspectionJson.GetProperty("results")[0].GetProperty("testCode").GetString().Should().Be("MOISTURE");
         await context.Entry(await context.Lots.SingleAsync(x => x.Id == outputLotId)).ReloadAsync();
         (await context.Lots.SingleAsync(x => x.Id == outputLotId)).Disposition.Should().Be("Released");
         (await context.QualityInspections.CountAsync(x => x.LotId == outputLotId && x.Status == "Pending")).Should().Be(0);
@@ -420,6 +548,83 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Maintenance_plan_generates_due_work_order_and_rolls_forward()
+    {
+        var machine = await client.PostAsJsonAsync("/api/v1/manufacturing/machines", new { tenantKey = "http-integration-tenant", code = "M-PLAN", name = "Planned maintenance machine", status = "Available", active = true });
+        machine.StatusCode.Should().Be(HttpStatusCode.Created);
+        var machineId = (await ReadJson(machine)).GetProperty("id").GetGuid();
+        var dueAt = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var plan = await client.PostAsJsonAsync($"/api/v1/manufacturing/machines/{machineId}/maintenance-plans", new { machineId, planCode = "MP-HTTP-30D", maintenanceType = "Preventive", frequencyDays = 30, nextDueAt = dueAt, checklist = "Inspect belts", assignedTo = "maintenance" });
+        plan.StatusCode.Should().Be(HttpStatusCode.Created);
+        var generated = await client.PostAsJsonAsync("/api/v1/manufacturing/maintenance-work-orders/generate", new { asOf = DateTimeOffset.UtcNow });
+        generated.StatusCode.Should().Be(HttpStatusCode.OK);
+        var orders = await ReadJson(generated);
+        orders.EnumerateArray().Should().Contain(x => x.GetProperty("machineId").GetGuid() == machineId && x.GetProperty("notes").GetString() == "Inspect belts");
+        var listed = await client.GetAsync($"/api/v1/manufacturing/maintenance-plans?machineId={machineId}&active=true");
+        var nextDue = (await ReadJson(listed)).EnumerateArray().Single().GetProperty("nextDueAt").GetDateTimeOffset();
+        nextDue.Should().BeAfter(dueAt);
+    }
+
+    [Fact]
+    public async Task Machine_calibration_is_tenant_scoped_and_idempotently_unique_by_certificate()
+    {
+        var machine = await client.PostAsJsonAsync("/api/v1/manufacturing/machines", new
+        {
+            tenantKey = "http-integration-tenant", code = "M-CALIBRATION", name = "Calibration test machine", status = "Available", active = true
+        });
+        machine.StatusCode.Should().Be(HttpStatusCode.Created);
+        var machineId = (await ReadJson(machine)).GetProperty("id").GetGuid();
+        var calibratedAt = DateTimeOffset.UtcNow.AddDays(-1);
+        var nextDueAt = DateTimeOffset.UtcNow.AddDays(364);
+        var request = new { calibrationType = "Temperature", certificateNumber = "CAL-HTTP-001", calibratedAt, nextDueAt, result = "Pass", provider = "Metrology lab", evidenceReference = "cert://http/001", createdBy = "qa" };
+
+        var created = await client.PostAsJsonAsync($"/api/v1/manufacturing/machines/{machineId}/calibrations", request);
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        (await ReadJson(created)).GetProperty("result").GetString().Should().Be("Pass");
+
+        var duplicate = await client.PostAsJsonAsync($"/api/v1/manufacturing/machines/{machineId}/calibrations", request);
+        duplicate.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        var listed = await client.GetAsync($"/api/v1/manufacturing/machines/{machineId}/calibrations");
+        listed.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadJson(listed)).GetArrayLength().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Inspection_plan_version_follows_controlled_lifecycle()
+    {
+        var created = await client.PostAsJsonAsync("/api/v1/manufacturing/inspection-plan-versions", new
+        {
+            tenantKey = "http-integration-tenant", planCode = "IP-HTTP", productSku = "FG-PLAN", version = 1,
+            samplingMethod = "Per lot", samplingFrequency = "Every lot", acceptanceCriteria = "Moisture <= 12%", createdBy = "qa"
+        });
+        created.StatusCode.Should().Be(HttpStatusCode.Created);
+        var planId = (await ReadJson(created)).GetProperty("id").GetGuid();
+        var submitted = await client.PostAsJsonAsync($"/api/v1/manufacturing/inspection-plan-versions/{planId}/status?status=Submitted", new { actor = "qa" });
+        submitted.StatusCode.Should().Be(HttpStatusCode.OK);
+        var approved = await client.PostAsJsonAsync($"/api/v1/manufacturing/inspection-plan-versions/{planId}/status?status=Approved", new { actor = "qa", effectiveFrom = DateTimeOffset.UtcNow.AddMinutes(-1) });
+        approved.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadJson(approved)).GetProperty("status").GetString().Should().Be("Approved");
+        var listed = await client.GetAsync("/api/v1/manufacturing/inspection-plan-versions?productSku=FG-PLAN&status=Approved");
+        listed.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadJson(listed)).GetArrayLength().Should().Be(1);
+
+        var lot = await client.PostAsJsonAsync("/api/v1/manufacturing/lots", new { tenantKey = "http-integration-tenant", sku = "FG-PLAN", quantity = 10m, uom = "kg", disposition = "Quarantined" });
+        lot.StatusCode.Should().Be(HttpStatusCode.Created);
+        var lotId = (await ReadJson(lot)).GetProperty("id").GetGuid();
+        var inspection = await client.PostAsJsonAsync("/api/v1/manufacturing/quality-inspections", new { lotId, tenantKey = "http-integration-tenant", status = "Pass", moisturePercent = 10m, inspector = "qa", inspectionPlanVersionId = planId });
+        inspection.StatusCode.Should().Be(HttpStatusCode.Created);
+        var inspectionJson = await ReadJson(inspection);
+        inspectionJson.GetProperty("inspectionPlanVersionId").GetGuid().Should().Be(planId);
+        var sample = await client.PostAsJsonAsync("/api/v1/manufacturing/quality-samples", new { inspectionId = inspectionJson.GetProperty("id").GetGuid(), sampleCode = "SAMPLE-001", collectedBy = "qa", location = "QA lab" });
+        sample.StatusCode.Should().Be(HttpStatusCode.Created);
+        var sampleId = (await ReadJson(sample)).GetProperty("id").GetGuid();
+        var disposition = await client.PostAsJsonAsync($"/api/v1/manufacturing/quality-samples/{sampleId}/disposition", new { disposition = "Accepted", actor = "qa", reason = "All tests passed" });
+        disposition.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await ReadJson(disposition)).GetProperty("disposition").GetString().Should().Be("Accepted");
+    }
+
+    [Fact]
     public async Task Material_and_product_master_data_requires_valid_uom()
     {
         var uom = await client.PostAsJsonAsync("/api/v1/manufacturing/uoms", new { code = "KG", name = "Kilogram", dimension = "mass", active = true });
@@ -543,6 +748,11 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         supplier.StatusCode.Should().Be(HttpStatusCode.Created);
         var supplierId = (await ReadJson(supplier)).GetProperty("id").GetGuid();
 
+        var supplierPendingApproval = await client.PostAsJsonAsync($"/api/v1/manufacturing/suppliers/{supplierId}/approval", new { status = "PendingApproval" });
+        supplierPendingApproval.StatusCode.Should().Be(HttpStatusCode.OK);
+        var supplierApproved = await client.PostAsJsonAsync($"/api/v1/manufacturing/suppliers/{supplierId}/approval", new { status = "Approved" });
+        supplierApproved.StatusCode.Should().Be(HttpStatusCode.OK);
+
         var updatedSupplier = await client.PatchAsJsonAsync($"/api/v1/manufacturing/suppliers/{supplierId}", new
         {
             code = "SUP-RECEIPT-UPDATED", name = "Receipt supplier updated", active = true
@@ -565,7 +775,12 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         {
             purchaseOrderId, purchaseOrderLineId, materialSku = "RM-RECEIPT", receiptNumber = "GRN-RECEIPT",
             supplierLotCode = "SUPLOT-RECEIPT", facilityId = "FAC-01", quantity = 10m,
-            expiryDate = "2027-08-25", receivedAt = DateTimeOffset.UtcNow
+            expiryDate = "2027-08-25", receivedAt = DateTimeOffset.UtcNow,
+            traceabilityLotCode = "LOT-HTTP-RECEIPT-001", originCountryCode = "VN", manufacturedOn = "2026-08-20",
+            storageLocationCode = "A-01-01", deliveryNoteNumber = "DN-HTTP-001", carrierName = "Nacoms Logistics",
+            vehicleReference = "51D-12345", temperatureOnReceiptC = 8.5m,
+            certificateOfAnalysisReference = "coa://http/receipt-001", receivedBy = "receiving-operator",
+            acceptedQuantity = 10m, rejectedQuantity = 0m
         });
         receipt.StatusCode.Should().Be(HttpStatusCode.Created);
         var receiptJson = await ReadJson(receipt);
@@ -573,6 +788,9 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
         receiptJson.GetProperty("quantity").GetDecimal().Should().Be(10m);
         receiptJson.GetProperty("lotId").GetGuid().Should().NotBe(Guid.Empty);
         receiptJson.GetProperty("disposition").GetString().Should().Be("Quarantined");
+        receiptJson.GetProperty("lotCode").GetString().Should().Be("LOT-HTTP-RECEIPT-001");
+        receiptJson.GetProperty("certificateOfAnalysisReference").GetString().Should().Be("coa://http/receipt-001");
+        receiptJson.GetProperty("acceptedQuantity").GetDecimal().Should().Be(10m);
 
         var receipts = await client.GetAsync($"/api/v1/manufacturing/inbound-receipts?purchaseOrderId={purchaseOrderId}");
         receipts.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -602,6 +820,8 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
     {
         var supplier = await client.PostAsJsonAsync("/api/v1/manufacturing/suppliers", new { tenantKey = "http-integration-tenant", code = "SUP-BATCH", name = "Batch supplier", active = true });
         var supplierId = (await ReadJson(supplier)).GetProperty("id").GetGuid();
+        (await client.PostAsJsonAsync($"/api/v1/manufacturing/suppliers/{supplierId}/approval", new { status = "PendingApproval" })).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.PostAsJsonAsync($"/api/v1/manufacturing/suppliers/{supplierId}/approval", new { status = "Approved" })).StatusCode.Should().Be(HttpStatusCode.OK);
         var order = await client.PostAsJsonAsync("/api/v1/manufacturing/purchase-orders", new
         {
             tenantKey = "http-integration-tenant", orderNumber = "PO-BATCH", supplierId, status = "Approved", currency = "VND",
@@ -729,6 +949,9 @@ public sealed class ManufacturingHttpContractTests : IAsyncLifetime
                 new Claim("portal_class", "operator"),
                 new Claim("permissions", HisHopePermissions.Manufacturing.ProductionExecute),
                 new Claim("permissions", HisHopePermissions.Manufacturing.QualityInspect),
+                new Claim("permissions", HisHopePermissions.Manufacturing.QualityApprove),
+                new Claim("permissions", HisHopePermissions.Manufacturing.RecipeApprove),
+                new Claim("permissions", HisHopePermissions.Manufacturing.SpecificationApprove),
                 new Claim("permissions", HisHopePermissions.Manufacturing.MaintenanceComplete)
             };
             var identity = new ClaimsIdentity(claims, TestScheme);

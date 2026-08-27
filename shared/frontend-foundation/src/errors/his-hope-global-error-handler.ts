@@ -15,7 +15,6 @@ export class HisHopeGlobalErrorHandler implements ErrorHandler {
 
   handleError(error: unknown): void {
     const message = this.describe(error);
-    // eslint-disable-next-line no-console -- last resort visibility when no reporter is configured
     console.error("[His.Hope] Unhandled error:", error);
     this.errorReporting.report({
       message,

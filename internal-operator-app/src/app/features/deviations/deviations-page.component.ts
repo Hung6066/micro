@@ -7,6 +7,7 @@ import { HisHopeApiErrorMessageService as ApiErrorMessageService, HisHopeI18nSer
 import { HisHopeManufacturingDeviationDto, HisHopeProductionBatchDto } from "@his-hope/frontend-foundation/contracts";
 import { ManufacturingApiService } from "../../core/services/manufacturing-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
+import { portalEnumLabel } from "../../core/utils/portal-label.util";
 
 @Component({
   standalone: true,
@@ -24,7 +25,7 @@ import { TenantContextService } from "../../core/services/tenant-context.service
             <label class="wide">{{ 'customerPortal.productionBatch' | hhTranslate: 'Production batch' }}
               <select name="batchId" [(ngModel)]="draft.batchId" required>
                 <option value="">{{ 'customerPortal.selectProductionBatch' | hhTranslate: 'Select production batch' }}</option>
-                @for (batch of batches; track batch.id) { <option [value]="batch.id">{{ batch.batchNumber }} · {{ batch.plannedQuantity | number:'1.0-2' }} · {{ batch.status }}</option> }
+                @for (batch of batches; track batch.id) { <option [value]="batch.id">{{ batch.batchNumber }} · {{ batch.plannedQuantity | number:'1.0-2' }} · {{ batchStatusLabel(batch.status) }}</option> }
               </select>
             </label>
             <label>{{ 'customerPortal.deviationType' | hhTranslate: 'Type' }}<input name="type" [(ngModel)]="draft.type" required /></label>
@@ -37,7 +38,7 @@ import { TenantContextService } from "../../core/services/tenant-context.service
         </section>
         <section class="section deviation-grid">
           @for (deviation of deviations; track deviation.id) {
-            <article class="card"><header><div><strong>{{ deviation.type }}</strong><p class="meta">{{ batchLabel(deviation.productionBatchId) }}</p></div><span class="status" [class.approved]="deviation.status === 'Approved'">{{ deviation.status }}</span></header><p>{{ deviation.description }}</p><p class="meta">{{ deviation.impact }} · {{ deviation.requestedBy }} · {{ deviation.createdAt | date: 'medium' }}</p><footer><div class="actions">@if (deviation.status === 'Requested') { <hh-action-button kind="primary" icon="check" [label]="'customerPortal.approveDeviation' | hhTranslate: 'Approve'" [disabled]="saving" (pressed)="change(deviation, 'approve')" /><hh-action-button kind="secondary" icon="close" [label]="'customerPortal.rejectDeviation' | hhTranslate: 'Reject'" [disabled]="saving" (pressed)="change(deviation, 'reject')" /> } @if (deviation.status === 'Approved') { <hh-action-button kind="secondary" icon="done_all" [label]="'customerPortal.closeDeviation' | hhTranslate: 'Close'" [disabled]="saving" (pressed)="change(deviation, 'close')" /> }</div></footer></article>
+            <article class="card"><header><div><strong>{{ deviation.type }}</strong><p class="meta">{{ batchLabel(deviation.productionBatchId) }}</p></div><span class="status" [class.approved]="deviation.status === 'Approved'">{{ deviationStatusLabel(deviation.status) }}</span></header><p>{{ deviation.description }}</p><p class="meta">{{ deviation.impact }} · {{ deviation.requestedBy }} · {{ deviation.createdAt | date: 'medium' }}</p><footer><div class="actions">@if (deviation.status === 'Requested') { <hh-action-button kind="primary" icon="check" [label]="'customerPortal.approveDeviation' | hhTranslate: 'Approve'" [disabled]="saving" (pressed)="change(deviation, 'approve')" /><hh-action-button kind="secondary" icon="close" [label]="'customerPortal.rejectDeviation' | hhTranslate: 'Reject'" [disabled]="saving" (pressed)="change(deviation, 'reject')" /> } @if (deviation.status === 'Approved') { <hh-action-button kind="secondary" icon="done_all" [label]="'customerPortal.closeDeviation' | hhTranslate: 'Close'" [disabled]="saving" (pressed)="change(deviation, 'close')" /> }</div></footer></article>
           } @empty { <p class="empty">{{ 'customerPortal.noDeviations' | hhTranslate: 'No deviations for the selected tenant.' }}</p> }
         </section>
       }
@@ -55,7 +56,9 @@ export class DeviationsPageComponent implements OnInit, AfterViewInit {
   deviations: HisHopeManufacturingDeviationDto[] = []; batches: HisHopeProductionBatchDto[] = []; loading = true; saving = false; error = ""; actionError = ""; tenantLabel: string | null = null; actor = "operator";
   draft = { batchId: "", type: "Quality", description: "", impact: "" , requestedBy: "operator" };
   get pageSubtitle(): string { this.i18n.locale(); return this.i18n.t("customerPortal.tenantScope", "Tenant: {{tenant}}", { tenant: this.tenantLabel ?? "—" }); }
-  batchLabel(batchId: string): string { const batch = this.batches.find((item) => item.id === batchId); return batch ? `Batch ${batch.batchNumber} · ${batch.status}` : "Batch"; }
+  batchLabel(batchId: string): string { const batch = this.batches.find((item) => item.id === batchId); return batch ? `Batch ${batch.batchNumber} · ${this.batchStatusLabel(batch.status)}` : "Batch"; }
+  batchStatusLabel(status: string): string { return portalEnumLabel(this.i18n, "productionBatchStatus", status); }
+  deviationStatusLabel(status: string): string { return portalEnumLabel(this.i18n, "deviationStatus", status); }
   ngOnInit(): void { this.tenantContext.activeTenantLabel$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((label) => { this.tenantLabel = label; this.cdr.markForCheck(); }); this.tenantContext.activeTenantKey$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load()); }
   load(): void { this.loading = true; this.error = ""; this.api.getProductionBatches().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: (batches) => { this.batches = batches ?? []; this.api.getDeviations().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: (items) => { this.deviations = items ?? []; this.loading = false; this.cdr.markForCheck(); }, error: (error) => { this.error = this.errors.message(error, "customerPortal.deviationsLoadFailed"); this.loading = false; this.cdr.markForCheck(); } }); }, error: (error) => { this.error = this.errors.message(error, "customerPortal.batchesLoadFailed"); this.loading = false; this.cdr.markForCheck(); } }); }
   create(): void { if (!this.draft.batchId.trim() || !this.draft.description.trim() || !this.draft.impact.trim() || !this.draft.requestedBy.trim()) { this.actionError = this.i18n.t("customerPortal.deviationFormInvalid", "Batch, type, description, impact and requester are required."); return; } this.saving = true; this.actionError = ""; this.api.createDeviation(this.draft.batchId.trim(), { type: this.draft.type, description: this.draft.description, impact: this.draft.impact, requestedBy: this.draft.requestedBy }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.draft = { batchId: "", type: "Quality", description: "", impact: "", requestedBy: this.actor }; this.load(); this.saving = false; }, error: (error) => { this.actionError = this.errors.message(error, "customerPortal.deviationSaveFailed"); this.saving = false; this.cdr.markForCheck(); } }); }

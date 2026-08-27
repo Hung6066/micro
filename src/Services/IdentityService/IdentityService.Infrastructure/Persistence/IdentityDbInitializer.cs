@@ -793,19 +793,31 @@ public static class IdentityDbInitializer
                         .Select(item => item.GetString()!)
                         .Where(value => !string.IsNullOrWhiteSpace(value))
                         .ToArray();
+                    var permissionsJson = JsonSerializer.Serialize(permissions);
 
-                    if (!await db.IamPermissionSets.AnyAsync(x => x.Key == setKey && x.ScopeId == environmentScope.Id, ct))
+                    var existingPermissionSet = await db.IamPermissionSets.FirstOrDefaultAsync(
+                        x => x.Key == setKey && x.ScopeId == environmentScope.Id,
+                        ct);
+                    if (existingPermissionSet is null)
                     {
                         db.IamPermissionSets.Add(new IamPermissionSet
                         {
                             Key = setKey,
                             DisplayName = setName,
                             ScopeId = environmentScope.Id,
-                            PermissionsJson = JsonSerializer.Serialize(permissions),
+                            PermissionsJson = permissionsJson,
                             LifecycleStatus = "published",
                             CreatedBy = actorId.ToString(),
                             PublishedAt = DateTime.UtcNow
                         });
+                    }
+                    else if (!string.Equals(existingPermissionSet.PermissionsJson, permissionsJson, StringComparison.Ordinal))
+                    {
+                        existingPermissionSet.DisplayName = setName;
+                        existingPermissionSet.PermissionsJson = permissionsJson;
+                        existingPermissionSet.Version++;
+                        existingPermissionSet.LifecycleStatus = "published";
+                        existingPermissionSet.PublishedAt = DateTime.UtcNow;
                     }
                 }
             }

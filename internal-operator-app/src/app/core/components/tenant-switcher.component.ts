@@ -24,6 +24,9 @@ import { TenantOption } from "../services/tenant-context.service";
       class="hh-tenant-switcher"
       (mouseenter)="open.set(true)"
       (mouseleave)="closeOnPointerLeave()"
+      (focusin)="open.set(true)"
+      (focusout)="closeOnPointerLeave()"
+      tabindex="-1"
     >
       <button
         #trigger
@@ -52,6 +55,7 @@ import { TenantOption } from "../services/tenant-context.service";
           role="listbox"
           [attr.aria-label]="tenantOptionsLabel()"
           (keydown)="onMenuKeydown($event)"
+          tabindex="0"
         >
           @for (tenant of tenants(); track tenant.key) {
             <button

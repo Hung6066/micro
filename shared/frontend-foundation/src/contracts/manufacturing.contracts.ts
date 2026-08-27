@@ -9,6 +9,7 @@ export interface HisHopeLotDto {
   disposition: string;
   bestBefore: string | null;
   createdAt: string;
+  updatedAt?: string | null;
 }
 
 export interface HisHopeManufacturingDashboardSummaryDto {
@@ -37,6 +38,8 @@ export interface HisHopeManufacturingProductionKpiDto {
   targetYieldPercent: number;
   yieldVariancePercent: number;
   asOf: string;
+  dataCompleteness?: string;
+  sourceEventTypes?: string[];
 }
 
 export interface HisHopeLotRelationDto {
@@ -51,6 +54,14 @@ export interface HisHopeGenealogyDto {
   lot: HisHopeLotDto;
   relations: HisHopeLotRelationDto[];
 }
+export interface HisHopeRecallImpactLotDto {
+  lotId: string; sku: string; lotCode: string; disposition: string; quantity: number; uom: string; relation: string; batchNumber: string | null;
+}
+export interface HisHopeRecallImpactDto {
+  rootLotId: string; tenantKey: string; impactedLotCount: number; impactedBatchCount: number; lots: HisHopeRecallImpactLotDto[]; asOf: string;
+}
+export interface HisHopeEpcisEventDto { eventId: string; eventType: string; occurredAt: string; content: string; }
+export interface HisHopeEpcisDocumentDto { id: string; specVersion: string; type: string; events: HisHopeEpcisEventDto[]; exportedAt: string; }
 
 export interface HisHopeFefoLotDto {
   lotId: string;
@@ -61,6 +72,31 @@ export interface HisHopeFefoLotDto {
   uom: string;
   bestBefore: string | null;
   createdAt: string;
+  lotCode: string;
+  lotType: string;
+  originCountryCode: string | null;
+  manufacturedOn: string | null;
+  receivedAt: string | null;
+  facilityCode: string | null;
+  storageLocationCode: string | null;
+  certificateOfAnalysisReference: string | null;
+  sourceLotCode: string | null;
+  qualityStatus: string;
+  createdBy: string | null;
+  updatedAt: string | null;
+}
+
+export interface HisHopeLotStatusHistoryDto {
+  id: string;
+  lotId: string;
+  tenantKey: string;
+  fromDisposition: string;
+  toDisposition: string;
+  actor: string;
+  reasonCode: string | null;
+  evidenceReference: string | null;
+  correlationId: string;
+  occurredAt: string;
 }
 
 export interface HisHopeInventoryTransactionDto {
@@ -117,6 +153,56 @@ export interface HisHopeQualityInspectionDto {
   inspector: string;
   notes: string | null;
   inspectedAt: string;
+  results: HisHopeQualityTestResultDto[] | null;
+  specificationReference: string | null;
+}
+
+export interface HisHopeQualityTestResultDto {
+  id: string;
+  testCode: string;
+  testName: string;
+  measuredValue: number;
+  uom: string;
+  result: string;
+  lowerLimit: number | null;
+  upperLimit: number | null;
+  method: string | null;
+  evidenceReference: string | null;
+}
+
+export interface HisHopeQualitySampleDto {
+  id: string;
+  inspectionId: string;
+  lotId: string;
+  tenantKey: string;
+  sampleCode: string;
+  collectedBy: string;
+  collectedAt: string;
+  disposition: string;
+  dispositionReason?: string | null;
+  disposedBy?: string | null;
+  disposedAt?: string | null;
+  location?: string | null;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface HisHopeInspectionPlanVersionDto {
+  id: string;
+  tenantKey: string;
+  planCode: string;
+  productSku: string;
+  version: number;
+  samplingMethod: string;
+  samplingFrequency: string;
+  acceptanceCriteria: string;
+  status: string;
+  effectiveFrom?: string | null;
+  effectiveTo?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
 }
 
 export interface HisHopeManufacturingMachineHealthDto {
@@ -407,6 +493,53 @@ export interface HisHopeProductionBatchDto {
   inputs?: HisHopeProductionInputDto[];
 }
 
+export interface HisHopeMaintenancePlanDto {
+  id: string;
+  machineId: string;
+  tenantKey: string;
+  planCode: string;
+  maintenanceType: string;
+  frequencyDays: number;
+  nextDueAt: string;
+  checklist?: string | null;
+  assignedTo?: string | null;
+  active: boolean;
+  lastGeneratedAt?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+}
+
+export interface HisHopeMachineCalibrationDto {
+  id: string;
+  machineId: string;
+  tenantKey: string;
+  calibrationType: string;
+  certificateNumber: string;
+  calibratedAt: string;
+  nextDueAt: string;
+  result: string;
+  provider?: string | null;
+  evidenceReference?: string | null;
+  notes?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+}
+
+export interface HisHopeProductionBatchCostDto {
+  id: string;
+  productionBatchId: string;
+  tenantKey: string;
+  materialCost: number;
+  laborCost: number;
+  overheadCost: number;
+  lossCost: number;
+  totalCost: number;
+  costPerOutputUnit: number;
+  currency: string;
+  calculatedAt: string;
+  calculatedBy: string | null;
+}
+
 export interface HisHopeOperationExecutionDto {
   id: string;
   productionBatchId: string;
@@ -447,6 +580,49 @@ export interface HisHopeSupplierDto {
   name: string;
   active: boolean;
   createdAt: string;
+  legalName: string;
+  taxIdentificationNumber: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  countryCode: string | null;
+  address: string | null;
+  riskLevel: string;
+  approvalStatus: string;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  lastReviewedAt: string | null;
+  createdBy: string;
+  updatedAt: string | null;
+}
+
+export interface HisHopeSupplierCertificateDto {
+  id: string;
+  tenantKey: string;
+  supplierId: string;
+  certificateType: string;
+  certificateNumber: string;
+  issuer: string;
+  issuedAt: string;
+  expiresAt: string;
+  status: string;
+  evidenceReference?: string | null;
+  createdAt: string;
+  createdBy: string;
+}
+
+export interface HisHopeSupplierMaterialApprovalDto {
+  id: string;
+  tenantKey: string;
+  supplierId: string;
+  materialSku: string;
+  approvedUom: string;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  status: string;
+  notes?: string | null;
+  createdAt: string;
+  createdBy: string;
 }
 
 export interface HisHopePurchaseOrderLineDto {
@@ -492,6 +668,16 @@ export interface HisHopeInboundReceiptDto {
   receivedAt: string;
   disposition: string;
   expiryDate: string | null;
+  lotCode: string;
+  storageLocationCode: string | null;
+  deliveryNoteNumber: string | null;
+  carrierName: string | null;
+  vehicleReference: string | null;
+  temperatureOnReceiptC: number | null;
+  certificateOfAnalysisReference: string | null;
+  receivedBy: string | null;
+  acceptedQuantity: number;
+  rejectedQuantity: number;
 }
 
 export interface HisHopePurchaseOrderDto {

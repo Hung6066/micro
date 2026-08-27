@@ -39,6 +39,38 @@ public sealed class ProductionTraceabilityTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Lot_traceability_profile_and_disposition_history_are_persisted()
+    {
+        const string tenant = "tenant-enterprise-lot";
+        var store = new PostgresManufacturingStore(dbFactory);
+        var lot = store.CreateLot(new CreateLotRequest(
+            tenant, "RM-MANGO", 120, "kg", "Quarantined", DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
+            LotCode: "LOT-ENTERPRISE-001", LotType: "RawMaterial", OriginCountryCode: "VN",
+            ManufacturedOn: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-2)), FacilityCode: "FAC-HCM",
+            StorageLocationCode: "A-01-01", CertificateOfAnalysisReference: "coa://enterprise/001",
+            SourceLotCode: "FARM-MEKONG-001", RecordedBy: "receiving-operator"));
+
+        lot.LotCode.Should().Be("LOT-ENTERPRISE-001");
+        lot.LotType.Should().Be("RawMaterial");
+        lot.QualityStatus.Should().Be("Pending");
+
+        var released = store.SetLotDisposition(lot.Id, "Released", tenant, "qa-approver", "incoming_qc_pass", "coa://enterprise/001");
+        released.Error.Should().BeNull();
+
+        var history = store.GetLotStatusHistory(lot.Id, tenant, 10);
+        history.Should().ContainSingle();
+        history[0].FromDisposition.Should().Be("Quarantined");
+        history[0].ToDisposition.Should().Be("Released");
+        history[0].Actor.Should().Be("qa-approver");
+        history[0].ReasonCode.Should().Be("incoming_qc_pass");
+
+        await using var verify = await dbFactory.CreateDbContextAsync();
+        var persisted = await verify.Lots.SingleAsync(x => x.Id == lot.Id);
+        persisted.CertificateOfAnalysisReference.Should().Be("coa://enterprise/001");
+        persisted.QualityStatus.Should().Be("Passed");
+    }
+
+    [Fact]
     public async Task OeeReportsInsufficientDataInsteadOfInventingRate()
     {
         var oee = new PostgresManufacturingStore(dbFactory).GetOee("tenant-oee-empty", null);

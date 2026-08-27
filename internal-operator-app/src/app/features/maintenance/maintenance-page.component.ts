@@ -11,10 +11,11 @@ import {
   HisHopeTabsComponent,
 } from "@his-hope/frontend-foundation/ui";
 import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
-import { HisHopeMaintenanceWorkOrderDto, HisHopeMachineTelemetryDto, HisHopeManufacturingMachineDto, HisHopeManufacturingDowntimeDto } from "@his-hope/frontend-foundation/contracts";
+import { HisHopeMaintenanceWorkOrderDto, HisHopeMachineTelemetryDto, HisHopeManufacturingMachineDto, HisHopeManufacturingDowntimeDto, HisHopeMaintenancePlanDto, HisHopeMachineCalibrationDto } from "@his-hope/frontend-foundation/contracts";
 import { ManufacturingApiService } from "../../core/services/manufacturing-api.service";
 import { HisHopeApiErrorMessageService as ApiErrorMessageService } from "@his-hope/frontend-foundation/i18n";
 import { TenantContextService } from "../../core/services/tenant-context.service";
+import { portalEnumLabel } from "../../core/utils/portal-label.util";
 
 @Component({
   standalone: true,
@@ -23,7 +24,7 @@ import { TenantContextService } from "../../core/services/tenant-context.service
   template: `
     <hh-page-layout>
       <hh-page-header hhPageHeader [title]="'customerPortal.maintenanceTitle' | hhTranslate: 'Machine maintenance'" [subtitle]="pageSubtitle" />
-      <hh-tabs label="Maintenance sections"><button role="tab" type="button" [attr.aria-selected]="activeTab === 'work-orders'" [class.active]="activeTab === 'work-orders'" (click)="selectTab('work-orders')">{{ 'customerPortal.maintenanceQueue' | hhTranslate: 'Work orders' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'machines'" [class.active]="activeTab === 'machines'" (click)="selectTab('machines')">{{ 'customerPortal.machine' | hhTranslate: 'Machines' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'downtime'" [class.active]="activeTab === 'downtime'" (click)="selectTab('downtime')">{{ 'customerPortal.downtimeControl' | hhTranslate: 'Downtime control' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'history'" [class.active]="activeTab === 'history'" (click)="selectTab('history')">{{ 'customerPortal.maintenance' | hhTranslate: 'Maintenance history' }}</button></hh-tabs>
+      <hh-tabs label="Maintenance sections"><button role="tab" type="button" [attr.aria-selected]="activeTab === 'work-orders'" [class.active]="activeTab === 'work-orders'" (click)="selectTab('work-orders')">{{ 'customerPortal.maintenanceQueue' | hhTranslate: 'Work orders' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'machines'" [class.active]="activeTab === 'machines'" (click)="selectTab('machines')">{{ 'customerPortal.machine' | hhTranslate: 'Machines' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'plans'" [class.active]="activeTab === 'plans'" (click)="selectTab('plans')">{{ 'customerPortal.maintenancePlans' | hhTranslate: 'Plans & calibration' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'downtime'" [class.active]="activeTab === 'downtime'" (click)="selectTab('downtime')">{{ 'customerPortal.downtimeControl' | hhTranslate: 'Downtime control' }}</button><button role="tab" type="button" [attr.aria-selected]="activeTab === 'history'" [class.active]="activeTab === 'history'" (click)="selectTab('history')">{{ 'customerPortal.maintenance' | hhTranslate: 'Maintenance history' }}</button></hh-tabs>
       @if (loading) {
         <hh-state kind="loading" [message]="'customerPortal.loadingMaintenance' | hhTranslate: 'Loading maintenance…'" />
       } @else if (error) {
@@ -82,7 +83,7 @@ import { TenantContextService } from "../../core/services/tenant-context.service
                       <p class="meta">{{ machine.name }}</p>
                     </div>
                     <span class="status" [class.fault]="latestTelemetry(machine.id)?.state === 'Fault' || latestTelemetry(machine.id)?.state === 'UnplannedDown'">
-                      {{ latestTelemetry(machine.id)?.state || machine.status }}
+                      {{ latestTelemetry(machine.id)?.state || maintenanceStatusLabel(machine.status) }}
                     </span>
                   </header>
                   @if (machineEdit.id === machine.id) {
@@ -109,6 +110,15 @@ import { TenantContextService } from "../../core/services/tenant-context.service
           }
         </section>
 
+        <section class="section" [class.tab-panel--hidden]="activeTab !== 'plans'">
+          <div class="section-heading"><div><p class="eyebrow">{{ 'customerPortal.maintenancePlans' | hhTranslate: 'Preventive maintenance plans' }}</p><h2>{{ 'customerPortal.planAndCalibration' | hhTranslate: 'Plans & calibration' }}</h2></div></div>
+          <form class="work-order-form" (ngSubmit)="createPlan()"><label>{{ 'customerPortal.machine' | hhTranslate: 'Machine' }}<select name="planMachine" [(ngModel)]="planDraft.machineId" required><option value="">{{ 'customerPortal.selectMachine' | hhTranslate: 'Select machine' }}</option>@for (machine of machines; track machine.id) { <option [value]="machine.id">{{ machine.code }} · {{ machine.name }}</option> }</select></label><label>{{ 'customerPortal.planCode' | hhTranslate: 'Plan code' }}<input name="planCode" [(ngModel)]="planDraft.planCode" required /></label><label>{{ 'customerPortal.frequencyDays' | hhTranslate: 'Frequency (days)' }}<input name="frequencyDays" type="number" min="1" [(ngModel)]="planDraft.frequencyDays" required /></label><label>{{ 'customerPortal.nextDueAt' | hhTranslate: 'Next due' }}<input name="planNextDue" type="datetime-local" [(ngModel)]="planDraft.nextDueAt" required /></label><label>{{ 'customerPortal.checklist' | hhTranslate: 'Checklist' }}<input name="planChecklist" [(ngModel)]="planDraft.checklist" /></label><hh-action-button kind="primary" icon="add_task" type="submit" [label]="'customerPortal.createPlan' | hhTranslate: 'Create plan'" [disabled]="planBusy" /></form>
+          @if (plans.length) { <div class="cards">@for (plan of plans; track plan.id) { <article class="card"><header><strong>{{ plan.planCode }}</strong><span class="status">{{ plan.active ? ('common.active' | hhTranslate: 'Active') : ('common.inactive' | hhTranslate: 'Inactive') }}</span></header><p class="meta">{{ machineLabel(plan.machineId) }} · {{ plan.maintenanceType }} · {{ plan.frequencyDays }} {{ 'customerPortal.days' | hhTranslate: 'days' }}</p><p class="meta">{{ 'customerPortal.nextDueAt' | hhTranslate: 'Next due' }}: {{ plan.nextDueAt | date:'medium' }}</p></article> }</div> } @else { <p class="empty">{{ 'customerPortal.noMaintenancePlans' | hhTranslate: 'No maintenance plans.' }}</p> }
+          <div class="section-heading"><h2>{{ 'customerPortal.calibration' | hhTranslate: 'Machine calibration' }}</h2></div>
+          <form class="work-order-form" (ngSubmit)="createCalibration()"><label>{{ 'customerPortal.machine' | hhTranslate: 'Machine' }}<select name="calMachine" [(ngModel)]="calibrationDraft.machineId" required><option value="">{{ 'customerPortal.selectMachine' | hhTranslate: 'Select machine' }}</option>@for (machine of machines; track machine.id) { <option [value]="machine.id">{{ machine.code }} · {{ machine.name }}</option> }</select></label><label>{{ 'customerPortal.calibrationType' | hhTranslate: 'Calibration type' }}<input name="calType" [(ngModel)]="calibrationDraft.calibrationType" required /></label><label>{{ 'customerPortal.certificateNumber' | hhTranslate: 'Certificate number' }}<input name="calCert" [(ngModel)]="calibrationDraft.certificateNumber" required /></label><label>{{ 'customerPortal.nextDueAt' | hhTranslate: 'Next due' }}<input name="calNextDue" type="datetime-local" [(ngModel)]="calibrationDraft.nextDueAt" required /></label><label>{{ 'customerPortal.provider' | hhTranslate: 'Provider' }}<input name="calProvider" [(ngModel)]="calibrationDraft.provider" /></label><hh-action-button kind="secondary" icon="verified" type="submit" [label]="'customerPortal.recordCalibration' | hhTranslate: 'Record calibration'" [disabled]="calibrationBusy" /></form>
+          @if (calibrations.length) { <div class="cards">@for (calibration of calibrations; track calibration.id) { <article class="card"><header><strong>{{ calibration.calibrationType }}</strong><span class="status">{{ calibrationResultLabel(calibration.result) }}</span></header><p class="meta">{{ calibration.certificateNumber }} · {{ calibration.provider || '—' }}</p><p class="meta">{{ 'customerPortal.nextDueAt' | hhTranslate: 'Next due' }}: {{ calibration.nextDueAt | date:'medium' }}</p></article> }</div> } @else { <p class="empty">{{ 'customerPortal.noCalibrations' | hhTranslate: 'No calibration records.' }}</p> }
+        </section>
+
         <section class="section form-section" [class.tab-panel--hidden]="activeTab !== 'downtime'">
           <div class="section-heading"><div><p class="eyebrow">{{ 'customerPortal.downtimeControl' | hhTranslate: 'Downtime control' }}</p><h2>{{ 'customerPortal.recordDowntime' | hhTranslate: 'Record machine downtime' }}</h2></div><span class="count">{{ openDowntimes.length }}</span></div>
           <form class="work-order-form" (ngSubmit)="openDowntime()">
@@ -118,7 +128,7 @@ import { TenantContextService } from "../../core/services/tenant-context.service
             <label>{{ 'customerPortal.maintenanceNotes' | hhTranslate: 'Notes' }}<input name="downtimeNotes" [(ngModel)]="downtimeDraft.notes" /></label>
             <hh-action-button kind="primary" icon="pause_circle" type="submit" [label]="'customerPortal.recordDowntime' | hhTranslate: 'Record downtime'" [disabled]="savingDowntime" />
           </form>
-          @if (openDowntimes.length) { <div class="cards">@for (downtime of openDowntimes; track downtime.id) { <article class="card"><header><div><strong>{{ machineLabel(downtime.machineId) }}</strong><p class="meta">{{ downtime.reason }} · {{ downtime.startedAt | date:'medium' }}</p></div><span class="status fault">{{ downtime.status }}</span></header><p class="meta">{{ downtime.notes }}</p><hh-action-button kind="secondary" icon="play_circle" [label]="'customerPortal.resolveDowntime' | hhTranslate: 'Resolve downtime'" [disabled]="savingDowntime" (pressed)="resolveDowntime(downtime)" /></article> }</div> } @else { <p class="empty">{{ 'customerPortal.noOpenDowntime' | hhTranslate: 'No open downtime.' }}</p> }
+          @if (openDowntimes.length) { <div class="cards">@for (downtime of openDowntimes; track downtime.id) { <article class="card"><header><div><strong>{{ machineLabel(downtime.machineId) }}</strong><p class="meta">{{ downtime.reason }} · {{ downtime.startedAt | date:'medium' }}</p></div><span class="status fault">{{ maintenanceStatusLabel(downtime.status) }}</span></header><p class="meta">{{ downtime.notes }}</p><hh-action-button kind="secondary" icon="play_circle" [label]="'customerPortal.resolveDowntime' | hhTranslate: 'Resolve downtime'" [disabled]="savingDowntime" (pressed)="resolveDowntime(downtime)" /></article> }</div> } @else { <p class="empty">{{ 'customerPortal.noOpenDowntime' | hhTranslate: 'No open downtime.' }}</p> }
         </section>
 
         <section class="section" [class.tab-panel--hidden]="activeTab !== 'work-orders' && activeTab !== 'history'">
@@ -140,7 +150,7 @@ import { TenantContextService } from "../../core/services/tenant-context.service
                       <strong>{{ machineLabel(workOrder.machineId) }}</strong>
                       <p class="meta">{{ workOrder.maintenanceType }} · {{ workOrder.assignedTo || ('customerPortal.unassigned' | hhTranslate: 'Unassigned') }}</p>
                     </div>
-                    <span class="status" [class.complete]="workOrder.status === 'Completed'">{{ workOrder.status }}</span>
+                    <span class="status" [class.complete]="workOrder.status === 'Completed'">{{ maintenanceStatusLabel(workOrder.status) }}</span>
                   </header>
                   <p class="due">{{ 'customerPortal.dueAtValue' | hhTranslate: 'Due {{date}}' : { date: (workOrder.dueAt | date: 'medium') || '' } }}</p>
                   @if (workOrder.notes) { <p class="meta">{{ workOrder.notes }}</p> }
@@ -216,6 +226,8 @@ export class MaintenancePageComponent implements OnInit {
   tenantLabel: string | null = null;
   machines: HisHopeManufacturingMachineDto[] = [];
   workOrders: HisHopeMaintenanceWorkOrderDto[] = [];
+  plans: HisHopeMaintenancePlanDto[] = [];
+  calibrations: HisHopeMachineCalibrationDto[] = [];
   downtimes: HisHopeManufacturingDowntimeDto[] = [];
   telemetryByMachine: Record<string, HisHopeMachineTelemetryDto[]> = {};
   showOpenOnly = false;
@@ -226,6 +238,10 @@ export class MaintenancePageComponent implements OnInit {
   machineEdit: { id: string; code: string; name: string; status: string; active: boolean } = { id: "", code: "", name: "", status: "", active: true };
   savingMachine = false;
   draft = { machineId: "", dueAt: new Date(Date.now() + 86400000).toISOString().slice(0, 16), assignedTo: "", notes: "" };
+  planBusy = false;
+  calibrationBusy = false;
+  planDraft = { machineId: "", planCode: "", maintenanceType: "Preventive", frequencyDays: 30, nextDueAt: new Date(Date.now() + 86400000).toISOString().slice(0, 16), checklist: "" };
+  calibrationDraft = { machineId: "", calibrationType: "Scale", certificateNumber: "", nextDueAt: new Date(Date.now() + 31536000000).toISOString().slice(0, 16), provider: "" };
 
   get pageSubtitle(): string { this.i18n.locale(); return this.i18n.t("customerPortal.tenantScope", "Tenant: {{tenant}}", { tenant: this.tenantLabel ?? this.i18n.t("customerPortal.tenantUnknown", "—") }); }
   get visibleWorkOrders(): HisHopeMaintenanceWorkOrderDto[] { return this.showOpenOnly ? this.workOrders.filter((x) => x.status === "Open") : this.workOrders; }
@@ -241,6 +257,8 @@ export class MaintenancePageComponent implements OnInit {
     forkJoin({ machines: this.api.getMachines(), workOrders: this.api.getMaintenanceWorkOrders(), downtimes: this.api.getMachineDowntimes() }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: ({ machines, workOrders, downtimes }) => {
         this.machines = machines ?? []; this.workOrders = workOrders ?? []; this.downtimes = downtimes ?? [];
+        this.api.getMaintenancePlans(undefined, true).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: (plans) => { this.plans = plans ?? []; this.cdr.markForCheck(); } });
+        this.api.getMachineCalibrations(this.machines[0].id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: (items) => { this.calibrations = items ?? []; this.cdr.markForCheck(); } });
         if (!this.machines.length) { this.loading = false; this.cdr.markForCheck(); return; }
         forkJoin(this.machines.map((machine) => this.api.getMachineTelemetry(machine.id, 5))).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
           next: (telemetry) => { this.telemetryByMachine = Object.fromEntries(this.machines.map((machine, index) => [machine.id, telemetry[index] ?? []])); this.loading = false; this.cdr.markForCheck(); },
@@ -252,6 +270,10 @@ export class MaintenancePageComponent implements OnInit {
   }
 
   machineLabel(machineId: string): string { const machine = this.machines.find((x) => x.id === machineId); return machine ? `${machine.code} · ${machine.name}` : machineId; }
+  maintenanceStatusLabel(status: string): string { return portalEnumLabel(this.i18n, "maintenanceStatus", status); }
+  calibrationResultLabel(result: string): string { return portalEnumLabel(this.i18n, "qualityTestResult", result); }
+  createPlan(): void { const draft = this.planDraft; if (!draft.machineId || !draft.planCode.trim() || draft.frequencyDays < 1) return; this.planBusy = true; this.api.createMaintenancePlan(draft.machineId, { planCode: draft.planCode.trim(), maintenanceType: draft.maintenanceType, frequencyDays: draft.frequencyDays, nextDueAt: new Date(draft.nextDueAt).toISOString(), checklist: draft.checklist.trim() || undefined, createdBy: "operator" }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: (plan) => { this.plans = [plan, ...this.plans]; this.planBusy = false; this.cdr.markForCheck(); }, error: (error) => { this.actionError = this.errors.message(error, "customerPortal.maintenanceLoadFailed"); this.planBusy = false; this.cdr.markForCheck(); } }); }
+  createCalibration(): void { const draft = this.calibrationDraft; if (!draft.machineId || !draft.calibrationType.trim() || !draft.certificateNumber.trim()) return; this.calibrationBusy = true; this.api.createMachineCalibration(draft.machineId, { calibrationType: draft.calibrationType.trim(), certificateNumber: draft.certificateNumber.trim(), calibratedAt: new Date().toISOString(), nextDueAt: new Date(draft.nextDueAt).toISOString(), provider: draft.provider.trim() || undefined, createdBy: "operator" }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: (calibration) => { this.calibrations = [calibration, ...this.calibrations]; this.calibrationBusy = false; this.cdr.markForCheck(); }, error: (error) => { this.actionError = this.errors.message(error, "customerPortal.maintenanceLoadFailed"); this.calibrationBusy = false; this.cdr.markForCheck(); } }); }
   machineTelemetry(machineId: string): HisHopeMachineTelemetryDto[] { return this.telemetryByMachine[machineId] ?? []; }
   latestTelemetry(machineId: string): HisHopeMachineTelemetryDto | undefined { return this.machineTelemetry(machineId)[0]; }
   editMachine(machine: HisHopeManufacturingMachineDto): void { this.machineEdit = { id: machine.id, code: machine.code, name: machine.name, status: machine.status, active: machine.active }; }

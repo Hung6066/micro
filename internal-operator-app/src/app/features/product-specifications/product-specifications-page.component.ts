@@ -7,6 +7,7 @@ import { HisHopeApiErrorMessageService as ApiErrorMessageService, HisHopeI18nSer
 import { HisHopeProductSpecificationDto } from "@his-hope/frontend-foundation/contracts";
 import { ManufacturingApiService } from "../../core/services/manufacturing-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
+import { portalEnumLabel } from "../../core/utils/portal-label.util";
 
 @Component({
   standalone: true,
@@ -33,7 +34,7 @@ import { TenantContextService } from "../../core/services/tenant-context.service
         <section class="section spec-grid">
           @for (spec of specifications; track spec.id) {
             <article class="card">
-              <header><div><strong>{{ spec.productSku }}</strong><p class="meta">{{ spec.packaging }} · {{ spec.shelfLifeDays }} {{ 'customerPortal.days' | hhTranslate: 'days' }}</p></div><span class="status" [class.approved]="spec.status === 'Approved'">{{ spec.status }}</span></header>
+              <header><div><strong>{{ spec.productSku }}</strong><p class="meta">{{ spec.packaging }} · {{ spec.shelfLifeDays }} {{ 'customerPortal.days' | hhTranslate: 'days' }}</p></div><span class="status" [class.approved]="spec.status === 'Approved'">{{ specificationStatusLabel(spec.status) }}</span></header>
               <dl><div><dt>{{ 'customerPortal.targetMoisture' | hhTranslate: 'Target moisture %' }}</dt><dd>{{ spec.targetMoisturePercent | number: '1.0-2' }}%</dd></div><div><dt>{{ 'customerPortal.qcSpec' | hhTranslate: 'QC specification' }}</dt><dd>{{ spec.qcSpec }}</dd></div></dl>
               <footer><span class="meta">{{ spec.createdAt | date: 'medium' }}</span><div class="actions">@if (spec.status === 'Draft') { <hh-action-button kind="primary" icon="verified" [label]="'customerPortal.approveSpecification' | hhTranslate: 'Approve'" [disabled]="saving" (pressed)="approve(spec)" /> } @if (spec.status === 'Approved') { <hh-action-button kind="secondary" icon="archive" [label]="'customerPortal.retireSpecification' | hhTranslate: 'Retire'" [disabled]="saving" (pressed)="retire(spec)" /> }</div></footer>
             </article>
@@ -57,6 +58,7 @@ export class ProductSpecificationsPageComponent implements OnInit, AfterViewInit
   specifications: HisHopeProductSpecificationDto[] = []; loading = true; saving = false; error = ""; actionError = ""; tenantLabel: string | null = null;
   draft = { productSku: "", targetMoisturePercent: 12, packaging: "", shelfLifeDays: 180, qcSpec: "" };
   get pageSubtitle(): string { this.i18n.locale(); return this.i18n.t("customerPortal.tenantScope", "Tenant: {{tenant}}", { tenant: this.tenantLabel ?? "—" }); }
+  specificationStatusLabel(status: string): string { return portalEnumLabel(this.i18n, "qualityInspectionStatus", status); }
   ngOnInit(): void { this.tenantContext.activeTenantLabel$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((label) => { this.tenantLabel = label; this.cdr.markForCheck(); }); this.tenantContext.activeTenantKey$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load()); }
   load(): void { this.loading = true; this.error = ""; this.api.getProductSpecifications().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: (items) => { this.specifications = items ?? []; this.loading = false; this.cdr.markForCheck(); }, error: (error) => { this.error = this.errors.message(error, "customerPortal.specificationsLoadFailed"); this.loading = false; this.cdr.markForCheck(); } }); }
   create(): void { const tenantKey = this.tenantContext.getActiveTenantKey(); if (!tenantKey || !this.draft.productSku.trim() || !this.draft.packaging.trim() || !this.draft.qcSpec.trim()) { this.actionError = this.i18n.t("customerPortal.specificationFormInvalid", "Tenant, SKU, packaging and QC specification are required."); return; } this.saving = true; this.actionError = ""; this.api.createProductSpecification({ ...this.draft, tenantKey }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({ next: () => { this.draft = { productSku: "", targetMoisturePercent: 12, packaging: "", shelfLifeDays: 180, qcSpec: "" }; this.load(); this.saving = false; }, error: (error) => { this.actionError = this.errors.message(error, "customerPortal.specificationSaveFailed"); this.saving = false; this.cdr.markForCheck(); } }); }

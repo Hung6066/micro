@@ -1,1 +1,51 @@
-<section class="maintenance-page"><p class="eyebrow">{{ "mobile.operatorMaintenanceEyebrow" | hhTranslate: "ASSET CARE" }}</p><h2>{{ "mobile.operatorMaintenanceTitle" | hhTranslate: "Complete maintenance" }}</h2><p>{{ "mobile.operatorMaintenanceDescription" | hhTranslate: "Complete assigned work orders with a checklist and field evidence, online or offline." }}</p><article><label>{{ "mobile.operatorMachineId" | hhTranslate: "Machine" }}<select [(ngModel)]="machineId"><option value="">{{ "mobile.operatorChooseMachine" | hhTranslate: "Choose a machine" }}</option>@for (machine of machines; track machine.id) { <option [value]="machine.id">{{ machine.code }} · {{ machine.name }}</option> }</select></label><label>{{ "mobile.operatorWorkOrderId" | hhTranslate: "Work order" }}<select [(ngModel)]="workOrderId"><option value="">{{ "mobile.operatorChooseWorkOrder" | hhTranslate: "Choose a work order" }}</option>@for (order of workOrders; track order.id) { <option [value]="order.id">{{ order.maintenanceType }} · {{ order.id.slice(0, 8) }}</option> }</select></label><label>{{ "mobile.operatorTechnician" | hhTranslate: "Technician" }}<input [(ngModel)]="technician" /></label><label><input type="checkbox" [(ngModel)]="checklistComplete" /> {{ "mobile.operatorIsolationChecklist" | hhTranslate: "Isolation checklist complete" }}</label><button type="button" [disabled]="!checklistComplete" (click)="completeWorkOrder()">{{ "mobile.operatorCompleteWorkOrder" | hhTranslate: "Complete work order" }}</button>@if (message) { <p role="status">{{ message }}</p> }</article></section>
+<section class="maintenance-page">
+  <p class="eyebrow">{{ "mobile.operatorMaintenanceEyebrow" | hhTranslate: "ASSET CARE" }}</p>
+  <h2>{{ "mobile.operatorMaintenanceTitle" | hhTranslate: "Complete maintenance" }}</h2>
+  <p>{{ "mobile.operatorMaintenanceDescription" | hhTranslate: "Complete assigned work orders with a checklist and field evidence, online or offline." }}</p>
+  @if (loadError) { <p class="load-error" role="alert">{{ loadError }}</p> }
+  <article>
+    @if (health; as snapshot) {
+      <aside class="health-card" aria-live="polite">
+        <h3>{{ "mobile.operatorMachineHealth" | hhTranslate: "Machine health" }}</h3>
+        <div class="health-grid">
+          <span><strong>{{ formatNumber(snapshot.availableMachineCount) }}</strong>{{ "mobile.operatorAvailableMachines" | hhTranslate: "Available" }}</span>
+          <span><strong>{{ formatNumber(snapshot.runningMachineCount) }}</strong>{{ "mobile.operatorRunningMachines" | hhTranslate: "Running" }}</span>
+          <span><strong>{{ formatNumber(snapshot.maintenanceMachineCount) }}</strong>{{ "mobile.operatorMaintenanceMachines" | hhTranslate: "In maintenance" }}</span>
+          <span><strong>{{ formatNumber(snapshot.overdueMaintenanceCount) }}</strong>{{ "mobile.operatorOverdueMaintenance" | hhTranslate: "Overdue maintenance" }}</span>
+        </div>
+      </aside>
+    }
+    <label>{{ "mobile.operatorMachineId" | hhTranslate: "Machine" }}<select [(ngModel)]="machineId" (ngModelChange)="loadCalibrations()"><option value="">{{ "mobile.operatorChooseMachine" | hhTranslate: "Choose a machine" }}</option>@for (machine of machines; track machine.id) { <option [value]="machine.id" [textContent]="machine.code + ' · ' + machine.name"></option> }</select></label>
+    @if (calibrations.length) {
+      <aside class="calibration-card" aria-live="polite">
+        <h3>{{ "mobile.operatorCalibration" | hhTranslate: "Latest calibration" }}</h3>
+        @for (calibration of calibrations; track calibration.id) {
+          <div class="calibration-row">
+            <strong>{{ calibrationTypeLabel(calibration.calibrationType) }} · {{ calibration.certificateNumber }}</strong>
+            <span>{{ calibrationResultLabel(calibration.result) }}</span>
+            <small>{{ "mobile.operatorCalibrationNextDue" | hhTranslate: "Next due" }}: {{ calibrationDueLabel(calibration.nextDueAt) }}</small>
+          </div>
+        }
+      </aside>
+    }
+    @if (telemetry.length) {
+      <aside class="telemetry-card" aria-live="polite">
+        <h3>{{ "mobile.operatorMachineTelemetry" | hhTranslate: "Latest machine telemetry" }}</h3>
+        @for (event of telemetry; track event.id) {
+          <div class="telemetry-row">
+            <strong>{{ event.state ? machineStateLabel(event.state) : event.source }}</strong>
+            @if (event.meterName && event.meterValue !== null && event.meterValue !== undefined) { <span>{{ event.meterName }}: {{ formatNumber(event.meterValue) }}</span> }
+            <small>{{ telemetryObservedLabel(event.observedAt) }}</small>
+          </div>
+        }
+      </aside>
+    }
+    @if (plans.length) { <aside class="plans-card" aria-live="polite"><h3>{{ "mobile.operatorMaintenancePlans" | hhTranslate: "Preventive maintenance plans" }}</h3>@for (plan of plans; track plan.id) { <div class="plan-row"><strong>{{ plan.planCode }} · {{ maintenanceTypeLabel(plan.maintenanceType) }}</strong><small>{{ "mobile.operatorMaintenanceNextDue" | hhTranslate: "Next due" }}: {{ calibrationDueLabel(plan.nextDueAt) }}</small></div> }</aside> }
+    <label>{{ "mobile.operatorWorkOrderId" | hhTranslate: "Work order" }}<select [(ngModel)]="workOrderId"><option value="">{{ "mobile.operatorChooseWorkOrder" | hhTranslate: "Choose a work order" }}</option>@for (order of workOrders; track order.id) { <option [value]="order.id" [textContent]="maintenanceStatusLabel(order.status) + ' · ' + maintenanceTypeLabel(order.maintenanceType || 'Other') + ' · ' + order.id.slice(0, 8)"></option> }</select></label>
+    <label>{{ "mobile.operatorTechnician" | hhTranslate: "Technician" }}<input [(ngModel)]="technician" /></label>
+    <label>{{ "mobile.operatorEvidenceReference" | hhTranslate: "Evidence reference" }}<input [(ngModel)]="evidence" placeholder="photo://work-order" /></label>
+    <label><input type="checkbox" [(ngModel)]="checklistComplete" /> {{ "mobile.operatorIsolationChecklist" | hhTranslate: "Isolation checklist complete" }}</label>
+    <button type="button" [disabled]="!checklistComplete" (click)="completeWorkOrder()">{{ "mobile.operatorCompleteWorkOrder" | hhTranslate: "Complete work order" }}</button>
+    @if (message) { <p role="status">{{ message }}</p> }
+  </article>
+</section>

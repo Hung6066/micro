@@ -31,7 +31,7 @@ test.describe('manufacturing buyer authenticated route contract @buyer-app', () 
       await expect(page.locator('.site-header')).toBeVisible();
     }
 
-    await page.locator('button.theme-toggle').click();
+    await page.getByRole('button', { name: /dark theme|giao diện tối/i }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
     const languageTrigger = page.locator('hh-language-switcher .hh-language-trigger');

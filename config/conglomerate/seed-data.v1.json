@@ -55,7 +55,7 @@
         {
           "key": "manufacturing-readonly",
           "displayName": "Manufacturing read-only",
-          "permissions": ["patients.view", "appointments.view", "dashboard.view", "admin.users.read"]
+          "permissions": ["patients.view", "appointments.view", "dashboard.view", "admin.users.read", "manufacturing.quality.inspect"]
         },
         {
           "key": "manufacturing-administrator",
@@ -117,7 +117,8 @@
             "commerce.rfq.view",
             "commerce.rfq.respond",
             "content.manage",
-            "content.inquiries.view"
+            "content.inquiries.view",
+            "manufacturing.quality.inspect"
           ],
           "tenantKey": "manufacturing"
         }

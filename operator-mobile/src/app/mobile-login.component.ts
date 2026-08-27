@@ -10,11 +10,9 @@ import { MobileAuthService } from "./core/auth.service";
     <main class="mobile-auth">
       <section class="mobile-auth__card" aria-labelledby="mobile-login-title">
         <hh-brand />
-        <p class="mobile-auth__eyebrow">His.Hope Mobile</p>
-        <h1 id="mobile-login-title">
-          {{ "mobile.clinicalAccess" | hhTranslate }}
-        </h1>
-        <p>{{ "mobile.signInContinue" | hhTranslate }}</p>
+        <p class="mobile-auth__eyebrow">{{ "mobile.operatorSecureAccess" | hhTranslate: "Operator access, protected." }}</p>
+        <h1 id="mobile-login-title">{{ "mobile.operatorFieldOperations" | hhTranslate: "Field operations" }}</h1>
+        <p>{{ "mobile.operatorSignInContinue" | hhTranslate: "Sign in with your operations account to continue." }}</p>
         @if (auth.loginError(); as message) {
           <p class="mobile-auth__error" role="alert">{{ message }}</p>
         }

@@ -1,6 +1,6 @@
-import { Component, Inject, inject } from "@angular/core";
+import { Component, inject } from "@angular/core";
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from "@angular/forms";
-import { HIS_HOPE_DIALOG_DATA, HisHopeDialogRef, HisHopeEntityDialogComponent } from "@his-hope/frontend-foundation/ui";
+import { HisHopeDialogRef, HisHopeEntityDialogComponent } from "@his-hope/frontend-foundation/ui";
 import { HisHopeI18nService, HisHopeTranslatePipe } from "@his-hope/frontend-foundation/i18n";
 import { ManufacturingApiService } from "../../core/services/manufacturing-api.service";
 import { TenantContextService } from "../../core/services/tenant-context.service";
@@ -66,7 +66,6 @@ export class RecipeCreateDialogComponent {
     componentsText: new FormControl("", { nonNullable: true, validators: Validators.required }),
   });
 
-  constructor(@Inject(HIS_HOPE_DIALOG_DATA) _data: unknown) {}
 
   save(): void {
     if (this.formGroup.invalid) {

@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$RepositoryRoot = (Join-Path $PSScriptRoot '..'),
+    [string]$RepositoryRoot,
     [string]$OutputPath,
     [string]$SecureEnvFile,
     [switch]$RequireSecureEnv,
@@ -12,6 +12,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
+    $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+    if ([string]::IsNullOrWhiteSpace($scriptRoot)) {
+        $scriptRoot = (Get-Location).Path
+    }
+    $RepositoryRoot = Join-Path $scriptRoot '..'
+}
 
 $root = [IO.Path]::GetFullPath($RepositoryRoot)
 $results = [System.Collections.Generic.List[object]]::new()

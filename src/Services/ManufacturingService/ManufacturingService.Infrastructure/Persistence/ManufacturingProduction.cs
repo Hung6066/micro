@@ -183,7 +183,8 @@ public sealed class ManufacturingProductionStore(IDbContextFactory<Manufacturing
                 {
                     Id = Guid.NewGuid(), TenantKey = tenantKey, Sku = order.ProductSku,
                     Quantity = entity.ActualOutputQuantity, Uom = order.OutputUom, Disposition = "Quarantined",
-                    CreatedAt = entity.CompletedAt.Value
+                    LotCode = $"LOT-{entity.CompletedAt.Value:yyyyMMdd}-{Guid.NewGuid():N}", LotType = "FinishedGood",
+                    QualityStatus = "Pending", CreatedBy = "system", CreatedAt = entity.CompletedAt.Value
                 };
                 var batchInputs = db.ProductionBatchInputs.Where(x => x.ProductionBatchId == entity.Id).ToList();
                 var inputLots = batchInputs.Count == 0 ? new List<ManufacturingLotEntity>() : db.Lots.Where(x => batchInputs.Select(i => i.LotId).Contains(x.Id)).ToList();
@@ -335,6 +336,22 @@ public sealed class ManufacturingProductionBatchEntity
     public DateTimeOffset? StartedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
     public Guid? OutputLotId { get; set; }
+}
+
+public sealed class ManufacturingProductionBatchCostEntity
+{
+    public Guid Id { get; set; }
+    public Guid ProductionBatchId { get; set; }
+    public string TenantKey { get; set; } = "";
+    public decimal MaterialCost { get; set; }
+    public decimal LaborCost { get; set; }
+    public decimal OverheadCost { get; set; }
+    public decimal LossCost { get; set; }
+    public decimal TotalCost { get; set; }
+    public decimal CostPerOutputUnit { get; set; }
+    public string Currency { get; set; } = "VND";
+    public DateTimeOffset CalculatedAt { get; set; }
+    public string? CalculatedBy { get; set; }
 }
 
 public sealed class ManufacturingProductionBatchInputEntity

@@ -7,6 +7,17 @@ export function portalEnumLabel(
     | "productionOrderStatus"
     | "productionBatchStatus"
     | "purchaseOrderStatus"
+    | "qualityInspectionStatus"
+    | "qualitySampleDisposition"
+    | "deviationStatus"
+    | "capaStatus"
+    | "supplierApprovalStatus"
+    | "quotationStatus"
+    | "maintenanceStatus"
+    | "qualityTestResult"
+    | "reservationStatus"
+    | "salesOrderStatus"
+    | "forecastSource"
     | "severity",
   value: string,
 ): string {
